@@ -10,6 +10,7 @@ import { FieldDescription, FieldError, FieldGroup, FieldLegend, FieldSet } from 
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { initials } from '@/lib/initials';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { EmailBlock } from '@/pages/Access/Admin/Account/EmailBlock';
 import { PhoneBlock } from '@/pages/Access/Admin/Account/PhoneBlock';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
@@ -63,6 +64,20 @@ export function ProfileTab({ account }: Props) {
         remove_avatar: false,
     });
 
+    // Each box as typed (frontend.md §1.7), with Access's rules for a staff profile (StaffProfile):
+    // first name, last name and job title required, at most 100 characters each (MAX_TEXT); a date
+    // of birth (its range, 1900 to yesterday, is the server's to say); a country picked from the
+    // list; an address of at most 500 characters if given (MAX_ADDRESS).
+    const text = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'first_name', label: t('access::account.first_name'), value: form.data.first_name, rules: text },
+        { id: 'last_name', label: t('access::account.last_name'), value: form.data.last_name, rules: text },
+        { id: 'job_title', label: t('access::account.job_title'), value: form.data.job_title, rules: text },
+        { id: 'date_of_birth', label: t('access::account.date_of_birth'), value: form.data.date_of_birth, rules: { required: true } },
+        { id: 'country', label: t('access::account.country'), value: form.data.country, rules: { required: true } },
+        { id: 'address', label: t('access::account.address'), value: form.data.address, rules: { length: { max: 500 } } },
+    ]);
+
     const name = `${account.firstName} ${account.lastName}`.trim();
     const showImage = account.avatarUrl !== null && !form.data.remove_avatar;
     const status = form.data.remove_avatar
@@ -79,7 +94,7 @@ export function ProfileTab({ account }: Props) {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.post('/admin/account/profile', { preserveScroll: true });
+                        checks.submit(() => form.post('/admin/account/profile', { preserveScroll: true }));
                     }}
                 >
                     <CardHeader className="px-6 pt-5 pb-4">
@@ -167,7 +182,7 @@ export function ProfileTab({ account }: Props) {
                                 id="first_name"
                                 name="first_name"
                                 label={t('access::account.first_name')}
-                                error={form.errors.first_name}
+                                check={checks.box('first_name', form.errors.first_name)}
                                 required
                                 value={form.data.first_name}
                                 onChange={(event) => form.setData('first_name', event.target.value)}
@@ -176,7 +191,7 @@ export function ProfileTab({ account }: Props) {
                                 id="last_name"
                                 name="last_name"
                                 label={t('access::account.last_name')}
-                                error={form.errors.last_name}
+                                check={checks.box('last_name', form.errors.last_name)}
                                 required
                                 value={form.data.last_name}
                                 onChange={(event) => form.setData('last_name', event.target.value)}
@@ -185,7 +200,7 @@ export function ProfileTab({ account }: Props) {
                                 id="job_title"
                                 name="job_title"
                                 label={t('access::account.job_title')}
-                                error={form.errors.job_title}
+                                check={checks.box('job_title', form.errors.job_title)}
                                 required
                                 value={form.data.job_title}
                                 onChange={(event) => form.setData('job_title', event.target.value)}
@@ -198,7 +213,7 @@ export function ProfileTab({ account }: Props) {
                                 name="date_of_birth"
                                 type="date"
                                 label={t('access::account.date_of_birth')}
-                                error={form.errors.date_of_birth}
+                                check={checks.box('date_of_birth', form.errors.date_of_birth)}
                                 required
                                 dir="ltr"
                                 value={form.data.date_of_birth}
@@ -210,7 +225,7 @@ export function ProfileTab({ account }: Props) {
                                 countries={account.countries}
                                 value={form.data.country}
                                 onChange={(code) => form.setData('country', code)}
-                                error={form.errors.country}
+                                error={checks.box('country', form.errors.country).message}
                                 words={{ search: t('access::account.country_search'), none: (query) => t('access::account.country_none', { query }) }}
                             />
                             <SelectField
@@ -233,7 +248,7 @@ export function ProfileTab({ account }: Props) {
                             name="address"
                             label={t('access::account.address')}
                             helper={t('access::account.address_hint')}
-                            error={form.errors.address}
+                            check={checks.box('address', form.errors.address)}
                             rows={3}
                             value={form.data.address}
                             onChange={(event) => form.setData('address', event.target.value)}
@@ -241,7 +256,7 @@ export function ProfileTab({ account }: Props) {
                     </CardContent>
 
                     <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
-                        <ActionButton type="submit" loading={form.processing} data-test="save-profile">
+                        <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="save-profile">
                             {t('access::account.save')}
                         </ActionButton>
                     </CardFooter>

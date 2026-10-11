@@ -24,6 +24,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { initials } from '@/lib/initials';
 import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { RolePage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -60,6 +61,15 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
 
     const remove = useForm({ replacement: replacements[0]?.id ?? '' });
     const copy = useForm({ name_ar: `${nameAr} (2)`, name_en: `${nameEn} (2)` });
+    // The copy's names as typed (frontend.md §1.7): both required, with no maximum (RoleName); a name
+    // another role holds is the server's to say. Afresh each time the dialog opens.
+    const cloneChecks = useChecks(
+        [
+            { id: 'clone_ar', label: t('access::roles.name_ar'), value: copy.data.name_ar, rules: { required: true } },
+            { id: 'clone_en', label: t('access::roles.name_en'), value: copy.data.name_en, rules: { required: true } },
+        ],
+        cloning,
+    );
 
     // Nobody to move the holders to: the delete cannot happen, so it is never offered as if it could.
     const cannotDelete = holderCount > 0 && replacements.length === 0;
@@ -188,7 +198,7 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                         onSubmit={(event) => {
                             event.preventDefault();
                             // Closed once the copy is made: the answer opens the copy on this same page.
-                            copy.post(`/admin/roles/${id}/clone`, { onSuccess: () => setCloning(false) });
+                            cloneChecks.submit(() => copy.post(`/admin/roles/${id}/clone`, { onSuccess: () => setCloning(false) }));
                         }}
                     >
                         <div className="grid gap-4 p-6">
@@ -198,7 +208,8 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                             <TextField
                                 id="clone_ar"
                                 label={t('access::roles.name_ar')}
-                                error={copy.errors.name_ar}
+                                check={cloneChecks.box('clone_ar', copy.errors.name_ar)}
+                                required
                                 dir="rtl"
                                 autoFocus
                                 value={copy.data.name_ar}
@@ -207,7 +218,8 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                             <TextField
                                 id="clone_en"
                                 label={t('access::roles.name_en')}
-                                error={copy.errors.name_en}
+                                check={cloneChecks.box('clone_en', copy.errors.name_en)}
+                                required
                                 dir="ltr"
                                 value={copy.data.name_en}
                                 onChange={(event) => copy.setData('name_en', event.target.value)}
@@ -218,7 +230,7 @@ export default function Show({ id, name, nameAr, nameEn, level, permissions, gro
                             <Button type="button" variant="outline" disabled={copy.processing} onClick={() => setCloning(false)}>
                                 {t('ui.cancel')}
                             </Button>
-                            <ActionButton type="submit" loading={copy.processing} data-test="clone-role">
+                            <ActionButton type="submit" loading={copy.processing} disabledReason={cloneChecks.reason} data-test="clone-role">
                                 {t('access::roles.clone')}
                             </ActionButton>
                         </DialogFooter>

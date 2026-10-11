@@ -6,6 +6,7 @@ import { PasswordInput } from '@/components/PasswordInput';
 import { Field, FieldGroup } from '@/components/ui/field';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { ResetPasswordPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -28,6 +29,13 @@ export default function ResetPassword({ token, minimumLength }: Props) {
     const form = useForm({ password: '' });
     const repeat = useRepeatedPassword(form.data.password);
     const differ = t('access::auth.passwords_differ');
+    // The new password as typed (frontend.md §1.7): at least the setting's length
+    // (StaffSecuritySettings::PASSWORD_MIN_LENGTH, as PasswordPolicy::hashNew counts it), the number
+    // its helper names (`minimumLength`), its spaces kept as typed. Whether it is on a breach list
+    // is the server's alone to know.
+    const checks = useChecks([
+        { id: 'password', label: t('access::auth.new_password'), value: form.data.password, rules: { required: true, keepSpaces: true, length: { min: minimumLength } } },
+    ]);
 
     return (
         <SignInLayout title={t('access::auth.reset_title')}>
@@ -43,7 +51,7 @@ export default function ResetPassword({ token, minimumLength }: Props) {
                         return;
                     }
 
-                    form.post(`/admin/password/reset/${token}`);
+                    checks.submit(() => form.post(`/admin/password/reset/${token}`));
                 }}
             >
                 <FieldGroup className="gap-5">
@@ -54,7 +62,7 @@ export default function ResetPassword({ token, minimumLength }: Props) {
                         name="password"
                         label={t('access::auth.new_password')}
                         helper={t('access::auth.password_rule', { count: minimumLength })}
-                        error={form.errors.password}
+                        check={checks.box('password', form.errors.password)}
                         autoComplete="new-password"
                         required
                         autoFocus
@@ -79,7 +87,7 @@ export default function ResetPassword({ token, minimumLength }: Props) {
                             type="submit"
                             data-test="save-password"
                             loading={form.processing}
-                            disabledReason={repeat.differs ? differ : undefined}
+                            disabledReason={(repeat.differs ? differ : undefined) ?? checks.reason}
                             className="w-full"
                         >
                             {t('access::auth.save_password')}

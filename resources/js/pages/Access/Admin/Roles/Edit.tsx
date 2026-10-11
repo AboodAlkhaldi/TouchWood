@@ -7,6 +7,7 @@ import { Note } from '@/components/Note';
 import { PermissionPicker } from '@/components/PermissionPicker';
 import { Button } from '@/components/ui/button';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { RoleEditorPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -30,6 +31,12 @@ export default function Edit({ id, nameAr, nameEn, level, permissions, groups, c
 
     const isNew = id === null;
     const back = isNew ? '/admin/roles' : `/admin/roles/${id}`;
+    // Each box as typed (frontend.md §1.7): a role needs a name in Arabic and in English (RoleName),
+    // which sets no longest length of its own.
+    const checks = useChecks([
+        { id: 'name_ar', label: t('access::roles.name_ar'), value: form.data.name_ar, rules: { required: true } },
+        { id: 'name_en', label: t('access::roles.name_en'), value: form.data.name_en, rules: { required: true } },
+    ]);
 
     return (
         <AdminLayout
@@ -40,7 +47,7 @@ export default function Edit({ id, nameAr, nameEn, level, permissions, groups, c
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post(isNew ? '/admin/roles' : `/admin/roles/${id}`);
+                    checks.submit(() => form.post(isNew ? '/admin/roles' : `/admin/roles/${id}`));
                 }}
                 className="grid max-w-4xl gap-6"
             >
@@ -55,7 +62,7 @@ export default function Edit({ id, nameAr, nameEn, level, permissions, groups, c
                     <TextField
                         id="name_ar"
                         label={t('access::roles.name_ar')}
-                        error={form.errors.name_ar}
+                        check={checks.box('name_ar', form.errors.name_ar)}
                         dir="rtl"
                         required
                         value={form.data.name_ar}
@@ -64,7 +71,7 @@ export default function Edit({ id, nameAr, nameEn, level, permissions, groups, c
                     <TextField
                         id="name_en"
                         label={t('access::roles.name_en')}
-                        error={form.errors.name_en}
+                        check={checks.box('name_en', form.errors.name_en)}
                         dir="ltr"
                         required
                         value={form.data.name_en}
@@ -82,7 +89,7 @@ export default function Edit({ id, nameAr, nameEn, level, permissions, groups, c
                 />
 
                 <div className="flex gap-2">
-                    <ActionButton type="submit" loading={form.processing}>
+                    <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason}>
                         {t('access::roles.save')}
                     </ActionButton>
                     <Button variant="outline" asChild>

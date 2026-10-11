@@ -11,9 +11,11 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { NativeSelectOption } from '@/components/ui/native-select';
+import type { Rules } from '@/lib/checks';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { type Box, type Checks, useChecks } from '@/lib/use-checks';
 import { useFocusBack } from '@/lib/use-focus-back';
 import type { CurrenciesPage, CurrencyRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
@@ -149,6 +151,11 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
         sign: currency.sign ?? '',
         exponent: String(currency.exponent),
     });
+    // Each box as typed, with the currency's rules (CURRENCY, below); the places are picked from a list.
+    const checks = useChecks([
+        ...nameBoxes(currency.code, form.data, t),
+        { id: `${currency.code}-sign`, label: t('platform::admin_currencies.sign'), value: form.data.sign, rules: CURRENCY.sign },
+    ]);
 
     function save() {
         // A settled exponent is not sent at all: the screen never asks for a change it knows is
@@ -197,18 +204,18 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                         ref={editForm}
                         onSubmit={(event) => {
                             event.preventDefault();
-                            save();
+                            checks.submit(save);
                         }}
                         className="border-t border-line"
                     >
                         <CardContent className="grid gap-5 p-5 sm:grid-cols-2">
-                            <Names form={form} prefix={currency.code} autoFocus />
+                            <Names form={form} prefix={currency.code} checks={checks} autoFocus />
 
                             <TextField
                                 id={`${currency.code}-sign`}
                                 label={t('platform::admin_currencies.sign')}
                                 helper={t('platform::admin_currencies.sign_hint')}
-                                error={form.errors.sign}
+                                check={checks.box(`${currency.code}-sign`, form.errors.sign)}
                                 value={form.data.sign}
                                 onChange={(event) => form.setData('sign', event.target.value)}
                             />
@@ -259,7 +266,7 @@ function CurrencyCard({ currency, exponents, open, onOpenChange }: CardProps) {
                                 <Button type="button" variant="outline" disabled={form.processing} data-test={`cancel-${currency.code}`} onClick={() => onOpenChange(false)}>
                                     {t('platform::admin_currencies.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={form.processing} data-test={`save-${currency.code}`}>
+                                <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test={`save-${currency.code}`}>
                                     {t('platform::admin_currencies.save')}
                                 </ActionButton>
                             </div>
@@ -300,6 +307,12 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
         sign: '',
         exponent: '2',
     });
+    // Each box as typed, with the currency's rules (CURRENCY, below); the places are picked from a list.
+    const checks = useChecks([
+        { id: 'new-code', label: t('platform::admin_currencies.code'), value: form.data.code, rules: CURRENCY.code },
+        ...nameBoxes('new', form.data, t),
+        { id: 'new-sign', label: t('platform::admin_currencies.sign'), value: form.data.sign, rules: CURRENCY.sign },
+    ]);
 
     return (
         <Card className="material-base gap-0 border-0 py-0">
@@ -308,7 +321,7 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                 aria-labelledby="add-currency-title"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post('/admin/currencies', { onSuccess: onDone });
+                    checks.submit(() => form.post('/admin/currencies', { onSuccess: onDone }));
                 }}
             >
                 <CardHeader className="px-5 pt-5 pb-4">
@@ -324,12 +337,11 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                         id="new-code"
                         label={t('platform::admin_currencies.code')}
                         helper={t('platform::admin_currencies.code_hint')}
-                        error={form.errors.code}
+                        check={checks.box('new-code', form.errors.code)}
                         required
                         // The form appears because Add Currency was pressed: its first field takes the focus.
                         autoFocus
                         dir="ltr"
-                        maxLength={3}
                         inputClassName="tw-figure"
                         value={form.data.code}
                         // Upper case as it is typed: a currency code has no other form.
@@ -351,13 +363,13 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                         ))}
                     </SelectField>
 
-                    <Names form={form} prefix="new" />
+                    <Names form={form} prefix="new" checks={checks} />
 
                     <TextField
                         id="new-sign"
                         label={t('platform::admin_currencies.sign')}
                         helper={t('platform::admin_currencies.sign_hint')}
-                        error={form.errors.sign}
+                        check={checks.box('new-sign', form.errors.sign)}
                         value={form.data.sign}
                         onChange={(event) => form.setData('sign', event.target.value)}
                     />
@@ -371,7 +383,7 @@ function AddForm({ exponents, onDone }: { exponents: number[]; onDone: () => voi
                     <Button type="button" variant="outline" disabled={form.processing} data-test="cancel-add-currency" onClick={onDone}>
                         {t('platform::admin_currencies.cancel')}
                     </Button>
-                    <ActionButton type="submit" data-test="create-currency" loading={form.processing}>
+                    <ActionButton type="submit" data-test="create-currency" loading={form.processing} disabledReason={checks.reason}>
                         {t('platform::admin_currencies.create')}
                     </ActionButton>
                 </CardFooter>
@@ -393,7 +405,43 @@ type NamesForm = {
     setData: (field: never, value: never) => void;
 };
 
-function Names({ form, prefix, autoFocus = false }: { form: NamesForm; prefix: string; /** The first name takes focus: the edit form opens on it. */ autoFocus?: boolean }) {
+/*
+| A currency's rules as each box is typed (frontend.md §1.7), the domain's own: a code of three
+| letters A to Z (CurrencyCode, ISO 4217; upper-cased as it is typed), the names and abbreviations
+| required in both languages with no maximum (TranslatedText), and a sign of one character or none
+| (Currency::assertSign). Platform has no Form Request: a refusal still comes back as the form's.
+*/
+const CURRENCY = {
+    code: { required: true, letters: true, length: { min: 3, max: 3 } },
+    name: { required: true },
+    sign: { length: { max: 1 } },
+} satisfies Record<string, Rules>;
+
+/** The four name boxes' checks, in the order Names shows them. */
+function nameBoxes(prefix: string, data: Record<string, string>, t: (key: string) => string): Box[] {
+    const box = (key: string, label: string): Box => ({ id: `${prefix}-${key}`, label, value: data[key] ?? '', rules: CURRENCY.name });
+
+    return [
+        box('name_ar', t('platform::admin_currencies.name_ar')),
+        box('name_en', t('platform::admin_currencies.name_en')),
+        box('abbreviation_ar', t('platform::admin_currencies.abbreviation_ar')),
+        box('abbreviation_en', t('platform::admin_currencies.abbreviation_en')),
+    ];
+}
+
+function Names({
+    form,
+    prefix,
+    checks,
+    autoFocus = false,
+}: {
+    form: NamesForm;
+    prefix: string;
+    /** The form's checks, which hold these four boxes (nameBoxes). */
+    checks: Checks;
+    /** The first name takes focus: the edit form opens on it. */
+    autoFocus?: boolean;
+}) {
     const t = useTranslator();
     const field = (key: string, label: string, lang: 'ar' | 'en', hint?: string) => (
         <TextField
@@ -401,7 +449,7 @@ function Names({ form, prefix, autoFocus = false }: { form: NamesForm; prefix: s
             id={`${prefix}-${key}`}
             label={label}
             helper={hint}
-            error={form.errors[key]}
+            check={checks.box(`${prefix}-${key}`, form.errors[key])}
             required
             autoFocus={autoFocus && key === 'name_ar'}
             lang={lang}

@@ -8,8 +8,10 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { ProductHeadData, ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import { MarksField, nameIn, useLocale } from '../parts';
+import { marksLength } from '../marks';
+import { MarksField, nameIn, SLUG_RULES, slugsWrong, useLocale } from '../parts';
 import { ProductShell } from './shell';
 
 /*
@@ -53,6 +55,20 @@ export function DetailsTab({ page }: { page: ProductPage }) {
     const [addresses, setAddresses] = useState(false);
     const addressRefused = form.errors.slug_ar !== undefined || form.errors.slug_en !== undefined;
     const off = !mayUpdate;
+    // Each box as typed (frontend.md §1.7), with the domain's rules: a name of up to 200 characters in
+    // each language, the Arabic one required (ProductName; a draft may wait for its English name),
+    // descriptions of up to 20,000 characters counted as StructuredText counts them
+    // (Product::DESCRIPTION_MAX), and the web addresses (SLUG_RULES), their section open while one is
+    // wrong. Nothing is checked for a reader who may not change the product.
+    const description = { length: { max: 20000, of: marksLength } };
+    const checks = useChecks([
+        { id: 'details-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: { required: true, length: { max: 200 } }, off },
+        { id: 'details-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: { length: { max: 200 } }, off },
+        { id: 'details-description-ar', label: t('catalog::admin_products.field.description_ar'), value: form.data.description_ar, rules: description, off },
+        { id: 'details-description-en', label: t('catalog::admin_products.field.description_en'), value: form.data.description_en, rules: description, off },
+        { id: 'details-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_RULES.ar, off },
+        { id: 'details-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_RULES.en, off },
+    ]);
 
     // The form follows the product as the server has it after each save.
     useEffect(() => {
@@ -77,12 +93,12 @@ export function DetailsTab({ page }: { page: ProductPage }) {
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post(`/admin/products/${product.id}/details`, { preserveScroll: true });
+                    checks.submit(() => form.post(`/admin/products/${product.id}/details`, { preserveScroll: true }));
                 }}
             >
                 <CardContent className="grid gap-4 pt-5">
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <TextField id="details-name-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="details-name-ar" />
+                        <TextField id="details-name-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('details-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="details-name-ar" />
                         <TextField
                             id="details-name-en"
                             dir="ltr"
@@ -90,7 +106,7 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                             label={t('catalog::admin.field.name_en')}
                             helper={product.stage === 'DRAFT' ? t('catalog::admin_products.field.name_en_helper') : undefined}
                             value={form.data.name_en}
-                            error={form.errors.name_en}
+                            check={checks.box('details-name-en', form.errors.name_en)}
                             onChange={(event) => form.setData('name_en', event.target.value)}
                             data-test="details-name-en"
                         />
@@ -127,19 +143,19 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                         </SelectField>
                     </div>
 
-                    <MarksField id="details-description-ar" dir="rtl" disabled={off} label={t('catalog::admin_products.field.description_ar')} value={form.data.description_ar} error={form.errors.description_ar} onChange={(value) => form.setData('description_ar', value)} />
-                    <MarksField id="details-description-en" dir="ltr" disabled={off} label={t('catalog::admin_products.field.description_en')} value={form.data.description_en} error={form.errors.description_en} onChange={(value) => form.setData('description_en', value)} />
+                    <MarksField id="details-description-ar" dir="rtl" disabled={off} label={t('catalog::admin_products.field.description_ar')} value={form.data.description_ar} check={checks.box('details-description-ar', form.errors.description_ar)} onChange={(value) => form.setData('description_ar', value)} />
+                    <MarksField id="details-description-en" dir="ltr" disabled={off} label={t('catalog::admin_products.field.description_en')} value={form.data.description_en} check={checks.box('details-description-en', form.errors.description_en)} onChange={(value) => form.setData('description_en', value)} />
 
                     {/* A refused address is never left folded away out of sight. */}
-                    <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
+                    <Collapsible open={addresses || addressRefused || (!off && slugsWrong(form.data.slug_ar, form.data.slug_en))} onOpenChange={setAddresses}>
                         <CollapsibleTrigger asChild>
                             <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="details-addresses">
                                 {t('catalog::admin.addresses.title')}
                             </Button>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                            <TextField id="details-slug-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                            <TextField id="details-slug-en" dir="ltr" disabled={off} label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
+                            <TextField id="details-slug-ar" dir="rtl" disabled={off} label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} check={checks.box('details-slug-ar', form.errors.slug_ar)} onChange={(event) => form.setData('slug_ar', event.target.value)} />
+                            <TextField id="details-slug-en" dir="ltr" disabled={off} label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} check={checks.box('details-slug-en', form.errors.slug_en)} onChange={(event) => form.setData('slug_en', event.target.value)} />
                         </CollapsibleContent>
                     </Collapsible>
                 </CardContent>
@@ -147,7 +163,7 @@ export function DetailsTab({ page }: { page: ProductPage }) {
                     <ActionButton
                         type="submit"
                         loading={form.processing}
-                        disabledReason={off ? t('catalog::admin_products.read_only') : !form.isDirty ? t('catalog::admin_products.details.no_changes') : undefined}
+                        disabledReason={off ? t('catalog::admin_products.read_only') : !form.isDirty ? t('catalog::admin_products.details.no_changes') : checks.reason}
                         data-test="save-details"
                     >
                         {t('catalog::admin_products.details.save')}

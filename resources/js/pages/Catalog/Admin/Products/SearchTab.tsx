@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
@@ -38,6 +39,11 @@ export function SearchTab({ page }: { page: ProductPage }) {
         (attribute) => attribute.kind === 'FILTERABLE' && (attribute.active || attribute.values.some((value) => (page.filterValueIds ?? []).includes(value.id))),
     );
     const filters = useForm<{ value_ids: string[] }>({ value_ids: page.filterValueIds ?? [] });
+    // The word as typed (frontend.md §1.7): one of up to 50 characters (SearchWords::WORD_MAX). How
+    // many a product holds is said by Add Word's own reason, before anything is typed.
+    const checks = useChecks([
+        { id: 'search-word', label: t('catalog::admin_products.search.word'), value: word, rules: { required: true, length: { max: 50 } }, off: addReason !== undefined },
+    ]);
 
     useEffect(() => {
         filters.setDefaults({ value_ids: page.filterValueIds ?? [] });
@@ -90,13 +96,11 @@ export function SearchTab({ page }: { page: ProductPage }) {
                         onSubmit={(event) => {
                             event.preventDefault();
 
-                            if (word.trim() !== '') {
-                                saveWords([...words, word.trim()]);
-                            }
+                            checks.submit(() => saveWords([...words, word.trim()]));
                         }}
                     >
-                        <TextField id="search-word" className="max-w-xs" disabled={addReason !== undefined} label={t('catalog::admin_products.search.word')} value={word} onChange={(event) => setWord(event.target.value)} data-test="search-word" />
-                        <ActionButton type="submit" variant="outline" loading={busy} disabledReason={addReason} data-test="add-word">
+                        <TextField id="search-word" className="max-w-xs" disabled={addReason !== undefined} label={t('catalog::admin_products.search.word')} value={word} check={checks.box('search-word')} onChange={(event) => setWord(event.target.value)} data-test="search-word" />
+                        <ActionButton type="submit" variant="outline" loading={busy} disabledReason={addReason ?? checks.reason} data-test="add-word">
                             {t('catalog::admin_products.search.add_word')}
                         </ActionButton>
                     </form>

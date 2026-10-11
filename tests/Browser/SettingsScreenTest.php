@@ -83,6 +83,62 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
     expect(DB::table('platform.settings')->where('key', $key)->value('value'))->toBe('27');
 });
 
+/*
+| Every box checks itself as it is typed (frontend.md §1.7): a letter in a number setting is said
+| under it at once, and its Save Setting stays out of reach until the number is in the setting's
+| range (1 to 1,440 minutes here, CustomerSecuritySettings).
+*/
+it('says a letter typed in a number setting at once, and keeps its Save out of reach until it is in range', function () {
+    $staffId = Fx::staffWith([AccessPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+    $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
+    $key = CustomerSecuritySettings::LOCKOUT_MINUTES;
+    DB::table('platform.settings')->where('store_id', Fx::storeId('sa'))->where('key', $key)->delete();
+    app(SettingValues::class)->invalidate();
+
+    $page = visit('/admin/sign-in')
+        ->type('#email', $email)
+        ->type('#password', SETTINGS_SCREEN_PASSWORD)
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code')
+        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin')
+        ->navigate('/admin/settings');
+
+    $box = "[id=\"{$key}\"]";
+    $error = "document.getElementById('{$key}-error')";
+    $save = "document.querySelector('[data-test=\"save-{$key}\"]')";
+
+    $page->clear($box)->typeSlowly($box, '2x', 20);
+
+    expect(browserUntil($page, "{$error}?.textContent === 'How long it waits (minutes) takes numbers only.'"))->toBeTrue()
+        ->and($page->script("document.getElementById('{$key}').getAttribute('aria-invalid')"))->toBe('true')
+        ->and($page->script("{$save}.getAttribute('aria-disabled')"))->toBe('true');
+
+    // Pressed while out of reach, it sends nothing (Playwright will not press a button marked
+    // disabled, so the press is the page's own click).
+    $page->script("{$save}.click()");
+    $page->wait(0.5);
+    expect(DB::table('platform.settings')->where('store_id', Fx::storeId('sa'))->where('key', $key)->exists())->toBeFalse();
+
+    $page->type($box, '1441');
+    expect(browserUntil($page, "{$error}?.textContent === 'How long it waits (minutes) is from 1 to 1,440.'"))->toBeTrue();
+
+    $page->type($box, '28');
+    expect(browserUntil($page, "{$error} === null && {$save}.getAttribute('aria-disabled') === null"))->toBeTrue();
+
+    $page->click("[data-test=\"save-{$key}\"]")->assertNoJavaScriptErrors();
+
+    $saved = null;
+
+    for ($tries = 0; $tries < 50 && $saved === null; $tries++) {
+        $page->wait(0.1);
+        $saved = DB::table('platform.settings')->where('store_id', Fx::storeId('sa'))->where('key', $key)->value('value');
+    }
+
+    expect($saved)->toBe('28');
+});
+
 it('says in the Companies section whether bank transfer is on, and names no value for a setting still empty (b2b.md amendment 13(c))', function () {
     // The browser suite keeps its data, so the three start with no stored row — never set, their
     // default in force — and are left that way after. A stored '' would not do: a stored value is no

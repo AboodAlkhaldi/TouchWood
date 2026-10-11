@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { CustomerSignInPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -33,6 +34,14 @@ export default function SignIn({ rememberDays }: Props) {
     const t = useTranslator();
     const link = useLink();
     const form = useForm({ email: '', password: '', remember: false });
+    // Each box as typed (frontend.md §1.7), with the server's rules: both required (SignInRequest), the
+    // email in an address's shape (EmailAddress, whose own check is the stricter one), the password
+    // never trimmed (LaravelPasswordPolicy reads it as typed). Its length is not said: signing in
+    // checks a password, it does not judge one.
+    const checks = useChecks([
+        { id: 'email', label: t('access::auth.customer_email'), value: form.data.email, rules: { required: true, email: true } },
+        { id: 'password', label: t('access::auth.password'), value: form.data.password, rules: { required: true, keepSpaces: true } },
+    ]);
 
     return (
         <StorefrontLayout title={t('access::auth.sign_in')}>
@@ -40,7 +49,7 @@ export default function SignIn({ rememberDays }: Props) {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.post(link('storefront.account.sign-in'));
+                        checks.submit(() => form.post(link('storefront.account.sign-in')));
                     }}
                 >
                     <FieldGroup className="gap-5">
@@ -51,7 +60,7 @@ export default function SignIn({ rememberDays }: Props) {
                             name="email"
                             type="email"
                             label={t('access::auth.customer_email')}
-                            error={form.errors.email}
+                            check={checks.box('email', form.errors.email)}
                             autoComplete="username"
                             required
                             autoFocus
@@ -72,7 +81,7 @@ export default function SignIn({ rememberDays }: Props) {
                                     {t('access::auth.forgot_password')}
                                 </Link>
                             }
-                            error={form.errors.password}
+                            check={checks.box('password', form.errors.password)}
                             autoComplete="current-password"
                             required
                             value={form.data.password}
@@ -93,7 +102,7 @@ export default function SignIn({ rememberDays }: Props) {
                         </Field>
 
                         <Field>
-                            <ActionButton type="submit" loading={form.processing} className="w-full">
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} className="w-full">
                                 {t('access::auth.sign_in')}
                             </ActionButton>
                             <FieldDescription className="text-center">

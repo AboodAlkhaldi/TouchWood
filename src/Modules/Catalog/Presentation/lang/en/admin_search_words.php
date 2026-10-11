@@ -35,6 +35,8 @@ return [
     'field' => [
         'word_a' => 'Word',
         'word_b' => 'Searched As One With',
+        // The second word named inside a sentence that says what is wrong with it (frontend.md §1.7).
+        'word_b_subject' => 'The word searched as one with it',
         'word_helper' => 'Up to 50 characters each.',
     ],
     'toast' => [

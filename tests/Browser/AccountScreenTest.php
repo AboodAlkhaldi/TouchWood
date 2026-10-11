@@ -136,6 +136,29 @@ it('says why a password change was refused, where the person is looking', functi
         ->assertSee('تعذّر الحفظ: قيمة كلمة المرور الحالية غير صالحة. تحقّق منها وحاول مجددًا.');
 });
 
+/*
+| A form saved and emptied starts fresh (frontend.md §1.7: "required" is never said on a fresh form).
+| Pressing Save takes the focus from the box last typed in; that box's "left" must not come back
+| after the save and mark the emptied box required (found in the review of the checks as typed).
+*/
+it('empties the password boxes after a change saved from the current password, and says nothing is missing', function () {
+    $page = accountScreenSignedIn()
+        ->navigate('/admin/account?tab=security')
+        ->type('#password', 'a considerably longer password, changed')
+        ->type('#password_repeat', 'a considerably longer password, changed')
+        ->type('#current_password', Fx::STAFF_PASSWORD)
+        ->click('[data-test="save-password"]');
+
+    expect(browserUntil($page, 'document.getElementById("current_password").value === "" && document.getElementById("password").value === ""'))->toBeTrue();
+    // Given the deferred "left" a moment to land, had it come back.
+    $page->wait(0.5);
+
+    expect($page->script('document.getElementById("current_password-error")'))->toBeNull()
+        ->and($page->script('document.getElementById("password-error")'))->toBeNull()
+        ->and($page->script('document.querySelector(\'[data-test="save-password"]\').getAttribute("aria-disabled")'))->toBeNull();
+    $page->assertNoJavaScriptErrors();
+});
+
 it('asks for the code once the password behind a phone change is right', function () {
     accountScreenSignedIn()
         ->navigate('/admin/account')

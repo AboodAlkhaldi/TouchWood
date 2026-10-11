@@ -74,6 +74,10 @@ return [
         'empty_body' => 'Add the values products and variants choose from.',
         'none_kind' => 'A details-only attribute has no values: each variant gives its own text or number.',
     ],
+    // A swatch's shape, said under its box as it is typed (frontend.md §1.7; AttributeValue).
+    'check' => [
+        'swatch' => ':field takes a colour code like #1a2b3c.',
+    ],
     'toast' => [
         'added' => 'Attribute added',
         'edited' => 'Attribute saved',

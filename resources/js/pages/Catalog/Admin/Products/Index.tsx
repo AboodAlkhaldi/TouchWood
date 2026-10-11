@@ -16,6 +16,7 @@ import { NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { BrandOptionData, ProductRowData, ProductsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
@@ -262,6 +263,16 @@ function AddProductDialog({ brands, open, onOpenChange, returnFocusTo }: { brand
     const locale = useLocale();
     const initial = () => ({ name_ar: '', name_en: '', brand_id: brands.find((brand) => brand.isDefault)?.id ?? '' });
     const form = useForm(initial());
+    // Each name as typed (frontend.md §1.7), with the domain's rule (ProductName): one line of at most
+    // 200 characters, the Arabic one required; a draft may wait for its English name. Afresh each
+    // time the dialog opens.
+    const checks = useChecks(
+        [
+            { id: 'product-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: { required: true, length: { max: 200 } } },
+            { id: 'product-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: { length: { max: 200 } } },
+        ],
+        open,
+    );
 
     useEffect(() => {
         if (open) {
@@ -280,20 +291,20 @@ function AddProductDialog({ brands, open, onOpenChange, returnFocusTo }: { brand
             description={t('catalog::admin_products.add_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={() => form.post('/admin/products', { preserveScroll: true })} data-test="confirm-product">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={() => checks.submit(() => form.post('/admin/products', { preserveScroll: true }))} data-test="confirm-product">
                     {t('catalog::admin_products.add')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="product-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} />
+                <TextField id="product-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('product-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} />
                 <TextField
                     id="product-name-en"
                     dir="ltr"
                     label={t('catalog::admin.field.name_en')}
                     helper={t('catalog::admin_products.field.name_en_helper')}
                     value={form.data.name_en}
-                    error={form.errors.name_en}
+                    check={checks.box('product-name-en', form.errors.name_en)}
                     onChange={(event) => form.setData('name_en', event.target.value)}
                 />
                 <SelectField id="product-brand-new" label={t('catalog::admin_products.field.brand')} value={form.data.brand_id} onChange={(event) => form.setData('brand_id', event.target.value)}>

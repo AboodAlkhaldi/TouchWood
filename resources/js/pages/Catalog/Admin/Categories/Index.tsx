@@ -17,9 +17,10 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
+import { ImageField, MoreButton, MoreButtonOff, SLUG_RULES, StateBadge, nameIn, slugsWrong, useAllStoresReason, useLocale, type Locale } from '../parts';
 import { SortableList } from '../SortableList';
 
 /*
@@ -440,10 +441,24 @@ function CategoryDialog({
     const title = mode === 'add' ? (parent === null ? t('catalog::admin_categories.add') : t('catalog::admin_categories.add_sub_title')) : mode === 'edit' ? t('catalog::admin_categories.edit_title') : t('catalog::admin_categories.move_title');
     const body = mode === 'add' ? t('catalog::admin_categories.add_body') : mode === 'edit' ? t('catalog::admin_categories.edit_body') : t('catalog::admin_categories.move_body');
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (Category::NAME_MAX, LocalizedName), not sent by a move; a place among the siblings from 0 to
+    // 10,000 (ListPosition, CategoryInput::placeEverywhere; the request reads an empty or broken number
+    // as -1, so it is required), not sent by an edit; and the web addresses (SLUG_RULES), not sent by a
+    // move, their section open while one is wrong.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'category-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name, off: mode === 'move' },
+        { id: 'category-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name, off: mode === 'move' },
+        { id: 'category-rank', label: t('catalog::admin_categories.field.place'), value: form.data.rank, rules: { required: true, number: { min: 0, max: 10000 } }, off: mode === 'edit' },
+        { id: 'category-slug-ar', label: t('catalog::admin.field.slug_ar'), value: form.data.slug_ar, rules: SLUG_RULES.ar, off: mode === 'move' },
+        { id: 'category-slug-en', label: t('catalog::admin.field.slug_en'), value: form.data.slug_en, rules: SLUG_RULES.en, off: mode === 'move' },
+    ]);
+
     function submit() {
         const target = mode === 'add' ? '/admin/categories' : mode === 'edit' ? `/admin/categories/${category?.id ?? ''}` : `/admin/categories/${category?.id ?? ''}/move`;
         // Sent as multipart only when a photo file is attached (Inertia does that by itself).
-        form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -456,7 +471,7 @@ function CategoryDialog({
             description={body}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test={`confirm-${mode}-category`}>
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test={`confirm-${mode}-category`}>
                     {mode === 'add' ? title : mode === 'edit' ? t('catalog::admin_categories.save') : t('catalog::admin_categories.move_confirm')}
                 </ActionButton>
             }
@@ -464,8 +479,8 @@ function CategoryDialog({
             <div className="grid gap-4">
                 {mode === 'move' ? null : (
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <TextField id="category-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="category-name-ar" />
-                        <TextField id="category-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="category-name-en" />
+                        <TextField id="category-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('category-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="category-name-ar" />
+                        <TextField id="category-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('category-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="category-name-en" />
                     </div>
                 )}
 
@@ -488,7 +503,7 @@ function CategoryDialog({
                             label={t('catalog::admin_categories.field.place')}
                             helper={t('catalog::admin_categories.field.place_helper')}
                             value={form.data.rank}
-                            error={form.errors.rank}
+                            check={checks.box('category-rank', form.errors.rank)}
                             onChange={(event) => form.setData('rank', toLatinDigits(event.target.value))}
                             data-test="category-rank"
                         />
@@ -507,15 +522,15 @@ function CategoryDialog({
                             onRemove={(remove) => form.setData('remove_image', remove)}
                             error={form.errors.image_media_id}
                         />
-                        <Collapsible open={addresses || addressRefused} onOpenChange={setAddresses}>
+                        <Collapsible open={addresses || addressRefused || slugsWrong(form.data.slug_ar, form.data.slug_en)} onOpenChange={setAddresses}>
                             <CollapsibleTrigger asChild>
                                 <Button type="button" variant="ghost" size="sm" className="justify-start px-0" data-test="category-addresses">
                                     {t('catalog::admin.addresses.title')}
                                 </Button>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
-                                <TextField id="category-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} error={form.errors.slug_ar} onChange={(event) => form.setData('slug_ar', event.target.value)} />
-                                <TextField id="category-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} error={form.errors.slug_en} onChange={(event) => form.setData('slug_en', event.target.value)} />
+                                <TextField id="category-slug-ar" dir="rtl" label={t('catalog::admin.field.slug_ar')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_ar} check={checks.box('category-slug-ar', form.errors.slug_ar)} onChange={(event) => form.setData('slug_ar', event.target.value)} />
+                                <TextField id="category-slug-en" dir="ltr" label={t('catalog::admin.field.slug_en')} helper={t('catalog::admin.addresses.helper')} value={form.data.slug_en} check={checks.box('category-slug-en', form.errors.slug_en)} onChange={(event) => form.setData('slug_en', event.target.value)} />
                             </CollapsibleContent>
                         </Collapsible>
                     </>

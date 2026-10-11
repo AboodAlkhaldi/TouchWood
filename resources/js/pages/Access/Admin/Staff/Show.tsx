@@ -30,8 +30,10 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { toLatinDigits } from '@/lib/digits';
 import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { StaffMemberPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -98,6 +100,27 @@ export default function Show(person: Props) {
     });
 
     const email = useForm({ email: '' });
+
+    // The profile's boxes as typed (frontend.md §1.7), checked only while the card is being edited,
+    // with Access's rules for a staff profile: a first name, last name and job title of at most 100
+    // characters each, the job title as required as the names (StaffProfile::MAX_TEXT); a number
+    // with its country code (PhoneNumber). Afresh each time the card is opened.
+    const text = { required: true, length: { max: 100 } };
+    const checks = useChecks(
+        [
+            { id: 'first_name', label: t('access::staff.first_name'), value: profile.data.first_name, rules: text, off: !editing },
+            { id: 'last_name', label: t('access::staff.last_name'), value: profile.data.last_name, rules: text, off: !editing },
+            { id: 'job_title', label: t('access::staff.job_title'), value: profile.data.job_title, rules: text, off: !editing },
+            { id: 'phone', label: t('access::staff.phone'), value: profile.data.phone, rules: { required: true, phone: true }, off: !editing },
+        ],
+        editing,
+    );
+    // The new address as typed, as Access keeps one (EmailAddress): required, an address's shape, at
+    // most 254 characters. Afresh each time the dialog opens.
+    const emailChecks = useChecks(
+        [{ id: 'new_email', label: t('access::staff.new_email'), value: email.data.email, rules: { required: true, email: true, length: { max: 254 } } }],
+        changingEmail,
+    );
 
     function post(path: string, done?: () => void) {
         router.post(`/admin/staff/${person.id}${path}`, {}, { onStart: () => setBusy(path), onFinish: () => setBusy(null), onSuccess: done });
@@ -228,7 +251,7 @@ export default function Show(person: Props) {
                             event.preventDefault();
                             // The page stays as it is while the answer comes back, so the card can close itself
                             // and hand focus back; the new values arrive as props.
-                            profile.post(`/admin/staff/${person.id}/profile`, { preserveState: true, onSuccess: () => setEditing(false) });
+                            checks.submit(() => profile.post(`/admin/staff/${person.id}/profile`, { preserveState: true, onSuccess: () => setEditing(false) }));
                         }}
                     >
                         <CardHeader className="px-6 pt-5 pb-4">
@@ -259,7 +282,7 @@ export default function Show(person: Props) {
                                     <TextField
                                         id="first_name"
                                         label={t('access::staff.first_name')}
-                                        error={profile.errors.first_name}
+                                        check={checks.box('first_name', profile.errors.first_name)}
                                         required
                                         autoFocus
                                         value={profile.data.first_name}
@@ -268,7 +291,7 @@ export default function Show(person: Props) {
                                     <TextField
                                         id="last_name"
                                         label={t('access::staff.last_name')}
-                                        error={profile.errors.last_name}
+                                        check={checks.box('last_name', profile.errors.last_name)}
                                         required
                                         value={profile.data.last_name}
                                         onChange={(event) => profile.setData('last_name', event.target.value)}
@@ -276,18 +299,20 @@ export default function Show(person: Props) {
                                     <TextField
                                         id="job_title"
                                         label={t('access::staff.job_title')}
-                                        error={profile.errors.job_title}
+                                        check={checks.box('job_title', profile.errors.job_title)}
+                                        required
                                         value={profile.data.job_title}
                                         onChange={(event) => profile.setData('job_title', event.target.value)}
                                     />
                                     <TextField
                                         id="phone"
                                         label={t('access::staff.phone')}
-                                        error={profile.errors.phone}
+                                        check={checks.box('phone', profile.errors.phone)}
                                         dir="ltr"
                                         inputClassName="tw-figure"
+                                        required
                                         value={profile.data.phone}
-                                        onChange={(event) => profile.setData('phone', event.target.value)}
+                                        onChange={(event) => profile.setData('phone', toLatinDigits(event.target.value))}
                                     />
                                 </div>
                             ) : (
@@ -308,7 +333,7 @@ export default function Show(person: Props) {
                                 >
                                     {t('access::staff.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={profile.processing}>
+                                <ActionButton type="submit" loading={profile.processing} disabledReason={checks.reason}>
                                     {t('access::staff.save')}
                                 </ActionButton>
                             </CardFooter>
@@ -358,12 +383,14 @@ export default function Show(person: Props) {
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            email.post(`/admin/staff/${person.id}/email`, {
-                                onSuccess: () => {
-                                    email.reset();
-                                    setChangingEmail(false);
-                                },
-                            });
+                            emailChecks.submit(() =>
+                                email.post(`/admin/staff/${person.id}/email`, {
+                                    onSuccess: () => {
+                                        email.reset();
+                                        setChangingEmail(false);
+                                    },
+                                }),
+                            );
                         }}
                     >
                         <div className="grid gap-4 p-6">
@@ -375,7 +402,7 @@ export default function Show(person: Props) {
                                 id="new_email"
                                 type="email"
                                 label={t('access::staff.new_email')}
-                                error={email.errors.email}
+                                check={emailChecks.box('new_email', email.errors.email)}
                                 dir="ltr"
                                 required
                                 autoFocus
@@ -388,7 +415,7 @@ export default function Show(person: Props) {
                             <Button type="button" variant="outline" disabled={email.processing} onClick={() => setChangingEmail(false)}>
                                 {t('ui.cancel')}
                             </Button>
-                            <ActionButton type="submit" loading={email.processing} data-test="change-email">
+                            <ActionButton type="submit" loading={email.processing} disabledReason={emailChecks.reason} data-test="change-email">
                                 {t('access::staff.change_email')}
                             </ActionButton>
                         </DialogFooter>

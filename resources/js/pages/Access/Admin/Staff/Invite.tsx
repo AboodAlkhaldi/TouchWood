@@ -25,8 +25,10 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Switch } from '@/components/ui/switch';
+import { toLatinDigits } from '@/lib/digits';
 import { useList } from '@/lib/list';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { InviteStaffPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -109,6 +111,25 @@ export default function Invite(page: Props) {
         setStep(wrong.some((field) => PROFILE_FIELDS.includes(field)) ? 1 : wrong.some((field) => ROLE_FIELDS.includes(field)) ? 2 : 3);
     }, [form.errors]);
 
+    // Step 1's boxes as typed (frontend.md §1.7), in the order they are shown, with Access's rules for
+    // the person invited: a first name, last name and job title of at most 100 characters each
+    // (StaffProfile::MAX_TEXT); a work email shaped as Access keeps one, at most 254 characters
+    // (EmailAddress::MAX_LENGTH); a number with its country code (PhoneNumber); a date of birth (its
+    // range, 1900 to yesterday, is the server's to say); a country picked from the list; an address
+    // of at most 500 characters if given (StaffProfile::MAX_ADDRESS). Next checks them before step 2,
+    // and the last step's Send checks them again.
+    const text = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'first_name', label: t('access::staff.first_name'), value: form.data.first_name, rules: text },
+        { id: 'last_name', label: t('access::staff.last_name'), value: form.data.last_name, rules: text },
+        { id: 'email', label: t('access::staff.email'), value: form.data.email, rules: { required: true, email: true, length: { max: 254 } } },
+        { id: 'phone', label: t('access::staff.phone'), value: form.data.phone, rules: { required: true, phone: true } },
+        { id: 'job_title', label: t('access::staff.job_title'), value: form.data.job_title, rules: text },
+        { id: 'date_of_birth', label: t('access::staff.date_of_birth'), value: form.data.date_of_birth, rules: { required: true } },
+        { id: 'country', label: t('access::staff.country'), value: form.data.country, rules: { required: true } },
+        { id: 'address', label: t('access::staff.address'), value: form.data.address, rules: { length: { max: 500 } } },
+    ]);
+
     function pick(id: string | null) {
         setRoleId(id);
         setChosen(id === null ? [] : (page.savedPermissions[id] ?? []));
@@ -130,17 +151,20 @@ export default function Invite(page: Props) {
             return;
         }
 
-        // transform() only records how to shape the data; the post right after it is what sends.
-        form.transform((data) => ({
-            ...data,
-            admin,
-            saved_role_id: edited ? '' : roleId,
-            permissions: edited ? chosen : [],
-            store_ids: reachToSend(data.access_level, data.store_ids),
-            exceptions: allowsCustom ? within.rows.filter((row) => chosen.includes(row.permission)) : [],
-        }));
+        // Step 1's boxes once more, as the last word: Next let nobody past them wrong, so this sends.
+        checks.submit(() => {
+            // transform() only records how to shape the data; the post right after it is what sends.
+            form.transform((data) => ({
+                ...data,
+                admin,
+                saved_role_id: edited ? '' : roleId,
+                permissions: edited ? chosen : [],
+                store_ids: reachToSend(data.access_level, data.store_ids),
+                exceptions: allowsCustom ? within.rows.filter((row) => chosen.includes(row.permission)) : [],
+            }));
 
-        form.post('/admin/staff/invite');
+            form.post('/admin/staff/invite');
+        });
     }
 
     const steps = [t('access::staff.step_profile'), t('access::staff.step_role'), t('access::staff.step_stores')];
@@ -160,6 +184,14 @@ export default function Invite(page: Props) {
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
+
+                    // Step 1 is left only with its boxes right: otherwise each says its rule, and
+                    // the focus goes to the first wrong one (frontend.md §1.7).
+                    if (step === 1) {
+                        checks.submit(() => setStep(2));
+
+                        return;
+                    }
 
                     if (step < 3) {
                         setStep(step + 1);
@@ -191,7 +223,7 @@ export default function Invite(page: Props) {
                             <TextField
                                 id="first_name"
                                 label={t('access::staff.first_name')}
-                                error={form.errors.first_name}
+                                check={checks.box('first_name', form.errors.first_name)}
                                 required
                                 value={form.data.first_name}
                                 onChange={(event) => form.setData('first_name', event.target.value)}
@@ -199,7 +231,7 @@ export default function Invite(page: Props) {
                             <TextField
                                 id="last_name"
                                 label={t('access::staff.last_name')}
-                                error={form.errors.last_name}
+                                check={checks.box('last_name', form.errors.last_name)}
                                 required
                                 value={form.data.last_name}
                                 onChange={(event) => form.setData('last_name', event.target.value)}
@@ -208,7 +240,7 @@ export default function Invite(page: Props) {
                                 id="email"
                                 type="email"
                                 label={t('access::staff.email')}
-                                error={form.errors.email}
+                                check={checks.box('email', form.errors.email)}
                                 dir="ltr"
                                 required
                                 value={form.data.email}
@@ -217,17 +249,17 @@ export default function Invite(page: Props) {
                             <TextField
                                 id="phone"
                                 label={t('access::staff.phone')}
-                                error={form.errors.phone}
+                                check={checks.box('phone', form.errors.phone)}
                                 dir="ltr"
                                 inputClassName="tw-figure"
                                 required
                                 value={form.data.phone}
-                                onChange={(event) => form.setData('phone', event.target.value)}
+                                onChange={(event) => form.setData('phone', toLatinDigits(event.target.value))}
                             />
                             <TextField
                                 id="job_title"
                                 label={t('access::staff.job_title')}
-                                error={form.errors.job_title}
+                                check={checks.box('job_title', form.errors.job_title)}
                                 required
                                 value={form.data.job_title}
                                 onChange={(event) => form.setData('job_title', event.target.value)}
@@ -236,7 +268,7 @@ export default function Invite(page: Props) {
                                 id="date_of_birth"
                                 type="date"
                                 label={t('access::staff.date_of_birth')}
-                                error={form.errors.date_of_birth}
+                                check={checks.box('date_of_birth', form.errors.date_of_birth)}
                                 dir="ltr"
                                 required
                                 value={form.data.date_of_birth}
@@ -248,7 +280,7 @@ export default function Invite(page: Props) {
                                 countries={page.countries}
                                 value={form.data.country}
                                 onChange={(code) => form.setData('country', code)}
-                                error={form.errors.country}
+                                error={checks.box('country', form.errors.country).message}
                                 words={{
                                     search: t('access::staff.country_search'),
                                     none: (query) => t('access::staff.country_none', { query }),
@@ -270,7 +302,7 @@ export default function Invite(page: Props) {
                             <TextField
                                 id="address"
                                 label={t('access::staff.address')}
-                                error={form.errors.address}
+                                check={checks.box('address', form.errors.address)}
                                 value={form.data.address}
                                 onChange={(event) => form.setData('address', event.target.value)}
                                 className="sm:col-span-2"
@@ -351,7 +383,7 @@ export default function Invite(page: Props) {
                         </Button>
                     ) : null}
 
-                    <ActionButton type="submit" loading={form.processing}>
+                    <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason}>
                         {t(step < 3 ? 'access::staff.next' : 'access::staff.send_invitation')}
                     </ActionButton>
 
