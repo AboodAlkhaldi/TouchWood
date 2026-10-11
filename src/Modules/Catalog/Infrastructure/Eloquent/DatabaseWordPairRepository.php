@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Domain\Model\WordPair;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseWordPairRepository implements WordPairRepository

@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\ValueObject\Combination;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\VariantMeasures;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseVariantRepository implements VariantRepository

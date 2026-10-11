@@ -12,6 +12,7 @@ use Modules\B2B\Domain\Model\DocumentType;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\TypeName;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseDocumentTypeRepository implements DocumentTypeRepository

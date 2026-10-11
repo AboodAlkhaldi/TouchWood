@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\B2B\Domain\Model\StoreTypeLists;
 use Modules\B2B\Domain\Repository\StoreTypeListsRepository;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseStoreTypeListsRepository implements StoreTypeListsRepository

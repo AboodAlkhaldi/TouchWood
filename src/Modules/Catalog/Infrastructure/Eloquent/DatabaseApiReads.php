@@ -11,6 +11,7 @@ use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * `ApiReads` in SQL: a variant list in two queries (its rows, then its values with their names), a
