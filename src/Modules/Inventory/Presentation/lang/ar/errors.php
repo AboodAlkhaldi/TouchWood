@@ -60,6 +60,7 @@ return [
     'fields' => [
         'direction' => 'الإضافة أو الخصم',
         'note' => 'الملاحظة',
+        'order' => 'الطلب',
         'product' => 'المنتج',
         'reason' => 'السبب',
         'store' => 'المتجر',

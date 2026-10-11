@@ -6,6 +6,7 @@ namespace Modules\Inventory\Application\Command\SetStock;
 
 use Illuminate\Support\Str;
 use Modules\Inventory\Application\InventoryPermissions;
+use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
 use Modules\Inventory\Application\Stock\StoreWiring;
@@ -39,6 +40,7 @@ final readonly class SetStockHandler
         private SizeInput $sizes,
         private StockRows $stock,
         private StockMovements $movements,
+        private HoldsShortNotice $notice,
     ) {}
 
     /**
@@ -95,6 +97,11 @@ final readonly class SetStockHandler
                 }
 
                 $this->stock->setInStock($storeId, $variantId, $count);
+
+                // Below what orders hold: every order holding it is named, none blocked (§1.5).
+                if ($count < $rows[$variantId]->held) {
+                    $this->notice->send($storeId, $variantId);
+                }
                 $entries[] = new AuditEntryDto(
                     'inventory.stock.counted',
                     'inventory.stock',

@@ -61,6 +61,7 @@ return [
     'fields' => [
         'direction' => 'add or remove choice',
         'note' => 'note',
+        'order' => 'order',
         'product' => 'product',
         'reason' => 'reason',
         'store' => 'store',

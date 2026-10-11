@@ -184,6 +184,15 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
 shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
+`ship` has no shipment id: a line shipped in full is left as it is, but a part sent twice would be
+taken twice - Sales sends each part once (step 3).
+
+**Step 3's details:** a store that does not exist, or an order id that is not one, is invalid input
+(fields `store`, `order`); `inventory.not_enough_stock`'s context is `variants` and `available`, each
+comma-separated in the same order (a context holds plain values); shipping more pieces than are in
+stock (a hand removal took them) is `inventory.stock_below_zero`. A hold is one conditional update per
+size, all in one transaction, in size-id order (`StockRows`); the race for the last piece is decided by
+that update - the test suite proves the update's form and the second order refused, not two processes.
 
 **A line is a size and whether it is a gift** (stage 5's review, 2026-10-10): an order may hold a
 bought line and a gift line of the same size — in a wired store the bought one may be only noted while
@@ -292,7 +301,7 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Event | When | For |
 |---|---|---|
-| `HoldsShort(storeId, variantId, orderIds)` | A hand change — a removal or a stocktake — left a size's in stock below its holds: **every** placed order still holding it is named (§1.5; owner, 2026-10-11) | Sales marks them "stock was reduced" for staff; none is blocked (owner, 2026-10-09 and 2026-10-11) (its shape accepted 2026-10-09) |
+| `HoldsShort(eventId, storeId, variantId, orderIds, occurredAt)` | A hand change — a removal or a stocktake — left a size's in stock below its holds: **every** placed order still holding it is named (§1.5; owner, 2026-10-11) | Sales marks them "stock was reduced" for staff; none is blocked (owner, 2026-10-09 and 2026-10-11) (its shape accepted 2026-10-09) |
 
 A low-stock event for Ops comes with Ops (stage 8).
 
@@ -323,7 +332,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | `StoreOff` | FORBIDDEN | changing an off store's stock without the store switch |
 | `NoHold` | NOT_FOUND | editing or returning for an order with no hold |
 | `HoldNotEditable` | CONFLICT | editing a hold whose line is already shipped or ticked |
-| `InvalidInventoryInput` | INVALID | a store, a size or a product that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or product (owner, 2026-10-11); one size given twice with two numbers; a direction that is not add or remove; a reason a hand change does not take, or one going the other way (owner, 2026-10-11); a note over 500 characters — named by its field (`store`, `variant`, `product`, `direction`, `reason`, `note`), as Catalog's invalid attribute is |
+| `InvalidInventoryInput` | INVALID | a store, a size or a product that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or product (owner, 2026-10-11); one size given twice with two numbers; a direction that is not add or remove; a reason a hand change does not take, or one going the other way (owner, 2026-10-11); a note over 500 characters — named by its field (`store`, `variant`, `product`, `order`, `direction`, `reason`, `note`), as Catalog's invalid attribute is |
 
 ---
 

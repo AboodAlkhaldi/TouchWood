@@ -16,4 +16,10 @@ interface StoreProducts
     public function endingSoon(StoreId $store, string $productId): bool;
 
     public function setEndingSoon(StoreId $store, string $productId, bool $endingSoon): void;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> those with "last pieces" switched on there
+     */
+    public function endingSoonOf(StoreId $store, array $productIds): array;
 }

@@ -78,11 +78,63 @@ final readonly class DatabaseStockRows implements StockRows
                     (int) $row->held,
                     $row->threshold === null ? null : (int) $row->threshold,
                     (bool) $row->stock_dependent,
+                    (int) $row->returned_extra,
                 );
             }
         }
 
         return $locked;
+    }
+
+    public function read(StoreId $store, array $variantIds): array
+    {
+        $rows = [];
+
+        foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
+            foreach ($this->db->table(self::TABLE)->where('store_id', $store->value)->whereIn('variant_id', $chunk)->get() as $row) {
+                $rows[(string) $row->variant_id] = new StockRow(
+                    (string) $row->variant_id, (string) $row->product_id, (int) $row->in_stock, (int) $row->held,
+                    $row->threshold === null ? null : (int) $row->threshold, (bool) $row->stock_dependent, (int) $row->returned_extra,
+                );
+            }
+        }
+
+        return $rows;
+    }
+
+    public function reserve(StoreId $store, string $variantId, int $pieces, bool $withReturned): bool
+    {
+        $free = $withReturned ? 'in_stock + returned_extra - held' : 'in_stock - held';
+
+        return $this->db->update(
+            "UPDATE inventory.stock SET held = held + ?, updated_at = now() WHERE store_id = ? AND variant_id = ? AND {$free} >= ?",
+            [$pieces, $store->value, $variantId, $pieces],
+        ) === 1;
+    }
+
+    public function free(StoreId $store, string $variantId, int $pieces): void
+    {
+        $this->db->update(
+            'UPDATE inventory.stock SET held = held - ?, updated_at = now() WHERE store_id = ? AND variant_id = ?',
+            [$pieces, $store->value, $variantId],
+        );
+    }
+
+    public function take(StoreId $store, string $variantId, int $pieces): void
+    {
+        $this->db->update(
+            'UPDATE inventory.stock SET in_stock = in_stock - ?, held = held - ?, updated_at = now() WHERE store_id = ? AND variant_id = ?',
+            [$pieces, $pieces, $store->value, $variantId],
+        );
+    }
+
+    public function addReturnedExtra(StoreId $store, string $variantId, string $productId, int $pieces): void
+    {
+        $this->lockFor($store, [$variantId => $productId]);
+        $this->db->update(
+            'UPDATE inventory.stock SET returned_extra = returned_extra + ?, updated_at = now() WHERE store_id = ? AND variant_id = ?',
+            [$pieces, $store->value, $variantId],
+        );
     }
 
     public function setInStock(StoreId $store, string $variantId, int $inStock): void

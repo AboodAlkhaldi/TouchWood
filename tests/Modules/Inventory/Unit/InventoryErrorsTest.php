@@ -112,7 +112,7 @@ it('has an Arabic and an English title and detail for every error, none empty, w
 
     // Every field an invalid input names has its name in both languages.
     expect($placeholders($en['invalid_inventory_input']['detail']))->toBe([':attribute'])
-        ->and(array_keys($en['fields']))->toBe(['direction', 'note', 'product', 'reason', 'store', 'variant'])
+        ->and(array_keys($en['fields']))->toBe(['direction', 'note', 'order', 'product', 'reason', 'store', 'variant'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 

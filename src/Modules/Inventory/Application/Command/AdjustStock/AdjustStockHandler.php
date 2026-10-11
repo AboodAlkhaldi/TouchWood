@@ -6,6 +6,7 @@ namespace Modules\Inventory\Application\Command\AdjustStock;
 
 use Illuminate\Support\Str;
 use Modules\Inventory\Application\InventoryPermissions;
+use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
 use Modules\Inventory\Application\Stock\StoreWiring;
@@ -41,6 +42,7 @@ final readonly class AdjustStockHandler
         private SizeInput $sizes,
         private StockRows $stock,
         private StockMovements $movements,
+        private HoldsShortNotice $notice,
     ) {}
 
     /**
@@ -62,7 +64,8 @@ final readonly class AdjustStockHandler
         $reason = MovementReason::from($command->reason);
 
         $this->change->run($storeId, function () use ($storeId, $variantId, $productId, $change, $reason, $note): array {
-            $before = $this->stock->lockFor($storeId, [$variantId => $productId])[$variantId]->inStock;
+            $row = $this->stock->lockFor($storeId, [$variantId => $productId])[$variantId];
+            $before = $row->inStock;
             $after = $before + $change;
 
             if ($after < 0) {
@@ -74,6 +77,11 @@ final readonly class AdjustStockHandler
             }
 
             $this->stock->setInStock($storeId, $variantId, $after);
+
+            // Below what orders hold: every order holding it is named, none blocked (§1.5).
+            if ($after < $row->held) {
+                $this->notice->send($storeId, $variantId);
+            }
             $this->movements->record($storeId, $variantId, $reason, $before, $after, $note, 'hand:'.Str::ulid());
 
             // The note stays in the ledger alone: free text is kept out of the audit log, kept forever.

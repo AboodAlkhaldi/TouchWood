@@ -34,6 +34,31 @@ interface StockRows
      */
     public function lockExisting(StoreId $store, array $variantIds): array;
 
+    /**
+     * The rows these sizes have, read without a lock - for `stock()`; a size with none is left out.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, StockRow>
+     */
+    public function read(StoreId $store, array $variantIds): array;
+
+    /**
+     * Holds the pieces if the size has them free, in one conditional update (§1.4): no row changed
+     * means not enough - with no lock taken first, no race and no deadlock.
+     *
+     * @param  bool  $withReturned  a wired store counts its returned extra too (§1.9)
+     */
+    public function reserve(StoreId $store, string $variantId, int $pieces, bool $withReturned): bool;
+
+    /** Frees held pieces: a cancel, an expiry, a tick, an edit that lowered a line. */
+    public function free(StoreId $store, string $variantId, int $pieces): void;
+
+    /** Takes shipped pieces off in stock and off held together (a store with no provider). */
+    public function take(StoreId $store, string $variantId, int $pieces): void;
+
+    /** Pieces returned in a wired store, on our side until the provider's number changes (§1.9). */
+    public function addReturnedExtra(StoreId $store, string $variantId, string $productId, int $pieces): void;
+
     public function setInStock(StoreId $store, string $variantId, int $inStock): void;
 
     public function setThreshold(StoreId $store, string $variantId, ?int $threshold): void;

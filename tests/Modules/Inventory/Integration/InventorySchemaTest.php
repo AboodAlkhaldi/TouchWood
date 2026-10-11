@@ -152,6 +152,27 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         'the provider sets it' => ['PROVIDER', 9, 4, true],
     ]);
 
+    it('keeps a hold line\'s pieces from 1, shipped within them, an end it knows and a time only once ended, and a return\'s pieces from 1', function () {
+        $size = Px::ready()['variants'][0];
+        $hold = strtolower((string) Str::ulid());
+        DB::table('inventory.holds')->insert(['id' => $hold, 'store_id' => Fx::storeId('sa'), 'order_id' => strtolower((string) Str::ulid()), 'created_at' => now()]);
+        $line = ['hold_id' => $hold, 'variant_id' => $size, 'gift' => false, 'quantity' => 2, 'counts_on_stock' => true, 'shipped' => 0, 'ended' => 'OPEN', 'ended_at' => null];
+        $insert = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('inventory.hold_lines')->insert([...$line, ...$changed]));
+        $return = ['return_id' => 'r-1', 'variant_id' => $size, 'gift' => false, 'store_id' => Fx::storeId('sa'), 'order_id' => strtolower((string) Str::ulid()), 'quantity' => 0, 'created_at' => now()];
+
+        expect($insert(['quantity' => 0]))->toThrow(QueryException::class, 'hold_lines_quantity')
+            ->and($insert(['shipped' => 3]))->toThrow(QueryException::class, 'hold_lines_shipped')
+            ->and($insert(['shipped' => -1]))->toThrow(QueryException::class, 'hold_lines_shipped')
+            ->and($insert(['ended' => 'LOST', 'ended_at' => now()]))->toThrow(QueryException::class, 'hold_lines_ended')
+            ->and($insert(['ended_at' => now()]))->toThrow(QueryException::class, 'hold_lines_ended_at')
+            ->and($insert(['ended' => 'RELEASED']))->toThrow(QueryException::class, 'hold_lines_ended_at')
+            ->and(fn () => DB::transaction(fn () => DB::table('inventory.return_lines')->insert($return)))->toThrow(QueryException::class, 'return_lines_quantity');
+
+        $insert([])();
+
+        expect(DB::table('inventory.hold_lines')->count())->toBe(1);
+    });
+
     it('never lets a store with stock go, takes a size\'s stock with it, and keeps the ledger of a size that went', function () {
         $rules = collect(DB::select(
             "SELECT conname, confdeltype FROM pg_constraint WHERE contype = 'f' AND connamespace = 'inventory'::regnamespace ORDER BY conname",
@@ -159,6 +180,10 @@ describe('what the database refuses behind the code (§8 #13)', function () {
 
         // The ledger names its size as the audit log names a subject: no key, so its history stays.
         expect($rules)->toBe([
+            'hold_lines_hold' => 'c',
+            'hold_lines_variant' => 'r',
+            'holds_store' => 'r',
+            'return_lines_store' => 'r',
             'stock_movements_store' => 'r',
             'stock_product' => 'c',
             'stock_store' => 'r',

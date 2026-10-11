@@ -4,20 +4,26 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Infrastructure;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Inventory\Application\InventoryApiImpl;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\Stock\StoreWiring;
+use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\InventoryLocks;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseHolds;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseInventoryLocks;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
 use Modules\Inventory\Infrastructure\External\NoStoreWired;
+use Modules\Inventory\Infrastructure\Queue\ReleaseExpiredHoldsJob;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 
 /**
@@ -38,6 +44,8 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->app->bind(StockMovements::class, DatabaseStockMovements::class);
         // No store is wired until Sync is built (§1.1 rule 3).
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        $this->app->bind(Holds::class, DatabaseHolds::class);
+        $this->app->bind(InventoryApi::class, InventoryApiImpl::class);
     }
 
     public function boot(): void
@@ -51,5 +59,11 @@ final class InventoryServiceProvider extends ServiceProvider
 
         // The store's default low-stock threshold (§1.2), on Platform's settings screen.
         $this->app->make(SettingsRegistry::class)->define('inventory', ...InventorySettings::definitions());
+
+        // Expired holds freed every minute (owner, 2026-10-11). Scheduled work is queued as a job,
+        // never command() or call() (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(ReleaseExpiredHoldsJob::class)->everyMinute()->onOneServer();
+        });
     }
 }

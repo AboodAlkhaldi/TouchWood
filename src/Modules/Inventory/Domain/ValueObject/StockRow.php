@@ -17,5 +17,6 @@ final readonly class StockRow
         public int $held,
         public ?int $threshold,
         public bool $stockDependent,
+        public int $returnedExtra = 0,
     ) {}
 }

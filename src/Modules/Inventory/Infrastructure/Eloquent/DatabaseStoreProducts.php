@@ -25,6 +25,15 @@ final readonly class DatabaseStoreProducts implements StoreProducts
         return (bool) $this->db->table(self::TABLE)->where('store_id', $store->value)->where('product_id', $productId)->value('ending_soon');
     }
 
+    public function endingSoonOf(StoreId $store, array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->db->table(self::TABLE)->where('store_id', $store->value)->whereIn('product_id', $productIds)->where('ending_soon', true)->pluck('product_id')->all()));
+    }
+
     public function setEndingSoon(StoreId $store, string $productId, bool $endingSoon): void
     {
         $this->db->table(self::TABLE)->upsert([[

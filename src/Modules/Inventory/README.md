@@ -12,7 +12,7 @@ Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongsi
 |---|---|---|
 | 1 | Foundation: the `inventory` schema, Manage Stock, the store's default threshold, the errors and their words | built (#115) |
 | 2 | Stock and the ledger: stocktakes, hand changes with their reasons, thresholds, the switches — `inventory.stock.manage` | **built** |
-| 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed — `inventory.holds.expire` | — |
+| 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed every minute, `HoldsShort` — `inventory.holds.expire` | **built** |
 | 4 | Facts to Catalog (orderable, ending soon), Low Stock, the store's file — `inventory.orderable.rebuild` | after Catalog's amendment 16 is built |
 | 5 | The module's own pass | — |
 
@@ -28,7 +28,8 @@ says; until then a hand change leaves Catalog's facts as they were.
 
 | Folder | Holds |
 |---|---|
-| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); not bound yet |
+| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); bound to `Application/InventoryApiImpl` |
+| `Public/Events` | `HoldsShort`: every order still holding a size a hand change took below its holds, after commit |
 | `Public/Dto` | `StockDto`, `HoldLineDto` |
 | `Application` | `InventoryPermissions`: Manage Stock, per store, any role, in the Catalog group; the system's two, reserved (§3). `InventorySettings`: the store's default low-stock threshold, 10 (§1.2) |
 | `Application/Command` | `SetStock` (a stocktake, one size or several; a count that finds the number right is recorded, not audited), `AdjustStock` (one size, add or remove with a reason), `SetLowStockThreshold`, `SetEndingSoon` (a product, no provider), `SetStockDependent` (wired stores only) |
