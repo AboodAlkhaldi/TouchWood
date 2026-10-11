@@ -8,6 +8,8 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Loyalty\Domain\Repository\PointsAccounts;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsAccounts;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 
 /**
@@ -17,6 +19,11 @@ use Modules\Platform\Public\Contracts\SettingsRegistry;
  */
 final class LoyaltyServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->bind(PointsAccounts::class, DatabasePointsAccounts::class);
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');

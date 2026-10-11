@@ -14,9 +14,9 @@ The module is built in six steps (the execution plan, 2026-10-10). Done:
 | Step | What | Where |
 |---|---|---|
 | 1 — foundation | The `loyalty` schema; the five permissions; the programme's eight settings; the errors; Access's Points group (access.md amendment 66) and Platform's Points menu section (platform.md §9.4). With it, a fix to Platform's settings page: an emptied number field is refused instead of saved as 0 (owner, 2026-10-10) | below |
+| 2 — the ledger | The eight tables of spec §5 with every rule the database holds; the points arithmetic; the accounts repository and its lock. The id check it uses moved to the Shared kernel first (#118) | below |
 
-Still to come: the ledger's tables and the points arithmetic (2), earning, redeeming, changes by hand,
-the nightly expiry and `LoyaltyApi` (3), settling cancellations, returns and staff edits (4), the reads
+Still to come: earning, redeeming, changes by hand, the nightly expiry and `LoyaltyApi` (3), settling cancellations, returns and staff edits (4), the reads
 behind the screens (5), the module's own pass (6).
 
 ## What is here
@@ -45,11 +45,29 @@ behind the screens (5), the module's own pass (6).
   `RedemptionRefused` comes with step 3, with the refusal reasons it carries. A deduction that is too
   large says so without the customer's balance: changing points by hand does not need the right to
   view them (§3).
+- **`Infrastructure/Persistence/Migrations/…_create_loyalty_ledger_tables`** (spec §5) — `accounts`
+  (ULID ids), and the ledger with its working rows (bigint identity ids): `orders` (every fact of an
+  order's points, written even when no point moves), `order_returns`, `entries`, `lots`, `takes`,
+  `covers`, `lot_movements`. Every rule is a named CHECK written so that NULL fails it where a value
+  is needed; composite keys tie every row to its account and store; `entries` and `lot_movements`
+  are append-only (a trigger refuses UPDATE, DELETE and TRUNCATE).
+- **`Domain/Service/PointsArithmetic`** (spec §1.5) — whole numbers only, in the currency's smallest
+  unit and on its own exponent (0 to 6, as Platform's currencies allow): points earned, what points
+  are worth, the cap, the most points the cap lets count, the fewest points for a discount. Products
+  are worked in `BigInteger`; a result past 64 bits is refused as `InvalidPointsAttribute`.
+- **`Domain/Repository/PointsAccounts`**, **`Infrastructure/Eloquent/DatabasePointsAccounts`** — an
+  account per customer per store, inserted only if absent; `lockOrCreate` **locks it and expires its
+  dead lots in one call** (refused outside a transaction), so no write can lock an account and skip
+  its expiry, and answers the balance as it is after; the live lots in the order they are spent; the
+  live balance. Customer ids are lowercased before they reach the database. Every moment goes to
+  PostgreSQL in UTC with its offset: Laravel binds a date as `Y-m-d H:i:s`, which drops both.
 
 ## Approaches
 
 - **No Eloquent models.** Every read and write goes through a repository that names the store in
-  every call (spec §1.12), from step 2 on.
+  every call (spec §1.12).
+- **One lock order**: an account's row first, then its lots, the one expiring first first (lesson
+  37). Every write expires the account's dead lots before it does anything else (spec §1.1).
 - **Words live in the language files**, both languages, checked by tests: permissions
   (`permissions.php`), settings (`settings.php`, with `module` as the section's name), errors
   (`errors.php`, with `fields` naming a refused value).
@@ -61,4 +79,10 @@ defaults, ranges at their bounds, one store apart from another, who may change t
 nothing and the migration file up and down, the error messages (every class in the folder, each type
 pinned and unique, Arabic checked without falling back to English), and the Points menu section on a
 menu of the test's own. Platform's `SettingsScreenTest` saves the programme's settings through the
-page itself.
+page itself. Step 2: `LoyaltyLedgerConstraintsTest` breaks every CHECK, key, index and trigger of the
+ledger once, after a valid row in every table, each constraint matched by its quoted name;
+`LoyaltyAccountsTest` the accounts, the locks (recorded inside the change's own transaction, the
+account's first, then its lots' in spending order), the lots' order and their expiry, and a moment
+given in another timezone; `Unit/PointsArithmeticTest` the arithmetic on the spec's cases and its
+"never charged a point that bought nothing" rule across rates and exponents; `Unit/LotTest` when a
+lot is live.
