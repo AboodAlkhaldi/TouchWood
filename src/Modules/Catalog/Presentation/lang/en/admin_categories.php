@@ -50,5 +50,15 @@ return [
         'activated' => 'Category activated',
         'deactivated' => 'Category deactivated',
         'deleted' => 'Category deleted',
+        'audience_set' => 'Switch saved',
+    ],
+    // Who sees each category in the store shown (amendment 14): two switches a row, each saved as it flips.
+    'audience' => [
+        'individuals' => 'Individuals',
+        'companies' => 'Companies',
+        'individuals_label' => 'Individuals see :name in :store',
+        'companies_label' => 'Companies see :name in :store',
+        'reason' => 'Choosing who sees categories in :store needs an admin role with that job.',
+        'saving' => 'Saving…',
     ],
 ];

@@ -89,9 +89,10 @@ final readonly class ListPages
     }
 
     /**
-     * The tree, and the chosen store's menu order: the stores where the reader orders the menu, a
-     * Super Admin's off ones too (StoreChoices); none asked for, the first that is on. Someone who
-     * orders no store's menu sees the base store's order, read only.
+     * The tree, and the chosen store's menu order and who sees each category there: the stores where
+     * the reader orders the menu or chooses who sees the categories, a Super Admin's off ones too
+     * (StoreChoices); none asked for, the first that is on. Someone who does neither in any store sees
+     * the base store's order, read only.
      *
      * @throws Unauthorized when a store is asked for that the reader may not choose here
      */
@@ -99,7 +100,8 @@ final readonly class ListPages
     {
         // The stores offered, read once: the one shown is chosen among them, as StoreChoices::chosen()
         // chooses - the one asked for, else the first that is on - without reading them again.
-        $offered = $this->choices->forJobs(CatalogPermissions::CATEGORY_RANK);
+        // Where the reader orders the menu or chooses who sees the categories (amendment 14).
+        $offered = $this->choices->forJobs(...ListCategoriesHandler::STORE_JOBS);
         $chosen = $storeCode === null ? self::firstOn($offered) : self::storeIn($offered, $storeCode, CatalogPermissions::CATEGORY_RANK);
         $list = $this->categories->handle(new ListCategories($chosen?->id));
         $images = $this->thumbnails->of(array_map(static fn (CategoryRow $category): ?string => $category->imageMediaId, $list->categories));
@@ -112,12 +114,14 @@ final readonly class ListPages
                 $images[$category->imageMediaId ?? ''] ?? null,
                 $category->products, $below[$category->id] ?? $category->products,
                 $category->storeRank, $category->baseRank,
+                $category->forIndividuals, $category->forCompanies,
             ), $list->categories),
             $chosen?->code,
             $chosen?->name->in($this->locale()),
             $this->stores($offered),
             $list->mayManage,
             $list->mayRank,
+            $list->mayChooseAudience,
             $reach === null ? null : $this->reached(ProductsReached::CATEGORY, $reach),
             $reach === null ? null : strtolower($reach),
         );

@@ -118,6 +118,8 @@ use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
@@ -372,6 +374,13 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsCategory();
 
             return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
+        }],
+        // An admin role's job (amendment 14(c)), which this file's staff role cannot hold: asked as the
+        // system, whose check reads nothing of the catalog either.
+        'choose who sees a category in a store' => ['products,categories', function () {
+            $id = catalogGuardsCategory();
+
+            return fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), $id, false)));
         }],
         'add an attribute' => ['attributes', fn () => fn () => catalogGuardsAttribute()],
         'edit an attribute' => ['attributes', function () {
@@ -677,6 +686,7 @@ describe('an id that is not in its list', function () {
         'rank an unknown category' => [CategoryNotFound::class, fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [CATALOG_GUARDS_UNKNOWN => 1]))],
         'order an unknown category' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [CATALOG_GUARDS_UNKNOWN]))],
         'order an unknown parent\'s categories' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), CATALOG_GUARDS_UNKNOWN, []))],
+        'choose who sees an unknown category' => [CategoryNotFound::class, fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), CATALOG_GUARDS_UNKNOWN, false)))],
         'edit an attribute' => [ListItemNotFound::class, fn () => app(EditAttributeHandler::class)->handle(new EditAttribute(CATALOG_GUARDS_UNKNOWN, 'خاصية', 'Attribute', 'VARIANT'))],
         'deactivate an attribute' => [ListItemNotFound::class, fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute(CATALOG_GUARDS_UNKNOWN))],
         'activate an attribute' => [ListItemNotFound::class, fn () => app(ActivateAttributeHandler::class)->handle(new ActivateAttribute(CATALOG_GUARDS_UNKNOWN))],
@@ -771,6 +781,11 @@ describe('a change that changes nothing', function () {
             catalogGuardsCategory();
 
             return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
+        }],
+        'switch who sees a category to what it is' => [function () {
+            $id = catalogGuardsCategory();
+
+            return fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), $id, true, true)));
         }],
         'deactivate an attribute again' => [function () {
             $id = catalogGuardsAttribute();

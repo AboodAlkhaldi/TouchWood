@@ -26,6 +26,7 @@ use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDele
 use Modules\Access\Application\Command\SignInCustomer\SignInCustomerHandler;
 use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Customer\CustomerLinks;
+use Modules\Access\Application\Customer\CustomerShopperType;
 use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
@@ -119,6 +120,7 @@ use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -190,6 +192,10 @@ final class AccessServiceProvider extends ServiceProvider
         // come from, where a Super Admin reads as "System administrator" to anyone but another
         // (amendment 54). Scoped: the answer depends on who is reading.
         $this->app->scoped(StaffNames::class, PlatformStaffNames::class);
+        // Who is looking at the shop, for Platform's ShopperType: the signed-in customer's account type,
+        // else a guest — a staff view included (catalog.md amendment 14(a), amendment 67 here).
+        // Scoped: who is acting is this request's.
+        $this->app->scoped(ShopperType::class, CustomerShopperType::class);
 
         $this->app->bind(PasswordPolicy::class, LaravelPasswordPolicy::class);
         // Laravel's verifier comes from a deferred provider, which would replace a plain binding

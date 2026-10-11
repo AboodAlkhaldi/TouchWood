@@ -10,7 +10,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * A category on the categories screen (catalog.md §1.5, §4.4 S2): its products in it and under it,
  * and its place in the chosen store's menu — the store's own, or the base store's that stands for it
- * until the store's admins place it (amendment 5(a)).
+ * until the store's admins place it (amendment 5(a)) — and who sees it in that store (amendment 14).
  */
 #[TypeScript]
 final class CategoryData extends Data
@@ -32,5 +32,9 @@ final class CategoryData extends Data
         public int $products,
         public ?int $storeRank,
         public ?int $baseRank,
+        /** Individuals see it in the store shown — a store that never switched it shows it to both. */
+        public bool $forIndividuals,
+        /** Companies see it in the store shown. */
+        public bool $forCompanies,
     ) {}
 }

@@ -22,6 +22,7 @@ return [
     'category.activated' => 'أُعيد تفعيل قسم',
     'category.deleted' => 'حُذف قسم',
     'category.ranked' => 'رُتّب قسم في قائمة المتجر',
+    'category.audience_set' => 'تغيّر من يرى القسم في المتجر',
     'category.image_detached' => 'أُزيلت صورة القسم مع ملفها',
 
     'attribute.added' => 'أُضيفت خاصية',

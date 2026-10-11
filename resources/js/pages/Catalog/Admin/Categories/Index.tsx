@@ -15,13 +15,16 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import { FatesDialog } from '../FatesDialog';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSaveQueue, useSortableRow } from '../SortableList';
+import { AudienceSwitch } from './AudienceSwitch';
 
 // The add, edit and move dialog - its form and its checks as typed - loads when it is first opened, not
 // with the page, which the drag handles' code shares (frontend.md §5, the page budget).
 const CategoryDialog = lazy(() => import('./CategoryDialog').then((module) => ({ default: module.CategoryDialog })));
+// So does the fates dialog, opened only when a category is deactivated - never drawn by the server
+// (lesson 180) - which keeps the page within its budget with the switches (amendment 14).
+const FatesDialog = lazy(() => import('../FatesDialog').then((module) => ({ default: module.FatesDialog })));
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -36,6 +39,11 @@ const CategoryDialog = lazy(() => import('./CategoryDialog').then((module) => ({
 | saved for that store when dropped, or moved to the top or the bottom among their siblings from the
 | row's ⋯ menu (amendment 16(d), P8): a row moves among its own siblings only. A category added or
 | moved goes last among its siblings, in every store - no place is typed.
+|
+| **Who sees each category there** (amendment 14): two switches a row, Individuals and Companies, each
+| saved as it flips (P9, `AudienceSwitch`) - an admin role's job in that store (14(c)); the filter also
+| offers the stores where the reader holds only that job. For anyone else they are in sight, out of
+| reach, with the reason.
 |
 | The tree itself changes only with `catalog.category.manage` and All stores (§3); for anyone else its
 | buttons stay in sight, out of reach, with that reason (P2).
@@ -95,9 +103,18 @@ function below(node: Node): string[] {
     return [node.category.id, ...node.children.flatMap(below)];
 }
 
-export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, reached, reachedFor }: CategoriesPage) {
+export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, mayChooseAudience, reached, reachedFor }: CategoriesPage) {
     const t = useTranslator();
     const locale = useLocale();
+    // Who sees each category in the store shown: its switches, or none when no store is shown.
+    const audience =
+        storeCode === null
+            ? null
+            : {
+                  storeCode,
+                  storeName: storeName ?? storeCode,
+                  reason: mayChooseAudience ? undefined : t('catalog::admin_categories.audience.reason', { store: storeName ?? storeCode }),
+              };
     // The groups' orders just made, shown while they are saved: the server's comes back with the page.
     const [sent, setSent] = useState<Record<string, string[]>>({});
     const queue = useSaveQueue(() => setSent({}));
@@ -177,6 +194,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                             last={index === list.length - 1}
                             toTop={() => order(group, [node.category.id, ...ids.filter((id) => id !== node.category.id)], [node.category.id])}
                             toBottom={() => order(group, [...ids.filter((id) => id !== node.category.id), node.category.id])}
+                            audience={audience}
                             show={show}
                         />
                         {open.has(node.category.id) && node.children.length > 0 ? rowsOf(node.children, node.category.id) : null}
@@ -234,6 +252,8 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                                         ) : null}
                                         <TableHead>{t('catalog::admin.column.name')}</TableHead>
                                         <TableHead className="text-end">{t('catalog::admin.column.products')}</TableHead>
+                                        {audience !== null ? <TableHead>{t('catalog::admin_categories.audience.individuals')}</TableHead> : null}
+                                        {audience !== null ? <TableHead>{t('catalog::admin_categories.audience.companies')}</TableHead> : null}
                                         <TableHead>{t('catalog::admin.column.state')}</TableHead>
                                         <TableHead className="w-12">
                                             <span className="sr-only">{t('catalog::admin.column.actions')}</span>
@@ -262,19 +282,21 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                 </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'deactivate' && dialog.category !== null ? (
-                <FatesDialog
-                    kind="category"
-                    target={{ id: dialog.category.id, name: nameIn(locale, dialog.category.nameAr, dialog.category.nameEn) }}
-                    reached={reachedFor === dialog.category.id ? reached : null}
-                    moveTargets={moveTargets(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [dialog.category.id])}
-                    goingWith={(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [])
-                        .filter((id) => id !== dialog.category?.id && byId.get(id)?.active === true)
-                        .map((id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null))}
-                    placeOf={(id) => (id === null ? null : nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null) || null)}
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                />
+                <Suspense fallback={null}>
+                    <FatesDialog
+                        kind="category"
+                        target={{ id: dialog.category.id, name: nameIn(locale, dialog.category.nameAr, dialog.category.nameEn) }}
+                        reached={reachedFor === dialog.category.id ? reached : null}
+                        moveTargets={moveTargets(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [dialog.category.id])}
+                        goingWith={(nodeOf(dialog.category.id) ? below(nodeOf(dialog.category.id) as Node) : [])
+                            .filter((id) => id !== dialog.category?.id && byId.get(id)?.active === true)
+                            .map((id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null))}
+                        placeOf={(id) => (id === null ? null : nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null) || null)}
+                        open
+                        onOpenChange={close}
+                        returnFocusTo={opener}
+                    />
+                </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'delete' && dialog.category !== null ? (
                 <DeleteCategoryDialog category={dialog.category} open onOpenChange={close} returnFocusTo={opener} />
@@ -294,6 +316,7 @@ function Row({
     last,
     toTop,
     toBottom,
+    audience,
     show,
 }: {
     node: Node;
@@ -308,6 +331,8 @@ function Row({
     last: boolean;
     toTop: () => void;
     toBottom: () => void;
+    /** The store whose switches the row shows, and why the reader may not flip them; null with no store shown. */
+    audience: { storeCode: string; storeName: string; reason: string | undefined } | null;
     show: (dialog: Dialog, trigger: HTMLElement | null) => void;
 }) {
     const t = useTranslator();
@@ -369,6 +394,16 @@ function Row({
                 </span>
             </TableCell>
             <TableCell className="tw-figure text-end">{figure(locale, category.products)}</TableCell>
+            {audience !== null ? (
+                <TableCell>
+                    <AudienceSwitch category={category} side="individuals" {...audience} />
+                </TableCell>
+            ) : null}
+            {audience !== null ? (
+                <TableCell>
+                    <AudienceSwitch category={category} side="companies" {...audience} />
+                </TableCell>
+            ) : null}
             <TableCell>
                 <StateBadge active={category.active} />
             </TableCell>

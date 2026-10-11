@@ -52,6 +52,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('categories/{category}/activate', [CategoriesController::class, 'activate'])->name('catalog.admin.categories.activate');
         Route::post('categories/{category}/deactivate', [CategoriesController::class, 'deactivate'])->name('catalog.admin.categories.deactivate');
         Route::post('categories/{category}/delete', [CategoriesController::class, 'delete'])->name('catalog.admin.categories.delete');
+        Route::post('categories/{category}/audience', [CategoriesController::class, 'audience'])->name('catalog.admin.categories.audience');
 
         Route::get('attributes', [AttributesController::class, 'index'])->name('catalog.admin.attributes');
         Route::post('attributes', [AttributesController::class, 'add'])->name('catalog.admin.attributes.add');

@@ -22,6 +22,7 @@ return [
     'category.activated' => 'Category reactivated',
     'category.deleted' => 'Category deleted',
     'category.ranked' => 'Category placed in the store menu',
+    'category.audience_set' => 'Who sees the category in the store changed',
     'category.image_detached' => 'Category photo removed with its file',
 
     'attribute.added' => 'Attribute added',

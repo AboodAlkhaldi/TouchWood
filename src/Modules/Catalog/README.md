@@ -20,7 +20,7 @@ come after the Geist foundation. This file grows with each step. **Steps 1 to 7 
 
 **The screens** (from 2026-10-07; catalog.md §4.4, §4.5, amendment 13) come in six steps of their own
 (§9.7 P23): 1 the shared lists' screens · 2 the products · 3 a store's rows and the store file · 4 the
-import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens steps 1 and 2 are built.**
+import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens steps 1 to 5 are built.**
 
 ---
 
@@ -28,7 +28,7 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 
 | Folder | What is in it |
 |---|---|
-| `Application/CatalogPermissions.php` | The twenty-one permissions of catalog.md §3, declared into Access's catalog at boot: eighteen jobs a role may hold — `catalog.listing.fill`, the store file, only an admin role (amendment 6(h), declared `adminOnly`) — and three reserved to a Super Admin and the system |
+| `Application/CatalogPermissions.php` | The twenty-two permissions of catalog.md §3, declared into Access's catalog at boot: nineteen jobs a role may hold — two only an admin role, declared `adminOnly`: `catalog.listing.fill`, the store file (amendment 6(h)), and `catalog.category.audience`, who sees a category in a store (amendment 14(c)) — and three reserved to a Super Admin and the system |
 | `Application/Command` | One folder per change: a command and its handler, which names its `PERMISSION` and authorizes first. Step 2: the six shared lists and each store's order of the menu; step 3: products and variants; step 4: each store's choice (below) |
 | `Application/Lists` | What the lists' handlers share: `SharedListChange` (the permission with All stores, the transaction, the list's lock — after the products' for a change that changes products — the audit), `ProductFates` (each product's fate in a deactivation), the forms' parsing (`BrandInput`, `CategoryInput`, `AttributeInput`, `LabelInput`, `WarrantyInput`), `CatalogImages` (a logo or photo must be a public image) and `ListOrder` (an order sent from a list's screen, amendment 16(d)) |
 | `Application/Products` | What the product handlers share: `ProductAccess` (who may change a product's shared data), `ProductReferences` (the list rows a product points at, row-locked), `ProductInput`, `VariantInput` and `ProductParts` (the forms' parsing), `Readiness` and `ReadyPhotos` (what a product needs to be shown) |
@@ -40,7 +40,8 @@ import · 5 the shop's audiences (amendment 14) · 6 the shop's pages. **Screens
 | `Application/Query/Products`, `ListProducts`, `ViewProduct` | The products screens' reads (screens step 2, below): `CatalogProductReads` (as an interface) and what it answers; `ProductReaders` - who reads the products, and what they may do to one, asked as the handlers check it |
 | `Application/Command/UploadProductPhoto` | A product's or a variant's photo, uploaded from its page under `catalog.product.update`, checked as the product's other changes (P5) |
 | `Application/Command/UploadBrandLogo`, `UploadCategoryImage` | A brand's logo, a category's photo, uploaded from its form into Platform's media library under the list's job with All stores (P5) — one command a job, as every handler names its one `PERMISSION` |
-| `Application/Query/Shop` | What a shopper reads (step 5): `ShopCatalog` (the menu, a category's, a brand's and a product's page, suggestions), `ShopSearch`, `ShopReader` (the reads, as an interface), `Cursor` (a page's keyset), and the cards and pages they answer — never a code |
+| `Application/Query/Shop` | What a shopper reads (step 5): `ShopCatalog` (the menu, a category's, a brand's and a product's page, suggestions), `ShopSearch`, `ShopReader` (the reads, as an interface), `Cursor` (a page's keyset), and the cards and pages they answer — never a code; **every read for one viewer**, Platform's `ShopperKind` (screens step 5, below) |
+| `Application/Command/SetCategoryAudiences`, `Application/Lists/CategoryAudiences` | Who sees a category in a store — its Individuals and Companies switches, a parent's reaching everything under it — and a sub-category added or moved taking its new parent's (P24): screens step 5, below |
 | `Application/Search` | `SearchTerms` (what was typed, as search reads it, widened by word pairs) and `SearchLog` |
 | `Application/CatalogApiImpl.php` | `Public/Contracts/CatalogApi`, as plain reads |
 | `Application/Events/ProductEvents.php` | The nine events of catalog.md §6.1, sent from inside a change and delivered after it commits — for a product that has been ready |
@@ -83,7 +84,8 @@ changes it. `CatalogPermissions::sharedLists()` names those six.
 **Which step brings which handler:** step 2 the six shared-list jobs and `catalog.category.rank`;
 step 3 `product.create`, `product.update`, `variant.correct_code`, `product.publish` and
 `product.archive`; `product.view`'s reads come with the screens, as the lists' do; step 4 `listing.choose`, `listing.selling`, `listing.unavailable`
-and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run` and `listing.fill`.
+and `listing.labels`; step 5 `listing.rebuild` and `search_log.prune`; step 6 `import.run` and `listing.fill`;
+screens step 5 `category.audience`.
 
 ### The shared lists (step 2)
 
@@ -284,7 +286,7 @@ change that makes a photo being deleted the card at that very moment can still m
 PostgreSQL ends one and both retry, as for a gallery). An unchanged row is not written at all.
 `catalog:listing:rebuild` (`RebuildListing`, reserved to the system) writes every row again the same
 way, in one transaction holding the products' lock — product changes wait while it runs.
-`CatalogListingTest` checks, after each of twenty-nine changes, that what the change wrote is exactly
+`CatalogListingTest` checks, after each of thirty-one changes, that what the change wrote is exactly
 what the repair writes, and that eight changes which alter nothing a row holds write nothing.
 
 **What a shopper reads** (`ShopCatalog`, no permission — what a shopper may not see is not in the
@@ -438,9 +440,9 @@ page, never stored.
 
 Seven panel screens (catalog.md §4.4 S1–S7), under **Catalog** in the panel's menu, each offered to
 whoever holds its job in any store: Brands, Categories, Attributes (and one attribute's page — its
-details as a form, then its values), Labels, Warranties, Search Words (Variations removed with the sets, amendment 16(b)). **S2 is built but for
-its audience switches** (who sees a category in a store, amendment 14), which come with screens step 5
-with their permission, `catalog.category.audience`.
+details as a form, then its values), Labels, Warranties, Search Words (Variations removed with the sets, amendment 16(b)). **S2's audience
+switches** (who sees a category in a store, amendment 14) came with screens step 5 and their
+permission, `catalog.category.audience` (below).
 
 **Reading needs the list's job in any store; changing it, the job with All stores** (P2). A reader
 without All stores sees the list, and every button disabled with that reason ("Changing this list needs
@@ -643,6 +645,112 @@ its links to the two example files pointing at their downloads - whoever fills a
 (`catalog.listing.fill` in some store, or `catalog.import.run`). **Assumption for hosting**: the
 `docs/` folder ships with the application, as the guide is read from it.
 
+### The shop's audiences (screens step 5)
+
+Amendment 14 (catalog.md §1.13): in each store, admins choose which categories individuals see and
+which companies see; individuals buy retail only.
+
+**Who is looking** is Platform's `ShopperType` (`current(): ShopperKind` — `GUEST`, `INDIVIDUAL`,
+`COMPANY`), which **Access binds** from the signed-in customer's account type (access.md amendment 67;
+platform.md §9.4): a company account is a company whatever its company's state; nobody signed in, a
+staff member viewing the shop and the system are guests. Platform's own answer, unbound, is a guest.
+Catalog never reaches into Access for it.
+
+**The switches** (`catalog.store_category_audiences`, one row a store and a category someone switched
+there — **no row means both**, so a new category and a store opened later need nothing):
+`SetCategoryAudiences` — `catalog.category.audience` **in that store**, declared `adminOnly` (14(c)),
+an off store prepared as its menu order is — writes the switch flipped (Individuals, Companies or both;
+a switch left null stays) **to the category and to every category below it**; the other switch stays
+as each has it, so a sub-category switched on its own keeps it (14(d)). It authorizes as its sibling
+store changes do (`StoreListingChange::authorize`), then takes **the products' lock, then the
+categories'** (`StoreListingChange::runAfterProducts`): the listing is written under the first, the tree
+read under the second. Each category whose switches changed is audited in that store
+(`catalog.category.audience_set`, from what was to what is); nothing changed, nothing is written or
+recorded. The listing rows of the products in the categories that changed are written in the same
+transaction. Each store's rows are written through `CategoryAudienceRepository`, which names the
+store in every call (amendment 4(h)) but one: `inEveryStore`, for P24; the listing's writer and the
+screen's read take them in their own one query (§5.2 allows reads across stores where a rule needs
+them).
+
+**P24** (`CategoryAudiences::takeParents`): a sub-category **added** under a parent, and a branch
+**moved** under one, take the parent's switches in every store where either has a row, each store's
+change audited there — inside `AddCategory`'s and `MoveCategory`'s own transactions, under the
+categories' lock, before a move writes its products' rows.
+
+**The listing** (§5.4) gains, per store and product: `for_individuals` — its own category on for
+individuals there **and** a variant sold retail there (14(e)); `for_companies` — its own category on
+for companies; `sells_retail`, `sells_wholesale` — any variant on sale there sold that way;
+`card_variant_id` — **the first variant, in the product's order (position, then id), on sale there**,
+companies' and guests' card (§2.2); `retail_card_variant_id` — the first sold retail, individuals' card
+(14(f)), null exactly when nothing is sold retail. Two CHECKs hold the writer's rules
+(`listing_individuals_retail`, `listing_retail_card`). **Setting a product's selling terms now writes
+its rows** (it did not need to before). The migration fills the rows already there from the stores'
+rows as the writer would; nobody has switched anything then.
+
+**The read API for the shop's pages (step 6).** Every method of `ShopCatalog` and `ShopSearch` takes the
+viewer right after the language — `ShopperKind $viewer` — and **the page asks Platform's
+`ShopperType::current()` for it, once a request**, and passes it in:
+
+| Read | Answers for the viewer |
+|---|---|
+| `menu($store, $locale, $viewer)` | the categories with something listed **for this viewer** in them or below them |
+| `category($store, $locale, $viewer, $slug, …)` | its cards for this viewer; **no page (null)** when it lists nothing for them |
+| `brand($store, $locale, $viewer, $slug, …)` | its cards for this viewer; an active brand keeps its page |
+| `product($store, $locale, $viewer, $slug)` | available only while this viewer sees it — otherwise the "Not available now" page (P18); its `variants` **retail ones only for an individual** (14(e)); both sides for a company or a guest (§4.5) |
+| `relations($store, $locale, $viewer, $productId)` | only what this viewer sees |
+| `ShopSearch::suggest(…, $viewer, $typed)`, `results(…, $viewer, $typed)` | only what this viewer sees; a submitted search is logged with how many this viewer found |
+
+An individual sees a row with `for_individuals`, a company one with `for_companies`, **a guest one with
+either** (P25) — so a category switched off for both is seen by no one. Every `ProductCard` carries
+**`variantId`, the variant its card shows this viewer**: `retail_card_variant_id` for an individual,
+`card_variant_id` for a company or a guest — a guest is on the companies' side, both sides and the
+companies' card (§2.2, §4.5, §8 #33), wherever P25 lets it see the product (the owner's decision below).
+Who is looking costs no query of its own: it narrows the
+same reads (`CatalogShopAudiencesTest` records each read's count, the same for every viewer); asking
+`ShopperType` costs one query for a signed-in customer, none for a guest.
+
+**The screen** (S2): the categories page's store filter offers the stores where the reader orders the
+menu **or** chooses who sees the categories (`ListCategoriesHandler::STORE_JOBS`), and the page says
+which they may do there (`mayRank`, `mayChooseAudience`, each asked for its own job). For the store
+shown, each row carries its two switches (`forIndividuals`, `forCompanies`; a store that never
+switched it, both), read in the tree's one query. **Individuals** and **Companies** are two columns of
+switches (`Categories/AudienceSwitch.tsx`), each posting to `catalog.admin.categories.audience` the
+moment it flips (P9) with the store shown; the page comes back with every row as the server has it,
+so a parent's switch shows on everything under it. Someone who may not choose there sees them in
+place, out of reach, the reason in a tooltip and for a screen reader. The page's own queries stay 3
+(`CatalogCategoryAudiencesScreenTest`, as `CatalogListScreensTest` records them). **Its script**: with
+the switches and #121's checks the page measured 61.9 KB gzipped, over the 60 KB budget; the fates
+dialog, opened only when a category is deactivated and never drawn by the server, is now fetched when
+it opens (`React.lazy`), and the page is 57.7 KB.
+
+**Left to step 6** (P22, with the shop's pages): the card's price, its old price and "Last pieces" per
+side — a guest's on the companies' side, as its card — and the card's variant narrowed by "orderable
+now" and "priced" once the listing reads `store_variant_facts`; the Retail/Wholesale filter (P14) from
+`sells_retail` / `sells_wholesale`; and the filter values (`value_ids`), which still hold every variant
+on sale for every viewer.
+
+**Decided by the owner, 2026-10-11** (asked after the independent review): **a guest on a product only
+individuals see** — "Guest sees all individuals+companies". A guest sees every product either kind of
+account sees, with its retail and wholesale sizes, and the companies' card (§2.2, §4.5/P17, §8 #33,
+sales.md §9.1 #2), a product whose category is on for individuals only included. As built; written
+into catalog.md §1.13 beside P25. (The other reading — a guest shown each product as the side that
+sees it — was tried on this branch and reverted.)
+
+**My picks** (the spec is silent; each the conservative choice, for the owner):
+
+1. **A category moved to the top keeps its own switches** — it has no parent to take them from (P24
+   speaks of a parent), so nothing it hid shows by surprise.
+2. **The switches P24 copies are audited** in each store, as the same action as switching there.
+3. **The listing keeps each side's card variant** (`card_variant_id`, `retail_card_variant_id`), so a
+   card says which variant it shows before prices arrive; step 6 puts that variant's price beside it.
+4. **A switch can be set on a deactivated category**, as its menu order can: it shows nothing anyway.
+5. **A command with neither switch is refused** (`InvalidCatalogAttribute` on `audience`), not taken
+   as "nothing to do".
+6. **A submitted search is logged with how many this viewer found** (the log still names no person):
+   an individual's search for words whose products are hidden from individuals lands in the
+   zero-result list staff read for word pairs. Logging what any side would find instead would take
+   one more count a search.
+
 ## Tests
 
 | File | What it covers |
@@ -664,10 +772,10 @@ its links to the two example files pointing at their downloads - whoever fills a
 | `Integration/CatalogProductConstraintsTest` | The products' named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code |
 | `Integration/CatalogStoreListingsTest` | Who may choose in which store, an off store prepared; a whole product or single variants; selling terms; "Not available now"; labels; archiving switching off everywhere; a product's shared data needing the job in every store that sells it |
 | `Integration/CatalogDeactivationsTest` | A category or brand deactivated with each product's fate, all or nothing; activating bringing back what hid with it |
-| `Integration/CatalogListGuardsTest` | For every one of the sixty-three list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the seven that change products or their listing rows), nothing of the catalog read before it; an id not in its list is answered as not found; and what the audit log keeps reads from what was to what is. For the thirty-eight that can be asked to change nothing: nothing written to the lists, nothing recorded |
+| `Integration/CatalogListGuardsTest` | For every one of the sixty-four list, product and store changes: its lock is the first query inside its own transaction (the products' before its list's, for the eight that change products or their listing rows — choosing who sees a category among them), nothing of the catalog read before it; an id not in its list is answered as not found; and what the audit log keeps reads from what was to what is. For the thirty-nine that can be asked to change nothing: nothing written to the lists, nothing recorded |
 | `Integration/CatalogListOrdersTest` | Every ordered list's order (amendment 16(d)): the ids sent first, every other after them, written 1, 2, 3 …; each moved item audited and none that stayed; refused without the job with All stores; an id sent twice refused before anything is read; one attribute's values and no other's; the screen's own read and the order agreeing where places are tied; a deactivated item ordered as any other; a new item last, after an order too; the list numbered again at the cap; the warranties' migration numbering them in name order; the places typed before written again 1, 2, 3 in the order each list showed |
 | `Integration/CatalogListConstraintsTest` | The database's named CHECKs, indexes and keys that no handler test reaches, each refusing a row written past the code; an id that is not a ULID never reaching the database |
-| `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of twenty-nine changes writing exactly what the repair writes, eight that alter nothing writing nothing; a row that stays updated in place; the card photo; the repair and its locks |
+| `Integration/CatalogListingTest` | Which products have rows, and what a row holds — never a code; each of thirty-one changes writing exactly what the repair writes, eight that alter nothing writing nothing; a row that stays updated in place; the card photo; the repair and its locks |
 | `Integration/CatalogShopTest` | The menu per store and its order, a secondary brand's own category in it; a category's page by keyset, ties included, every brand, the brand filter, labels in the list's order, slugs moved; a brand's page; a product's page or "Not available now"; suggestions |
 | `Integration/CatalogSearchTest` | The ranking and the total; both languages, the other's name exact; Arabic normalised, a typo near; word pairs only adding; what is found and what never is — a secondary brand's product; the search log and its nightly removal, to the second |
 | `Integration/CatalogApiTest` | `CatalogApi`: variants, codes (one corrected away), products, a variant in a store (switched off, hidden), resolving the variant (a product with no set) |
@@ -691,7 +799,11 @@ its links to the two example files pointing at their downloads - whoever fills a
 | `Integration/CatalogModulePassTest` | Step 7, the reviews of the whole module (amendment 11): a category picked for a product's path has no sub-categories; archive and delete on the import's page whatever was done since — a product made ready and put on sale since deleted whole, unlinked first; the confirm catching a code a product not a draft keeps, a draft taking the file's; a zip of too many entries |
 | `Integration/CatalogImportDiscardTest` | Amendment 10(b): a file not brought in discarded whole with its zip, deciding or failed; one bringing in or brought in stays; a store's file is not one; a Super Admin's |
 | `Integration/CatalogImportReviewTest` | After step 6's reviews (amendment 8): ambiguous names and colliding addresses decided on the page; the confirm asking again; holding back, replacing whole, updating and restoring; the page's picks brought in, filling and adding counted against an updated product as it is when brought in; a job given up on; the zip's sizes; linking back on accepting, by any code held; the store file kept to its store |
-| `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job, admin roles only (amendment 6(h)) |
+| `Integration/CatalogPermissionsTest`, `CatalogSchemaTest` | Step 1's permissions and schema; the store file's job and who sees a category, admin roles only (amendments 6(h), 14(c)) |
+| `Integration/CatalogShopAudiencesTest` | Screens step 5 (amendment 14): who may switch — an admin role's job in that store only, refusals, an off store prepared, the products' lock then the categories' first; a parent's switch reaching everything under it, the other switch kept, a sub-category alone; the audit, nothing written when nothing changes; P24 on adding and moving, the top keeping its own; a store opened later showing everything to both; each change writing the listing as the repair does; who sees a product and each side's card; the two CHECKs; the menu, pages, search, suggestions and relations for each viewer, P25, a guest on the companies' side even where only individuals see a product (the owner's decision, 2026-10-11), wholesale-only (14(e)), the card's variant (14(f)), a company account through `ShopperType`; each read's recorded queries, the same for every viewer |
+| `Feature/CatalogCategoryAudiencesScreenTest` | The categories screen's switches over HTTP: what the page is handed for the store shown, the stores offered and what the reader may do there, the menu entry, the page's recorded queries; a switch saved for the store shown and reaching below, refused without the job there, with no store, no switch or one neither on nor off |
+| `tests/Browser/CatalogCategoryAudiencesTest.php` | In a real browser: an admin switches a category off for individuals and the one under it follows; the switches out of reach, with the reason said, for someone who only orders the menu; the fates dialog, now fetched when opened, deactivating a category; Arabic at a phone's width |
+| `tests/Modules/Access/Feature/ShopperTypeTest.php` | Platform's `ShopperType` as Access binds it: a guest, an individual, a company account that never applied, and one whose company is pending, rejected, suspended or approved; a guest during a staff view over a signed-in customer; one query a customer, none a guest |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
 | `Integration/CatalogProductReadsTest` | The products screens' reads: every product to a reader in some store, refused before reading to anyone else; where each is on among the stores covered; finding by name, by a code in any digits, by stage, category and brand; one store's state and narrowing by it; pages by keyset in a fixed number of queries; one product above its tabs; what a draft lacks, the same as `Readiness`; each tab's own data - a variant's details, size and photos, the photos' states read together; what the reader may do, as the handlers check it |

@@ -29,6 +29,10 @@ use stdClass;
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
  *   The nearness text holds the page's name first, then the other one, a line apart, each as its
  *   words one space apart (`SearchTerms::canonical`), as what a shopper types is read.
+ * - **Who sees it** (§1.13, amendment 14): whether individuals and companies see the product there —
+ *   its own category's switches in that store, and for individuals a variant sold retail (14(e)) —
+ *   whether any variant there sells retail or wholesale, and each side's card variant (14(f)). A
+ *   guest's reads ask for either side (P25), never a column of its own.
  */
 final readonly class DatabaseListingRows implements ListingRows
 {
@@ -43,13 +47,16 @@ final readonly class DatabaseListingRows implements ListingRows
     private const string RECORD = 'store_id text, locale text, product_id text, name text, slug text, brand_id text,'
         .' brand_visible_by_default boolean, category_id text, category_path text[], in_category_pages boolean,'
         .' value_ids text[], label_ids text[], card_media_id text, card_photo jsonb, orderable boolean,'
-        .' search_text text, words_a text, words_b text, words_c text';
+        .' search_text text, words_a text, words_b text, words_c text,'
+        .' for_individuals boolean, for_companies boolean, sells_retail boolean, sells_wholesale boolean,'
+        .' card_variant_id text, retail_card_variant_id text';
 
     /** The columns written, in the order the insert names them. */
     private const array COLUMNS = [
         'store_id', 'locale', 'product_id', 'name', 'slug', 'brand_id', 'brand_visible_by_default', 'category_id',
         'category_path', 'in_category_pages', 'value_ids', 'label_ids', 'card_media_id', 'card_photo', 'orderable',
         'price_minor', 'sales_rank', 'search_text', 'search_document',
+        'for_individuals', 'for_companies', 'sells_retail', 'sells_wholesale', 'card_variant_id', 'retail_card_variant_id',
     ];
 
     public function __construct(
@@ -116,7 +123,8 @@ final readonly class DatabaseListingRows implements ListingRows
             'INSERT INTO '.self::TABLE.' AS l ('.$list('%s').')'
             .' SELECT r.store_id, r.locale, r.product_id, r.name, r.slug, r.brand_id, r.brand_visible_by_default,'
             .' r.category_id, r.category_path, r.in_category_pages, r.value_ids, r.label_ids, r.card_media_id, r.card_photo,'
-            ." r.orderable, NULL, NULL, r.search_text, {$document}"
+            ." r.orderable, NULL, NULL, r.search_text, {$document},"
+            .' r.for_individuals, r.for_companies, r.sells_retail, r.sells_wholesale, r.card_variant_id, r.retail_card_variant_id'
             .' FROM jsonb_to_recordset(?::jsonb) AS r('.self::RECORD.')'
             .' ON CONFLICT (store_id, locale, product_id) DO UPDATE SET '.$list('%1$s = EXCLUDED.%1$s')
             // Unchanged, it is not written at all.
@@ -156,10 +164,20 @@ final readonly class DatabaseListingRows implements ListingRows
         }
 
         $slugs = $this->currentSlugs($ids);
-        $paths = $this->categoryPaths(array_values(array_unique(array_map(static fn (stdClass $product): string => (string) $product->category_id, $products))));
+        $categoryIds = array_values(array_unique(array_map(static fn (stdClass $product): string => (string) $product->category_id, $products)));
+        $paths = $this->categoryPaths($categoryIds);
+        $audiences = $this->audiences($categoryIds);
         $words = $this->grouped('catalog.product_search_words', $ids, 'normalized', 'position');
         $filterValues = $this->grouped('catalog.product_filter_values', $ids, 'value_id', 'value_id');
-        $variantValues = $this->variantValues(array_merge(...array_values(array_map(static fn (array $stores): array => array_merge(...array_values($stores)), $sellable))));
+        $variantIds = [];
+
+        foreach ($sellable as $stores) {
+            foreach ($stores as $variants) {
+                array_push($variantIds, ...array_column($variants, 'id'));
+            }
+        }
+
+        $variantValues = $this->variantValues($variantIds);
         $labels = $this->labels($ids);
         $rows = [];
 
@@ -174,15 +192,30 @@ final readonly class DatabaseListingRows implements ListingRows
             $categoryId = (string) $product->category_id;
             $searched = ['ar' => SearchTerms::canonical((string) $product->name_ar), 'en' => SearchTerms::canonical((string) $product->name_en)];
 
-            foreach ($sellable[$id] as $storeId => $variantIds) {
+            foreach ($sellable[$id] as $storeId => $variants) {
                 $values = $filterValues[$id] ?? [];
 
-                foreach ($variantIds as $variantId) {
-                    array_push($values, ...($variantValues[$variantId] ?? []));
+                foreach ($variants as $variant) {
+                    array_push($values, ...($variantValues[$variant['id']] ?? []));
                 }
 
                 $values = array_values(array_unique($values));
                 sort($values);
+
+                // Who sees it here (§1.13, amendment 14): its own category's switches in this store —
+                // none, both see it — and, for individuals, who buy retail only, a variant sold retail
+                // (14(e)). Each side's card is the first variant, in the product's order, that side can
+                // buy (14(f)): any for companies and guests, a retail one for individuals.
+                $retail = array_values(array_filter($variants, static fn (array $variant): bool => $variant['retail']));
+                $switches = $audiences[$storeId][$categoryId] ?? ['individuals' => true, 'companies' => true];
+                $sides = [
+                    'for_individuals' => $switches['individuals'] && $retail !== [],
+                    'for_companies' => $switches['companies'],
+                    'sells_retail' => $retail !== [],
+                    'sells_wholesale' => array_filter($variants, static fn (array $variant): bool => $variant['wholesale']) !== [],
+                    'card_variant_id' => $variants[0]['id'],
+                    'retail_card_variant_id' => $retail[0]['id'] ?? null,
+                ];
 
                 foreach (self::LOCALES as $locale) {
                     $name = (string) $product->{"name_{$locale}"};
@@ -208,6 +241,7 @@ final readonly class DatabaseListingRows implements ListingRows
                         'words_a' => implode(' ', $searched),
                         'words_b' => implode(' ', $words[$id] ?? []),
                         'words_c' => $paths[$categoryId]['words'],
+                        ...$sides,
                     ];
                 }
             }
@@ -220,8 +254,10 @@ final readonly class DatabaseListingRows implements ListingRows
      * The variants a shopper can order in each store, in the product's order: switched on there,
      * not archived, and neither they nor their product "Not available now" there.
      *
+     * Each with how it is sold there (§1.3): retail, wholesale or both.
+     *
      * @param  list<string>  $productIds
-     * @return array<string, array<string, list<string>>> product => store => variant ids
+     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool}>>> product => store => variants
      */
     private function sellableVariants(array $productIds): array
     {
@@ -236,15 +272,37 @@ final readonly class DatabaseListingRows implements ListingRows
             ->where('sp.not_available_now', false)
             ->where('v.is_archived', false)
             ->orderBy('sv.product_id')->orderBy('sv.store_id')->orderBy('v.position')->orderBy('v.id')
-            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id']);
+            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale']);
 
         $sellable = [];
 
         foreach ($rows as $row) {
-            $sellable[(string) $row->product_id][(string) $row->store_id][] = (string) $row->variant_id;
+            $sellable[(string) $row->product_id][(string) $row->store_id][] = [
+                'id' => (string) $row->variant_id,
+                'retail' => (bool) $row->sells_retail,
+                'wholesale' => (bool) $row->sells_wholesale,
+            ];
         }
 
         return $sellable;
+    }
+
+    /**
+     * Who sees each of these categories in each store that switched it (§1.13, §5.2): a store with no
+     * row for a category shows it to both kinds of account.
+     *
+     * @param  list<string>  $categoryIds
+     * @return array<string, array<string, array{individuals: bool, companies: bool}>> store => category => its switches
+     */
+    private function audiences(array $categoryIds): array
+    {
+        $audiences = [];
+
+        foreach ($this->db->table('catalog.store_category_audiences')->whereIn('category_id', $categoryIds)->get(['store_id', 'category_id', 'for_individuals', 'for_companies']) as $row) {
+            $audiences[(string) $row->store_id][(string) $row->category_id] = ['individuals' => (bool) $row->for_individuals, 'companies' => (bool) $row->for_companies];
+        }
+
+        return $audiences;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Command\SetSellingTerms;
 
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Listing\StoreListingChange;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidSellingTerms;
@@ -33,6 +34,7 @@ final readonly class SetSellingTermsHandler
         private ProductRepository $products,
         private StoreListingRepository $listings,
         private VariantRepository $variants,
+        private ListingRows $listingRows,
     ) {}
 
     /**
@@ -63,6 +65,9 @@ final readonly class SetSellingTermsHandler
             }
 
             $this->listings->save($listing);
+            // How each variant is sold decides who sees the product and each side's card (amendment
+            // 14(e), (f)): its listing rows are written again in the same transaction.
+            $this->listingRows->refresh([$product->id()]);
 
             return [null, [$entry]];
         });

@@ -14,7 +14,8 @@ use Modules\Access\Public\Enums\PermissionKind;
  *
  * **One permission per job**, and any role — staff or admin — may be given any of them (owner,
  * 2026-10-02), **except filling a store from a file, for admin roles only** (owner, 2026-10-05,
- * amendment 6(h): "only admins, and super too"). Every job is per store: a store's own row is checked in that
+ * amendment 6(h): "only admins, and super too"), **and choosing who sees a category in a store**
+ * (owner, 2026-10-07, amendment 14(c): "admins pick"). Every job is per store: a store's own row is checked in that
  * store; a product's shared data in every store where it is Active; and a shared list — the tree,
  * the brands, the attributes, the labels, the warranties, the word pairs — reaches every store, so
  * its one permission is checked with All stores (`PermissionScope::allStores()`). The import and
@@ -56,6 +57,12 @@ final class CatalogPermissions
 
     /** Order the categories in the store's menu. */
     public const string CATEGORY_RANK = 'catalog.category.rank';
+
+    /**
+     * Who sees a category in the store: its Individuals and Companies switches, a parent's carried to
+     * everything under it (§1.13, amendment 14). Admin roles only (14(c)).
+     */
+    public const string CATEGORY_AUDIENCE = 'catalog.category.audience';
 
     /** The category tree: add, rename, move, deactivate with each product's fate, activate, delete. */
     public const string CATEGORY_MANAGE = 'catalog.category.manage';
@@ -107,7 +114,7 @@ final class CatalogPermissions
     }
 
     /**
-     * @return list<string> the eighteen jobs a role may hold (§3)
+     * @return list<string> the nineteen jobs a role may hold (§3)
      */
     public static function jobs(): array
     {
@@ -123,6 +130,7 @@ final class CatalogPermissions
             self::LISTING_UNAVAILABLE,
             self::LISTING_LABELS,
             self::CATEGORY_RANK,
+            self::CATEGORY_AUDIENCE,
             self::CATEGORY_MANAGE,
             self::BRAND_MANAGE,
             self::ATTRIBUTE_MANAGE,
@@ -134,11 +142,11 @@ final class CatalogPermissions
     }
 
     /**
-     * @return list<string> the jobs only an admin role may hold (amendment 6(h))
+     * @return list<string> the jobs only an admin role may hold (amendments 6(h), 14(c))
      */
     public static function adminOnly(): array
     {
-        return [self::LISTING_FILL];
+        return [self::LISTING_FILL, self::CATEGORY_AUDIENCE];
     }
 
     /**
