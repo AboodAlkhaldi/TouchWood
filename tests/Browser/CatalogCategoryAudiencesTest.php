@@ -100,7 +100,10 @@ it('shows the switches out of reach, with the reason, to someone who only orders
 
     expect($page->script("document.querySelector('[data-test=\"audience-individuals-{$category}\"]').getAttribute('aria-disabled')"))->toBe('true');
 
-    $page->click("[data-test=\"audience-individuals-{$category}\"]");
+    // A pointer cannot press it (the browser treats it as disabled). A click sent to it anyway changes
+    // nothing - the page ignores it, and the server would refuse it too (the feature test's), so this
+    // proves only that nothing slips through.
+    $page->script("document.querySelector('[data-test=\"audience-individuals-{$category}\"]').click()");
     $page->wait(0.5);
 
     expect(DB::table('catalog.store_category_audiences')->where('category_id', $category)->exists())->toBeFalse();
