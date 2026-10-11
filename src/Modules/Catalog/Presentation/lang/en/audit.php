@@ -80,6 +80,7 @@ return [
     'product.variant_attribute_added' => 'Attribute added to the variants',
     'product.variant_attribute_removed' => 'Attribute removed from the variants',
     'product.variant_attributes_ordered' => 'Variant attributes reordered',
+    'product.variants_ordered' => 'Variants reordered',
 
     'import.added' => 'Products file uploaded',
     'import.checked_again' => 'Names and codes of a products file asked again before bringing in',

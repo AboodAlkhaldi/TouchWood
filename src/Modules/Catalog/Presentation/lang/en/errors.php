@@ -127,6 +127,7 @@ return [
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
+        'attribute_id' => 'attribute',
         'attribute_ids' => 'attributes',
         'description_ar' => 'Arabic description',
         'description_en' => 'English description',
@@ -172,6 +173,7 @@ return [
         'modes' => 'selling modes',
         'product' => 'product',
         'variants' => 'variants',
+        'variant_ids' => 'variants',
         'choice' => 'choice',
         'move_to' => 'where to move',
         'products' => 'products',
