@@ -8,6 +8,7 @@ use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Application\Query\Products\ProductCore;
 use Modules\Catalog\Application\Query\Products\ProductReaders;
+use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -28,6 +29,14 @@ final readonly class ViewProductHandler
 {
     public const string PERMISSION = CatalogPermissions::PRODUCT_VIEW;
 
+    /** The jobs a product's Stores tab draws its controls for (catalog.md §4.4 S9 "Stores"). */
+    public const array STORE_JOBS = [
+        CatalogPermissions::LISTING_CHOOSE,
+        CatalogPermissions::LISTING_SELLING,
+        CatalogPermissions::LISTING_UNAVAILABLE,
+        CatalogPermissions::LISTING_LABELS,
+    ];
+
     public function __construct(
         private ProductReaders $readers,
         private CatalogProductReads $reads,
@@ -39,11 +48,12 @@ final readonly class ViewProductHandler
      */
     public function handle(ViewProduct $query): ProductView
     {
-        $this->readers->authorize();
+        $covered = $this->readers->authorize();
         $product = $this->reads->core($query->productId) ?? throw new ProductNotFound($query->productId);
         $tab = in_array($query->tab, ViewProduct::TABS, true) ? $query->tab : ViewProduct::DETAILS;
 
-        $variants = $tab === ViewProduct::VARIANTS ? $this->reads->variants($product->id) : null;
+        // The Stores tab lists the variants too: each store's row is a variant's.
+        $variants = $tab === ViewProduct::VARIANTS || $tab === ViewProduct::STORES ? $this->reads->variants($product->id) : null;
         $photos = $product->gallery;
 
         foreach ($variants ?? [] as $variant) {
@@ -59,6 +69,7 @@ final readonly class ViewProductHandler
 
         $stage = ProductStage::from($product->stage);
         $searchAndFilters = $tab === ViewProduct::SEARCH ? $this->reads->searchAndFilters($product->id) : null;
+        $stores = $tab === ViewProduct::STORES ? $this->storeRows($product->id, $covered) : null;
 
         return new ProductView(
             $product,
@@ -75,7 +86,23 @@ final readonly class ViewProductHandler
             searchWords: $searchAndFilters['words'] ?? null,
             filterValueIds: $searchAndFilters['valueIds'] ?? null,
             related: $tab === ViewProduct::RELATED ? $this->reads->related($product->id) : null,
+            stores: $stores,
+            labels: $tab === ViewProduct::STORES ? $this->reads->labelChoices() : null,
+            storeJobs: $tab === ViewProduct::STORES ? array_combine(self::STORE_JOBS, array_map($this->readers->heldIn(...), self::STORE_JOBS)) : null,
         );
+    }
+
+    /**
+     * What each store the reader covers does with the product - only those that chose it have a row.
+     *
+     * @param  list<string>|null  $covered  null for every store
+     * @return array<string, StoreListingRow>
+     */
+    private function storeRows(string $productId, ?array $covered): array
+    {
+        $rows = $this->reads->storeRows($productId);
+
+        return $covered === null ? $rows : array_intersect_key($rows, array_flip($covered));
     }
 
     /**

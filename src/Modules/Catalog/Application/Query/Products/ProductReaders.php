@@ -83,6 +83,18 @@ final readonly class ProductReaders
     }
 
     /**
+     * The stores where the reader holds a job, as ids - null for every store.
+     *
+     * @return list<string>|null
+     */
+    public function heldIn(string $permission): ?array
+    {
+        $stores = $this->authorizer->storesWith($permission);
+
+        return $stores === null ? null : array_map(static fn ($store): string => $store->value, $stores);
+    }
+
+    /**
      * The store a new product is added from: the first store that is on where the reader holds
      * `catalog.product.create` - with All stores, the first store that is on. None: they may not add one.
      */

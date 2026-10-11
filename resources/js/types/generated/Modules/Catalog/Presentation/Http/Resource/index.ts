@@ -110,6 +110,12 @@ code: string,
 name: string,
 ours: boolean,
 };
+export type LabelChoiceData = {
+id: string,
+nameAr: string,
+nameEn: string,
+tone: string,
+};
 export type LabelData = {
 id: string,
 nameAr: string,
@@ -185,6 +191,8 @@ searchWords: string[] | null,
 filterValueIds: string[] | null,
 related: RelatedData[] | null,
 found: ProductRowData[] | null,
+stores: StoreCardData[] | null,
+labels: LabelChoiceData[] | null,
 };
 export type ProductRowData = {
 id: string,
@@ -242,11 +250,36 @@ storeCode: string | null,
 stores: StoreOptionData[],
 storeTimezone: string | null,
 };
+export type StoreCardData = {
+storeId: string,
+code: string,
+name: string,
+active: boolean,
+chosen: boolean,
+notAvailable: boolean,
+retailMinimum: number,
+retailMaximum: number | null,
+wholesaleMinimum: number | null,
+wholesaleMaximum: number | null,
+labelIds: string[],
+variants: StoreVariantData[],
+mayChoose: boolean,
+maySell: boolean,
+mayUnavailable: boolean,
+mayLabel: boolean,
+};
 export type StoreOptionData = {
 id: string,
 code: string,
 name: string,
 isActive: boolean,
+};
+export type StoreVariantData = {
+variantId: string,
+on: boolean,
+retail: boolean,
+wholesale: boolean,
+notAvailable: boolean,
 };
 export type ValueData = {
 id: string,

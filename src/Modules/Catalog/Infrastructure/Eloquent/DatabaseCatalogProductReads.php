@@ -7,11 +7,13 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
 use Modules\Catalog\Application\Query\Products\ProductCore;
 use Modules\Catalog\Application\Query\Products\ProductFilter;
 use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
+use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
@@ -350,6 +352,70 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::text($row->name_en),
             self::strings($row->codes),
             (string) $row->stage,
+        ))->all());
+    }
+
+    public function storeRows(string $productId): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        // Every store that chose it, each with its variants' rows and its labels, in one read.
+        $rows = $this->db->select(<<<'SQL'
+            SELECT sp.store_id, sp.not_available_now, sp.retail_minimum, sp.retail_maximum, sp.wholesale_minimum, sp.wholesale_maximum,
+                (SELECT coalesce(json_agg(x.label_id ORDER BY l.position, l.name_en, l.id), '[]')
+                    FROM catalog.store_product_labels x JOIN catalog.labels l ON l.id = x.label_id
+                    WHERE x.store_id = sp.store_id AND x.product_id = sp.product_id) as labels,
+                (SELECT coalesce(json_agg(json_build_object('variantId', v.variant_id, 'on', v.is_active, 'notAvailable', v.not_available_now,
+                    'retail', v.sells_retail, 'wholesale', v.sells_wholesale)), '[]')
+                    FROM catalog.store_variants v WHERE v.store_id = sp.store_id AND v.product_id = sp.product_id) as variants
+            FROM catalog.store_products sp
+            WHERE sp.product_id = ?
+            SQL, [strtolower($productId)]);
+
+        $stores = [];
+
+        foreach ($rows as $row) {
+            $variants = [];
+
+            foreach (self::lists($row->variants) as $variant) {
+                $variants[(string) $variant['variantId']] = [
+                    'on' => (bool) ($variant['on'] ?? false),
+                    'notAvailable' => (bool) ($variant['notAvailable'] ?? false),
+                    'retail' => (bool) ($variant['retail'] ?? false),
+                    'wholesale' => (bool) ($variant['wholesale'] ?? false),
+                ];
+            }
+
+            $stores[(string) $row->store_id] = new StoreListingRow(
+                (string) $row->store_id,
+                (bool) $row->not_available_now,
+                (int) $row->retail_minimum,
+                self::number($row->retail_maximum),
+                self::number($row->wholesale_minimum),
+                self::number($row->wholesale_maximum),
+                self::strings($row->labels),
+                $variants,
+            );
+        }
+
+        return $stores;
+    }
+
+    public function labelChoices(): array
+    {
+        $rows = $this->db->table('catalog.labels')
+            ->where('is_active', true)
+            ->select(['id', 'name_ar', 'name_en', 'tone'])
+            ->orderBy('position')->orderBy('name_en')->orderBy('id')
+            ->get();
+
+        return array_values($rows->map(static fn (stdClass $row): LabelChoice => new LabelChoice(
+            (string) $row->id,
+            (string) $row->name_ar,
+            (string) $row->name_en,
+            (string) $row->tone,
         ))->all());
     }
 

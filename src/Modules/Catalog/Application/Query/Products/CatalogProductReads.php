@@ -51,4 +51,19 @@ interface CatalogProductReads
      * @return list<RelatedRow>
      */
     public function related(string $productId): array;
+
+    /**
+     * What each store that chose it does with it, in every store - the caller keeps the ones its
+     * reader covers.
+     *
+     * @return array<string, StoreListingRow> store id => its row
+     */
+    public function storeRows(string $productId): array;
+
+    /**
+     * The active labels a store may put on a product, in their order.
+     *
+     * @return list<LabelChoice>
+     */
+    public function labelChoices(): array;
 }

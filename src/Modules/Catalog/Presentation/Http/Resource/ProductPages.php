@@ -11,11 +11,13 @@ use Modules\Catalog\Application\Query\ListProducts\ListProducts;
 use Modules\Catalog\Application\Query\ListProducts\ListProductsHandler;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
 use Modules\Catalog\Application\Query\Products\ProductFilter;
 use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Catalog\Application\Query\ViewProduct\ProductView;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
 use Modules\Platform\Public\Contracts\StoreChoices;
@@ -143,7 +145,55 @@ final readonly class ProductPages
                 $row->kind, $row->productId, $row->nameAr, $row->nameEn, $row->codes, $row->stage,
             ), $view->related),
             $found,
+            $view->stores === null ? null : $this->storeCards($view),
+            $view->labels === null ? null : array_map(static fn (LabelChoice $label): LabelChoiceData => new LabelChoiceData(
+                $label->id, $label->nameAr, $label->nameEn, $label->tone,
+            ), $view->labels),
         );
+    }
+
+    /**
+     * A card for each store the reader covers, as every store screen offers them (StoreChoices: a
+     * Super Admin's off stores too, P6) - what it does with the product, and which of its jobs the
+     * reader holds there.
+     *
+     * @return list<StoreCardData>
+     */
+    private function storeCards(ProductView $view): array
+    {
+        // A job held with All stores is null: it reaches every store.
+        $jobs = $view->storeJobs ?? [];
+        $holds = static fn (string $job, string $storeId): bool => array_key_exists($job, $jobs) && ($jobs[$job] === null || in_array($storeId, $jobs[$job], true));
+        $cards = [];
+
+        foreach ($this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW) as $store) {
+            $id = strtolower($store->id);
+            $row = $view->stores[$id] ?? null;
+            $cards[] = new StoreCardData(
+                $id,
+                $store->code,
+                $store->name->in($this->locale()),
+                $store->isActive,
+                $row !== null,
+                $row !== null && $row->notAvailable,
+                $row === null ? 1 : $row->retailMinimum,
+                $row?->retailMaximum,
+                $row?->wholesaleMinimum,
+                $row?->wholesaleMaximum,
+                $row === null ? [] : $row->labelIds,
+                $row === null ? [] : array_map(
+                    static fn (string $variantId, array $variant): StoreVariantData => new StoreVariantData($variantId, $variant['on'], $variant['retail'], $variant['wholesale'], $variant['notAvailable']),
+                    array_keys($row->variants),
+                    array_values($row->variants),
+                ),
+                $holds(CatalogPermissions::LISTING_CHOOSE, $id),
+                $holds(CatalogPermissions::LISTING_SELLING, $id),
+                $holds(CatalogPermissions::LISTING_UNAVAILABLE, $id),
+                $holds(CatalogPermissions::LISTING_LABELS, $id),
+            );
+        }
+
+        return $cards;
     }
 
     /**
