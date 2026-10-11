@@ -11,7 +11,8 @@ import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { ProductHeadData, ProductPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { marksLength } from '../marks';
-import { MarksField, nameIn, SLUG_RULES, slugsWrong, useLocale } from '../parts';
+import { MarksField, nameIn, useLocale } from '../parts';
+import { SLUG_RULES, slugsWrong } from '../slugs';
 import { ProductShell } from './shell';
 
 /*

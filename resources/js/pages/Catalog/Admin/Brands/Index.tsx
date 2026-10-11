@@ -22,7 +22,8 @@ import { useChecks } from '@/lib/use-checks';
 import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
 import { marksLength } from '../marks';
-import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, SLUG_RULES, StateBadge, nameIn, slugsWrong, useAllStoresReason, useLocale } from '../parts';
+import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { SLUG_RULES, slugsWrong } from '../slugs';
 
 /*
 | The brands screen (catalog.md §1.6, §4.4 S1), on shadcn's parts with Geist's rules (frontend.md

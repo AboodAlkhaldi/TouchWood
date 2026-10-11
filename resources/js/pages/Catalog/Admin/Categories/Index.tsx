@@ -20,7 +20,8 @@ import { tone } from '@/lib/tones';
 import { useChecks } from '@/lib/use-checks';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField, MoreButton, MoreButtonOff, SLUG_RULES, StateBadge, nameIn, slugsWrong, useAllStoresReason, useLocale, type Locale } from '../parts';
+import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
+import { SLUG_RULES, slugsWrong } from '../slugs';
 import { SortableList } from '../SortableList';
 
 /*

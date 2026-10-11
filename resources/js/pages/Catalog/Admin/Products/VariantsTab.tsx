@@ -1,32 +1,36 @@
 import { Fragment, lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { Note } from '@/components/Note';
-import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
-import { PhotoGrid } from './photos';
+import { RowHandle, SortableRow, SortableRows } from '../SortableList';
 import { ProductShell } from './shell';
+import { AttributesPanel } from './variant-attributes';
 
-// The dialogs that take what is typed load when one is opened, not with the tab (VariantDialogs).
-const VariantDialog = lazy(() => import('./VariantDialogs').then((module) => ({ default: module.VariantDialog })));
-const CodeDialog = lazy(() => import('./VariantDialogs').then((module) => ({ default: module.CodeDialog })));
+const VariantDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.VariantDialog })));
+const CodeDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.CodeDialog })));
+const VariantPhotosDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.VariantPhotosDialog })));
+const DeleteVariantDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.DeleteVariantDialog })));
 
 /*
-| A product's variants (catalog.md §4.4 S9): # · code · its values · details · weight and size · photos ·
-| Archived. Add Variant… takes the code (1–10 digits), one value for each of the product's variant attributes,
+| A product's variants (catalog.md §4.4 S9): Has Variants and its attributes above (variant-attributes.tsx),
+| then the table in the product's order, dragged into another by each row's handle (P29): code · one
+| column per attribute · details · weight and size · photos · Archived. Add Variant… takes the code
+| (1–10 digits), one value for each of the product's variant attributes - or a new one, "New value…" -,
 | the details of each "details only" attribute - text in both languages, or a number with its unit -,
-| the weight and size, the place. On a row: Edit… (its code only while the product is a draft - a
-| ready product's code is **corrected**, amendment 3(c)), Correct Code…, Photos… (up to 10), Archive
-| or Restore, Delete… (a draft's variant only).
+| the weight and size; it goes last. On
+| a row: Edit… (its code only while the product is a draft - a ready product's code is **corrected**,
+| amendment 3(c)), Correct Code…, Photos… (up to 10), Move to Top, Move to Bottom, Archive or Restore,
+| Delete… (a draft's variant only).
 */
 
 // The dialog keeps the variant's id only: the variant is read from the page as it is now, so a dialog
@@ -36,6 +40,7 @@ type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete'; variantId
 export function VariantsTab({ page }: { page: ProductPage }) {
     const { product, mayUpdate } = page;
     const t = useTranslator();
+    const locale = useLocale();
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const variants = page.variants ?? [];
@@ -43,7 +48,9 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     const setAttributes = product.variantAttributeIds.map((id) => attributes.find((attribute) => attribute.id === id)).filter((attribute): attribute is AttributeChoiceData => attribute !== undefined);
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
     const close = (open: boolean) => (open ? undefined : setDialog(null));
-    const nextPosition = variants.reduce((highest, variant) => Math.max(highest, variant.position), 0) + 10;
+    const [ordering, setOrdering] = useState(false);
+    // The variants in their new order, always the whole of it as the table shows it (P29).
+    const order = (ids: string[]) => router.post(`/admin/products/${product.id}/variants/order`, { variant_ids: ids }, { preserveScroll: true, onStart: () => setOrdering(true), onFinish: () => setOrdering(false) });
     const chosen = dialog?.variantId == null ? null : (variants.find((variant) => variant.id === dialog.variantId) ?? null);
     // With no variant attributes every variant has the same values - none - so a product has one variant only.
     const addReason = reason ?? (product.variantAttributeIds.length === 0 && variants.length > 0 ? t('catalog::admin_products.variants.one_only') : undefined);
@@ -58,8 +65,9 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     return (
         <Card className="material-base border-0">
             <CardContent className="grid gap-4 pt-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    {product.variantAttributeIds.length === 0 && variants.length <= 1 ? <Note data-test="no-variation">{t('catalog::admin_products.variants.no_variation')}</Note> : <span />}
+                <AttributesPanel page={page} reason={reason} />
+                <Separator />
+                <div className="flex flex-wrap items-center justify-end gap-3">
                     <ActionButton
                         type="button"
                         disabledReason={addReason}
@@ -81,17 +89,19 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
+                    <SortableRows items={variants.map((variant) => ({ id: variant.id, label: variant.code }))} onChange={order}>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableCaption className="sr-only">{t('catalog::admin_products.tab.variants')}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
                                 <TableRow>
-                                    <TableHead className="w-12">
-                                        <span aria-hidden="true">#</span>
-                                        <span className="sr-only">{t('catalog::admin_products.variants.position')}</span>
+                                    <TableHead className="w-10">
+                                        <span className="sr-only">{t('catalog::admin_products.variants.order_title')}</span>
                                     </TableHead>
                                     <TableHead>{t('catalog::admin_products.variants.column.code')}</TableHead>
-                                    <TableHead>{t('catalog::admin_products.variants.column.values')}</TableHead>
+                                    {setAttributes.map((attribute) => (
+                                        <TableHead key={attribute.id}>{nameIn(locale, attribute.nameAr, attribute.nameEn)}</TableHead>
+                                    ))}
                                     <TableHead>{t('catalog::admin_products.variants.column.details')}</TableHead>
                                     <TableHead>{t('catalog::admin_products.variants.column.measures')}</TableHead>
                                     <TableHead className="text-end">{t('catalog::admin_products.variants.column.photos')}</TableHead>
@@ -102,13 +112,21 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {variants.map((variant) => (
+                                {variants.map((variant, index) => (
                                     <Row
                                         key={variant.id}
+                                        index={index}
                                         page={page}
                                         variant={variant}
                                         attributes={attributes}
+                                        held={setAttributes}
                                         reason={reason}
+                                        dragging={reason !== undefined || ordering}
+                                        moves={{
+                                            busy: ordering,
+                                            top: index === 0 ? null : () => order([variant.id, ...variants.filter((other) => other.id !== variant.id).map((other) => other.id)]),
+                                            bottom: index === variants.length - 1 ? null : () => order([...variants.filter((other) => other.id !== variant.id).map((other) => other.id), variant.id]),
+                                        }}
                                         open={(action, trigger) => {
                                             opener.current = trigger;
                                             setDialog({ action, variantId: variant.id });
@@ -118,56 +136,46 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                             </TableBody>
                         </Table>
                     </div>
+                    {variants.length > 1 && reason === undefined ? <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.variants.order_body')}</p> : null}
+                    </SortableRows>
                 )}
             </CardContent>
 
-            {dialog?.action === 'add' || (dialog?.action === 'edit' && chosen !== null) ? (
-                <Suspense fallback={null}>
-                    <VariantDialog page={page} variant={chosen} setAttributes={setAttributes} attributes={attributes} nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} />
-                </Suspense>
-            ) : null}
-            {dialog?.action === 'code' && chosen !== null ? (
-                <Suspense fallback={null}>
-                    <CodeDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} />
-                </Suspense>
-            ) : null}
-            {dialog?.action === 'photos' && chosen !== null ? (
-                <PanelDialog
-                    wide
-                    open
-                    onOpenChange={close}
-                    returnFocusTo={opener}
-                    title={t('catalog::admin_products.variants.photos_title', { code: chosen.code })}
-                    description={t('catalog::admin_products.variants.photos_body')}
-                    busy={false}
-                    confirm={null}
-                >
-                    <PhotoGrid
-                        photos={chosen.photos}
-                        url={`/admin/products/${product.id}/variants/${chosen.id}/photos`}
-                        max={10}
-                        helper={t('catalog::admin_products.photos.variant_helper')}
-                        reason={reason}
-                        testPrefix="variant-photos"
-                    />
-                </PanelDialog>
-            ) : null}
-            {dialog?.action === 'delete' && chosen !== null ? <DeleteVariantDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {/* Loaded when one is first opened: none is on the page's first paint (lesson 180). */}
+            <Suspense fallback={null}>
+                {dialog?.action === 'add' || (dialog?.action === 'edit' && chosen !== null) ? (
+                    <VariantDialog page={page} variant={chosen} setAttributes={setAttributes} attributes={attributes} open onOpenChange={close} returnFocusTo={opener} />
+                ) : null}
+                {dialog?.action === 'code' && chosen !== null ? <CodeDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
+                {dialog?.action === 'photos' && chosen !== null ? <VariantPhotosDialog page={page} variant={chosen} reason={reason} onOpenChange={close} returnFocusTo={opener} /> : null}
+                {dialog?.action === 'delete' && chosen !== null ? <DeleteVariantDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            </Suspense>
         </Card>
     );
 }
 
 function Row({
+    index,
     page,
     variant,
     attributes,
+    held,
     reason,
+    dragging,
+    moves,
     open,
 }: {
+    index: number;
     page: ProductPage;
     variant: VariantData;
     attributes: AttributeChoiceData[];
+    /** The product's variant attributes, a column each. */
+    held: AttributeChoiceData[];
     reason: string | undefined;
+    /** Not picked up: read only, or an order still being saved. */
+    dragging: boolean;
+    /** Move to Top and Move to Bottom: null where it is already. */
+    moves: { busy: boolean; top: (() => void) | null; bottom: (() => void) | null };
     open: (action: 'edit' | 'code' | 'photos' | 'delete', trigger: HTMLElement | null) => void;
 }) {
     const t = useTranslator();
@@ -184,22 +192,28 @@ function Row({
     ].filter((part): part is string => part !== null);
 
     return (
-        <TableRow data-test={`variant-${variant.id}`}>
-            <TableCell className="tw-figure text-ink-muted">{figure(locale, variant.position)}</TableCell>
+        <SortableRow id={variant.id} label={variant.code} disabled={dragging} data-test={`variant-${variant.id}`}>
+            <TableCell>{reason === undefined ? <RowHandle testId={`variant-drag-${index}`} /> : null}</TableCell>
             <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
                 {variant.code}
             </TableCell>
-            <TableCell>
-                <span className="flex flex-wrap items-center gap-2">
-                    {variant.values.map((value) => (
-                        <span key={value.attributeId} className="flex items-center gap-1">
-                            {/* A swatch is data: the colour staff chose, drawn as it is. */}
-                            {value.swatch !== null ? <span className="size-3 rounded-sm border border-line" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
-                            {nameIn(locale, value.nameAr, value.nameEn)}
-                        </span>
-                    ))}
-                </span>
-            </TableCell>
+            {held.map((attribute) => {
+                const value = variant.values.find((one) => one.attributeId === attribute.id);
+
+                return (
+                    <TableCell key={attribute.id}>
+                        {value === undefined ? (
+                            '—'
+                        ) : (
+                            <span className="flex items-center gap-1">
+                                {/* A swatch is data: the colour staff chose, drawn as it is. */}
+                                {value.swatch !== null ? <span className="size-3 rounded-sm border border-line" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
+                                {nameIn(locale, value.nameAr, value.nameEn)}
+                            </span>
+                        )}
+                    </TableCell>
+                );
+            })}
             <TableCell className="text-copy-13">
                 {variant.details.length === 0
                     ? '—'
@@ -249,8 +263,20 @@ function Row({
                                     {t('catalog::admin_products.variants.correct')}
                                 </DropdownMenuItem>
                             ) : null}
+                            {reason === undefined && (moves.top !== null || moves.bottom !== null) ? (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem disabled={moves.top === null || moves.busy} onSelect={() => moves.top?.()} data-test="variant-top">
+                                        {t('catalog::admin_products.variants.move_top')}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem disabled={moves.bottom === null || moves.busy} onSelect={() => moves.bottom?.()} data-test="variant-bottom">
+                                        {t('catalog::admin_products.variants.move_bottom')}
+                                    </DropdownMenuItem>
+                                </>
+                            ) : null}
                             {reason === undefined ? (
                                 <>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuItem disabled={busy} onSelect={() => post(variant.archived ? 'restore' : 'archive')} data-test={variant.archived ? 'restore-variant' : 'archive-variant'}>
                                         {variant.archived ? t('catalog::admin_products.variants.restore') : t('catalog::admin_products.variants.archive')}
                                     </DropdownMenuItem>
@@ -281,38 +307,7 @@ function Row({
                     </DropdownMenu>
                 )}
             </TableCell>
-        </TableRow>
-    );
-}
-
-function DeleteVariantDialog({ productId, variant, open, onOpenChange, returnFocusTo }: { productId: string; variant: VariantData; open: boolean; onOpenChange: (open: boolean) => void; returnFocusTo?: React.RefObject<HTMLElement | null> }) {
-    const t = useTranslator();
-    const [busy, setBusy] = useState(false);
-
-    return (
-        <PanelDialog
-            destructive
-            open={open}
-            onOpenChange={onOpenChange}
-            returnFocusTo={returnFocusTo}
-            title={t('catalog::admin_products.variants.delete_title')}
-            description={t('catalog::admin_products.variants.delete_body', { code: variant.code })}
-            busy={busy}
-            confirm={
-                <ActionButton
-                    variant="destructive"
-                    loading={busy}
-                    onClick={() =>
-                        router.post(`/admin/products/${productId}/variants/${variant.id}/delete`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })
-                    }
-                    data-test="confirm-delete-variant"
-                >
-                    {t('catalog::admin_products.variants.delete_title')}
-                </ActionButton>
-            }
-        >
-            {null}
-        </PanelDialog>
+        </SortableRow>
     );
 }
 
