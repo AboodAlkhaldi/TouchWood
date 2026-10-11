@@ -5,6 +5,10 @@ declare(strict_types=1);
 // Inventory's error messages, by error type (inventory.{key}), and the names of the fields they point
 // at.
 return [
+    'invalid_inventory_input' => [
+        'title' => 'Check the details',
+        'detail' => 'The :attribute is not valid.',
+    ],
     'not_enough_stock' => [
         'title' => 'Not enough stock',
         'detail' => 'Some items do not have enough stock, so nothing was held.',
@@ -39,7 +43,7 @@ return [
     ],
     'threshold_invalid' => [
         'title' => 'Check the threshold',
-        'detail' => 'A threshold must be 0 or more.',
+        'detail' => 'A threshold must be from 0 to 100,000.',
     ],
     'store_off' => [
         'title' => 'This store is off',
@@ -54,5 +58,12 @@ return [
         'detail' => 'Part of this order is already shipped or reduced in the provider.',
     ],
 
-    'fields' => [],
+    'fields' => [
+        'direction' => 'add or remove',
+        'note' => 'note',
+        'product' => 'product',
+        'reason' => 'reason',
+        'store' => 'store',
+        'variant' => 'size',
+    ],
 ];

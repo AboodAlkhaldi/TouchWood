@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Inventory\Application\Command\SetLowStockThreshold;
+
+use Modules\Inventory\Application\InventoryPermissions;
+use Modules\Inventory\Application\Stock\InventoryChange;
+use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
+use Modules\Inventory\Domain\Exception\StoreOff;
+use Modules\Inventory\Domain\Exception\ThresholdInvalid;
+use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Platform\Public\Dto\AuditChanges;
+use Modules\Platform\Public\Dto\AuditEntryDto;
+use Shared\Application\Unauthorized;
+
+/**
+ * **A size's own low-stock threshold** (inventory.md §1.2, §1.7, §3), under **Manage Stock** in that
+ * store - wired or not, as it only ever alerts staff (§1.1 rule 4). From 0 to 100,000 (owner,
+ * 2026-10-10); null gives the size back the store's default. Each threshold that changed is audited
+ * from and to; one that is the same changes nothing.
+ */
+final readonly class SetLowStockThresholdHandler
+{
+    public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
+
+    public const int MOST = 100000;
+
+    public function __construct(
+        private InventoryChange $change,
+        private SizeInput $sizes,
+        private StockRows $stock,
+    ) {}
+
+    /**
+     * @throws Unauthorized|InvalidInventoryInput|StoreOff|ThresholdInvalid
+     */
+    public function handle(SetLowStockThreshold $command): void
+    {
+        $store = $this->change->authorize(self::PERMISSION, $command->storeId);
+        $storeId = $store->storeId();
+        $own = $this->sizes->check(array_map('strval', array_keys($command->thresholds)));
+
+        /** @var array<string, int|null> $thresholds */
+        $thresholds = [];
+        /** @var array<string, string> $products */
+        $products = [];
+
+        foreach ($command->thresholds as $given => $threshold) {
+            [$variantId, $productId] = $own[(string) $given];
+
+            if ($threshold !== null && ($threshold < 0 || $threshold > self::MOST)) {
+                throw new ThresholdInvalid;
+            }
+
+            if (array_key_exists($variantId, $thresholds) && $thresholds[$variantId] !== $threshold) {
+                throw new InvalidInventoryInput('variant');
+            }
+
+            $thresholds[$variantId] = $threshold;
+            $products[$variantId] = $productId;
+        }
+
+        if ($thresholds === []) {
+            return;
+        }
+
+        $this->change->run($storeId, function () use ($storeId, $thresholds, $products): array {
+            $rows = $this->stock->lockFor($storeId, $products);
+            $entries = [];
+
+            foreach ($thresholds as $variantId => $threshold) {
+                $before = $rows[$variantId]->threshold;
+
+                if ($before === $threshold) {
+                    continue;
+                }
+
+                $this->stock->setThreshold($storeId, $variantId, $threshold);
+                $entries[] = new AuditEntryDto(
+                    'inventory.threshold.set',
+                    'inventory.stock',
+                    $variantId,
+                    $storeId->value,
+                    AuditChanges::none()->changed('threshold', $before, $threshold),
+                );
+            }
+
+            return [null, $entries];
+        });
+    }
+}

@@ -8,6 +8,16 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
+use Modules\Inventory\Application\Stock\StoreWiring;
+use Modules\Inventory\Domain\Repository\InventoryLocks;
+use Modules\Inventory\Domain\Repository\StockMovements;
+use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Inventory\Domain\Repository\StoreProducts;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseInventoryLocks;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
+use Modules\Inventory\Infrastructure\External\NoStoreWired;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 
 /**
@@ -15,11 +25,21 @@ use Modules\Platform\Public\Contracts\SettingsRegistry;
  * (inventory.md). Registered after Catalog, whose variants it counts, and after Access, whose public
  * surface it uses to declare its permissions and for nothing else (handoff §4.4; inventory.md §2.4).
  *
- * Step 1 (the foundation): the schema, the permission, the default threshold, the errors and their
- * words. `InventoryApi` is bound with the step that implements it.
+ * Steps 1-2: the schema, the permission, the default threshold, the errors and their words; stock,
+ * the hand changes and the ledger. `InventoryApi` is bound with the step that implements it.
  */
 final class InventoryServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->bind(InventoryLocks::class, DatabaseInventoryLocks::class);
+        $this->app->bind(StockRows::class, DatabaseStockRows::class);
+        $this->app->bind(StoreProducts::class, DatabaseStoreProducts::class);
+        $this->app->bind(StockMovements::class, DatabaseStockMovements::class);
+        // No store is wired until Sync is built (§1.1 rule 3).
+        $this->app->bind(StoreWiring::class, NoStoreWired::class);
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Modules\Inventory\Domain\Exception\AlreadyHeld;
 use Modules\Inventory\Domain\Exception\HoldNotEditable;
+use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\InventoryError;
 use Modules\Inventory\Domain\Exception\NoHold;
 use Modules\Inventory\Domain\Exception\NotEnoughStock;
@@ -41,6 +42,7 @@ function inventoryErrorTable(): array
         StoreOff::class => ['inventory.store_off', ErrorCategory::Forbidden],
         NoHold::class => ['inventory.no_hold', ErrorCategory::NotFound],
         HoldNotEditable::class => ['inventory.hold_not_editable', ErrorCategory::Conflict],
+        InvalidInventoryInput::class => ['inventory.invalid_inventory_input', ErrorCategory::Invalid],
     ];
 }
 
@@ -70,7 +72,7 @@ it('has exactly the errors of §7 in its folder, no more and no fewer', function
     sort($table);
 
     // A guard over files must find something, or it passes over nothing.
-    expect(inventoryErrorClassesFound())->toHaveCount(12)->toBe($table);
+    expect(inventoryErrorClassesFound())->toHaveCount(13)->toBe($table);
 });
 
 it('gives each error the type and the category of §7', function (InventoryError $error, string $type, ErrorCategory $category) {
@@ -108,5 +110,12 @@ it('has an Arabic and an English title and detail for every error, none empty, w
         }
     }
 
-    expect(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
+    // Every field an invalid input names has its name in both languages.
+    expect($placeholders($en['invalid_inventory_input']['detail']))->toBe([':attribute'])
+        ->and(array_keys($en['fields']))->toBe(['direction', 'note', 'product', 'reason', 'store', 'variant'])
+        ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
+});
+
+it('carries the field an invalid input names, for the message', function () {
+    expect((new InvalidInventoryInput('reason'))->context())->toBe(['attribute' => 'reason']);
 });

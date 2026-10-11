@@ -92,9 +92,15 @@ replaces handoff §9.2's provisional "or the provider reports 0 — automaticall
 
 Under **Manage Stock** in that store (owner, 2026-10-09):
 
-- **"Set to"** a counted number — a stocktake.
+- **"Set to"** a counted number — a stocktake. **A count that finds the number right is recorded
+  too** — a stocktake line with change 0, so the history shows when a size was last counted — and is
+  not audited, as nothing changed (owner, 2026-10-11).
 - **"Add" or "Remove"** an amount, with a reason: **Received**, **Damaged / lost**, **Offline sale**, or
-  **Correction** with a short note (owner, 2026-10-09).
+  **Correction** with a short note (owner, 2026-10-09). **Each reason goes one way** (owner,
+  2026-10-11): Received only adds; Damaged / lost and Offline sale only remove; a Correction goes
+  either way, with its note. So the history always reads right.
+- **An archived size — or a size of an archived product — is read-only until it is restored** (owner,
+  2026-10-11): its stock is kept as it is; every hand change to it is refused.
 - **Removing pieces held for orders is allowed** (owner, 2026-10-09): in stock may fall below held, but
   never below 0. The orders whose holds no longer fit are **flagged "not enough stock"** for staff to
   sort out — Inventory names them (§6.1) and Sales shows the flag.
@@ -220,7 +226,7 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 | Use case | Permission | Scope |
 |---|---|---|
 | `SetStock` — a stocktake: one size, or several at once | `inventory.stock.manage` | That store (no provider) |
-| `AdjustStock` — add or remove, with a reason; a correction with its note | `inventory.stock.manage` | That store (no provider) |
+| `AdjustStock` — one size: add or remove, with a reason; a correction with its note | `inventory.stock.manage` | That store (no provider) |
 | `SetLowStockThreshold` — one size or several; empty for the store's default | `inventory.stock.manage` | That store |
 | `SetEndingSoon` — on or off for a product | `inventory.stock.manage` | That store (no provider) |
 | `SetStockDependent` — on or off for the sizes picked: all of a product's, some, or one | `inventory.stock.manage` | That store (wired) |
@@ -269,7 +275,7 @@ column is written so a NULL cannot slip through (lesson 162).
 | `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`, `gift`) PK — a bought line and a gift line of the same size are two lines · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
-| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` · `variant_id` · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int · `after` int · `note` NULL (required for `CORRECTION`) · `reference` unique · `actor` · `created_at` — never updated, never deleted |
+| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` FK RESTRICT · `variant_id` — **no key**, so a deleted draft size keeps its history, as the audit log names its subjects (step 2) · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int ≥ 0 · `after` int ≥ 0 = `before` + `change` · `note` NULL, up to 500 characters (required, not blank, for `CORRECTION`) · `reference` unique · `actor_type` + `actor_id` NULL, as the audit log records its actor (step 2; one `actor` column before) · `created_at` — never updated, never deleted (a trigger refuses UPDATE, DELETE and TRUNCATE) |
 | `inventory.return_lines` | (`return_id`, `variant_id`, `gift`) PK · `store_id` · `order_id` · `quantity` CHECK ≥ 1 · `gift` boolean · `created_at` — each return counted once, and its history |
 
 ---
@@ -289,7 +295,7 @@ A low-stock event for Ops comes with Ops (stage 8).
 | Event | From | Inventory |
 |---|---|---|
 | `StoreListingChanged` | Catalog | Nothing to store: a size with no stock row counts as 0 in a store with no provider |
-| `VariantArchived`, `ProductArchived` | Catalog | Nothing: stock is kept; an archived size is not on sale anyway |
+| `VariantArchived`, `ProductArchived` | Catalog | Nothing: stock is kept; an archived size is not on sale anyway, and read-only by hand until restored (owner, 2026-10-11) — read from `VariantDto::isArchived` and `ProductDto::stage` when a change names it |
 
 ---
 
@@ -311,6 +317,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | `StoreOff` | FORBIDDEN | changing an off store's stock without the store switch |
 | `NoHold` | NOT_FOUND | editing or returning for an order with no hold |
 | `HoldNotEditable` | CONFLICT | editing a hold whose line is already shipped or ticked |
+| `InvalidInventoryInput` | INVALID | a store, a size or a product that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or product (owner, 2026-10-11); one size given twice with two numbers; a direction that is not add or remove; a reason a hand change does not take, or one going the other way (owner, 2026-10-11); a note over 500 characters — named by its field (`store`, `variant`, `product`, `direction`, `reason`, `note`), as Catalog's invalid attribute is |
 
 ---
 
@@ -369,7 +376,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
 
-### 9.2 Answered (owner, 2026-10-09 and 2026-10-10)
+### 9.2 Answered (owner, 2026-10-09, 2026-10-10 and 2026-10-11)
 
 | # | Question | Answer |
 |---|---|---|
@@ -387,3 +394,6 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 12 | "Last pieces" on a card: which sizes count? | **The sizes this viewer can buy and order now**; on a product's page the size options mark the ending-soon size itself (owner, 2026-10-10) (§1.2) |
 | 13 | `adjustHold` and `returned`, and a gift-only size's stock (§1.7, §2.1) | **Accepted** with #106 (2026-10-10) |
 | 14 | An upper limit on the low-stock threshold? | **100,000**, for the store's default and each size's own (owner, 2026-10-10) (§1.2) |
+| 15 | Do the hand reasons fix the direction? | **Yes**: Received only adds; Damaged / lost and Offline sale only remove; Correction either way, with its note (owner, 2026-10-11) (§1.5) |
+| 16 | A stocktake that finds the number right | **Recorded** as a stocktake line with change 0; not audited (owner, 2026-10-11) (§1.5) |
+| 17 | An archived size | **Read-only until restored**, in Inventory and Pricing alike — a size of an archived product too (owner, 2026-10-11) (§1.5) |
