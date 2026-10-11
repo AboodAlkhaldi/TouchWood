@@ -8,6 +8,7 @@ use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Modules\Pricing\Domain\Exception\CategoryDiscountNotFound;
 use Modules\Pricing\Domain\Exception\CategoryNotUsable;
 use Modules\Pricing\Domain\Exception\DuplicateLines;
+use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\LinesWithoutPrice;
 use Modules\Pricing\Domain\Exception\NoRetailPrice;
 use Modules\Pricing\Domain\Exception\NotChangeable;
@@ -55,6 +56,7 @@ function pricingErrorTable(): array
         DuplicateLines::class => ['pricing.duplicate_lines', ErrorCategory::Invalid],
         LinesWithoutPrice::class => ['pricing.lines_without_price', ErrorCategory::Conflict],
         AmountsInvalid::class => ['pricing.amounts_invalid', ErrorCategory::Invalid],
+        InvalidPricingInput::class => ['pricing.invalid_pricing_input', ErrorCategory::Invalid],
     ];
 }
 
@@ -84,7 +86,7 @@ it('has exactly the errors of §7 in its folder, no more and no fewer', function
     sort($table);
 
     // A guard over files must find something, or it passes over nothing.
-    expect(pricingErrorClassesFound())->toHaveCount(18)->toBe($table);
+    expect(pricingErrorClassesFound())->toHaveCount(19)->toBe($table);
 });
 
 it('gives each error the type and the category of §7', function (PricingError $error, string $type, ErrorCategory $category) {
@@ -122,11 +124,18 @@ it('has an Arabic and an English title and detail for every error, none empty, w
         }
     }
 
-    // The one message that names a value names it in both languages.
+    // The messages that name a value name it in both languages; every field an invalid input names
+    // has its name in both.
     expect($placeholders($en['price_too_precise']['detail']))->toBe([':decimals'])
+        ->and($placeholders($en['invalid_pricing_input']['detail']))->toBe([':attribute'])
+        ->and(array_keys($en['fields']))->toBe(['amount', 'store', 'variant'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 
 it('carries the decimals a too-precise price was refused for, for the message', function () {
     expect((new PriceTooPrecise(2))->context())->toBe(['decimals' => 2]);
+});
+
+it('carries the field an invalid input names, for the message', function () {
+    expect((new InvalidPricingInput('variant'))->context())->toBe(['attribute' => 'variant']);
 });

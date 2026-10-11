@@ -1,0 +1,10 @@
+<?php
+
+declare(strict_types=1);
+
+// What each audited Pricing action is called, for the audit log (frontend.md 3.5, E6). An action
+// with no line here is shown exactly as it is recorded.
+return [
+    'retail_price.set' => 'Retail price set',
+    'retail_price.removed' => 'Retail price removed',
+];

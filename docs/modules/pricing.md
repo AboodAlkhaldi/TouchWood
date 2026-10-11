@@ -407,6 +407,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
+| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input), an archived size given a new price, an amount that is not a number — named by its field (`store`, `variant`, `amount`), as Catalog's invalid attribute is |
 
 ---
 

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 // Pricing's error messages, by error type (pricing.{key}), and the names of the fields they point at.
 return [
+    'invalid_pricing_input' => [
+        'title' => 'Check the details',
+        'detail' => 'The :attribute is not valid.',
+    ],
     'price_not_positive' => [
         'title' => 'Check the price',
         'detail' => 'A price must be above 0. To give a piece away, make it a gift.',
@@ -77,5 +81,9 @@ return [
         'detail' => 'The amounts do not fit these prices.',
     ],
 
-    'fields' => [],
+    'fields' => [
+        'amount' => 'price',
+        'store' => 'store',
+        'variant' => 'size',
+    ],
 ];
