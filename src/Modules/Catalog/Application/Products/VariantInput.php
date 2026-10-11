@@ -35,8 +35,8 @@ final readonly class VariantInput
     ) {}
 
     /**
-     * The variant's values: one of every attribute of the product's set, none for a product without
-     * one (it then has a single variant).
+     * The variant's values: one of each of the product's variant attributes, none for a product
+     * without (Has Variants: No — it then has a single variant, amendment 16(b)).
      *
      * @param  array<array-key, mixed>  $values  attribute id => value id, as the request sent them
      * @param  list<string>  $held  the value ids the variant has now
@@ -45,11 +45,10 @@ final readonly class VariantInput
      */
     public function combination(Product $product, array $values, array $held = []): Combination
     {
-        $set = $this->references->attributeSet($product->attributeSetId(), $product->attributeSetId());
-        $members = $set === null ? [] : $this->references->members($set);
+        $members = $this->references->variantAttributes($this->products->variantAttributes($product->id()));
 
         if (count($values) > count($members)) {
-            throw new InvalidCatalogAttribute('values', "only the attributes of the product's set");
+            throw new InvalidCatalogAttribute('values', "only the product's variant attributes");
         }
 
         $chosen = [];

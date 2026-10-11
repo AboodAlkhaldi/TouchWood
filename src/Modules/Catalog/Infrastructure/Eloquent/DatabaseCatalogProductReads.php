@@ -127,17 +127,16 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         $row = $this->db->table('catalog.products as p')
             ->join('catalog.brands as b', 'b.id', '=', 'p.brand_id')
             ->leftJoin('catalog.categories as k', 'k.id', '=', 'p.category_id')
-            ->leftJoin('catalog.attribute_sets as s', 's.id', '=', 'p.attribute_set_id')
             ->where('p.id', strtolower($productId))
             ->select([
                 'p.id', 'p.name_ar', 'p.name_en', 'p.stage', 'p.archived_from', 'p.brand_id', 'b.name_ar as brand_ar', 'b.name_en as brand_en',
-                'p.category_id', 'p.warranty_id', 'p.attribute_set_id', 's.name_ar as set_ar', 's.name_en as set_en',
+                'p.category_id', 'p.warranty_id',
                 'p.description_ar', 'p.description_en', 'p.hidden_by_category', 'p.hidden_by_brand',
             ])
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'ar' AND sl.is_current) as slug_ar")
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'en' AND sl.is_current) as slug_en")
             ->selectRaw(self::CODES)
-            ->selectRaw("(SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = p.attribute_set_id) as set_attributes")
+            ->selectRaw("(SELECT coalesce(json_agg(pa.attribute_id ORDER BY pa.position), '[]') FROM catalog.product_attributes pa WHERE pa.product_id = p.id) as variant_attributes")
             ->selectRaw("(SELECT coalesce(json_agg(ph.media_id ORDER BY ph.position), '[]') FROM catalog.product_photos ph WHERE ph.product_id = p.id) as gallery")
             ->selectRaw("(SELECT coalesce(json_agg(DISTINCT sv.store_id), '[]') FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.is_active) as on_in")
             ->selectRaw('EXISTS (SELECT 1 FROM catalog.variants v WHERE v.product_id = p.id AND NOT v.is_archived) as has_variant')
@@ -184,10 +183,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             array_map(static fn (array $step): array => ['ar' => (string) ($step['ar'] ?? ''), 'en' => (string) ($step['en'] ?? '')], self::lists($row->category_path)),
             (bool) $row->category_showable,
             self::text($row->warranty_id),
-            self::text($row->attribute_set_id),
-            self::text($row->set_ar),
-            self::text($row->set_en),
-            self::strings($row->set_attributes),
+            self::strings($row->variant_attributes),
             self::json($row->description_ar),
             self::json($row->description_en),
             (bool) $row->hidden_by_category,
@@ -211,8 +207,9 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->select(['v.id', 'v.code', 'v.position', 'v.is_archived', 'v.weight_grams', 'v.length_mm', 'v.width_mm', 'v.height_mm'])
             ->selectRaw(<<<'SQL'
                 (SELECT coalesce(json_agg(json_build_object('attributeId', vv.attribute_id, 'valueId', vv.value_id, 'nameAr', av.name_ar, 'nameEn', av.name_en, 'swatch', av.swatch)
-                    ORDER BY a.position, a.name_en), '[]')
+                    ORDER BY pa.position, a.position, a.name_en), '[]')
                     FROM catalog.variant_values vv JOIN catalog.attribute_values av ON av.id = vv.value_id JOIN catalog.attributes a ON a.id = vv.attribute_id
+                    LEFT JOIN catalog.product_attributes pa ON pa.product_id = v.product_id AND pa.attribute_id = vv.attribute_id
                     WHERE vv.variant_id = v.id) as vals
                 SQL)
             ->selectRaw(<<<'SQL'
@@ -291,10 +288,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 (SELECT coalesce(json_agg(json_build_object('id', c.id, 'parentId', c.parent_id, 'ar', c.name_ar, 'en', c.name_en, 'active', c.is_active)
                     ORDER BY c.name_en, c.id), '[]') FROM catalog.categories c) as categories,
                 (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months, 'active', w.is_active)
-                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties,
-                (SELECT coalesce(json_agg(json_build_object('id', s.id, 'nameAr', s.name_ar, 'nameEn', s.name_en,
-                    'attributeIds', (SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = s.id))
-                    ORDER BY s.name_en, s.id), '[]') FROM catalog.attribute_sets s WHERE s.is_active) as variations
+                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties
             SQL);
 
         return new ProductOptions(
@@ -313,12 +307,6 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 'periodMonths' => isset($warranty['periodMonths']) ? (int) $warranty['periodMonths'] : null,
                 'active' => (bool) ($warranty['active'] ?? false),
             ], self::lists($row?->warranties)),
-            array_map(static fn (array $set): array => [
-                'id' => (string) $set['id'],
-                'nameAr' => (string) $set['nameAr'],
-                'nameEn' => (string) $set['nameEn'],
-                'attributeIds' => array_values(array_map('strval', is_array($set['attributeIds'] ?? null) ? $set['attributeIds'] : [])),
-            ], self::lists($row?->variations)),
         );
     }
 

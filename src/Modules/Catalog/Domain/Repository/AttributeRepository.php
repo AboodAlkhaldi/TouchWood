@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\Repository;
 
 use Modules\Catalog\Domain\Model\Attribute;
-use Modules\Catalog\Domain\Model\AttributeSet;
 use Modules\Catalog\Domain\Model\AttributeValue;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 
 /**
- * Attributes, their values and the attribute sets: one library (catalog.md §1.7), changed under one
- * lock (`ListLocks::ATTRIBUTES`).
+ * Attributes and their values: one library (catalog.md §1.7), changed under one lock
+ * (`ListLocks::ATTRIBUTES`).
  */
 interface AttributeRepository
 {
@@ -35,8 +34,8 @@ interface AttributeRepository
 
     public function hasValues(string $attributeId): bool;
 
-    /** Whether any attribute set holds it. */
-    public function inSets(string $attributeId): bool;
+    /** Whether a product makes its variants of it (amendment 16(b)). */
+    public function makesVariants(string $attributeId): bool;
 
     public function findValue(string $valueId): ?AttributeValue;
 
@@ -58,19 +57,4 @@ interface AttributeRepository
      * @return list<AttributeValue> by position and then name
      */
     public function valuesOf(string $attributeId): array;
-
-    public function findSet(string $setId): ?AttributeSet;
-
-    public function setById(string $setId): ?AttributeSet;
-
-    public function addSet(AttributeSet $set): void;
-
-    public function updateSet(AttributeSet $set): void;
-
-    public function deleteSet(string $setId): void;
-
-    /**
-     * @return list<AttributeSet>
-     */
-    public function sets(): array;
 }

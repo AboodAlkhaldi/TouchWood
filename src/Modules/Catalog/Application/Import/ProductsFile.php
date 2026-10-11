@@ -45,6 +45,9 @@ final readonly class ProductsFile
 
     public const int VARIANT_PHOTOS_MAX = 10;
 
+    /** As a product's Variants tab takes them (`AddVariantAttributeHandler::MAX_ATTRIBUTES`). */
+    public const int VARIANT_ATTRIBUTES_MAX = 10;
+
     private const array PRODUCT_FIELDS = ['name', 'slug', 'description', 'brand', 'category', 'warranty', 'attribute_set', 'variants', 'photos', 'search_words', 'filters', 'related', 'goes_with', 'stores'];
 
     private const array VARIANT_FIELDS = ['code', 'values', 'details', 'weight_g', 'length_mm', 'width_mm', 'height_mm', 'photos'];
@@ -166,8 +169,12 @@ final readonly class ProductsFile
         [$nameAr, $nameEn] = self::name($raw['name'] ?? null, "{$at} › name", $problems);
         [$slugAr, $slugEn] = self::slugs($raw['slug'] ?? null, "{$at} › slug", $problems);
         [$descriptionAr, $descriptionEn] = self::descriptions($raw['description'] ?? null, "{$at} › description", $problems);
-        $set = self::listName($raw['attribute_set'] ?? null, "{$at} › attribute_set", $problems);
-        $variants = self::variants($raw['variants'] ?? null, $set !== null || array_key_exists('attribute_set', $raw), $at, $zip, $problems);
+        // No attribute sets (amendment 16(b)): the variants' values name the attributes that make them.
+        if (array_key_exists('attribute_set', $raw)) {
+            $problems->add("{$at} › attribute_set", "not in a products file: each variant's values name the attributes that make the product's variants");
+        }
+
+        $variants = self::variants($raw['variants'] ?? null, $at, $zip, $problems);
         [$brand, $brandNumber] = self::brand($raw['brand'] ?? null, "{$at} › brand", $problems);
 
         return new FileProduct(
@@ -181,7 +188,6 @@ final readonly class ProductsFile
             $brand,
             self::category($raw['category'] ?? null, "{$at} › category", $problems),
             self::listName($raw['warranty'] ?? null, "{$at} › warranty", $problems),
-            $set,
             $variants,
             self::photos($raw['photos'] ?? null, self::GALLERY_MAX, "{$at} › photos", $zip, $problems),
             self::searchWords($raw['search_words'] ?? null, "{$at} › search_words", $problems),
@@ -390,16 +396,12 @@ final readonly class ProductsFile
      * @param  array<string, int>|null  $zip
      * @return list<FileVariant>
      */
-    private static function variants(mixed $raw, bool $hasSet, string $at, ?array $zip, FileProblems $problems): array
+    private static function variants(mixed $raw, string $at, ?array $zip, FileProblems $problems): array
     {
         if (! is_array($raw) || ! array_is_list($raw) || $raw === []) {
             $problems->add("{$at} › variants", 'a list of at least one variant');
 
             return [];
-        }
-
-        if (! $hasSet && count($raw) > 1) {
-            $problems->add("{$at} › variants", 'one variant, with no values, for a product with no attribute_set');
         }
 
         $variants = [];
@@ -419,16 +421,17 @@ final readonly class ProductsFile
             self::onlyFields($item, self::VARIANT_FIELDS, $where, $problems);
             $values = self::values($item['values'] ?? null, "{$where} › values", $problems);
 
-            if ($hasSet && $values === []) {
-                $problems->add("{$where} › values", 'one value for each attribute of the product\'s attribute_set');
-            }
-
-            if (! $hasSet && $values !== []) {
-                $problems->add("{$where} › values", 'values need the product\'s attribute_set');
+            // One variant may have none (Has Variants: No); two or more are told apart by their values.
+            if (count($raw) > 1 && $values === []) {
+                $problems->add("{$where} › values", 'a value of each attribute that makes the product\'s variants: a product with more than one variant has them');
             }
 
             $key = self::combination($values);
             $names = array_keys($key);
+
+            if (count($names) > self::VARIANT_ATTRIBUTES_MAX) {
+                $problems->add("{$where} › values", 'at most '.self::VARIANT_ATTRIBUTES_MAX.' attributes make a product\'s variants');
+            }
 
             if ($attributes !== null && $names !== $attributes) {
                 $problems->add("{$where} › values", 'the same attributes as the product\'s first variant');

@@ -44,13 +44,6 @@ interface CatalogListReads
     public function values(string $attributeId): array;
 
     /**
-     * Every attribute set — the screens' "Variations" — with its attributes in order.
-     *
-     * @return list<VariationRow>
-     */
-    public function variations(): array;
-
-    /**
      * @return list<LabelRow>
      */
     public function labels(): array;

@@ -17,7 +17,7 @@ interface ListLocks
 
     public const string CATEGORIES = 'categories';
 
-    /** Attributes, their values and the attribute sets: one lock, since each reads the others. */
+    /** Attributes and their values: one lock, since each reads the others. */
     public const string ATTRIBUTES = 'attributes';
 
     public const string LABELS = 'labels';

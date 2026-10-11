@@ -43,7 +43,8 @@ use Shared\Application\Unauthorized;
  * amendments 6(c), 7(a)): `catalog.import.run`. Each name **means one the catalog has** — a typo: an
  * active one of that list; an attribute doing the job the file uses it for; a value of its attribute,
  * once the catalog has that attribute or it is decided as one the catalog has —, is **created** with
- * its names in both languages — a value (under such an attribute), a category or a set; brands,
+ * its names in both languages — a value (under such an attribute) or a category (sets are gone,
+ * amendment 16(b)); brands,
  * warranties and attributes are added in the panel first —, or is **refused**. Decided while the
  * import is deciding, or again after bringing it in failed. An attribute decided again sends the
  * values picked or created under it back to wait.
@@ -61,7 +62,7 @@ final readonly class DecideImportNamesHandler
     public const int MAX = 500;
 
     /** What the page may create; brands, warranties and attributes are added in the panel first (amendment 7(a)). */
-    private const array CREATED = [ImportNameRow::VALUE, ImportNameRow::CATEGORY, ImportNameRow::SET];
+    private const array CREATED = [ImportNameRow::VALUE, ImportNameRow::CATEGORY];
 
     public function __construct(
         private Authorizer $authorizer,
@@ -193,10 +194,6 @@ final readonly class DecideImportNamesHandler
                 $warranty = $this->warranties->find($targetId) ?? throw new ListItemNotFound($targetId);
 
                 return $warranty->isActive() ? $warranty->id() : throw new ListItemInactive;
-            case ImportNameRow::SET:
-                $set = $this->attributes->findSet($targetId) ?? throw new ListItemNotFound($targetId);
-
-                return $set->isActive() ? $set->id() : throw new ListItemInactive;
             case ImportNameRow::ATTRIBUTE:
                 $attribute = $this->attributes->find($targetId) ?? throw new ListItemNotFound($targetId);
 

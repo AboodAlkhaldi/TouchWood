@@ -8,7 +8,7 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * A variant's value of one attribute of its variation.
+ * A variant's value of one of its product's variant attributes.
  */
 #[TypeScript]
 final class VariantValueData extends Data

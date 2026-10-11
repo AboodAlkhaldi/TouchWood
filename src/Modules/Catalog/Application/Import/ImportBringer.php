@@ -7,14 +7,14 @@ namespace Modules\Catalog\Application\Import;
 use Closure;
 use LogicException;
 use Modules\Catalog\Application\Audit\ListAudit;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -36,6 +36,7 @@ use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Products\ProductReferences;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Model\Variant;
@@ -57,10 +58,9 @@ use Throwable;
  * lists':
  *
  * 1. **The names decided "create it"** are made through the lists' own handlers — categories a parent
- *    before its children, values under their attribute, sets with the attributes their products give
- *    them. One under a name refused is refused with it.
+ *    before its children, values under their attribute. One under a name refused is refused with it.
  * 2. **Each product, in the file's order, as the page's changes left it**: skipped; **held back** when
- *    something it cannot come in without was refused — its set, or a value or attribute of a variant;
+ *    something it cannot come in without was refused — a value or attribute of a variant;
  *    otherwise **created as a draft** through the product handlers, its photos added to the media
  *    library, or **the catalog's product updated** — what the file gives replacing what it has, the
  *    rest kept — or **replaced whole** — what the file leaves out cleared, its variants the file does
@@ -82,10 +82,10 @@ final readonly class ImportBringer
         private VariantRepository $variants,
         private AddCategoryHandler $addCategory,
         private AddAttributeValueHandler $addValue,
-        private AddAttributeSetHandler $addSet,
         private CreateProductHandler $createProduct,
         private EditProductDetailsHandler $editDetails,
         private AddVariantHandler $addVariant,
+        private AddVariantAttributeHandler $addVariantAttribute,
         private UpdateVariantHandler $updateVariant,
         private ArchiveVariantHandler $archiveVariant,
         private SetProductGalleryHandler $setGallery,
@@ -96,6 +96,7 @@ final readonly class ImportBringer
         private SetRelationsHandler $setRelations,
         private StoreListingRepository $listings,
         private ListingRows $listingRows,
+        private ProductReferences $references,
     ) {}
 
     /**
@@ -115,7 +116,7 @@ final readonly class ImportBringer
         }
 
         $catalog = CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties);
-        $created = $this->createLists($names, $catalog, $rows);
+        $created = $this->createLists($names, $catalog);
         $default = $this->brands->defaultBrand()?->id() ?? throw new LogicException('No default brand: the seed makes one.');
         $references = new ImportReferences($catalog, $names, $created, $default);
         $photos = new ImportPhotos($this->platform, $files);
@@ -208,21 +209,10 @@ final readonly class ImportBringer
     /**
      * Its names as the catalog has them now and as decided — or null when it is held back.
      *
-     * @return array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, set: string|null, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}|null
+     * @return array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, attributes: list<string>, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}|null
      */
     private static function resolve(FileProduct $product, ImportReferences $references): ?array
     {
-        $set = null;
-
-        if ($product->attributeSet !== null) {
-            $set = $references->set($product->attributeSet);
-
-            // Its variants are made of the set's values: without it, they cannot come in.
-            if ($set === null) {
-                return null;
-            }
-        }
-
         $variants = [];
 
         foreach ($product->variants as $variant) {
@@ -272,7 +262,8 @@ final readonly class ImportBringer
             'givenBrand' => $references->givenBrand($product),
             'category' => $references->category($product),
             'warranty' => $references->warranty($product),
-            'set' => $set,
+            // The attributes its variants are made of, in the first variant's order (amendment 16(b)).
+            'attributes' => array_map('strval', array_keys($variants[0]['values'] ?? [])),
             'variants' => $variants,
             'filters' => array_values(array_unique($filters)),
         ];
@@ -282,12 +273,17 @@ final readonly class ImportBringer
      * A new draft, through the handlers a person's form uses.
      *
      * @param  array<string, string>  $newCodes  each code it gives up => its new one
-     * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, set: string|null, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
+     * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, attributes: list<string>, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
      */
     private function create(FileProduct $product, array $newCodes, array $resolved, ImportPhotos $photos): string
     {
         $id = $this->createProduct->handle(new CreateProduct($product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn));
-        $this->editDetails->handle(new EditProductDetails($id, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn, $product->descriptionAr, $product->descriptionEn, $resolved['category'], $resolved['warranty'], $resolved['set']));
+        $this->editDetails->handle(new EditProductDetails($id, $product->nameAr, $product->nameEn, $resolved['brand'], $product->slugAr, $product->slugEn, $product->descriptionAr, $product->descriptionEn, $resolved['category'], $resolved['warranty']));
+
+        // Has Variants: its attributes first, while it has no variant yet, then its variants.
+        foreach ($resolved['attributes'] as $attributeId) {
+            $this->addVariantAttribute->handle(new AddVariantAttribute($id, $attributeId, []));
+        }
 
         foreach ($resolved['variants'] as $position => $variant) {
             $file = $variant['file'];
@@ -306,7 +302,7 @@ final readonly class ImportBringer
     /**
      * The catalog's product, updated with what the file gives, or replaced whole.
      *
-     * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, set: string|null, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
+     * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, attributes: list<string>, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
      */
     private function update(string $productId, FileProduct $product, array $resolved, bool $replace, ImportPhotos $photos): string
     {
@@ -322,8 +318,8 @@ final readonly class ImportBringer
             $product->descriptionEn ?? ($replace ? null : $existing->descriptionEn()?->toArray()),
             $resolved['category'] ?? ($replace ? null : $existing->categoryId()),
             $resolved['warranty'] ?? ($replace ? null : $existing->warrantyId()),
-            $resolved['set'] ?? ($replace ? null : $existing->attributeSetId()),
         ));
+        $this->takeAttributes($productId, $resolved, $replace);
 
         $current = $this->variants->ofProduct($productId);
         $named = [];
@@ -452,6 +448,54 @@ final readonly class ImportBringer
     }
 
     /**
+     * The catalog's product's variant attributes, as the file has them (catalog.md P33; owner,
+     * 2026-10-10): **updating** keeps the product's own — the confirm asks first when the file names
+     * others; **replacing** takes the file's, in its order — with other attributes only when the file
+     * names every variant the product has, archived ones too, so none is left half-described (the
+     * confirm, `ImportAttributeChanges`). Every variant is then written with the file's values.
+     *
+     * @param  array{brand: string, givenBrand: string|null, category: string|null, warranty: string|null, attributes: list<string>, variants: list<array{values: array<string, string>, details: array<string, array<string, string>>, file: FileVariant}>, filters: list<string>}  $resolved
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    private function takeAttributes(string $productId, array $resolved, bool $replace): void
+    {
+        $held = $this->products->variantAttributes($productId);
+        $given = $resolved['attributes'];
+        $same = $held;
+        sort($same);
+        $wanted = $given;
+        sort($wanted);
+
+        if ($same !== $wanted && ! $replace) {
+            throw new InvalidCatalogAttribute('variants', "the product's own variant attributes: replace it whole, or skip it");
+        }
+
+        if ($same !== $wanted) {
+            $codes = array_map(static fn (array $variant): string => $variant['file']->code, $resolved['variants']);
+
+            foreach ($this->variants->ofProduct($productId) as $variant) {
+                if (! in_array($variant->code()->value, $codes, true)) {
+                    throw new InvalidCatalogAttribute('variants', 'every variant the product has, archived ones too, to give it other attributes');
+                }
+            }
+        }
+
+        if ($replace && $given !== $held) {
+            // As AddVariantAttribute takes one: variant-making, active, at most ten.
+            foreach (array_diff($given, $held) as $attributeId) {
+                $this->references->newVariantAttribute($attributeId);
+            }
+
+            if (count($given) > AddVariantAttributeHandler::MAX_ATTRIBUTES) {
+                throw new InvalidCatalogAttribute('variants', 'at most '.AddVariantAttributeHandler::MAX_ATTRIBUTES.' attributes');
+            }
+
+            $this->products->replaceVariantAttributes($productId, $given);
+        }
+    }
+
+    /**
      * The gallery, search words and filter values: set when the file gives them (or the page filled
      * them), or always when replacing. Words and values the page added (amendment 8(a)) join the
      * file's — or, for a product the file updates without giving any, the catalog's as they are now.
@@ -508,12 +552,11 @@ final readonly class ImportBringer
      * The names decided "create it", made — each under what it hangs on, or refused with it.
      *
      * @param  array<string, ImportName>  $names
-     * @param  list<ImportProduct>  $rows
      * @return array<string, string> kind and key => the item made
      *
      * @throws ImportStepFailed
      */
-    private function createLists(array $names, CatalogNames $catalog, array $rows): array
+    private function createLists(array $names, CatalogNames $catalog): array
     {
         $created = [];
         $create = array_filter($names, static fn (ImportName $name): bool => $name->decision === ImportName::CREATE);
@@ -544,18 +587,6 @@ final readonly class ImportBringer
             }
         }
 
-        foreach ($create as $key => $name) {
-            if ($name->kind !== ImportNameRow::SET) {
-                continue;
-            }
-
-            $members = self::setMembers($name, $rows, static fn (string $attribute): ?string => $catalog->attribute($attribute)?->id() ?? self::picked(ImportNameRow::ATTRIBUTE, [$attribute], $names, $created));
-
-            if ($members !== null) {
-                $created[$key] = $this->step("the set {$name->written}", fn (): string => $this->addSet->handle(new AddAttributeSet((string) $name->nameAr, (string) $name->nameEn, $members)));
-            }
-        }
-
         return $created;
     }
 
@@ -577,29 +608,6 @@ final readonly class ImportBringer
             ImportName::CREATE => $created[$key] ?? null,
             default => null,
         };
-    }
-
-    /**
-     * A new set's attributes: those its first product's variants are made of (the file is refused when
-     * two products give it different ones) — or null when one of them was refused.
-     *
-     * @param  list<ImportProduct>  $rows
-     * @param  Closure(string): ?string  $attribute
-     * @return list<string>|null
-     */
-    private static function setMembers(ImportName $set, array $rows, Closure $attribute): ?array
-    {
-        foreach ($rows as $row) {
-            $product = $row->effective();
-
-            if ($product->attributeSet !== null && ImportNameRow::keyOf([$product->attributeSet]) === $set->key) {
-                $members = array_map(static fn (int|string $name): ?string => $attribute((string) $name), array_keys(($product->variants[0] ?? null)->values ?? []));
-
-                return in_array(null, $members, true) ? null : array_values(array_filter($members));
-            }
-        }
-
-        return null;
     }
 
     /**

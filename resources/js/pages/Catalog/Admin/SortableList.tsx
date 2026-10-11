@@ -9,7 +9,7 @@ import { useTranslator } from '@/lib/t';
 
 /*
 | A short list put in order by dragging (catalog.md §4.4, P8): a store's menu among one parent's
-| children, a variation's attributes, a product's related products - and, laid out as a grid of tiles,
+| children, a product's variant attributes, a product's related products - and, laid out as a grid of tiles,
 | a gallery. shadcn's `dashboard-01` drag handles on @dnd-kit, as the address formats' fields are
 | (frontend.md §1.11) - by mouse, touch or keyboard, each move said aloud in the page's language. Only
 | the handle picks an item up.

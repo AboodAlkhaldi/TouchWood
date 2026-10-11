@@ -20,7 +20,6 @@ final class ProductPage extends Data
      * @param  list<BrandOptionData>|null  $brands
      * @param  list<CategoryOptionData>|null  $categories
      * @param  list<WarrantyOptionData>|null  $warranties
-     * @param  list<VariationOptionData>|null  $variations
      * @param  list<VariantData>|null  $variants
      * @param  list<AttributeChoiceData>|null  $attributes
      * @param  list<string>|null  $searchWords
@@ -40,7 +39,6 @@ final class ProductPage extends Data
         public ?array $brands,
         public ?array $categories,
         public ?array $warranties,
-        public ?array $variations,
         public ?array $variants,
         public ?array $attributes,
         public ?array $searchWords,

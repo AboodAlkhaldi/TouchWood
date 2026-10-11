@@ -7,7 +7,7 @@ namespace Modules\Catalog\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Choosing a deactivated attribute, value, attribute set, label or warranty (catalog.md §7).
+ * Choosing a deactivated attribute, value, label or warranty (catalog.md §7).
  */
 final class ListItemInactive extends CatalogError
 {

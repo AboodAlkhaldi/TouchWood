@@ -11,12 +11,11 @@ use Modules\Catalog\Presentation\Http\Controller\LabelsController;
 use Modules\Catalog\Presentation\Http\Controller\ProductChangesController;
 use Modules\Catalog\Presentation\Http\Controller\ProductsController;
 use Modules\Catalog\Presentation\Http\Controller\SearchWordsController;
-use Modules\Catalog\Presentation\Http\Controller\VariationsController;
 use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
 
 /*
 | Catalog's screens in the admin panel (catalog.md §4.4, amendment 13): the six shared lists first
-| (step 1), then the products (step 2) — brands, categories, attributes and their values, variations, labels, warranties, and the
+| (step 1), then the products (step 2) — brands, categories, attributes and their values, labels, warranties, and the
 | search words with the searches that found nothing.
 |
 | Mounted into the area App\Http\AdminArea names, as Platform's and B2B's screens are. Who may open
@@ -59,13 +58,6 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('attribute-values/{value}/activate', [AttributesController::class, 'activateValue'])->name('catalog.admin.values.activate');
         Route::post('attribute-values/{value}/deactivate', [AttributesController::class, 'deactivateValue'])->name('catalog.admin.values.deactivate');
         Route::post('attribute-values/{value}/delete', [AttributesController::class, 'deleteValue'])->name('catalog.admin.values.delete');
-
-        Route::get('variations', [VariationsController::class, 'index'])->name('catalog.admin.variations');
-        Route::post('variations', [VariationsController::class, 'add'])->name('catalog.admin.variations.add');
-        Route::post('variations/{set}', [VariationsController::class, 'edit'])->name('catalog.admin.variations.edit');
-        Route::post('variations/{set}/activate', [VariationsController::class, 'activate'])->name('catalog.admin.variations.activate');
-        Route::post('variations/{set}/deactivate', [VariationsController::class, 'deactivate'])->name('catalog.admin.variations.deactivate');
-        Route::post('variations/{set}/delete', [VariationsController::class, 'delete'])->name('catalog.admin.variations.delete');
 
         Route::get('labels', [LabelsController::class, 'index'])->name('catalog.admin.labels');
         Route::post('labels', [LabelsController::class, 'add'])->name('catalog.admin.labels.add');

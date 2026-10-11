@@ -172,15 +172,17 @@ describe('the menu', function () {
             P::BRAND_MANAGE, P::CATEGORY_RANK, P::ATTRIBUTE_MANAGE, P::LABEL_MANAGE, P::WARRANTY_MANAGE, P::SEARCH_WORD_MANAGE,
         ], ['eg'])->get('/admin'));
 
-        expect($menu)->toContain('catalog/brands', 'catalog/categories', 'catalog/attributes', 'catalog/variations', 'catalog/labels', 'catalog/warranties', 'catalog/search_words')
+        expect($menu)->toContain('catalog/brands', 'catalog/categories', 'catalog/attributes', 'catalog/labels', 'catalog/warranties', 'catalog/search_words')
             // The tree is offered for either of its jobs: ordering a menu, or changing the tree.
             ->and(catalogListScreensMenu(catalogListScreens([P::CATEGORY_MANAGE], ['sa'])->get('/admin')))->toContain('catalog/categories');
 
         $other = catalogListScreensMenu(catalogListScreens([P::PRODUCT_VIEW])->get('/admin'));
 
         expect(array_values(array_filter($other, fn (string $key): bool => in_array($key, [
-            'catalog/brands', 'catalog/categories', 'catalog/attributes', 'catalog/variations', 'catalog/labels', 'catalog/warranties', 'catalog/search_words',
-        ], true))))->toBe([]);
+            'catalog/brands', 'catalog/categories', 'catalog/attributes', 'catalog/labels', 'catalog/warranties', 'catalog/search_words',
+        ], true))))->toBe([])
+            // The Variations screen is gone with the attribute sets (amendment 16(b)).
+            ->and(catalogListScreensMenu(catalogListScreens([P::ATTRIBUTE_MANAGE])->get('/admin')))->not->toContain('catalog/variations');
     });
 });
 
@@ -197,7 +199,6 @@ describe('opening a list (P2)', function () {
         'brands' => ['/admin/brands', P::BRAND_MANAGE, 'Catalog/Admin/Brands/Index', 'mayChange'],
         'categories' => ['/admin/categories', P::CATEGORY_MANAGE, 'Catalog/Admin/Categories/Index', 'mayManage'],
         'attributes' => ['/admin/attributes', P::ATTRIBUTE_MANAGE, 'Catalog/Admin/Attributes/Index', 'mayChange'],
-        'variations' => ['/admin/variations', P::ATTRIBUTE_MANAGE, 'Catalog/Admin/Variations/Index', 'mayChange'],
         'labels' => ['/admin/labels', P::LABEL_MANAGE, 'Catalog/Admin/Labels/Index', 'mayChange'],
         'warranties' => ['/admin/warranties', P::WARRANTY_MANAGE, 'Catalog/Admin/Warranties/Index', 'mayChange'],
         'search words' => ['/admin/search-words', P::SEARCH_WORD_MANAGE, 'Catalog/Admin/SearchWords/Index', 'mayChange'],
@@ -209,7 +210,6 @@ describe('opening a list (P2)', function () {
         'brands' => ['/admin/brands'],
         'categories' => ['/admin/categories'],
         'attributes' => ['/admin/attributes'],
-        'variations' => ['/admin/variations'],
         'labels' => ['/admin/labels'],
         'warranties' => ['/admin/warranties'],
         'search words' => ['/admin/search-words'],
@@ -546,7 +546,7 @@ describe('the categories', function () {
 describe('a reader without All stores (P2)', function () {
     it('is refused every change, with nothing changed and no photo kept', function (string $job, Closure $request) {
         [$uri, $data] = $request();
-        $after = fn (): array => [DB::table('catalog.categories')->count(), DB::table('catalog.attributes')->count(), DB::table('catalog.attribute_values')->count(), DB::table('catalog.attribute_sets')->count(), DB::table('catalog.warranties')->count(), DB::table('catalog.word_pairs')->count()];
+        $after = fn (): array => [DB::table('catalog.categories')->count(), DB::table('catalog.attributes')->count(), DB::table('catalog.attribute_values')->count(), DB::table('catalog.warranties')->count(), DB::table('catalog.word_pairs')->count()];
         $before = $after();
 
         expect(AdminBrowser::formError(catalogListScreens([$job], ['sa', 'eg'])->post($uri, $data)))->toBe(catalogListScreensNotYours())
@@ -561,7 +561,6 @@ describe('a reader without All stores (P2)', function () {
         'add an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes', ['name_ar' => 'العرض', 'name_en' => 'Width', 'kind' => 'VARIANT', 'position' => '10']]],
         'edit an attribute' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attributes/'.Px::attribute('Width'), ['name_ar' => 'العرض', 'name_en' => 'Breadth', 'kind' => 'VARIANT', 'position' => '10']]],
         'edit a value' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/attribute-values/'.Px::value(Px::attribute('Width'), '60 cm'), ['name_ar' => 'ستون', 'name_en' => '600 mm', 'position' => '5']]],
-        'add a variation' => [P::ATTRIBUTE_MANAGE, fn (): array => ['/admin/variations', ['name_ar' => 'مقاسات', 'name_en' => 'Sizes', 'attribute_ids' => [Px::attribute('Width')]]]],
         'add a warranty' => [P::WARRANTY_MANAGE, fn (): array => ['/admin/warranties', ['name_ar' => 'ضمان', 'name_en' => 'Lifetime', 'terms_ar' => 'الشروط.', 'terms_en' => 'Terms.', 'lifetime' => '1']]],
         'add a word pair' => [P::SEARCH_WORD_MANAGE, fn (): array => ['/admin/search-words', ['word_a' => 'rail', 'word_b' => 'runner']]],
         'delete a word pair' => [P::SEARCH_WORD_MANAGE, fn (): array => ['/admin/search-words/'.Fx::asSystem(fn (): string => app(AddWordPairHandler::class)->handle(new AddWordPair('rail', 'runner'))).'/delete', []]],
@@ -637,29 +636,6 @@ describe('the attributes and their values', function () {
             ->and(AdminBrowser::formError($browser->post("/admin/attributes/{$width}/delete")))->toBe(catalogListScreensNotYours())
             ->and(DB::table('catalog.attribute_values')->count())->toBe(0)
             ->and(DB::table('catalog.attributes')->where('id', $width)->exists())->toBeTrue();
-    });
-});
-
-describe('the variations', function () {
-    it('adds a variation of attributes in order, says none chosen beside it, edits it and takes it out of the list', function () {
-        $width = Px::attribute('Width');
-        $height = Px::attribute('Height');
-        $browser = catalogListScreens([P::ATTRIBUTE_MANAGE]);
-
-        expect(catalogListScreensErrors($browser->post('/admin/variations', ['name_ar' => 'مقاسات', 'name_en' => 'Sizes', 'attribute_ids' => []])))->toHaveKey('attribute_ids')
-            ->and(catalogListScreensToast($browser->post('/admin/variations', ['name_ar' => 'مقاسات', 'name_en' => 'Sizes', 'attribute_ids' => [$height, $width]])))->toBe('Variation added');
-
-        $set = (string) DB::table('catalog.attribute_sets')->where('name_en', 'Sizes')->value('id');
-
-        $browser->get('/admin/variations')
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('variations.0.attributeIds', [$height, $width])->where('variations.0.builtOn', false)->has('attributes', 2));
-
-        expect(catalogListScreensToast($browser->post("/admin/variations/{$set}", ['name_ar' => 'مقاسات', 'name_en' => 'Sizes', 'attribute_ids' => [$width]])))->toBe('Variation saved')
-            ->and(DB::table('catalog.attribute_set_members')->where('attribute_set_id', $set)->pluck('attribute_id')->all())->toBe([$width])
-            ->and(catalogListScreensToast($browser->post("/admin/variations/{$set}/deactivate")))->toBe('Variation deactivated')
-            ->and(catalogListScreensToast($browser->post("/admin/variations/{$set}/activate")))->toBe('Variation activated')
-            ->and(catalogListScreensToast($browser->post("/admin/variations/{$set}/delete")))->toBe('Variation deleted')
-            ->and(DB::table('catalog.attribute_sets')->where('id', $set)->exists())->toBeFalse();
     });
 });
 
@@ -808,13 +784,12 @@ describe('the query budget (frontend.md §5, P21)', function () {
         expect($own)->toBe($recorded)->and($own)->toBeLessThanOrEqual(15);
 
         // Five more of everything the pages show - a logo each, a sub-category each, values,
-        // variations, labels, warranties, pairs, searches in two stores: never one query a row.
+        // labels, warranties, pairs, searches in two stores: never one query a row.
         foreach (range(1, 5) as $n) {
             $more = Px::brand("More {$n}");
             DB::table('catalog.brands')->where('id', $more)->update(['logo_media_id' => Cx::media()]);
             Px::category("Below {$n}", Px::category("More {$n}"));
             Px::value($width, "{$n}0 mm");
-            Px::set([Px::attribute("Depth {$n}")], "Sizes {$n}");
             catalogListScreensLabel("New {$n}");
             Px::warranty();
             Fx::asSystem(fn () => app(AddWordPairHandler::class)->handle(new AddWordPair("rail{$n}", "runner{$n}")));
@@ -827,7 +802,6 @@ describe('the query budget (frontend.md §5, P21)', function () {
         'categories' => ['/admin/categories', 3],
         'attributes' => ['/admin/attributes', 1],
         'one attribute' => ['/admin/attributes/{width}', 2],
-        'variations' => ['/admin/variations', 3],
         'labels' => ['/admin/labels', 1],
         'warranties' => ['/admin/warranties', 1],
         'search words' => ['/admin/search-words', 4],

@@ -29,13 +29,10 @@ use Modules\Catalog\Application\Query\Lists\AttributeRow;
 use Modules\Catalog\Application\Query\Lists\BrandRow;
 use Modules\Catalog\Application\Query\Lists\CategoryRow;
 use Modules\Catalog\Application\Query\Lists\LabelRow;
-use Modules\Catalog\Application\Query\Lists\VariationRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\Lists\WordPairRow;
 use Modules\Catalog\Application\Query\ListSearchesWithNoResults\ListSearchesWithNoResults;
 use Modules\Catalog\Application\Query\ListSearchesWithNoResults\ListSearchesWithNoResultsHandler;
-use Modules\Catalog\Application\Query\ListVariations\ListVariations;
-use Modules\Catalog\Application\Query\ListVariations\ListVariationsHandler;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarranties;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarrantiesHandler;
 use Modules\Catalog\Application\Query\ListWordPairs\ListWordPairs;
@@ -131,7 +128,6 @@ describe('who may read a shared list, and who may change it (P2)', function () {
         'brands' => [fn () => app(ListBrandsHandler::class)->handle(new ListBrands)],
         'categories' => [fn () => app(ListCategoriesHandler::class)->handle(new ListCategories)],
         'attributes' => [fn () => app(ListAttributesHandler::class)->handle(new ListAttributes)],
-        'variations' => [fn () => app(ListVariationsHandler::class)->handle(new ListVariations)],
         'labels' => [fn () => app(ListLabelsHandler::class)->handle(new ListLabels)],
         'warranties' => [fn () => app(ListWarrantiesHandler::class)->handle(new ListWarranties)],
         'word pairs' => [fn () => app(ListWordPairsHandler::class)->handle(new ListWordPairs)],
@@ -226,10 +222,10 @@ describe('the attributes', function () {
             ->and($widthRow->inUse)->toBeFalse()
             ->and($emptyRow->kindLocked)->toBeFalse();
 
-        Px::set([$width]);
+        Px::variantAttributes(Px::product(), [$width]);
         $view = app(ViewAttributeHandler::class)->handle(new ViewAttribute($width));
 
-        expect($view->attribute->inVariation)->toBeTrue()
+        expect($view->attribute->inProducts)->toBeTrue()
             ->and($view->attribute->inUse)->toBeTrue()
             ->and(array_map(fn ($value) => $value->id, $view->values))->toBe([$sixty]);
     });
@@ -241,31 +237,14 @@ describe('the attributes', function () {
     });
 });
 
-describe('the variations, labels, warranties and word pairs', function () {
-    it('lists a variation\'s attributes in their order, and whether variants are built on it', function () {
-        $width = Px::attribute('Width');
-        $finish = Px::attribute('Finish');
-        $set = Px::set([$finish, $width]);
+describe('the labels, warranties and word pairs', function () {
+    it('says a value is in use once a variant carries it', function () {
+        ['width' => $width] = Px::ready(['60 cm']);
         Cx::actAsStaffWith([CatalogPermissions::ATTRIBUTE_MANAGE]);
 
-        $variation = collect(app(ListVariationsHandler::class)->handle(new ListVariations)->variations)->firstOrFail(fn (VariationRow $row): bool => $row->id === $set);
-
-        expect($variation->attributeIds)->toBe([$finish, $width])
-            ->and($variation->builtOn)->toBeFalse()
-            ->and($variation->products)->toBe(0);
-    });
-
-    it('says a variation is built on once a product\'s variants use it, and a value in use once a variant carries it', function () {
-        ['product' => $product, 'width' => $width] = Px::ready(['60 cm']);
-        $set = (string) DB::table('catalog.products')->where('id', $product)->value('attribute_set_id');
-        Cx::actAsStaffWith([CatalogPermissions::ATTRIBUTE_MANAGE]);
-
-        $variation = collect(app(ListVariationsHandler::class)->handle(new ListVariations)->variations)->firstOrFail(fn (VariationRow $row): bool => $row->id === $set);
         $values = app(ViewAttributeHandler::class)->handle(new ViewAttribute($width))->values;
 
-        expect($variation->builtOn)->toBeTrue()
-            ->and($variation->products)->toBe(1)
-            ->and($values)->toHaveCount(1)
+        expect($values)->toHaveCount(1)
             ->and($values[0]->inUse)->toBeTrue();
     });
 

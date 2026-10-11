@@ -56,7 +56,6 @@ function catalogProductConstraintsRows(): array
     $eighty = Px::value($width, '80 cm');
     $material = Px::attribute('Material', 'INFORMATIONAL');
     $finish = Px::attribute('Finish', 'INFORMATIONAL');
-    $set = Px::set([$width]);
     $category = Px::category();
     $warranty = Px::warranty();
     $product = Px::product('Drawer');
@@ -65,11 +64,12 @@ function catalogProductConstraintsRows(): array
     DB::table('catalog.products')->where('id', $related)->update(['stage' => 'READY', 'category_id' => Px::category()]);
     [$photo, $variantPhoto] = [Cx::media(), Cx::media()];
 
-    $variant = Fx::asSystem(function () use ($product, $category, $warranty, $set, $width, $sixty, $material, $photo, $variantPhoto, $related): string {
+    Px::variantAttributes($product, [$width]);
+    $variant = Fx::asSystem(function () use ($product, $category, $warranty, $width, $sixty, $material, $photo, $variantPhoto, $related): string {
         $row = app(ProductRepository::class)->find($product) ?? throw new LogicException('No such product.');
         app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
             $product, $row->name()->ar, $row->name()->en, $row->brandId(),
-            categoryId: $category, warrantyId: $warranty, attributeSetId: $set,
+            categoryId: $category, warrantyId: $warranty,
         ));
         $variant = app(AddVariantHandler::class)->handle(new AddVariant($product, '1001', [$width => $sixty], [$material => ['text_ar' => 'خشب', 'text_en' => 'Wood']]));
         app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [$photo]));
@@ -82,7 +82,7 @@ function catalogProductConstraintsRows(): array
     $store = Fx::storeId('sa');
     $label = Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel('عرض', 'Sale', 'green')));
 
-    return compact('product', 'variant', 'width', 'eighty', 'material', 'finish', 'set', 'category', 'warranty', 'photo', 'variantPhoto', 'related', 'other', 'store', 'label');
+    return compact('product', 'variant', 'width', 'eighty', 'material', 'finish', 'category', 'warranty', 'photo', 'variantPhoto', 'related', 'other', 'store', 'label');
 }
 
 /**
@@ -146,7 +146,8 @@ it('refuses what the code would never write', function (Closure $write, string $
     'a related product\'s place below the range' => [fn (array $r) => DB::table('catalog.product_relations')->where('product_id', $r['product'])->update(['position' => -1]), 'product_relations_position_range'],
     'deleting a category a product is in' => [fn (array $r) => DB::table('catalog.categories')->where('id', $r['category'])->delete(), 'products_category'],
     'deleting a warranty a product takes' => [fn (array $r) => DB::table('catalog.warranties')->where('id', $r['warranty'])->delete(), 'products_warranty'],
-    'deleting a set a product takes' => [fn (array $r) => DB::table('catalog.attribute_sets')->where('id', $r['set'])->delete(), 'products_attribute_set'],
+    'an attribute twice among a product\'s variant attributes' => [fn (array $r) => DB::table('catalog.product_attributes')->insert(['product_id' => $r['product'], 'attribute_id' => $r['width'], 'position' => 2]), 'product_attributes_pkey'],
+    'a variant attribute\'s place below the range' => [fn (array $r) => DB::table('catalog.product_attributes')->where('product_id', $r['product'])->update(['position' => 0]), 'product_attributes_position_range'],
     'deleting a gallery photo\'s file' => [fn (array $r) => DB::table('platform.media')->where('id', $r['photo'])->delete(), 'product_photos_media'],
     'deleting a variant photo\'s file' => [fn (array $r) => DB::table('platform.media')->where('id', $r['variantPhoto'])->delete(), 'variant_photos_media'],
     'deleting a related product' => [fn (array $r) => DB::table('catalog.products')->where('id', $r['related'])->delete(), 'product_relations_related'],
