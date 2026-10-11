@@ -19,7 +19,7 @@ return [
     ],
     'quantity_invalid' => [
         'title' => 'Check the quantity',
-        'detail' => 'A quantity must be at least 1, and a count at least 0.',
+        'detail' => 'A quantity must be at least 1, a count at least 0, and neither more than 2,147,483,647 pieces.',
     ],
     'stock_below_zero' => [
         'title' => 'Not that many in stock',
@@ -59,7 +59,7 @@ return [
     ],
 
     'fields' => [
-        'direction' => 'add or remove',
+        'direction' => 'add or remove choice',
         'note' => 'note',
         'product' => 'product',
         'reason' => 'reason',

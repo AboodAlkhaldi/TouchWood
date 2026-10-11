@@ -63,7 +63,7 @@ final readonly class SetEndingSoonHandler
             $this->products->setEndingSoon($storeId, $product->id, $command->on);
 
             return [null, [new AuditEntryDto(
-                'inventory.ending_soon.set',
+                'inventory.store_product.ending_soon_set',
                 'inventory.store_product',
                 $product->id,
                 $storeId->value,

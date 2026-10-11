@@ -96,13 +96,61 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             ->and($insert(['after' => -1, 'change' => -2]))->toThrow(QueryException::class, 'stock_movements_counts')
             ->and($insert(['reason' => 'CORRECTION']))->toThrow(QueryException::class, 'stock_movements_note')
             ->and($insert(['reason' => 'CORRECTION', 'note' => '  ']))->toThrow(QueryException::class, 'stock_movements_note')
-            ->and($insert(['actor_type' => 'ROBOT']))->toThrow(QueryException::class, 'stock_movements_actor_type');
+            // Blank as PHP's trim() reads it: tabs and line ends too.
+            ->and($insert(['reason' => 'CORRECTION', 'note' => "\t\r\n"]))->toThrow(QueryException::class, 'stock_movements_note')
+            // With an id, so only the type is wrong (PostgreSQL checks the rules in name order).
+            ->and($insert(['actor_type' => 'ROBOT', 'actor_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'stock_movements_actor_type')
+            // Who made it, as the audit log: the system has no id, anyone else has one.
+            ->and($insert(['actor_type' => 'STAFF']))->toThrow(QueryException::class, 'stock_movements_actor_id')
+            ->and($insert(['actor_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'stock_movements_actor_id')
+            // Whoever queued a job: both halves or neither, and only behind the system.
+            ->and($insert(['requested_by_type' => 'STAFF']))->toThrow(QueryException::class, 'stock_movements_requested_by')
+            ->and($insert(['requested_by_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'stock_movements_requested_by')
+            ->and($insert(['actor_type' => 'STAFF', 'actor_id' => strtolower((string) Str::ulid()), 'requested_by_type' => 'STAFF', 'requested_by_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'stock_movements_requested_by')
+            ->and($insert(['requested_by_type' => 'SYSTEM', 'requested_by_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'stock_movements_requested_by');
 
         $insert([])();
         $insert(['reason' => 'CORRECTION', 'note' => 'Found two more'])();
+        $insert(['actor_type' => 'STAFF', 'actor_id' => strtolower((string) Str::ulid())])();
+        $insert(['requested_by_type' => 'STAFF', 'requested_by_id' => strtolower((string) Str::ulid())])();
 
-        expect(DB::table('inventory.stock_movements')->count())->toBe(2);
+        expect(DB::table('inventory.stock_movements')->count())->toBe(4);
     });
+
+    it('keeps each reason going its one way (owner, 2026-10-11)', function (string $reason, int $before, int $after, bool $kept) {
+        $row = [
+            'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready()['variants'][0], 'reason' => $reason, 'change' => $after - $before,
+            'before' => $before, 'after' => $after, 'note' => 'a note', 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
+        ];
+        $insert = fn () => DB::transaction(fn () => DB::table('inventory.stock_movements')->insert($row));
+
+        if ($kept) {
+            $insert();
+
+            expect(DB::table('inventory.stock_movements')->count())->toBe(1);
+        } else {
+            expect($insert)->toThrow(QueryException::class, 'stock_movements_direction');
+        }
+    })->with([
+        'received comes in' => ['RECEIVED', 1, 3, true],
+        'received never goes out' => ['RECEIVED', 3, 1, false],
+        'received is never nothing' => ['RECEIVED', 3, 3, false],
+        'returned comes in' => ['RETURNED', 0, 1, true],
+        'returned never goes out' => ['RETURNED', 1, 0, false],
+        'damaged goes out' => ['DAMAGED_LOST', 3, 1, true],
+        'damaged never comes in' => ['DAMAGED_LOST', 1, 3, false],
+        'an offline sale goes out' => ['OFFLINE_SALE', 3, 2, true],
+        'an offline sale never comes in' => ['OFFLINE_SALE', 2, 3, false],
+        'a shipment goes out' => ['SHIPPED', 3, 2, true],
+        'a shipment never comes in' => ['SHIPPED', 2, 3, false],
+        'a correction comes in' => ['CORRECTION', 1, 2, true],
+        'a correction goes out' => ['CORRECTION', 2, 1, true],
+        'a correction is never nothing' => ['CORRECTION', 2, 2, false],
+        'a count finds it right' => ['STOCKTAKE', 2, 2, true],
+        'a count goes down' => ['STOCKTAKE', 2, 0, true],
+        'the file sets it' => ['FILE', 0, 9, true],
+        'the provider sets it' => ['PROVIDER', 9, 4, true],
+    ]);
 
     it('never lets a store with stock go, takes a size\'s stock with it, and keeps the ledger of a size that went', function () {
         $rules = collect(DB::select(

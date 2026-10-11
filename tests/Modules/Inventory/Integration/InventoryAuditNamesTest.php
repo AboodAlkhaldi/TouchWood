@@ -26,6 +26,14 @@ function inventoryAuditNamesRecorded(): array
         }
 
         preg_match_all("/new AuditEntryDto\\(\\s*'(inventory\\.[a-z_]+\\.[a-z_]+)'/", (string) file_get_contents($file->getPathname()), $found);
+        // Every action names its subject's resource first ("{module}.{resource}.{past-tense}", AuditEntryDto).
+        preg_match_all("/new AuditEntryDto\\(\\s*'inventory\\.([a-z_]+)\\.[a-z_]+',\\s*'inventory\\.([a-z_]+)'/", (string) file_get_contents($file->getPathname()), $pairs, PREG_SET_ORDER);
+
+        expect(count($pairs))->toBe(count($found[1]), "{$file->getFilename()} names a subject this check cannot read");
+
+        foreach ($pairs as [, $resource, $subject]) {
+            expect($resource)->toBe($subject);
+        }
         array_push($actions, ...$found[1]);
     }
 
@@ -38,11 +46,11 @@ function inventoryAuditNamesRecorded(): array
 it('finds the actions Inventory records', function () {
     // A guard over files must find something, or it passes over nothing.
     expect(inventoryAuditNamesRecorded())->toBe([
-        'inventory.ending_soon.set',
         'inventory.stock.adjusted',
         'inventory.stock.counted',
-        'inventory.stock_dependent.set',
-        'inventory.threshold.set',
+        'inventory.stock.stock_dependent_set',
+        'inventory.stock.threshold_set',
+        'inventory.store_product.ending_soon_set',
     ]);
 });
 

@@ -16,6 +16,7 @@ use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
+use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Unauthorized;
@@ -31,9 +32,6 @@ use Shared\Application\Unauthorized;
 final readonly class SetStockHandler
 {
     public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
-
-    /** The column's limit: a count above it is no count. */
-    private const int MOST = 2147483647;
 
     public function __construct(
         private InventoryChange $change,
@@ -66,7 +64,7 @@ final readonly class SetStockHandler
         foreach ($command->counts as $given => $count) {
             [$variantId, $productId] = $own[(string) $given];
 
-            if ($count < 0 || $count > self::MOST) {
+            if ($count < 0 || $count > StockLimits::MOST_PIECES) {
                 throw new QuantityInvalid;
             }
 

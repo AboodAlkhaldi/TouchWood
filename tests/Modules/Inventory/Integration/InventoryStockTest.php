@@ -33,6 +33,7 @@ use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -127,6 +128,20 @@ describe('a stocktake', function () {
             ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→3 SYSTEM']);
     });
 
+    it('records whoever queued the job when the system makes the change, as the audit log does', function () {
+        $size = Px::ready()['variants'][0];
+        $staff = Fx::staff();
+        // The actor a queued job acts as. A count that finds the number right writes the ledger
+        // alone: the audit log takes such an actor only inside a real job.
+        Fx::actAs(Actor::system(Actor::staff($staff)));
+
+        inventoryStockCount(Ix::storeId('sa'), [$size => 0]);
+
+        $line = DB::table('inventory.stock_movements')->where('variant_id', $size)->sole();
+
+        expect([$line->actor_type, $line->actor_id, $line->requested_by_type, $line->requested_by_id])->toBe(['SYSTEM', null, 'STAFF', $staff]);
+    });
+
     it('changes nothing when given nothing', function () {
         Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE], ['sa']);
         $queries = Cx::recordQueries();
@@ -218,6 +233,26 @@ describe('adding and removing by hand', function () {
             ->and(fn () => Ix::adjust('sa', $size, 'ADD', 2147483647, 'RECEIVED'))->not->toThrow(Throwable::class)
             ->and(fn () => Ix::adjust('sa', $size, 'ADD', 1, 'RECEIVED'))->toThrow(QuantityInvalid::class);
     });
+
+    it('takes pieces held for orders out when asked: in stock may fall below held, never below 0 (§1.5)', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::count('sa', [$size => 5]);
+        // Holds come with step 3; what they leave on the row is enough here.
+        DB::table('inventory.stock')->where('variant_id', $size)->update(['held' => 4]);
+
+        Ix::adjust('sa', $size, 'REMOVE', 3, 'DAMAGED_LOST');
+
+        expect(Ix::stock('sa', $size))->toMatchObject(['in_stock' => 2, 'held' => 4]);
+    });
+
+    it('measures a note once trimmed, as the ledger keeps it', function () {
+        $size = Px::ready()['variants'][0];
+
+        Ix::adjust('sa', $size, 'ADD', 1, 'CORRECTION', str_repeat('x', 500).'   ');
+
+        expect(Ix::ledger('sa', $size))->toBe(['CORRECTION 0→1 '.str_repeat('x', 500).' SYSTEM'])
+            ->and(fn () => Ix::adjust('sa', $size, 'ADD', 1, 'CORRECTION', "\t\n"))->toThrow(NoteRequired::class);
+    });
 });
 
 describe('the low-stock threshold', function () {
@@ -229,13 +264,13 @@ describe('the low-stock threshold', function () {
         expect(Ix::stock('sa', $sizes[0])?->threshold)->toBe(0)
             ->and(Ix::stock('sa', $sizes[1])?->threshold)->toBe(100000)
             ->and(Ix::stock('sa', $sizes[1])?->in_stock)->toBe(0)
-            ->and(Ix::auditChanges('inventory.threshold.set', $sizes[1]))->toBe(['threshold' => [null, 100000]]);
+            ->and(Ix::auditChanges('inventory.stock.threshold_set', $sizes[1]))->toBe(['threshold' => [null, 100000]]);
 
         inventoryStockThreshold('sa', [$sizes[1] => null, $sizes[0] => 0]);
 
         expect(Ix::stock('sa', $sizes[1])?->threshold)->toBeNull()
-            ->and(Ix::auditChanges('inventory.threshold.set', $sizes[1]))->toBe(['threshold' => [100000, null]])
-            ->and(Fx::audits('inventory.threshold.set', $sizes[0]))->toBe(1)
+            ->and(Ix::auditChanges('inventory.stock.threshold_set', $sizes[1]))->toBe(['threshold' => [100000, null]])
+            ->and(Fx::audits('inventory.stock.threshold_set', $sizes[0]))->toBe(1)
             // A threshold is no change of in stock.
             ->and(Ix::ledger('sa', $sizes[0]))->toBe([]);
     });
@@ -246,6 +281,18 @@ describe('the low-stock threshold', function () {
         expect(fn () => inventoryStockThreshold('sa', [$size => $threshold]))->toThrow(ThresholdInvalid::class)
             ->and(Ix::stock('sa', $size))->toBeNull();
     })->with([-1, 100001]);
+
+    it('makes no row for a threshold cleared that was never set, and refuses one size given two thresholds', function () {
+        $size = Px::ready()['variants'][0];
+
+        inventoryStockThreshold('sa', [$size => null]);
+        inventoryStockThreshold('sa', []);
+
+        expect(Ix::stock('sa', $size))->toBeNull()
+            ->and(Fx::audits('inventory.stock.threshold_set', $size))->toBe(0)
+            ->and(Ix::invalid(fn () => inventoryStockThreshold('sa', [$size => 3, strtoupper($size) => 4]))?->attribute)->toBe('variant')
+            ->and(Ix::stock('sa', $size))->toBeNull();
+    });
 
     it('takes a threshold in a wired store too: it only ever alerts staff', function () {
         $size = Px::ready()['variants'][0];
@@ -265,12 +312,12 @@ describe('"last pieces" for a product', function () {
         inventoryStockEndingSoon('sa', $product, true);
 
         expect(DB::table('inventory.store_products')->where('store_id', Ix::storeId('sa'))->where('product_id', $product)->value('ending_soon'))->toBeTrue()
-            ->and(Fx::audits('inventory.ending_soon.set', $product))->toBe(1)
-            ->and(Ix::auditChanges('inventory.ending_soon.set', $product))->toBe(['ending_soon' => [false, true]]);
+            ->and(Fx::audits('inventory.store_product.ending_soon_set', $product))->toBe(1)
+            ->and(Ix::auditChanges('inventory.store_product.ending_soon_set', $product))->toBe(['ending_soon' => [false, true]]);
 
         inventoryStockEndingSoon('sa', $product, false);
 
-        expect(Ix::auditChanges('inventory.ending_soon.set', $product))->toBe(['ending_soon' => [true, false]])
+        expect(Ix::auditChanges('inventory.store_product.ending_soon_set', $product))->toBe(['ending_soon' => [true, false]])
             ->and(DB::table('inventory.store_products')->where('product_id', $product)->value('ending_soon'))->toBeFalse();
     });
 
@@ -284,6 +331,18 @@ describe('"last pieces" for a product', function () {
         Ix::wired();
 
         expect(fn () => inventoryStockEndingSoon('sa', Px::ready()['product'], true))->toThrow(ProviderOwnsStock::class);
+    });
+
+    it('is Manage Stock\'s in that store, as every other change', function () {
+        $product = Px::ready()['product'];
+        Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE], ['eg']);
+
+        expect(fn () => app(SetEndingSoonHandler::class)->handle(new SetEndingSoon(Ix::storeId('sa'), $product, true)))->toThrow(Unauthorized::class);
+
+        app(SetEndingSoonHandler::class)->handle(new SetEndingSoon(Ix::storeId('eg'), $product, true));
+
+        expect(DB::table('inventory.store_products')->where('store_id', Ix::storeId('eg'))->where('product_id', $product)->value('ending_soon'))->toBeTrue()
+            ->and(DB::table('inventory.store_products')->where('store_id', Ix::storeId('sa'))->exists())->toBeFalse();
     });
 });
 
@@ -304,13 +363,38 @@ describe('the stock-dependent switch', function () {
         expect(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeTrue()
             ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
             ->and(Ix::stock('sa', $sizes[2]))->toBeNull()
-            ->and(Ix::auditChanges('inventory.stock_dependent.set', $sizes[0]))->toBe(['stock_dependent' => [false, true]]);
+            ->and(Ix::auditChanges('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(['stock_dependent' => [false, true]]);
 
         inventoryStockDependent('sa', [$sizes[1], $sizes[2]], false);
 
+        // Switching off a size that was never on changes nothing and makes no row.
         expect(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeFalse()
-            ->and(Fx::audits('inventory.stock_dependent.set', $sizes[2]))->toBe(0)
-            ->and(Ix::stock('sa', $sizes[2])?->stock_dependent)->toBeFalse();
+            ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[2]))->toBe(0)
+            ->and(Ix::stock('sa', $sizes[2]))->toBeNull();
+    });
+
+    it('leaves a size added later off, though every other size of its product is on', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        Ix::wired();
+        inventoryStockDependent('sa', $ready['variants'], true);
+
+        $later = Px::variant($ready['product'], '7000001', [$ready['width'] => Px::value($ready['width'], '120 cm')]);
+
+        expect(Ix::stock('sa', $later))->toBeNull()
+            ->and(Ix::stock('sa', $ready['variants'][0])?->stock_dependent)->toBeTrue();
+    });
+
+    it('is Manage Stock\'s in that store, as every other change', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::wired();
+        Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE], ['eg']);
+
+        expect(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$size], true)))->toThrow(Unauthorized::class);
+
+        app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('eg'), [$size], true));
+
+        expect(Ix::stock('eg', $size)?->stock_dependent)->toBeTrue()
+            ->and(Ix::stock('sa', $size))->toBeNull();
     });
 });
 
@@ -395,9 +479,11 @@ describe('one change, one transaction', function () {
         $inside = array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => $query['level'] === 2));
         $locked = array_values(array_filter($inside, static fn (array $query): bool => str_contains($query['sql'], '"inventory"."stock"') && str_contains($query['sql'], 'for update')));
 
+        // Rows locked by size id, the one order every writer keeps (StockRows), so none waits on another.
         expect($inside[0]['sql'] ?? null)->toContain('pg_advisory_xact_lock')
             ->and($inside[0]['bindings'] ?? null)->toBe(['inventory:store:'.Ix::storeId('sa')])
-            ->and($locked)->toHaveCount(1);
+            ->and($locked)->toHaveCount(1)
+            ->and($locked[0]['sql'] ?? '')->toContain('order by "variant_id" asc');
     });
 
     it('writes nothing - no stock, no ledger line - when the change is rolled back', function () {

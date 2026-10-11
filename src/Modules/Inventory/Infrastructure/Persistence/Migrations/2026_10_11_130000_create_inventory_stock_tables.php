@@ -70,6 +70,9 @@ return new class extends Migration
             $table->string('reference', 120);
             $table->string('actor_type', 16);
             $table->char('actor_id', 26)->nullable();
+            // When the system acts in a queued job: whose action queued it, as the audit log.
+            $table->string('requested_by_type', 16)->nullable();
+            $table->char('requested_by_id', 26)->nullable();
             $table->timestampTz('created_at')->useCurrent();
 
             $table->unique('reference', 'stock_movements_reference');
@@ -79,9 +82,38 @@ return new class extends Migration
 
         DB::statement("ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_reason CHECK (reason IN ('STOCKTAKE', 'RECEIVED', 'DAMAGED_LOST', 'OFFLINE_SALE', 'CORRECTION', 'SHIPPED', 'RETURNED', 'FILE', 'PROVIDER'))");
         DB::statement('ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_counts CHECK (before >= 0 AND after >= 0 AND after = before + change)');
-        // A correction says why (§1.5): a note that is there and not blank.
-        DB::statement("ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_note CHECK (reason <> 'CORRECTION' OR (note IS NOT NULL AND btrim(note) <> ''))");
-        DB::statement("ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_actor_type CHECK (actor_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION', 'SYSTEM'))");
+        // Each reason goes one way (owner, 2026-10-11), so the history always reads right: pieces
+        // received or returned come in; damaged, lost, sold offline or shipped go out; a correction
+        // goes either way; a count, the store's file and the provider set a number, whatever it was.
+        // A line is never changed once written, so the database keeps this, not only the code.
+        DB::statement(<<<'SQL'
+            ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_direction CHECK (
+                CASE
+                    WHEN reason IN ('RECEIVED', 'RETURNED') THEN change > 0
+                    WHEN reason IN ('DAMAGED_LOST', 'OFFLINE_SALE', 'SHIPPED') THEN change < 0
+                    WHEN reason = 'CORRECTION' THEN change <> 0
+                    -- A count, the file and the provider set a number; an unknown reason is
+                    -- stock_movements_reason's to refuse.
+                    ELSE true
+                END
+            )
+            SQL);
+        // A correction says why (§1.5): a note that is there and not blank - blank as PHP's trim()
+        // reads it: spaces, tabs, line ends.
+        DB::statement(<<<'SQL'
+            ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_note
+                CHECK (reason <> 'CORRECTION' OR (note IS NOT NULL AND btrim(note, E' \t\r\n\x0B') <> ''))
+            SQL);
+        // Who made it, as the audit log records its actor (Platform's audit_entries CHECKs).
+        DB::statement(<<<'SQL'
+            ALTER TABLE inventory.stock_movements
+                ADD CONSTRAINT stock_movements_actor_type CHECK (actor_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION', 'SYSTEM')),
+                ADD CONSTRAINT stock_movements_actor_id CHECK ((actor_type = 'SYSTEM') = (actor_id IS NULL)),
+                ADD CONSTRAINT stock_movements_requested_by CHECK (
+                    (requested_by_type IS NULL) = (requested_by_id IS NULL)
+                    AND (requested_by_type IS NULL OR (actor_type = 'SYSTEM' AND requested_by_type IN ('STAFF', 'CUSTOMER', 'GUEST', 'INTEGRATION')))
+                )
+            SQL);
 
         // Written once and never changed (§1.6), as the audit log. OR REPLACE: migrate:fresh drops
         // tables but not functions.

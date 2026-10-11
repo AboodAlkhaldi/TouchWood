@@ -11,6 +11,7 @@ use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
 use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Unauthorized;
@@ -24,8 +25,6 @@ use Shared\Application\Unauthorized;
 final readonly class SetLowStockThresholdHandler
 {
     public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
-
-    public const int MOST = 100000;
 
     public function __construct(
         private InventoryChange $change,
@@ -50,7 +49,7 @@ final readonly class SetLowStockThresholdHandler
         foreach ($command->thresholds as $given => $threshold) {
             [$variantId, $productId] = $own[(string) $given];
 
-            if ($threshold !== null && ($threshold < 0 || $threshold > self::MOST)) {
+            if ($threshold !== null && ($threshold < 0 || $threshold > StockLimits::THRESHOLD_MOST)) {
                 throw new ThresholdInvalid;
             }
 
@@ -67,11 +66,18 @@ final readonly class SetLowStockThresholdHandler
         }
 
         $this->change->run($storeId, function () use ($storeId, $thresholds, $products): array {
-            $rows = $this->stock->lockFor($storeId, $products);
+            $rows = $this->stock->lockExisting($storeId, array_map('strval', array_keys($thresholds)));
+            // A size with no row has the store's default: a row is made only for a size given its own,
+            // so clearing a threshold that was never set adds nothing to the Low Stock list (§1.7).
+            $rows += $this->stock->lockFor($storeId, array_filter(
+                $products,
+                static fn (string $variantId): bool => ! isset($rows[$variantId]) && $thresholds[$variantId] !== null,
+                ARRAY_FILTER_USE_KEY,
+            ));
             $entries = [];
 
             foreach ($thresholds as $variantId => $threshold) {
-                $before = $rows[$variantId]->threshold;
+                $before = isset($rows[$variantId]) ? $rows[$variantId]->threshold : null;
 
                 if ($before === $threshold) {
                     continue;
@@ -79,7 +85,7 @@ final readonly class SetLowStockThresholdHandler
 
                 $this->stock->setThreshold($storeId, $variantId, $threshold);
                 $entries[] = new AuditEntryDto(
-                    'inventory.threshold.set',
+                    'inventory.stock.threshold_set',
                     'inventory.stock',
                     $variantId,
                     $storeId->value,

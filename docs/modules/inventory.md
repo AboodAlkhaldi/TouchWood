@@ -80,7 +80,8 @@ replaces handoff §9.2's provisional "or the provider reports 0 — automaticall
 - **"Reduced in the provider"** (a wired store's stock-dependent lines and gifts): the tick ends the
   line's hold; the provider's own number then shows it.
 - **A cancel frees** whatever the order still holds. A hold may carry an **expiry** (an unpaid order,
-  a bank transfer being verified — Sales sets it); a scheduled job frees expired holds.
+  a bank transfer being verified — Sales sets it); a scheduled job frees expired holds, **every minute**
+  (owner, 2026-10-11).
 - **Staff edit an order before it ships** (owner, 2026-10-10, through stage 6): lines added, removed,
   quantities changed. The hold **moves to exactly the edited lines, all or nothing** — the extra
   pieces held as at placement (one line short and nothing changes, `inventory.not_enough_stock`), the
@@ -100,10 +101,15 @@ Under **Manage Stock** in that store (owner, 2026-10-09):
   2026-10-11): Received only adds; Damaged / lost and Offline sale only remove; a Correction goes
   either way, with its note. So the history always reads right.
 - **An archived size — or a size of an archived product — is read-only until it is restored** (owner,
-  2026-10-11): its stock is kept as it is; every hand change to it is refused.
+  2026-10-11): its stock is kept as it is; every hand change to it is refused. The rule covers hand
+  changes only: an order already holding such a size still ships, is cancelled or comes back as usual
+  (owner, 2026-10-11).
 - **Removing pieces held for orders is allowed** (owner, 2026-10-09): in stock may fall below held, but
-  never below 0. The orders whose holds no longer fit are **flagged "not enough stock"** for staff to
-  sort out — Inventory names them (§6.1) and Sales shows the flag.
+  never below 0 — by a removal or a stocktake alike. **No placed order is blocked or cancelled**: staff
+  sort it out (owner, 2026-10-11). **Every placed order still holding that size is marked** "stock was
+  reduced", so staff see which to check — Inventory names them all (§6.1), not only those the pieces
+  left cannot cover, and Sales shows the mark; a shopper still before checkout sees how many are left
+  (`stock()`).
 - In a wired store, stock is the provider's and read-only here.
 
 ### 1.6 The ledger
@@ -271,11 +277,11 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Table | Columns |
 |---|---|
-| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
-| `inventory.store_products` | (`store_id`, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) |
+| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` FK `catalog.products` CASCADE (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `updated_at` |
+| `inventory.store_products` | (`store_id` FK `platform.stores` RESTRICT, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) · `updated_at` |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`, `gift`) PK — a bought line and a gift line of the same size are two lines · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
-| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` FK RESTRICT · `variant_id` — **no key**, so a deleted draft size keeps its history, as the audit log names its subjects (step 2) · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int ≥ 0 · `after` int ≥ 0 = `before` + `change` · `note` NULL, up to 500 characters (required, not blank, for `CORRECTION`) · `reference` unique · `actor_type` + `actor_id` NULL, as the audit log records its actor (step 2; one `actor` column before) · `created_at` — never updated, never deleted (a trigger refuses UPDATE, DELETE and TRUNCATE) |
+| `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` FK RESTRICT · `variant_id` — **no key**, so a deleted draft size keeps its history, as the audit log names its subjects (step 2) · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int ≥ 0 · `after` int ≥ 0 = `before` + `change` · `note` NULL, up to 500 characters (required, not blank, for `CORRECTION`) · `reference` unique · `actor_type` + `actor_id` NULL — the system's alone — and `requested_by_type` + `requested_by_id` NULL — whoever queued the job the system runs — as the audit log records its actor, with the same CHECKs (step 2; one `actor` column before) · each reason's direction CHECKed: Received and Returned in, Damaged / lost, Offline sale and Shipped out, a Correction either way and never 0, a stocktake, the file and the provider any number (owner, 2026-10-11) · `created_at` — never updated, never deleted (a trigger refuses UPDATE, DELETE and TRUNCATE) |
 | `inventory.return_lines` | (`return_id`, `variant_id`, `gift`) PK · `store_id` · `order_id` · `quantity` CHECK ≥ 1 · `gift` boolean · `created_at` — each return counted once, and its history |
 
 ---
@@ -286,7 +292,7 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Event | When | For |
 |---|---|---|
-| `HoldsShort(storeId, variantId, orderIds)` | A hand removal left a size's in stock below its holds: these orders no longer fit (§1.5) | Sales flags them "not enough stock" (owner, 2026-10-09) (its shape accepted 2026-10-09) |
+| `HoldsShort(storeId, variantId, orderIds)` | A hand change — a removal or a stocktake — left a size's in stock below its holds: **every** placed order still holding it is named (§1.5; owner, 2026-10-11) | Sales marks them "stock was reduced" for staff; none is blocked (owner, 2026-10-09 and 2026-10-11) (its shape accepted 2026-10-09) |
 
 A low-stock event for Ops comes with Ops (stage 8).
 
@@ -307,7 +313,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 |---|---|---|
 | `NotEnoughStock` | CONFLICT | a hold one line short (its context names the variants and what is available) |
 | `AlreadyHeld` | CONFLICT | a second hold for an order |
-| `QuantityInvalid` | INVALID | a quantity below 1; a stocktake below 0 |
+| `QuantityInvalid` | INVALID | a quantity below 1; a stocktake below 0; a number of pieces above 2,147,483,647, what the column keeps |
 | `StockBelowZero` | CONFLICT | a removal larger than in stock |
 | `NoteRequired` | INVALID | a correction with no note |
 | `ShipMoreThanHeld` | CONFLICT | shipping more of a line than it holds |
@@ -397,3 +403,6 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 15 | Do the hand reasons fix the direction? | **Yes**: Received only adds; Damaged / lost and Offline sale only remove; Correction either way, with its note (owner, 2026-10-11) (§1.5) |
 | 16 | A stocktake that finds the number right | **Recorded** as a stocktake line with change 0; not audited (owner, 2026-10-11) (§1.5) |
 | 17 | An archived size | **Read-only until restored**, in Inventory and Pricing alike — a size of an archived product too (owner, 2026-10-11) (§1.5) |
+| 18 | An archived size in an order already placed | **The order still goes through**: shipped, cancelled, returned as usual — the rule covers hand changes only (owner, 2026-10-11) (§1.5) |
+| 19 | Stock reduced by hand below what placed orders hold: which orders? | **None is blocked**; staff sort it out; **every** order still holding the size is marked for staff; a shopper before checkout sees how many are left (owner, 2026-10-11) (§1.5, §6.1) |
+| 20 | How often expired holds are freed | **Every minute** (owner, 2026-10-11) (§1.4) |

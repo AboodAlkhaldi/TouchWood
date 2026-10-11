@@ -56,11 +56,14 @@ final readonly class SetStockDependentHandler
         }
 
         $this->change->run($storeId, function () use ($storeId, $products, $command): array {
-            $rows = $this->stock->lockFor($storeId, $products);
+            // A size with no row is off: a row is made only for one switched on.
+            $rows = $command->on
+                ? $this->stock->lockFor($storeId, $products)
+                : $this->stock->lockExisting($storeId, array_map('strval', array_keys($products)));
             $entries = [];
 
             foreach (array_keys($products) as $variantId) {
-                $before = $rows[$variantId]->stockDependent;
+                $before = isset($rows[$variantId]) && $rows[$variantId]->stockDependent;
 
                 if ($before === $command->on) {
                     continue;
@@ -68,7 +71,7 @@ final readonly class SetStockDependentHandler
 
                 $this->stock->setStockDependent($storeId, $variantId, $command->on);
                 $entries[] = new AuditEntryDto(
-                    'inventory.stock_dependent.set',
+                    'inventory.stock.stock_dependent_set',
                     'inventory.stock',
                     $variantId,
                     $storeId->value,

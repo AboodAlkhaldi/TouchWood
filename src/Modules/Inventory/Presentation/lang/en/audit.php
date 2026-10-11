@@ -7,7 +7,7 @@ declare(strict_types=1);
 return [
     'stock.counted' => 'Stock counted',
     'stock.adjusted' => 'Stock added or removed',
-    'threshold.set' => 'Low-stock threshold set',
-    'ending_soon.set' => '"Last pieces" switched',
-    'stock_dependent.set' => 'Stock-dependent switched',
+    'stock.threshold_set' => 'Low-stock threshold set',
+    'stock.stock_dependent_set' => 'Stock-dependent switched',
+    'store_product.ending_soon_set' => '"Last pieces" switched',
 ];

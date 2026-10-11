@@ -12,7 +12,8 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * `inventory.stock_movements` (inventory.md §1.6, §5): one row a change of in stock, by whoever acts
- * now - recorded as the audit log records its actor. Its time is PostgreSQL's clock.
+ * now - recorded as the audit log records its actor, with whoever queued the job when the system acts
+ * in one. Its time is PostgreSQL's clock.
  */
 final readonly class DatabaseStockMovements implements StockMovements
 {
@@ -36,6 +37,8 @@ final readonly class DatabaseStockMovements implements StockMovements
             'reference' => $reference,
             'actor_type' => $actor->type->value,
             'actor_id' => $actor->id,
+            'requested_by_type' => $actor->requestedBy?->type->value,
+            'requested_by_id' => $actor->requestedBy?->id,
         ]);
     }
 }

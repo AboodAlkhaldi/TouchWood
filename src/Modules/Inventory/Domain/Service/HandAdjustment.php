@@ -25,6 +25,17 @@ final class HandAdjustment
     public const int NOTE_MAX = 500;
 
     /**
+     * A note as the ledger keeps it: trimmed, and none when nothing is left.
+     */
+    public static function note(?string $note): ?string
+    {
+        $note = $note === null ? '' : trim($note);
+
+        return $note === '' ? null : $note;
+    }
+
+    /**
+     * @param  string|null  $note  as `note()` gives it
      * @return int the change: above 0 to add, below 0 to remove
      *
      * @throws QuantityInvalid|InvalidInventoryInput|NoteRequired
@@ -57,7 +68,7 @@ final class HandAdjustment
             throw new InvalidInventoryInput('note');
         }
 
-        if ($reason === MovementReason::Correction->value && trim((string) $note) === '') {
+        if ($reason === MovementReason::Correction->value && ($note === null || trim($note) === '')) {
             throw new NoteRequired;
         }
 

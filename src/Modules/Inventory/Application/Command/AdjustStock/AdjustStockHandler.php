@@ -19,6 +19,7 @@ use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Service\HandAdjustment;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
+use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Shared\Application\Unauthorized;
@@ -33,9 +34,6 @@ use Shared\Application\Unauthorized;
 final readonly class AdjustStockHandler
 {
     public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
-
-    /** The column's limit. */
-    private const int MOST = 2147483647;
 
     public function __construct(
         private InventoryChange $change,
@@ -58,9 +56,10 @@ final readonly class AdjustStockHandler
         }
 
         [$variantId, $productId] = $this->sizes->check([$command->variantId])[$command->variantId];
-        $change = HandAdjustment::change($command->direction, $command->quantity, $command->reason, $command->note);
+        // Trimmed first, so its length is the length kept.
+        $note = HandAdjustment::note($command->note);
+        $change = HandAdjustment::change($command->direction, $command->quantity, $command->reason, $note);
         $reason = MovementReason::from($command->reason);
-        $note = $command->note === null || trim($command->note) === '' ? null : trim($command->note);
 
         $this->change->run($storeId, function () use ($storeId, $variantId, $productId, $change, $reason, $note): array {
             $before = $this->stock->lockFor($storeId, [$variantId => $productId])[$variantId]->inStock;
@@ -70,7 +69,7 @@ final readonly class AdjustStockHandler
                 throw new StockBelowZero;
             }
 
-            if ($after > self::MOST) {
+            if ($after > StockLimits::MOST_PIECES) {
                 throw new QuantityInvalid;
             }
 
