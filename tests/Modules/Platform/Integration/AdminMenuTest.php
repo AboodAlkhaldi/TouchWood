@@ -88,6 +88,8 @@ describe('the admin menu', function () {
             'catalog/labels',
             'catalog/warranties',
             'catalog/search_words',
+            // Its store files (step 3), for whoever fills a store - the Super Admin too.
+            'catalog/store_files',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

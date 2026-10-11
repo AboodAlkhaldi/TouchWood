@@ -10,7 +10,9 @@ use Modules\Catalog\Presentation\Http\Controller\CategoriesController;
 use Modules\Catalog\Presentation\Http\Controller\LabelsController;
 use Modules\Catalog\Presentation\Http\Controller\ProductChangesController;
 use Modules\Catalog\Presentation\Http\Controller\ProductsController;
+use Modules\Catalog\Presentation\Http\Controller\ProductStoresController;
 use Modules\Catalog\Presentation\Http\Controller\SearchWordsController;
+use Modules\Catalog\Presentation\Http\Controller\StoreFilesController;
 use Modules\Catalog\Presentation\Http\Controller\WarrantiesController;
 
 /*
@@ -108,4 +110,18 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('products/{product}/variants/{variant}/archive', [ProductChangesController::class, 'archiveVariant'])->name('catalog.admin.products.variants.archive');
         Route::post('products/{product}/variants/{variant}/restore', [ProductChangesController::class, 'restoreVariant'])->name('catalog.admin.products.variants.restore');
         Route::post('products/{product}/variants/{variant}/delete', [ProductChangesController::class, 'deleteVariant'])->name('catalog.admin.products.variants.delete');
+
+        // A product's Stores tab (step 3): what one store does with it.
+        Route::post('products/{product}/stores/{store}/choose', [ProductStoresController::class, 'choose'])->name('catalog.admin.products.stores.choose');
+        Route::post('products/{product}/stores/{store}/selling', [ProductStoresController::class, 'selling'])->name('catalog.admin.products.stores.selling');
+        Route::post('products/{product}/stores/{store}/unavailable', [ProductStoresController::class, 'unavailable'])->name('catalog.admin.products.stores.unavailable');
+        Route::post('products/{product}/stores/{store}/labels', [ProductStoresController::class, 'labels'])->name('catalog.admin.products.stores.labels');
+
+        // The admins' store files (§4.4 S10, amendment 6(g)).
+        Route::get('store-files', [StoreFilesController::class, 'index'])->name('catalog.admin.store-files');
+        Route::post('store-files', [StoreFilesController::class, 'upload'])->name('catalog.admin.store-files.upload');
+        Route::get('store-files/{file}', [StoreFilesController::class, 'show'])->name('catalog.admin.store-files.show');
+        Route::post('store-files/{file}/switch-on', [StoreFilesController::class, 'switchOn'])->name('catalog.admin.store-files.switch-on');
+        Route::post('store-files/{file}/remove', [StoreFilesController::class, 'remove'])->name('catalog.admin.store-files.remove');
+        Route::post('store-files/{file}/items/{item}/code', [StoreFilesController::class, 'correctCode'])->name('catalog.admin.store-files.code');
     });
