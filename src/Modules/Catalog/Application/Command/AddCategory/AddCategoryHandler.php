@@ -56,9 +56,9 @@ final readonly class AddCategoryHandler
 
             $category = Category::add($id, $parentId, $name, $slugs, $image);
             $this->categories->add($category);
-            $this->input->placeLast($id, $parentId);
+            $placed = $this->input->placeLast($id, $parentId);
 
-            return [$id, [ListAudit::added('category', $id, $category->snapshot())]];
+            return [$id, [ListAudit::added('category', $id, $category->snapshot()), ...$placed]];
         });
     }
 }

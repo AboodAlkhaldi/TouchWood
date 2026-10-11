@@ -119,29 +119,57 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
         }
     }
 
-    public function placeLast(string $categoryId, ?string $parentId, array $storeIds, ?string $baseStoreId): void
+    public function placeEach(string $storeId, array $ranks): void
+    {
+        if ($ranks === []) {
+            return;
+        }
+
+        $rows = [];
+
+        foreach ($ranks as $categoryId => $rank) {
+            $rows[] = ['store_id' => strtolower($storeId), 'category_id' => strtolower((string) $categoryId), 'rank' => $rank];
+        }
+
+        $this->db->table(self::RANKS)->upsert($rows, ['store_id', 'category_id'], ['rank']);
+    }
+
+    public function placeLast(string $categoryId, ?string $parentId, array $storeIds, ?string $baseStoreId): array
     {
         $categoryId = strtolower($categoryId);
+        // Its own places before, store by store: none for a category just added.
+        $own = array_map('intval', $this->db->table(self::RANKS)->where('category_id', $categoryId)->pluck('rank', 'store_id')->all());
+        $written = [];
 
         foreach ($storeIds as $storeId) {
-            $siblings = $this->siblingsIn(strtolower($storeId), $baseStoreId === null ? null : strtolower($baseStoreId), $parentId === null ? null : strtolower($parentId), $categoryId);
-            $places = array_values(array_filter($siblings, static fn (?int $place): bool => $place !== null));
+            $storeId = strtolower($storeId);
+            $siblings = $this->siblingsIn($storeId, $baseStoreId, $parentId);
+            unset($siblings[$categoryId]);
+            $places = array_values(array_filter(array_column($siblings, 1), static fn (?int $place): bool => $place !== null));
             $rank = ($places === [] ? 0 : max($places)) + 1;
 
             // Only siblings placed by hand near the cap reach it: numbered again in the order the
             // menu shows them, every one keeps its place among the others.
             if ($rank > ListPosition::MAX) {
                 $at = 0;
+                $ranks = [];
 
-                foreach (array_keys($siblings) as $sibling) {
-                    $this->placeIn((string) $sibling, [$storeId], ++$at);
+                foreach ($siblings as $sibling => [$siblingOwn]) {
+                    if ($siblingOwn !== ++$at) {
+                        $ranks[$sibling] = $at;
+                        $written[] = [$sibling, $storeId, $siblingOwn, $at];
+                    }
                 }
 
+                $this->placeEach($storeId, $ranks);
                 $rank = ListPosition::check($at + 1, 'rank');
             }
 
             $this->placeIn($categoryId, [$storeId], $rank);
+            $written[] = [$categoryId, $storeId, $own[$storeId] ?? null, $rank];
         }
+
+        return $written;
     }
 
     public function rankIn(string $storeId, string $categoryId): ?int
@@ -155,27 +183,22 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
         return $rank === null ? null : (int) $rank;
     }
 
-    /**
-     * The other categories under this parent, in the order one store's menu shows them — its own
-     * place, else the base store's (amendment 5(a)), then the English name — with that place.
-     *
-     * @return array<string, int|null> a sibling's id => its place there
-     */
-    private function siblingsIn(string $storeId, ?string $baseStoreId, ?string $parentId, string $categoryId): array
+    public function siblingsIn(string $storeId, ?string $baseStoreId, ?string $parentId): array
     {
+        $storeId = strtolower($storeId);
         $rows = $this->db->select(
-            'SELECT c.id, COALESCE(r.rank, b.rank) AS place FROM '.self::TABLE.' c'
+            'SELECT c.id, r.rank AS own, COALESCE(r.rank, b.rank) AS place FROM '.self::TABLE.' c'
             .' LEFT JOIN '.self::RANKS.' r ON r.store_id = ? AND r.category_id = c.id'
             .' LEFT JOIN '.self::RANKS.' b ON b.store_id = ? AND b.category_id = c.id'
-            .' WHERE '.($parentId === null ? 'c.parent_id IS NULL' : 'c.parent_id = ?').' AND c.id <> ?'
+            .' WHERE '.($parentId === null ? 'c.parent_id IS NULL' : 'c.parent_id = ?')
             .' ORDER BY place NULLS LAST, c.name_en, c.id',
-            [$storeId, $baseStoreId ?? $storeId, ...($parentId === null ? [] : [$parentId]), $categoryId],
+            [$storeId, $baseStoreId === null ? $storeId : strtolower($baseStoreId), ...($parentId === null ? [] : [strtolower($parentId)])],
         );
         $siblings = [];
 
         foreach ($rows as $row) {
             if ($row instanceof stdClass) {
-                $siblings[(string) $row->id] = $row->place === null ? null : (int) $row->place;
+                $siblings[(string) $row->id] = [$row->own === null ? null : (int) $row->own, $row->place === null ? null : (int) $row->place];
             }
         }
 

@@ -106,6 +106,8 @@ use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValue
 use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValuesHandler;
 use Modules\Catalog\Application\Command\OrderBrands\OrderBrands;
 use Modules\Catalog\Application\Command\OrderBrands\OrderBrandsHandler;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategories;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategoriesHandler;
 use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
 use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
@@ -364,6 +366,12 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsCategory();
 
             return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 3]));
+        }],
+        'order a store\'s categories' => ['categories', function () {
+            catalogGuardsCategory();
+            $id = catalogGuardsCategory();
+
+            return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
         }],
         'add an attribute' => ['attributes', fn () => fn () => catalogGuardsAttribute()],
         'edit an attribute' => ['attributes', function () {
@@ -667,6 +675,8 @@ describe('an id that is not in its list', function () {
         'delete a category' => [CategoryNotFound::class, fn () => app(DeleteCategoryHandler::class)->handle(new DeleteCategory(CATALOG_GUARDS_UNKNOWN))],
         'add under an unknown parent' => [CategoryNotFound::class, fn () => catalogGuardsCategory(CATALOG_GUARDS_UNKNOWN)],
         'rank an unknown category' => [CategoryNotFound::class, fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [CATALOG_GUARDS_UNKNOWN => 1]))],
+        'order an unknown category' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [CATALOG_GUARDS_UNKNOWN]))],
+        'order an unknown parent\'s categories' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), CATALOG_GUARDS_UNKNOWN, []))],
         'edit an attribute' => [ListItemNotFound::class, fn () => app(EditAttributeHandler::class)->handle(new EditAttribute(CATALOG_GUARDS_UNKNOWN, 'خاصية', 'Attribute', 'VARIANT'))],
         'deactivate an attribute' => [ListItemNotFound::class, fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute(CATALOG_GUARDS_UNKNOWN))],
         'activate an attribute' => [ListItemNotFound::class, fn () => app(ActivateAttributeHandler::class)->handle(new ActivateAttribute(CATALOG_GUARDS_UNKNOWN))],
@@ -755,6 +765,12 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsCategory();
 
             return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 1]));
+        }],
+        'order a store\'s categories as they are' => [function () {
+            $id = catalogGuardsCategory();
+            catalogGuardsCategory();
+
+            return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
         }],
         'deactivate an attribute again' => [function () {
             $id = catalogGuardsAttribute();
@@ -955,8 +971,9 @@ describe('what the audit log keeps', function () {
         expect(catalogGuardsAuditOf('catalog.brand.default_moved', $first))->toBe(['is_default' => [true, false]])
             ->and(catalogGuardsAuditOf('catalog.brand.made_default', $second))->toBe(['is_default' => [false, true]])
             ->and(catalogGuardsAuditOf('catalog.label.deactivated', $label))->toBe(['is_active' => [true, false]])
-            ->and(catalogGuardsAuditOf('catalog.category.ranked', $category))->toBe(['rank' => [1, 3]])
-            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->value('store_id'))->toBe($eg)
+            // In Egypt: its place when it was added, last (amendment 16(d)), then the one it was given.
+            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->where('subject_id', $category)->where('store_id', $eg)->orderBy('id')->pluck('changes')->map(fn ($changes): array => (array) json_decode((string) $changes, true))->all())
+            ->toBe([['rank' => [null, 1]], ['rank' => [1, 3]]])
             ->and(catalogGuardsAuditOf('catalog.warranty.deleted', $warranty))->toMatchArray(['name_en' => [$name, null], 'period_months' => [12, null]]);
     });
 });

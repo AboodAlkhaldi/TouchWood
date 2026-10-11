@@ -23,20 +23,21 @@ final class ListOrder
      * is refused rather than guessed at.
      *
      * @param  list<string>  $ids
+     * @param  string  $field  the request's field a refusal is said under
      * @return list<string>
      *
      * @throws InvalidCatalogAttribute
      */
-    public static function sent(array $ids): array
+    public static function sent(array $ids, string $field = 'ids'): array
     {
         if (count($ids) > ListPosition::MAX) {
-            throw new InvalidCatalogAttribute('ids', 'at most '.ListPosition::MAX.' items at once');
+            throw new InvalidCatalogAttribute($field, 'at most '.ListPosition::MAX.' items at once');
         }
 
         $sent = array_map(static fn (string $id): string => strtolower(trim($id)), $ids);
 
         if (count(array_unique($sent)) !== count($sent)) {
-            throw new InvalidCatalogAttribute('ids', 'each item once');
+            throw new InvalidCatalogAttribute($field, 'each item once');
         }
 
         return $sent;

@@ -17,7 +17,7 @@ import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { LabelData, LabelsPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 
 /*
 | The labels screen (catalog.md §1.8, §4.4 S5): «الشارات» (amendment 1(b)), each shown as a shopper
@@ -94,7 +94,7 @@ export default function Index({ labels, mayChange }: LabelsPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={{ labels: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                    <SortableGroups groups={{ labels: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_labels.title')}</TableCaption>
@@ -134,7 +134,7 @@ export default function Index({ labels, mayChange }: LabelsPage) {
                                 </TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 

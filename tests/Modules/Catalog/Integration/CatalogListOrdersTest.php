@@ -10,6 +10,10 @@ use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
+use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
+use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
+use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabel;
+use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabelHandler;
 use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributes;
 use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributesHandler;
 use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValues;
@@ -20,6 +24,11 @@ use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
 use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
 use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
+use Modules\Catalog\Application\Query\Lists\AttributeRow;
+use Modules\Catalog\Application\Query\Lists\BrandRow;
+use Modules\Catalog\Application\Query\Lists\CatalogListReads;
+use Modules\Catalog\Application\Query\Lists\LabelRow;
+use Modules\Catalog\Application\Query\Lists\ValueRow;
 use Modules\Catalog\Application\Query\Lists\WarrantyRow;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarranties;
 use Modules\Catalog\Application\Query\ListWarranties\ListWarrantiesHandler;
@@ -175,6 +184,52 @@ function catalogOrdersLists(): array
     ];
 }
 
+/**
+ * A list's ids as its screen shows them: read by the screens' own read, not by this file's copy of
+ * its order.
+ *
+ * @param  array<string, string>  $scope  an attribute's values: its id
+ * @return list<string>
+ */
+function catalogOrdersShown(string $table, array $scope = []): array
+{
+    $reads = app(CatalogListReads::class);
+    $rows = match ($table) {
+        'catalog.brands' => $reads->brands(),
+        'catalog.labels' => $reads->labels(),
+        'catalog.warranties' => $reads->warranties(),
+        'catalog.attributes' => $reads->attributes(),
+        'catalog.attribute_values' => $reads->values($scope['attribute_id']),
+        default => throw new LogicException("No screen shows {$table}."),
+    };
+
+    return array_map(static fn (BrandRow|LabelRow|WarrantyRow|AttributeRow|ValueRow $row): string => $row->id, $rows);
+}
+
+/**
+ * Every ordered list as `catalogOrdersLists()` gives it, its items added by their English name.
+ *
+ * @return array<string, array{string, string, string, Closure, Closure}>
+ */
+function catalogOrdersNamedLists(): array
+{
+    return [
+        'brands' => [CatalogPermissions::BRAND_MANAGE, 'catalog.brands', 'brand', fn (): array => [Px::brand(...), []], catalogOrdersSendBrands(...)],
+        'labels' => [CatalogPermissions::LABEL_MANAGE, 'catalog.labels', 'label', fn (): array => [catalogOrdersLabel(...), []], catalogOrdersSendLabels(...)],
+        'warranties' => [CatalogPermissions::WARRANTY_MANAGE, 'catalog.warranties', 'warranty', fn (): array => [catalogOrdersWarranty(...), []], catalogOrdersSendWarranties(...)],
+        'attributes' => [CatalogPermissions::ATTRIBUTE_MANAGE, 'catalog.attributes', 'attribute', fn (): array => [Px::attribute(...), []], catalogOrdersSendAttributes(...)],
+        'an attribute\'s values' => [
+            CatalogPermissions::ATTRIBUTE_MANAGE, 'catalog.attribute_values', 'attribute_value',
+            function (): array {
+                $width = Px::attribute('Width');
+
+                return [fn (string $nameEn): string => Px::value($width, $nameEn), ['attribute_id' => $width]];
+            },
+            catalogOrdersSendValues(...),
+        ],
+    ];
+}
+
 describe('an order', function () {
     it('puts the ids sent first, in the order sent, every other after them in its order, written 1, 2, 3 …', function (string $job, string $table, string $subject, Closure $make, Closure $order) {
         [$add, $scope] = $make();
@@ -206,6 +261,61 @@ describe('an order', function () {
             // The list belongs to no store: its entries name none.
             ->and(DB::table('platform.audit_entries')->where('action', "catalog.{$subject}.ordered")->whereNotNull('store_id')->count())->toBe(0);
     })->with(catalogOrdersLists());
+
+    it('agrees with its screen where places are tied: the row shown last moves to the top, the row shown first is first already', function (string $job, string $table, string $subject, Closure $make, Closure $order) {
+        [$add, $scope] = $make();
+        [$zeta, $alpha, $mid] = [$add('Zeta'), $add('Alpha'), $add('Mid')];
+        $tie = static fn () => DB::table($table)->whereIn('id', [$zeta, $alpha, $mid])->update(['position' => 7]);
+        Cx::actAsStaffWith([$job]);
+
+        // Typed alike on the old screens: the screen shows them by name between themselves, and Move
+        // to Top sends only the row's id, so the order sends it after must be the order shown.
+        $tie();
+
+        expect(catalogOrdersShown($table, $scope))->toBe([$alpha, $mid, $zeta]);
+
+        $order($scope, [$zeta]);
+
+        expect(catalogOrdersShown($table, $scope))->toBe([$zeta, $alpha, $mid])
+            ->and(catalogOrdersPositions($table, $scope))->toBe([1, 2, 3]);
+
+        $tie();
+        $audited = Fx::audits("catalog.{$subject}.ordered");
+
+        expect(catalogOrdersShown($table, $scope))->toBe([$alpha, $mid, $zeta]);
+
+        // The row the screen shows first, its Move to Top out of reach there: nothing moves.
+        $order($scope, [$alpha]);
+
+        expect(catalogOrdersShown($table, $scope))->toBe([$alpha, $mid, $zeta])
+            ->and(catalogOrdersPositions($table, $scope))->toBe([1, 2, 3])
+            ->and(Fx::audits("catalog.{$subject}.ordered"))->toBe($audited);
+    })->with(catalogOrdersNamedLists());
+
+    it('orders a deactivated item as any other, sent or not, and leaves it deactivated', function () {
+        $first = Px::brand('Blum');
+        $off = Px::brand('Hettich');
+        $third = Px::brand('Grass');
+        $label = catalogOrdersLabel('First');
+        $offLabel = catalogOrdersLabel('Second');
+        Cx::actAsStaffWith([CatalogPermissions::BRAND_MANAGE, CatalogPermissions::LABEL_MANAGE]);
+        app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($off));
+        app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($offLabel));
+
+        // Not sent, it keeps its place among the others, after those sent.
+        app(OrderBrandsHandler::class)->handle(new OrderBrands([$third]));
+
+        expect(catalogOrdersShown('catalog.brands'))->toBe([$third, $first, $off]);
+
+        // Sent, it goes where it is sent.
+        app(OrderBrandsHandler::class)->handle(new OrderBrands([$off]));
+        app(OrderLabelsHandler::class)->handle(new OrderLabels([$offLabel]));
+
+        expect(catalogOrdersShown('catalog.brands'))->toBe([$off, $third, $first])
+            ->and(catalogOrdersShown('catalog.labels'))->toBe([$offLabel, $label])
+            ->and(DB::table('catalog.brands')->where('id', $off)->value('is_active'))->toBeFalse()
+            ->and(DB::table('catalog.labels')->where('id', $offLabel)->value('is_active'))->toBeFalse();
+    });
 
     it('is refused to someone holding the list\'s job in one store only, or another job, and changes nothing', function (string $job, string $table, string $subject, Closure $make, Closure $order) {
         [$add, $scope] = $make();
@@ -320,7 +430,7 @@ describe('the warranties\' order (amendment 16(d))', function () {
         $zeta = catalogOrdersWarranty('Zeta');
         $alpha = catalogOrdersWarranty('Alpha');
         $mid = catalogOrdersWarranty('Mid');
-        $migration = require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_10_120000_add_position_to_catalog_warranties.php');
+        $migration = require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_11_110000_add_position_to_catalog_warranties.php');
 
         $migration->down();
 
@@ -350,5 +460,44 @@ describe('the warranties\' order (amendment 16(d))', function () {
             ->and($screen())->toBe([$third, $first, $second])
             // The product form's choice offers them in the same order (amendment 16(d)).
             ->and(array_map(static fn (array $warranty): string => $warranty['id'], app(CatalogProductReads::class)->options()->warranties))->toBe([$third, $first, $second]);
+    });
+});
+
+describe('the places typed before amendment 16(d)', function () {
+    it('are written again 1, 2, 3 in the order each list showed - place, English name, id -, an attribute\'s values each their own list', function () {
+        $zeta = Px::brand('Zeta');
+        $alpha = Px::brand('Alpha');
+        $later = catalogOrdersLabel('Later');
+        $first = catalogOrdersLabel('First');
+        $width = Px::attribute('Width');
+        $height = Px::attribute('Height');
+        $wide = Px::value($width, '80 cm');
+        $narrow = Px::value($width, '45 cm');
+        $tall = Px::value($height, '90 cm');
+        // As the old screens typed them: 0 for most, some alike, one far down the range.
+        DB::table('catalog.brands')->update(['position' => 0]);
+        DB::table('catalog.labels')->where('id', $later)->update(['position' => 10000]);
+        DB::table('catalog.labels')->where('id', $first)->update(['position' => 0]);
+        DB::table('catalog.attributes')->update(['position' => 5]);
+        DB::table('catalog.attribute_values')->update(['position' => 0]);
+        $shown = static fn (): array => [
+            catalogOrdersShown('catalog.brands'),
+            catalogOrdersShown('catalog.labels'),
+            catalogOrdersShown('catalog.attributes'),
+            catalogOrdersShown('catalog.attribute_values', ['attribute_id' => $width]),
+            catalogOrdersShown('catalog.attribute_values', ['attribute_id' => $height]),
+        ];
+        $before = $shown();
+
+        (require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_11_120000_renumber_catalog_list_places.php'))->up();
+
+        // Every list shows as it did; its places are 1, 2, 3 now, ties gone.
+        expect($shown())->toBe($before)
+            ->and($before)->toBe([[$alpha, $zeta], [$first, $later], [$height, $width], [$narrow, $wide], [$tall]])
+            ->and(catalogOrdersPositions('catalog.brands'))->toBe([1, 2])
+            ->and(catalogOrdersPositions('catalog.labels'))->toBe([1, 2])
+            ->and(catalogOrdersPositions('catalog.attributes'))->toBe([1, 2])
+            ->and(catalogOrdersPositions('catalog.attribute_values', ['attribute_id' => $width]))->toBe([1, 2])
+            ->and(catalogOrdersPositions('catalog.attribute_values', ['attribute_id' => $height]))->toBe([1]);
     });
 });

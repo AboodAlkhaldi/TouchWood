@@ -19,8 +19,9 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { CategoriesPage, CategoryData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField, MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale, type Locale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useLatestSave, useSortableRow } from '../SortableList';
+import { ImageField } from '../ImageField';
+import { MoreButton, MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSaveQueue, useSortableRow } from '../SortableList';
 
 /*
 | The categories screen (catalog.md §1.5, §4.4 S2): **the whole tree** in one table, a parent's
@@ -48,10 +49,12 @@ type Node = { category: CategoryData; children: Node[]; depth: number };
 const TOP = 'top';
 
 /**
- * The tree, each parent's children in the store's order, else the base store's, else by name - or,
- * for the group whose order was just dropped, that order while it is saved.
+ * The tree, each parent's children in the store's order, else the base store's, those with neither
+ * last - or, for the group whose order was just made, that order while it is saved. Places alike
+ * keep the order the categories come in, English name then id: the order the server orders them
+ * in, so an order that sends one id (Move to Top) puts the others after it as the page shows them.
  */
-function tree(categories: CategoryData[], locale: Locale, sent: { group: string; ids: string[] } | null): Node[] {
+function tree(categories: CategoryData[], sent: Record<string, string[]>): Node[] {
     const byParent = new Map<string, CategoryData[]>();
 
     for (const category of categories) {
@@ -61,9 +64,10 @@ function tree(categories: CategoryData[], locale: Locale, sent: { group: string;
 
     const place = (category: CategoryData) => category.storeRank ?? category.baseRank ?? Number.MAX_SAFE_INTEGER;
     const sorted = (parent: string, list: CategoryData[]) =>
-        sent !== null && sent.group === parent
-            ? [...list].sort((a, b) => sent.ids.indexOf(a.id) - sent.ids.indexOf(b.id))
-            : [...list].sort((a, b) => place(a) - place(b) || nameIn(locale, a.nameAr, a.nameEn).localeCompare(nameIn(locale, b.nameAr, b.nameEn)));
+        sent[parent] !== undefined
+            ? [...list].sort((a, b) => (sent[parent] ?? []).indexOf(a.id) - (sent[parent] ?? []).indexOf(b.id))
+            : // A stable sort: places alike stay in the server's order.
+              [...list].sort((a, b) => place(a) - place(b));
     const branch = (parent: string, depth: number): Node[] =>
         sorted(parent, byParent.get(parent) ?? []).map((category) => ({ category, depth, children: branch(category.id, depth + 1) }));
 
@@ -94,10 +98,10 @@ function below(node: Node): string[] {
 export default function Index({ categories, storeCode, storeName, stores, mayManage, mayRank, reached, reachedFor }: CategoriesPage) {
     const t = useTranslator();
     const locale = useLocale();
-    // A group's order just dropped, shown while it is saved: the server's comes back with the page.
-    const [sent, setSent] = useState<{ group: string; ids: string[] } | null>(null);
-    const latest = useLatestSave();
-    const nodes = useMemo(() => tree(categories, locale, sent), [categories, locale, sent]);
+    // The groups' orders just made, shown while they are saved: the server's comes back with the page.
+    const [sent, setSent] = useState<Record<string, string[]>>({});
+    const queue = useSaveQueue(() => setSent({}));
+    const nodes = useMemo(() => tree(categories, sent), [categories, sent]);
     const groups = useMemo(() => groupsOf(nodes), [nodes]);
     const byId = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
     const [open, setOpen] = useState<Set<string>>(() => new Set(nodes.map((node) => node.category.id)));
@@ -112,28 +116,20 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
         setDialog(next);
     };
 
-    /** One parent's children in their new order, written as places 1, 2, 3 … in the store shown. */
-    function order(group: string, ids: string[]) {
+    /**
+     * One parent's children in their new order, in the store shown (P29): the ids posted first,
+     * every other sibling after them in the order the store's menu has then - so Move to Top posts
+     * that one id, as every list's order does (useSavedOrder).
+     */
+    function order(group: string, ids: string[], post: string[] = ids) {
         if (storeCode === null) {
             return;
         }
 
-        setSent({ group, ids });
-        const mine = latest.start();
-        const ranks = Object.fromEntries(ids.map((id, index) => [id, index + 1]));
-        // Async: a second order made before the first is answered never cancels it (useSavedOrder).
-        router.post(
-            '/admin/categories/order',
-            { store: storeCode, ranks },
-            {
-                async: true,
-                preserveScroll: true,
-                onFinish: () => {
-                    if (latest.finished(mine)) {
-                        setSent(null);
-                    }
-                },
-            },
+        setSent((was) => ({ ...was, [group]: ids }));
+        // Async: a visit elsewhere on the page never cancels a save under way.
+        queue((answered) =>
+            router.post('/admin/categories/order', { store: storeCode, parent: group === TOP ? null : group, ids: post }, { async: true, preserveScroll: true, onFinish: answered }),
         );
     }
 
@@ -179,7 +175,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                             orderable={orderable}
                             first={index === 0}
                             last={index === list.length - 1}
-                            toTop={() => order(group, [node.category.id, ...ids.filter((id) => id !== node.category.id)])}
+                            toTop={() => order(group, [node.category.id, ...ids.filter((id) => id !== node.category.id)], [node.category.id])}
                             toBottom={() => order(group, [...ids.filter((id) => id !== node.category.id), node.category.id])}
                             show={show}
                         />
@@ -225,7 +221,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={groups} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={order}>
+                    <SortableGroups groups={groups} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={order}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_categories.title')}</TableCaption>
@@ -247,7 +243,7 @@ export default function Index({ categories, storeCode, storeName, stores, mayMan
                                 <TableBody>{rowsOf(nodes, TOP)}</TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 

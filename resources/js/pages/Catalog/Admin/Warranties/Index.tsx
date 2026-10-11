@@ -14,7 +14,7 @@ import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { WarrantiesPage, WarrantyData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 
 /*
 | The warranties screen (catalog.md §1.9, §4.4 S6): a list a product carries at most one of - each
@@ -66,7 +66,7 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={{ warranties: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                    <SortableGroups groups={{ warranties: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_warranties.title')}</TableCaption>
@@ -105,7 +105,7 @@ export default function Index({ warranties, mayChange }: WarrantiesPage) {
                                 </TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 

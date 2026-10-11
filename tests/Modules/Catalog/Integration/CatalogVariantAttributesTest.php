@@ -223,6 +223,14 @@ describe('a value made from the product', function () {
             ->and(Fx::audits('catalog.attribute_value.added', $grey))->toBe(1)
             ->and(fn () => $add('grey'))->toThrow(NameTaken::class);
 
+        // As the Attributes screen adds one: where the next place would pass the cap, the values are
+        // numbered again 1, 2, 3 in their order first (amendment 16(d)).
+        DB::table('catalog.attribute_values')->where('id', $grey)->update(['position' => 10000]);
+        $white = $add('White');
+
+        expect(DB::table('catalog.attribute_values')->where('attribute_id', $colour)->orderBy('position')->pluck('position')->map(fn ($position): int => (int) $position)->all())->toBe([1, 2, 3])
+            ->and(DB::table('catalog.attribute_values')->where('id', $white)->value('position'))->toBe(3);
+
         $use = Px::attribute('Use', 'FILTERABLE');
         $retired = Px::attribute('Retired');
         Fx::asSystem(fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute($retired)));

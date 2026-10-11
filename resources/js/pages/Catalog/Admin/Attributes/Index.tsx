@@ -9,7 +9,7 @@ import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AttributeData, AttributesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { DragHandle, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+import { DragHandle, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 import { AttributeDialog, AttributeMenu, DeleteAttributeDialog } from './AttributeDialog';
 
 /*
@@ -64,7 +64,7 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={{ attributes: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                    <SortableGroups groups={{ attributes: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_attributes.title')}</TableCaption>
@@ -105,7 +105,7 @@ export default function Index({ attributes, mayChange }: AttributesPage) {
                                 </TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 

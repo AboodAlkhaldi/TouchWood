@@ -9,6 +9,8 @@ use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
 use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
+use Modules\Catalog\Application\Command\AddLabel\AddLabel;
+use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPair;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPairHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -151,6 +153,36 @@ it('orders the brands by dragging a row by its handle, and moves one to the top 
     expect($first)->toBe($alpha)
         ->and(browserUntil($page, "document.querySelector('tbody tr')?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
 
+    // Move to Bottom, from the same menu: Alpha goes last.
+    $page->click("[data-test=\"brand-actions-{$alpha}\"]")
+        ->click('[data-test="move-bottom"]');
+
+    $last = catalogListBrowserSoon($page, fn (): ?string => array_slice(catalogListBrowserBrandOrder(), -1)[0] ?? null, fn (?string $id): bool => $id === $alpha);
+
+    expect($last)->toBe($alpha)
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].at(-1)?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('orders the labels by dragging a row by its handle', function () {
+    $n = catalogListBrowserFresh();
+    $add = fn (string $nameEn): string => Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("شارة {$n}", "{$nameEn} {$n}", 'blue')));
+    $sale = $add('Sale');
+    $new = $add('New');
+    $order = fn (): array => array_slice(array_values(array_map('strval', DB::table('catalog.labels')->orderBy('position')->orderBy('name_en')->orderBy('id')->pluck('id')->all())), -2);
+
+    // Each added last: the two end the list, Sale then New.
+    expect($order())->toBe([$sale, $new]);
+
+    $page = catalogListBrowser([P::LABEL_MANAGE]);
+    $page->navigate('/admin/labels', BROWSER_PAGE_LOAD);
+
+    catalogListBrowserKeys($page, "[data-test=\"drag-label-{$new}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    expect(catalogListBrowserSoon($page, $order, fn (array $ids): bool => $ids === [$new, $sale]))->toBe([$new, $sale])
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test).slice(-2).join() === 'label-{$new},label-{$sale}'"))->toBeTrue();
+
     $page->assertNoJavaScriptErrors();
 });
 
@@ -174,6 +206,14 @@ it('orders a parent\'s sub-categories in the store shown by dragging, saved for 
 
     expect($places)->toBe([1, 2])
         // Egypt's menu only: the base store keeps its order.
+        ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
+
+    // Move to Top, from Doors' ⋯ menu: first among its siblings again, in Egypt alone.
+    $page->click("[data-test=\"category-actions-{$doors}\"]")
+        ->click('[data-test="move-top"]');
+
+    expect(catalogListBrowserSoon($page, fn (): array => [$place('eg', $doors), $place('eg', $shelves)], fn (array $now): bool => $now === [1, 2]))->toBe([1, 2])
+        ->and(browserUntil($page, "(() => { const rows = [...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test); return rows.indexOf('category-{$doors}') >= 0 && rows.indexOf('category-{$doors}') < rows.indexOf('category-{$shelves}'); })()"))->toBeTrue()
         ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
 
     $page->assertNoJavaScriptErrors();

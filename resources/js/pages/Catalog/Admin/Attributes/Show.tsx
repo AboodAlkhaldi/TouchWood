@@ -16,7 +16,7 @@ import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AttributePage, ValueData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 import { AttributeFields, AttributeMenu, DeleteAttributeDialog, attributeForm } from './AttributeDialog';
 
 /*
@@ -121,7 +121,7 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={{ values: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                    <SortableGroups groups={{ values: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_attributes.value.title')}</TableCaption>
@@ -160,7 +160,7 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                                 </TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 

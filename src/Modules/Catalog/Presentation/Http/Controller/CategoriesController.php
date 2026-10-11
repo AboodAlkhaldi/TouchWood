@@ -22,8 +22,8 @@ use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
-use Modules\Catalog\Application\Command\RankCategories\RankCategories;
-use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategories;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategoriesHandler;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImage;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImageHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
@@ -97,11 +97,16 @@ final readonly class CategoriesController
      * one not offered here, is refused — never sent to the first store. An order has no field of its
      * own on the page, so a refusal is said at its top and in a toast.
      */
-    public function rank(CatalogFormRequest $request, RankCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
+    /**
+     * One parent's children in the store shown, in their new order (amendment 16(d), P29): the ids
+     * dragged, or the one moved to the top, or every other then the one moved to the bottom.
+     */
+    public function order(CatalogFormRequest $request, OrderCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new RankCategories(
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderCategories(
             self::storeId($choices, $request->optionalText('store')),
-            self::ranks($request->input('ranks')),
+            $request->optionalText('parent'),
+            $request->texts('ids'),
         )), 'catalog::admin_categories.toast.ranked');
     }
 
@@ -139,22 +144,6 @@ final readonly class CategoriesController
         }
 
         return $choices->chosen($code, CatalogPermissions::CATEGORY_RANK)->id ?? throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
-    }
-
-    /**
-     * Category id => its place, as posted; anything else is left for the handler to refuse.
-     *
-     * @return array<string, mixed>
-     */
-    private static function ranks(mixed $posted): array
-    {
-        $ranks = [];
-
-        foreach (is_array($posted) ? $posted : [] as $categoryId => $rank) {
-            $ranks[(string) $categoryId] = is_numeric($rank) && (string) (int) $rank === trim((string) $rank) ? (int) $rank : $rank;
-        }
-
-        return $ranks;
     }
 
     private static function image(CatalogFormRequest $request, UploadCategoryImageHandler $upload): ?string

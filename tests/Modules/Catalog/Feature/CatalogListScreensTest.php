@@ -473,18 +473,24 @@ describe('the categories', function () {
     it('saves a menu order in the store the page sent, and refuses no store or one the reader does not order', function () {
         $kitchens = Px::category('Kitchens');
         $doors = Px::category('Doors');
+        $drawers = Px::category('Drawers', $kitchens);
+        $hinges = Px::category('Hinges', $kitchens);
         $browser = catalogListScreens([P::CATEGORY_RANK], ['eg']);
-        $ranks = [$doors => '10', $kitchens => '20'];
-        $places = fn (string $store): array => DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->orderBy('category_id')->pluck('rank', 'category_id')->all();
+        // Move to Top: the one id, the others after it as the store's menu has them.
+        $order = ['ids' => [$doors]];
+        $places = fn (string $store): array => array_map('intval', DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->orderBy('category_id')->pluck('rank', 'category_id')->all());
         $saBefore = $places('sa');
         $egBefore = $places('eg');
 
-        expect(AdminBrowser::formError($browser->post('/admin/categories/order', ['ranks' => $ranks])))->toBe(catalogListScreensNotYours())
-            ->and(AdminBrowser::formError($browser->post('/admin/categories/order', ['store' => 'sa', 'ranks' => $ranks])))->toBe(catalogListScreensNotYours())
+        expect(AdminBrowser::formError($browser->post('/admin/categories/order', $order)))->toBe(catalogListScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post('/admin/categories/order', ['store' => 'sa', ...$order])))->toBe(catalogListScreensNotYours())
             ->and($places('eg'))->toBe($egBefore)
-            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', 'ranks' => $ranks])))->toBe('Order saved')
-            ->and($places('eg')[$doors] ?? null)->toBe(10)
-            ->and($places('eg')[$kitchens] ?? null)->toBe(20)
+            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', ...$order])))->toBe('Order saved')
+            ->and($places('eg')[$doors])->toBe(1)
+            ->and($places('eg')[$kitchens])->toBeGreaterThan(1)
+            // One parent's children, named by the parent.
+            ->and(catalogListScreensToast($browser->post('/admin/categories/order', ['store' => 'eg', 'parent' => $kitchens, 'ids' => [$hinges]])))->toBe('Order saved')
+            ->and([$places('eg')[$hinges], $places('eg')[$drawers]])->toBe([1, 2])
             ->and($places('sa'))->toBe($saBefore);
     });
 
@@ -492,10 +498,10 @@ describe('the categories', function () {
         $kitchens = Px::category('Kitchens');
         $browser = catalogListScreens([P::CATEGORY_RANK], ['eg']);
 
-        $refused = $browser->post('/admin/categories/order', ['store' => 'eg', 'ranks' => [$kitchens => 'first']]);
+        $refused = $browser->post('/admin/categories/order', ['store' => 'eg', 'ids' => [$kitchens, $kitchens]]);
 
-        expect(AdminBrowser::formError($refused))->toBe('The place in the menu is not valid.')
-            ->and(catalogListScreensErrors($refused))->not->toHaveKey('rank');
+        expect(AdminBrowser::formError($refused))->toBe('The order is not valid.')
+            ->and(catalogListScreensErrors($refused))->not->toHaveKey('ids');
     });
 
     it('reads the products a category\'s deactivation reaches, in it and under it, only for someone who may deactivate', function () {

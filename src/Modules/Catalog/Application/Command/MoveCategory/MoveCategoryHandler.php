@@ -67,13 +67,13 @@ final readonly class MoveCategoryHandler
             }
 
             $this->categories->update($category);
-            $this->input->placeLast($category->id(), $parentId);
+            $placed = $this->input->placeLast($category->id(), $parentId);
             $this->listingRows->refresh($this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]));
             $this->events->categoryMoved($category->id());
 
             $entry = ListAudit::changed('category', 'moved', $category->id(), $changes, $category->snapshot());
 
-            return [null, $entry === null ? [] : [$entry]];
+            return [null, [...($entry === null ? [] : [$entry]), ...$placed]];
         });
     }
 }

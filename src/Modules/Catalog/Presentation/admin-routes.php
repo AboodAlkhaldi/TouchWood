@@ -41,7 +41,7 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('categories', [CategoriesController::class, 'index'])->name('catalog.admin.categories');
         Route::post('categories', [CategoriesController::class, 'add'])->name('catalog.admin.categories.add');
         // A store's menu order: the store the page shows, sent with the order (catalog.md §1.5).
-        Route::post('categories/order', [CategoriesController::class, 'rank'])->name('catalog.admin.categories.rank');
+        Route::post('categories/order', [CategoriesController::class, 'order'])->name('catalog.admin.categories.order');
         Route::post('categories/{category}', [CategoriesController::class, 'edit'])->name('catalog.admin.categories.edit');
         Route::post('categories/{category}/move', [CategoriesController::class, 'move'])->name('catalog.admin.categories.move');
         Route::post('categories/{category}/activate', [CategoriesController::class, 'activate'])->name('catalog.admin.categories.activate');
@@ -97,6 +97,11 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('products/{product}/restore', [ProductChangesController::class, 'restore'])->name('catalog.admin.products.restore');
         Route::post('products/{product}/delete', [ProductChangesController::class, 'delete'])->name('catalog.admin.products.delete');
         Route::post('products/{product}/variants', [ProductChangesController::class, 'addVariant'])->name('catalog.admin.products.variants.add');
+        Route::post('products/{product}/variants/order', [ProductChangesController::class, 'orderVariants'])->name('catalog.admin.products.variants.order');
+        Route::post('products/{product}/attributes', [ProductChangesController::class, 'addAttribute'])->name('catalog.admin.products.attributes.add');
+        Route::post('products/{product}/attributes/order', [ProductChangesController::class, 'orderAttributes'])->name('catalog.admin.products.attributes.order');
+        Route::post('products/{product}/attributes/{attribute}/remove', [ProductChangesController::class, 'removeAttribute'])->name('catalog.admin.products.attributes.remove');
+        Route::post('products/{product}/values', [ProductChangesController::class, 'addValue'])->name('catalog.admin.products.values.add');
         Route::post('products/{product}/variants/{variant}', [ProductChangesController::class, 'editVariant'])->name('catalog.admin.products.variants.edit');
         Route::post('products/{product}/variants/{variant}/code', [ProductChangesController::class, 'correctCode'])->name('catalog.admin.products.variants.code');
         Route::post('products/{product}/variants/{variant}/photos', [ProductChangesController::class, 'variantPhotos'])->name('catalog.admin.products.variants.photos');

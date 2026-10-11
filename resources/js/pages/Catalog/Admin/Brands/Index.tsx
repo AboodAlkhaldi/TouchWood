@@ -20,8 +20,9 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { BrandData, BrandsPage, CountryOptionData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { FatesDialog } from '../FatesDialog';
-import { ImageField, MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { DragHandle, MoveItems, SortableGroup, SortableRows, useSavedOrder, useSortableRow } from '../SortableList';
+import { ImageField } from '../ImageField';
+import { MarksField, MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 
 // The country picker, and the command list under it, load when the brand's dialog first opens - not
 // with the page, which the drag handles' code now shares (frontend.md §5, the page budget).
@@ -88,7 +89,7 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <SortableRows groups={{ brands: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                    <SortableGroups groups={{ brands: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
                         <div className="material-base overflow-x-auto">
                             <Table>
                                 <TableCaption className="sr-only">{t('catalog::admin_brands.title')}</TableCaption>
@@ -129,7 +130,7 @@ export default function Index({ brands, mayChange, reached, reachedFor, countrie
                                 </TableBody>
                             </Table>
                         </div>
-                    </SortableRows>
+                    </SortableGroups>
                 )}
             </div>
 
