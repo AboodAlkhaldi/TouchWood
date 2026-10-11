@@ -15,9 +15,10 @@ The module is built in six steps (the execution plan, 2026-10-10). Done:
 |---|---|---|
 | 1 — foundation | The `loyalty` schema; the five permissions; the programme's eight settings; the errors; Access's Points group (access.md amendment 66) and Platform's Points menu section (platform.md §9.4). With it, a fix to Platform's settings page: an emptied number field is refused instead of saved as 0 (owner, 2026-10-10) | below |
 | 2 — the ledger | The eight tables of spec §5 with every rule the database holds; the points arithmetic; the accounts repository and its lock. The id check it uses moved to the Shared kernel first (#118) | below |
+| 3a — the contract | `LoyaltyApi` for Sales: what an order would earn, a redemption's quote, placing it, earning on delivery, a balance; the caller's permission checked in the order's store | below |
 
-Still to come: earning, redeeming, changes by hand, the nightly expiry and `LoyaltyApi` (3), settling cancellations, returns and staff edits (4), the reads
-behind the screens (5), the module's own pass (6).
+Still to come: changes by hand and the nightly expiry (3b), settling cancellations, returns and staff
+edits (4), the reads behind the screens (5), the module's own pass (6).
 
 ## What is here
 
@@ -40,9 +41,10 @@ behind the screens (5), the module's own pass (6).
   or off (**off** by default), points earned per unit, points per unit off, months a lot lives, the
   fewest points in a redemption, the most of an order points may pay, and whether individuals and
   companies choose how many points to use. Their ranges are checked by Platform when they are saved.
-- **`Domain/Exception`** — `LoyaltyError` and six of spec §7's errors, each with a `loyalty.*` type,
+- **`Domain/Exception`** — `LoyaltyError` and spec §7's seven errors, each with a `loyalty.*` type,
   its status, and a title and message in Arabic and English (`Presentation/lang`).
-  `RedemptionRefused` comes with step 3, with the refusal reasons it carries. A deduction that is too
+  `RedemptionRefused` carries its `RedemptionRefusal` in `context()`, for Sales, which reads other
+  modules' errors by their type (sales.md §2.3). A deduction that is too
   large says so without the customer's balance: changing points by hand does not need the right to
   view them (§3).
 - **`Infrastructure/Persistence/Migrations/…_create_loyalty_ledger_tables`** (spec §5) — `accounts`
@@ -61,13 +63,43 @@ behind the screens (5), the module's own pass (6).
   its expiry, and answers the balance as it is after; the live lots in the order they are spent; the
   live balance. Customer ids are lowercased before they reach the database. Every moment goes to
   PostgreSQL in UTC with its offset: Laravel binds a date as `Y-m-d H:i:s`, which drops both.
+- **`Public/Contracts/LoyaltyApi`**, **`Application/LoyaltyApiImpl`** (spec §2.1) — what Sales calls,
+  with `Public/Dto` and `Public/Enums` (`Audience`, `RedemptionMode`, `RedemptionRefusal`,
+  `EntryKind`; generated to TypeScript). The settlements join it with step 4.
+  - **The writes** — `redeem` (`Application/Command/Redeem`) and `earn` (`…/Earn`) — run inside
+    Sales's transaction and name **Sales's permission** (`CallerPermission`). `Application/Points/
+    CallerCheck` refuses a permission that is not the calling module's own, or is Loyalty's, and
+    checks it in **the store recorded on the order** (a store passed in that differs is refused).
+  - **Placing** works the redemption out again under the account's lock, with the balance and
+    settings of that moment: refused by the rules now → `RedemptionRefused` with the reason; allowed
+    but not as quoted → `RedemptionChanged`; the programme off → `PointsProgrammeOff`. It takes from
+    the live lots expiring first and records the order with the cap it redeemed under. A customer
+    with no account has nothing to redeem: refused without making one.
+  - **Earning** reads the programme at delivery and records the delivery even at 0 points; a
+    cancelled order is refused. A lot lives `expiry_months` calendar months.
+  - **Once per order**: a call repeated for an order already redeemed or delivered changes nothing,
+    and is answered before anything that may have changed since (the programme switched off); read
+    first, then again under the account's lock. An order Loyalty holds for another customer or
+    store, or with other points, is refused — also when a call for another account recorded it
+    meanwhile (the order's row is inserted only if absent). Both assume Sales's transaction runs at
+    PostgreSQL's default isolation, READ COMMITTED, so the read under the lock sees the first call.
+  - **The reads** — `earningPreview`, `quoteRedemption`, `balance` (`Application/Points/SalesReads`) —
+    check no permission of their own (spec §3) and write nothing.
+- **`Domain/Service/RedemptionRules`** (spec §1.7) — a redemption worked out, in the spec's order;
+  the same rules for a quote and for placing it. `Domain/Model/Programme` is a store's programme as
+  it reads now (`Application/Points/ProgrammeReader`).
+- **`Domain/Repository/PointsLedger`**, **`Infrastructure/Eloquent/DatabasePointsLedger`** — the
+  orders' points and the ledger's writes for redeeming and earning, on an account already locked;
+  then the order's row, alone (never another account's row with it), then the lots it spends.
+  `Infrastructure/Eloquent/Moment` sends every moment in UTC.
 
 ## Approaches
 
 - **No Eloquent models.** Every read and write goes through a repository that names the store in
   every call (spec §1.12).
-- **One lock order**: an account's row first, then its lots, the one expiring first first (lesson
-  37). Every write expires the account's dead lots before it does anything else (spec §1.1).
+- **One lock order**: an account's row first; its dead lots, swept; the order's row; then the live
+  lots it spends, the one expiring first first (lesson 37). Every write expires the account's dead
+  lots before it does anything else (spec §1.1).
 - **Words live in the language files**, both languages, checked by tests: permissions
   (`permissions.php`), settings (`settings.php`, with `module` as the section's name), errors
   (`errors.php`, with `fields` naming a refused value).
@@ -85,4 +117,10 @@ ledger once, after a valid row in every table, each constraint matched by its qu
 account's first, then its lots' in spending order), the lots' order and their expiry, and a moment
 given in another timezone; `Unit/PointsArithmeticTest` the arithmetic on the spec's cases and its
 "never charged a point that bought nothing" rule across rates and exponents; `Unit/LotTest` when a
-lot is live.
+lot is live. Step 3a: `Unit/RedemptionRulesTest` the rules in their order, the cap, the minimum on
+the points charged, and the same answer worked out again; `LoyaltyEarnTest`, `LoyaltyRedeemTest`
+and `LoyaltyCallerScopeTest` spec §8's Earning, Redeeming and Permissions cases through `LoyaltyApi`,
+with `Support/LoyaltyFixtures` standing in for Sales's permissions (declared in each test, exactly as
+sales.md §3 names them — nothing of Sales ships); `LoyaltyPlacementRaceTest` two placements at once
+on two connections — the only Loyalty test outside RefreshDatabase's transaction, so it commits its
+own rows and empties the test database with `migrate:fresh` before and after itself.

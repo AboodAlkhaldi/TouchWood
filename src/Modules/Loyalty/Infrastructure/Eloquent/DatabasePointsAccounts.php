@@ -6,7 +6,6 @@ namespace Modules\Loyalty\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
-use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use LogicException;
@@ -52,7 +51,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
 
         // Ids are stored lowercase; the column compares exactly.
         $customerId = strtolower($customerId);
-        $stamp = self::moment(CarbonImmutable::now());
+        $stamp = Moment::of(CarbonImmutable::now());
 
         // Inserted only if absent: two first writes for one customer in one store make one account,
         // and each then waits on the other's lock instead of failing on the unique key (lesson 64).
@@ -76,7 +75,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             $this->db->table('loyalty.lots')
                 ->where('account_id', $account->id)
                 ->where('points_left', '>', 0)
-                ->where('expires_at', '>', self::moment($now))
+                ->where('expires_at', '>', Moment::of($now))
                 ->orderBy('expires_at')
                 ->orderBy('id')
                 ->get()
@@ -89,7 +88,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
         return (int) $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
             ->where('points_left', '>', 0)
-            ->where('expires_at', '>', self::moment($now))
+            ->where('expires_at', '>', Moment::of($now))
             ->sum('points_left');
     }
 
@@ -103,7 +102,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
         $dead = $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
             ->where('points_left', '>', 0)
-            ->where('expires_at', '<=', self::moment($now))
+            ->where('expires_at', '<=', Moment::of($now))
             ->orderBy('expires_at')
             ->orderBy('id')
             ->lockForUpdate()
@@ -121,7 +120,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
                 'store_id' => $account->store->value,
                 'kind' => 'EXPIRED',
                 'points' => -$points,
-                'occurred_at' => self::moment($now),
+                'occurred_at' => Moment::of($now),
             ]);
             $this->db->table('loyalty.lot_movements')->insert([
                 'account_id' => $account->id,
@@ -138,7 +137,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             $this->db->table('loyalty.accounts')
                 ->where('id', $account->id)
                 ->where('store_id', $account->store->value)
-                ->decrement('balance', $expired, ['updated_at' => self::moment($now)]);
+                ->decrement('balance', $expired, ['updated_at' => Moment::of($now)]);
         }
 
         return $expired;
@@ -153,15 +152,6 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
         $row = ($lock ? $query->lockForUpdate() : $query)->first();
 
         return $row instanceof stdClass ? self::account($row) : null;
-    }
-
-    /**
-     * A moment as PostgreSQL reads it: in UTC, with its offset and microseconds. Laravel binds a
-     * DateTimeInterface as 'Y-m-d H:i:s', which drops both.
-     */
-    private static function moment(DateTimeImmutable $at): string
-    {
-        return $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
     }
 
     private static function account(stdClass $row): PointsAccount
