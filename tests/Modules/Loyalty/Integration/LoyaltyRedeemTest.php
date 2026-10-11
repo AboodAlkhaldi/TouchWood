@@ -239,7 +239,7 @@ it('records a delivery on the order that redeemed, and earns on it', function ()
         ->and(Lx::api()->balance($customer, Fx::storeId('sa'))->points)->toBe(699);
 });
 
-it('answers a refusal in the quote, and refuses placing it, charging nothing', function (array $settings, int $balanceGoods, ?int $asked, int $net, RedemptionRefusal $refusal) {
+it('answers a refusal in the quote, and refuses placing it, charging nothing', function (array $settings, int $balanceGoods, ?int $asked, int $net, RedemptionRefusal $refusal, string $placing) {
     Lx::programme(settings: $settings);
     $customer = loyaltyRedeemCustomer(...($balanceGoods > 0 ? [$balanceGoods] : []));
     $before = loyaltyRedeemRows();
@@ -256,19 +256,46 @@ it('answers a refusal in the quote, and refuses placing it, charging nothing', f
         return;
     }
 
-    // Placed anyway, as the points asked: worked out again, the rules refuse it for the same reason.
+    // Placed anyway, as the points asked: worked out again, the rules refuse it — no longer what a
+    // quote showed, so checkout quotes again (owner, 2026-10-11); with no points at all, no quote
+    // could have shown any.
     $placed = new RedemptionQuote($quote->mode, $quote->mostUsable, $asked ?? 1, Lx::money(1), null);
 
-    expect(fn () => Lx::place($customer, $placed, $net))->toThrow(RedemptionRefused::class, $refusal->value)
+    expect(fn () => Lx::place($customer, $placed, $net))->toThrow($placing)
         ->and(loyaltyRedeemRows())->toBe($before);
 })->with([
-    'no points' => [[], 0, 100, 100_000, RedemptionRefusal::NothingToRedeem],
-    'an ask of 0' => [[], 30_000, 0, 100_000, RedemptionRefusal::OutOfRange],
-    'an ask above the balance' => [[], 30_000, 301, 100_000, RedemptionRefusal::OutOfRange],
-    'a cap of 0%' => [[ProgrammeSettings::MAX_REDEMPTION_PERCENT => 0], 30_000, 100, 100_000, RedemptionRefusal::NothingUnderCap],
-    'one point at 150 a unit' => [[ProgrammeSettings::POINTS_PER_UNIT_OFF => 150], 30_000, 1, 100_000, RedemptionRefusal::WorthNothing],
-    'below the minimum' => [[ProgrammeSettings::MINIMUM_REDEMPTION => 201], 30_000, 200, 100_000, RedemptionRefusal::BelowMinimum],
+    'no points' => [[], 0, 100, 100_000, RedemptionRefusal::NothingToRedeem, RedemptionRefused::class],
+    'an ask of 0' => [[], 30_000, 0, 100_000, RedemptionRefusal::OutOfRange, RedemptionChanged::class],
+    'an ask above the balance' => [[], 30_000, 301, 100_000, RedemptionRefusal::OutOfRange, RedemptionChanged::class],
+    'a cap of 0%' => [[ProgrammeSettings::MAX_REDEMPTION_PERCENT => 0], 30_000, 100, 100_000, RedemptionRefusal::NothingUnderCap, RedemptionChanged::class],
+    'one point at 150 a unit' => [[ProgrammeSettings::POINTS_PER_UNIT_OFF => 150], 30_000, 1, 100_000, RedemptionRefusal::WorthNothing, RedemptionChanged::class],
+    'below the minimum' => [[ProgrammeSettings::MINIMUM_REDEMPTION => 201], 30_000, 200, 100_000, RedemptionRefusal::BelowMinimum, RedemptionChanged::class],
 ]);
+
+it('refuses a placement no quote could give: a discount of 0, with its reason', function () {
+    Lx::programme();
+    $customer = loyaltyRedeemCustomer(30_000);
+
+    expect(fn () => Lx::place($customer, new RedemptionQuote(RedemptionMode::Partial, 300, 100, Lx::money(0), null), 100_000))
+        ->toThrow(RedemptionRefused::class, 'WORTH_NOTHING')
+        ->and(DB::table('loyalty.entries')->where('kind', 'REDEEMED')->count())->toBe(0);
+});
+
+it('tells checkout to quote again when the balance was spent elsewhere or a setting changed', function () {
+    Lx::programme();
+    $customer = loyaltyRedeemCustomer(30_000);
+    $quote = Lx::quote($customer, 300, 100_000);
+    // Another order spends 100 first: 300 no longer fit the balance.
+    Lx::place($customer, Lx::quote($customer, 100, 100_000), 100_000);
+
+    expect(fn () => Lx::place($customer, $quote, 100_000))->toThrow(RedemptionChanged::class);
+
+    $rest = Lx::quote($customer, 200, 100_000);
+    Lx::programme(settings: [ProgrammeSettings::MINIMUM_REDEMPTION => 201]);
+
+    expect(fn () => Lx::place($customer, $rest, 100_000))->toThrow(RedemptionChanged::class)
+        ->and(Lx::api()->balance($customer, Fx::storeId('sa'))->points)->toBe(200);
+});
 
 it('answers PROGRAMME_OFF while off, and refuses placing with the programme\'s own error', function () {
     $customer = Fx::customer();
@@ -418,7 +445,40 @@ it('refuses a placement Sales could never mean', function (Closure $redeem, stri
     'a discount in another currency' => [fn (string $c) => new RedeemPoints(Lx::orderId(), 'T-1', $c, Fx::storeId('sa'), 100, Money::of(100, 'EGP'), Audience::Public, Lx::money(100_000), Lx::placing()), 'currency'],
     'a net subtotal in another currency' => [fn (string $c) => new RedeemPoints(Lx::orderId(), 'T-1', $c, Fx::storeId('sa'), 100, Lx::money(100), Audience::Public, Money::of(100_000, 'EGP'), Lx::placing()), 'currency'],
     'a customer id that is not one' => [fn (string $c) => new RedeemPoints(Lx::orderId(), 'T-1', 'sara', Fx::storeId('sa'), 100, Lx::money(100), Audience::Public, Lx::money(100_000), Lx::placing()), 'customer'],
+    'no such customer' => [fn (string $c) => new RedeemPoints(Lx::orderId(), 'T-1', Lx::orderId(), Fx::storeId('sa'), 100, Lx::money(100), Audience::Public, Lx::money(100_000), Lx::placing()), 'customer'],
 ]);
+
+it('refuses an order a call for another account recorded meanwhile, taking nothing', function () {
+    Lx::programme();
+    $customer = loyaltyRedeemCustomer(30_000);
+    $quote = Lx::quote($customer, 100, 100_000);
+    $before = loyaltyRedeemRows();
+    Lx::racingLedger(hideUnderLock: true, recordedMeanwhile: true);
+
+    try {
+        Lx::place($customer, $quote, 100_000);
+    } catch (InvalidPointsAttribute $refused) {
+        expect($refused->attribute)->toBe('customer')
+            ->and(loyaltyRedeemRows())->toBe($before);
+
+        return;
+    }
+
+    throw new RuntimeException('Nothing was refused.');
+});
+
+it('passes over a lot already spent to nothing, to the next one', function () {
+    Lx::programme();
+    $customer = loyaltyRedeemCustomer(10_000, 10_000);
+    [$first, $second] = DB::table('loyalty.lots')->orderBy('id')->pluck('id')->all();
+    // The first lot, expiring first, is spent to nothing; it still expires first.
+    Lx::place($customer, Lx::quote($customer, 100, 100_000), 100_000);
+
+    Lx::place($customer, Lx::quote($customer, 20, 100_000), 100_000);
+
+    expect(DB::table('loyalty.takes')->orderBy('id')->get(['lot_id', 'points'])->map(fn (stdClass $take): array => [(int) $take->lot_id, (int) $take->points])->all())
+        ->toBe([[(int) $first, 100], [(int) $second, 20]]);
+});
 
 it('answers a placement repeated once the programme is off by changing nothing, before reading what changed', function () {
     Lx::programme();

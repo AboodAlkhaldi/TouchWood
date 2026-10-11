@@ -28,10 +28,11 @@ use Shared\Application\Unauthorized;
  * Takes the quoted points as the order is placed (loyalty.md §1.7), inside Sales's transaction, so an
  * order and its points stand or fall together.
  *
- * The redemption is worked out again with the balance and settings of this moment: refused by the
- * rules now → `RedemptionRefused` with the reason; still allowed but not as quoted → `RedemptionChanged`,
- * so checkout quotes again. It never applies anything the customer did not see. Placed twice for one
- * order: once — answered before anything that may have changed since.
+ * The redemption is worked out again with the balance and settings of this moment; if it no longer
+ * works out as quoted — refused by the rules now, or different — it is `RedemptionChanged`, and
+ * checkout quotes again (owner, 2026-10-11). It never applies anything the customer did not see.
+ * `RedemptionRefused` answers only a placement no quote could give: no points at all, or a discount
+ * of 0. Placed twice for one order: once — answered before anything that may have changed since.
  */
 final readonly class RedeemHandler
 {
@@ -66,6 +67,11 @@ final readonly class RedeemHandler
             throw new InvalidPointsAttribute('points', 'must be a positive whole number');
         }
 
+        // A discount of 0 is refused, never charged (§1.7 step 4): no quote gives one.
+        if (! $change->discount->isPositive()) {
+            throw new RedemptionRefused(RedemptionRefusal::WorthNothing);
+        }
+
         $account = $this->accounts->find($customerId, $store);
 
         if ($this->placedAlready($recorded, $account, $change)) {
@@ -84,7 +90,8 @@ final readonly class RedeemHandler
             throw new InvalidPointsAttribute('customer', 'no such customer');
         }
 
-        // No account, no points: refused without making one (§1.1 — an account is made by what it records).
+        // No account, no points — no quote offered any: refused without making one (§1.1, an account
+        // is made by what it records).
         if ($account === null) {
             throw new RedemptionRefused(RedemptionRefusal::NothingToRedeem);
         }
@@ -102,11 +109,8 @@ final readonly class RedeemHandler
             $programme, $mode, $account->balance, $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
         );
 
-        if ($redemption->refusal !== null) {
-            throw new RedemptionRefused($redemption->refusal);
-        }
-
-        if ($redemption->pointsCharged !== $change->points || $redemption->discountMinor !== $discount) {
+        // Refused now, or different: either way no longer what the customer saw (§7).
+        if ($redemption->refusal !== null || $redemption->pointsCharged !== $change->points || $redemption->discountMinor !== $discount) {
             throw new RedemptionChanged;
         }
 

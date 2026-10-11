@@ -20,7 +20,8 @@ final class Inputs
     public static function store(string $storeId): StoreId
     {
         try {
-            return StoreId::fromString(strtolower($storeId));
+            // Lowercased by StoreId itself.
+            return StoreId::fromString($storeId);
         } catch (InvalidArgumentException) {
             throw new InvalidPointsAttribute('store', 'not a store id');
         }

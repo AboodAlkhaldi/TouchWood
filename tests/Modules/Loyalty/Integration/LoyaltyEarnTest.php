@@ -153,6 +153,9 @@ it('refuses what Sales could never mean, before anything is written', function (
     Lx::programme();
     $customer = Fx::customer();
     $other = Fx::customer('other@example.test');
+    // The other customer has an account in the store too: an order of theirs is refused for being
+    // another account's, not for lacking one.
+    Lx::deliver($other, 99);
     $order = Lx::deliver($customer, 99);
 
     try {
@@ -187,6 +190,49 @@ it('refuses a goods total below 0 itself, before the arithmetic would', function
     } catch (InvalidPointsAttribute $refused) {
         expect($refused->attribute)->toBe('amount')
             ->and(DB::table('loyalty.orders')->count())->toBe(0);
+
+        return;
+    }
+
+    throw new RuntimeException('Nothing was refused.');
+});
+
+it('answers a delivery repeated later by changing nothing — not even an expiry', function () {
+    Lx::programme();
+    $customer = Fx::customer();
+    $order = Lx::deliver($customer, 10_000);
+    // A year and a day on, the lot is dead; a write would expire it, but a repeat is no write.
+    CarbonImmutable::setTestNow('2027-06-02 12:00:00 UTC');
+
+    Lx::deliver($customer, 10_000, orderId: $order);
+
+    expect(DB::table('loyalty.entries')->count())->toBe(1)
+        ->and(DB::table('loyalty.entries')->where('kind', 'EXPIRED')->count())->toBe(0);
+});
+
+it('finds a delivery that raced it, when it reads again under the account\'s lock', function () {
+    Lx::programme();
+    $customer = Fx::customer();
+    $order = Lx::deliver($customer, 10_000);
+    // The first read came before the other delivery committed; the read under the lock sees it.
+    Lx::racingLedger();
+
+    Lx::deliver($customer, 10_000, orderId: $order);
+
+    expect(DB::table('loyalty.entries')->where('order_id', $order)->count())->toBe(1)
+        ->and(loyaltyEarnBalance($customer))->toBe(100);
+});
+
+it('refuses an order a call for another account recorded meanwhile', function () {
+    Lx::programme();
+    $customer = Fx::customer();
+    Lx::racingLedger(hideUnderLock: true, recordedMeanwhile: true);
+
+    try {
+        Lx::deliver($customer, 10_000);
+    } catch (InvalidPointsAttribute $refused) {
+        expect($refused->attribute)->toBe('customer')
+            ->and(DB::table('loyalty.entries')->count())->toBe(0);
 
         return;
     }

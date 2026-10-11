@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Loyalty\Support;
 
+use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\PermissionCatalog;
@@ -12,6 +13,10 @@ use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Loyalty\Domain\Model\OrderPoints;
+use Modules\Loyalty\Domain\Model\PointsAccount;
+use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsLedger;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\CallerPermission;
 use Modules\Loyalty\Public\Dto\EarnPoints;
@@ -124,5 +129,44 @@ final class LoyaltyFixtures
         DB::transaction(fn () => self::api()->redeem($redeem));
 
         return $orderId;
+    }
+
+    /**
+     * The real ledger as a call racing another sees it (no second process needed): the order not yet
+     * there on the first read, or under the lock too; or recorded by the other call just before this
+     * one writes — its write then answers false and writes nothing, as the insert-if-absent does.
+     */
+    public static function racingLedger(bool $hideUnderLock = false, bool $recordedMeanwhile = false): void
+    {
+        $real = new DatabasePointsLedger(DB::connection());
+
+        app()->instance(PointsLedger::class, new class($real, $hideUnderLock, $recordedMeanwhile) implements PointsLedger
+        {
+            public function __construct(
+                private PointsLedger $real,
+                private bool $hideUnderLock,
+                private bool $recordedMeanwhile,
+            ) {}
+
+            public function order(string $orderId): ?OrderPoints
+            {
+                return null;
+            }
+
+            public function lockOrder(string $orderId): ?OrderPoints
+            {
+                return $this->hideUnderLock ? null : $this->real->lockOrder($orderId);
+            }
+
+            public function redeem(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $points, int $discountMinor, int $capPercent, DateTimeImmutable $now): bool
+            {
+                return ! $this->recordedMeanwhile && $this->real->redeem($account, $orderId, $orderNumber, $currencyCode, $points, $discountMinor, $capPercent, $now);
+            }
+
+            public function earn(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $goodsTotalMinor, int $points, DateTimeImmutable $expiresAt, DateTimeImmutable $now): bool
+            {
+                return ! $this->recordedMeanwhile && $this->real->earn($account, $orderId, $orderNumber, $currencyCode, $goodsTotalMinor, $points, $expiresAt, $now);
+            }
+        });
     }
 }

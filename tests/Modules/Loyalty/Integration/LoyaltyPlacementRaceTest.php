@@ -13,7 +13,7 @@ use Modules\Loyalty\Application\Command\Redeem\Redeem;
 use Modules\Loyalty\Application\Command\Redeem\RedeemHandler;
 use Modules\Loyalty\Application\Points\CallerCheck;
 use Modules\Loyalty\Application\Points\ProgrammeReader;
-use Modules\Loyalty\Domain\Exception\RedemptionRefused;
+use Modules\Loyalty\Domain\Exception\RedemptionChanged;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsAccounts;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsLedger;
@@ -121,9 +121,10 @@ it('lets one of two placements at once through, and refuses the other; never bel
         throw $failed;
     }
 
-    // Once it may, the second works it out again on the balance left: nothing.
+    // Once it may, the second works it out again on the balance left — nothing — and checkout is
+    // told the discount changed (owner, 2026-10-11).
     expect(fn () => $second->transaction(fn () => $other->handle($secondOrder)))
-        ->toThrow(RedemptionRefused::class, 'NOTHING_TO_REDEEM')
+        ->toThrow(RedemptionChanged::class)
         ->and(DB::table('loyalty.entries')->where('kind', 'REDEEMED')->count())->toBe(1)
         ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(0)
         ->and((int) DB::table('loyalty.lots')->sum('points_left'))->toBe(0);

@@ -34,7 +34,10 @@ it('uses the chosen points in PARTIAL, and the whole balance in ALL_OR_NOTHING',
         // The ask is not read: the whole balance or none.
         ->and([$all->pointsCharged, $all->discountMinor, $all->refusal])->toBe([500, 500, null])
         // PARTIAL with nothing asked: as many as allowed.
-        ->and(loyaltyRules(loyaltyRulesProgramme(), 500, null, 100_000)->pointsCharged)->toBe(500);
+        ->and(loyaltyRules(loyaltyRulesProgramme(), 500, null, 100_000)->pointsCharged)->toBe(500)
+        // ALL_OR_NOTHING reads no ask, so none is out of range.
+        ->and(loyaltyRules(loyaltyRulesProgramme(), 500, 999, 100_000, RedemptionMode::AllOrNothing)->pointsCharged)->toBe(500)
+        ->and(loyaltyRules(loyaltyRulesProgramme(), 500, 0, 100_000, RedemptionMode::AllOrNothing)->refusal)->toBeNull();
 });
 
 it('reads each audience\'s own switch', function () {

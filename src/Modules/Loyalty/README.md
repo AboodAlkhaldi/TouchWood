@@ -71,8 +71,10 @@ edits (4), the reads behind the screens (5), the module's own pass (6).
     CallerCheck` refuses a permission that is not the calling module's own, or is Loyalty's, and
     checks it in **the store recorded on the order** (a store passed in that differs is refused).
   - **Placing** works the redemption out again under the account's lock, with the balance and
-    settings of that moment: refused by the rules now → `RedemptionRefused` with the reason; allowed
-    but not as quoted → `RedemptionChanged`; the programme off → `PointsProgrammeOff`. It takes from
+    settings of that moment: no longer as quoted — refused by the rules now, or different — →
+    `RedemptionChanged`, so checkout quotes again (owner, 2026-10-11); the programme off →
+    `PointsProgrammeOff`; a placement no quote could give (no points at all, a discount of 0) →
+    `RedemptionRefused` with its reason. It takes from
     the live lots expiring first and records the order with the cap it redeemed under. A customer
     with no account has nothing to redeem: refused without making one.
   - **Earning** reads the programme at delivery and records the delivery even at 0 points; a

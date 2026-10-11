@@ -8,9 +8,9 @@ use Modules\Loyalty\Public\Enums\RedemptionRefusal;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Placing a redemption the rules refuse (loyalty.md §7), with the same reason a quote would give.
- * Worked out again at placement, a redemption the rules now refuse is this; one that still works but
- * no longer as quoted is `RedemptionChanged`.
+ * Placing a redemption the rules refuse (loyalty.md §7), with the same reason a quote would give —
+ * one no quote could give: no points to redeem at all, or a discount of 0. A quoted redemption that
+ * no longer works out at placement, refused or different, is `RedemptionChanged` (owner, 2026-10-11).
  */
 final class RedemptionRefused extends LoyaltyError
 {
