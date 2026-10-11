@@ -327,6 +327,28 @@ describe('their order', function () {
             ->and(fn () => $order(catalogVariantsAdd(Px::product(), '1400')))->toThrow(InvalidCatalogAttribute::class, 'own variants');
     });
 
+    it('writes the places typed before as 1, 2, 3 … in each product\'s order, ties by id (the review of #120)', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
+        $ninety = catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['90 cm']]]);
+        $other = Px::product('Other');
+        $alone = catalogVariantsAdd($other, '1400');
+        // As typed before amendment 16(d): two tied, one at the top of the range.
+        DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->update(['position' => 0]);
+        DB::table('catalog.variants')->where('id', $ninety)->update(['position' => 10000]);
+        DB::table('catalog.variants')->where('id', $alone)->update(['position' => 7]);
+        // Ties go by id, as the reads order them.
+        $tied = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->orderBy('id')->pluck('id')->all();
+
+        (require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_11_100000_renumber_catalog_variant_places.php'))->up();
+
+        expect(DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('position', 'id')->all())->toBe([$tied[0] => 1, $tied[1] => 2, $ninety => 3])
+            ->and(DB::table('catalog.variants')->where('id', $alone)->value('position'))->toBe(1)
+            // Added after it, a variant goes last again.
+            ->and(DB::table('catalog.variants')->where('id', catalogVariantsAdd($drawer, '1307', ['values' => [$width => Px::value($width, '100 cm')]]))->value('position'))->toBe(4);
+    });
+
     it('needs the product\'s job where it is on', function () {
         ['product' => $ready, 'variants' => [$variant]] = Px::ready(['60 cm', '80 cm']);
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('eg'), $ready, true)));

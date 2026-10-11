@@ -11,7 +11,6 @@ import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { nameIn, useLocale } from '../parts';
-import { SortableList } from '../SortableList';
 import { PhotoGrid } from './photos';
 
 /*
@@ -101,7 +100,23 @@ export function AddAttributeDialog({
 }
 
 /** Removes the attributes one after another: one, from its menu, or all of them, switching to No. */
-export function RemoveDialog({ page, attributes, title, body, confirm, onOpenChange }: { page: ProductPage; attributes: AttributeChoiceData[]; title: string; body: string; confirm: string; onOpenChange: (open: boolean) => void }) {
+export function RemoveDialog({
+    page,
+    attributes,
+    title,
+    body,
+    confirm,
+    onOpenChange,
+    returnFocusTo,
+}: {
+    page: ProductPage;
+    attributes: AttributeChoiceData[];
+    title: string;
+    body: string;
+    confirm: string;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo?: React.RefObject<HTMLElement | null>;
+}) {
     const [busy, setBusy] = useState(false);
     const remove = (left: AttributeChoiceData[]) => {
         const [first, ...rest] = left;
@@ -121,6 +136,7 @@ export function RemoveDialog({ page, attributes, title, body, confirm, onOpenCha
             destructive
             open
             onOpenChange={onOpenChange}
+            returnFocusTo={returnFocusTo}
             title={title}
             description={body}
             busy={busy}
@@ -170,9 +186,12 @@ export function ValueField({
                         </NativeSelectOption>
                     ))}
             </SelectField>
-            <Button type="button" variant="link" size="sm" className="justify-self-start px-0" onClick={() => setAdding(true)} data-test={`${id}-new`}>
-                {t('catalog::admin_products.variants.new_value')}
-            </Button>
+            {/* An attribute switched off takes no new value (ListItemInactive): none is offered. */}
+            {attribute.active ? (
+                <Button type="button" variant="link" size="sm" className="justify-self-start px-0" onClick={() => setAdding(true)} data-test={`${id}-new`}>
+                    {t('catalog::admin_products.variants.new_value')}
+                </Button>
+            ) : null}
             {adding ? <NewValueDialog page={page} attribute={attribute} onMade={onChange} onOpenChange={(open) => setAdding(open)} /> : null}
         </div>
     );
@@ -218,8 +237,8 @@ function NewValueDialog({ page, attribute, onMade, onOpenChange }: { page: Produ
             }
         >
             <div className="grid gap-4 sm:grid-cols-2">
-                <TextField id="new-value-ar" dir="rtl" label={t('catalog::admin_products.variants.new_value_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="new-value-ar" />
-                <TextField id="new-value-en" dir="ltr" label={t('catalog::admin_products.variants.new_value_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="new-value-en" />
+                <TextField id="new-value-ar" dir="rtl" label={t('catalog::admin_products.variants.new_value_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', toLatinDigits(event.target.value))} data-test="new-value-ar" />
+                <TextField id="new-value-en" dir="ltr" label={t('catalog::admin_products.variants.new_value_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', toLatinDigits(event.target.value))} data-test="new-value-en" />
                 {attribute.isColour ? (
                     // As the values screen takes it (Attributes/Show.tsx): the browser's own picker, holding
                     // the colour typed once it is one - no colour of ours is written into the screen.
@@ -247,27 +266,6 @@ function NewValueDialog({ page, attribute, onMade, onOpenChange }: { page: Produ
                     </Field>
                 ) : null}
             </div>
-        </PanelDialog>
-    );
-}
-
-/** The variants dragged into their order (P29). */
-export function OrderVariantsDialog({ page, variants, onOpenChange, returnFocusTo }: { page: ProductPage; variants: VariantData[]; onOpenChange: (open: boolean) => void; returnFocusTo?: React.RefObject<HTMLElement | null> }) {
-    const t = useTranslator();
-    const locale = useLocale();
-    const [busy, setBusy] = useState(false);
-
-    return (
-        <PanelDialog open onOpenChange={onOpenChange} returnFocusTo={returnFocusTo} title={t('catalog::admin_products.variants.order_title')} description={t('catalog::admin_products.variants.order_body')} busy={busy} confirm={null}>
-            <SortableList
-                testPrefix="variant-order"
-                disabled={busy}
-                onChange={(ids) => router.post(`${base(page)}/variants/order`, { variant_ids: ids }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
-                items={variants.map((variant) => ({
-                    id: variant.id,
-                    label: `${variant.code} ${variant.values.map((value) => nameIn(locale, value.nameAr, value.nameEn)).join(' · ')}`.trim(),
-                }))}
-            />
         </PanelDialog>
     );
 }

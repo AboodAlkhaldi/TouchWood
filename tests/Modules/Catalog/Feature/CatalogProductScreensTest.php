@@ -356,7 +356,7 @@ describe('a product\'s page', function () {
     });
 
     it('is read only to someone without the job in every store where it is on', function () {
-        ['product' => $product] = Px::ready();
+        ['product' => $product, 'width' => $width] = Px::ready();
         catalogProductScreensOn('eg', $product);
         $browser = catalogProductScreens([P::PRODUCT_VIEW, P::PRODUCT_UPDATE], ['sa']);
 
@@ -371,6 +371,9 @@ describe('a product\'s page', function () {
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/variants", ['code' => '7001'])))->toBe(catalogProductScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/variants/order", ['variant_ids' => []])))->toBe(catalogProductScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/attributes/order", ['attribute_ids' => []])))->toBe(catalogProductScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/attributes", ['attribute_id' => Px::attribute('Finish')])))->toBe(catalogProductScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/attributes/{$width}/remove")))->toBe(catalogProductScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/values", ['attribute_id' => $width, 'name_ar' => 'قيمة', 'name_en' => 'New'])))->toBe(catalogProductScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/related/related", ['product_ids' => []])))->toBe(catalogProductScreensNotYours())
             // A photo is not even uploaded.
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/gallery", ['photos' => [UploadedFile::fake()->image('a.jpg', 300, 300)]])))->toBe(catalogProductScreensNotYours())
@@ -440,9 +443,10 @@ describe('a product\'s changes', function () {
         // One more attribute asks each variant's value of it, said beside the field.
         expect(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/attributes", ['attribute_id' => $finish, 'values' => [$first => $oak]])))->toHaveKey('values')
             ->and($attributes())->toBe([$width])
-            // "New value…": made from the product, its name refused beside the field when taken.
+            // "New value…": made from the product, a name taken said beside the English name - never
+            // as the page's refusal, which the dialog it was opened over would say too.
             ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/values", ['attribute_id' => $finish, 'name_ar' => 'جوز', 'name_en' => 'Walnut'])))->toBe('Value added')
-            ->and(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/values", ['attribute_id' => $finish, 'name_ar' => 'جوز آخر', 'name_en' => 'Walnut'])))->not->toBe([]);
+            ->and(array_keys(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/values", ['attribute_id' => $finish, 'name_ar' => 'جوز آخر', 'name_en' => 'Walnut']))))->toBe(['name_en']);
 
         $walnut = (string) DB::table('catalog.attribute_values')->where('attribute_id', $finish)->where('name_en', 'Walnut')->value('id');
 

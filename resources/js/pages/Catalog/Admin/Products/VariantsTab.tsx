@@ -12,6 +12,7 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
+import { RowHandle, SortableRow, SortableRows } from '../SortableList';
 import { ProductShell } from './shell';
 import { AttributesPanel } from './variant-attributes';
 
@@ -19,14 +20,14 @@ const VariantDialog = lazy(() => import('./variant-dialogs').then((module) => ({
 const CodeDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.CodeDialog })));
 const VariantPhotosDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.VariantPhotosDialog })));
 const DeleteVariantDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.DeleteVariantDialog })));
-const OrderVariantsDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.OrderVariantsDialog })));
 
 /*
 | A product's variants (catalog.md §4.4 S9): Has Variants and its attributes above (variant-attributes.tsx),
-| then code · its values · details · weight and size · photos · Archived, in the product's order.
-| Add Variant… takes the code (1–10 digits), one value for each of the product's variant attributes -
-| or a new one, "New value…" -, the details of each "details only" attribute - text in both languages,
-| or a number with its unit -, the weight and size; it goes last. Order Variants… drags them (P29). On
+| then the table in the product's order, dragged into another by each row's handle (P29): code · one
+| column per attribute · details · weight and size · photos · Archived. Add Variant… takes the code
+| (1–10 digits), one value for each of the product's variant attributes - or a new one, "New value…" -,
+| the details of each "details only" attribute - text in both languages, or a number with its unit -,
+| the weight and size; it goes last. On
 | a row: Edit… (its code only while the product is a draft - a ready product's code is **corrected**,
 | amendment 3(c)), Correct Code…, Photos… (up to 10), Move to Top, Move to Bottom, Archive or Restore,
 | Delete… (a draft's variant only).
@@ -34,11 +35,12 @@ const OrderVariantsDialog = lazy(() => import('./variant-dialogs').then((module)
 
 // The dialog keeps the variant's id only: the variant is read from the page as it is now, so a dialog
 // open across a save shows - and sends - what the server answered, not what it opened with.
-type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete' | 'order'; variantId: string | null } | null;
+type Dialog = { action: 'add' | 'edit' | 'code' | 'photos' | 'delete'; variantId: string | null } | null;
 
 export function VariantsTab({ page }: { page: ProductPage }) {
     const { product, mayUpdate } = page;
     const t = useTranslator();
+    const locale = useLocale();
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const variants = page.variants ?? [];
@@ -47,7 +49,7 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     const reason = mayUpdate ? undefined : t('catalog::admin_products.read_only');
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const [ordering, setOrdering] = useState(false);
-    // The variants in their new order, the one moved first or last (P29: the ids sent come first).
+    // The variants in their new order, always the whole of it as the table shows it (P29).
     const order = (ids: string[]) => router.post(`/admin/products/${product.id}/variants/order`, { variant_ids: ids }, { preserveScroll: true, onStart: () => setOrdering(true), onFinish: () => setOrdering(false) });
     const chosen = dialog?.variantId == null ? null : (variants.find((variant) => variant.id === dialog.variantId) ?? null);
     // With no variant attributes every variant has the same values - none - so a product has one variant only.
@@ -66,18 +68,6 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                 <AttributesPanel page={page} reason={reason} />
                 <Separator />
                 <div className="flex flex-wrap items-center justify-end gap-3">
-                    <ActionButton
-                        type="button"
-                        variant="secondary"
-                        disabledReason={reason ?? (variants.length < 2 ? t('catalog::admin_products.variants.order_reason') : undefined)}
-                        onClick={(event) => {
-                            opener.current = event.currentTarget;
-                            setDialog({ action: 'order', variantId: null });
-                        }}
-                        data-test="order-variants"
-                    >
-                        {t('catalog::admin_products.variants.order')}
-                    </ActionButton>
                     <ActionButton
                         type="button"
                         disabledReason={addReason}
@@ -99,13 +89,19 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                         </EmptyHeader>
                     </Empty>
                 ) : (
+                    <SortableRows items={variants.map((variant) => ({ id: variant.id, label: variant.code }))} onChange={order}>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableCaption className="sr-only">{t('catalog::admin_products.tab.variants')}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
                                 <TableRow>
+                                    <TableHead className="w-10">
+                                        <span className="sr-only">{t('catalog::admin_products.variants.order_title')}</span>
+                                    </TableHead>
                                     <TableHead>{t('catalog::admin_products.variants.column.code')}</TableHead>
-                                    <TableHead>{t('catalog::admin_products.variants.column.values')}</TableHead>
+                                    {setAttributes.map((attribute) => (
+                                        <TableHead key={attribute.id}>{nameIn(locale, attribute.nameAr, attribute.nameEn)}</TableHead>
+                                    ))}
                                     <TableHead>{t('catalog::admin_products.variants.column.details')}</TableHead>
                                     <TableHead>{t('catalog::admin_products.variants.column.measures')}</TableHead>
                                     <TableHead className="text-end">{t('catalog::admin_products.variants.column.photos')}</TableHead>
@@ -119,13 +115,16 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                                 {variants.map((variant, index) => (
                                     <Row
                                         key={variant.id}
+                                        index={index}
                                         page={page}
                                         variant={variant}
                                         attributes={attributes}
+                                        held={setAttributes}
                                         reason={reason}
+                                        dragging={reason !== undefined || ordering}
                                         moves={{
                                             busy: ordering,
-                                            top: index === 0 ? null : () => order([variant.id]),
+                                            top: index === 0 ? null : () => order([variant.id, ...variants.filter((other) => other.id !== variant.id).map((other) => other.id)]),
                                             bottom: index === variants.length - 1 ? null : () => order([...variants.filter((other) => other.id !== variant.id).map((other) => other.id), variant.id]),
                                         }}
                                         open={(action, trigger) => {
@@ -137,6 +136,8 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                             </TableBody>
                         </Table>
                     </div>
+                    {variants.length > 1 && reason === undefined ? <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.variants.order_body')}</p> : null}
+                    </SortableRows>
                 )}
             </CardContent>
 
@@ -148,24 +149,31 @@ export function VariantsTab({ page }: { page: ProductPage }) {
                 {dialog?.action === 'code' && chosen !== null ? <CodeDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
                 {dialog?.action === 'photos' && chosen !== null ? <VariantPhotosDialog page={page} variant={chosen} reason={reason} onOpenChange={close} returnFocusTo={opener} /> : null}
                 {dialog?.action === 'delete' && chosen !== null ? <DeleteVariantDialog productId={product.id} variant={chosen} open onOpenChange={close} returnFocusTo={opener} /> : null}
-                {dialog?.action === 'order' ? <OrderVariantsDialog page={page} variants={variants} onOpenChange={close} returnFocusTo={opener} /> : null}
             </Suspense>
         </Card>
     );
 }
 
 function Row({
+    index,
     page,
     variant,
     attributes,
+    held,
     reason,
+    dragging,
     moves,
     open,
 }: {
+    index: number;
     page: ProductPage;
     variant: VariantData;
     attributes: AttributeChoiceData[];
+    /** The product's variant attributes, a column each. */
+    held: AttributeChoiceData[];
     reason: string | undefined;
+    /** Not picked up: read only, or an order still being saved. */
+    dragging: boolean;
     /** Move to Top and Move to Bottom: null where it is already. */
     moves: { busy: boolean; top: (() => void) | null; bottom: (() => void) | null };
     open: (action: 'edit' | 'code' | 'photos' | 'delete', trigger: HTMLElement | null) => void;
@@ -184,21 +192,28 @@ function Row({
     ].filter((part): part is string => part !== null);
 
     return (
-        <TableRow data-test={`variant-${variant.id}`}>
+        <SortableRow id={variant.id} label={variant.code} disabled={dragging} data-test={`variant-${variant.id}`}>
+            <TableCell>{reason === undefined ? <RowHandle testId={`variant-drag-${index}`} /> : null}</TableCell>
             <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
                 {variant.code}
             </TableCell>
-            <TableCell>
-                <span className="flex flex-wrap items-center gap-2">
-                    {variant.values.map((value) => (
-                        <span key={value.attributeId} className="flex items-center gap-1">
-                            {/* A swatch is data: the colour staff chose, drawn as it is. */}
-                            {value.swatch !== null ? <span className="size-3 rounded-sm border border-line" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
-                            {nameIn(locale, value.nameAr, value.nameEn)}
-                        </span>
-                    ))}
-                </span>
-            </TableCell>
+            {held.map((attribute) => {
+                const value = variant.values.find((one) => one.attributeId === attribute.id);
+
+                return (
+                    <TableCell key={attribute.id}>
+                        {value === undefined ? (
+                            '—'
+                        ) : (
+                            <span className="flex items-center gap-1">
+                                {/* A swatch is data: the colour staff chose, drawn as it is. */}
+                                {value.swatch !== null ? <span className="size-3 rounded-sm border border-line" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
+                                {nameIn(locale, value.nameAr, value.nameEn)}
+                            </span>
+                        )}
+                    </TableCell>
+                );
+            })}
             <TableCell className="text-copy-13">
                 {variant.details.length === 0
                     ? '—'
@@ -292,7 +307,7 @@ function Row({
                     </DropdownMenu>
                 )}
             </TableCell>
-        </TableRow>
+        </SortableRow>
     );
 }
 

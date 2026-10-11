@@ -17,6 +17,8 @@ use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
 use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -244,6 +246,85 @@ it('moves a variant to the top from its menu', function () {
 
     expect($order)->toBe([$second, $first])
         ->and(browserUntil($page, "document.querySelector('tbody tr')?.getAttribute('data-test') === 'variant-{$second}'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+/**
+ * Each key pressed on the element, as dnd-kit's keyboard drag takes them (AddressFormatScreenTest).
+ *
+ * @param  list<string>  $keys
+ */
+function catalogProductBrowserKeys(mixed $page, string $selector, array $keys): void
+{
+    foreach ($keys as $key) {
+        $page->keys($selector, [$key]);
+        $page->wait(0.3);
+    }
+}
+
+/**
+ * A draft with two variants of a width of its own, as the shop's variant tests have them.
+ *
+ * @return array{product: string, width: string, first: string, second: string}
+ */
+function catalogProductBrowserTwoSizes(string $n): array
+{
+    $product = catalogProductBrowserDraft($n);
+
+    return Fx::asSystem(function () use ($n, $product): array {
+        $width = app(AddAttributeHandler::class)->handle(new AddAttribute("عرض {$n}", "Width {$n}", 'VARIANT'));
+        $sixty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ستون {$n}", "60 cm {$n}"));
+        $eighty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ثمانون {$n}", "80 cm {$n}"));
+        app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $width, []));
+
+        return [
+            'product' => $product,
+            'width' => $width,
+            'first' => app(AddVariantHandler::class)->handle(new AddVariant($product, substr($n, -9), [$width => $sixty])),
+            // Ten digits: no nine-digit code another test cut from the clock can be it.
+            'second' => app(AddVariantHandler::class)->handle(new AddVariant($product, '2'.substr($n, -9), [$width => $eighty])),
+        ];
+    });
+}
+
+it('drags a variant into another place by its handle, from the keyboard', function () {
+    ['product' => $product, 'first' => $first, 'second' => $second] = catalogProductBrowserTwoSizes(catalogProductBrowserFresh());
+    $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    // Space picks the second row up, the up arrow moves it one place, Space puts it down.
+    catalogProductBrowserKeys($page, '[data-test="variant-drag-1"]', ['Space', 'ArrowUp', 'Space']);
+
+    $order = catalogProductBrowserSoon($page, fn () => DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->pluck('id')->all(), fn ($found): bool => $found === [$second, $first]);
+
+    expect($order)->toBe([$second, $first])
+        ->and(browserUntil($page, "document.querySelector('tbody tr')?.getAttribute('data-test') === 'variant-{$second}'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('says inside Remove… why an attribute stays, and turns Has Variants off once one variant is left', function () {
+    ['product' => $product, 'width' => $width, 'second' => $second] = catalogProductBrowserTwoSizes(catalogProductBrowserFresh());
+    $held = fn (): array => DB::table('catalog.product_attributes')->where('product_id', $product)->pluck('attribute_id')->all();
+    $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    // Two variants would be alike without it: refused, said in the dialog, which stays open.
+    $page->click("[data-test=\"attribute-actions-{$width}\"]")
+        ->click('[data-test="remove-attribute"]')
+        ->click('[data-test="confirm-remove-attribute"]');
+
+    expect(browserUntil($page, "document.querySelector('[role=\"alertdialog\"] [data-test=\"form-error\"]') !== null"))->toBeTrue()
+        ->and($held())->toBe([$width]);
+
+    $page->click('[data-test="modal-cancel"]');
+    Fx::asSystem(fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($second)));
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    $page->click('[data-test="has-variants-switch"]')
+        ->click('[data-test="confirm-remove-attribute"]');
+
+    expect(catalogProductBrowserSoon($page, $held, fn ($found): bool => $found === []))->toBe([])
+        ->and(browserUntil($page, "document.querySelector('[data-test=\"has-variants-switch\"]')?.getAttribute('aria-checked') === 'false'"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 

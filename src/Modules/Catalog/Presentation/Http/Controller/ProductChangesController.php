@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Http\Controller;
 
+use App\Http\FormErrors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Modules\Catalog\Application\Command\AddValueFromProduct\AddValueFromProduct;
@@ -49,6 +50,7 @@ use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Application\Command\UploadProductPhoto\UploadProductPhotoHandler;
+use Modules\Catalog\Domain\Exception\NameTaken;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Shared\Domain\Error\DomainError;
 
@@ -134,10 +136,21 @@ final readonly class ProductChangesController
         return CatalogRefusals::act($request, fn () => $handler->handle(new OrderVariantAttributes($product, $request->texts('attribute_ids'))), 'catalog::admin_products.toast.attributes_ordered');
     }
 
-    /** "New value…" from a variant's dialog (P28, amendment 16(c)). */
+    /**
+     * "New value…" from a variant's dialog (P28, amendment 16(c)). A name taken is said beside the
+     * English name, so the dialog it was opened over does not say it too (the review of #120).
+     */
     public function addValue(CatalogFormRequest $request, string $product, AddValueFromProductHandler $handler): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new AddValueFromProduct($product, $request->text('attribute_id'), $request->text('name_ar'), $request->text('name_en'), $request->optionalText('swatch'))), 'catalog::admin_products.toast.value_added', self::VALUE);
+        try {
+            $handler->handle(new AddValueFromProduct($product, $request->text('attribute_id'), $request->text('name_ar'), $request->text('name_en'), $request->optionalText('swatch')));
+        } catch (NameTaken $taken) {
+            return back()->withErrors(['name_en' => FormErrors::message($taken)]);
+        } catch (DomainError $error) {
+            return CatalogRefusals::back($request, $error, self::VALUE);
+        }
+
+        return back()->with('status', __('catalog::admin_products.toast.value_added'));
     }
 
     /** A ready product's code corrected on every variant holding it (amendment 3(c)). */
