@@ -91,6 +91,11 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('products/{product}/restore', [ProductChangesController::class, 'restore'])->name('catalog.admin.products.restore');
         Route::post('products/{product}/delete', [ProductChangesController::class, 'delete'])->name('catalog.admin.products.delete');
         Route::post('products/{product}/variants', [ProductChangesController::class, 'addVariant'])->name('catalog.admin.products.variants.add');
+        Route::post('products/{product}/variants/order', [ProductChangesController::class, 'orderVariants'])->name('catalog.admin.products.variants.order');
+        Route::post('products/{product}/attributes', [ProductChangesController::class, 'addAttribute'])->name('catalog.admin.products.attributes.add');
+        Route::post('products/{product}/attributes/order', [ProductChangesController::class, 'orderAttributes'])->name('catalog.admin.products.attributes.order');
+        Route::post('products/{product}/attributes/{attribute}/remove', [ProductChangesController::class, 'removeAttribute'])->name('catalog.admin.products.attributes.remove');
+        Route::post('products/{product}/values', [ProductChangesController::class, 'addValue'])->name('catalog.admin.products.values.add');
         Route::post('products/{product}/variants/{variant}', [ProductChangesController::class, 'editVariant'])->name('catalog.admin.products.variants.edit');
         Route::post('products/{product}/variants/{variant}/code', [ProductChangesController::class, 'correctCode'])->name('catalog.admin.products.variants.code');
         Route::post('products/{product}/variants/{variant}/photos', [ProductChangesController::class, 'variantPhotos'])->name('catalog.admin.products.variants.photos');

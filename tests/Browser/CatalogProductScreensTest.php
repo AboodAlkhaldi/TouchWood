@@ -11,6 +11,8 @@ use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
+use Modules\Catalog\Application\Command\AddVariant\AddVariant;
+use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
 use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
 use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -178,6 +180,70 @@ it('adds a variant from its dialog, with a value of the product\'s variant attri
 
     expect($added)->toBe($code)
         ->and(browserUntil($page, "[...document.querySelectorAll('tr[data-test^=\"variant-\"]')].some((row) => row.innerText.includes('60 cm {$n}'))"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('turns Has Variants on, and adds a variant with a value made from its dialog', function () {
+    $n = catalogProductBrowserFresh();
+    $product = catalogProductBrowserDraft($n);
+    $width = Fx::asSystem(fn (): string => app(AddAttributeHandler::class)->handle(new AddAttribute("عرض {$n}", "Width {$n}", 'VARIANT')));
+    $code = substr($n, -9);
+    $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    $page->click('[data-test="has-variants-switch"]')
+        ->select('#attribute-choice', $width)
+        ->click('[data-test="confirm-attribute"]');
+
+    $held = catalogProductBrowserSoon($page, fn () => DB::table('catalog.product_attributes')->where('product_id', $product)->pluck('attribute_id')->all(), fn ($found): bool => $found !== []);
+
+    expect($held)->toBe([$width])
+        ->and(browserUntil($page, "document.querySelector('[data-test=\"has-variants-switch\"]')?.getAttribute('aria-checked') === 'true'"))->toBeTrue();
+
+    $page->click('[data-test="add-variant"]')
+        ->type('#variant-code', $code)
+        ->click("[data-test=\"variant-value-{$width}-new\"]")
+        ->type('#new-value-ar', "ستون {$n}")
+        ->type('#new-value-en', "60 cm {$n}")
+        ->click('[data-test="confirm-new-value"]');
+
+    // The value made is chosen in the variant's dialog, still open.
+    expect(browserUntil($page, "(document.querySelector('#variant-value-{$width}')?.value ?? '') !== ''"))->toBeTrue();
+
+    $page->click('[data-test="confirm-variant"]');
+
+    $added = catalogProductBrowserSoon($page, fn () => DB::table('catalog.variants')->where('product_id', $product)->value('code'), fn ($found): bool => $found !== null);
+
+    expect($added)->toBe($code)
+        ->and(browserUntil($page, "[...document.querySelectorAll('tr[data-test^=\"variant-\"]')].some((row) => row.innerText.includes('60 cm {$n}'))"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('moves a variant to the top from its menu', function () {
+    $n = catalogProductBrowserFresh();
+    $product = catalogProductBrowserDraft($n);
+    [$first, $second] = Fx::asSystem(function () use ($n, $product): array {
+        $width = app(AddAttributeHandler::class)->handle(new AddAttribute("عرض {$n}", "Width {$n}", 'VARIANT'));
+        $sixty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ستون {$n}", "60 cm {$n}"));
+        $eighty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ثمانون {$n}", "80 cm {$n}"));
+        app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $width, []));
+
+        return [
+            app(AddVariantHandler::class)->handle(new AddVariant($product, substr($n, -9), [$width => $sixty])),
+            // Ten digits: no nine-digit code another test cut from the clock can be it.
+            app(AddVariantHandler::class)->handle(new AddVariant($product, '2'.substr($n, -9), [$width => $eighty])),
+        ];
+    });
+    $page = catalogProductBrowser([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+    $page->navigate("/admin/products/{$product}?tab=variants", BROWSER_PAGE_LOAD);
+
+    $page->click("[data-test=\"variant-actions-{$second}\"]")
+        ->click('[data-test="variant-top"]');
+
+    $order = catalogProductBrowserSoon($page, fn () => DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->pluck('id')->all(), fn ($found): bool => $found === [$second, $first]);
+
+    expect($order)->toBe([$second, $first])
+        ->and(browserUntil($page, "document.querySelector('tbody tr')?.getAttribute('data-test') === 'variant-{$second}'"))->toBeTrue();
     $page->assertNoJavaScriptErrors();
 });
 

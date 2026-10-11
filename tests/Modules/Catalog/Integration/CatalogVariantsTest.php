@@ -11,6 +11,10 @@ use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -23,6 +27,8 @@ use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
 use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariants;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariantsHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\CodeTaken;
@@ -291,6 +297,46 @@ describe('deleting a draft\'s variant', function () {
         DB::table('catalog.products')->where('id', $drawer)->update(['stage' => 'READY', 'category_id' => Px::category()]);
 
         expect(fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($ninety)))->toThrow(InvalidStageChange::class);
+    });
+});
+
+describe('their order', function () {
+    it('adds each variant last, keeps its place when edited, and orders them as sent, the rest after, archived ones too', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
+        $ninety = catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['90 cm']]]);
+        app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty));
+        $places = fn (): array => DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('id')->all();
+        $order = fn (string ...$ids) => app(OrderVariantsHandler::class)->handle(new OrderVariants($drawer, array_values($ids)));
+
+        expect($places())->toBe([$sixty, $eighty, $ninety]);
+
+        $order($ninety);
+
+        expect($places())->toBe([$ninety, $sixty, $eighty])
+            ->and(DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('position')->all())->toBe([1, 2, 3])
+            ->and(Fx::audits('catalog.product.variants_ordered', $drawer))->toBe(1);
+
+        // Edited with no place given, it stays where it is; the order sent as it stands records nothing.
+        catalogVariantsEdit($sixty, ['weightGrams' => 500, 'position' => null]);
+        $order($ninety, $sixty);
+
+        expect($places())->toBe([$ninety, $sixty, $eighty])
+            ->and(Fx::audits('catalog.product.variants_ordered', $drawer))->toBe(1)
+            ->and(fn () => $order(catalogVariantsAdd(Px::product(), '1400')))->toThrow(InvalidCatalogAttribute::class, 'own variants');
+    });
+
+    it('needs the product\'s job where it is on', function () {
+        ['product' => $ready, 'variants' => [$variant]] = Px::ready(['60 cm', '80 cm']);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('eg'), $ready, true)));
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE], ['sa']);
+
+        expect(fn () => app(OrderVariantsHandler::class)->handle(new OrderVariants($ready, [$variant])))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_VIEW]);
+
+        expect(fn () => app(OrderVariantsHandler::class)->handle(new OrderVariants($ready, [$variant])))->toThrow(Unauthorized::class);
     });
 });
 

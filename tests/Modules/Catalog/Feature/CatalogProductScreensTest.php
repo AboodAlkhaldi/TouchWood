@@ -369,6 +369,8 @@ describe('a product\'s page', function () {
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/details", ['name_ar' => 'اسم آخر'])))->toBe(catalogProductScreensNotYours())
             ->and(DB::table('catalog.products')->where('id', $product)->value('name_ar'))->toBe($name)
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/variants", ['code' => '7001'])))->toBe(catalogProductScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/variants/order", ['variant_ids' => []])))->toBe(catalogProductScreensNotYours())
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/attributes/order", ['attribute_ids' => []])))->toBe(catalogProductScreensNotYours())
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/related/related", ['product_ids' => []])))->toBe(catalogProductScreensNotYours())
             // A photo is not even uploaded.
             ->and(AdminBrowser::formError($browser->post("/admin/products/{$product}/gallery", ['photos' => [UploadedFile::fake()->image('a.jpg', 300, 300)]])))->toBe(catalogProductScreensNotYours())
@@ -399,7 +401,7 @@ describe('a product\'s changes', function () {
         $browser = catalogProductScreens([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
 
         expect(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/variants", ['code' => 'abc', 'values' => [$width => $sixty]])))->toHaveKey('code')
-            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants", ['code' => '7001', 'values' => [$width => $sixty], 'weight_grams' => '450', 'position' => '10'])))->toBe('Variant added');
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants", ['code' => '7001', 'values' => [$width => $sixty], 'weight_grams' => '450'])))->toBe('Variant added');
 
         $variant = (string) DB::table('catalog.variants')->where('product_id', $draft)->value('id');
 
@@ -411,6 +413,54 @@ describe('a product\'s changes', function () {
             ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants/{$variant}/restore")))->toBe('Variant restored')
             ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants/{$variant}/delete")))->toBe('Variant deleted')
             ->and(DB::table('catalog.variants')->where('id', $variant)->exists())->toBeFalse();
+    });
+
+    it('gives a product its variant attributes from the Variants tab, a value made there, their order, and gives one up', function () {
+        $width = Px::attribute('Width');
+        $finish = Px::attribute('Finish');
+        $sixty = Px::value($width, '60 cm');
+        $eighty = Px::value($width, '80 cm');
+        $oak = Px::value($finish, 'Oak');
+        $draft = Px::product('Drawer');
+        $browser = catalogProductScreens([P::PRODUCT_VIEW, P::PRODUCT_UPDATE]);
+        $attributes = fn (): array => DB::table('catalog.product_attributes')->where('product_id', $draft)->orderBy('position')->pluck('attribute_id')->all();
+        $places = fn (): array => DB::table('catalog.variants')->where('product_id', $draft)->orderBy('position')->pluck('code')->all();
+
+        // Has Variants: Yes, before any variant - none needs a value.
+        expect(catalogProductScreensToast($browser->post("/admin/products/{$draft}/attributes", ['attribute_id' => $width])))->toBe('Attribute added')
+            ->and($attributes())->toBe([$width])
+            // A variant added goes last.
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants", ['code' => '7001', 'values' => [$width => $sixty]])))->toBe('Variant added')
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants", ['code' => '7002', 'values' => [$width => $eighty]])))->toBe('Variant added')
+            ->and($places())->toBe(['7001', '7002']);
+
+        $first = (string) DB::table('catalog.variants')->where('product_id', $draft)->where('code', '7001')->value('id');
+        $second = (string) DB::table('catalog.variants')->where('product_id', $draft)->where('code', '7002')->value('id');
+
+        // One more attribute asks each variant's value of it, said beside the field.
+        expect(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/attributes", ['attribute_id' => $finish, 'values' => [$first => $oak]])))->toHaveKey('values')
+            ->and($attributes())->toBe([$width])
+            // "New value…": made from the product, its name refused beside the field when taken.
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/values", ['attribute_id' => $finish, 'name_ar' => 'جوز', 'name_en' => 'Walnut'])))->toBe('Value added')
+            ->and(catalogProductScreensErrors($browser->post("/admin/products/{$draft}/values", ['attribute_id' => $finish, 'name_ar' => 'جوز آخر', 'name_en' => 'Walnut'])))->not->toBe([]);
+
+        $walnut = (string) DB::table('catalog.attribute_values')->where('attribute_id', $finish)->where('name_en', 'Walnut')->value('id');
+
+        expect(catalogProductScreensToast($browser->post("/admin/products/{$draft}/attributes", ['attribute_id' => $finish, 'values' => [$first => $oak, $second => $walnut]])))->toBe('Attribute added')
+            ->and($attributes())->toBe([$width, $finish])
+            // Dragged: the ids sent first, the rest after (P29).
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/attributes/order", ['attribute_ids' => [$finish]])))->toBe('Order saved')
+            ->and($attributes())->toBe([$finish, $width])
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/variants/order", ['variant_ids' => [$second]])))->toBe('Order saved')
+            ->and($places())->toBe(['7002', '7001'])
+            // A product's own variants only: a drag has no field to say it beside.
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$draft}/variants/order", ['variant_ids' => [Px::product('Other')]])))->not->toBeEmpty()
+            ->and($places())->toBe(['7002', '7001'])
+            // Given up: Finish goes; Width cannot, as the two variants would then be alike.
+            ->and(catalogProductScreensToast($browser->post("/admin/products/{$draft}/attributes/{$finish}/remove")))->toBe('Attribute removed')
+            ->and($attributes())->toBe([$width])
+            ->and(AdminBrowser::formError($browser->post("/admin/products/{$draft}/attributes/{$width}/remove")))->toBe(trans('catalog::errors.duplicate_combination.detail', [], 'en'))
+            ->and($attributes())->toBe([$width]);
     });
 
     it('corrects a ready product\'s code, only for the code\'s job', function () {

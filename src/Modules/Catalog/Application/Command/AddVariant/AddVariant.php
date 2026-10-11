@@ -23,6 +23,7 @@ final readonly class AddVariant
         public ?int $lengthMm = null,
         public ?int $widthMm = null,
         public ?int $heightMm = null,
-        public int $position = 0,
+        // Its place among the product's variants; none: last (amendment 16(d)).
+        public ?int $position = null,
     ) {}
 }
