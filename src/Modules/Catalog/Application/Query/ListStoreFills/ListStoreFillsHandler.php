@@ -43,7 +43,7 @@ final readonly class ListStoreFillsHandler
 
         // Who uploaded each is not answered here: a Super Admin is named to a store's admins only as
         // "System administrator" (access.md amendment 54), which the screens show through Access.
-        $imports = array_map(static fn (ImportSummary $file): ImportSummary => new ImportSummary($file->id, $file->fileName, $file->state, $file->count, null, $file->uploadedAt), $imports);
+        $imports = array_map(static fn (ImportSummary $file): ImportSummary => new ImportSummary($file->id, $file->fileName, $file->state, $file->count, null, $file->uploadedAt, $file->open), $imports);
 
         return new ImportList($imports, $total, $page, $perPage);
     }

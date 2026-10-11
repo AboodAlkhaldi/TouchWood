@@ -22,6 +22,14 @@ interface CatalogProductReads
     public function core(string $productId): ?ProductCore;
 
     /**
+     * Many products as `core()` reads one, in one query - a store file's products (§4.4 S10, P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, ProductCore> by product id; one not found, or not a ULID, is left out
+     */
+    public function cores(array $productIds): array;
+
+    /**
      * Its variants, archived ones too, in their order.
      *
      * @return list<VariantView>
@@ -51,4 +59,20 @@ interface CatalogProductReads
      * @return list<RelatedRow>
      */
     public function related(string $productId): array;
+
+    /**
+     * What each store that chose it does with it, in every store - the caller keeps the ones its
+     * reader covers.
+     *
+     * @return array<string, StoreListingRow> store id => its row
+     */
+    public function storeRows(string $productId): array;
+
+    /**
+     * The labels a store may put on a product - the active ones - and those the product already
+     * carries in some store whatever their state (a label deactivated since stays, §1.8), in order.
+     *
+     * @return list<LabelChoice>
+     */
+    public function labelChoices(string $productId): array;
 }

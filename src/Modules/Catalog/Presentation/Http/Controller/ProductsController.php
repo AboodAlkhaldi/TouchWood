@@ -36,6 +36,7 @@ final readonly class ProductsController
         'photos' => 'PhotosTab',
         'search' => 'SearchTab',
         'related' => 'RelatedTab',
+        'stores' => 'StoresTab',
     ];
 
     // What asks who is acting - the pages - is taken by each action, never kept here: a controller is
