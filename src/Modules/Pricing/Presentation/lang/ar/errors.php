@@ -83,6 +83,7 @@ return [
 
     'fields' => [
         'amount' => 'السعر',
+        'quantity' => 'الكمية',
         'store' => 'المتجر',
         'variant' => 'المقاس',
     ],

@@ -7,6 +7,7 @@ namespace Modules\Pricing\Infrastructure;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Pricing\Application\Prices\StoreWiring;
+use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
@@ -16,6 +17,7 @@ use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
+use Modules\Pricing\Public\Contracts\PricingApi;
 
 /**
  * What a size costs, and every amount of an order (pricing.md). Registered after Catalog, whose
@@ -35,6 +37,7 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(PriceCandidates::class, DatabasePriceCandidates::class);
         // No store is wired until Sync is built (§1.1 rule 9).
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        $this->app->bind(PricingApi::class, PricingApiImpl::class);
     }
 
     public function boot(): void

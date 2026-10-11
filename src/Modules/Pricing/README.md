@@ -12,7 +12,7 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 | 1 | Foundation: the `pricing` schema, the permissions, the errors and their words | — | built (#113) |
 | 2 | The engine, pure: `PriceResolution` (§1.6), `PercentOff` and `FixedOff` (§1.3, §1.5), `OrderTotals` (§1.7) | — | built (#117) |
 | 3a | Retail prices set and removed, the materialized candidates, the push into Catalog (§1.10), the repair and `pricing:candidates:rebuild`; the off-store guard, the unknown-store rule, the wired-store seam | `pricing.price.edit`, `pricing.candidates.rebuild` | **built** |
-| 3b | `PricingApi` bound with all its methods (`prices`, `totals` through `OrderTotals`, `pricesForEdit`) | — | — |
+| 3b | `PricingApi` bound with all its methods (`prices`, `totals` through `OrderTotals`, `pricesForEdit`): one read of the candidates for any number of lines; an unknown store and a quantity below 1 invalid input | — | **built** |
 | 4 | Sales, and the timed tasks at their start and end | `pricing.price.edit`, `pricing.windows.apply`, `pricing.windows.check` | a sale for one size: buildable; for every size of a product: after Catalog's `variantIdsOf` is built |
 | 5 | Wholesale bands | `pricing.wholesale.edit` | — |
 | 6 | Category discounts | `pricing.category_discount.manage` | after Catalog's amendment 16 is built |
@@ -29,7 +29,7 @@ permission missing, before anything is looked up; a store that does not exist is
 
 | Folder | Holds |
 |---|---|
-| `Public/Contracts` | `PricingApi` — `prices`, `totals`, `pricesForEdit` (pricing.md §2.1); not bound yet |
+| `Public/Contracts` | `PricingApi` — `prices`, `totals`, `pricesForEdit` (pricing.md §2.1); bound to `Application/PricingApiImpl` |
 | `Public/Dto`, `Public/Enums` | `CartLineDto`, `LinePriceDto`, `CartPricesDto`, `TotalsDto`, `KeptPartDto`; `PriceKind` |
 | `Application` | `PricingPermissions`: three jobs per store, any role, in the Pricing group; the system's three, reserved (§3) |
 | `Application/Command` | `SetRetailPrice` (one size or several), `RemoveRetailPrice`, `RebuildPriceCandidates` (the repair: every store, on or off; answers how many sizes were out of step) |

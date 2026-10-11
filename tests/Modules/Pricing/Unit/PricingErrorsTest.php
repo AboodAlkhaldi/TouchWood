@@ -128,7 +128,7 @@ it('has an Arabic and an English title and detail for every error, none empty, w
     // has its name in both.
     expect($placeholders($en['price_too_precise']['detail']))->toBe([':decimals'])
         ->and($placeholders($en['invalid_pricing_input']['detail']))->toBe([':attribute'])
-        ->and(array_keys($en['fields']))->toBe(['amount', 'store', 'variant'])
+        ->and(array_keys($en['fields']))->toBe(['amount', 'quantity', 'store', 'variant'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 

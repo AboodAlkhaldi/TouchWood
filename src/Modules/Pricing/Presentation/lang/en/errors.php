@@ -83,6 +83,7 @@ return [
 
     'fields' => [
         'amount' => 'price',
+        'quantity' => 'quantity',
         'store' => 'store',
         'variant' => 'size',
     ],
