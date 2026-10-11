@@ -7,6 +7,7 @@ namespace Modules\Inventory\Application\Command\SetStockDependent;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NotWired;
@@ -31,6 +32,7 @@ final readonly class SetStockDependentHandler
         private StoreWiring $wiring,
         private SizeInput $sizes,
         private StockRows $stock,
+        private StockFacts $facts,
     ) {}
 
     /**
@@ -78,6 +80,9 @@ final readonly class SetStockDependentHandler
                     AuditChanges::none()->changed('stock_dependent', $before, $command->on),
                 );
             }
+
+            // Catalog told of what flipped, inside this transaction (§1.3, §2.3).
+            $this->facts->refresh($storeId, array_map('strval', array_keys($products)));
 
             return [null, $entries];
         });

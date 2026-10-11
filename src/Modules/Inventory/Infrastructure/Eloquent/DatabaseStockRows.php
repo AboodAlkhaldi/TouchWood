@@ -79,6 +79,8 @@ final readonly class DatabaseStockRows implements StockRows
                     $row->threshold === null ? null : (int) $row->threshold,
                     (bool) $row->stock_dependent,
                     (int) $row->returned_extra,
+                    $row->orderable === null ? null : (bool) $row->orderable,
+                    (bool) $row->ending_soon,
                 );
             }
         }
@@ -95,6 +97,7 @@ final readonly class DatabaseStockRows implements StockRows
                 $rows[(string) $row->variant_id] = new StockRow(
                     (string) $row->variant_id, (string) $row->product_id, (int) $row->in_stock, (int) $row->held,
                     $row->threshold === null ? null : (int) $row->threshold, (bool) $row->stock_dependent, (int) $row->returned_extra,
+                    $row->orderable === null ? null : (bool) $row->orderable, (bool) $row->ending_soon,
                 );
             }
         }
@@ -135,6 +138,17 @@ final readonly class DatabaseStockRows implements StockRows
             'UPDATE inventory.stock SET returned_extra = returned_extra + ?, updated_at = now() WHERE store_id = ? AND variant_id = ?',
             [$pieces, $store->value, $variantId],
         );
+    }
+
+    public function variantIds(StoreId $store): array
+    {
+        return array_values(array_map('strval', $this->db->table(self::TABLE)->where('store_id', $store->value)->orderBy('variant_id')->pluck('variant_id')->all()));
+    }
+
+    public function markPushed(StoreId $store, string $variantId, bool $orderable, bool $endingSoon): void
+    {
+        $this->db->table(self::TABLE)->where('store_id', $store->value)->where('variant_id', $variantId)
+            ->update(['orderable' => $orderable, 'ending_soon' => $endingSoon]);
     }
 
     public function setInStock(StoreId $store, string $variantId, int $inStock): void

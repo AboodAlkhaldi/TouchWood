@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\Exception\AlreadyHeld;
 use Modules\Inventory\Domain\Exception\HoldNotEditable;
@@ -49,6 +50,7 @@ final readonly class InventoryApiImpl implements InventoryApi
         private Holds $holds,
         private StockMovements $movements,
         private ConnectionInterface $db,
+        private StockFacts $facts,
     ) {}
 
     public function stock(StoreId $store, array $variantIds): array
@@ -98,6 +100,7 @@ final readonly class InventoryApiImpl implements InventoryApi
             }
 
             $this->apply($store, $wired, self::heldBySize($lines, $wired));
+            $this->facts->refresh($store, self::sizes($lines));
         }, 3);
     }
 
@@ -138,6 +141,8 @@ final readonly class InventoryApiImpl implements InventoryApi
                 $done = $shippedNow === $current->quantity && (! $wired || ! $current->countsOnStock);
                 $this->holds->saveLine($hold->id, new HoldLine($current->variantId, $current->gift, $current->quantity, $current->countsOnStock, $shippedNow, $done ? HoldLine::SHIPPED : HoldLine::OPEN));
             }
+
+            $this->facts->refresh($store, array_values(array_unique(array_map(static fn (HoldLineDto $line): string => $line->variantId, $shipped))));
         }, 3);
     }
 
@@ -158,6 +163,8 @@ final readonly class InventoryApiImpl implements InventoryApi
                     $this->end($hold, $store, $wired, $line, HoldLine::REDUCED);
                 }
             }
+
+            $this->facts->refresh($store, self::sizes($hold->lines));
         }, 3);
     }
 
@@ -222,6 +229,8 @@ final readonly class InventoryApiImpl implements InventoryApi
                     $this->holds->saveLine($hold->id, new HoldLine($line->variantId, $line->gift, $line->quantity, $line->countsOnStock, 0, HoldLine::RELEASED));
                 }
             }
+
+            $this->facts->refresh($store, array_map('strval', array_keys($changes)));
         }, 3);
     }
 
@@ -277,6 +286,8 @@ final readonly class InventoryApiImpl implements InventoryApi
                     $this->stock->addReturnedExtra($store, $line->variantId, $productId, $line->quantity);
                 }
             }
+
+            $this->facts->refresh($store, array_values(array_unique(array_map(static fn (HoldLineDto $line): string => $line->variantId, $back))));
         }, 3);
     }
 
@@ -292,6 +303,7 @@ final readonly class InventoryApiImpl implements InventoryApi
             }
 
             $this->holds->markEnded($hold->id);
+            $this->facts->refresh($store, self::sizes($hold->lines));
         }, 3);
     }
 
@@ -375,6 +387,15 @@ final readonly class InventoryApiImpl implements InventoryApi
         usort($lines, static fn (HoldLineDto $a, HoldLineDto $b): int => [$a->variantId, $a->gift] <=> [$b->variantId, $b->gift]);
 
         return $lines;
+    }
+
+    /**
+     * @param  array<string, HoldLine>  $lines
+     * @return list<string> their sizes, once each
+     */
+    private static function sizes(array $lines): array
+    {
+        return array_values(array_unique(array_map(static fn (HoldLine $line): string => $line->variantId, $lines)));
     }
 
     private static function counts(bool $wired, bool $gift, bool $stockDependent): bool

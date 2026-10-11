@@ -9,6 +9,7 @@ use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\ProviderOwnsStock;
@@ -41,6 +42,7 @@ final readonly class SetStockHandler
         private StockRows $stock,
         private StockMovements $movements,
         private HoldsShortNotice $notice,
+        private StockFacts $facts,
     ) {}
 
     /**
@@ -110,6 +112,9 @@ final readonly class SetStockHandler
                     AuditChanges::none()->changed('in_stock', $before, $count),
                 );
             }
+
+            // Catalog told of what flipped, inside this transaction (§1.3, §2.3).
+            $this->facts->refresh($storeId, array_map('strval', array_keys($counts)));
 
             return [null, $entries];
         });

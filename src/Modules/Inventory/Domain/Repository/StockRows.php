@@ -59,6 +59,14 @@ interface StockRows
     /** Pieces returned in a wired store, on our side until the provider's number changes (§1.9). */
     public function addReturnedExtra(StoreId $store, string $variantId, string $productId, int $pieces): void;
 
+    /**
+     * @return list<string> every size with a row in that store, for the repair
+     */
+    public function variantIds(StoreId $store): array;
+
+    /** What Catalog was told of the size there, so only a flip is pushed next time (§2.3). */
+    public function markPushed(StoreId $store, string $variantId, bool $orderable, bool $endingSoon): void;
+
     public function setInStock(StoreId $store, string $variantId, int $inStock): void;
 
     public function setThreshold(StoreId $store, string $variantId, ?int $threshold): void;

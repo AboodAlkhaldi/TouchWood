@@ -18,5 +18,7 @@ final readonly class StockRow
         public ?int $threshold,
         public bool $stockDependent,
         public int $returnedExtra = 0,
+        public ?bool $orderablePushed = null,
+        public bool $endingSoonPushed = false,
     ) {}
 }

@@ -13,7 +13,8 @@ Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongsi
 | 1 | Foundation: the `inventory` schema, Manage Stock, the store's default threshold, the errors and their words | built (#115) |
 | 2 | Stock and the ledger: stocktakes, hand changes with their reasons, thresholds, the switches — `inventory.stock.manage` | **built** |
 | 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed every minute, `HoldsShort` — `inventory.holds.expire` | **built** |
-| 4 | Facts to Catalog (orderable, ending soon), Low Stock, the store's file — `inventory.orderable.rebuild` | after Catalog's amendment 16 is built |
+| 4a | Facts to Catalog: orderable and ending soon, only on a flip, inside each change; sizes switched on and the default threshold's change told; `RebuildOrderable` and `inventory:orderable:rebuild` — `inventory.orderable.rebuild` | **built** |
+| 4b | Low Stock (the list, its menu count, its Home card), the store's file | — |
 | 5 | The module's own pass | — |
 
 Moved from step 1 to step 2, where the first handler uses them: the off-store guard, the seam that

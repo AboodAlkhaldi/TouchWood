@@ -9,6 +9,7 @@ use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NoteRequired;
@@ -43,6 +44,7 @@ final readonly class AdjustStockHandler
         private StockRows $stock,
         private StockMovements $movements,
         private HoldsShortNotice $notice,
+        private StockFacts $facts,
     ) {}
 
     /**
@@ -83,6 +85,8 @@ final readonly class AdjustStockHandler
                 $this->notice->send($storeId, $variantId);
             }
             $this->movements->record($storeId, $variantId, $reason, $before, $after, $note, 'hand:'.Str::ulid());
+
+            $this->facts->refresh($storeId, [$variantId]);
 
             // The note stays in the ledger alone: free text is kept out of the audit log, kept forever.
             $changes = AuditChanges::none()->changed('in_stock', $before, $after)->changed('reason', null, $reason->value);

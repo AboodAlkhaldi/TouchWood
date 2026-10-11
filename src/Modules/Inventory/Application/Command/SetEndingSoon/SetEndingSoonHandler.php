@@ -8,6 +8,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\InventoryChange;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\ProviderOwnsStock;
@@ -33,6 +34,7 @@ final readonly class SetEndingSoonHandler
         private StoreWiring $wiring,
         private CatalogApi $catalog,
         private StoreProducts $products,
+        private StockFacts $facts,
     ) {}
 
     /**
@@ -61,6 +63,8 @@ final readonly class SetEndingSoonHandler
             }
 
             $this->products->setEndingSoon($storeId, $product->id, $command->on);
+            // Catalog told of the product's sizes that flipped (§1.2, §2.3).
+            $this->facts->refresh($storeId, $this->catalog->variantIdsOf($product->id));
 
             return [null, [new AuditEntryDto(
                 'inventory.store_product.ending_soon_set',

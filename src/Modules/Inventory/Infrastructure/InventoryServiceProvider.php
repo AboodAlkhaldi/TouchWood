@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Modules\Inventory\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Inventory\Application\InventoryApiImpl;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
@@ -22,17 +24,20 @@ use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
 use Modules\Inventory\Infrastructure\External\NoStoreWired;
+use Modules\Inventory\Infrastructure\Listener\TellCatalogOfStock;
 use Modules\Inventory\Infrastructure\Queue\ReleaseExpiredHoldsJob;
+use Modules\Inventory\Presentation\Console\RebuildOrderableCommand;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\SettingChanged;
 
 /**
  * How many pieces a store has, what is held for orders, and the history of every change
  * (inventory.md). Registered after Catalog, whose variants it counts, and after Access, whose public
  * surface it uses to declare its permissions and for nothing else (handoff §4.4; inventory.md §2.4).
  *
- * Steps 1-2: the schema, the permission, the default threshold, the errors and their words; stock,
- * the hand changes and the ledger. `InventoryApi` is bound with the step that implements it.
+ * Steps 1-4a: the schema, the permission, the default threshold, the errors and their words; stock,
+ * the hand changes and the ledger; holds and `InventoryApi`; what Catalog is told.
  */
 final class InventoryServiceProvider extends ServiceProvider
 {
@@ -59,6 +64,14 @@ final class InventoryServiceProvider extends ServiceProvider
 
         // The store's default low-stock threshold (§1.2), on Platform's settings screen.
         $this->app->make(SettingsRegistry::class)->define('inventory', ...InventorySettings::definitions());
+
+        // Catalog told of a size's figures when another module changes them (§2.3, §6.2).
+        Event::listen(StoreListingChanged::class, [TellCatalogOfStock::class, 'switchedOn']);
+        Event::listen(SettingChanged::class, [TellCatalogOfStock::class, 'settingChanged']);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RebuildOrderableCommand::class]);
+        }
 
         // Expired holds freed every minute (owner, 2026-10-11). Scheduled work is queued as a job,
         // never command() or call() (owner's decision, 2026-09-18).

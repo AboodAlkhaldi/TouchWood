@@ -7,6 +7,7 @@ namespace Modules\Inventory\Application\Command\SetLowStockThreshold;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
@@ -30,6 +31,7 @@ final readonly class SetLowStockThresholdHandler
         private InventoryChange $change,
         private SizeInput $sizes,
         private StockRows $stock,
+        private StockFacts $facts,
     ) {}
 
     /**
@@ -92,6 +94,9 @@ final readonly class SetLowStockThresholdHandler
                     AuditChanges::none()->changed('threshold', $before, $threshold),
                 );
             }
+
+            // Catalog told of what flipped, inside this transaction (§1.3, §2.3).
+            $this->facts->refresh($storeId, array_map('strval', array_keys($thresholds)));
 
             return [null, $entries];
         });
