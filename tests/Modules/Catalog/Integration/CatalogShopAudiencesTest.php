@@ -555,8 +555,7 @@ describe('what each viewer sees in the shop', function () {
 
     // §2.2, §4.5 and §8 #33 put a guest on the companies' side - both sides, the companies' card -
     // and P25 lets a guest see a product only individuals see: there a guest is shown its wholesale
-    // sizes, which no kind of account sees. Built as the spec words it; the case is the owner's
-    // question (README, "Open for the owner").
+    // sizes too. The owner, 2026-10-11: "Guest sees all individuals+companies" (catalog.md §1.13).
     it('shows a guest both sides and the companies\' card, even where only individuals see the product', function () {
         $individualsOnly = Px::category('Kitchens');
         $companiesOnly = Px::category('Wardrobes');
