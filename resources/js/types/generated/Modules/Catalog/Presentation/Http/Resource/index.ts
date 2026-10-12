@@ -347,6 +347,140 @@ storeCode: string | null,
 stores: StoreOptionData[],
 storeTimezone: string | null,
 };
+export type ShopAddressData = {
+canonical: string,
+alternate: string | null,
+alternateLocale: string | null,
+noindex: boolean,
+};
+export type ShopBrandPage = {
+name: string,
+slug: string,
+logo: Record<string, Record<string, string>> | null,
+description: Record<string, any>,
+products: ShopCardData[],
+next: string | null,
+address: ShopAddressData,
+};
+export type ShopCardData = {
+productId: string,
+name: string,
+slug: string,
+photo: Record<string, Record<string, string>> | null,
+labels: ShopLabelData[],
+lastPieces: boolean,
+};
+export type ShopCategoryPage = {
+name: string,
+slug: string,
+path: ShopLinkData[],
+children: ShopLinkData[],
+products: ShopCardData[],
+next: string | null,
+filters: ShopFiltersData,
+address: ShopAddressData,
+};
+export type ShopChoiceData = {
+id: string,
+name: string,
+isColour: boolean,
+values: ShopChoiceValueData[],
+};
+export type ShopChoiceValueData = {
+id: string,
+name: string,
+swatch: string | null,
+onSale: boolean,
+};
+export type ShopDetailData = {
+name: string,
+value: string,
+};
+export type ShopFilterChoiceData = {
+id: string,
+name: string,
+swatch: string | null,
+count: number,
+chosen: boolean,
+};
+export type ShopFilterGroupData = {
+id: string,
+name: string,
+choices: ShopFilterChoiceData[],
+};
+export type ShopFiltersData = {
+brands: ShopFilterChoiceData[],
+attributes: ShopFilterGroupData[],
+sides: ShopFilterChoiceData[],
+sort: string,
+};
+export type ShopFrameData = {
+menu: ShopMenuItemData[],
+words: Record<string, string>,
+};
+export type ShopLabelData = {
+name: string,
+tone: string,
+};
+export type ShopLinkData = {
+name: string,
+slug: string,
+};
+export type ShopMenuItemData = {
+id: string,
+name: string,
+slug: string,
+children: ShopMenuItemData[],
+};
+export type ShopProductPage = {
+productId: string,
+name: string,
+slug: string,
+available: boolean,
+description: Record<string, any>,
+photos: Record<string, Record<string, string>>[],
+labels: ShopLabelData[],
+path: ShopLinkData[],
+brand: ShopLinkData | null,
+choices: ShopChoiceData[],
+variants: ShopVariantData[],
+warranty: ShopWarrantyData | null,
+selling: ShopSellingData | null,
+goesWith: ShopCardData[],
+mayAlsoLike: ShopCardData[],
+address: ShopAddressData,
+};
+export type ShopSearchPage = {
+query: string,
+total: number,
+products: ShopCardData[],
+next: string | null,
+address: ShopAddressData,
+};
+export type ShopSellingData = {
+retailMinimum: number,
+retailMaximum: number | null,
+wholesaleMinimum: number | null,
+wholesaleMaximum: number | null,
+};
+export type ShopVariantData = {
+id: string,
+values: Record<string, string>,
+sellsRetail: boolean,
+sellsWholesale: boolean,
+lastPieces: boolean,
+photos: Record<string, Record<string, string>>[],
+details: ShopDetailData[],
+weightGrams: number | null,
+lengthMm: number | null,
+widthMm: number | null,
+heightMm: number | null,
+};
+export type ShopWarrantyData = {
+name: string,
+periodMonths: number | null,
+terms: Record<string, any>,
+};
 export type StoreCardData = {
 storeId: string,
 code: string,

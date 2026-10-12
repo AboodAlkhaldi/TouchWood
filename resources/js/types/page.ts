@@ -7,6 +7,7 @@
 */
 
 import type { ShopperLineTone } from '@/types/generated/Modules/Access/Public/Enums';
+import type { ShopFrameData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 
 export type Locale = 'ar' | 'en';
 export type Direction = 'rtl' | 'ltr';
@@ -140,6 +141,11 @@ export type SharedProps = {
     /** Shop pages only, and only for somebody signed in. */
     accountMenu?: AccountMenu | null;
     shopperLines?: ShopperLine[];
+    /**
+     * Shop pages under a store: what modules put in the frame, by module (catalog.md §4.5) - Catalog's
+     * category menu and search box.
+     */
+    frame?: { catalog?: ShopFrameData };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
     /** The sidebar's business areas this browser left open (group keys); several may be. */

@@ -28,6 +28,7 @@ use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerShopperType;
 use Modules\Access\Application\Customer\GuestVisitors;
+use Modules\Access\Application\Customer\RequestCustomers;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
@@ -196,6 +197,8 @@ final class AccessServiceProvider extends ServiceProvider
         // else a guest — a staff view included (catalog.md amendment 14(a), amendment 67 here).
         // Scoped: who is acting is this request's.
         $this->app->scoped(ShopperType::class, CustomerShopperType::class);
+        // The signed-in customer, read once a request for the frame and who is looking.
+        $this->app->scoped(RequestCustomers::class);
 
         $this->app->bind(PasswordPolicy::class, LaravelPasswordPolicy::class);
         // Laravel's verifier comes from a deferred provider, which would replace a plain binding

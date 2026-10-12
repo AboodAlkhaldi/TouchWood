@@ -12,9 +12,10 @@ use Shared\Domain\ValueObject\StoreId;
  * inside their own transaction, so a list is never stale (catalog.md §2.2): whether a variant can be
  * ordered now and whether it is ending soon (Inventory, stage 5), the price shown (Pricing, stage 5),
  * the sales rank (Sales, stage 6). **Bound with amendment 16(i)**: each fact is kept in Catalog's own
- * table (`store_variant_facts`); the cards read them with the shop's pages (P22). Until then every
- * listed product is orderable as §1.3 says, with no price and no rank; Sales' ranks are received
- * from stage 6.
+ * table (`store_variant_facts`), and the listing rows of the products it touched are written again at
+ * once (P22): the cards' "Last pieces" read them, and each side's card price is kept beside them.
+ * Every listed product stays orderable as §1.3 says until Inventory's stage reads that fact; Sales'
+ * ranks are received from stage 6.
  *
  * **For stage 5:** every change rewrites a product's listing rows from Catalog's own tables
  * (`ListingRows`), the price and the rank with them. A fact pushed here must therefore be kept where

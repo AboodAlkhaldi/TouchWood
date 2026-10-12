@@ -685,9 +685,13 @@ describe('the reads\' queries', function () {
             return $counts;
         };
 
-        // Measured 2026-10-11 on this branch: who is looking costs no query of its own — it narrows the
-        // same reads. The shop's pages (step 6) add the frame and keep the 8 a page (frontend.md §5).
-        $recorded = ['menu' => 3, 'category' => 4, 'brand' => 3, 'product' => 8, 'relations' => 5, 'suggest' => 2];
+        // Measured 2026-10-11, again 2026-10-12 with the shop's pages (step 6): who is looking costs no
+        // query of its own — it narrows the same reads. A category's page is its head with its
+        // filters, then its cards; a brand's its head and its cards; a product's page reads all it
+        // shows and is kept in the cache, the menu too (P21) — the shop's pages' own counts are in
+        // ShopPagesTest. The cache's own reads (the stores' directory, here) are not counted
+        // (Cx::recordQueries).
+        $recorded = ['menu' => 1, 'category' => 2, 'brand' => 2, 'product' => 12, 'relations' => 5, 'suggest' => 2];
         $few = $measure();
 
         foreach (range(1, 4) as $more) {

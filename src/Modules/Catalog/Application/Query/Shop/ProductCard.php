@@ -9,7 +9,8 @@ namespace Modules\Catalog\Application\Query\Shop;
  * language, its card photo and the labels the store attached — **never its code** (amendment 5(d)) —
  * and **the variant the card shows this viewer**: the first, in the product's own order, the viewer
  * can buy here (amendment 14(f)) — a retail one for an individual; companies and guests share a card
- * (§2.2). Its price joins it with the shop's pages (§2.2, P22).
+ * (§2.2). **"Last pieces"** while a size here this viewer can buy and order now is ending soon
+ * (amendment 16(h)). Its price joins it with Pricing's stage (§2.2, P22).
  */
 final readonly class ProductCard
 {
@@ -24,5 +25,6 @@ final readonly class ProductCard
         public ?array $photo,
         public array $labels,
         public string $variantId,
+        public bool $lastPieces = false,
     ) {}
 }

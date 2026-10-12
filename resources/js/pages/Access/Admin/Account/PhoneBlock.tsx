@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { CodeInput } from '@/components/CodeInput';
 import { TextField } from '@/components/Fields';
 import { DialogError } from '@/components/FormError';
 import { PasswordInput } from '@/components/PasswordInput';
@@ -13,6 +12,11 @@ import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+
+// The code's field is drawn only in the dialog's second step, never on the page's first paint, so it
+// is loaded then (frontend.md §5; lesson 180): the account page sat at 59.8 of its 60 KB, and the
+// shop's pages sharing the panel's Sheet and Breadcrumb (catalog.md §4.5) split them out of its layout.
+const CodeInput = lazy(() => import('@/components/CodeInput').then((loaded) => ({ default: loaded.CodeInput })));
 
 /*
 | B2 - changing the phone (frontend.md §3.2), on shadcn's Card and Dialog with Geist's rules (§1.11).
@@ -176,18 +180,20 @@ export function PhoneBlock({ account }: Props) {
                                     <DialogDescription className="text-copy-14 text-ink-muted">{t('access::account.phone_dialog_body')}</DialogDescription>
                                 </DialogHeader>
                                 <DialogError open={open} />
-                                <CodeInput
-                                    id="phone_code"
-                                    label={t('access::account.phone_code')}
-                                    length={account.codeLength}
-                                    value={confirm.data.code}
-                                    onChange={(code) => {
-                                        confirm.setData('code', code);
-                                        confirm.clearErrors('code');
-                                    }}
-                                    error={confirm.errors.code}
-                                    autoFocus
-                                />
+                                <Suspense fallback={null}>
+                                    <CodeInput
+                                        id="phone_code"
+                                        label={t('access::account.phone_code')}
+                                        length={account.codeLength}
+                                        value={confirm.data.code}
+                                        onChange={(code) => {
+                                            confirm.setData('code', code);
+                                            confirm.clearErrors('code');
+                                        }}
+                                        error={confirm.errors.code}
+                                        autoFocus
+                                    />
+                                </Suspense>
                             </div>
                             <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
                                 <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">

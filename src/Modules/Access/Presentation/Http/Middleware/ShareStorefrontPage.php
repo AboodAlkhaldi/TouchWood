@@ -8,7 +8,7 @@ use App\Http\StorefrontArea;
 use Closure;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Modules\Access\Application\Query\CustomerReader;
+use Modules\Access\Application\Customer\RequestCustomers;
 use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\StaffView\StaffViewPass;
 use Modules\Access\Application\StaffView\StaffViews;
@@ -46,7 +46,8 @@ final readonly class ShareStorefrontPage
 
     public function __construct(
         private CustomerSessions $sessions,
-        private CustomerReader $customers,
+        // One read of the customer serves the frame and who is looking (RequestCustomers).
+        private RequestCustomers $customers,
         private CustomerAccountPages $accountPages,
         private ShopperLines $lines,
         private StaffViews $staffViews,

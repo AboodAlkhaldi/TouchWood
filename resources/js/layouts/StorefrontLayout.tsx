@@ -16,8 +16,11 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { CategoryMenuBar, CategoryMenuSheet } from '@/components/shop/CategoryMenu';
+import { SearchBox } from '@/components/shop/SearchBox';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import type { ShopAddressData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { SharedProps, ShopperLine } from '@/types/page';
 
 /*
@@ -25,8 +28,10 @@ import type { SharedProps, ShopperLine } from '@/types/page';
 |
 | The header carries the logo, the country, the language, and either "Sign in" or the name of
 | whoever is signed in, which opens their menu - My Account and Sign Out (owner's #4, 2026-10-02).
-| Search and the basket belong to Catalog and Sales and are not here. The theme switch is in the
-| footer, once for the whole shop (Geist: "once per app, in the footer or settings").
+| What modules put in the frame comes through Platform's list of its parts (`frame`, catalog.md
+| §4.5): Catalog's search box and category menu, on every page under a store. The basket is Sales'
+| and is not here yet. The theme switch is in the footer, once for the whole shop (Geist: "once per
+| app, in the footer or settings").
 |
 | **The country and the language are both in the address**, not in a cookie the page reads: a shop
 | page lives at /{store}/{locale}, so switching either is a link to the same page written the other
@@ -39,34 +44,56 @@ import type { SharedProps, ShopperLine } from '@/types/page';
 type Props = {
     title: string;
     children: ReactNode;
+    /**
+     * A page's own address and the same page's in the other language (catalog.md §4.5, P19), and
+     * whether search engines are kept out of it. Pages without one keep the language switch's rule.
+     */
+    address?: ShopAddressData;
 };
 
-export function StorefrontLayout({ title, children }: Props) {
+export function StorefrontLayout({ title, children, address }: Props) {
     const page = usePage<SharedProps>();
-    const { shop, shopper, shopperLines, staffView, locale } = page.props;
+    const { shop, shopper, shopperLines, staffView, locale, frame } = page.props;
+    const catalog = frame?.catalog;
 
     return (
         <>
-            <Head title={title} />
+            <Head title={title}>
+                {address ? <link rel="canonical" href={address.canonical} /> : null}
+                {address ? <link rel="alternate" hrefLang={locale} href={address.canonical} /> : null}
+                {address?.alternate ? <link rel="alternate" hrefLang={address.alternateLocale ?? undefined} href={address.alternate} /> : null}
+                {address?.noindex ? <meta name="robots" content="noindex" /> : null}
+            </Head>
 
             {/* The backdrop is a campaign's to decide: a colour today, a photograph or several
                 layered things tomorrow, without touching this file (owner, 2026-09-22). */}
             <div className="flex min-h-screen flex-col bg-backdrop text-ink">
                 <header className="border-b border-line bg-surface">
                     <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-                        <Link
-                            href={shop === null || shop === undefined ? '/' : `/${shop.code}/${locale}`}
-                            className="flex items-center gap-3"
-                        >
-                            <Logo tone="auto" decorative />
-                            <span className="text-heading-16">TouchWood</span>
-                        </Link>
+                        <span className="flex items-center gap-2">
+                            {/* Catalog's part of the frame (catalog.md §4.5): the menu's Sheet on a phone. */}
+                            {catalog ? <CategoryMenuSheet menu={catalog.menu} words={catalog.words} /> : null}
+                            <Link
+                                href={shop === null || shop === undefined ? '/' : `/${shop.code}/${locale}`}
+                                className="flex items-center gap-3"
+                            >
+                                <Logo tone="auto" decorative />
+                                <span className="text-heading-16">TouchWood</span>
+                            </Link>
+                        </span>
+
+                        {/* And the search box, between the logo and the shopper's own things. */}
+                        {catalog ? (
+                            <div className="order-last w-full md:order-none md:w-auto md:max-w-md md:flex-1">
+                                <SearchBox words={catalog.words} />
+                            </div>
+                        ) : null}
 
                         <div className="flex flex-wrap items-center gap-3">
                             {shop === null || shop === undefined ? null : (
                                 <>
                                     <CountrySwitch shop={shop} locale={locale} />
-                                    <LanguageSwitch shop={shop} locale={locale} url={page.url} />
+                                    <LanguageSwitch shop={shop} locale={locale} url={page.url} alternate={address?.alternate ?? null} />
                                 </>
                             )}
 
@@ -79,6 +106,7 @@ export function StorefrontLayout({ title, children }: Props) {
                             )}
                         </div>
                     </div>
+                    {catalog ? <CategoryMenuBar menu={catalog.menu} words={catalog.words} /> : null}
                 </header>
 
                 {staffView ? <StaffViewLine /> : null}
@@ -285,16 +313,19 @@ function CountrySwitch({ shop, locale }: { shop: NonNullable<SharedProps['shop']
 
 /**
  * The same page in the other language, which is the same address with one segment changed - so
- * somebody reading a page keeps their place instead of being sent back to the front.
+ * somebody reading a page keeps their place instead of being sent back to the front. A catalogue
+ * page's slug is its language's (catalog.md §4.5, P19): it says where the other language's is.
  */
 function LanguageSwitch({
     shop,
     locale,
     url,
+    alternate,
 }: {
     shop: NonNullable<SharedProps['shop']>;
     locale: string;
     url: string;
+    alternate: string | null;
 }) {
     return (
         <span className="flex items-center gap-1">
@@ -306,7 +337,7 @@ function LanguageSwitch({
                         <Link
                             data-test={`language-${language}`}
                             // The language is the second segment: /sa/ar/account becomes /sa/en/account.
-                            href={url.replace(`/${shop.code}/${locale}`, `/${shop.code}/${language}`)}
+                            href={alternate ?? url.replace(`/${shop.code}/${locale}`, `/${shop.code}/${language}`)}
                             // Written in the language being offered, never translated: somebody who
                             // cannot read the current one must still recognise it.
                             lang={language}

@@ -751,6 +751,82 @@ sees it — was tried on this branch and reverted.)
    zero-result list staff read for word pairs. Logging what any side would find instead would take
    one more count a search.
 
+### The shop's pages (screens step 6)
+
+catalog.md §4.5 (P14–P22), amendment 14 as step 5 built it, 16(h) "Last pieces". No price, no stock,
+no Add to Cart, no code anywhere.
+
+- **Addresses** `storefront.catalog.{category,brand,product,search,suggest}` (`shop-routes.php`,
+  `ShopPagesController`): an old slug 301s to the current one with the query kept; a slug that never
+  existed, a draft, a category listing nothing here, an inactive brand — and a made-up filter or page
+  cursor — 404 in the shop's frame (`Catalog/Storefront/NotFound`). Every page carries its canonical
+  address and the other language's (`ShopAddressData`, drawn in `StorefrontLayout`'s head and its
+  language switch).
+- **Who is looking**: `ShopVisit` (scoped) asks `ShopperType::current()` once a request and hands it to
+  every read. The controller asks for `ShopPages` per action, never in its constructor: the router
+  keeps a controller as long as its route, and the builder holds the request's viewer.
+- **The frame**: Platform's `ShopFrameParts` / `ShopFramePart` (Public), shared as `frame` by
+  `ShareStorefront` on every page under a store; Catalog registers `CatalogFramePart` — the menu and
+  the words of the menu and search box. `StorefrontLayout` draws the search box, the Navigation Menu
+  bar (All Categories + the top categories) and, on a phone, the Sheet with the tree folding.
+- **The cache** (`ShopPagesCache`, scoped, on the kernel's `VersionedCache` with a new optional part
+  key and a version a caller may pass): the menu per store, base store, language and viewer; a
+  product's page per store, language, viewer and product (its path is drawn from the viewer's menu when
+  shown, never kept). The version is read once a request. One version, replaced by
+  `DatabaseListLocks::lock()` **before** the advisory lock — every Catalog change takes one (the word
+  pairs' lock excepted: search is never kept) — by each `ListingFacts` push, and when migrations end.
+  **The price**: every Catalog change also waits on that one row while another holds it, as every
+  product change already waited on the products' lock; a path that locks another row first (deleting
+  a photo) meets the version where it met the products' lock before. `PruneShopPagesJob` (hourly,
+  queued) removes old versions' rows once expired: the database store deletes an expired row only when
+  its own key is asked for again.
+- **Access**: `RequestCustomers` (scoped) reads the signed-in customer once a request for both the
+  frame (`ShareStorefrontPage`) and who is looking (`CustomerShopperType`) — the frame part's question
+  made it two reads (ShopFrameTest).
+- **The facts** (P22, 16(h)): `catalog.listing` gains `ending_soon_companies`/`_individuals` and each
+  side's card price (`price_minor`, `price_before_minor`, `retail_price_*`), written from
+  `store_variant_facts` by `DatabaseListingRows`; each push takes the products' lock and writes the
+  touched products' rows again.
+- **Reads built for the budget**: a category's head with its filters and their counts in one read
+  (`categoryHead`), a brand's head in one (`brandHead`), a page of cards with their labels and "Last
+  pieces" in one; search results page by a keyset cursor (`SearchCursor`: tier, nearness in
+  hundred-thousandths, rank, id), logged on the first page only. An individual is never offered a size
+  sold wholesale only, not even as a disabled choice (§1.13).
+
+**Queries, warm** (`ShopPagesTest`, measured 2026-10-12). With the session kept in memory, as the
+tests keep it: category 6, brand 6 (a logo adds 1), product 6, search 7, suggestions 4, sign-in 6 (was
+4: the menu's 2). **As production serves it** — the session's row read and written in the database:
+a guest's category 8, brand 8, product 8, **search 9**; a signed-in individual's or company's **13, 13,
+13 and 14** (Access's reads of who they are add 5). Over 8: for the owner (P21).
+
+**JavaScript** (gzipped, own): category 29.3 KB, product 27.8, brand 26.4, search 24.4, not found 21.7;
+shared 185.3 of 200. The shop's Sheet and Breadcrumb are the panel's too, and sharing them split them
+out of the panel's layout chunk: the panel's Account page went 59.8 → 60.6 KB, over its 60. Its phone
+dialog's code field (`CodeInput`, drawn only in that dialog's second step) now loads when it is drawn:
+56.3 KB. Nearest the line after this branch: B2B's Company page 59.2, Products' VariantsTab 59.1.
+
+**My picks** (the spec is silent; for the owner):
+
+1. **The search box draws a plain field first** (a form: Enter searches before any script) and loads
+   the suggestions' half — shadcn's Command in a Popover — when the shopper reaches for it, so no shop
+   page carries it before it shows; "See All Results" is the chosen item, so Enter opens the results.
+2. **Filters**: several of one kind show any of them, two kinds both; each choice's count keeps the
+   other kinds' choices and leaves its own out; a choice that would show nothing is disabled unless
+   picked; a choice the page no longer offers (a brand not listed here, a value switched off, a side
+   nothing here is sold on) counts as not made, in the cards as in the chips. Lists are
+   comma-separated in the address (`brands`, `values`, `side`, `sort`); a 301 keeps them, never
+   `store` or `locale`.
+3. **A filtered or sorted category's canonical address is the plain one.**
+4. **Search results pages are `noindex`**; their canonical keeps the query.
+5. **"Last pieces" on a product's choice** marks the value whose pick leads to an ending-soon size, so
+   with one attribute exactly that size's button; with none, beside the name.
+6. **The brand's page has no filters or sort**; the menu draws no category images.
+7. **Show More keeps the address on the first page** (`useLoadMore`), as the panel's lists do.
+
+**Left** (for the owner): the card's variant is not yet narrowed by "orderable now" or "priced" —
+nothing pushes those yet (stage 5); and `value_ids` still hold every variant on sale, so an
+individual's filter can offer a value only a wholesale-only size has (the product it shows is theirs).
+
 ## Tests
 
 | File | What it covers |
@@ -803,6 +879,8 @@ sees it — was tried on this branch and reverted.)
 | `Integration/CatalogShopAudiencesTest` | Screens step 5 (amendment 14): who may switch — an admin role's job in that store only, refusals, an off store prepared, the products' lock then the categories' first; a parent's switch reaching everything under it, the other switch kept, a sub-category alone; the audit, nothing written when nothing changes; P24 on adding and moving, the top keeping its own; a store opened later showing everything to both; each change writing the listing as the repair does; who sees a product and each side's card; the two CHECKs; the menu, pages, search, suggestions and relations for each viewer, P25, a guest on the companies' side even where only individuals see a product (the owner's decision, 2026-10-11), wholesale-only (14(e)), the card's variant (14(f)), a company account through `ShopperType`; each read's recorded queries, the same for every viewer |
 | `Feature/CatalogCategoryAudiencesScreenTest` | The categories screen's switches over HTTP: what the page is handed for the store shown, the stores offered and what the reader may do there, the menu entry, the page's recorded queries; a switch saved for the store shown and reaching below, refused without the job there, with no store, no switch or one neither on nor off |
 | `tests/Browser/CatalogCategoryAudiencesTest.php` | In a real browser: an admin switches a category off for individuals and the one under it follows; the switches out of reach, with the reason said, for someone who only orders the menu; the fates dialog, now fetched when opened, deactivating a category; Arabic at a phone's width |
+| `Feature/ShopPagesTest` | Screens step 6 (§4.5): a category's page — path, cards, filters, both addresses — and the frame's menu; 301 with the query kept; 404 in the frame for a slug never made, a draft, a category listing nothing here or in another store, a made-up filter or cursor, an inactive brand; the menu on the account pages, none on the country page; a product's page with its choices, how it is sold and no code; not available now for a viewer's account type (P18, `noindex`); never stale after a change; "Last pieces" per side, and not when not orderable; the filters' counts, Retail/Wholesale, a value; the sorts; the search logged once, the suggestions never; no wholesale-only size offered to an individual; a choice not offered counted as not made; the 301 never setting the store or language; a product's path from the viewer's menu; the hourly prune; each page's recorded queries, warm, in memory and as production serves it for a guest, an individual and a company |
+| `tests/Browser/ShopPagesTest.php` | In a real browser: All Categories to a sub-category, its card to the product, a choice picked; the search box suggesting as the shopper types and Enter opening the results (logged once); Arabic at a phone's width — the menu's Sheet from the right, the pages right to left, nothing wider than the screen |
 | `tests/Modules/Access/Feature/ShopperTypeTest.php` | Platform's `ShopperType` as Access binds it: a guest, an individual, a company account that never applied, and one whose company is pending, rejected, suspended or approved; a guest during a staff view over a signed-in customer; one query a customer, none a guest |
 | `tests/Architecture/CatalogAccessUseTest.php` | Catalog references nothing of Access beyond the five permission-declaration classes |
 | `Integration/CatalogListReadsTest` | The list screens' reads: who may read and who may change, refused before anything is read; each list's rows; a fixed number of queries however long the list; a store's places beside the base store's; the searches that found nothing, grouped and paged; the products a deactivation reaches; Platform's photos read together; descriptions' marks both ways |
