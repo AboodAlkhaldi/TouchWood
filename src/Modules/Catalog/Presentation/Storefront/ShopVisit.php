@@ -26,6 +26,8 @@ final class ShopVisit
 {
     private ?ShopperKind $viewer = null;
 
+    private ?object $readFor = null;
+
     /** @var array<string, list<ShopMenuItemData>> */
     private array $menus = [];
 
@@ -37,7 +39,24 @@ final class ShopVisit
 
     public function viewer(): ShopperKind
     {
+        $this->sameRequest();
+
         return $this->viewer ??= $this->shoppers->current();
+    }
+
+    /**
+     * What it holds belongs to the request that read it: a server that keeps the application between
+     * requests without forgetting its scoped instances (the browser tests') starts afresh here.
+     */
+    private function sameRequest(): void
+    {
+        $request = app()->bound('request') ? app('request') : null;
+
+        if ($request !== $this->readFor) {
+            $this->viewer = null;
+            $this->menus = [];
+            $this->readFor = is_object($request) ? $request : null;
+        }
     }
 
     /**
@@ -45,7 +64,7 @@ final class ShopVisit
      */
     public function menu(StoreId $store, string $locale): array
     {
-        $viewer = $this->viewer();
+        $viewer = $this->viewer(); // starts afresh on a new request
         $key = "menu:{$store->value}:".($this->catalog->baseStore() ?? '-').":{$locale}:{$viewer->value}";
 
         if (! isset($this->menus[$key])) {

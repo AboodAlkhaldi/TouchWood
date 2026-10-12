@@ -35,6 +35,8 @@ final class VersionedShopPagesCache implements ShopPagesCache
 
     private ?string $version = null;
 
+    private ?object $readFor = null;
+
     public function __construct(
         private readonly Cache $store,
         Connection $db,
@@ -44,6 +46,14 @@ final class VersionedShopPagesCache implements ShopPagesCache
 
     public function remember(string $part, Closure $load): mixed
     {
+        // Read once a request - and afresh on the next, where a server keeps scoped instances.
+        $request = app()->bound('request') ? app('request') : null;
+
+        if ($request !== $this->readFor) {
+            $this->version = null;
+            $this->readFor = is_object($request) ? $request : null;
+        }
+
         $this->version ??= $this->cache->version();
 
         return $this->cache->remember($load, $part, $this->version);
