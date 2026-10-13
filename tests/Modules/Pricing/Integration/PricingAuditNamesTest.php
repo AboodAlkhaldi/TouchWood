@@ -44,6 +44,7 @@ it('finds the actions Pricing records', function () {
     expect(pricingAuditNamesRecorded())->toBe([
         'pricing.retail_price.filed', 'pricing.retail_price.removed', 'pricing.retail_price.set',
         'pricing.sale.added', 'pricing.sale.changed', 'pricing.sale.ended', 'pricing.sale.removed',
+        'pricing.wholesale_prices.set',
     ]);
 });
 

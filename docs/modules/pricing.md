@@ -430,10 +430,10 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `SaleNotFound`, `CategoryDiscountNotFound` | NOT_FOUND | — |
 | `NotChangeable` | CONFLICT | changing an ended one; removing a running one |
 | `AlwaysWinsOverlap` | CONFLICT | a second "always wins" sale or discount on a size in the same dates (owner, 2026-10-09) |
-| `BandsInvalid` | INVALID | the first band not at the wholesale minimum; a band not higher, or not cheaper, than the one before |
+| `BandsInvalid` | INVALID | the first band not at the wholesale minimum, or not below the retail price (owner, 2026-10-10); a band not higher, or not cheaper, than the one before |
 | `NotSoldWholesale` | CONFLICT | wholesale bands for a size the store does not sell wholesale |
 | `CategoryNotUsable` | INVALID | a category that does not exist or is off |
-| `NoRetailPrice` | CONFLICT | a percentage sale for a size with no retail price |
+| `NoRetailPrice` | CONFLICT | a percentage sale for a size with no retail price; wholesale bands for one (the first band is measured against it, step 5) |
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |

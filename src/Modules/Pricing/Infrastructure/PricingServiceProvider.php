@@ -19,10 +19,12 @@ use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\Repository\WholesaleBands;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePriceCandidates;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseWholesaleBands;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
 use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
@@ -50,6 +52,7 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
         $this->app->bind(Sales::class, DatabaseSales::class);
+        $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);
         $this->app->bind(PriceWindowTasks::class, QueuedPriceWindowTasks::class);
     }
 

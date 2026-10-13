@@ -12,6 +12,7 @@ use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\Repository\WholesaleBands;
 use Modules\Pricing\Domain\Service\PercentOff;
 use Modules\Pricing\Domain\Service\PriceResolution;
 use Modules\Pricing\Domain\ValueObject\Candidate;
@@ -30,7 +31,8 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * The retail price, a candidate on both lines; every sale not ended on the size, on both lines too -
  * a percentage worked out on the retail price, half up to the coin, a sale whose percentage would
- * leave 0 at today's retail price left out. Bands and category discounts join with their steps.
+ * leave 0 at today's retail price left out; the wholesale bands, on wholesale lines only. Category
+ * discounts join with their step.
  */
 final readonly class CandidateWriter
 {
@@ -42,6 +44,7 @@ final readonly class CandidateWriter
         private PriceCandidates $candidates,
         private ListingFacts $listing,
         private Sales $sales,
+        private WholesaleBands $bands,
     ) {}
 
     /**
@@ -61,6 +64,7 @@ final readonly class CandidateWriter
                 }
             }
 
+            $bands = $this->bands->forVariants($store, $chunk);
             $written = [];
             $prices = [];
 
@@ -68,6 +72,11 @@ final readonly class CandidateWriter
                 $candidates = [];
 
                 if (isset($retail[$variantId])) {
+                    // Wholesale lines only (§1.4): each band from its quantity.
+                    foreach ($bands[$variantId] ?? [] as $band) {
+                        $candidates[] = new Candidate(SaleMode::Wholesale, $band->fromQuantity, $band->amount, PriceKind::Quantity);
+                    }
+
                     foreach ([SaleMode::Retail, SaleMode::Wholesale] as $mode) {
                         $candidates[] = new Candidate($mode, 1, $retail[$variantId], PriceKind::Base);
 
