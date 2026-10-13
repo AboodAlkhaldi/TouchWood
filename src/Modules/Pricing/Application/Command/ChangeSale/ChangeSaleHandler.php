@@ -7,6 +7,7 @@ namespace Modules\Pricing\Application\Command\ChangeSale;
 use Carbon\CarbonImmutable;
 use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\CandidateWriter;
+use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
 use Modules\Pricing\Application\Prices\SaleCheck;
@@ -33,6 +34,7 @@ final readonly class ChangeSaleHandler
         private SaleCheck $check,
         private Sales $sales,
         private CandidateWriter $writer,
+        private PriceWindowTasks $tasks,
     ) {}
 
     public function handle(ChangeSale $command): void
@@ -80,6 +82,8 @@ final readonly class ChangeSaleHandler
 
             $this->sales->save($after);
             $this->writer->refresh($storeId, $after->variantIds);
+            // New tasks for its moments to come; one queued for a moment it no longer has does nothing.
+            $this->tasks->queue($storeId, $after->id, $after->momentsAfter($now));
 
             return [null, [SaleAudit::entry('pricing.sale.changed', $before, $after, $store->currencyExponent)]];
         });

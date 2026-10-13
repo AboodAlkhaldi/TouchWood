@@ -70,6 +70,19 @@ final readonly class DatabaseSales implements Sales
         return $this->sales($this->notEndedQuery($store, $at)->get()->values()->all());
     }
 
+    public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        [$after, $by] = [$from->format('Y-m-d H:i:s.uP'), $to->format('Y-m-d H:i:s.uP')];
+
+        return $this->sales($this->db->table('pricing.sales as s')
+            ->where(fn (Builder $query) => $query
+                ->where(fn (Builder $start) => $start->where('s.starts_at', '>', $after)->where('s.starts_at', '<=', $by))
+                ->orWhere(fn (Builder $end) => $end->where('s.ends_at', '>', $after)->where('s.ends_at', '<=', $by)))
+            ->orderBy('s.store_id')->orderBy('s.id')
+            ->select('s.*')
+            ->get()->values()->all());
+    }
+
     private function notEndedQuery(StoreId $store, DateTimeImmutable $at): Builder
     {
         return $this->db->table('pricing.sales as s')

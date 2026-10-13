@@ -6,15 +6,14 @@ namespace Modules\Pricing\Application\Command\AddSale;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
-use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\CandidateWriter;
+use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
 use Modules\Pricing\Application\Prices\SaleCheck;
 use Modules\Pricing\Application\Prices\SaleInput;
-use Modules\Pricing\Application\Prices\SizeInput;
+use Modules\Pricing\Application\Prices\SaleSizes;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Repository\Sales;
@@ -23,9 +22,10 @@ use Modules\Pricing\Domain\ValueObject\Sale;
 /**
  * **Adding a sale** (pricing.md §1.3, §3), under **Edit Prices and Sales** in that store - in a wired
  * store too: every sale is ours, the provider gives the base price only (owner, 2026-10-13). For one
- * size, some of a product's (owner, 2026-10-13), or every size of a product - kept as one sale over
- * them, a size added later not in it. Checked by `SaleCheck` under the store's lock, saved, its sizes' candidates written
- * again and Catalog told, audited.
+ * size, some of a product's (owner, 2026-10-13), or every size of a product (`SaleSizes`) - kept as one
+ * sale over them, a size added later not in it. Checked by `SaleCheck` under the store's lock, saved,
+ * its sizes' candidates written again and Catalog told, its start and end queued as timed tasks
+ * (§1.10), audited.
  */
 final readonly class AddSaleHandler
 {
@@ -33,11 +33,11 @@ final readonly class AddSaleHandler
 
     public function __construct(
         private PricingChange $change,
-        private CatalogApi $catalog,
-        private SizeInput $sizes,
+        private SaleSizes $sizes,
         private SaleCheck $check,
         private Sales $sales,
         private CandidateWriter $writer,
+        private PriceWindowTasks $tasks,
     ) {}
 
     /**
@@ -52,7 +52,7 @@ final readonly class AddSaleHandler
             throw new InvalidPricingInput($command->percent === null ? 'price' : 'percent');
         }
 
-        [$productId, $variantIds] = $this->sizesOf($command);
+        [$productId, $variantIds] = $this->sizes->of($command->productId, $command->variantIds);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $sale = new Sale(
             strtolower((string) Str::ulid()),
@@ -70,39 +70,9 @@ final readonly class AddSaleHandler
             $this->check->check($storeId, $sale);
             $this->sales->save($sale);
             $this->writer->refresh($storeId, $sale->variantIds);
+            $this->tasks->queue($storeId, $sale->id, $sale->momentsAfter(CarbonImmutable::now()->toDateTimeImmutable()));
 
             return [$sale->id, [SaleAudit::entry('pricing.sale.added', null, $sale, $store->currencyExponent)]];
         });
-    }
-
-    /**
-     * @return array{string, list<string>} the product, and the sizes in size-id order
-     */
-    private function sizesOf(AddSale $command): array
-    {
-        if ($command->variantIds === []) {
-            // Every size of the product, as it is now (§1.3); archived ones left out, and none of an
-            // archived product - read-only until it is restored (§7; owner, 2026-10-11).
-            $product = $command->productId === null ? null : $this->catalog->product($command->productId);
-            $variantIds = $product === null || $product->stage === ProductStage::Archived ? [] : $this->catalog->variantIdsOf($product->id);
-
-            if ($product === null || $variantIds === []) {
-                throw new InvalidPricingInput('product');
-            }
-        } else {
-            // One size or some of one product's (§1.3; owner, 2026-10-13): never two products'.
-            $variantIds = array_values(array_unique($this->sizes->check($command->variantIds)));
-            $products = array_values(array_unique(array_map(fn (string $id): string => (string) $this->catalog->variant($id)?->productId, $variantIds)));
-
-            if (count($products) !== 1 || ($command->productId !== null && strtolower(trim($command->productId)) !== $products[0])) {
-                throw new InvalidPricingInput('variant');
-            }
-
-            $product = $this->catalog->product($products[0]) ?? throw new InvalidPricingInput('product');
-        }
-
-        sort($variantIds);
-
-        return [$product->id, $variantIds];
     }
 }

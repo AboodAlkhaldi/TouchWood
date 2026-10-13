@@ -31,4 +31,12 @@ interface Sales
      * @return list<Sale> every sale in the store not ended by then
      */
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
+
+    /**
+     * The daily safety check's read (§1.10), the one that names no store: every sale, in any store, whose
+     * start or end fell after `$from` and by `$to`.
+     *
+     * @return list<Sale>
+     */
+    public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array;
 }
