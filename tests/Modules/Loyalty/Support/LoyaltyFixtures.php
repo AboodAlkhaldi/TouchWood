@@ -167,6 +167,16 @@ final class LoyaltyFixtures
             {
                 return ! $this->recordedMeanwhile && $this->real->earn($account, $orderId, $orderNumber, $currencyCode, $goodsTotalMinor, $points, $expiresAt, $now);
             }
+
+            public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void
+            {
+                $this->real->add($account, $points, $staffId, $reason, $expiresAt, $now);
+            }
+
+            public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void
+            {
+                $this->real->deduct($account, $points, $staffId, $reason, $now);
+            }
         });
     }
 }
