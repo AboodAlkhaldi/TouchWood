@@ -100,7 +100,9 @@ it('refuses bands that do not start at the minimum, are not cheaper as they go, 
     expect(fn () => wholesaleSet($size, [10 => '85']))->toThrow(BandsInvalid::class)
         ->and(fn () => wholesaleSet($size, [20 => '85', 100 => '85']))->toThrow(BandsInvalid::class)
         ->and(fn () => wholesaleSet($size, [20 => '100']))->toThrow(BandsInvalid::class)
-        ->and(Rx::invalid(fn () => wholesaleSet($size, [0 => '85']))?->attribute)->toBe('quantity');
+        ->and(Rx::invalid(fn () => wholesaleSet($size, [0 => '85']))?->attribute)->toBe('quantity')
+        // Above what the column keeps: refused as a quantity, never a database error.
+        ->and(Rx::invalid(fn () => wholesaleSet($size, [20 => '85', 3000000000 => '70']))?->attribute)->toBe('quantity');
 
     wholesaleSet($size, [20 => '99.99']);
 

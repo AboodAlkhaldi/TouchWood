@@ -12,6 +12,7 @@ use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SizeInput;
+use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
@@ -57,8 +58,9 @@ final readonly class SetWholesalePricesHandler
         $bands = [];
 
         foreach ($command->bands as $from => $price) {
-            // A key that looks like a number arrives as one; anything else is not a quantity.
-            if (! is_int($from) || $from < 1) {
+            // A key that looks like a number arrives as one; anything else is not a quantity - nor is one
+            // above what the column keeps, the most a line may order (§2.1).
+            if (! is_int($from) || $from < 1 || $from > PricingApiImpl::QUANTITY_MOST) {
                 throw new InvalidPricingInput('quantity');
             }
 
