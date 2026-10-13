@@ -18,9 +18,10 @@ The module is built in six steps (the execution plan, 2026-10-10). Done:
 | 3a — the contract | `LoyaltyApi` for Sales: what an order would earn, a redemption's quote, placing it, earning on delivery, a balance; the caller's permission checked in the order's store | below |
 
 | 3b — by hand and expiry | Admins adding and removing points, audited; the nightly expiry job | below |
+| 4a — the settlement rules | Cancellations, returns and staff edits worked out as pure code | below |
+| 4b — settlements on the ledger | Those settlements written, Sales's four calls, four more database rules (answer 19) | below |
 
-Still to come: settling cancellations, returns and staff edits (4), the reads behind the screens (5),
-the module's own pass (6).
+Still to come: the reads behind the screens (5), the module's own pass (6).
 
 ## What is here
 
@@ -110,6 +111,26 @@ the module's own pass (6).
   `loyalty.points.expire` is reserved, and a Super Admin or a job queued for one is refused too.
   It reads the accounts with a dead lot a page at a time (`PointsAccounts::withDeadLots`) and runs
   each through `lockOrCreate` in its own transaction. Not audited: the ledger is its record.
+- **`Domain/Service/Settlement`**, **`…/SettlementTargets`**, **`Domain/Model/Settlement/*`** (spec
+  §1.3, §1.8) — a settlement worked out on what the account holds, pure. **Give back** from the
+  order's takes in the order spent: each point to its lot, which first undoes its covers (lot covers
+  oldest first, back to the lots that covered — their own covers first; then covers by expired
+  points and drops, which go nowhere); the rest lands with its date, expired at once if it passed.
+  **Take back** from the order's earned lot: its live points, then what left it by expiry or by
+  hand (counted once — points that came back to it expired included), then cover the rest by the
+  order's own expired given-back points, this settlement's given-back points where they landed, the
+  customer's other lots expiring first — or drop it. By running totals, so parts land exactly.
+  Only points landing on the lot the order took them from count as its own (my reading, step 4a).
+- **`Domain/Repository/PointsSettlements`**, **`Infrastructure/Eloquent/DatabasePointsSettlements`**,
+  **`Application/Points/OrderSettlement`**, **`Application/Command/Settle*`** — `orderCancelled`,
+  `orderReturned`, `orderEdited` and the read `pointsAfterEdit` (in `SalesReads`): the account
+  locked, then the order's row, then every lot of the account; the snapshot worked out and written
+  in one go (the settlement's `order_returns` row first, each entry with its movements, lots, takes,
+  covers, the order's totals, the balance). Once per return, edit or cancellation. A cancellation
+  after delivery, a return before it and an edit after it are refused (`OrderNotSettleable`).
+  Migration `…_add_loyalty_settlement_rules`: an expiry naming a return names its order; every cover
+  names its return; expired points kept never pass the points given back outside covers; an
+  entry's return is a settlement of its order.
 
 ## Approaches
 
@@ -144,4 +165,7 @@ on two connections — the only Loyalty test outside RefreshDatabase's transacti
 own rows and empties the test database with `migrate:fresh` before and after itself. Step 3b:
 `LoyaltyByHandTest` adding and removing, the reason and points rules, who may, and the audit;
 `LoyaltyExpiryTest` the sweep store by store, its paging, its schedule and that it is the system's
-alone.
+alone. Step 4: `Unit/SettlementTest` the rules on an in-memory book (`Support/PointsBook`) — the
+owner's examples both ways, the third-order case pinned, answer 16, a three-part return, edits, and
+40 random histories that never go below 0 or lose a point; `LoyaltySettlementsTest` the same on the
+ledger through `LoyaltyApi`, every lot equal to its movements and the balance to its lots.

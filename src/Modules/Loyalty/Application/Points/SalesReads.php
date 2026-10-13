@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Application\Points;
 
 use Carbon\CarbonImmutable;
+use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
+use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Domain\Repository\PointsSettlements;
 use Modules\Loyalty\Domain\Service\PointsArithmetic;
 use Modules\Loyalty\Domain\Service\RedemptionRules;
+use Modules\Loyalty\Domain\Service\SettlementTargets;
+use Modules\Loyalty\Public\Dto\EditedPoints;
+use Modules\Loyalty\Public\Dto\EditedPointsRequest;
 use Modules\Loyalty\Public\Dto\PointsBalanceDto;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
@@ -23,6 +29,8 @@ final readonly class SalesReads
     public function __construct(
         private ProgrammeReader $programmes,
         private PointsAccounts $accounts,
+        private PointsLedger $ledger,
+        private PointsSettlements $settlements,
     ) {}
 
     public function earningPreview(string $storeId, Money $goodsTotal): int
@@ -51,6 +59,35 @@ final readonly class SalesReads
             Money::of($redemption->discountMinor, $programme->currencyCode),
             $redemption->refusal,
         );
+    }
+
+    /**
+     * What a staff edit before shipping leaves the points to pay (§1.8): the least of the discount
+     * now, the cap on the edited net subtotal by the percent the order redeemed under, and the room
+     * the coupon left. An order that used no points has none to keep.
+     */
+    public function pointsAfterEdit(EditedPointsRequest $request): EditedPoints
+    {
+        $store = Inputs::store($request->storeId);
+        $orderId = Inputs::id($request->orderId, 'order');
+        $programme = $this->programmes->of($store);
+        $net = Inputs::amount($request->editedNetSubtotal, $programme);
+        $room = Inputs::amount($request->room, $programme);
+        $recorded = $this->ledger->order($orderId);
+
+        if ($recorded !== null && ! $recorded->store->equals($store)) {
+            throw new InvalidPointsAttribute('store', 'not the order\'s recorded store');
+        }
+
+        $facts = $this->settlements->facts($orderId);
+
+        if ($facts === null || $facts->pointsRedeemed === 0) {
+            return new EditedPoints(Money::zero($programme->currencyCode), 0);
+        }
+
+        [$discount, $points] = SettlementTargets::afterEdit($facts, $facts->capPercent ?? 0, $net, $room);
+
+        return new EditedPoints(Money::of($discount, $programme->currencyCode), $points);
     }
 
     public function balance(string $customerId, string $storeId): PointsBalanceDto

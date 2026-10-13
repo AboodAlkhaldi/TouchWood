@@ -46,6 +46,7 @@ return [
         'rate' => 'points rate',
         'customer' => 'customer',
         'order' => 'order',
+        'return' => 'return',
         'order_number' => 'order number',
     ],
 ];
