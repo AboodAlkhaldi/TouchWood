@@ -8,13 +8,24 @@ use Modules\Loyalty\Application\Command\Earn\Earn;
 use Modules\Loyalty\Application\Command\Earn\EarnHandler;
 use Modules\Loyalty\Application\Command\Redeem\Redeem;
 use Modules\Loyalty\Application\Command\Redeem\RedeemHandler;
+use Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrder;
+use Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrderHandler;
+use Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrder;
+use Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrderHandler;
+use Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrder;
+use Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrderHandler;
 use Modules\Loyalty\Application\Points\SalesReads;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\EarnPoints;
+use Modules\Loyalty\Public\Dto\EditedPoints;
+use Modules\Loyalty\Public\Dto\EditedPointsRequest;
 use Modules\Loyalty\Public\Dto\PointsBalanceDto;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
+use Modules\Loyalty\Public\Dto\SettleEdit;
+use Modules\Loyalty\Public\Dto\SettleOrder;
+use Modules\Loyalty\Public\Dto\SettleReturn;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -27,6 +38,9 @@ final readonly class LoyaltyApiImpl implements LoyaltyApi
         private SalesReads $reads,
         private RedeemHandler $redeem,
         private EarnHandler $earn,
+        private SettleCancelledOrderHandler $cancelled,
+        private SettleReturnedOrderHandler $returned,
+        private SettleEditedOrderHandler $edited,
     ) {}
 
     public function earningPreview(string $storeId, Money $goodsTotal): int
@@ -52,5 +66,25 @@ final readonly class LoyaltyApiImpl implements LoyaltyApi
     public function balance(string $customerId, string $storeId): PointsBalanceDto
     {
         return $this->reads->balance($customerId, $storeId);
+    }
+
+    public function orderCancelled(SettleOrder $change): void
+    {
+        $this->cancelled->handle(new SettleCancelledOrder($change));
+    }
+
+    public function orderReturned(SettleReturn $change): void
+    {
+        $this->returned->handle(new SettleReturnedOrder($change));
+    }
+
+    public function pointsAfterEdit(EditedPointsRequest $request): EditedPoints
+    {
+        return $this->reads->pointsAfterEdit($request);
+    }
+
+    public function orderEdited(SettleEdit $change): EditedPoints
+    {
+        return $this->edited->handle(new SettleEditedOrder($change));
     }
 }

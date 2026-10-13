@@ -144,10 +144,12 @@ it('takes a whole valid ledger: every table holds its row', function () {
     // an expiry may name the order and return it follows from (§1.9, §1.10).
     loyaltyLedgerEntry($r, ['kind' => 'DEDUCTED', 'points' => -5, 'staff_id' => $r['staff'], 'reason' => 'Goodwill withdrawn']);
     loyaltyLedgerEntry($r, ['kind' => 'EARNING_REVERSED', 'points' => -5, 'order_id' => $r['orderA'], 'return_id' => $r['return']]);
-    loyaltyLedgerEntry($r, ['kind' => 'EARNING_REVERSED', 'points' => -5, 'order_id' => $r['orderA'], 'return_id' => loyaltyLedgerUlid()]);
+    $secondReturn = loyaltyLedgerUlid();
+    DB::table('loyalty.order_returns')->insert(['order_id' => $r['orderA'], 'account_id' => $r['account'], 'return_id' => $secondReturn, 'returned_goods_minor' => 0, 'returned_discount_minor' => 0]);
+    loyaltyLedgerEntry($r, ['kind' => 'EARNING_REVERSED', 'points' => -5, 'order_id' => $r['orderA'], 'return_id' => $secondReturn]);
     loyaltyLedgerEntry($r, ['kind' => 'EXPIRED', 'points' => -5, 'order_id' => $r['orderA'], 'return_id' => $r['return']]);
     // A LOT cover names the account's own take.
-    DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'LOT', 'source_take_id' => $r['take'], 'points' => 5]);
+    DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'LOT', 'source_take_id' => $r['take'], 'points' => 5]);
 
     expect(DB::table('loyalty.entries')->count())->toBe(6)
         ->and(DB::table('loyalty.covers')->count())->toBe(2);
@@ -200,7 +202,13 @@ it('refuses what the code would never write', function (Closure $write, string $
     'returned goods past the goods total' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderA'])->update(['returned_goods_minor' => 20_001]), 'orders_returned_goods'],
     'a returned discount past the discount' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderB'])->update(['returned_discount_minor' => 101]), 'orders_returned_discount'],
     'more given back than redeemed' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderB'])->update(['points_given_back' => 101]), 'orders_given_back'],
-    'more back through covers than given back' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderB'])->update(['points_back_through_covers' => 1]), 'orders_given_back'],
+    // More back through covers than given back leaves the expired points kept below 0 as well: the
+    // newer rule, first by name, answers (answer 19).
+    'more back through covers than given back' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderB'])->update(['points_back_through_covers' => 1]), 'orders_expired_back'],
+    'more expired points kept than given back outside covers' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderB'])->update(['points_given_back' => 10, 'points_back_through_covers' => 4, 'expired_back_unused' => 7]), 'orders_expired_back'],
+    'an expiry naming a return but no order' => [fn (array $r) => loyaltyLedgerEntry($r, ['kind' => 'EXPIRED', 'points' => -5, 'return_id' => $r['return']]), 'entries_expired_return_order'],
+    'an entry naming a return that is no settlement of its order' => [fn (array $r) => loyaltyLedgerEntry($r, ['kind' => 'EARNING_REVERSED', 'points' => -5, 'order_id' => $r['orderA'], 'return_id' => loyaltyLedgerUlid()]), 'entries_settlement'],
+    'a cover naming no return' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'DROPPED', 'points' => 5]), 'null value in column "return_id"'],
     'more settled than earned' => [fn (array $r) => DB::table('loyalty.orders')->where('order_id', $r['orderA'])->update(['points_reversed' => 201]), 'orders_earned_settled'],
     'an order of another store\'s account' => [fn (array $r) => DB::table('loyalty.orders')->insert(['order_id' => loyaltyLedgerUlid(), 'order_number' => 'EG-1', 'account_id' => $r['account'], 'store_id' => $r['eg'], 'currency_code' => 'EGP']), 'orders_account'],
     // order_returns
@@ -252,15 +260,15 @@ it('refuses what the code would never write', function (Closure $write, string $
     'a take from another account\'s lot' => [fn (array $r) => DB::table('loyalty.takes')->insert(['account_id' => $r['otherAccount'], 'lot_id' => $r['lot'], 'entry_id' => loyaltyLedgerOtherEntry($r), 'kind' => 'REDEMPTION', 'points' => 5]), 'takes_lot'],
     'a take by another account\'s entry' => [fn (array $r) => DB::table('loyalty.takes')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'entry_id' => loyaltyLedgerOtherEntry($r), 'kind' => 'REDEMPTION', 'points' => 5]), 'takes_entry'],
     // covers
-    'an unknown source of a cover' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'GIFT', 'points' => 5]), 'covers_source'],
-    'a lot cover with no take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'LOT', 'points' => 5]), 'covers_take_for_lot'],
-    'a dropped cover with a take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'DROPPED', 'source_take_id' => $r['take'], 'points' => 5]), 'covers_take_for_lot'],
-    'a cover of 0 points' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'DROPPED', 'points' => 0]), 'covers_points'],
+    'an unknown source of a cover' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'GIFT', 'points' => 5]), 'covers_source'],
+    'a lot cover with no take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'LOT', 'points' => 5]), 'covers_take_for_lot'],
+    'a dropped cover with a take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'DROPPED', 'source_take_id' => $r['take'], 'points' => 5]), 'covers_take_for_lot'],
+    'a cover of 0 points' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'DROPPED', 'points' => 0]), 'covers_points'],
     'more undone than covered' => [fn (array $r) => DB::table('loyalty.covers')->where('lot_id', $r['lot'])->update(['undone' => 11]), 'covers_points'],
     'less than nothing undone' => [fn (array $r) => DB::table('loyalty.covers')->where('lot_id', $r['lot'])->update(['undone' => -1]), 'covers_points'],
-    'a cover on another account\'s lot' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['otherAccount'], 'lot_id' => $r['lot'], 'order_id' => loyaltyLedgerOtherOrder($r), 'source' => 'DROPPED', 'points' => 5]), 'covers_lot'],
-    'a cover for another account\'s order' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => loyaltyLedgerOtherOrder($r), 'source' => 'DROPPED', 'points' => 5]), 'covers_order'],
-    'a lot cover by another account\'s take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'source' => 'LOT', 'source_take_id' => loyaltyLedgerOtherTake($r), 'points' => 5]), 'covers_source_take'],
+    'a cover on another account\'s lot' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['otherAccount'], 'lot_id' => $r['lot'], 'order_id' => loyaltyLedgerOtherOrder($r), 'return_id' => $r['return'], 'source' => 'DROPPED', 'points' => 5]), 'covers_lot'],
+    'a cover for another account\'s order' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => loyaltyLedgerOtherOrder($r), 'return_id' => $r['return'], 'source' => 'DROPPED', 'points' => 5]), 'covers_order'],
+    'a lot cover by another account\'s take' => [fn (array $r) => DB::table('loyalty.covers')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'order_id' => $r['orderA'], 'return_id' => $r['return'], 'source' => 'LOT', 'source_take_id' => loyaltyLedgerOtherTake($r), 'points' => 5]), 'covers_source_take'],
     // lot_movements
     'a movement of 0 points' => [fn (array $r) => DB::table('loyalty.lot_movements')->insert(['account_id' => $r['account'], 'lot_id' => $r['lot'], 'entry_id' => $r['earned'], 'points' => 0]), 'lot_movements_points'],
     'a movement on another account\'s lot' => [fn (array $r) => DB::table('loyalty.lot_movements')->insert(['account_id' => $r['otherAccount'], 'lot_id' => $r['lot'], 'entry_id' => loyaltyLedgerOtherEntry($r), 'points' => 5]), 'lot_movements_lot'],
