@@ -132,7 +132,9 @@ links every entry to its route.
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
 (accepted with #106): staff may set its stock like any other, and once it has a stock row it is on the Low
 Stock list too. The list covers every size the store has switched on **and** every size with a stock
-row there. Without stock it gives nothing (`availableAsGift` 0).
+row there. Without stock it gives nothing (`availableAsGift` 0). **An archived size — or a size of an
+archived product — is left off** the list and its count: staff cannot change its stock until it is
+restored, and then it is back if it is low (owner, 2026-10-13).
 
 ### 1.8 The store's file (catalog.md §2.3)
 

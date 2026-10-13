@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFile;
@@ -87,6 +91,21 @@ describe('the Low Stock list (§1.7)', function () {
 
         // Its own threshold: at it is low.
         expect(lowStockList())->toBe([$none, $few, $plenty]);
+    });
+
+    it('leaves an archived size off, and a size of an archived product (owner, 2026-10-13)', function () {
+        $ready = lowStockReady(['60 cm', '80 cm']);
+        [$archived, $kept] = $ready['variants'];
+        $other = lowStockReady(['60 cm']);
+        // Stock rows of their own, so they would stay on the list by them once archived.
+        Ix::count('sa', [$archived => 2, $kept => 2, $other['variants'][0] => 2]);
+
+        expect(lowStockList())->toEqualCanonicalizing([$archived, $kept, $other['variants'][0]]);
+
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($archived)));
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($other['product'])));
+
+        expect(lowStockList())->toBe([$kept]);
     });
 
     it('counts what orders hold: available is in stock less held', function () {

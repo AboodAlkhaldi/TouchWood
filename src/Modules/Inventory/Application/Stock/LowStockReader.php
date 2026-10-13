@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Inventory\Application\Stock;
 
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Service\StockFigures;
@@ -17,7 +19,7 @@ use Shared\Domain\ValueObject\StoreId;
  * **Low stock** (inventory.md §1.7): a size is low when what can be ordered or given now is at or below
  * its threshold - its own, or the store's default. Over every size the store has switched on and every
  * size with a stock row there (a size given only as a gift, once stocked); a size with no row counts as
- * 0 (§9.2 #6). In a wired store an ordinary product is low by the provider's number. One reader for the
+ * 0 (§9.2 #6); an archived size left off (owner, 2026-10-13). In a wired store an ordinary product is low by the provider's number. One reader for the
  * list, its count and the Home card, so the three never disagree.
  */
 final readonly class LowStockReader
@@ -72,6 +74,31 @@ final readonly class LowStockReader
 
         usort($low, static fn (LowSize $a, LowSize $b): int => [$a->free, $a->variantId] <=> [$b->free, $b->variantId]);
 
-        return $low;
+        return $this->withoutArchived($low);
+    }
+
+    /**
+     * An archived size - or a size of an archived product - is left off: staff cannot change its stock
+     * until it is restored, and then it is back if it is low (owner, 2026-10-13). A size Catalog no
+     * longer has is left off too. Two reads of Catalog, over the low sizes only.
+     *
+     * @param  list<LowSize>  $low
+     * @return list<LowSize>
+     */
+    private function withoutArchived(array $low): array
+    {
+        if ($low === []) {
+            return [];
+        }
+
+        $variants = $this->catalog->variants(array_map(static fn (LowSize $size): string => $size->variantId, $low));
+        $products = $this->catalog->products(array_values(array_unique(array_map(static fn (VariantDto $variant): string => $variant->productId, array_values($variants)))));
+
+        return array_values(array_filter($low, static function (LowSize $size) use ($variants, $products): bool {
+            $variant = $variants[$size->variantId] ?? null;
+            $product = $variant === null ? null : ($products[$variant->productId] ?? null);
+
+            return $variant !== null && ! $variant->isArchived && $product !== null && $product->stage !== ProductStage::Archived;
+        }));
     }
 }
