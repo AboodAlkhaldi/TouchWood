@@ -72,11 +72,12 @@ final readonly class ChangeSaleHandler
                 }
 
                 $after = new Sale($before->id, $before->storeId, $before->productId, $before->percentBasisPoints, $before->price, $before->startsAt, $endsAt, $before->alwaysWins, $before->variantIds);
+                $this->check->checkNewEnd($storeId, $after);
             } else {
                 $after = new Sale($before->id, $before->storeId, $before->productId, $percent, $price, SaleInput::start($command->startsAt, $now), $endsAt, $command->alwaysWins, $before->variantIds);
+                $this->check->check($storeId, $after);
             }
 
-            $this->check->check($storeId, $after);
             $this->sales->save($after);
             $this->writer->refresh($storeId, $after->variantIds);
 

@@ -32,6 +32,6 @@ final class CeilingBelowSales extends PricingError
 
     public function context(): array
     {
-        return ['sales' => implode(',', $this->sales)];
+        return ['sales' => implode(',', $this->sales), 'count' => count($this->sales)];
     }
 }

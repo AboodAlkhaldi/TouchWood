@@ -7,6 +7,7 @@ namespace Modules\Pricing\Infrastructure;
 use Modules\Platform\Public\Contracts\SettingGuard;
 use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Domain\Exception\CeilingBelowSales;
+use Modules\Pricing\Domain\Repository\PricingLocks;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -17,6 +18,7 @@ final readonly class CeilingGuard implements SettingGuard
 {
     public function __construct(
         private CeilingCheck $check,
+        private PricingLocks $locks,
     ) {}
 
     public function check(string $key, ?StoreId $store, mixed $from, mixed $to): void
@@ -25,6 +27,9 @@ final readonly class CeilingGuard implements SettingGuard
             return;
         }
 
+        // The store's pricing lock, so a sale or a retail price saved meanwhile is seen here - and one
+        // waiting for it reads the new ceiling. The setting is locked first, never the other way round.
+        $this->locks->lockStore($store);
         $over = $this->check->salesOver($store, $to);
 
         if ($over !== []) {

@@ -87,12 +87,17 @@ return [
     ],
     'ceiling_below_sales' => [
         'title' => 'Sales go deeper',
-        'detail' => 'Some running or scheduled sales go deeper than this ceiling. Change or end them first.',
+        'detail' => ':count running or scheduled sales go deeper than this ceiling. Change or end them first.',
     ],
 
     'fields' => [
         'amount' => 'price',
+        'ends_at' => 'end',
+        'percent' => 'percentage',
+        'price' => 'sale price',
+        'product' => 'product',
         'quantity' => 'quantity',
+        'starts_at' => 'start',
         'store' => 'store',
         'variant' => 'size',
     ],

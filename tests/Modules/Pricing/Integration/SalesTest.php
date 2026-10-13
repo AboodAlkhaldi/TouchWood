@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -117,8 +119,39 @@ describe('adding a sale', function () {
 
         Rx::set('sa', [$b => '50']);
 
+        try {
+            salesAdd([], price: '60', productId: $ready['product']);
+            $notBelow = null;
+        } catch (SaleNotBelowRetail $error) {
+            $notBelow = $error->variants;
+        }
+
+        Rx::set('sa', [$a => '0.01', $b => '0.02']);
+        salesCeiling(100);
+
+        try {
+            salesAdd([], percent: '99.99', productId: $ready['product']);
+            $zero = null;
+        } catch (PriceNotPositive $error) {
+            $zero = $error->variants;
+        }
+
         expect($named)->toBe([$b])
-            ->and(fn () => salesAdd([$a, $b], price: '60'))->toThrow(SaleNotBelowRetail::class)
+            ->and($notBelow)->toBe([$b])
+            ->and($zero)->toBe([$a, $b])
+            ->and(DB::table('pricing.sales')->count())->toBe(0);
+    });
+
+    it('takes one size or every size of a product, never some, and nothing of an archived product', function () {
+        $ready = Px::ready(['60 cm', '80 cm', '100 cm']);
+        Rx::set('sa', array_fill_keys($ready['variants'], '100'));
+
+        expect(Rx::invalid(fn () => salesAdd([$ready['variants'][0], $ready['variants'][1]], percent: '10'))?->attribute)->toBe('variant');
+
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($ready['product'])));
+
+        expect(Rx::invalid(fn () => salesAdd([], percent: '10', productId: $ready['product']))?->attribute)->toBe('product')
+            ->and(Rx::invalid(fn () => salesAdd([$ready['variants'][0]], percent: '10'))?->attribute)->toBe('variant')
             ->and(DB::table('pricing.sales')->count())->toBe(0);
     });
 
@@ -185,6 +218,18 @@ describe('a sale\'s life (§4.1)', function () {
         expect(fn () => Fx::asSystem(fn () => $handler->handle(new ChangeSale($running, '5', null, null, null))))->toThrow(NotChangeable::class);
     });
 
+    it('gives a running sale a new end though the retail price has since dropped below its price (§1.3)', function () {
+        $size = Px::ready()['variants'][0];
+        Rx::set('sa', [$size => '100']);
+        $running = salesAdd([$size], price: '75');
+        Rx::set('sa', [$size => '60']);
+
+        Fx::asSystem(fn () => app(ChangeSaleHandler::class)->handle(new ChangeSale($running, null, '75', null, '2026-10-20 00:00:00+00')));
+
+        expect((string) DB::table('pricing.sales')->where('id', $running)->value('ends_at'))->toStartWith('2026-10-20')
+            ->and(salesUnit($size))->toBe(6000);
+    });
+
     it('ends a running sale now and removes a scheduled one, each refused in the other state', function () {
         $size = Px::ready()['variants'][0];
         Rx::set('sa', [$size => '100']);
@@ -225,6 +270,17 @@ describe('the ceiling held (owner, 2026-10-11/13)', function () {
         salesCeiling(40);
 
         expect(DB::table('platform.settings')->where('key', PricingSettings::MAX_DISCOUNT_PERCENT)->value('value'))->toBe('40');
+    });
+
+    it('reads the sales under the store\'s pricing lock, so one saved meanwhile is seen', function () {
+        Px::ready();
+        $queries = Cx::recordQueries();
+
+        salesCeiling(20);
+
+        $locks = array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], 'pg_advisory_xact_lock')));
+
+        expect(array_column($locks, 'bindings'))->toContain(['pricing:store:'.Rx::storeId('sa')]);
     });
 
     it('holds back a retail price that would take a fixed-price sale past the ceiling', function () {

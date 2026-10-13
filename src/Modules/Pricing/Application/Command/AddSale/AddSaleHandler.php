@@ -7,6 +7,7 @@ namespace Modules\Pricing\Application\Command\AddSale;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
@@ -22,8 +23,7 @@ use Modules\Pricing\Domain\ValueObject\Sale;
 /**
  * **Adding a sale** (pricing.md §1.3, §3), under **Edit Prices and Sales** in that store - in a wired
  * store too: every sale is ours, the provider gives the base price only (owner, 2026-10-13). For one
- * size, some of a product's, or every size of a product - kept as one sale over them, a size added
- * later not in it. Checked by `SaleCheck` under the store's lock, saved, its sizes' candidates written
+ * size, or every size of a product - kept as one sale over them, a size added later not in it. Checked by `SaleCheck` under the store's lock, saved, its sizes' candidates written
  * again and Catalog told, audited.
  */
 final readonly class AddSaleHandler
@@ -80,24 +80,24 @@ final readonly class AddSaleHandler
     private function sizesOf(AddSale $command): array
     {
         if ($command->variantIds === []) {
-            // Every size of the product, as it is now (§1.3); archived ones left out.
+            // Every size of the product, as it is now (§1.3); archived ones left out, and none of an
+            // archived product - read-only until it is restored (§7; owner, 2026-10-11).
             $product = $command->productId === null ? null : $this->catalog->product($command->productId);
-            $variantIds = $product === null ? [] : $this->catalog->variantIdsOf($product->id);
+            $variantIds = $product === null || $product->stage === ProductStage::Archived ? [] : $this->catalog->variantIdsOf($product->id);
 
             if ($product === null || $variantIds === []) {
                 throw new InvalidPricingInput('product');
             }
         } else {
-            $own = $this->sizes->check($command->variantIds);
-            $variantIds = array_values(array_unique($own));
-            $products = array_values(array_unique(array_map(fn (string $id): string => (string) $this->catalog->variant($id)?->productId, $variantIds)));
+            // One size (§1.3): never some of a product's, never two products'.
+            $variantIds = array_values(array_unique($this->sizes->check($command->variantIds)));
+            $productId = count($variantIds) === 1 ? $this->catalog->variant($variantIds[0])?->productId : null;
 
-            // One sale is one product's: its sizes all belong to it.
-            if (count($products) !== 1 || ($command->productId !== null && strtolower(trim($command->productId)) !== $products[0])) {
+            if ($productId === null || ($command->productId !== null && strtolower(trim($command->productId)) !== $productId)) {
                 throw new InvalidPricingInput('variant');
             }
 
-            $product = $this->catalog->product($products[0]) ?? throw new InvalidPricingInput('product');
+            $product = $this->catalog->product($productId) ?? throw new InvalidPricingInput('product');
         }
 
         sort($variantIds);

@@ -57,7 +57,7 @@ final readonly class SaleCheck
         }
 
         $ceiling = $this->ceiling->ceiling($store);
-        $notBelow = $over = [];
+        $notBelow = $zero = $over = [];
 
         foreach ($sale->variantIds as $variantId) {
             $price = $retail[$variantId];
@@ -69,8 +69,14 @@ final readonly class SaleCheck
             }
 
             if ($sale->percentBasisPoints !== null) {
-                // A percentage that would leave 0 is refused (owner, 2026-10-10).
-                PercentOff::price($price, $sale->percentBasisPoints);
+                try {
+                    PercentOff::price($price, $sale->percentBasisPoints);
+                } catch (PriceNotPositive) {
+                    // A percentage that would leave 0 is refused (owner, 2026-10-10).
+                    $zero[] = $variantId;
+
+                    continue;
+                }
             }
 
             if ($sale->depthOn($price) > $ceiling * 100) {
@@ -82,8 +88,30 @@ final readonly class SaleCheck
             throw new SaleNotBelowRetail($notBelow);
         }
 
+        if ($zero !== []) {
+            throw new PriceNotPositive($zero);
+        }
+
         if ($over !== []) {
             throw new OverCeiling($ceiling, [], $over);
+        }
+
+        if ($sale->alwaysWins) {
+            $this->refuseTwoThatAlwaysWin($store, $sale);
+        }
+    }
+
+    /**
+     * A running sale given a new end, its price and sizes as they were (§4.1): only the dates are
+     * checked. Its price was checked when it was saved; a retail price that has since dropped below it
+     * only stops it winning (§1.3), and a higher retail price or a lower ceiling was held back (§1.12).
+     *
+     * @throws WindowInvalid|AlwaysWinsOverlap
+     */
+    public function checkNewEnd(StoreId $store, Sale $sale): void
+    {
+        if ($sale->endsAt !== null && $sale->endsAt <= $sale->startsAt) {
+            throw new WindowInvalid;
         }
 
         if ($sale->alwaysWins) {
