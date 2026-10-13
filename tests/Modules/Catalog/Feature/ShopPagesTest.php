@@ -256,6 +256,8 @@ describe('a product\'s page', function () {
         [$sixty, $eighty] = $p['variants'];
         // 80 cm sold wholesale only: an individual never sees it, nor its last pieces.
         Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$sixty => ['retail' => true, 'wholesale' => false], $eighty => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 10)));
+        // Inventory tells Catalog a size with no stock cannot be ordered (stage 5): both have stock here.
+        app(ListingFacts::class)->orderable(StoreId::fromString(Fx::storeId('sa')), [$sixty, $eighty], true);
         app(ListingFacts::class)->endingSoon(StoreId::fromString(Fx::storeId('sa')), [$eighty], true);
         $product = '/sa/en/products/'.shopPagesSlug('product', $p['product']);
         $categoryUrl = '/sa/en/categories/'.shopPagesSlug('category', $category);

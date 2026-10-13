@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Application;
 
+use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
@@ -27,7 +28,7 @@ final class InventorySettings
     {
         return [
             new SettingDefinitionDto(
-                self::LOW_STOCK_DEFAULT, SettingScope::Store, SettingType::Integer, ['min:0', 'max:100000'], 10, InventoryPermissions::STOCK_MANAGE,
+                self::LOW_STOCK_DEFAULT, SettingScope::Store, SettingType::Integer, ['min:0', 'max:'.StockLimits::THRESHOLD_MOST], 10, InventoryPermissions::STOCK_MANAGE,
             ),
         ];
     }
