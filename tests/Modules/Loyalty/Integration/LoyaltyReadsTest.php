@@ -87,6 +87,11 @@ it('shows a customer with no points there a balance of 0, and refuses anyone but
     Fx::actAsAdmin(['sa'], [LoyaltyPermissions::VIEW]);
 
     expect(fn () => app(ViewMyPointsHandler::class)->handle(new ViewMyPoints(Fx::storeId('sa'))))->toThrow(Unauthorized::class);
+
+    // A Super Admin holds every permission, yet has no points of their own to read.
+    Fx::actAsStaff(Fx::staff(superAdmin: true, firstName: 'Own'));
+
+    expect(fn () => app(ViewMyPointsHandler::class)->handle(new ViewMyPoints(Fx::storeId('sa'))))->toThrow(Unauthorized::class);
 });
 
 it('shows staff each change by hand with its admin and reason — a Super Admin withheld from anyone else', function () {
