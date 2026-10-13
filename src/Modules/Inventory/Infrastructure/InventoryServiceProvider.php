@@ -78,7 +78,7 @@ final class InventoryServiceProvider extends ServiceProvider
         // entry, with LowStockCount beside it, comes with the list's screen: the menu links every
         // entry to its route.
         $this->app->make(HomeCards::class)->register(
-            new HomeCardDto('inventory', 'low_stock', InventoryPermissions::STOCK_MANAGE, LowStockCard::class, 20),
+            new HomeCardDto('inventory', 'low_stock', InventoryPermissions::STOCK_MANAGE, LowStockCard::class, 30),
         );
 
         // Catalog told of a size's figures when another module changes them (§2.3, §6.2).
