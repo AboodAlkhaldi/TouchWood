@@ -225,7 +225,7 @@ Loyalty   →  Platform, Access
 Shipping  →  Platform, Catalog
 Payments  →  Platform                         ← takes an order id + amount, nothing more
 Feedback  →  Platform, Access, Catalog, Sales ← Sales for verified-purchase
-Sync      →  Platform, Catalog, Pricing, Inventory
+Sync      →  Platform, Access (its permissions only), Catalog, Pricing, Inventory
 
 Sales     →  everything above                 ← widest surface, by design
              except Feedback and Sync:        Feedback depends on Sales (verified purchase),

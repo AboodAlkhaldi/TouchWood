@@ -19,7 +19,7 @@ Backlog to write, carried from the specification conversation:
 | 010 | Two actor types, unlimited database roles, store access on the assignment |
 | 011 | Role cloning at creation time, never live inheritance |
 | 012 | Out of stock is a stock movement, never a boolean flag |
-| 013 | Delta-based stock sync; absolute quantities only for reconciliation |
+| 013 | ~~Delta-based stock sync; absolute quantities only for reconciliation~~ — superseded (owner, 2026-10-01): the provider's number is recorded as a movement to the new value (handoff §12.2, sync.md §1.5) |
 | 014 | Cart → Quote → Order; invariants on the Quote, never on the Cart |
 | 015 | Four independent state machines, one derived status for the customer |
 | 016 | Postgres FTS + pg_trgm; no Elasticsearch |
