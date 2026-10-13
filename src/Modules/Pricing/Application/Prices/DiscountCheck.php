@@ -130,11 +130,12 @@ final readonly class DiscountCheck
         }
 
         // Another discount: by the products both reach, priced or not - a size priced later would
-        // otherwise carry two that always win (§1.3).
+        // otherwise carry two that always win (§1.3) - on a line both price: a retail-only one and a
+        // wholesale-only one never compete (owner, 2026-10-14).
         $mine = $this->coverage->products($discount);
 
         foreach ($this->discounts->notEnded($store, $now) as $other) {
-            if ($other->id !== $discount->id && $other->alwaysWins && $other->overlaps($discount->startsAt, $discount->endsAt)) {
+            if ($other->id !== $discount->id && $other->alwaysWins && $other->lines->meets($discount->lines) && $other->overlaps($discount->startsAt, $discount->endsAt)) {
                 $shared = array_intersect_key($mine, $this->coverage->products($other));
 
                 if ($shared !== []) {

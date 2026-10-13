@@ -179,6 +179,17 @@ describe('what a discount reaches (§1.5)', function () {
         expect(fn () => discountAdd($desk, percent: '5', alwaysWins: true))->toThrow(AlwaysWinsOverlap::class);
     });
 
+    it('lets two "always wins" discounts run together on lines that differ (owner, 2026-10-14)', function () {
+        $lamps = Px::category('Lamps');
+        Px::ready(['60 cm'], $lamps);
+        discountAdd($lamps, percent: '10', lines: 'RETAIL', alwaysWins: true);
+
+        discountAdd($lamps, percent: '5', lines: 'WHOLESALE', alwaysWins: true);
+
+        expect(fn () => discountAdd($lamps, percent: '5', lines: 'BOTH', alwaysWins: true))->toThrow(AlwaysWinsOverlap::class)
+            ->and(DB::table('pricing.category_discounts')->count())->toBe(2);
+    });
+
     it('goes with a category Catalog deletes - an empty one, which it reached nothing in', function () {
         $empty = Px::category('Empty');
         discountAdd($empty, percent: '10', endsAt: '2026-10-14 00:00:00+00');

@@ -19,4 +19,10 @@ enum DiscountLines: string
     {
         return $this === self::Both || $this->value === $mode->value;
     }
+
+    /** Whether two discounts can price the same line: one of them on both, or the same lines. */
+    public function meets(self $other): bool
+    {
+        return $this === self::Both || $other === self::Both || $this === $other;
+    }
 }

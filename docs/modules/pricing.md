@@ -122,7 +122,9 @@ A discount on every product in a category and its sub-categories, in one store (
   wholesale band (lowest wins).
 - **Products can be left out** by name.
 - **A start, and an end only if wanted**, as a sale; the same life (§4.1); the same note of what it
-  affects and what it overlaps, and the same **"always wins"** choice (§1.3).
+  affects and what it overlaps, and the same **"always wins"** choice (§1.3) — **two "always wins"
+  discounts on lines that differ (one retail only, one wholesale only) may run together**, as they
+  never price the same line (owner, 2026-10-14).
 - **A product moving into or out of the category follows at once**: the discount covers what is in
   the category now, not what was when it was made — a product moved (`ProductChanged`), a draft made
   ready after its category changed (`ProductMadeReady`), or a whole category moved under another
