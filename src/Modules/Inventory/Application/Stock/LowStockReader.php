@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Inventory\Application\Stock;
+
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Inventory\Application\InventorySettings;
+use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Inventory\Domain\Service\StockFigures;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Domain\ValueObject\StoreId;
+
+/**
+ * **Low stock** (inventory.md §1.7): a size is low when what can be ordered or given now is at or below
+ * its threshold - its own, or the store's default. Over every size the store has switched on and every
+ * size with a stock row there (a size given only as a gift, once stocked); a size with no row counts as
+ * 0 (§9.2 #6). In a wired store an ordinary product is low by the provider's number. One reader for the
+ * list, its count and the Home card, so the three never disagree.
+ */
+final readonly class LowStockReader
+{
+    public function __construct(
+        private PlatformApi $platform,
+        private CatalogApi $catalog,
+        private StoreWiring $wiring,
+        private StockRows $stock,
+    ) {}
+
+    /**
+     * @return list<LowSize> the low sizes, the fewest left first, then by size id
+     */
+    public function low(StoreId $store): array
+    {
+        $variantIds = array_values(array_unique([
+            ...$this->catalog->switchedOnVariantIds($store),
+            ...$this->stock->variantIds($store),
+        ]));
+        $wired = $this->wiring->isWired($store);
+        $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store)->value;
+        $rows = $this->stock->read($store, $variantIds);
+        $low = [];
+
+        foreach ($variantIds as $variantId) {
+            $row = $rows[$variantId] ?? null;
+            $free = StockFigures::free($row, $wired);
+            $threshold = $row->threshold ?? $default;
+
+            if ($free <= $threshold) {
+                $low[] = new LowSize($variantId, $row?->productId, $row->inStock ?? 0, $row->held ?? 0, $free, $threshold);
+            }
+        }
+
+        usort($low, static fn (LowSize $a, LowSize $b): int => [$a->free, $a->variantId] <=> [$b->free, $b->variantId]);
+
+        return $low;
+    }
+}

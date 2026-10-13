@@ -125,7 +125,9 @@ A size is **low** when its available stock is at or below its threshold — in a
 provider's number for an ordinary product. Per store, the **Low Stock list** — every low size — with a
 **count beside it in the menu** (Platform's `MenuCount`) and a **Home card** (Platform's `HomeCards`;
 the handoff's dashboard "low stock"), seen by holders of **Manage Stock** there (owner, 2026-10-09). In
-the panel only until Ops (stage 8) adds email and SMS (owner, 2026-10-07).
+the panel only until Ops (stage 8) adds email and SMS (owner, 2026-10-07). *(Step 4b:)* the menu's count
+adds up the stores the reader holds Manage Stock in; its entry comes with the list's screen, as the menu
+links every entry to its route.
 
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
 (accepted with #106): staff may set its stock like any other, and once it has a stock row it is on the Low
@@ -137,7 +139,10 @@ row there. Without stock it gives nothing (`availableAsGift` 0).
 Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
 is ignored in a wired store, the provider being its source. **When an item is switched on**, the stock
 **sets** the size's in stock (a "set to" movement, reason **File**), audited as the file's. **One code is
-one size** (owner, 2026-10-09; Catalog's amendment 16).
+one size** (owner, 2026-10-09; Catalog's amendment 16). *(Step 4b:)* the stock is set by a job queued
+once Catalog's change commits, never inside it — Catalog holds its products' lock there, and Inventory
+takes its store's lock before telling Catalog, so the two orders would meet; the job runs for whoever
+switched the item on.
 
 ### 1.9 Returns
 

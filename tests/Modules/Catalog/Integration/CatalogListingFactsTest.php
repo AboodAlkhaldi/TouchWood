@@ -11,6 +11,7 @@ use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFill
 use Modules\Catalog\Application\Command\SwitchOnStoreFillItems\SwitchOnStoreFillItemsHandler;
 use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFill;
 use Modules\Catalog\Application\Command\UploadStoreFill\UploadStoreFillHandler;
+use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFill;
 use Modules\Catalog\Application\Query\ViewStoreFill\ViewStoreFillHandler;
 use Modules\Catalog\Public\Contracts\ImportSection;
@@ -125,6 +126,10 @@ describe('the import\'s sections', function () {
         Fx::actAsAdmin(['sa'], [CatalogPermissions::LISTING_FILL]);
         $import = app(UploadStoreFillHandler::class)->handle(new UploadStoreFill(Fx::storeId('sa'), Ix::temp((string) json_encode(['format' => 'touchwood-store-fill/1', 'items' => [['code' => $code, 'price' => 120.5, 'stock' => 40]]])), 'prices.json'));
         $page = fn () => app(ViewStoreFillHandler::class)->handle(new ViewStoreFill($import));
+        // The registry as Catalog alone leaves it: stage 5's modules register their sections at boot.
+        $empty = new InMemoryImportSections(app());
+        app()->instance(InMemoryImportSections::class, $empty);
+        app()->instance(ImportSections::class, $empty);
 
         expect($page()->pricesKept)->toBeFalse()
             ->and($page()->items[0]->lines)->toBe([]);
