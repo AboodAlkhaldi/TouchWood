@@ -236,7 +236,7 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 | Catalog | **Many sizes and products in one read** — the Low Stock list's and the stock screens' names, within an admin page's 15 queries (frontend.md §5): `variants(list<string> $variantIds)`, `products(list<string> $productIds)`, keyed by id | On `main` with Catalog's amendment 16(i) (#114, 5bffba6) |
 | Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` is amendment 16(h) (PR #103) — kept in `catalog.store_variant_facts.ending_soon` |
 | Sales | Calls §2.1; shows the "not enough stock" flag from §6.1 | Stage 6 |
-| Sync | The provider's stock in, and a store's wired state — their shape waits for §9.1 | After the provider's answers |
+| Sync | The provider's stock in, and a store's wired state — **`ProviderStock`** and `StoreWiring` in Inventory's Public contracts (sync.md §2.3, §1.5, §1.8) | With Sync's build, after sync.md is approved |
 
 ---
 
@@ -394,7 +394,7 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | # | Question | Waits for |
 |---|---|---|
 | 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
-| 2 | Does the provider call us when stock changes (a webhook), besides our reading every few minutes? | Same |
+| 2 | ~~Does the provider call us when stock changes?~~ **Answered** (owner, 2026-10-13): it notifies us of price and stock changes; we also read hourly, nightly and on Sync now (sync.md §1.3) | — |
 | 3 | **Returns in a wired store** (§1.9): the provisional rule stands until the provider's team says whether we may write to it — then the owner and I discuss it again | The provider's team (owner, 2026-10-10) |
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |

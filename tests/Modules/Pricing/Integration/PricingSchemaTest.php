@@ -137,6 +137,10 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             'price_candidates_variant' => 'c',
             'retail_prices_store' => 'r',
             'retail_prices_variant' => 'c',
+            'sale_variants_sale' => 'c',
+            'sale_variants_variant' => 'c',
+            'sales_product' => 'c',
+            'sales_store' => 'r',
         ]);
 
         $size = Px::ready()['variants'][0];

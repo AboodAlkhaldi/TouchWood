@@ -216,7 +216,9 @@ step branches under them: they left a tangled history, with no version marking w
   **rows** are shown. A report queued by someone who works in one store lists that store. Only
   `authorize()` — "may this proceed" — answers for the system.
 - Secrets (API keys, passwords, credentials) live only in server environment variables — never in a
-  setting, a table or code. A setting whose value must not reach the audit log is declared with
+  setting, a table or code. **One exception** (owner, 2026-10-13): a store's provider key and
+  notification secret, which a Super Admin types into the panel per store, are kept in `sync.connections`
+  **encrypted with the app's key** and never shown again (sync.md §1.2). A setting whose value must not reach the audit log is declared with
   `sensitive: true`.
 - A link or code that proves who someone is is stored only as a hash, and the message carrying it
   is sent after the commit, never through the queue (a queued job keeps its payload in the `jobs`

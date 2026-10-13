@@ -12,7 +12,10 @@ use Shared\Domain\Error\ErrorCategory;
  */
 final class PriceNotPositive extends PricingError
 {
-    public function __construct()
+    /**
+     * @param  list<string>  $variants  the sizes a sale's percentage would leave at 0, named for the note
+     */
+    public function __construct(public readonly array $variants = [])
     {
         parent::__construct('A price must be above 0.');
     }
@@ -25,5 +28,10 @@ final class PriceNotPositive extends PricingError
     public function category(): ErrorCategory
     {
         return ErrorCategory::Invalid;
+    }
+
+    public function context(): array
+    {
+        return $this->variants === [] ? [] : ['variants' => implode(',', $this->variants)];
     }
 }

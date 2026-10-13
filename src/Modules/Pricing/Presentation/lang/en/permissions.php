@@ -14,6 +14,9 @@ return [
     'category_discount' => [
         'manage' => 'Manage Category Discounts',
     ],
+    'ceiling' => [
+        'manage' => 'Set the Discount Ceiling',
+    ],
     'candidates' => [
         'rebuild' => "Recompute Every Size's Price Options",
     ],

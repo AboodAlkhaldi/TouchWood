@@ -6,5 +6,10 @@ declare(strict_types=1);
 // سطر له هنا يُعرض كما سُجّل تمامًا.
 return [
     'retail_price.set' => 'حُدّد سعر التجزئة',
+    'retail_price.filed' => 'حُدّد سعر التجزئة من ملف المتجر',
     'retail_price.removed' => 'أُزيل سعر التجزئة',
+    'sale.added' => 'أُضيف تخفيض',
+    'sale.changed' => 'عُدّل تخفيض',
+    'sale.ended' => 'أُنهي تخفيض',
+    'sale.removed' => 'أُزيل تخفيض',
 ];

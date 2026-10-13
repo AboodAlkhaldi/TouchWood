@@ -189,12 +189,14 @@ Access) — and is one of two types (handoff §11.2):
 ### 1.6 The store's discount ceiling
 
 **`max_discount_percent`** (handoff §11.3): what a customer may take off an order with a coupon and
-points together, measured against `gross_subtotal` — the full reduction from list price. **Promotions
-owns the number; Sales applies the check** with the room Promotions gives it.
+points together, measured against `gross_subtotal` — the full reduction from list price. **The number
+moved to Pricing** (owner, 2026-10-13), which also holds sales and category discounts to it
+(pricing.md §1.12); **Promotions reads it, and Sales applies the check** with the room Promotions
+gives it.
 
 | Key | Scope | Type | Range | Default | Changed under |
 |---|---|---|---|---|---|
-| `promotions.ceiling.max_discount_percent` | Store | Integer | 0–100 | **30** (owner, 2026-10-08: "let it for now to be 30%") | `promotions.settings.update` — **admin-only** (§3) |
+| `pricing.ceiling.max_discount_percent` (was `promotions.ceiling.max_discount_percent`) | Store | Integer | 0–100 | **30** (owner, 2026-10-08: "let it for now to be 30%") | `pricing.ceiling.manage` — **admin-only** (pricing.md §1.12) |
 
 - **It only ever refuses customer-applied discounts.** An order whose merchant prices alone pass it
   sells normally; the ceiling simply means no coupon or points can stack on top (handoff §11.3).
