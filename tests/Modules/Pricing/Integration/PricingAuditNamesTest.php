@@ -25,9 +25,12 @@ function pricingAuditNamesRecorded(): array
             continue;
         }
 
-        // Built directly, or through SaleAudit::entry with the action written out first.
-        preg_match_all("/(?:new AuditEntryDto|SaleAudit::entry)\\(\\s*'(pricing\\.[a-z_]+\\.[a-z_]+)'/", (string) file_get_contents($file->getPathname()), $found);
-        array_push($actions, ...$found[1]);
+        // Built directly, or through SaleAudit::entry with the action written out first, or handed to
+        // RetailPriceWriter::set after the price's source.
+        $code = (string) file_get_contents($file->getPathname());
+        preg_match_all("/(?:new AuditEntryDto|SaleAudit::entry)\\(\\s*'(pricing\\.[a-z_]+\\.[a-z_]+)'/", $code, $found);
+        preg_match_all("/PriceSource::[A-Za-z]+,\\s*'(pricing\\.[a-z_]+\\.[a-z_]+)'/", $code, $written);
+        array_push($actions, ...$found[1], ...$written[1]);
     }
 
     $actions = array_values(array_unique($actions));
@@ -39,7 +42,7 @@ function pricingAuditNamesRecorded(): array
 it('finds the actions Pricing records', function () {
     // A guard over files must find something, or it passes over nothing.
     expect(pricingAuditNamesRecorded())->toBe([
-        'pricing.retail_price.removed', 'pricing.retail_price.set',
+        'pricing.retail_price.filed', 'pricing.retail_price.removed', 'pricing.retail_price.set',
         'pricing.sale.added', 'pricing.sale.changed', 'pricing.sale.ended', 'pricing.sale.removed',
     ]);
 });

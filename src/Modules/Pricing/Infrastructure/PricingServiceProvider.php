@@ -7,6 +7,7 @@ namespace Modules\Pricing\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
@@ -23,6 +24,7 @@ use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
+use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
@@ -64,6 +66,9 @@ final class PricingServiceProvider extends ServiceProvider
         // sales go deeper (owner, 2026-10-13).
         $this->app->make(SettingsRegistry::class)->define('pricing', ...PricingSettings::definitions());
         $this->app->make(SettingGuards::class)->register(PricingSettings::MAX_DISCOUNT_PERCENT, CeilingGuard::class);
+
+        // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.
+        $this->app->make(ImportSections::class)->register('pricing', PriceImportSection::class);
 
         // The daily safety check behind the timed tasks (§1.10; owner, 2026-10-09). Scheduled work is
         // queued as a job (owner's decision, 2026-09-18).

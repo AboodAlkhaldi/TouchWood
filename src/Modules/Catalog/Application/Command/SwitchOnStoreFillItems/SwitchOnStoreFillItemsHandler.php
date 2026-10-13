@@ -32,7 +32,10 @@ use Shared\Domain\ValueObject\StoreId;
  * Chosen by name, an item that cannot be switched on — an unknown code, a product not ready or
  * archived — is named and nothing changes; "every one ready" leaves the rest. An item whose variant
  * is on already is marked on. **Each item marked on gives its price and stock to the import's
- * sections** (§2.3) — Pricing's, Inventory's — inside the same change, all or nothing.
+ * sections** (§2.3) — Pricing's, Inventory's — inside the same change; they queue their writes for
+ * once it commits (stage 5: inside it, this products' lock and their store locks would meet in
+ * opposite orders), so a price or stock they then refuse leaves the item on and goes to the failed
+ * jobs screen.
  */
 final readonly class SwitchOnStoreFillItemsHandler
 {

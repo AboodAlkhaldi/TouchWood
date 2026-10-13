@@ -17,7 +17,8 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 | 4b | The timed tasks at a sale's start and end (queued after the change commits, delayed to the moment; one whose sale changed or went does nothing), the daily check at 03:30 over the last 25 hours, the overlap note before saving (`OverlapsFor`, any of the three jobs) | `pricing.windows.apply`, `pricing.windows.check` | **built** |
 | 5 | Wholesale bands | `pricing.wholesale.edit` | — |
 | 6 | Category discounts | `pricing.category_discount.manage` | after Catalog's amendment 16 is built |
-| 7 | Needs a Price, the store's file, the screens' reads | any of the three, to read | after Catalog's amendment 16 is built |
+| 7a | The store's file (§1.8): the page's lines, and the price set by a job once Catalog's change commits - the staff writer (`RetailPriceWriter`), the ceiling held, source File; an off store's too, for whoever filled it | the system's, for the file | **built** (ahead of 5-6, to land with Inventory's part) |
+| 7b | Needs a Price, the screens' reads | any of the three, to read | — |
 | 8 | The module's own pass | — | — |
 
 **Moved from step 1 to step 3a**, where the first handler uses them: the off-store guard

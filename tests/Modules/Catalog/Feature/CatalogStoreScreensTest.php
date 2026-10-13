@@ -387,7 +387,8 @@ describe('store files (S10)', function () {
         $admin->get("/admin/store-files/{$file}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Catalog/Admin/StoreFiles/Show')
             ->where('storeCode', 'sa')
-            ->where('pricesKept', false)
+            // Kept since stage 5 registered its sections (Inventory's stock; Pricing's prices with it).
+            ->where('pricesKept', true)
             ->where('items.0.standing', 'READY')
             ->where('items.0.productId', $ready)
             ->where('items.0.productNameEn', DB::table('catalog.products')->where('id', $ready)->value('name_en'))

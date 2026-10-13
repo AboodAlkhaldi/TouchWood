@@ -137,7 +137,8 @@ describe('a store file\'s page', function () {
         ])
             ->and($view->items[1]->missing)->toBe(['description_ar', 'description_en', 'category', 'photos'])
             ->and($view->items[0]->productId)->toBe($ready['product'])
-            ->and([$view->storeId, $view->pricesKept])->toBe([Fx::storeId('sa'), false]);
+            // Kept since stage 5 registered its sections (Inventory's stock; Pricing's prices with it).
+            ->and([$view->storeId, $view->pricesKept])->toBe([Fx::storeId('sa'), true]);
     });
 
     it('reads a file of any size in the same queries, names the product each code finds, and counts what is still open (P13)', function () {
