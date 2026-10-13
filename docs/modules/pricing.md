@@ -1,8 +1,9 @@
 # Pricing — module specification
 
 **Status (2026-10-10): the full spec, accepted** (#100, 2026-10-09); **amended 2026-10-10** — a
-wholesale line's list price is its band (§1.6 step 5, §9.2); **being built** from 2026-10-10 in eight
-steps — see [its README](../../src/Modules/Pricing/README.md). §2 — what other modules call — was agreed
+wholesale line's list price is its band (§1.6 step 5, §9.2); **built** in eight steps from 2026-10-10 to
+2026-10-14 — see [its README](../../src/Modules/Pricing/README.md); its screens are the frontend
+session's (§9.1 #5). §2 — what other modules call — was agreed
 first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
 answers of 2026-10-07 to 2026-10-09; my proposals of the first draft were accepted on 2026-10-08,
 the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's team is §9.1. Handoff
