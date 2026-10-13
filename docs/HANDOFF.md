@@ -134,6 +134,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-09 | §4.1, §13.1, §13.3, §16, §17 | **Feedback's rules** (`docs/modules/feedback.md`): reviews shown only after the writing store's staff approve them; one per product, never edited, a rejected one never written again; a verified purchase is a delivered order and the mark flips to "Returned" once any of that product is returned; no photos; ratings in the shop's lists switchable per store; questions per store; a rejection's reason is sent only when written; **the favourites ranking ban is lifted** — staff see per store how many customers saved each product | Feedback spec, owner decision |
 | 2026-10-10 | §1, §5.3, §7.5, §7.9, §11.3, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer (uploading its document) or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the coupon then the points checked again under the order's own rules, the points giving way first and **the coupon only staying or shrinking** — §11.3's one exception; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window, **or came back**, settled as a whole return; returns asked by the customer with pieces, a reason and photos, the gift included for nothing, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); an anonymized customer's orders lose the email; an off store's unfinished orders stay with its staff; **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 | 2026-10-10 | §4.5 | `Ulids` — whether an id from a caller is a ULID, checked before it reaches a query — moves to the Shared kernel: Access, B2B and Catalog each kept a copy, and Loyalty is the fourth module to need it. Platform's media repository, which had a looser check of its own, uses it too (owner, 2026-10-11) | Loyalty step 2, owner decision |
+| 2026-10-13 | §12.2 | **Sync's rules** ([sync.md](modules/sync.md)): the provider gives **the base price and stock only** (its discounts are not read); it **notifies us** of price and stock changes, with **Sync now**, a **nightly** full read and a light **hourly** one; a provider price that takes a sale past the ceiling is taken and **stops the sale on that size**, reported; off and draft sizes take the values and are listed, archived ones skipped; **unwiring keeps the last values** and hands them to staff at once; a **Sync report** per store with a menu count, kept **90 days**; the key and the notification secret **encrypted in our database** (CONVENTIONS.md's exception). "Our invoice shows the base price and the price after discount" means our order page, email and receipt — no invoices are issued here | Owner, 2026-10-13 |
 
 ---
 
@@ -1232,6 +1233,10 @@ Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-
 Per store, admin-defined `max_discount_percent` (0–100). Measured against
 `gross_subtotal` — the full reduction from list price. **[REVISED 2026-10-10]** A wholesale line's
 list price is its band: a wholesale price is not a discount, so it never uses up the ceiling.
+**[REVISED 2026-10-13]** The ceiling also limits the store's own **sales and category discounts**:
+one deeper than it is refused when saved, and a retail change or a lower ceiling that would put a
+sale past it is held back (owner, 2026-10-11/13). The number lives in Pricing (pricing.md §1.12). The
+paragraph below now applies to the room left for coupons and points.
 
 **It only ever refuses customer-applied discounts. It never blocks an order that breaches
 from merchant pricing alone.** A clearance item at 70% off under a 50% ceiling sells
@@ -1378,9 +1383,15 @@ the wiring; admins and staff have nothing to do with it. **Each store has its ow
 isolated** — wiring one store changes nothing in another — and every wired store behaves the same
 way. A store with no connection has the sync layer dormant.
 
+**[2026-10-13, owner]** From the provider we take **the base (retail) price only**; every sale,
+discount and the ceiling live in our system alone and are **never written to the provider**; our
+order page, confirmation email and receipt show the base price and the price after discount — a
+receipt, not an invoice: invoices stay outside (§12.6; owner, 2026-10-13).
+
 - **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
-  read each product's **stock** and its **base retail price** — with the provider's discount and its
-  expiry, where it has one. **We never write to the provider**: not stock, not prices, not orders.
+  read each product's **stock** and its **base retail price** — nothing else (owner, 2026-10-13: the
+  provider's own discounts are not read). **We never write to the provider**: not stock, not prices,
+  not orders.
 - **We pull**, every few minutes, with the store's credentials, plus a **"Sync now"** action.
   The storefront always reads our own tables: **no external call ever happens inside a web request.**
 - A code the provider sends that we do not have is **reported, never created**. A product of ours
@@ -1391,18 +1402,14 @@ way. A store with no connection has the sync layer dormant.
 - Bulk changes are batched, never one job per product. A failure is retried, then halts that one
   entity, tells staff, and offers a screen to retry; nothing is rolled back.
 
-**Price mapping.** Only two rows ever come from the provider, and both are **read-only in our panel**
-for a wired store. Everything else is ours exclusively:
+**Price mapping.** One row comes from the provider, **read-only in our panel** for a wired store.
+Everything else is ours exclusively (owner, 2026-10-13; was: the provider's discount and its expiry
+as a dated SALE row too):
 
 | Provider field | Maps to |
 |---|---|
-| Product price | `kind = BASE`, `audience = PUBLIC`, min_qty 1, no dates |
-| Discount + expiry | `kind = SALE`, `audience = PUBLIC`, dated |
-| — | Wholesale tiers, company prices, campaign prices — **ours, never from the provider** |
-
-When a provider discount expires, the SALE row's window closes and BASE resolves again on
-its own. The original price was never overwritten, so there is nothing to restore and
-nothing to lose.
+| Product price | the size's retail (BASE) price, provider-owned |
+| — | Sales, category discounts, wholesale bands, the ceiling, campaigns — **ours, never from the provider, never written to it** |
 
 ### 12.3 Sales
 

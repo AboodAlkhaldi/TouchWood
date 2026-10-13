@@ -38,6 +38,7 @@ use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Routing\InMemoryShopFrameParts;
+use Modules\Platform\Application\Settings\InMemorySettingGuards;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
 use Modules\Platform\Application\Settings\SettingValues;
@@ -75,6 +76,7 @@ use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
@@ -98,6 +100,8 @@ final class PlatformServiceProvider extends ServiceProvider
     public array $singletons = [
         // Holds the definitions every module declares at boot.
         InMemorySettingsRegistry::class => InMemorySettingsRegistry::class,
+        // Holds the guards modules register over their settings.
+        InMemorySettingGuards::class => InMemorySettingGuards::class,
         AuditReader::class => DatabaseAuditReader::class,
         StoreRepository::class => EloquentStoreRepository::class,
         CurrencyRepository::class => EloquentCurrencyRepository::class,
@@ -115,6 +119,7 @@ final class PlatformServiceProvider extends ServiceProvider
     {
         $this->app->alias(LaravelStoreContext::class, StoreContext::class);
         $this->app->alias(InMemorySettingsRegistry::class, SettingsRegistry::class);
+        $this->app->alias(InMemorySettingGuards::class, SettingGuards::class);
         // Bound here, not in $singletons: Laravel applies that list only after register() returns, and
         // Platform reserves its own paths just below. Other modules reserve in their register().
         $this->app->singleton(InMemoryReservedPaths::class);
