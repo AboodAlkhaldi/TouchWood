@@ -93,7 +93,7 @@ final readonly class SaleCheck
         }
 
         if ($over !== []) {
-            throw new OverCeiling($ceiling, [], $over);
+            throw new OverCeiling($ceiling, [], $over, $this->ceiling->productNames([$sale]));
         }
 
         if ($sale->alwaysWins) {

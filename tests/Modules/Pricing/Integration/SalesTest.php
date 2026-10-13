@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -142,12 +143,16 @@ describe('adding a sale', function () {
             ->and(DB::table('pricing.sales')->count())->toBe(0);
     });
 
-    it('takes one size or every size of a product, never some, and nothing of an archived product', function () {
+    it('takes some of a product\'s sizes too (owner, 2026-10-13), and nothing of an archived product', function () {
         $ready = Px::ready(['60 cm', '80 cm', '100 cm']);
         Rx::set('sa', array_fill_keys($ready['variants'], '100'));
 
-        expect(Rx::invalid(fn () => salesAdd([$ready['variants'][0], $ready['variants'][1]], percent: '10'))?->attribute)->toBe('variant');
+        $some = salesAdd([$ready['variants'][0], $ready['variants'][1]], percent: '10');
 
+        expect(DB::table('pricing.sale_variants')->where('sale_id', $some)->count())->toBe(2)
+            ->and(salesUnit($ready['variants'][2]))->toBe(10000);
+
+        DB::table('pricing.sales')->delete();
         Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($ready['product'])));
 
         expect(Rx::invalid(fn () => salesAdd([], percent: '10', productId: $ready['product']))?->attribute)->toBe('product')
@@ -251,19 +256,22 @@ describe('a sale\'s life (§4.1)', function () {
 });
 
 describe('the ceiling held (owner, 2026-10-11/13)', function () {
-    it('holds back a lower ceiling while sales go deeper, naming them, and takes a higher one', function () {
-        $size = Px::ready()['variants'][0];
+    it('holds back a lower ceiling while sales go deeper, naming them and their products, and takes a higher one', function () {
+        $ready = Px::ready();
+        $size = $ready['variants'][0];
         Rx::set('sa', [$size => '100']);
         $sale = salesAdd([$size], percent: '25');
+        app()->setLocale('en');
 
         try {
             salesCeiling(20);
-            $named = null;
+            $named = $products = null;
         } catch (CeilingBelowSales $error) {
-            $named = $error->sales;
+            [$named, $products] = [$error->sales, $error->products];
         }
 
         expect($named)->toBe([$sale])
+            ->and($products)->toBe(app(CatalogApi::class)->product($ready['product'])?->nameEn)
             ->and(DB::table('platform.settings')->where('key', PricingSettings::MAX_DISCOUNT_PERCENT)->exists())->toBeFalse();
 
         salesCeiling(25);
@@ -283,12 +291,20 @@ describe('the ceiling held (owner, 2026-10-11/13)', function () {
         expect(array_column($locks, 'bindings'))->toContain(['pricing:store:'.Rx::storeId('sa')]);
     });
 
-    it('holds back a retail price that would take a fixed-price sale past the ceiling', function () {
-        $size = Px::ready()['variants'][0];
+    it('holds back a retail price that would take a fixed-price sale past the ceiling, naming the product', function () {
+        $ready = Px::ready();
+        $size = $ready['variants'][0];
         Rx::set('sa', [$size => '100']);
         salesAdd([$size], price: '75');
 
-        expect(fn () => Rx::set('sa', [$size => '200']))->toThrow(OverCeiling::class)
+        try {
+            Rx::set('sa', [$size => '200']);
+            $products = null;
+        } catch (OverCeiling $error) {
+            $products = $error->products;
+        }
+
+        expect($products)->toBe(app(CatalogApi::class)->product($ready['product'])?->nameAr)
             ->and(Rx::retail('sa', $size)?->amount_minor)->toBe(10000);
 
         Rx::set('sa', [$size => '105']);

@@ -16,8 +16,9 @@ final class OverCeiling extends PricingError
     /**
      * @param  list<string>  $sales  the sales that would pass it
      * @param  list<string>  $variants  the sizes it would pass it on
+     * @param  string  $products  their products by name, in the language of whoever is refused
      */
-    public function __construct(public readonly int $ceilingPercent, public readonly array $sales = [], public readonly array $variants = [])
+    public function __construct(public readonly int $ceilingPercent, public readonly array $sales = [], public readonly array $variants = [], public readonly string $products = '')
     {
         parent::__construct("Deeper than the store's discount ceiling of {$ceilingPercent}%.");
     }
@@ -34,6 +35,6 @@ final class OverCeiling extends PricingError
 
     public function context(): array
     {
-        return ['ceiling' => $this->ceilingPercent, 'sales' => implode(',', $this->sales), 'variants' => implode(',', $this->variants)];
+        return ['ceiling' => $this->ceilingPercent, 'products' => $this->products, 'sales' => implode(',', $this->sales), 'variants' => implode(',', $this->variants)];
     }
 }

@@ -14,8 +14,9 @@ final class CeilingBelowSales extends PricingError
 {
     /**
      * @param  list<string>  $sales
+     * @param  string  $products  their products by name, in the language of whoever is refused
      */
-    public function __construct(public readonly array $sales = [])
+    public function __construct(public readonly array $sales = [], public readonly string $products = '')
     {
         parent::__construct('Sales running or scheduled go deeper than this ceiling.');
     }
@@ -32,6 +33,6 @@ final class CeilingBelowSales extends PricingError
 
     public function context(): array
     {
-        return ['sales' => implode(',', $this->sales), 'count' => count($this->sales)];
+        return ['sales' => implode(',', $this->sales), 'count' => count($this->sales), 'products' => $this->products];
     }
 }

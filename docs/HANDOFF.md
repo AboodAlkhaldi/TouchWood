@@ -1387,8 +1387,9 @@ discount and the ceiling live in our system alone and are **never written to the
 invoice shows the base price and the price after discount.
 
 - **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
-  read each product's **stock** and its **base retail price** — with the provider's discount and its
-  expiry, where it has one. **We never write to the provider**: not stock, not prices, not orders.
+  read each product's **stock** and its **base retail price** — nothing else (owner, 2026-10-13: the
+  provider's own discounts are not read). **We never write to the provider**: not stock, not prices,
+  not orders.
 - **We pull**, every few minutes, with the store's credentials, plus a **"Sync now"** action.
   The storefront always reads our own tables: **no external call ever happens inside a web request.**
 - A code the provider sends that we do not have is **reported, never created**. A product of ours
@@ -1399,18 +1400,14 @@ invoice shows the base price and the price after discount.
 - Bulk changes are batched, never one job per product. A failure is retried, then halts that one
   entity, tells staff, and offers a screen to retry; nothing is rolled back.
 
-**Price mapping.** Only two rows ever come from the provider, and both are **read-only in our panel**
-for a wired store. Everything else is ours exclusively:
+**Price mapping.** One row comes from the provider, **read-only in our panel** for a wired store.
+Everything else is ours exclusively (owner, 2026-10-13; was: the provider's discount and its expiry
+as a dated SALE row too):
 
 | Provider field | Maps to |
 |---|---|
-| Product price | `kind = BASE`, `audience = PUBLIC`, min_qty 1, no dates |
-| Discount + expiry | `kind = SALE`, `audience = PUBLIC`, dated |
-| — | Wholesale tiers, company prices, campaign prices — **ours, never from the provider** |
-
-When a provider discount expires, the SALE row's window closes and BASE resolves again on
-its own. The original price was never overwritten, so there is nothing to restore and
-nothing to lose.
+| Product price | the size's retail (BASE) price, provider-owned |
+| — | Sales, category discounts, wholesale bands, the ceiling, campaigns — **ours, never from the provider, never written to it** |
 
 ### 12.3 Sales
 

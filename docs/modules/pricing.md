@@ -68,9 +68,10 @@ A lower price for a size, for a time (owner, 2026-10-08):
   100, worked out on the size's retail price whenever that changes, rounded half up to the coin —
   **the price paid is what is rounded** (owner, 2026-10-10). **A percentage that would bring a size's
   price to 0 is refused** when the sale is saved (owner, 2026-10-10).
-- **For one size, or for every size of a product at once.** A sale made for every size is kept as one
-  sale over those sizes, so it is changed and ended as one; a size added to the product later is not
-  in it (owner, 2026-10-08).
+- **For one size, some of a product's sizes (owner, 2026-10-13), or every size of a product at
+  once** - never sizes of two products. A sale over several sizes is kept as one sale over them, so
+  it is changed and ended as one; a size added to the product later is not in it (owner, 2026-10-08).
+  None of an archived product, nor an archived size (§7).
 - **A start, and an end only if wanted**: without an end it lasts until it is ended. A sale may be
   scheduled ahead. The end is after the start.
 - **Overlapping sales on the same size are allowed**; the lowest wins while both run (owner,
@@ -243,6 +244,9 @@ admin-only, per store; owner, 2026-10-13); Promotions reads it for coupons and p
 - **A lower ceiling is held back** while running or scheduled sales go deeper than it, naming them
   (`pricing.ceiling_below_sales`; owner, 2026-10-13) - through Platform's setting guard (platform.md
   §2.2), so every screen that changes it gets the same refusal.
+- **Every one of these notes names the products** that hit the ceiling, in the language of whoever
+  is refused (a product with no English name yet shows its Arabic one), and the lower-ceiling note
+  how many sales (owner, 2026-10-13).
 
 ## 2 · Public contract
 
@@ -328,7 +332,7 @@ group; their names accepted by the owner (2026-10-08).
 |---|---|---|
 | `SetRetailPrice` — one size, or several at once | `pricing.price.edit` — **Edit Prices and Sales** | That store |
 | `RemoveRetailPrice` | `pricing.price.edit` | That store |
-| `AddSale` — one size, or every size of a product; a price or a percentage; start, optional end; "always wins" or not — with the note of what it affects and overlaps (§1.3) | `pricing.price.edit` | That store |
+| `AddSale` — one size, some of a product's, or every size of a product; a price or a percentage; start, optional end; "always wins" or not — with the note of what it affects and overlaps (§1.3) | `pricing.price.edit` | That store |
 | `ChangeSale` — a scheduled sale in full; a running one, its end | `pricing.price.edit` | That store |
 | `EndSale` (running: ends now) · `RemoveSale` (scheduled only) | `pricing.price.edit` | That store |
 | `SetWholesalePrices` — a size's bands, all at once | `pricing.wholesale.edit` — **Edit Wholesale Prices** | That store |
@@ -378,7 +382,7 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 |---|---|
 | `pricing.retail_prices` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `amount_minor` bigint CHECK > 0 · `currency_code` · `source` CHECK (`STAFF`, `FILE`, `PROVIDER`) · `updated_at` |
 | `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` (no `source`: every sale is ours, owner 2026-10-13) — two "always wins" on one size at once refused under the store's pricing lock, as nothing in a CHECK can see across rows |
-| `pricing.sale_variants` | (`sale_id` FK CASCADE, `variant_id` FK CASCADE) PK — the sizes it covers (one, or every size of the product when it was made) |
+| `pricing.sale_variants` | (`sale_id` FK CASCADE, `variant_id` FK CASCADE) PK — the sizes it covers (one, some of the product's, or every size it had when the sale was made) |
 | `pricing.wholesale_bands` | (`store_id`, `variant_id`, `from_quantity` CHECK ≥ 1) PK · `amount_minor` bigint CHECK > 0 · `currency_code` |
 | `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` RESTRICT · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
 | `pricing.category_discount_exclusions` | (`discount_id` FK CASCADE, `product_id` FK CASCADE) PK |

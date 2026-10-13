@@ -8,6 +8,7 @@ use Modules\Platform\Public\Contracts\SettingGuard;
 use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Domain\Exception\CeilingBelowSales;
 use Modules\Pricing\Domain\Repository\PricingLocks;
+use Modules\Pricing\Domain\ValueObject\Sale;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -33,7 +34,7 @@ final readonly class CeilingGuard implements SettingGuard
         $over = $this->check->salesOver($store, $to);
 
         if ($over !== []) {
-            throw new CeilingBelowSales($over);
+            throw new CeilingBelowSales(array_map(static fn (Sale $sale): string => $sale->id, $over), $this->check->productNames($over));
         }
     }
 }

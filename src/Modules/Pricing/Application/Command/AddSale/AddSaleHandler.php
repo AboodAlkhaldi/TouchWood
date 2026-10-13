@@ -23,7 +23,8 @@ use Modules\Pricing\Domain\ValueObject\Sale;
 /**
  * **Adding a sale** (pricing.md §1.3, §3), under **Edit Prices and Sales** in that store - in a wired
  * store too: every sale is ours, the provider gives the base price only (owner, 2026-10-13). For one
- * size, or every size of a product - kept as one sale over them, a size added later not in it. Checked by `SaleCheck` under the store's lock, saved, its sizes' candidates written
+ * size, some of a product's (owner, 2026-10-13), or every size of a product - kept as one sale over
+ * them, a size added later not in it. Checked by `SaleCheck` under the store's lock, saved, its sizes' candidates written
  * again and Catalog told, audited.
  */
 final readonly class AddSaleHandler
@@ -89,15 +90,15 @@ final readonly class AddSaleHandler
                 throw new InvalidPricingInput('product');
             }
         } else {
-            // One size (§1.3): never some of a product's, never two products'.
+            // One size or some of one product's (§1.3; owner, 2026-10-13): never two products'.
             $variantIds = array_values(array_unique($this->sizes->check($command->variantIds)));
-            $productId = count($variantIds) === 1 ? $this->catalog->variant($variantIds[0])?->productId : null;
+            $products = array_values(array_unique(array_map(fn (string $id): string => (string) $this->catalog->variant($id)?->productId, $variantIds)));
 
-            if ($productId === null || ($command->productId !== null && strtolower(trim($command->productId)) !== $productId)) {
+            if (count($products) !== 1 || ($command->productId !== null && strtolower(trim($command->productId)) !== $products[0])) {
                 throw new InvalidPricingInput('variant');
             }
 
-            $product = $this->catalog->product($productId) ?? throw new InvalidPricingInput('product');
+            $product = $this->catalog->product($products[0]) ?? throw new InvalidPricingInput('product');
         }
 
         sort($variantIds);

@@ -21,6 +21,7 @@ use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
 use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
+use Modules\Pricing\Domain\ValueObject\Sale;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 
@@ -84,12 +85,13 @@ final readonly class SetRetailPriceHandler
             $before = $this->retailPrices->forVariants($storeId, array_keys($amounts));
 
             // A retail price that would take a running or scheduled sale past the ceiling is held back,
-            // naming the sales: staff change the price or the sale first (owner, 2026-10-11/13).
+            // naming the sales and their products: staff change the price or the sale first (owner,
+            // 2026-10-11/13).
             $ceiling = $this->ceiling->ceiling($storeId);
             $over = $this->ceiling->salesOver($storeId, $ceiling, $amounts);
 
             if ($over !== []) {
-                throw new OverCeiling($ceiling, $over);
+                throw new OverCeiling($ceiling, array_map(static fn (Sale $sale): string => $sale->id, $over), [], $this->ceiling->productNames($over));
             }
             $changed = [];
             $entries = [];

@@ -83,11 +83,11 @@ return [
 
     'over_ceiling' => [
         'title' => 'Deeper than the ceiling',
-        'detail' => "That goes deeper than the store's discount ceiling of :ceiling%. Change the price or the sale so it stays within it.",
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price or the sale so it stays within it.",
     ],
     'ceiling_below_sales' => [
         'title' => 'Sales go deeper',
-        'detail' => ':count running or scheduled sales go deeper than this ceiling. Change or end them first.',
+        'detail' => ':count running or scheduled sales go deeper than this ceiling, on :products. Change or end them first.',
     ],
 
     'fields' => [
