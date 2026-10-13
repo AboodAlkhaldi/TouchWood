@@ -297,7 +297,7 @@ constraint); **transactional outbox for the ~8 critical events only**, not all o
 | Every store-scoped Eloquent model declares the store global scope | A forgotten `where store_id` | With the first store-scoped model |
 | Every command handler asserts a permission (comments ignored) | An unprotected use case | In place |
 | No storefront endpoint exceeds N queries | The N+1 that made the old system take 5 seconds | Started: a warm request resolves the store from the cache table alone (2 tiny reads); a general per-endpoint budget comes with Catalog |
-| Every money column is `bigint` | A `DECIMAL` sneaking in | With the first money column |
+| Every money column is `bigint` | A `DECIMAL` sneaking in | In place: `tests/Shared/Integration/MoneyColumnsTest.php`, over every schema (every `*_minor` column a `bigint`; no decimal, float or money column but the named measures: a map pin, a product detail's number) |
 | Enums are stored as strings, never integers | Unreadable rows at 2am | In place for the `platform` schema (`PlatformSchemaTest`); each new module schema adds the same check |
 
 The query-count test is the single highest-value guard in the list. The whole project
