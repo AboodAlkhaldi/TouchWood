@@ -32,8 +32,9 @@ final readonly class PointsHistoryRow
         return new self($this->id, $this->kind, $this->points, $this->occurredAt, $this->orderNumber);
     }
 
+    /** Named as the reader may see the admin: a withheld one keeps no id, so nothing links to them. */
     public function named(?string $name, bool $hidden): self
     {
-        return new self($this->id, $this->kind, $this->points, $this->occurredAt, $this->orderNumber, $this->reason, $this->staffId, $name, $hidden);
+        return new self($this->id, $this->kind, $this->points, $this->occurredAt, $this->orderNumber, $this->reason, $hidden ? null : $this->staffId, $name, $hidden);
     }
 }

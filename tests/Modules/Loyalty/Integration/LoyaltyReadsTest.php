@@ -18,6 +18,7 @@ use Modules\Loyalty\Application\Query\ViewCustomerPoints\ViewCustomerPoints;
 use Modules\Loyalty\Application\Query\ViewCustomerPoints\ViewCustomerPointsHandler;
 use Modules\Loyalty\Application\Query\ViewMyPoints\ViewMyPoints;
 use Modules\Loyalty\Application\Query\ViewMyPoints\ViewMyPointsHandler;
+use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -102,7 +103,9 @@ it('shows staff each change by hand with its admin and reason — a Super Admin 
         ->and([$byAdmin->reason, $byAdmin->staffHidden])->toBe(['Goodwill', false])
         ->and($byAdmin->staffName)->not->toBeNull()
         ->and([$bySuper->reason, $bySuper->staffHidden])->toBe(['Correction', true])
-        ->and((string) $bySuper->staffName)->not->toContain('Hidden');
+        ->and((string) $bySuper->staffName)->not->toContain('Hidden')
+        // No id either: nothing on the screen links to them.
+        ->and($bySuper->staffId)->toBeNull();
 });
 
 it('reads a customer\'s points in the store they belong to: not covered is not found, no job is refused', function () {
@@ -139,18 +142,55 @@ it('lists a store\'s redemptions newest first, a page at a time, never skipping 
     $seen = [];
     $page = app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('sa'), perPage: 2));
 
-    while (true) {
+    $before = loyaltyReadsRows();
+
+    // At most as many pages as there can be: a cursor that never moves fails here, never hangs.
+    foreach (range(1, 4) as $_) {
         $seen = [...$seen, ...array_map(static fn (RedemptionRow $row): string => $row->orderNumber, $page->rows)];
 
         if ($page->nextId === null) {
             break;
         }
 
-        $page = app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('sa'), $page->nextAt, $page->nextId, 2));
+        // The cursor given in Riyadh's time names the same moment.
+        $page = app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('sa'), $page->nextAt?->setTimezone(new DateTimeZone('Asia/Riyadh')), $page->nextId, 2));
     }
 
+    $first = app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('sa'), perPage: 1))->rows[0];
+
     expect($seen)->toBe(array_reverse($numbers))
+        ->and([$first->points, $first->discount->minorUnits, $first->discount->currencyCode])->toBe([10, 10, 'SAR'])
+        ->and($first->customerId)->toBe($customer)
+        ->and(loyaltyReadsRows())->toBe($before)
         ->and(fn () => app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('eg'))))->toThrow(Unauthorized::class);
+});
+
+it('never counts a lot whose date has passed, even before the sweep, and writes nothing for staff either', function () {
+    Lx::programme(settings: [ProgrammeSettings::EXPIRY_MONTHS => 1]);
+    $customer = Fx::customer();
+    Lx::deliver($customer, 10_000);
+    CarbonImmutable::setTestNow('2026-01-20 12:00:00 UTC');
+    Lx::deliver($customer, 20_000);
+    // A second past the first lot's date: nobody has swept it.
+    CarbonImmutable::setTestNow('2026-02-01 12:00:01 UTC');
+    Fx::actAsStaff(Fx::staffWith([LoyaltyPermissions::VIEW], ['sa']));
+    $before = loyaltyReadsRows();
+
+    $view = app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints($customer, Fx::storeId('sa')));
+
+    expect([$view->balance, count($view->lots), $view->lots[0]->pointsLeft])->toBe([200, 1, 200])
+        ->and(loyaltyReadsRows())->toBe($before);
+});
+
+it('shows a Super Admin every admin\'s real name', function () {
+    $customer = Fx::customer();
+    $admin = Fx::actAsAdmin(['sa'], [LoyaltyPermissions::ADJUST]);
+    loyaltyByHandAddAs($admin, $customer, 50);
+    Fx::actAsStaff(Fx::staff(superAdmin: true, firstName: 'Reader'));
+
+    $row = app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints($customer, Fx::storeId('sa')))->history[0];
+
+    expect([$row->staffId, $row->staffHidden])->toBe([$admin, false]);
 });
 
 it('pages a customer\'s history the same way', function () {
@@ -165,7 +205,7 @@ it('pages a customer\'s history the same way', function () {
     $ids = [];
     $view = app(ViewMyPointsHandler::class)->handle(new ViewMyPoints(Fx::storeId('sa'), perPage: 2));
 
-    while (true) {
+    foreach (range(1, 3) as $_) {
         $ids = [...$ids, ...array_map(static fn (PointsHistoryRow $row): int => $row->id, $view->history)];
 
         if ($view->nextId === null) {

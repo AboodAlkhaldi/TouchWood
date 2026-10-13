@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Application\Query;
 
 use DateTimeImmutable;
-use Modules\Loyalty\Domain\Model\Lot;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -15,7 +14,7 @@ use Shared\Domain\ValueObject\Money;
 final readonly class PointsView
 {
     /**
-     * @param  list<Lot>  $lots  live, the one expiring first first
+     * @param  list<LotView>  $lots  live, the one expiring first first
      * @param  list<PointsHistoryRow>  $history
      */
     public function __construct(

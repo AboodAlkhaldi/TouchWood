@@ -49,7 +49,7 @@ final readonly class PointsViews
         return new PointsView(
             $balance,
             Money::of(PointsArithmetic::worth($balance, $programme->pointsPerUnitOff, $programme->exponent), $programme->currencyCode),
-            $lots,
+            array_map(static fn ($lot): LotView => new LotView($lot->pointsLeft, $lot->expiresAt), $lots),
             $rows,
             $last === false ? null : $last->occurredAt,
             $last === false ? null : $last->id,
