@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Schema;
 /*
 | pricing.md §5, step 6: category discounts - a percentage or a fixed amount off every product in a
 | category and below it, in one store, on retail lines, wholesale lines or both, for a time - and the
-| products each leaves out by name. A store or a category is never deleted from under a discount; a
-| product that goes leaves its exclusions with it.
+| products each leaves out by name. A store is never deleted from under a discount. Catalog deletes
+| only an empty category (no products, no sub-categories): its discounts reach nothing, and go with it -
+| the audit log keeps them (step 6 review). A product that goes leaves its exclusions with it.
 */
 
 return new class extends Migration
@@ -32,7 +33,7 @@ return new class extends Migration
             $table->timestampTz('created_at');
 
             $table->foreign('store_id', 'category_discounts_store')->references('id')->on('platform.stores')->restrictOnDelete();
-            $table->foreign('category_id', 'category_discounts_category')->references('id')->on('catalog.categories')->restrictOnDelete();
+            $table->foreign('category_id', 'category_discounts_category')->references('id')->on('catalog.categories')->cascadeOnDelete();
             $table->index(['store_id', 'ends_at'], 'category_discounts_store_idx');
             $table->index('category_id', 'category_discounts_category_idx');
         });

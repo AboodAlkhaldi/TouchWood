@@ -135,7 +135,7 @@ describe('what the database refuses behind the code (§8 #15)', function () {
         expect($rules)->toBe([
             'category_discount_exclusions_discount' => 'c',
             'category_discount_exclusions_product' => 'c',
-            'category_discounts_category' => 'r',
+            'category_discounts_category' => 'c',
             'category_discounts_store' => 'r',
             'price_candidates_store' => 'r',
             'price_candidates_variant' => 'c',

@@ -30,6 +30,9 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class DiscountCheck
 {
+    /** Sizes a read, under PostgreSQL's bind-parameter limit. */
+    private const int CHUNK = 1000;
+
     public function __construct(
         private CatalogApi $catalog,
         private DiscountCoverage $coverage,
@@ -62,22 +65,27 @@ final readonly class DiscountCheck
         $ceiling = $this->ceiling->ceiling($store);
 
         if ($discount->percentBasisPoints !== null && $discount->percentBasisPoints > $ceiling * 100) {
-            throw new OverCeiling($ceiling);
+            // Named by its category: a percentage reaches every product in it alike.
+            throw new OverCeiling($ceiling, [], [], $this->ceiling->namesFor([], [$discount->id => ['category' => $discount->categoryId, 'products' => []]]));
         }
 
         if ($discount->amount !== null) {
             $over = [];
 
-            foreach ($this->retailPrices->forVariants($store, array_keys($sizes)) as $variantId => $retail) {
-                if ($discount->priceOn($retail) !== null && $discount->depthOn($retail) > $ceiling * 100) {
-                    $over[] = (string) $variantId;
+            // In chunks, under PostgreSQL's bind-parameter limit, however many sizes the category holds.
+            foreach (array_chunk(array_keys($sizes), self::CHUNK) as $chunk) {
+                foreach ($this->retailPrices->forVariants($store, $chunk) as $variantId => $retail) {
+                    if ($discount->priceOn($retail) !== null && $discount->depthOn($retail) > $ceiling * 100) {
+                        $over[] = (string) $variantId;
+                    }
                 }
             }
 
             if ($over !== []) {
                 sort($over);
+                $products = array_values(array_unique(array_map(static fn (string $variantId): string => $sizes[$variantId], $over)));
 
-                throw new OverCeiling($ceiling, [], $over);
+                throw new OverCeiling($ceiling, [], $over, $this->ceiling->namesFor([], [$discount->id => ['category' => $discount->categoryId, 'products' => $products]]));
             }
         }
 
@@ -109,21 +117,34 @@ final readonly class DiscountCheck
     {
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $clash = [];
+        $refused = false;
 
-        foreach ($this->sales->notEndedOn($store, array_keys($sizes), $now) as $sale) {
-            if ($sale->alwaysWins && $sale->overlaps($discount->startsAt, $discount->endsAt)) {
-                array_push($clash, ...array_intersect($sale->variantIds, array_keys($sizes)));
+        // A sale is made only on priced sizes, so the priced sizes meet every sale that could clash.
+        foreach (array_chunk(array_keys($sizes), self::CHUNK) as $chunk) {
+            foreach ($this->sales->notEndedOn($store, $chunk, $now) as $sale) {
+                if ($sale->alwaysWins && $sale->overlaps($discount->startsAt, $discount->endsAt)) {
+                    array_push($clash, ...array_intersect($sale->variantIds, $chunk));
+                    $refused = true;
+                }
             }
         }
+
+        // Another discount: by the products both reach, priced or not - a size priced later would
+        // otherwise carry two that always win (§1.3).
+        $mine = $this->coverage->products($discount);
 
         foreach ($this->discounts->notEnded($store, $now) as $other) {
             if ($other->id !== $discount->id && $other->alwaysWins && $other->overlaps($discount->startsAt, $discount->endsAt)) {
-                $theirs = $this->coverage->products($other);
-                array_push($clash, ...array_keys(array_filter($sizes, static fn (string $productId): bool => isset($theirs[$productId]))));
+                $shared = array_intersect_key($mine, $this->coverage->products($other));
+
+                if ($shared !== []) {
+                    array_push($clash, ...array_keys(array_filter($sizes, static fn (string $productId): bool => isset($shared[$productId]))));
+                    $refused = true;
+                }
             }
         }
 
-        if ($clash !== []) {
+        if ($refused) {
             $clash = array_values(array_unique(array_map('strval', $clash)));
             sort($clash);
 

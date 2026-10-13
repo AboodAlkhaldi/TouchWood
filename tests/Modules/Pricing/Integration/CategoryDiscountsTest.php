@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Testing\Fakes\QueueFake;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
+use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategory;
+use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategoryHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
@@ -145,16 +147,46 @@ describe('what a discount reaches (§1.5)', function () {
         [$a, $b] = $shop['inChild']['variants'];
         Rx::set('sa', [$a => '100', $b => '50']);
 
+        app()->setLocale('en');
+
         try {
             discountAdd($shop['child'], amount: '20');
-            $named = null;
+            $named = $products = null;
         } catch (OverCeiling $error) {
-            $named = $error->variants;
+            [$named, $products] = [$error->variants, $error->products];
         }
 
-        expect(fn () => discountAdd($shop['child'], percent: '30.01'))->toThrow(OverCeiling::class)
-            // 20 off 50 is 40%: past the 30% ceiling; 20 off 100 is not.
-            ->and($named)->toBe([$b]);
+        try {
+            discountAdd($shop['child'], percent: '30.01');
+            $category = null;
+        } catch (OverCeiling $error) {
+            $category = $error->products;
+        }
+
+        // 20 off 50 is 40%: past the 30% ceiling; 20 off 100 is not. The note names the product - a
+        // percentage, its category.
+        expect($named)->toBe([$b])
+            ->and($products)->toStartWith('Drawer')
+            ->and($category)->toStartWith('Drawers');
+    });
+
+    it('refuses two "always wins" discounts reaching the same products, priced yet or not', function () {
+        $lamps = Px::category('Lamps');
+        $desk = Px::category('Desk', $lamps);
+        Px::ready(['60 cm'], $desk);
+        discountAdd($lamps, percent: '10', alwaysWins: true);
+
+        expect(fn () => discountAdd($desk, percent: '5', alwaysWins: true))->toThrow(AlwaysWinsOverlap::class);
+    });
+
+    it('goes with a category Catalog deletes - an empty one, which it reached nothing in', function () {
+        $empty = Px::category('Empty');
+        discountAdd($empty, percent: '10', endsAt: '2026-10-14 00:00:00+00');
+        CarbonImmutable::setTestNow('2026-10-15 00:00:00+00');
+
+        Fx::asSystem(fn () => app(DeleteCategoryHandler::class)->handle(new DeleteCategory($empty)));
+
+        expect(DB::table('pricing.category_discounts')->count())->toBe(0);
     });
 });
 
