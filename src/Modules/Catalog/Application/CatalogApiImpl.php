@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\CategoryDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -58,6 +59,19 @@ final readonly class CatalogApiImpl implements CatalogApi
         $category = $this->categories->find($categoryId);
 
         return $category === null ? [] : $this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]);
+    }
+
+    public function category(string $categoryId): ?CategoryDto
+    {
+        $category = $this->categories->find($categoryId);
+
+        return $category === null ? null : new CategoryDto(
+            $category->id(),
+            $category->parentId(),
+            $category->name()->ar,
+            $category->name()->en,
+            $category->isActive(),
+        );
     }
 
     public function switchedOnVariantIds(StoreId $store): array

@@ -95,6 +95,22 @@ function catalogApiProduct(): array
     return ['product' => $id, 'width' => $width, 'finish' => $finish, 'values' => $values, 'variants' => $variants];
 }
 
+describe('a category (amendment 17)', function () {
+    it('says whether a category exists and is switched on, for Pricing\'s category discounts', function () {
+        $top = Px::category('Kitchens');
+        $child = Px::category('Drawers', $top);
+
+        expect(catalogApi()->category($child)?->parentId)->toBe($top)
+            ->and(catalogApi()->category($child)?->isActive)->toBeTrue()
+            ->and(catalogApi()->category($child)?->nameEn)->toStartWith('Drawers')
+            ->and(catalogApi()->category('01jzzzzzzzzzzzzzzzzzzzzzzz'))->toBeNull();
+
+        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($child, 'HIDE')));
+
+        expect(catalogApi()->category($child)?->isActive)->toBeFalse();
+    });
+});
+
 describe('variants and products', function () {
     it('answers a variant with its code, its product, its values in both languages and its physical facts', function () {
         $p = catalogApiProduct();
