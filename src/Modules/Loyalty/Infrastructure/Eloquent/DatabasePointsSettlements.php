@@ -226,7 +226,7 @@ final readonly class DatabasePointsSettlements implements PointsSettlements
                 (int) $row->id,
                 $lot->id,
                 CoverSource::from((string) $row->source),
-                $row->source_take_id === null ? null : ($takes[(int) $row->source_take_id] ?? null),
+                $row->source_take_id === null ? null : ($takes[(int) $row->source_take_id] ?? throw new LogicException('A cover whose take is not the account\'s.')),
                 (int) $row->points,
                 (int) $row->undone,
             );

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Exception\OrderNotSettleable;
+use Modules\Loyalty\Public\Dto\CallerPermission;
 use Modules\Loyalty\Public\Dto\EditedPointsRequest;
 use Modules\Loyalty\Public\Dto\SettleEdit;
 use Modules\Loyalty\Public\Dto\SettleOrder;
@@ -236,6 +237,118 @@ describe('a staff edit before shipping', function () {
         expect(fn () => $edit(300))->toThrow(OrderNotSettleable::class);
     });
 });
+
+/** Every lot holds exactly its movements, and the account's balance is its lots' points. */
+function loyaltySettleConsistent(string $customer): void
+{
+    $account = (string) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('id');
+
+    foreach (DB::table('loyalty.lots')->where('account_id', $account)->get() as $lot) {
+        expect((int) $lot->points_left)->toBe((int) DB::table('loyalty.lot_movements')->where('lot_id', $lot->id)->sum('points'));
+    }
+
+    expect((int) DB::table('loyalty.accounts')->where('id', $account)->value('balance'))
+        ->toBe((int) DB::table('loyalty.lots')->where('account_id', $account)->sum('points_left'))
+        ->and((int) DB::table('loyalty.entries')->where('account_id', $account)->sum('points'))
+        ->toBe((int) DB::table('loyalty.lots')->where('account_id', $account)->sum('points_left'));
+}
+
+it('keeps every lot, entry and the balance in step through a whole history', function () {
+    [$customer, $a, $b] = loyaltySettleOwnersExample();
+    loyaltySettleReturn($a, 10_000, 150);
+    loyaltySettleConsistent($customer);
+    Lx::deliver($customer, 0, orderId: $b);
+    loyaltySettleReturn($b, 0, 100);
+    loyaltySettleConsistent($customer);
+    loyaltySettleReturn($a, 10_000, 150);
+    loyaltySettleConsistent($customer);
+});
+
+it('gives the covering lot its points back with its own date, and records the move on it', function () {
+    $customer = Fx::customer();
+    $a = Lx::deliver($customer, 20_000);
+    $b = Lx::place($customer, Lx::quote($customer, 200, 100_000), 100_000);
+    $l2 = Lx::deliver($customer, 15_000);
+    $l2Lot = (int) DB::table('loyalty.lots')->where('order_id', $l2)->value('id');
+    $date = (string) DB::table('loyalty.lots')->where('id', $l2Lot)->value('expires_at');
+    loyaltySettleReturn($a, 20_000, 0);
+
+    loyaltySettleCancel($b);
+
+    $returned = DB::table('loyalty.lot_movements')->join('loyalty.entries', 'loyalty.entries.id', '=', 'loyalty.lot_movements.entry_id')
+        ->where('loyalty.entries.kind', 'REDEMPTION_RETURNED')->where('loyalty.lot_movements.lot_id', $l2Lot)->sum('loyalty.lot_movements.points');
+
+    expect((int) $returned)->toBe(150)
+        ->and((int) DB::table('loyalty.lots')->where('id', $l2Lot)->value('points_left'))->toBe(150)
+        ->and((string) DB::table('loyalty.lots')->where('id', $l2Lot)->value('expires_at'))->toBe($date);
+    loyaltySettleConsistent($customer);
+});
+
+it('lets an edit before delivery, then delivery, then a full return land exactly on the order\'s points', function () {
+    $customer = Fx::customer();
+    Lx::deliver($customer, 50_000);
+    $order = Lx::place($customer, Lx::quote($customer, 400, 100_000), 100_000);
+    Fx::asSystem(fn () => DB::transaction(fn () => Lx::api()->orderEdited(new SettleEdit($order, Fx::storeId('sa'), Lx::orderId(), Lx::money(300), Lx::delivering()))));
+    Lx::deliver($customer, 30_000, orderId: $order);
+
+    loyaltySettleReturn($order, 30_000, 300);
+
+    $row = DB::table('loyalty.orders')->where('order_id', $order)->first() ?? throw new RuntimeException('Not recorded.');
+
+    expect([(int) $row->points_given_back, (int) $row->returned_discount_minor, (int) $row->points_reversed])->toBe([400, 400, 300])
+        ->and(loyaltySettleBalance($customer))->toBe(500);
+    loyaltySettleConsistent($customer);
+});
+
+it('keeps the cap the order redeemed under when working out an edit, though the store\'s changed since', function () {
+    $customer = Fx::customer();
+    Lx::deliver($customer, 50_000);
+    $order = Lx::place($customer, Lx::quote($customer, 400, 100_000), 100_000);
+    Lx::programme(settings: [ProgrammeSettings::MAX_REDEMPTION_PERCENT => 10]);
+
+    $after = Lx::api()->pointsAfterEdit(new EditedPointsRequest($order, Fx::storeId('sa'), Lx::money(600), Lx::money(10_000)));
+
+    // 50% of 6.00, the order's own percent — not 10%.
+    expect($after->discount->minorUnits)->toBe(300);
+});
+
+it('settles a return that moves no point once, and refuses an edit after cancellation', function () {
+    $customer = Fx::customer();
+    $delivered = Lx::deliver($customer, 99);
+    $return = Lx::orderId();
+    loyaltySettleReturn($delivered, 50, 0, $return);
+    loyaltySettleReturn($delivered, 50, 0, $return);
+
+    Lx::deliver($customer, 30_000);
+    $cancelled = Lx::place($customer, Lx::quote($customer, 100, 100_000), 100_000);
+    loyaltySettleCancel($cancelled);
+
+    expect(DB::table('loyalty.order_returns')->where('order_id', $delivered)->count())->toBe(1)
+        ->and(DB::table('loyalty.entries')->where('order_id', $delivered)->count())->toBe(0)
+        ->and(fn () => Fx::asSystem(fn () => DB::transaction(fn () => Lx::api()->orderEdited(new SettleEdit($cancelled, Fx::storeId('sa'), Lx::orderId(), Lx::money(50), Lx::delivering())))))
+        ->toThrow(OrderNotSettleable::class);
+});
+
+it('checks the caller\'s permission in the order\'s recorded store for every settlement', function (Closure $settle, string $attribute) {
+    $customer = Fx::customer();
+    Lx::programme('eg');
+    $order = Lx::deliver($customer, 30_000);
+
+    try {
+        Fx::asSystem(fn () => DB::transaction(fn () => $settle($order)));
+    } catch (InvalidPointsAttribute $refused) {
+        expect($refused->attribute)->toBe($attribute);
+
+        return;
+    }
+
+    throw new RuntimeException('Nothing was refused.');
+})->with([
+    'a cancellation in another store' => [fn (string $o) => Lx::api()->orderCancelled(new SettleOrder($o, Fx::storeId('eg'), Lx::delivering())), 'store'],
+    'a return in another store' => [fn (string $o) => Lx::api()->orderReturned(new SettleReturn($o, Fx::storeId('eg'), Lx::orderId(), Lx::money(1, 'eg'), Lx::money(0, 'eg'), Lx::delivering())), 'store'],
+    'an edit in another store' => [fn (string $o) => Lx::api()->orderEdited(new SettleEdit($o, Fx::storeId('eg'), Lx::orderId(), Lx::money(0, 'eg'), Lx::delivering())), 'store'],
+    'a return under another module\'s permission' => [fn (string $o) => Lx::api()->orderReturned(new SettleReturn($o, Fx::storeId('sa'), Lx::orderId(), Lx::money(1), Lx::money(0), new CallerPermission('sales', 'catalog.product.update'))), 'permission'],
+]);
 
 it('runs its migration down and up again', function () {
     $migration = require base_path('src/Modules/Loyalty/Infrastructure/Persistence/Migrations/2026_10_13_100000_add_loyalty_settlement_rules.php');
