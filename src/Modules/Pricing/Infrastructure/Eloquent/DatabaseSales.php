@@ -70,6 +70,16 @@ final readonly class DatabaseSales implements Sales
         return $this->sales($this->notEndedQuery($store, $at)->get()->values()->all());
     }
 
+    public function page(StoreId $store, int $page, int $perPage): array
+    {
+        $query = $this->db->table('pricing.sales as s')->where('s.store_id', $store->value);
+
+        return [
+            $this->sales((clone $query)->orderByDesc('s.starts_at')->orderBy('s.id')->forPage(max(1, $page), $perPage)->select('s.*')->get()->values()->all()),
+            $query->count(),
+        ];
+    }
+
     public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array
     {
         [$after, $by] = [$from->format('Y-m-d H:i:s.uP'), $to->format('Y-m-d H:i:s.uP')];

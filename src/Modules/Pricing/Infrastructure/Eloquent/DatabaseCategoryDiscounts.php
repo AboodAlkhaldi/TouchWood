@@ -73,6 +73,16 @@ final readonly class DatabaseCategoryDiscounts implements CategoryDiscounts
             ->get()->values()->all());
     }
 
+    public function page(StoreId $store, int $page, int $perPage): array
+    {
+        $query = $this->db->table(self::TABLE.' as d')->where('d.store_id', $store->value);
+
+        return [
+            $this->discounts((clone $query)->orderByDesc('d.starts_at')->orderBy('d.id')->forPage(max(1, $page), $perPage)->select('d.*')->get()->values()->all()),
+            $query->count(),
+        ];
+    }
+
     public function storesWithDiscounts(DateTimeImmutable $at): array
     {
         return array_values(array_map('strval', $this->db->table(self::TABLE)

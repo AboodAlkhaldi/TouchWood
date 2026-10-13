@@ -33,6 +33,13 @@ interface Sales
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
 
     /**
+     * A page of the store's sales, the latest start first (the screens' `ListSales`), and how many there are.
+     *
+     * @return array{list<Sale>, int}
+     */
+    public function page(StoreId $store, int $page, int $perPage): array;
+
+    /**
      * The daily safety check's read (§1.10), the one that names no store: every sale, in any store, whose
      * start or end fell after `$from` and by `$to`.
      *

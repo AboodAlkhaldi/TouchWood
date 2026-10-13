@@ -28,6 +28,14 @@ interface CategoryDiscounts
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
 
     /**
+     * A page of the store's discounts, the latest start first (the screens' `ListCategoryDiscounts`), and
+     * how many there are.
+     *
+     * @return array{list<CategoryDiscount>, int}
+     */
+    public function page(StoreId $store, int $page, int $perPage): array;
+
+    /**
      * @return list<string> the stores with a discount not ended by then - where a product moving matters
      */
     public function storesWithDiscounts(DateTimeImmutable $at): array;
