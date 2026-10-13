@@ -243,6 +243,50 @@ it('undoes a lot\'s lot covers before its expired-point covers, though they are 
     settlementBalanced($book);
 });
 
+it('counts points that came back expired to the earned lot as gone: two orders end alike either way', function () {
+    $cancelledFirst = settlementBook();
+    $returnedFirst = settlementBook();
+
+    foreach ([$cancelledFirst, $returnedFirst] as $book) {
+        $book->deliver('A', 20_000, 200, '2026-02-01 00:00:00+00:00');
+        $book->redeem('B', 200, 200);
+        $book->lot(300, '2027-01-01 00:00:00+00:00');
+        $book->at('2026-03-01 12:00:00+00:00');
+    }
+
+    $cancelled = $cancelledFirst->cancel('B');
+    $cancelledFirst->return('A', 20_000, 0);
+    $returnedFirst->return('A', 20_000, 0);
+    $returnedFirst->cancel('B');
+
+    $history = array_map(static fn ($move): array => [$move->kind->value, $move->points], $cancelled->movements());
+
+    // The history shows both: returned to the lot, and expired at once.
+    expect($history)->toBe([['REDEMPTION_RETURNED', 200], ['EXPIRED', -200]])
+        ->and($cancelledFirst->balance())->toBe(300)
+        ->and($returnedFirst->balance())->toBe(300)
+        // B's own given-back points, on the lot B took them from: B's to cover with, were B delivered.
+        ->and($cancelledFirst->orders['B']->expiredBackUnused)->toBe(200);
+    settlementBalanced($cancelledFirst);
+    settlementBalanced($returnedFirst);
+});
+
+it('does not count points passed back to a lot that covered as the order\'s own, live or expired', function () {
+    $book = settlementBook();
+    $book->deliver('A', 20_000, 200, '2027-01-15 12:00:00+00:00');
+    $book->redeem('B', 200, 200);
+    $book->lot(150, '2026-03-01 00:00:00+00:00');
+    $book->return('A', 20_000, 0);
+    $book->at('2026-04-01 12:00:00+00:00');
+
+    $book->cancel('B');
+
+    // L2's 150 came back to L2, dead by now: L2's own points, returned and expired — not B's.
+    expect($book->orders['B']->expiredBackUnused)->toBe(0)
+        ->and($book->orders['B']->pointsBackThroughCovers)->toBe(200);
+    settlementBalanced($book);
+});
+
 it('drops what nothing covers, recorded on the order, and never goes below 0', function () {
     $book = settlementBook();
     $book->deliver('A', 30_000, 300, '2027-01-15 12:00:00+00:00');
@@ -381,6 +425,16 @@ it('never goes below 0 and keeps the ledger whole through random histories', fun
     }
 
     shuffle($orders);
+
+    // Some never delivered: cancelled instead, after an admin removed a little.
+    $book->deduct(min($book->balance(), mt_rand(0, 50)));
+    settlementBalanced($book);
+
+    foreach (array_splice($orders, 0, 2) as $order) {
+        $book->orders[$order] = new OrderPointsFacts($book->orders[$order]->pointsRedeemed, $book->orders[$order]->discountMinor, 0, null);
+        $book->cancel($order);
+        settlementBalanced($book);
+    }
 
     foreach ($orders as $order) {
         $facts = $book->orders[$order];

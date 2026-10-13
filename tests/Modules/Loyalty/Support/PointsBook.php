@@ -155,6 +155,14 @@ final class PointsBook
         $settlement = new Settlement($this->orders[$order], $this->takes[$order], $this->lots, $earned, $earned === null ? 0 : ($this->gone[$earned] ?? 0), $this->now);
         $settlement->giveBack($give);
         $settlement->takeBack($take);
+
+        // Points that came back to a dead lot expired at once: they left that lot by expiry (b).
+        foreach ($settlement->movements() as $move) {
+            if ($move->kind === EntryKind::Expired) {
+                $this->gone[$move->lotId] = ($this->gone[$move->lotId] ?? 0) - $move->points;
+            }
+        }
+
         $this->ledger += $settlement->total(EntryKind::RedemptionReturned) + $settlement->total(EntryKind::EarningReversed) + $settlement->total(EntryKind::Expired);
         $this->expire();
 

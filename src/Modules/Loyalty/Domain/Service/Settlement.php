@@ -203,9 +203,10 @@ final class Settlement
             $throughCovers += $undo;
 
             // A cover taken from a lot is a take from it, and comes back the same way (§1.3).
-            if ($cover->source === CoverSource::Lot && $cover->sourceTake !== null) {
-                $this->comeBack($cover->sourceTake, $undo);
-                $this->toLot($cover->sourceTake->lotId, $undo);
+            if ($cover->source === CoverSource::Lot) {
+                $take = $cover->sourceTake ?? throw new LogicException('A lot cover without the take that covered it.');
+                $this->comeBack($take, $undo);
+                $this->toLot($take->lotId, $undo);
             }
 
             if ($points === 0) {
@@ -214,26 +215,39 @@ final class Settlement
         }
 
         if ($points > 0) {
-            $this->land($lot, $points);
+            $this->land($lot, $points, $firstLot);
         }
 
         return $firstLot ? $throughCovers : 0;
     }
 
-    private function land(SettlementLot $lot, int $points): void
+    /**
+     * Points onto a lot, with its date. Only those landing on the lot the order took them from are
+     * the order's own given-back points (c1, c2); points passed back to a lot that covered are that
+     * lot's own, returned (my reading of §1.8, stated in step 4a's PR).
+     */
+    private function land(SettlementLot $lot, int $points, bool $orderOwn): void
     {
         $this->movements[] = new Movement($lot->id, $points, EntryKind::RedemptionReturned);
 
         if ($lot->isLiveAt($this->now)) {
             $lot->pointsLeft += $points;
-            $this->landed[$lot->id] = ($this->landed[$lot->id] ?? 0) + $points;
+
+            if ($orderOwn) {
+                $this->landed[$lot->id] = ($this->landed[$lot->id] ?? 0) + $points;
+            }
 
             return;
         }
 
-        // Its date has passed: returned and expired at once (§1.3), kept to cover what is taken back.
+        // Its date has passed: returned and expired at once (§1.3) — points that left the lot by
+        // expiry, which its own order's reversal counts as taken (b); the order's own are kept to
+        // cover what is taken back (c1).
         $this->movements[] = new Movement($lot->id, -$points, EntryKind::Expired);
-        $this->facts->expiredBackUnused += $points;
+
+        if ($orderOwn) {
+            $this->facts->expiredBackUnused += $points;
+        }
     }
 
     private function off(SettlementLot $lot, int $points): void
