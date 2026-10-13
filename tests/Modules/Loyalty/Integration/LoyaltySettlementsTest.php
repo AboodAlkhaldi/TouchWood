@@ -171,7 +171,36 @@ it('settles while the store\'s programme is off', function () {
 
     loyaltySettleCancel($order);
 
-    expect(loyaltySettleBalance($customer))->toBe(300);
+    expect(loyaltySettleBalance($customer))->toBe(300)
+        ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(300);
+});
+
+it('counts an earned lot that expired before its return as taken, and touches no other points', function () {
+    Lx::programme(settings: [ProgrammeSettings::EXPIRY_MONTHS => 1]);
+    $customer = Fx::customer();
+    $order = Lx::deliver($customer, 20_000);
+    CarbonImmutable::setTestNow('2026-03-01 12:00:00 UTC');
+    Lx::deliver($customer, 50_000);
+
+    loyaltySettleReturn($order, 20_000, 0);
+
+    expect((int) DB::table('loyalty.orders')->where('order_id', $order)->value('points_counted_gone'))->toBe(200)
+        ->and(loyaltySettleBalance($customer))->toBe(500)
+        ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(500);
+});
+
+it('gives part of an order\'s points back to the lot it spent first', function () {
+    $customer = Fx::customer();
+    Lx::deliver($customer, 10_000);
+    CarbonImmutable::setTestNow('2026-02-01 12:00:00 UTC');
+    Lx::deliver($customer, 30_000);
+    $order = Lx::place($customer, Lx::quote($customer, 400, 100_000), 100_000);
+    [$first, $second] = DB::table('loyalty.lots')->orderBy('id')->pluck('id')->all();
+
+    Fx::asSystem(fn () => DB::transaction(fn () => Lx::api()->orderEdited(new SettleEdit($order, Fx::storeId('sa'), Lx::orderId(), Lx::money(300), Lx::delivering()))));
+
+    expect([(int) DB::table('loyalty.lots')->where('id', $first)->value('points_left'), (int) DB::table('loyalty.lots')->where('id', $second)->value('points_left')])
+        ->toBe([100, 0]);
 });
 
 describe('a staff edit before shipping', function () {
