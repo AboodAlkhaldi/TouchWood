@@ -179,6 +179,70 @@ it('counts earned points that expired unused, or an admin removed, as taken back
     settlementBalanced($book);
 })->with(['expired unused' => false, 'removed by hand' => true]);
 
+it('counts points gone by hand once across parts: what is left out with others is still covered', function () {
+    $book = settlementBook();
+    $book->deliver('A', 20_000, 200, '2027-01-15 12:00:00+00:00');
+    $book->deduct(100);
+    $book->redeem('B', 100, 100);
+
+    $book->return('A', 10_000, 0);
+    $book->return('A', 10_000, 0);
+
+    expect($book->orders['A']->pointsCountedGone)->toBe(100)
+        ->and($book->orders['A']->pointsDropped)->toBe(100);
+    settlementBalanced($book);
+});
+
+it('covers with this settlement\'s given-back points before the customer\'s other lots', function () {
+    $book = settlementBook();
+    $giving = $book->lot(100, '2026-12-01 00:00:00+00:00');
+    $book->redeem('A', 100, 100);
+    $book->deliver('A', 10_000, 100, '2027-01-15 12:00:00+00:00');
+    $book->redeem('B', 100, 100);
+    // A lot that expires sooner, made after A was placed: still not the first to cover.
+    $sooner = $book->lot(100, '2026-06-01 00:00:00+00:00');
+
+    $book->return('A', 10_000, 100);
+
+    expect($book->lots[$sooner]->pointsLeft)->toBe(100)
+        ->and($book->lots[$giving]->pointsLeft)->toBe(0);
+    settlementBalanced($book);
+});
+
+it('covers from the other lot that expires first, whatever their order of making', function () {
+    $book = settlementBook();
+    $book->deliver('A', 10_000, 100, '2027-01-15 12:00:00+00:00');
+    $book->redeem('B', 100, 100);
+    $later = $book->lot(100, '2026-12-01 00:00:00+00:00');
+    $sooner = $book->lot(100, '2026-06-01 00:00:00+00:00');
+
+    $book->return('A', 10_000, 0);
+
+    expect([$book->lots[$sooner]->pointsLeft, $book->lots[$later]->pointsLeft])->toBe([0, 100]);
+});
+
+it('undoes a lot\'s lot covers before its expired-point covers, though they are younger, and gives the covering take its points back', function () {
+    $book = settlementBook();
+    $book->lot(100, '2026-03-01 00:00:00+00:00');
+    $book->redeem('A', 100, 100);
+    $book->deliver('A', 20_000, 200, '2027-01-15 12:00:00+00:00');
+    $book->redeem('B', 200, 200);
+    $book->deliver('B', 0, 0, '2027-01-15 12:00:00+00:00');
+    $l2 = $book->lot(150, '2026-12-01 00:00:00+00:00');
+    $book->at('2026-04-10 12:00:00+00:00');
+    // A in two parts: its expired 100 cover the first 100 (older), L2 the next 100 (younger).
+    $book->return('A', 10_000, 100);
+    $second = $book->return('A', 10_000, 0);
+    $coverTake = $second->newTakes()[0];
+
+    // Half of B back: the lot cover is undone first — its 100 go back to L2.
+    $book->return('B', 0, 100);
+
+    expect($book->lots[$l2]->pointsLeft)->toBe(150)
+        ->and($coverTake->back)->toBe(100);
+    settlementBalanced($book);
+});
+
 it('drops what nothing covers, recorded on the order, and never goes below 0', function () {
     $book = settlementBook();
     $book->deliver('A', 30_000, 300, '2027-01-15 12:00:00+00:00');
