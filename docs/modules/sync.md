@@ -1,6 +1,6 @@
 # Sync — module specification
 
-**Status (2026-10-13): draft for the owner's approval.** Sync reads an external provider — Odoo is
+**Status (2026-10-13): accepted by the owner** (§9.2, with points 10–16). Sync reads an external provider — Odoo is
 the one wanted — **one way, per store**: each size's **base (retail) price** and **stock**, by product
 code. It is built from handoff §12.2 (rewritten 2026-10-01, narrowed 2026-10-13), the changelog row of
 2026-10-07 (handoff §0.1), inventory.md and pricing.md, and the owner's answers of 2026-10-13 (§9.2).
@@ -53,7 +53,7 @@ database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never sho
 shows only that they are set and when; a new value replaces the old one.
 
 - **Saving tests the connection first**: one small read. If it fails, nothing is saved and the reason
-  is shown (`sync.connection_failed`). *(§9.1 #A)*
+  is shown (`sync.connection_failed`). *(§9.2 #10)*
 - Once saved, the store is wired **at that second**, and **a full read is queued at once** (§1.3). The
   provider's prices replace the store's own, and its stock numbers replace ours through the ledger.
 - **Changing the key or the secret** is the same form, tested the same way.
@@ -96,7 +96,7 @@ For each code the provider sends with a price (owner, 2026-10-13):
 5. **A price that takes a running or scheduled sale past the store's ceiling is taken**, and **the
    sale stops on that size**; it is reported (`SALE_STOPPED`) (owner, 2026-10-13 #2: "go with 2 and
    report too"). The size leaves the sale; a sale left with no size ends if running, or is removed if
-   not started — audited as Sync's. *(§9.1 #G)*
+   not started — audited as Sync's. *(§9.2 #16)*
 
 An unchanged price changes nothing and is not audited.
 
@@ -106,7 +106,7 @@ For each code the provider sends with a stock number:
 
 1. Unknown, archived → reported, as for prices (§1.4 #1–2).
 2. **A number that is not a whole number** → skipped, reported (`BAD_VALUE`). **Below 0** → kept as
-   **0**, reported (`BAD_VALUE`). *(§9.1 #B)*
+   **0**, reported (`BAD_VALUE`). *(§9.2 #11)*
 3. Otherwise Inventory records it (inventory.md §1.1 rule 3, §1.9): **the same number as last time
    changes nothing**; a different one is a `PROVIDER` movement to the new value, with a reference
    unique to that read and size, so a retried read is counted once — and a stock-dependent size's
@@ -154,7 +154,7 @@ prices and stock stay as they are, now editable by hand.
 - Inventory works out every size's orderability again for a store with no provider, where **every
   product counts on its stock** (inventory.md §1.1 rule 2) — so an ordinary product the provider left
   at 0 stops being orderable. **The Super Admin is shown how many sizes will stop before confirming.**
-- A stock-dependent size's returned extra is added into its stock. *(§9.1 #C)*
+- A stock-dependent size's returned extra is added into its stock. *(§9.2 #12)*
 - The report's entries are closed; reads queued for the store are dropped.
 
 ---
@@ -202,7 +202,7 @@ Nothing new for Sales or Catalog. Sync **binds** the wiring question Pricing and
 | `ReceiveNotification` — the provider's call (§1.3) | The signature, no staff | That store |
 | `ReadStore` (Notified, Hourly, Nightly, Now, One code) · `PruneSyncLog` | System (reserved): `sync.read.scheduled`, `sync.log.prune` | — |
 
-The permissions' group in the role editor: §9.1 #D. Every change of a connection is audited (never
+The permissions sit in a new **Sync** group in the role editor (§9.2 #13). Every change of a connection is audited (never
 the key or the secret themselves), in both languages.
 
 ---
@@ -304,17 +304,7 @@ staff error.
 | 8 | Call limits, page size, hours to avoid |
 | 9 | Their notification (§1.3): our shape, or theirs? A technical contact |
 
-**For the owner with this spec — my recommendation in each:**
-
-| # | Question | Recommendation |
-|---|---|---|
-| A | Saving a connection whose test read fails | **Refused**, the reason shown (§1.2) |
-| B | A provider stock number below 0, or not whole | **Below 0 kept as 0; not whole skipped**; both reported (§1.5) |
-| C | Unwiring: a stock-dependent size's returned extra | **Added into its stock** (a `CORRECTION` movement, note "unwired") (§1.8) |
-| D | The permissions' place in the role editor | **A new "Sync" group** holding View the Sync Report and Run Sync Reads; wiring stays Super Admin only |
-| E | Notifications limited to 60 a minute per store | **Yes**; the hourly read covers the rest |
-| F | Codes compared exactly as written, spaces trimmed (so `0123` ≠ `123`) | **Yes** — the same code in both systems is the rule |
-| G | A sale stopped on a size: the size leaves the sale; a sale left with none ends (running) or is removed (scheduled) | **Yes**, audited as Sync's and reported |
+Points A–G, asked with this spec, were accepted (owner, 2026-10-13): §9.2 #10–16.
 
 ### 9.2 Answered (owner, 2026-10-13)
 
@@ -329,3 +319,10 @@ staff error.
 | 7 | How long the report and the log of reads are kept | **90 days** (§1.6) |
 | 8 | "Our invoice shows the base price and the price after discount" | **Our order page, confirmation email and receipt show both**; tax invoices stay outside — the Sales spec (stage 6) |
 | 9 | What is read from the provider | **The base price only**, and stock; every sale and discount is ours, never written to the provider (§1.1) |
+| 10 (A) | Saving a connection whose test read fails | **Refused**, the reason shown (§1.2) |
+| 11 (B) | A provider stock number below 0, or not whole | **Below 0 kept as 0; not whole skipped**; both reported (§1.5) |
+| 12 (C) | Unwiring: a stock-dependent size's returned extra | **Added into its stock** (a `CORRECTION` movement, note "unwired") (§1.8) |
+| 13 (D) | The permissions' place in the role editor | **A new "Sync" group** holding View the Sync Report and Run Sync Reads; wiring stays Super Admin only (§3) |
+| 14 (E) | Notifications per store | **At most 60 a minute, up to 1,000 codes each**; one refused is answered "too many" and the hourly read covers it (§1.3) |
+| 15 (F) | How codes are compared | **Exactly as written, spaces trimmed** (`0123` ≠ `123`) (§1.1) |
+| 16 (G) | A sale stopped on a size | **The size leaves the sale; a sale left with none ends (running) or is removed (scheduled)**, audited as Sync's and reported (§1.4) |
