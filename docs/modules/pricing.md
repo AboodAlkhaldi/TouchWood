@@ -60,7 +60,9 @@ changed or removed price is audited from and to.
 A lower price for a size, for a time (owner, 2026-10-08):
 
 - **A new price or a percentage off** — either, on the same form. A percentage is above 0 and below
-  100, worked out on the size's retail price whenever that changes, rounded half up to the coin.
+  100, worked out on the size's retail price whenever that changes, rounded half up to the coin —
+  **the price paid is what is rounded** (owner, 2026-10-10). **A percentage that would bring a size's
+  price to 0 is refused** when the sale is saved (owner, 2026-10-10).
 - **For one size, or for every size of a product at once.** A sale made for every size is kept as one
   sale over those sizes, so it is changed and ended as one; a size added to the product later is not
   in it (owner, 2026-10-08).
@@ -76,7 +78,9 @@ A lower price for a size, for a time (owner, 2026-10-08):
   **refused** (owner, 2026-10-09). **It never beats a wholesale band**: a wholesale line pays the
   lower of it and its band (owner, 2026-10-09). Not marked, the lowest wins as above.
 - **A sale price must be below the size's retail price when it is saved** — otherwise it is not a sale
-  (owner, 2026-10-08). If the retail price later drops below it, the sale simply stops winning.
+  (owner, 2026-10-08). If the retail price later drops below it, the sale simply stops winning — an
+  "always wins" one too, which then **pauses nothing: the other sales and discounts count again**
+  (owner, 2026-10-10).
 - Its life (§4.1): **scheduled → running → ended**. A scheduled sale may be changed in full or
   removed; a running one may only have its end changed or be ended now; an ended one is history,
   kept (owner, 2026-10-08).
@@ -89,7 +93,9 @@ per size** (owner, 2026-10-08), in **quantity bands**:
 - **The first band starts at the product's wholesale minimum** in that store (Catalog's
   `wholesaleMinimum`), e.g. "from 20 = 85"; then as many higher bands as wanted, e.g. "from 100 = 78,
   from 500 = 70" (owner, 2026-10-08).
-- Each band starts higher and costs **less** than the one before; every price is above 0.
+- Each band starts higher and costs **less** than the one before; every price is above 0; **the first
+  band costs less than the retail price** when saved (owner, 2026-10-10). If the retail price later
+  drops below a band, the line's normal price is the retail price (§1.6 step 5).
 - Saving needs the size to **sell wholesale** in that store (Catalog). If the store stops selling it
   wholesale, its bands are kept, unused, for the day it sells wholesale again (owner, 2026-10-08).
 - **If Catalog's wholesale minimum is later lowered** below the first band, a wholesale line under the
@@ -129,12 +135,16 @@ For a line — a size, its sale mode, a quantity — in a store, at a moment:
    not skipping it); and, **on a wholesale line**, the band with the highest start at or below the
    quantity. Campaign prices join in stage 8.
 3. **An "always wins" sale or discount running on the size** (§1.3) is the unit price, every other
-   sale and discount set aside — on a wholesale line, the lower of it and the band.
+   sale and discount set aside — on a wholesale line, the lower of it and the band — **while it is at or
+   below the retail price**; above it, it has stopped winning and the others count again (owner,
+   2026-10-10).
 4. **Otherwise the cheapest candidate is the unit price**; its kind is reported. Equal candidates: the
    dated one first — sale, category discount — then the wholesale band, then the retail price, so the
-   shopper sees why it is cheaper (owner, 2026-10-08).
+   shopper sees why it is cheaper (owner, 2026-10-08); equal in amount and kind, **the one lasting
+   longest**, so a quote stays valid as long as the price does (owner, 2026-10-10).
 5. **The list price** — what `gross_subtotal` counts — is the line's normal price: **on a retail line,
-   the retail price; on a wholesale line, its band** where one applies, else the retail price. **A
+   the retail price; on a wholesale line, its band** where one applies — **never above the retail price**
+   (owner, 2026-10-10) — else the retail price. **A
    wholesale price is that line's normal price, not a discount** (owner, 2026-10-10): only a sale or a
    category discount below it reduces a line, so coupons and points reach a band-priced line and the
    discount ceiling (handoff §11.3) measures real reductions only. A card crosses out the retail price
@@ -489,3 +499,14 @@ band a discount? **No — "wholesale is normal"** (owner): a band is the line's 
 5), so coupons and points reach band-priced lines and the ceiling counts only sales and discounts.
 Before, a wholesale line's list price was the retail price, and a 70 band under a 100 retail price
 used up a 30% ceiling on its own.
+
+**The engine's edges** (2026-10-10, step 2's build and review; owner):
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | A percentage off: is the price paid rounded, or the amount off? | **The price paid**, half up to the coin (§1.3) |
+| 2 | An "always wins" sale above a lowered retail price | **The retail price**: it has stopped winning (§1.3, §1.6 step 3) |
+| 3 | …and while it has stopped winning, do other sales count? | **Yes**: it pauses nothing (§1.3) |
+| 4 | Two equal prices of the same kind, ending at different times | **The one lasting longest** (§1.6 step 4) |
+| 5 | A percentage that would bring a price to 0 | **Refused** when the sale is saved (§1.3) |
+| 6 | A wholesale band above a lowered retail price | **The line's normal price is the retail price**; the first band must cost less than the retail price when saved (§1.4, §1.6 step 5) |
