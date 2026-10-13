@@ -9,6 +9,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\ValueObject\Sale;
@@ -16,9 +17,9 @@ use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The store's discount ceiling against its sales (pricing.md §1.12; owner, 2026-10-11/13): which sales
- * running or scheduled would go deeper than a ceiling - at today's retail prices, or at retail prices a
- * change is about to set.
+ * The store's discount ceiling against its sales and category discounts (pricing.md §1.12; owner,
+ * 2026-10-11/13): which of them, running or scheduled, would go deeper than a ceiling - at today's
+ * retail prices, or at retail prices a change is about to set.
  */
 final readonly class CeilingCheck
 {
@@ -27,6 +28,8 @@ final readonly class CeilingCheck
         private Sales $sales,
         private RetailPrices $retailPrices,
         private CatalogApi $catalog,
+        private CategoryDiscounts $discounts,
+        private DiscountCoverage $coverage,
     ) {}
 
     public function ceiling(StoreId $store): int
@@ -68,6 +71,51 @@ final readonly class CeilingCheck
     }
 
     /**
+     * The category discounts running or scheduled that would go deeper than a ceiling (§1.12): a
+     * percentage above it - only a lower ceiling does that, a percentage being as deep on every size; a
+     * fixed amount more than it below the retail price of a size it reaches - today's, or one a change is
+     * about to set, a size priced for the first time included. A size the amount would take to 0 is
+     * skipped by the discount, so never measured.
+     *
+     * @param  array<string, Money>  $retail  retail prices about to be set, by size, in place of today's
+     * @return array<string, array{category: string, products: list<string>}> discount id => its category and the products it takes past
+     */
+    public function discountsOver(StoreId $store, int $ceilingPercent, array $retail = []): array
+    {
+        $over = [];
+        $productOf = $retail === [] ? [] : array_map(static fn ($variant): string => $variant->productId, $this->catalog->variants(array_map('strval', array_keys($retail))));
+
+        foreach ($this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()) as $discount) {
+            if ($discount->percentBasisPoints !== null) {
+                if ($retail === [] && $discount->percentBasisPoints > $ceilingPercent * 100) {
+                    $over[$discount->id] = ['category' => $discount->categoryId, 'products' => []];
+                }
+
+                continue;
+            }
+
+            $products = $this->coverage->products($discount);
+            $sizes = $retail === []
+                ? $this->coverage->pricedSizesOf($store, $products)
+                : array_filter($productOf, static fn (string $productId): bool => isset($products[$productId]));
+            $prices = $retail === [] ? $this->retailPrices->forVariants($store, array_keys($sizes)) : array_intersect_key($retail, $sizes);
+            $hit = [];
+
+            foreach ($prices as $variantId => $price) {
+                if ($discount->priceOn($price) !== null && $discount->depthOn($price) > $ceilingPercent * 100) {
+                    $hit[] = $sizes[$variantId];
+                }
+            }
+
+            if ($hit !== []) {
+                $over[$discount->id] = ['category' => $discount->categoryId, 'products' => array_values(array_unique($hit))];
+            }
+        }
+
+        return $over;
+    }
+
+    /**
      * The products of these sales by name, in the language of whoever is refused, for the note: staff
      * see which products hit the ceiling (owner, 2026-10-13). A product with no English name yet shows
      * its Arabic one.
@@ -76,9 +124,42 @@ final readonly class CeilingCheck
      */
     public function productNames(array $sales): string
     {
+        return $this->namesFor($sales, []);
+    }
+
+    /**
+     * The note's names for sales and category discounts past the ceiling: each product they take past
+     * it; for a percentage discount, which reaches every product in it alike, its category.
+     *
+     * @param  list<Sale>  $sales
+     * @param  array<string, array{category: string, products: list<string>}>  $discounts
+     */
+    public function namesFor(array $sales, array $discounts): string
+    {
         $english = app()->getLocale() === 'en';
-        $products = $this->catalog->products(array_values(array_unique(array_map(static fn (Sale $sale): string => $sale->productId, $sales))));
-        $names = array_map(static fn (ProductDto $product): string => $english ? ($product->nameEn ?? $product->nameAr) : $product->nameAr, array_values($products));
+        $productIds = array_map(static fn (Sale $sale): string => $sale->productId, $sales);
+        $categories = [];
+
+        foreach ($discounts as $discount) {
+            array_push($productIds, ...$discount['products']);
+
+            if ($discount['products'] === []) {
+                $categories[] = $discount['category'];
+            }
+        }
+
+        $names = array_map(
+            static fn (ProductDto $product): string => $english ? ($product->nameEn ?? $product->nameAr) : $product->nameAr,
+            array_values($this->catalog->products(array_values(array_unique($productIds)))),
+        );
+
+        foreach (array_values(array_unique($categories)) as $categoryId) {
+            $category = $this->catalog->category($categoryId);
+
+            if ($category !== null) {
+                $names[] = $english ? $category->nameEn : $category->nameAr;
+            }
+        }
 
         return implode($english ? ', ' : '، ', $names);
     }

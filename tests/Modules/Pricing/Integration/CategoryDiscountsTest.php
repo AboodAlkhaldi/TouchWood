@@ -11,7 +11,14 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Testing\Fakes\QueueFake;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
+use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
@@ -25,8 +32,10 @@ use Modules\Pricing\Application\Command\EndCategoryDiscount\EndCategoryDiscountH
 use Modules\Pricing\Application\Command\RemoveCategoryDiscount\RemoveCategoryDiscount;
 use Modules\Pricing\Application\Command\RemoveCategoryDiscount\RemoveCategoryDiscountHandler;
 use Modules\Pricing\Application\PricingPermissions;
+use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Domain\Exception\AlwaysWinsOverlap;
 use Modules\Pricing\Domain\Exception\CategoryNotUsable;
+use Modules\Pricing\Domain\Exception\CeilingBelowSales;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\OverCeiling;
 use Modules\Pricing\Infrastructure\Queue\ApplyPriceWindowJob;
@@ -149,6 +158,48 @@ describe('what a discount reaches (§1.5)', function () {
     });
 });
 
+describe('the ceiling held against a discount (§1.12, 6b)', function () {
+    it('holds back a retail price that would take a fixed-amount discount past it, a first price too', function () {
+        $shop = discountShop();
+        [$size] = $shop['inChild']['variants'];
+        $new = Px::ready(['60 cm'], $shop['child']);
+        discountAdd($shop['child'], amount: '20');
+        app()->setLocale('en');
+
+        try {
+            Rx::set('sa', [$size => '50']);
+            $named = null;
+        } catch (OverCeiling $error) {
+            $named = $error->products;
+        }
+
+        // 20 off 50 is 40%: past the 30% ceiling; held back, the price as it was.
+        expect($named)->toStartWith('Drawer')
+            ->and(Rx::retail('sa', $size)?->amount_minor)->toBe(10000)
+            ->and(fn () => Rx::set('sa', [$new['variants'][0] => '40']))->toThrow(OverCeiling::class);
+
+        Rx::set('sa', [$size => '80']);
+
+        expect(Rx::retail('sa', $size)?->amount_minor)->toBe(8000);
+    });
+
+    it('holds back a lower ceiling while a percentage discount goes deeper, naming its category', function () {
+        $shop = discountShop();
+        discountAdd($shop['child'], percent: '25');
+        app()->setLocale('en');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        try {
+            app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 20));
+            $named = null;
+        } catch (CeilingBelowSales $error) {
+            $named = $error->products;
+        }
+
+        expect($named)->toStartWith('Drawers');
+    });
+});
+
 describe('its life and "always wins" (§4.1, §1.3)', function () {
     it('changes a scheduled one in full, a running one its end only; ends a running one, removes a scheduled one', function () {
         $shop = discountShop();
@@ -203,6 +254,29 @@ describe('its life and "always wins" (§4.1, §1.3)', function () {
 
         expect(Fx::asSystem(fn (): bool => app(ApplyPriceWindowHandler::class)->handle(new ApplyPriceWindow($task->storeId, $task->saleId, $task->moment))))->toBeTrue()
             ->and((int) DB::table('catalog.store_variant_facts')->where('store_id', Rx::storeId('sa'))->where('variant_id', $size)->value('price_minor'))->toBe(9000);
+    });
+
+    it('follows a product moved into or out of the category, and a category moved under it (6b)', function () {
+        $shop = discountShop();
+        discountAdd($shop['child'], percent: '10');
+        $moved = $shop['outside'];
+        $product = app(ProductRepository::class)->find($moved['product']) ?? throw new LogicException('No product.');
+        $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
+
+        // Into the discounted category: ProductChanged, and its price follows at once.
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($moved['product'], $product->name()->ar, $product->name()->en, $product->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: $shop['child'])));
+
+        expect(discountUnit($moved['variants'][0]))->toBe(9000);
+
+        // A whole category moved under a discounted one: CategoryMoved.
+        $doors = Px::category('Doors');
+        $other = Px::ready(['60 cm'], $doors);
+        Rx::set('sa', [$other['variants'][0] => '100']);
+        discountAdd($shop['top'], percent: '20', startsAt: '2026-10-14 00:00:00+00');
+        CarbonImmutable::setTestNow('2026-10-14 00:00:00+00');
+        Fx::asSystem(fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($doors, $shop['top'])));
+
+        expect(discountUnit($other['variants'][0]))->toBe(8000);
     });
 
     it('needs Manage Category Discounts in that store', function () {

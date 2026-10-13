@@ -50,6 +50,15 @@ final readonly class DiscountCoverage
             $products += $this->products($discount);
         }
 
+        return $this->pricedSizesOf($store, $products);
+    }
+
+    /**
+     * @param  array<string, true>  $products  product id => true
+     * @return array<string, string> size id => its product, for the store's priced sizes of these products, in size-id order
+     */
+    public function pricedSizesOf(StoreId $store, array $products): array
+    {
         if ($products === []) {
             return [];
         }

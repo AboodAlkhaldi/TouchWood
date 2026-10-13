@@ -73,6 +73,13 @@ final readonly class DatabaseCategoryDiscounts implements CategoryDiscounts
             ->get()->values()->all());
     }
 
+    public function storesWithDiscounts(DateTimeImmutable $at): array
+    {
+        return array_values(array_map('strval', $this->db->table(self::TABLE)
+            ->where(fn (Builder $query) => $query->whereNull('ends_at')->orWhere('ends_at', '>', $at->format('Y-m-d H:i:s.uP')))
+            ->distinct()->orderBy('store_id')->pluck('store_id')->all()));
+    }
+
     public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array
     {
         [$after, $by] = [$from->format('Y-m-d H:i:s.uP'), $to->format('Y-m-d H:i:s.uP')];
