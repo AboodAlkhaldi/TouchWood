@@ -10,6 +10,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Application\Settings\InMemorySettingGuards;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\ReadSetting;
 use Modules\Platform\Application\Settings\SettingValues;
@@ -36,6 +37,7 @@ final readonly class UpdateSettingHandler
     public function __construct(
         private Authorizer $authorizer,
         private InMemorySettingsRegistry $registry,
+        private InMemorySettingGuards $guards,
         private StoreDirectory $directory,
         private SettingValues $values,
         private AuditLog $auditLog,
@@ -77,6 +79,10 @@ final readonly class UpdateSettingHandler
             if ($current !== null && $current->value === $value) {
                 return;
             }
+
+            // The declaring module's own say, which the rules cannot judge alone: its error holds the
+            // change back, with its note (§2.2).
+            $this->guards->check($command->key, $store, $previous, $value);
 
             $actor = $this->actors->current();
             $id = $this->values->save($command->key, $store?->value, $value, $actor->type === ActorType::Staff ? $actor->id : null);

@@ -1232,6 +1232,10 @@ Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-
 Per store, admin-defined `max_discount_percent` (0–100). Measured against
 `gross_subtotal` — the full reduction from list price. **[REVISED 2026-10-10]** A wholesale line's
 list price is its band: a wholesale price is not a discount, so it never uses up the ceiling.
+**[REVISED 2026-10-13]** The ceiling also limits the store's own **sales and category discounts**:
+one deeper than it is refused when saved, and a retail change or a lower ceiling that would put a
+sale past it is held back (owner, 2026-10-11/13). The number lives in Pricing (pricing.md §1.12). The
+paragraph below now applies to the room left for coupons and points.
 
 **It only ever refuses customer-applied discounts. It never blocks an order that breaches
 from merchant pricing alone.** A clearance item at 70% off under a 50% ceiling sells
@@ -1377,6 +1381,10 @@ the domain. **Only a Super Admin** wires a store, changes its credentials (the A
 the wiring; admins and staff have nothing to do with it. **Each store has its own connection and is
 isolated** — wiring one store changes nothing in another — and every wired store behaves the same
 way. A store with no connection has the sync layer dormant.
+
+**[2026-10-13, owner]** From the provider we take **the base (retail) price only**; every sale,
+discount and the ceiling live in our system alone and are **never written to the provider**; our
+invoice shows the base price and the price after discount.
 
 - **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
   read each product's **stock** and its **base retail price** — with the provider's discount and its

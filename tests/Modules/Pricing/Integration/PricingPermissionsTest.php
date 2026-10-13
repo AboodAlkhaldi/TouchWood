@@ -42,12 +42,24 @@ function pricingDeclaredPermissions(bool $reserved): array
 }
 
 // Two literal lists, split by the reservation, so a name moved from one list to the other is caught.
-it('declares the three jobs of the spec as jobs, and nothing else', function () {
+it('declares the three jobs of the spec and the ceiling\'s as jobs, and nothing else', function () {
     expect(pricingDeclaredPermissions(reserved: false))->toBe([
         'pricing.category_discount.manage',
+        'pricing.ceiling.manage',
         'pricing.price.edit',
         'pricing.wholesale.edit',
     ]);
+});
+
+it('makes the ceiling\'s job admin-only, per store, under Pricing, named as the owner chose (2026-10-13)', function () {
+    $permission = app(InMemoryPermissionCatalog::class)->definition(PricingPermissions::CEILING_MANAGE);
+
+    expect($permission?->adminOnly)->toBeTrue()
+        ->and($permission?->kind)->toBe(PermissionKind::PerStore)
+        ->and($permission?->group)->toBe(PermissionGroup::Pricing)
+        ->and($permission?->reserved)->toBeFalse()
+        ->and(trans('pricing::permissions.ceiling.manage', [], 'en'))->toBe('Set the Discount Ceiling')
+        ->and(PricingPermissions::jobs())->not->toContain(PricingPermissions::CEILING_MANAGE);
 });
 
 it('reserves exactly the three system jobs, and nothing else', function () {

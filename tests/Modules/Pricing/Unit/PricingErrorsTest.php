@@ -7,12 +7,14 @@ use Modules\Pricing\Domain\Exception\AmountsInvalid;
 use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Modules\Pricing\Domain\Exception\CategoryDiscountNotFound;
 use Modules\Pricing\Domain\Exception\CategoryNotUsable;
+use Modules\Pricing\Domain\Exception\CeilingBelowSales;
 use Modules\Pricing\Domain\Exception\DuplicateLines;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\LinesWithoutPrice;
 use Modules\Pricing\Domain\Exception\NoRetailPrice;
 use Modules\Pricing\Domain\Exception\NotChangeable;
 use Modules\Pricing\Domain\Exception\NotSoldWholesale;
+use Modules\Pricing\Domain\Exception\OverCeiling;
 use Modules\Pricing\Domain\Exception\PercentOutOfRange;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
@@ -57,6 +59,8 @@ function pricingErrorTable(): array
         LinesWithoutPrice::class => ['pricing.lines_without_price', ErrorCategory::Conflict],
         AmountsInvalid::class => ['pricing.amounts_invalid', ErrorCategory::Invalid],
         InvalidPricingInput::class => ['pricing.invalid_pricing_input', ErrorCategory::Invalid],
+        OverCeiling::class => ['pricing.over_ceiling', ErrorCategory::Invalid],
+        CeilingBelowSales::class => ['pricing.ceiling_below_sales', ErrorCategory::Conflict],
     ];
 }
 
@@ -86,7 +90,7 @@ it('has exactly the errors of §7 in its folder, no more and no fewer', function
     sort($table);
 
     // A guard over files must find something, or it passes over nothing.
-    expect(pricingErrorClassesFound())->toHaveCount(19)->toBe($table);
+    expect(pricingErrorClassesFound())->toHaveCount(21)->toBe($table);
 });
 
 it('gives each error the type and the category of §7', function (PricingError $error, string $type, ErrorCategory $category) {

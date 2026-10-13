@@ -25,7 +25,8 @@ function pricingAuditNamesRecorded(): array
             continue;
         }
 
-        preg_match_all("/new AuditEntryDto\\(\\s*'(pricing\\.[a-z_]+\\.[a-z_]+)'/", (string) file_get_contents($file->getPathname()), $found);
+        // Built directly, or through SaleAudit::entry with the action written out first.
+        preg_match_all("/(?:new AuditEntryDto|SaleAudit::entry)\\(\\s*'(pricing\\.[a-z_]+\\.[a-z_]+)'/", (string) file_get_contents($file->getPathname()), $found);
         array_push($actions, ...$found[1]);
     }
 
@@ -37,7 +38,10 @@ function pricingAuditNamesRecorded(): array
 
 it('finds the actions Pricing records', function () {
     // A guard over files must find something, or it passes over nothing.
-    expect(pricingAuditNamesRecorded())->toBe(['pricing.retail_price.removed', 'pricing.retail_price.set']);
+    expect(pricingAuditNamesRecorded())->toBe([
+        'pricing.retail_price.removed', 'pricing.retail_price.set',
+        'pricing.sale.added', 'pricing.sale.changed', 'pricing.sale.ended', 'pricing.sale.removed',
+    ]);
 });
 
 it('names every action Pricing records, in Arabic and English', function () {

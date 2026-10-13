@@ -45,8 +45,11 @@ the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's tea
    (`platform.store.switch`) — or by its file (owner, 2026-10-07); the panel offers off stores to them
    alone (platform.md §9.10).
 9. **A store wired to a provider** (Sync): its retail prices come from the provider and are
-   read-only in our panel (handoff §12.2). Whether its sales do too waits for the provider's team
-   (§9.1 #1).
+   read-only in our panel (handoff §12.2). **Its sales and discounts are ours, as in any store**
+   (owner, 2026-10-13: §9.1 #1 settled): the provider gives the base price only; nothing is written
+   back to it; an invoice shows the base price and the price after discount.
+10. **The store's discount ceiling** limits every sale and category discount, as well as coupons and
+   points (owner, 2026-10-11; §1.12).
 
 ### 1.2 Retail price
 
@@ -225,6 +228,22 @@ Staff may change an order's lines and quantities before it ships (owner, 2026-10
 
 ---
 
+### 1.12 The store's discount ceiling (moved from Promotions, owner 2026-10-13)
+
+**`max_discount_percent`** (handoff §11.3), per store, 0–100, **30** unless changed: how deep any
+reduction from the price may go. **One Platform setting**, `pricing.ceiling.max_discount_percent`,
+declared by Pricing and changed under **Set the Discount Ceiling** (`pricing.ceiling.manage`,
+admin-only, per store; owner, 2026-10-13); Promotions reads it for coupons and points (promotions.md
+§1.6). One stored value, so the settings screen and any Pricing screen always show the same.
+
+- **A sale or a category discount deeper than it is refused when saved** (owner, 2026-10-11):
+  a percentage above it, or a price more than it below the size's retail price (`pricing.over_ceiling`).
+- **A retail price that would take a running or scheduled sale past it is held back** with a note
+  naming the sales; staff pick another price or change the sale first (owner, 2026-10-11/13).
+- **A lower ceiling is held back** while running or scheduled sales go deeper than it, naming them
+  (`pricing.ceiling_below_sales`; owner, 2026-10-13) - through Platform's setting guard (platform.md
+  §2.2), so every screen that changes it gets the same refusal.
+
 ## 2 · Public contract
 
 Module to module (handoff §4.3): ids and values in, DTOs out; no permission is checked — the calling
@@ -358,7 +377,7 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 | Table | Columns |
 |---|---|
 | `pricing.retail_prices` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `amount_minor` bigint CHECK > 0 · `currency_code` · `source` CHECK (`STAFF`, `FILE`, `PROVIDER`) · `updated_at` |
-| `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `source` CHECK (`STAFF`, `PROVIDER`) · `created_at` — two "always wins" on one size at once refused under the store's pricing lock, as nothing in a CHECK can see across rows |
+| `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` (no `source`: every sale is ours, owner 2026-10-13) — two "always wins" on one size at once refused under the store's pricing lock, as nothing in a CHECK can see across rows |
 | `pricing.sale_variants` | (`sale_id` FK CASCADE, `variant_id` FK CASCADE) PK — the sizes it covers (one, or every size of the product when it was made) |
 | `pricing.wholesale_bands` | (`store_id`, `variant_id`, `from_quantity` CHECK ≥ 1) PK · `amount_minor` bigint CHECK > 0 · `currency_code` |
 | `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` RESTRICT · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
@@ -413,6 +432,8 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
+| `OverCeiling` | INVALID | deeper than the store's discount ceiling: a sale saved, or a retail price taking a sale past it - naming the ceiling and the sales or sizes (§1.12) |
+| `CeilingBelowSales` | CONFLICT | a lower ceiling while sales go deeper, naming them (§1.12) |
 | `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number; a line's quantity below 1 (§2.1) — named by its field (`store`, `variant`, `amount`, `quantity`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive` |
 
 ---
@@ -482,7 +503,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 
 | # | Question | Waits for |
 |---|---|---|
-| 1 | **The discount strategy in a wired store**: (A) discounts made only in the provider (Odoo), sent to us with full details and applied here read-only; or (B) both ways, full details, each discount edited only where it was made, never echoed back — which reverses "we never write to the provider" (handoff §12.2). The provider's sales are an amount off or a percentage off its base price (owner, 2026-10-09) | The owner, with the provider's team (asked 2026-10-09) |
+| 1 | **SETTLED 2026-10-13 (owner): the discounts are ours only** - base prices from the provider, nothing written back (§1.1 rule 9). Was: **The discount strategy in a wired store**: (A) discounts made only in the provider (Odoo), sent to us with full details and applied here read-only; or (B) both ways, full details, each discount edited only where it was made, never echoed back — which reverses "we never write to the provider" (handoff §12.2). The provider's sales are an amount off or a percentage off its base price (owner, 2026-10-09) | The owner, with the provider's team (asked 2026-10-09) |
 | 2 | Does the provider call us when something changes (a webhook), besides our reading every few minutes? | Same |
 | 3 | What a company's card shows when its first size sells wholesale only (catalog.md amendment 15) — Pricing would push the same one-piece price | The owner, with Catalog's amendment |
 | 4 | Campaign prices | Stage 8 (owner, 2026-10-08) |
