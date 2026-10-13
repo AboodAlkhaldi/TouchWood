@@ -13,6 +13,7 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * **The daily safety check** (pricing.md §1.10, §3; owner, 2026-10-09): every size of a sale that started
@@ -48,19 +49,29 @@ final readonly class CheckPriceWindowsHandler
         }
 
         $pushed = 0;
+        $failed = null;
 
         foreach ($sizes as $storeId => $variantIds) {
             $store = StoreId::fromString((string) $storeId);
             $variantIds = array_values(array_unique($variantIds));
             sort($variantIds);
 
-            $this->change->run($store, function () use ($store, $variantIds): array {
-                $this->writer->refresh($store, $variantIds);
+            // One store failing never costs the others their push; the first failure is raised once
+            // every store was tried, so the run still shows as failed.
+            try {
+                $this->change->run($store, function () use ($store, $variantIds): array {
+                    $this->writer->refresh($store, $variantIds);
 
-                return [null, []];
-            });
+                    return [null, []];
+                });
+                $pushed += count($variantIds);
+            } catch (Throwable $error) {
+                $failed ??= $error;
+            }
+        }
 
-            $pushed += count($variantIds);
+        if ($failed !== null) {
+            throw $failed;
         }
 
         return $pushed;

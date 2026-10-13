@@ -66,11 +66,13 @@ final readonly class AddSaleHandler
             $variantIds,
         );
 
-        return $this->change->run($storeId, function () use ($storeId, $store, $sale): array {
+        return $this->change->run($storeId, function () use ($storeId, $store, $sale, $now): array {
             $this->check->check($storeId, $sale);
             $this->sales->save($sale);
             $this->writer->refresh($storeId, $sale->variantIds);
-            $this->tasks->queue($storeId, $sale->id, $sale->momentsAfter(CarbonImmutable::now()->toDateTimeImmutable()));
+            // Moments after the same "now" the sale was made with: one falling while the sizes are
+            // written is pushed twice rather than never.
+            $this->tasks->queue($storeId, $sale->id, $sale->momentsAfter($now));
 
             return [$sale->id, [SaleAudit::entry('pricing.sale.added', null, $sale, $store->currencyExponent)]];
         });

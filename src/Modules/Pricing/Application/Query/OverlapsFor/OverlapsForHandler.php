@@ -7,6 +7,7 @@ namespace Modules\Pricing\Application\Query\OverlapsFor;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use InvalidArgumentException;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\Prices\SaleInput;
 use Modules\Pricing\Application\Prices\SaleSizes;
 use Modules\Pricing\Application\PricingPermissions;
@@ -33,6 +34,7 @@ final readonly class OverlapsForHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private PlatformApi $platform,
         private SaleSizes $sizes,
         private Sales $sales,
     ) {}
@@ -48,9 +50,11 @@ final readonly class OverlapsForHandler
         $startsAt = SaleInput::start($query->startsAt, $now);
         $endsAt = SaleInput::end($query->endsAt);
         $overlapping = [];
+        // Ids are kept in lower case, as the sale's own handlers read them.
+        $itself = $query->saleId === null ? null : strtolower(trim($query->saleId));
 
         foreach ($this->sales->notEndedOn($store, $variantIds, $now) as $sale) {
-            if ($sale->id !== $query->saleId && $sale->overlaps($startsAt, $endsAt)) {
+            if ($sale->id !== $itself && $sale->overlaps($startsAt, $endsAt)) {
                 $overlapping[] = new OverlappingSale(
                     $sale->id,
                     $sale->percentBasisPoints,
@@ -82,7 +86,9 @@ final readonly class OverlapsForHandler
             $stores = $this->authorizer->storesWith($permission);
 
             if ($stores === null || in_array($store->value, array_map(static fn (StoreId $id): string => $id->value, $stores), true)) {
-                return $store;
+                // A store that does not exist is invalid input, as saving a sale finds it (owner,
+                // 2026-10-10) - asked only of a reader allowed there, so it tells no one else anything.
+                return $this->platform->store($store) === null ? throw new InvalidPricingInput('store') : $store;
             }
         }
 

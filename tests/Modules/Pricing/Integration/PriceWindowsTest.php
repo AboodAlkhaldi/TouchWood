@@ -8,6 +8,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Support\Testing\Fakes\QueueFake;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
@@ -24,8 +25,10 @@ use Modules\Pricing\Application\Query\OverlapsFor\OverlapNote;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingSale;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsFor;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsForHandler;
+use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Infrastructure\Queue\ApplyPriceWindowJob;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -112,7 +115,10 @@ describe('the timed tasks (§1.10)', function () {
             ->and(array_map(windowsDelay(...), $tasks))
             ->toBe(['2026-10-20T00:00:00+00:00', '2026-10-25T00:00:00+00:00'])
             // A sale running from now needs no task at its start: the change pushed it.
-            ->and(windowsTasks($now))->toHaveCount(1);
+            ->and(windowsTasks($now))->toHaveCount(1)
+            // The queue keeps whole seconds: a moment with a fraction is due at the next one, never before.
+            ->and(array_map(windowsDelay(...), windowsTasks(windowsSale([$size], percent: '5', startsAt: '2026-10-20 10:00:00.5+00')))
+            )->toBe(['2026-10-20T10:00:01+00:00']);
     });
 
     it('pushes the sale\'s price into Catalog at its start, and the retail price back at its end', function () {
@@ -178,6 +184,40 @@ describe('the daily check (§1.10)', function () {
             // Started two days before: not the daily check's.
             ->and(windowsShown($old))->toBe(10000);
     });
+
+    it('pushes every other store when one fails, and still fails the run', function () {
+        $size = Px::ready()['variants'][0];
+        Rx::set('sa', [$size => '100']);
+        Rx::set('eg', [$size => '100']);
+        windowsSale([$size], price: '80', startsAt: '2026-10-20 00:00:00+00');
+        Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('eg'), null, [$size], null, '80', '2026-10-20 00:00:00+00', null, false)));
+        // The store the check reaches first fails, so the other is reached only if the check goes on.
+        [$failing, $other] = strcmp(Rx::storeId('sa'), Rx::storeId('eg')) < 0 ? [Rx::storeId('sa'), Rx::storeId('eg')] : [Rx::storeId('eg'), Rx::storeId('sa')];
+        $real = app(PriceCandidates::class);
+        app()->instance(PriceCandidates::class, new readonly class($real, $failing) implements PriceCandidates
+        {
+            public function __construct(private PriceCandidates $real, private string $failing) {}
+
+            public function replace(StoreId $store, array $candidates): void
+            {
+                $store->value === $this->failing ? throw new RuntimeException('down') : $this->real->replace($store, $candidates);
+            }
+
+            public function forVariants(StoreId $store, array $variantIds): array
+            {
+                return $this->real->forVariants($store, $variantIds);
+            }
+
+            public function variantsWithCandidates(StoreId $store): array
+            {
+                return $this->real->variantsWithCandidates($store);
+            }
+        });
+        CarbonImmutable::setTestNow('2026-10-20 03:30:00+00');
+
+        expect(fn () => Fx::asSystem(fn (): int => app(CheckPriceWindowsHandler::class)->handle(new CheckPriceWindows)))->toThrow(RuntimeException::class, 'down')
+            ->and((int) DB::table('catalog.store_variant_facts')->where('store_id', $other)->where('variant_id', $size)->value('price_minor'))->toBe(8000);
+    });
 });
 
 describe('the note before saving (§1.3)', function () {
@@ -198,6 +238,8 @@ describe('the note before saving (§1.3)', function () {
             ->and($ids($wide))->toEqualCanonicalizing([$first, $second])
             ->and($ids($note([$a], '2026-10-21 00:00:00+00', '2026-10-22 00:00:00+00')))->toBe([$first])
             ->and($ids($note([$a], '2026-10-21 00:00:00+00', '2026-10-22 00:00:00+00', $first)))->toBe([])
+            // A sale's id as callers write a ULID, in capitals: still itself.
+            ->and($ids($note([$a], '2026-10-21 00:00:00+00', '2026-10-22 00:00:00+00', strtoupper($first))))->toBe([])
             ->and($whole->variantIds)->toEqualCanonicalizing([$a, $b])
             ->and($ids($whole))->toEqualCanonicalizing([$first, $onB])
             ->and(collect($whole->sales)->firstWhere('id', $onB)?->sharedVariantIds)->toBe([$b])
@@ -214,6 +256,8 @@ describe('the note before saving (§1.3)', function () {
 
         Cx::actAsStaffWith([PricingPermissions::PRICE_EDIT], ['eg']);
 
-        expect($read)->toThrow(Unauthorized::class);
+        expect($read)->toThrow(Unauthorized::class)
+            // A store that does not exist, to a reader allowed everywhere: invalid input, as saving.
+            ->and(Rx::invalid(fn () => Fx::asSystem(fn () => app(OverlapsForHandler::class)->handle(new OverlapsFor(strtolower((string) Str::ulid()), null, [$size], null, null))))?->attribute)->toBe('store');
     });
 });
