@@ -10,26 +10,37 @@ Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongsi
 
 | Step | What | State |
 |---|---|---|
-| 1 | Foundation: the `inventory` schema, Manage Stock, the store's default threshold, the errors and their words | **this step** |
-| 2 | Stock and the ledger: stocktakes, hand changes with their reasons, thresholds, the switches — `inventory.stock.manage` | next |
-| 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed — `inventory.holds.expire` | — |
-| 4 | Facts to Catalog (orderable, ending soon), Low Stock, the store's file — `inventory.orderable.rebuild` | after Catalog's amendment 16 is built |
+| 1 | Foundation: the `inventory` schema, Manage Stock, the store's default threshold, the errors and their words | built (#115) |
+| 2 | Stock and the ledger: stocktakes, hand changes with their reasons, thresholds, the switches — `inventory.stock.manage` | **built** |
+| 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed every minute, `HoldsShort` — `inventory.holds.expire` | **built** |
+| 4a | Facts to Catalog: orderable and ending soon, only on a flip, inside each change; sizes switched on and the default threshold's change told; `RebuildOrderable` and `inventory:orderable:rebuild` — `inventory.orderable.rebuild` | **built** |
+| 4b | Low Stock (the list, its menu count, its Home card), the store's file | — |
 | 5 | The module's own pass | — |
 
 Moved from step 1 to step 2, where the first handler uses them: the off-store guard, the seam that
-answers "is this store wired" (no store is, until Sync), and the module's own id check. The guard
-needs the owner's rule for a store id that does not exist, which §7 does not cover yet.
+answers "is this store wired" (no store is, until Sync), and the store check. A store id that is not
+one is refused as the permission missing, before anything is looked up; a store that does not exist
+is invalid input (owner, 2026-10-10), `inventory.invalid_inventory_input` naming the store.
+
+**Not in step 2:** pushing orderable and "ending soon" into Catalog comes with step 4, as the plan
+says; until then a hand change leaves Catalog's facts as they were.
 
 ## What is inside
 
 | Folder | Holds |
 |---|---|
-| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); not bound yet |
+| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); bound to `Application/InventoryApiImpl` |
+| `Public/Events` | `HoldsShort`: every order still holding a size a hand change took below its holds, after commit |
 | `Public/Dto` | `StockDto`, `HoldLineDto` |
 | `Application` | `InventoryPermissions`: Manage Stock, per store, any role, in the Catalog group; the system's two, reserved (§3). `InventorySettings`: the store's default low-stock threshold, 10 (§1.2) |
-| `Domain/Exception` | `InventoryError` and the twelve errors of §7, each an `inventory.*` type with a category |
-| `Infrastructure` | `InventoryServiceProvider` (after Catalog in `bootstrap/providers.php`); `Persistence/InventorySchema` and the migration that creates the schema |
-| `Presentation/lang/{ar,en}` | `permissions.php`, `settings.php` (the names the panel shows), `errors.php` (each error's title and detail) |
+| `Application/Command` | `SetStock` (a stocktake, one size or several; a count that finds the number right is recorded, not audited), `AdjustStock` (one size, add or remove with a reason), `SetLowStockThreshold`, `SetEndingSoon` (a product, no provider), `SetStockDependent` (wired stores only) |
+| `Application/Stock` | What every change shares: `InventoryChange` (the permission in the store, the store known, an off store only with the store switch; one transaction, the store's lock first, the audit entries), `SizeInput` (the sizes named, checked in two reads: none unknown, archived or of an archived product), the `StoreWiring` port |
+| `Domain/Exception` | `InventoryError` and the thirteen errors of §7, each an `inventory.*` type with a category |
+| `Domain/Repository` | `StockRows` (made when missing and locked FOR UPDATE, in one order), `StoreProducts`, `StockMovements`, `InventoryLocks` |
+| `Domain/Service` | `HandAdjustment`: an add or a remove as a signed change — each reason one way, a correction with its note (owner, 2026-10-11) |
+| `Domain/ValueObject` | `MovementReason`, `StockRow` |
+| `Infrastructure` | `InventoryServiceProvider` (after Catalog in `bootstrap/providers.php`); `Persistence/InventorySchema` and the migrations (the schema; `stock`, `store_products`, `stock_movements` with its append-only trigger, §5); `Eloquent/` the four repositories (the store's lock a transaction-scoped advisory lock; the ledger's actor read as the audit log reads it); `External/NoStoreWired` (no store is wired until Sync) |
+| `Presentation/lang/{ar,en}` | `permissions.php`, `settings.php` (the names the panel shows), `errors.php` (each error's title and detail, and the fields an invalid input names), `audit.php` (each audited action's name) |
 
 ## How it is built
 
@@ -46,7 +57,14 @@ needs the owner's rule for a store id that does not exist, which §7 does not co
 
 | File | Proves |
 |---|---|
-| `tests/Modules/Inventory/Integration/InventorySchemaTest.php` | The schema exists, is on the search path, and is created and dropped (with what is in it) from nothing |
+| `tests/Modules/Inventory/Integration/InventorySchemaTest.php` | The schema exists, is on the search path, and is created and dropped (with what is in it) from nothing; its kinds stored as strings; every CHECK broken once, NULLs included (§8 #13); each key's delete rule |
+| `tests/Modules/Inventory/Integration/InventoryStockTest.php` | Stocktakes (a right count recorded, not audited), adds and removes with each reason one way, a correction's note, never below 0, thresholds 0–100,000 or the default, "last pieces", the stock-dependent switch; who may (per store, unknown and off stores, wired refusals, archived sizes and products); the store's lock and the rows' lock inside the change; nothing written after a rollback; the ledger append-only, a reference counted once (§8 #6, #9, #11, #12) |
+| `tests/Modules/Inventory/Integration/InventoryAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Modules/Inventory/Integration/InventoryPermissionsTest.php` | The one job and the two reserved, by name, kind, group and reservation; a staff role may hold Manage Stock; its English name; the default threshold's scope, type, default, bounds and permission |
-| `tests/Modules/Inventory/Unit/InventoryErrorsTest.php` | Exactly §7's twelve errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |
+| `tests/Modules/Inventory/Unit/InventoryErrorsTest.php` | Exactly §7's thirteen errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |
 | `tests/Architecture/InventoryAccessUseTest.php` | Inventory takes from Access only what declaring its permission needs |
+
+## On deploy
+
+Run `php artisan inventory:orderable:rebuild` once when step 4 first reaches a server: sizes switched
+on before it have never been told to Catalog. Run it again whenever Sync changes a store's wiring.
