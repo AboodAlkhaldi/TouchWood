@@ -53,7 +53,11 @@ function loyaltySettleBalance(string $customer): int
     return Lx::api()->balance($customer, Fx::storeId('sa'))->points;
 }
 
-/** The owner's example: 300 expiring 1 March paid A; A earned 200, which paid B. Answers [customer, A, B]. */
+/**
+ * The owner's example: 300 expiring 1 March paid A; A earned 200, which paid B.
+ *
+ * @return array{string, string, string} the customer, A and B
+ */
 function loyaltySettleOwnersExample(): array
 {
     Lx::programme(settings: [ProgrammeSettings::EXPIRY_MONTHS => 2]);
