@@ -123,6 +123,11 @@ it('sweeps every page, and passes over an account that fails without keeping the
             return $this->real->find($customerId, $store);
         }
 
+        public function byId(string $accountId): ?PointsAccount
+        {
+            return $this->real->byId($accountId);
+        }
+
         public function lockOrCreate(string $customerId, StoreId $store, DateTimeImmutable $now): PointsAccount
         {
             return $customerId === $this->failing ? throw new RuntimeException('Stuck.') : $this->real->lockOrCreate($customerId, $store, $now);

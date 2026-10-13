@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Public\Contracts;
 
 use Modules\Loyalty\Public\Dto\EarnPoints;
+use Modules\Loyalty\Public\Dto\EditedPoints;
+use Modules\Loyalty\Public\Dto\EditedPointsRequest;
 use Modules\Loyalty\Public\Dto\PointsBalanceDto;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
+use Modules\Loyalty\Public\Dto\SettleEdit;
+use Modules\Loyalty\Public\Dto\SettleOrder;
+use Modules\Loyalty\Public\Dto\SettleReturn;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -18,9 +23,6 @@ use Shared\Domain\ValueObject\Money;
  * calls them inside flows it has already authorized, and the screens read through Loyalty's queries.
  *
  * Refusals are `DomainError`s with a stable type (`loyalty.redemption_changed`, …).
- *
- * The settlements — `orderCancelled`, `orderReturned`, `pointsAfterEdit`, `orderEdited` — come with
- * Loyalty's step 4.
  */
 interface LoyaltyApi
 {
@@ -38,4 +40,16 @@ interface LoyaltyApi
 
     /** The customer's live points in the store. Reads only. */
     public function balance(string $customerId, string $storeId): PointsBalanceDto;
+
+    /** An order cancelled before it shipped: every point it used comes back; once. */
+    public function orderCancelled(SettleOrder $change): void;
+
+    /** A return completed: its share of the points used and earned settled by running totals; once per return. */
+    public function orderReturned(SettleReturn $change): void;
+
+    /** What a staff edit before shipping leaves the points to pay. Reads only. */
+    public function pointsAfterEdit(EditedPointsRequest $request): EditedPoints;
+
+    /** A staff edit that lowered the points discount settled; once per edit. Answers what `pointsAfterEdit` did. */
+    public function orderEdited(SettleEdit $change): EditedPoints;
 }

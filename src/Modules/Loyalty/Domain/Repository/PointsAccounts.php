@@ -20,6 +20,9 @@ interface PointsAccounts
     /** The customer's account in the store, without locking; null when none exists yet. */
     public function find(string $customerId, StoreId $store): ?PointsAccount;
 
+    /** An account by its id, without locking — the one an order records. */
+    public function byId(string $accountId): ?PointsAccount;
+
     /**
      * The customer's account in the store, made if absent, locked until the caller's transaction
      * ends, and with its dead lots expired (§1.10): each such lot loses its remaining points as one
