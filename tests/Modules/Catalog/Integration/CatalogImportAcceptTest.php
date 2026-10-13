@@ -136,10 +136,8 @@ describe('accepting', function () {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
-        $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
         $import = Ix::uploadProducts([Ix::product($code, [
             'name' => ['ar' => 'محدث'],
-            'attribute_set' => $set,
             'variants' => [['code' => $code, 'values' => [$width => '60 cm']]],
         ])]);
         app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => 'UPDATE', 'sale' => 'KEEP']]));

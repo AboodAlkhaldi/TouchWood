@@ -47,9 +47,10 @@ import { Card, MARK, nameOf, Phrase, useLocale } from './parts';
 | field; the rest of the draft keeps what it holds.
 |
 | **Each field says where it stands** (amendment 22(a)): "Saving…" and then "✓ Saved" at its end,
-| its rule in grey under it, which turns red with the reason when it must be fixed - not valid once
-| left (and then never sent), refused by the server, or marked by the last decision. The rules are
-| the server's own (CompanyPage::formRules).
+| its rule in grey under it, which turns red with the reason when it must be fixed - not valid as it
+| is typed (and then never sent; "required" once the field was typed in or left, amendment 31),
+| refused by the server, or marked by the last decision. The rules are the server's own
+| (CompanyPage::formRules).
 |
 | **One change at a time, in the order made.** Every save, upload and removal waits in one queue:
 | a page request started while another runs would cancel it, and a save, a refusal or a paper would
@@ -400,9 +401,18 @@ function lookOf({ saving, refused, invalid, unsaved, saved }: { saving: boolean;
     return saved ? 'saved' : 'idle';
 }
 
-/** A saved value shown as not valid before the field is left: cleared, or itself under the rules now. */
+/** A saved value shown as not valid before the field is touched: cleared, or itself under the rules now. */
 function standsOut(value: string, saved: string): boolean {
     return saved !== '' && (normal(value) === '' || normal(value) === normal(saved));
+}
+
+/**
+ * Whether a field's problem is said now (amendment 31; frontend.md §1.7): a value that is there is
+ * checked as it is typed - a CR number's letter, a name past its maximum - and an empty one is said
+ * to be required once the field was typed in or left, or at once when a saved value was cleared.
+ */
+function said(value: string, touched: boolean, saved: string): boolean {
+    return normal(value) !== '' || touched || standsOut(value, saved);
 }
 
 /** What keeps Send waiting, from how a field looks. */
@@ -568,7 +578,7 @@ type SavedTextProps = {
 
 /**
  * A text field that saves itself when the person leaves it - only when it changed, and never while
- * it is not valid. An empty field nobody has left yet is not marked: it is listed beside Send.
+ * it is not valid. An empty field nobody has touched yet is not marked: it is listed beside Send.
  */
 function SavedText({ field, label, saved, rule, required, flagged = false, multiline = false, figures = false }: SavedTextProps) {
     const t = useTranslator();
@@ -578,7 +588,8 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     // The draft as the server holds it - never over what the person typed since (17(c)).
     const followed = useFollowed(saved ?? '');
     const { value, setValue } = followed;
-    const [left, setLeft] = useState(false);
+    // Typed in or left: from then on an empty field says it is required (amendment 31).
+    const [touched, setTouched] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     // How many of its saves are out: one answering does not mean the next has.
     const [out, setOut] = useState(0);
@@ -589,9 +600,9 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     const look = lookOf({
         saving: out > 0,
         refused: refusal !== null && refusal.value === value,
-        // Red once left, never while a value is still being typed (Geist: validate on blur) - but at
-        // once for a saved value that is cleared (17(k)) or no longer passes a raised minimum (16(b)).
-        invalid: problem !== null && (left || standsOut(value, saved ?? '')),
+        // Red as it is typed (amendment 31, replacing "once left"); at once, too, for a saved value
+        // that is cleared (17(k)) or no longer passes a raised minimum (16(b)).
+        invalid: problem !== null && said(value, touched, saved ?? ''),
         unsaved,
         // A field the last decision marked, not yet changed, is not "Saved" (17(f)).
         saved: (saved ?? '') !== '' && !flagged,
@@ -604,7 +615,7 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
     useEffect(() => () => report(field, null), [report, field]);
 
     const leave = () => {
-        setLeft(true);
+        setTouched(true);
 
         // Never sent while it is not valid (amendment 16(a)): it stays red until it is.
         if (!unsaved || problem !== null) {
@@ -647,7 +658,14 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
             <InputGroup>
                 {multiline ? (
-                    <InputGroupTextarea {...common} rows={3} onChange={(event) => setValue(event.target.value)} />
+                    <InputGroupTextarea
+                        {...common}
+                        rows={3}
+                        onChange={(event) => {
+                            setValue(event.target.value);
+                            setTouched(true);
+                        }}
+                    />
                 ) : (
                     <InputGroupInput
                         {...common}
@@ -655,7 +673,10 @@ function SavedText({ field, label, saved, rule, required, flagged = false, multi
                         // A number's digits in Latin as they are typed, as the server saves them (b2b.md
                         // amendment 29): what is on screen and what is saved stay one string, so the
                         // save's answer is recognised as this field's own.
-                        onChange={(event) => setValue(figures ? toLatinDigits(event.target.value) : event.target.value)}
+                        onChange={(event) => {
+                            setValue(figures ? toLatinDigits(event.target.value) : event.target.value);
+                            setTouched(true);
+                        }}
                     />
                 )}
                 <SaveMark look={look} align={multiline ? 'block-end' : 'inline-end'} />
@@ -696,7 +717,7 @@ function TypeChoice({
     const { value: words, setValue: setWords } = followedWords;
     // Each its own: choosing "Other" does not mark its empty words red (17, L4).
     const [choiceLeft, setChoiceLeft] = useState(false);
-    const [wordsLeft, setWordsLeft] = useState(false);
+    const [wordsTouched, setWordsTouched] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [out, setOut] = useState(0);
     const saving = out > 0;
@@ -715,7 +736,7 @@ function TypeChoice({
     const wordsLook = lookOf({
         saving,
         refused,
-        invalid: wordsProblem !== null && (wordsLeft || standsOut(words, savedWords)),
+        invalid: wordsProblem !== null && said(words, wordsTouched, savedWords),
         unsaved,
         saved: savedChoice === OTHER && !flagged,
     });
@@ -803,9 +824,12 @@ function TypeChoice({
                             value={words}
                             aria-invalid={wordsShownProblem !== null || undefined}
                             aria-describedby="company-type-other-state"
-                            onChange={(event) => setWords(event.target.value)}
+                            onChange={(event) => {
+                                setWords(event.target.value);
+                                setWordsTouched(true);
+                            }}
                             onBlur={() => {
-                                setWordsLeft(true);
+                                setWordsTouched(true);
 
                                 if (unsaved && wordsProblem === null) {
                                     save({ company_type_id: null, company_type_other: words }, `${OTHER}:${words}`);
@@ -1147,7 +1171,7 @@ function RequestRow({ request, answer, rule, maxBytes }: { request: CompanyReque
     const savedText = answer?.text ?? '';
     const followed = useFollowed(savedText);
     const { value: text, setValue: setText } = followed;
-    const [left, setLeft] = useState(false);
+    const [touched, setTouched] = useState(false);
     const [refusal, setRefusal] = useState<Refusal | null>(null);
     const [removal, setRemoval] = useState<string | null>(null);
     const [out, setOut] = useState(0);
@@ -1160,7 +1184,7 @@ function RequestRow({ request, answer, rule, maxBytes }: { request: CompanyReque
         ? lookOf({
               saving: out > 0,
               refused: refusal !== null && refusal.value === text,
-              invalid: problem !== null && (left || standsOut(text, savedText)),
+              invalid: problem !== null && said(text, touched, savedText),
               unsaved: normal(text) !== normal(savedText),
               saved: savedText !== '',
           })
@@ -1201,9 +1225,12 @@ function RequestRow({ request, answer, rule, maxBytes }: { request: CompanyReque
                         data-look={look}
                         rows={3}
                         value={text}
-                        onChange={(event) => setText(event.target.value)}
+                        onChange={(event) => {
+                            setText(event.target.value);
+                            setTouched(true);
+                        }}
                         onBlur={() => {
-                            setLeft(true);
+                            setTouched(true);
 
                             // An empty answer is no answer, and is not sent: it stays red (22(a)).
                             if (normal(text) === normal(savedText) || problem !== null) {

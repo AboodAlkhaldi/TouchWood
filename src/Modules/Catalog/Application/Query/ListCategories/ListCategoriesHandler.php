@@ -14,16 +14,20 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * **The categories screen's read** (catalog.md §4.4 S2): anyone holding `catalog.category.manage` or
- * `catalog.category.rank` in some store reads the tree (P2). A store asked for is one where the
- * reader orders the menu — any other is refused as not allowed, as a store anyone names is (§7) —
- * and its order is shown beside the base store's, which a store's admins have not changed yet stands
- * for (amendment 5(a)).
+ * **The categories screen's read** (catalog.md §4.4 S2): anyone holding `catalog.category.manage`,
+ * `catalog.category.rank` or `catalog.category.audience` in some store reads the tree (P2). A store
+ * asked for is one where the reader orders the menu or chooses who sees its categories — any other
+ * is refused as not allowed, as a store anyone names is (§7) — and its order is shown beside the base
+ * store's, which a store's admins have not changed yet stands for (amendment 5(a)), with who sees each
+ * category there (amendment 14). What the reader may do there is answered for each job apart.
  */
 final readonly class ListCategoriesHandler
 {
     /** Every job that reads the tree. */
-    public const array JOBS = [CatalogPermissions::CATEGORY_MANAGE, CatalogPermissions::CATEGORY_RANK];
+    public const array JOBS = [CatalogPermissions::CATEGORY_MANAGE, CatalogPermissions::CATEGORY_RANK, CatalogPermissions::CATEGORY_AUDIENCE];
+
+    /** The jobs a store is chosen for: its menu order, and who sees its categories. */
+    public const array STORE_JOBS = [CatalogPermissions::CATEGORY_RANK, CatalogPermissions::CATEGORY_AUDIENCE];
 
     public function __construct(
         private ListReaders $readers,
@@ -39,9 +43,10 @@ final readonly class ListCategoriesHandler
     {
         $mayManage = $this->readers->authorize(...self::JOBS);
         $store = self::store($query->storeId);
-        $mayRank = $store !== null && $this->ranksIn($store);
+        $mayRank = $store !== null && $this->holdsIn(CatalogPermissions::CATEGORY_RANK, $store);
+        $mayChooseAudience = $store !== null && $this->holdsIn(CatalogPermissions::CATEGORY_AUDIENCE, $store);
 
-        if ($store !== null && ! $mayRank) {
+        if ($store !== null && ! $mayRank && ! $mayChooseAudience) {
             throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
         }
 
@@ -64,13 +69,13 @@ final readonly class ListCategoriesHandler
             throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
         }
 
-        return new CategoryList($this->reads->categories($store?->value, $base), $store?->value, $mayManage, $mayRank);
+        return new CategoryList($this->reads->categories($store?->value, $base), $store?->value, $mayManage, $mayRank, $mayChooseAudience);
     }
 
-    /** Whether the reader orders this store's menu; null from storesWith() is every store. */
-    private function ranksIn(StoreId $store): bool
+    /** Whether the reader holds this per-store job in this store; null from storesWith() is every store. */
+    private function holdsIn(string $permission, StoreId $store): bool
     {
-        $stores = $this->authorizer->storesWith(CatalogPermissions::CATEGORY_RANK);
+        $stores = $this->authorizer->storesWith($permission);
 
         if ($stores === null) {
             return true;

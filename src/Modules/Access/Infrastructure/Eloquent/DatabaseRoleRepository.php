@@ -15,6 +15,7 @@ use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Domain\ValueObject\RoleKind;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Domain\ValueObject\RoleName;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

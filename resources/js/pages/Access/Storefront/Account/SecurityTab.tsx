@@ -7,6 +7,7 @@ import { FieldGroup } from '@/components/ui/field';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { CustomerAccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -36,6 +37,19 @@ export function SecurityTab({ account }: Props) {
     const form = useForm({ current_password: '', password: '' });
     const repeat = useRepeatedPassword(form.data.password);
     const differ = t('access::account.passwords_differ');
+    // Each password as typed (frontend.md §1.7), with the server's rules: both required
+    // (OwnPasswordRequest) and never trimmed; the new one at least the customer's minimum
+    // (LaravelPasswordPolicy) - the breach list is the server's alone. The second box keeps its own
+    // check (lib/passwords).
+    const checks = useChecks([
+        { id: 'current_password', label: t('access::account.current_password'), value: form.data.current_password, rules: { required: true, keepSpaces: true } },
+        {
+            id: 'password',
+            label: t('access::account.new_password'),
+            value: form.data.password,
+            rules: { required: true, keepSpaces: true, length: { min: account.passwordMinimumLength } },
+        },
+    ]);
 
     return (
         <Card className="material-base gap-0 border-0 py-0">
@@ -51,13 +65,15 @@ export function SecurityTab({ account }: Props) {
                         return;
                     }
 
-                    form.post(link('storefront.account.password.change'), {
-                        preserveScroll: true,
-                        onSuccess: () => {
-                            form.reset();
-                            repeat.clear();
-                        },
-                    });
+                    checks.submit(() =>
+                        form.post(link('storefront.account.password.change'), {
+                            preserveScroll: true,
+                            onSuccess: () => {
+                                form.reset();
+                                repeat.clear();
+                            },
+                        }),
+                    );
                 }}
             >
                 <CardHeader className="px-6 pt-5 pb-4">
@@ -75,7 +91,7 @@ export function SecurityTab({ account }: Props) {
                             id="current_password"
                             name="current_password"
                             label={t('access::account.current_password')}
-                            error={form.errors.current_password}
+                            check={checks.box('current_password', form.errors.current_password)}
                             autoComplete="current-password"
                             required
                             value={form.data.current_password}
@@ -87,7 +103,7 @@ export function SecurityTab({ account }: Props) {
                             name="password"
                             label={t('access::account.new_password')}
                             helper={t('access::account.password_rule', { count: account.passwordMinimumLength })}
-                            error={form.errors.password}
+                            check={checks.box('password', form.errors.password)}
                             autoComplete="new-password"
                             required
                             value={form.data.password}
@@ -109,7 +125,7 @@ export function SecurityTab({ account }: Props) {
                 </CardContent>
 
                 <CardFooter className="justify-end border-t border-line bg-surface-sunken px-6 py-4 [.border-t]:pt-4">
-                    <ActionButton type="submit" loading={form.processing} disabledReason={repeat.differs ? differ : undefined} data-test="save-password">
+                    <ActionButton type="submit" loading={form.processing} disabledReason={repeat.differs ? differ : checks.reason} data-test="save-password">
                         {t('access::account.change_password')}
                     </ActionButton>
                 </CardFooter>

@@ -214,6 +214,7 @@ it('resolves the store from the cache alone once warm: tiny cache reads, never t
     // behind the header's country switch - and one read: the directory keeps its snapshot for the
     // rest of a web request (platform.md §9.11), never longer, so a queue worker never holds one.
     // Each request starts as a production process does, with nothing scoped from the one before.
+    // The frame's parts read their own caches too (§9.4, 2026-10-12): Catalog's menu, two more.
     app()->forgetScopedInstances();
     get('/sa/ar')->assertOk();
 
@@ -222,7 +223,7 @@ it('resolves the store from the cache alone once warm: tiny cache reads, never t
     get('/sa/ar')->assertOk();
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(2);
+    expect($queries)->toHaveCount(4);
 
     foreach ($queries as $query) {
         expect($query)->toContain('"cache"');

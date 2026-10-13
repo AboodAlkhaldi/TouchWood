@@ -11,6 +11,7 @@ use Modules\Access\Domain\Model\Address;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\ValueObject\MapPin;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseAddressRepository implements AddressRepository

@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\ValueObject\Combination;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\VariantMeasures;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseVariantRepository implements VariantRepository
@@ -49,6 +50,23 @@ final readonly class DatabaseVariantRepository implements VariantRepository
         }
 
         return $this->toVariants($this->db->table(self::TABLE)->where('product_id', strtolower($productId))->orderBy('position')->orderBy('id')->get()->all());
+    }
+
+    public function ofProducts(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $byProduct = array_fill_keys($ids, []);
+
+        foreach ($this->toVariants($this->db->table(self::TABLE)->whereIn('product_id', $ids)->orderBy('position')->orderBy('id')->get()->all()) as $variant) {
+            $byProduct[$variant->productId()][] = $variant;
+        }
+
+        return $byProduct;
     }
 
     public function hasAny(string $productId): bool
@@ -88,6 +106,20 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             ->where('combination', $combination)
             ->when($exceptVariantId !== null, fn ($query) => $query->where('id', '<>', strtolower((string) $exceptVariantId)))
             ->exists();
+    }
+
+    public function renumber(string $productId, array $variantIds): void
+    {
+        $now = CarbonImmutable::now();
+
+        foreach ($variantIds as $index => $variantId) {
+            $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->where('id', $variantId)->update(['position' => $index + 1, 'updated_at' => $now]);
+        }
+    }
+
+    public function nextPosition(string $productId): int
+    {
+        return Ulids::valid($productId) ? (int) $this->db->table(self::TABLE)->where('product_id', strtolower($productId))->max('position') + 1 : 1;
     }
 
     public function codeInUse(string $productId, string $code): bool
@@ -215,7 +247,7 @@ final readonly class DatabaseVariantRepository implements VariantRepository
             $id = (string) $row->id;
             $valueIds = [];
 
-            // The combination keeps the set's order; the value rows say each value's attribute.
+            // The combination keeps the attributes' id order; the value rows say each value's attribute.
             foreach ((string) $row->combination === '' ? [] : explode(',', (string) $row->combination) as $valueId) {
                 $valueIds[$attributeOf[$id][$valueId] ?? ''] = $valueId;
             }

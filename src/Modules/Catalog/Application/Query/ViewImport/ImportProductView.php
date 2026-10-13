@@ -9,7 +9,9 @@ namespace Modules\Catalog\Application\Query\ViewImport;
  * holding its codes and the decision on it — and, that product being on sale, whether it is kept on
  * sale or taken off (amendment 9(c)) —, its state, the product it became and — a draft — what it
  * still lacks to be accepted. One left out at upload is `REFUSED`, with why (amendment 11(a)); one
- * that would change a code its catalog product keeps is marked, to skip (`codeChange`, 11(b)).
+ * that would change a code its catalog product keeps is marked, to skip (`codeChange`, 11(b)); one
+ * that would give its catalog product other variant attributes than it may, to replace whole or skip
+ * (`attributeChange`, P33).
  */
 final readonly class ImportProductView
 {
@@ -37,5 +39,6 @@ final readonly class ImportProductView
         public ?string $sale,
         public ?string $refusal = null,
         public bool $codeChange = false,
+        public bool $attributeChange = false,
     ) {}
 }

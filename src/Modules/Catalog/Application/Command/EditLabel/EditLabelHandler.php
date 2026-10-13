@@ -17,8 +17,8 @@ use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Shared\Application\Unauthorized;
 
 /**
- * **Editing a label** (catalog.md §1.8): its words, its look and its place in the list — and so on
- * every card that carries it, in every store.
+ * **Editing a label** (catalog.md §1.8): its words and its look — and so on every card that carries
+ * it, in every store. Its place is the list's order's (`OrderLabels`, amendment 16(d)).
  */
 final readonly class EditLabelHandler
 {
@@ -40,7 +40,7 @@ final readonly class EditLabelHandler
 
         $this->change->run(ListLocks::LABELS, function () use ($command, $name, $tone): array {
             $label = $this->labels->byId($command->labelId) ?? throw new ListItemNotFound($command->labelId);
-            $label->edit($name, $tone, $command->position);
+            $label->edit($name, $tone);
             $entry = ListAudit::changed('label', 'edited', $label->id(), $label->pullChanges(), $label->snapshot());
 
             if ($entry === null) {

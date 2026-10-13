@@ -26,7 +26,6 @@ final class BrandData extends Data
         public bool $showInDefaultListings,
         public bool $isDefault,
         public bool $active,
-        public int $position,
         public ?string $originCountry,
         public ?string $logoMediaId,
         /** The logo's thumbnail, once its sizes are ready. */

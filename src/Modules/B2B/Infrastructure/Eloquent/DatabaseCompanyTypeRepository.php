@@ -12,6 +12,7 @@ use Modules\B2B\Domain\Model\CompanyType;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Domain\ValueObject\TypeName;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseCompanyTypeRepository implements CompanyTypeRepository

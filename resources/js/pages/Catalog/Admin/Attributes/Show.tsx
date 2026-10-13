@@ -2,27 +2,31 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
-import { TextField } from '@/components/Fields';
+import { Messages, TextField, checked, describedBy } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { figure, toLatinDigits } from '@/lib/digits';
+import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { AttributePage, ValueData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButton, MoreButtonOff, NameCells, NameHeads, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
-import { AttributeFields, AttributeMenu, DeleteAttributeDialog, attributeForm } from './AttributeDialog';
+import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
+import { AttributeFields, AttributeMenu, DeleteAttributeDialog, attributeForm, useAttributeChecks } from './AttributeDialog';
 
 /*
 | One attribute (catalog.md §1.7, §4.4 S3): its details as a form, then its values in order - each
 | named in both languages, never the same as another of this attribute ignoring case (`NameTaken`),
 | and on a colour attribute each with its swatch, chosen with the browser's colour picker beside its
 | `#rrggbb`. A "details only" attribute has no values: variants carry their own text or number for it.
+| The values' order is the order of the shop's pickers: dragged, saved when dropped, or a value moved
+| to the top or the bottom from its ⋯ menu; a new value goes last (amendment 16(d)).
 | For a reader without All stores, everything stays in sight, out of reach, with that reason (P2).
 */
 
@@ -35,14 +39,21 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const close = (open: boolean) => (open ? undefined : setDialog(null));
-    const nextPosition = values.reduce((highest, value) => Math.max(highest, value.position), 0) + 10;
     const hasValues = attribute.kind !== 'INFORMATIONAL';
     const reason = useAllStoresReason(mayChange);
-    const form = useForm(attributeForm(attribute, attribute.position));
+    const form = useForm(attributeForm(attribute));
+    // Nothing is checked while every field is out of reach (P2).
+    const checks = useAttributeChecks(form, reason !== undefined);
+    const { order, move, toTop, toBottom } = useSavedOrder(
+        values.map((value) => value.id),
+        `/admin/attributes/${attribute.id}/values/order`,
+    );
+    const byId = new Map(values.map((value) => [value.id, value]));
+    const rows = order.flatMap((id) => byId.get(id) ?? []);
 
     // The form follows the attribute as the server has it after every change made here.
     useEffect(() => {
-        form.setDefaults(attributeForm(attribute, attribute.position));
+        form.setDefaults(attributeForm(attribute));
         form.reset();
     }, [attribute]);
 
@@ -84,13 +95,13 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                         <CardDescription className="text-copy-14 text-ink-muted">{t('catalog::admin_attributes.edit_body')}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <AttributeFields form={form} attribute={attribute} off={reason !== undefined} />
+                        <AttributeFields form={form} checks={checks} attribute={attribute} off={reason !== undefined} />
                     </CardContent>
                     <CardFooter className="justify-end">
                         <ActionButton
                             loading={form.processing}
-                            disabledReason={reason}
-                            onClick={() => form.post(`/admin/attributes/${attribute.id}`, { preserveScroll: true })}
+                            disabledReason={reason ?? checks.reason}
+                            onClick={() => checks.submit(() => form.post(`/admin/attributes/${attribute.id}`, { preserveScroll: true }))}
                             data-test="save-attribute"
                         >
                             {t('catalog::admin_attributes.save')}
@@ -113,61 +124,95 @@ export default function Show({ attribute, values, mayChange }: AttributePage) {
                         </EmptyContent>
                     </Empty>
                 ) : (
-                    <div className="material-base overflow-x-auto">
-                        <Table>
-                            <TableCaption className="sr-only">{t('catalog::admin_attributes.value.title')}</TableCaption>
-                            <TableHeader className="bg-surface-sunken">
-                                <TableRow>
-                                    <TableHead className="w-12">
-                                        <span aria-hidden="true">#</span>
-                                        <span className="sr-only">{t('catalog::admin.column.position')}</span>
-                                    </TableHead>
-                                    <NameHeads locale={locale} />
-                                    {attribute.isColour ? <TableHead>{t('catalog::admin_attributes.value.swatch')}</TableHead> : null}
-                                    <TableHead>{t('catalog::admin.column.state')}</TableHead>
-                                    <TableHead className="w-12">
-                                        <span className="sr-only">{t('catalog::admin.column.actions')}</span>
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {values.map((value) => (
-                                    <ValueRow
-                                        key={value.id}
-                                        value={value}
-                                        colour={attribute.isColour}
-                                        reason={reason}
-                                        open={(action, trigger) => {
-                                            opener.current = trigger;
-                                            setDialog({ action, value });
-                                        }}
-                                    />
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    <SortableGroups groups={{ values: order }} labelOf={(id) => nameIn(locale, byId.get(id)?.nameAr ?? null, byId.get(id)?.nameEn ?? null)} onMove={(_, ids) => move(ids)}>
+                        <div className="material-base overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">{t('catalog::admin_attributes.value.title')}</TableCaption>
+                                <TableHeader className="bg-surface-sunken">
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">{t('catalog::admin.order.column')}</span>
+                                        </TableHead>
+                                        <NameHeads locale={locale} />
+                                        {attribute.isColour ? <TableHead>{t('catalog::admin_attributes.value.swatch')}</TableHead> : null}
+                                        <TableHead>{t('catalog::admin.column.state')}</TableHead>
+                                        <TableHead className="w-12">
+                                            <span className="sr-only">{t('catalog::admin.column.actions')}</span>
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <SortableGroup id="values" ids={order}>
+                                        {rows.map((value, index) => (
+                                            <ValueRow
+                                                key={value.id}
+                                                value={value}
+                                                colour={attribute.isColour}
+                                                reason={reason}
+                                                first={index === 0}
+                                                last={index === rows.length - 1}
+                                                toTop={() => toTop(value.id)}
+                                                toBottom={() => toBottom(value.id)}
+                                                open={(action, trigger) => {
+                                                    opener.current = trigger;
+                                                    setDialog({ action, value });
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableGroup>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </SortableGroups>
                 )}
             </div>
 
             {dialog?.action === 'delete' ? <DeleteAttributeDialog attribute={attribute} open onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog?.action === 'add-value' || dialog?.action === 'edit-value' ? (
-                <ValueDialog attributeId={attribute.id} colour={attribute.isColour} value={dialog.value} nextPosition={nextPosition} open onOpenChange={close} returnFocusTo={opener} />
+                <ValueDialog attributeId={attribute.id} colour={attribute.isColour} value={dialog.value} open onOpenChange={close} returnFocusTo={opener} />
             ) : null}
             {dialog?.action === 'delete-value' && dialog.value !== null ? <DeleteValueDialog value={dialog.value} open onOpenChange={close} returnFocusTo={opener} /> : null}
         </AdminLayout>
     );
 }
 
-function ValueRow({ value, colour, reason, open }: { value: ValueData; colour: boolean; reason: string | undefined; open: (action: 'edit-value' | 'delete-value', trigger: HTMLElement | null) => void }) {
+function ValueRow({
+    value,
+    colour,
+    reason,
+    first,
+    last,
+    toTop,
+    toBottom,
+    open,
+}: {
+    value: ValueData;
+    colour: boolean;
+    reason: string | undefined;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit-value' | 'delete-value', trigger: HTMLElement | null) => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const deleteReason = value.inUse ? t('catalog::admin_attributes.reason.value_in_use') : null;
+    const row = useSortableRow(value.id, reason !== undefined);
 
     return (
-        <TableRow data-test={`value-${value.id}`}>
-            <TableCell className="tw-figure text-ink-muted">{figure(locale, value.position)}</TableCell>
+        <TableRow
+            ref={row.ref}
+            style={row.style}
+            data-dragging={row.dragging || undefined}
+            className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+            data-test={`value-${value.id}`}
+        >
+            <TableCell>
+                <DragHandle handle={row.handle} label={nameIn(locale, value.nameAr, value.nameEn)} reason={reason} test={`drag-value-${value.id}`} />
+            </TableCell>
             <NameCells locale={locale} ar={value.nameAr} en={value.nameEn} />
             {colour ? (
                 <TableCell>
@@ -208,6 +253,8 @@ function ValueRow({ value, colour, reason, open }: { value: ValueData; colour: b
                             >
                                 {value.active ? t('catalog::admin_attributes.value.deactivate') : t('catalog::admin_attributes.value.activate')}
                             </DropdownMenuItem>
+                            {/* S3: Edit…, Activate or Deactivate, Move to Top, Move to Bottom, Delete…. */}
+                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                                 variant="destructive"
@@ -237,7 +284,7 @@ function ValueRow({ value, colour, reason, open }: { value: ValueData; colour: b
     );
 }
 
-type ValueForm = { name_ar: string; name_en: string; swatch: string; position: string };
+type ValueForm = { name_ar: string; name_en: string; swatch: string };
 
 /** A swatch as the domain keeps it: a hash and six hexadecimal digits (§1.7). */
 const SWATCH = /^#[0-9a-f]{6}$/i;
@@ -246,7 +293,6 @@ function ValueDialog({
     attributeId,
     colour,
     value,
-    nextPosition,
     open,
     onOpenChange,
     returnFocusTo,
@@ -254,13 +300,12 @@ function ValueDialog({
     attributeId: string;
     colour: boolean;
     value: ValueData | null;
-    nextPosition: number;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
-    const initial = (): ValueForm => ({ name_ar: value?.nameAr ?? '', name_en: value?.nameEn ?? '', swatch: value?.swatch ?? '', position: String(value?.position ?? nextPosition) });
+    const initial = (): ValueForm => ({ name_ar: value?.nameAr ?? '', name_en: value?.nameEn ?? '', swatch: value?.swatch ?? '' });
     const form = useForm<ValueForm>(initial());
 
     useEffect(() => {
@@ -272,10 +317,27 @@ function ValueDialog({
     }, [open, value?.id]);
 
     const title = value === null ? t('catalog::admin_attributes.value.add') : t('catalog::admin_attributes.value.edit_title');
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names of up to 100 characters
+    // (AttributeValue::NAME_MAX, LocalizedName); on a colour attribute only, a swatch, required, of the
+    // shape AttributeValue::checkedSwatch takes (`#rrggbb`, 7 characters at most). A new value goes
+    // last; it has no place to type (amendment 16(d)).
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'value-name-ar', label: t('catalog::admin.field.name_ar'), value: form.data.name_ar, rules: name },
+        { id: 'value-name-en', label: t('catalog::admin.field.name_en'), value: form.data.name_en, rules: name },
+        {
+            id: 'value-swatch',
+            label: t('catalog::admin_attributes.value.swatch'),
+            value: form.data.swatch,
+            rules: { required: true, length: { max: 7 }, format: { pattern: SWATCH, key: 'catalog::admin_attributes.check.swatch' } },
+            off: !colour,
+        },
+    ]);
+    const swatch = checks.box('value-swatch', form.errors.swatch);
 
     function submit() {
         form.transform((data) => (colour ? data : { ...data, swatch: '' }));
-        form.post(value === null ? `/admin/attributes/${attributeId}/values` : `/admin/attribute-values/${value.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(value === null ? `/admin/attributes/${attributeId}/values` : `/admin/attribute-values/${value.id}`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -287,14 +349,14 @@ function ValueDialog({
             description={t('catalog::admin_attributes.value.body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test="confirm-value">
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-value">
                     {value === null ? title : t('catalog::admin_attributes.value.save')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="value-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} error={form.errors.name_ar} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="value-name-ar" />
-                <TextField id="value-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} error={form.errors.name_en} onChange={(event) => form.setData('name_en', event.target.value)} data-test="value-name-en" />
+                <TextField id="value-name-ar" dir="rtl" label={t('catalog::admin.field.name_ar')} value={form.data.name_ar} check={checks.box('value-name-ar', form.errors.name_ar)} onChange={(event) => form.setData('name_ar', event.target.value)} data-test="value-name-ar" />
+                <TextField id="value-name-en" dir="ltr" label={t('catalog::admin.field.name_en')} value={form.data.name_en} check={checks.box('value-name-en', form.errors.name_en)} onChange={(event) => form.setData('name_en', event.target.value)} data-test="value-name-en" />
                 {colour ? (
                     <Field>
                         <FieldLabel htmlFor="value-swatch">{t('catalog::admin_attributes.value.swatch')}</FieldLabel>
@@ -320,33 +382,25 @@ function ValueDialog({
                                     onChange={(event) => form.setData('swatch', event.target.value)}
                                 />
                             )}
+                            {/* Wired to its check by hand: shadcn's Input beside the picker, not a TextField. */}
                             <Input
                                 id="value-swatch"
                                 dir="ltr"
                                 className="tw-figure max-w-32"
                                 value={form.data.swatch}
-                                aria-invalid={form.errors.swatch ? true : undefined}
-                                aria-describedby="value-swatch-helper"
-                                onChange={(event) => form.setData('swatch', toLatinDigits(event.target.value))}
+                                {...checked<HTMLInputElement>(swatch, {})}
+                                aria-invalid={swatch.message ? true : undefined}
+                                aria-describedby={describedBy('value-swatch', t('catalog::admin_attributes.value.swatch_helper'), swatch.message)}
+                                onChange={(event) => {
+                                    form.setData('swatch', toLatinDigits(event.target.value));
+                                    swatch.onType();
+                                }}
                                 data-test="value-swatch"
                             />
                         </div>
-                        <FieldDescription id="value-swatch-helper">{t('catalog::admin_attributes.value.swatch_helper')}</FieldDescription>
-                        {form.errors.swatch ? <FieldError>{form.errors.swatch}</FieldError> : null}
+                        <Messages id="value-swatch" helper={t('catalog::admin_attributes.value.swatch_helper')} error={swatch.message} check={swatch} />
                     </Field>
                 ) : null}
-                <TextField
-                    id="value-position"
-                    dir="ltr"
-                    inputMode="numeric"
-                    className="max-w-40"
-                    inputClassName="tw-figure"
-                    label={t('catalog::admin.field.position')}
-                    helper={t('catalog::admin.field.position_helper')}
-                    value={form.data.position}
-                    error={form.errors.position}
-                    onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
-                />
             </div>
         </PanelDialog>
     );

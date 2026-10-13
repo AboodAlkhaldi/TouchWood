@@ -6,8 +6,6 @@ namespace Tests\Modules\Catalog\Support;
 
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
@@ -16,6 +14,8 @@ use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttribute;
+use Modules\Catalog\Application\Command\AddVariantAttribute\AddVariantAttributeHandler;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarranty;
 use Modules\Catalog\Application\Command\AddWarranty\AddWarrantyHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -68,13 +68,18 @@ final class CatalogProducts
     }
 
     /**
+     * The product's variants made of these attributes, in this order (amendment 16(b)) — given while
+     * it has no variant yet, so none needs a value.
+     *
      * @param  list<string>  $attributeIds
      */
-    public static function set(array $attributeIds, string $nameEn = 'Sizes'): string
+    public static function variantAttributes(string $productId, array $attributeIds): void
     {
-        $n = self::next();
-
-        return Fx::asSystem(fn (): string => app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مجموعة {$n}", "{$nameEn} {$n}", $attributeIds)));
+        Fx::asSystem(function () use ($productId, $attributeIds): void {
+            foreach ($attributeIds as $attributeId) {
+                app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($productId, $attributeId, []));
+            }
+        });
     }
 
     public static function warranty(): string
@@ -106,7 +111,7 @@ final class CatalogProducts
 
     /**
      * A ready product — both names and descriptions, a lowest active category, a photo whose sizes are
-     * ready — with one variant per size of a set of widths, each its own code.
+     * ready — with one variant per size of its widths, each its own code.
      *
      * @param  list<string>  $sizes
      * @return array{product: string, variants: list<string>, width: string}
@@ -115,16 +120,16 @@ final class CatalogProducts
     {
         $width = self::attribute('Width');
         $values = array_map(static fn (string $size): string => self::value($width, $size), $sizes);
-        $set = self::set([$width]);
         $category = $categoryId ?? self::category();
         $id = self::product('Drawer');
+        self::variantAttributes($id, [$width]);
         $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
 
-        $variants = Fx::asSystem(function () use ($id, $set, $category, $text, $width, $values): array {
+        $variants = Fx::asSystem(function () use ($id, $category, $text, $width, $values): array {
             $product = app(ProductRepository::class)->find($id) ?? throw new \LogicException('No such product.');
             app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
                 $id, $product->name()->ar, $product->name()->en, $product->brandId(),
-                descriptionAr: $text, descriptionEn: $text, categoryId: $category, attributeSetId: $set,
+                descriptionAr: $text, descriptionEn: $text, categoryId: $category,
             ));
             $variants = array_map(fn (string $value): string => app(AddVariantHandler::class)->handle(new AddVariant($id, (string) (5_000_000 + self::next()), [$width => $value])), $values);
             app(SetProductGalleryHandler::class)->handle(new SetProductGallery($id, [CatalogFixtures::media()]));

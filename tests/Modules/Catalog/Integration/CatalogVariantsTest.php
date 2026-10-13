@@ -11,6 +11,10 @@ use Illuminate\Support\Str;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\AddVariant\AddVariant;
 use Modules\Catalog\Application\Command\AddVariant\AddVariantHandler;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCode;
 use Modules\Catalog\Application\Command\CorrectVariantCode\CorrectVariantCodeHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -23,8 +27,8 @@ use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
 use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
-use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariants;
+use Modules\Catalog\Application\Command\OrderVariants\OrderVariantsHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
 use Modules\Catalog\Domain\Exception\CodeTaken;
@@ -32,7 +36,6 @@ use Modules\Catalog\Domain\Exception\DuplicateCombination;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
-use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Shared\Application\Unauthorized;
@@ -45,7 +48,7 @@ use function Pest\Laravel\seed;
 /*
 | Variants and their codes (catalog.md §1.2, amendments 3, 16(a)): a code of digits is one variant's,
 | and stays with its product until the product — a draft — is deleted; one value
-| of every attribute of the product's set, a combination of its own; details as text or a number;
+| of each of the product's variant attributes (amendment 16(b)), a combination of its own; details as text or a number;
 | in a draft, codes edited and variants deleted freely, a code given up free again.
 */
 
@@ -58,7 +61,7 @@ beforeEach(function () {
 });
 
 /**
- * A draft whose set is one variant-making attribute with these values.
+ * A draft whose variants are made of one attribute, with these values.
  *
  * @param  list<string>  $values
  * @return array{string, string, array<string, string>} the product, the attribute, value name => id
@@ -73,18 +76,9 @@ function catalogVariantsSized(array $values = ['60 cm', '80 cm', '90 cm']): arra
     }
 
     $product = Px::product();
-    catalogVariantsSetOn($product, Px::set([$width]));
+    Px::variantAttributes($product, [$width]);
 
     return [$product, $width, $ids];
-}
-
-function catalogVariantsSetOn(string $productId, string $setId): void
-{
-    $product = app(ProductRepository::class)->find($productId) ?? throw new LogicException('No such product.');
-
-    Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
-        $productId, $product->name()->ar, $product->name()->en, $product->brandId(), attributeSetId: $setId,
-    )));
 }
 
 /**
@@ -201,7 +195,7 @@ describe('codes', function () {
 });
 
 describe('values and combinations', function () {
-    it('takes one active value of every attribute of the set, and no combination twice, archived included', function () {
+    it('takes one active value of each of the product\'s variant attributes, and no combination twice, archived included', function () {
         [$drawer, $width, $sizes] = catalogVariantsSized();
         $other = Px::attribute('Colour');
         $black = Px::value($other, 'Black');
@@ -246,7 +240,7 @@ describe('values and combinations', function () {
             ->and($changes)->toBe(['value_ids' => [$sizes['60 cm'], $sizes['90 cm']]]);
     });
 
-    it('gives a product without a set one variant only', function () {
+    it('gives a product with no variant attributes one variant only', function () {
         $product = Px::product();
         catalogVariantsAdd($product, '1001');
 
@@ -303,6 +297,71 @@ describe('deleting a draft\'s variant', function () {
         DB::table('catalog.products')->where('id', $drawer)->update(['stage' => 'READY', 'category_id' => Px::category()]);
 
         expect(fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($ninety)))->toThrow(InvalidStageChange::class);
+    });
+});
+
+describe('their order', function () {
+    it('adds each variant last, keeps its place when edited, and orders them as sent, the rest after, archived ones too', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
+        $ninety = catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['90 cm']]]);
+        app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty));
+        $places = fn (): array => DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('id')->all();
+        $order = fn (string ...$ids) => app(OrderVariantsHandler::class)->handle(new OrderVariants($drawer, array_values($ids)));
+
+        expect($places())->toBe([$sixty, $eighty, $ninety]);
+
+        $order($ninety);
+
+        expect($places())->toBe([$ninety, $sixty, $eighty])
+            ->and(DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('position')->all())->toBe([1, 2, 3])
+            ->and(Fx::audits('catalog.product.variants_ordered', $drawer))->toBe(1);
+
+        // Edited with no place given, it stays where it is; the order sent as it stands records nothing.
+        catalogVariantsEdit($sixty, ['weightGrams' => 500, 'position' => null]);
+        $order($ninety, $sixty);
+
+        expect($places())->toBe([$ninety, $sixty, $eighty])
+            ->and(Fx::audits('catalog.product.variants_ordered', $drawer))->toBe(1)
+            ->and(fn () => $order(catalogVariantsAdd(Px::product(), '1400')))->toThrow(InvalidCatalogAttribute::class, 'own variants')
+            // One id twice says two places for one variant: refused, as every list's order refuses it.
+            ->and(fn () => $order($sixty, strtoupper($sixty)))->toThrow(InvalidCatalogAttribute::class, 'variant_ids')
+            ->and($places())->toBe([$ninety, $sixty, $eighty]);
+    });
+
+    it('writes the places typed before as 1, 2, 3 … in each product\'s order, ties by id (the review of #120)', function () {
+        [$drawer, $width, $sizes] = catalogVariantsSized();
+        $sixty = catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sizes['60 cm']]]);
+        $eighty = catalogVariantsAdd($drawer, '1305', ['values' => [$width => $sizes['80 cm']]]);
+        $ninety = catalogVariantsAdd($drawer, '1306', ['values' => [$width => $sizes['90 cm']]]);
+        $other = Px::product('Other');
+        $alone = catalogVariantsAdd($other, '1400');
+        // As typed before amendment 16(d): two tied, one at the top of the range.
+        DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->update(['position' => 0]);
+        DB::table('catalog.variants')->where('id', $ninety)->update(['position' => 10000]);
+        DB::table('catalog.variants')->where('id', $alone)->update(['position' => 7]);
+        // Ties go by id, as the reads order them.
+        $tied = DB::table('catalog.variants')->whereIn('id', [$sixty, $eighty])->orderBy('id')->pluck('id')->all();
+
+        (require base_path('src/Modules/Catalog/Infrastructure/Persistence/Migrations/2026_10_11_100000_renumber_catalog_variant_places.php'))->up();
+
+        expect(DB::table('catalog.variants')->where('product_id', $drawer)->orderBy('position')->pluck('position', 'id')->all())->toBe([$tied[0] => 1, $tied[1] => 2, $ninety => 3])
+            ->and(DB::table('catalog.variants')->where('id', $alone)->value('position'))->toBe(1)
+            // Added after it, a variant goes last again.
+            ->and(DB::table('catalog.variants')->where('id', catalogVariantsAdd($drawer, '1307', ['values' => [$width => Px::value($width, '100 cm')]]))->value('position'))->toBe(4);
+    });
+
+    it('needs the product\'s job where it is on', function () {
+        ['product' => $ready, 'variants' => [$variant]] = Px::ready(['60 cm', '80 cm']);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('eg'), $ready, true)));
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE], ['sa']);
+
+        expect(fn () => app(OrderVariantsHandler::class)->handle(new OrderVariants($ready, [$variant])))->toThrow(Unauthorized::class);
+
+        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_VIEW]);
+
+        expect(fn () => app(OrderVariantsHandler::class)->handle(new OrderVariants($ready, [$variant])))->toThrow(Unauthorized::class);
     });
 });
 
@@ -388,7 +447,7 @@ describe('the rows a variant points at', function () {
         $finish = Px::attribute('Finish');
         [$sixty, $oak] = [Px::value($width, '60 cm'), Px::value($finish, 'Oak')];
         $drawer = Px::product();
-        catalogVariantsSetOn($drawer, Px::set([$width, $finish]));
+        Px::variantAttributes($drawer, [$width, $finish]);
         $queries = Cx::recordQueries();
 
         catalogVariantsAdd($drawer, '1304', ['values' => [$width => $sixty, $finish => $oak]]);

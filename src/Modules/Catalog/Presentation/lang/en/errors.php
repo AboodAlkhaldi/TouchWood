@@ -76,10 +76,6 @@ return [
         'title' => 'Variant already there',
         'detail' => 'Another variant of this product has the same values. Restore it, or choose other values.',
     ],
-    'attribute_set_locked' => [
-        'title' => 'Attribute set cannot change',
-        'detail' => 'This product has variants, so its attribute set stays as it is.',
-    ],
     'category_not_lowest' => [
         'title' => 'Choose a lower category',
         'detail' => 'Products go only into a category with no sub-categories.',
@@ -95,10 +91,6 @@ return [
     'invalid_stage_change' => [
         'title' => 'Not possible now',
         'detail' => 'This is not possible at the product\'s current stage.',
-    ],
-    'attribute_set_in_use' => [
-        'title' => 'Set in use',
-        'detail' => 'Products with variants use this set, so its attributes stay. Rename it, or make a new set for new products.',
     ],
     'too_many' => [
         'title' => 'Too many',
@@ -126,7 +118,7 @@ return [
     ],
     'import_undecided' => [
         'title' => 'Decisions still wait',
-        'detail' => 'Before the products are brought in: decide every new name and every code the catalog already has, give an address to every product whose address is taken, choose keep on sale or take off sale for every product on sale that the file changes, and skip every product whose codes the file would change though it is no longer a draft (or upload the file corrected).',
+        'detail' => 'Before the products are brought in: decide every new name and every code the catalog already has, give an address to every product whose address is taken, choose keep on sale or take off sale for every product on sale that the file changes, skip every product whose codes the file would change though it is no longer a draft (or upload the file corrected), and replace whole or skip every product the file gives other variant attributes — replacing it names every variant it has, archived ones too.',
     ],
     'import_closed' => [
         'title' => 'Decided already',
@@ -135,6 +127,9 @@ return [
     'fields' => [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
+        'attribute_id' => 'attribute',
+        'target_id' => 'catalog item',
+        'new_codes' => 'new codes',
         'attribute_ids' => 'attributes',
         'description_ar' => 'Arabic description',
         'description_en' => 'English description',
@@ -180,8 +175,11 @@ return [
         'modes' => 'selling modes',
         'product' => 'product',
         'variants' => 'variants',
+        'variant_ids' => 'variants',
         'choice' => 'choice',
         'move_to' => 'where to move',
         'products' => 'products',
+        // An order sent from a list's screen (amendment 16(d)).
+        'ids' => 'order',
     ],
 ];

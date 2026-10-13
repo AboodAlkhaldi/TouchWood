@@ -36,6 +36,7 @@
     "include": [
         "resources/js/**/*.ts",
         "resources/js/**/*.tsx",
+        "tests/Frontend/**/*.ts",
         "vite.config.ts"
     ]
 }

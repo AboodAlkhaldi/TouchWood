@@ -24,9 +24,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { FieldDescription, FieldLegend, FieldSet } from '@/components/ui/field';
 import { NativeSelectOption } from '@/components/ui/native-select';
+import type { Rules } from '@/lib/checks';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import { useFocusBack } from '@/lib/use-focus-back';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { NewStoreForm, StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
@@ -114,6 +116,31 @@ export default function Index({ stores, timezones, maySwitch, add }: Props) {
 const NEW_CURRENCY = '__new';
 
 /*
+| A store's rules as each box is typed (frontend.md §1.7), the domain's own: a code of 2 to 8
+| letters A to Z (StoreCode; lower-cased as it is typed - which codes are reserved is the server's
+| alone), a position from 0 to 32,767 (Store::MAX_POSITION; the server reads an empty box as 0, but
+| the box was always required here, so it stays so), the names required in both languages (TranslatedText), a tax rate from 0 to 100 with at
+| most two decimals (TaxRate, in basis points; StoresController::basisPoints keeps two places and
+| drops any further digit, which is said here instead), and a country and a time zone picked. A new
+| currency's are the currency screen's (CurrencyCode, TranslatedText, Currency::assertSign).
+| Platform has no Form Request: a refusal still comes back as the form's.
+*/
+const STORE = {
+    code: { required: true, letters: true, length: { min: 2, max: 8 } },
+    position: { required: true, number: { min: 0, max: 32767 } },
+    name: { required: true },
+    taxRate: { required: true, number: { decimals: 2, min: 0, max: 100 } },
+    picked: { required: true },
+    currencyCode: { required: true, letters: true, length: { min: 3, max: 3 } },
+    currencySign: { length: { max: 1 } },
+} satisfies Record<string, Rules>;
+
+/** A rate as typed: its digits made Latin, and the Arabic decimal separator the same point (frontend.md §1.8). */
+function typedRate(value: string): string {
+    return toLatinDigits(value).replaceAll('\u066B', '.');
+}
+
+/*
 | Add Store (platform.md §9.7 #3, #4; owner, 2026-10-06): everything a store is, at once, so it is
 | never half-configured; it is added switched off. The currency is never typed: it is picked from the
 | currencies no store uses - one currency, one store - or made here, in the same form, when "New
@@ -149,6 +176,24 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
     // have been taken meanwhile - or the last one, leaving only a new currency to make.
     const newCurrency = noneFree || form.data.new_currency;
     const currency = add.freeCurrencies.some((free) => free.code === form.data.currency) ? form.data.currency : (add.freeCurrencies[0]?.code ?? '');
+    // Each box as typed, with the store's rules (STORE, above); the new currency's only while one is
+    // being made. The currency and its places are picked from lists.
+    const noCurrencyMade = !newCurrency;
+    const checks = useChecks([
+        { id: 'new-store-code', label: t('platform::admin_stores.code'), value: form.data.code, rules: STORE.code },
+        { id: 'new-store-position', label: t('platform::admin_stores.position'), value: form.data.position, rules: STORE.position },
+        { id: 'new-store-name_ar', label: t('platform::admin_stores.name_ar'), value: form.data.name_ar, rules: STORE.name },
+        { id: 'new-store-name_en', label: t('platform::admin_stores.name_en'), value: form.data.name_en, rules: STORE.name },
+        { id: 'new-store-country', label: t('platform::admin_stores.country'), value: form.data.country, rules: STORE.picked },
+        { id: 'new-store-tax_rate', label: t('platform::admin_stores.tax_rate'), value: form.data.tax_rate, rules: STORE.taxRate },
+        { id: 'new-store-timezone', label: t('platform::admin_stores.timezone'), value: form.data.timezone, rules: STORE.picked },
+        { id: 'new-currency-code', label: t('platform::admin_currencies.code'), value: form.data.currency_code, rules: STORE.currencyCode, off: noCurrencyMade },
+        { id: 'new-currency-name_ar', label: t('platform::admin_currencies.name_ar'), value: form.data.currency_name_ar, rules: STORE.name, off: noCurrencyMade },
+        { id: 'new-currency-name_en', label: t('platform::admin_currencies.name_en'), value: form.data.currency_name_en, rules: STORE.name, off: noCurrencyMade },
+        { id: 'new-currency-abbreviation_ar', label: t('platform::admin_currencies.abbreviation_ar'), value: form.data.currency_abbreviation_ar, rules: STORE.name, off: noCurrencyMade },
+        { id: 'new-currency-abbreviation_en', label: t('platform::admin_currencies.abbreviation_en'), value: form.data.currency_abbreviation_en, rules: STORE.name, off: noCurrencyMade },
+        { id: 'new-currency-sign', label: t('platform::admin_currencies.sign'), value: form.data.currency_sign, rules: STORE.currencySign, off: noCurrencyMade },
+    ]);
 
     return (
         <Card className="material-base gap-0 border-0 py-0" data-test="add-store-form">
@@ -156,8 +201,10 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                 aria-labelledby="add-store-title"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.transform((data) => ({ ...data, currency, new_currency: newCurrency }));
-                    form.post('/admin/stores', { preserveScroll: true, onSuccess: onDone });
+                    checks.submit(() => {
+                        form.transform((data) => ({ ...data, currency, new_currency: newCurrency }));
+                        form.post('/admin/stores', { preserveScroll: true, onSuccess: onDone });
+                    });
                 }}
             >
                 <CardHeader className="px-5 pt-5 pb-4">
@@ -174,11 +221,11 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         id="new-store-code"
                         label={t('platform::admin_stores.code')}
                         helper={t('platform::admin_stores.code_hint')}
+                        check={checks.box('new-store-code')}
                         required
                         // The form appears because Add Store was pressed: its first field takes the focus.
                         autoFocus
                         dir="ltr"
-                        maxLength={8}
                         inputClassName="tw-figure"
                         value={form.data.code}
                         // Lower case as it is typed: it is the shop's address.
@@ -188,6 +235,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         id="new-store-position"
                         label={t('platform::admin_stores.position')}
                         helper={t('platform::admin_stores.position_hint')}
+                        check={checks.box('new-store-position')}
                         required
                         dir="ltr"
                         inputMode="numeric"
@@ -198,6 +246,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                     <TextField
                         id="new-store-name_ar"
                         label={t('platform::admin_stores.name_ar')}
+                        check={checks.box('new-store-name_ar')}
                         required
                         lang="ar"
                         dir="rtl"
@@ -207,6 +256,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                     <TextField
                         id="new-store-name_en"
                         label={t('platform::admin_stores.name_en')}
+                        check={checks.box('new-store-name_en')}
                         required
                         lang="en"
                         dir="ltr"
@@ -218,6 +268,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         label={t('platform::admin_stores.country')}
                         countries={add.countries}
                         value={form.data.country}
+                        error={checks.box('new-store-country').message}
                         onChange={(country) => {
                             // A zone the person picked stays; one filled for the last country goes.
                             form.setData((data) => ({
@@ -237,12 +288,13 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                         id="new-store-tax_rate"
                         label={t('platform::admin_stores.tax_rate')}
                         helper={t('platform::admin_stores.tax_rate_hint')}
+                        check={checks.box('new-store-tax_rate')}
                         required
                         dir="ltr"
                         inputMode="decimal"
                         inputClassName="tw-figure"
                         value={form.data.tax_rate}
-                        onChange={(event) => form.setData('tax_rate', toLatinDigits(event.target.value))}
+                        onChange={(event) => form.setData('tax_rate', typedRate(event.target.value))}
                     />
                     <SearchCombobox
                         id="new-store-timezone"
@@ -254,6 +306,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                             search: t('platform::admin_stores.timezone_search'),
                             none: (query) => t('platform::admin_stores.timezone_none', { query }),
                         }}
+                        error={checks.box('new-store-timezone').message}
                         ltr
                         className="sm:col-span-2"
                     />
@@ -292,9 +345,9 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                     id="new-currency-code"
                                     label={t('platform::admin_currencies.code')}
                                     helper={t('platform::admin_currencies.code_hint')}
+                                    check={checks.box('new-currency-code')}
                                     required
                                     dir="ltr"
-                                    maxLength={3}
                                     inputClassName="tw-figure"
                                     value={form.data.currency_code}
                                     onChange={(event) => form.setData('currency_code', event.target.value.toUpperCase())}
@@ -315,6 +368,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                 <TextField
                                     id="new-currency-name_ar"
                                     label={t('platform::admin_currencies.name_ar')}
+                                    check={checks.box('new-currency-name_ar')}
                                     required
                                     lang="ar"
                                     dir="rtl"
@@ -324,6 +378,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                 <TextField
                                     id="new-currency-name_en"
                                     label={t('platform::admin_currencies.name_en')}
+                                    check={checks.box('new-currency-name_en')}
                                     required
                                     lang="en"
                                     dir="ltr"
@@ -334,6 +389,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                     id="new-currency-abbreviation_ar"
                                     label={t('platform::admin_currencies.abbreviation_ar')}
                                     helper={t('platform::admin_currencies.abbreviation_hint')}
+                                    check={checks.box('new-currency-abbreviation_ar')}
                                     required
                                     lang="ar"
                                     dir="rtl"
@@ -344,6 +400,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                     id="new-currency-abbreviation_en"
                                     label={t('platform::admin_currencies.abbreviation_en')}
                                     helper={t('platform::admin_currencies.abbreviation_hint')}
+                                    check={checks.box('new-currency-abbreviation_en')}
                                     required
                                     lang="en"
                                     dir="ltr"
@@ -354,6 +411,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                                     id="new-currency-sign"
                                     label={t('platform::admin_currencies.sign')}
                                     helper={t('platform::admin_currencies.sign_hint')}
+                                    check={checks.box('new-currency-sign')}
                                     value={form.data.currency_sign}
                                     onChange={(event) => form.setData('currency_sign', event.target.value)}
                                 />
@@ -366,7 +424,7 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
                     <Button type="button" variant="outline" disabled={form.processing} data-test="cancel-add-store" onClick={onDone}>
                         {t('platform::admin_stores.cancel')}
                     </Button>
-                    <ActionButton type="submit" loading={form.processing} data-test="create-store">
+                    <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="create-store">
                         {t('platform::admin_stores.create')}
                     </ActionButton>
                 </CardFooter>
@@ -412,6 +470,14 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
         timezone: store.timezone,
         position: String(store.position),
     });
+    // Each box as typed, with the store's rules (STORE, above).
+    const checks = useChecks([
+        { id: `${store.id}-name_ar`, label: t('platform::admin_stores.name_ar'), value: form.data.name_ar, rules: STORE.name },
+        { id: `${store.id}-name_en`, label: t('platform::admin_stores.name_en'), value: form.data.name_en, rules: STORE.name },
+        { id: `${store.id}-tax_rate`, label: t('platform::admin_stores.tax_rate'), value: form.data.tax_rate, rules: STORE.taxRate },
+        { id: `${store.id}-position`, label: t('platform::admin_stores.position'), value: form.data.position, rules: STORE.position },
+        { id: `${store.id}-timezone`, label: t('platform::admin_stores.timezone'), value: form.data.timezone, rules: STORE.picked },
+    ]);
 
     return (
         <Collapsible open={open} onOpenChange={onOpenChange} asChild>
@@ -492,7 +558,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            form.post(`/admin/stores/${store.code}`, { onSuccess: () => onOpenChange(false) });
+                            checks.submit(() => form.post(`/admin/stores/${store.code}`, { onSuccess: () => onOpenChange(false) }));
                         }}
                         className="border-t border-line"
                     >
@@ -500,7 +566,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                             <TextField
                                 id={`${store.id}-name_ar`}
                                 label={t('platform::admin_stores.name_ar')}
-                                error={form.errors.name_ar}
+                                check={checks.box(`${store.id}-name_ar`, form.errors.name_ar)}
                                 required
                                 lang="ar"
                                 dir="rtl"
@@ -511,7 +577,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                             <TextField
                                 id={`${store.id}-name_en`}
                                 label={t('platform::admin_stores.name_en')}
-                                error={form.errors.name_en}
+                                check={checks.box(`${store.id}-name_en`, form.errors.name_en)}
                                 required
                                 lang="en"
                                 dir="ltr"
@@ -523,21 +589,21 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                                 id={`${store.id}-tax_rate`}
                                 label={t('platform::admin_stores.tax_rate')}
                                 helper={t('platform::admin_stores.tax_rate_hint')}
-                                error={form.errors.tax_rate}
+                                check={checks.box(`${store.id}-tax_rate`, form.errors.tax_rate)}
                                 required
                                 dir="ltr"
                                 inputMode="decimal"
                                 inputClassName="tw-figure"
                                 value={form.data.tax_rate}
                                 // A rate typed on an Arabic keyboard is the same rate (frontend.md §1.8).
-                                onChange={(event) => form.setData('tax_rate', toLatinDigits(event.target.value))}
+                                onChange={(event) => form.setData('tax_rate', typedRate(event.target.value))}
                             />
 
                             <TextField
                                 id={`${store.id}-position`}
                                 label={t('platform::admin_stores.position')}
                                 helper={t('platform::admin_stores.position_hint')}
-                                error={form.errors.position}
+                                check={checks.box(`${store.id}-position`, form.errors.position)}
                                 required
                                 dir="ltr"
                                 inputMode="numeric"
@@ -557,7 +623,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                                     search: t('platform::admin_stores.timezone_search'),
                                     none: (query) => t('platform::admin_stores.timezone_none', { query }),
                                 }}
-                                error={form.errors.timezone}
+                                error={checks.box(`${store.id}-timezone`, form.errors.timezone).message}
                                 ltr
                                 className="sm:col-span-2"
                             />
@@ -577,7 +643,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
 
                         <CardFooter className="flex-wrap justify-between gap-3 border-t border-line bg-surface-sunken px-5 py-3 [.border-t]:pt-3">
                             <p className="text-copy-13 text-ink-muted">{t('platform::admin_stores.immutable')}</p>
-                            <ActionButton type="submit" loading={form.processing} data-test={`save-${store.code}`}>
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test={`save-${store.code}`}>
                                 {t('platform::admin_stores.save')}
                             </ActionButton>
                         </CardFooter>

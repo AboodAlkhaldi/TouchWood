@@ -5,3 +5,4 @@ export type MediaVariantsStatus = 'PENDING' | 'READY' | 'FAILED';
 export type MediaVisibility = 'PUBLIC' | 'PRIVATE';
 export type SettingScope = 'GLOBAL' | 'STORE';
 export type SettingType = 'INTEGER' | 'BOOLEAN' | 'TEXT' | 'LIST';
+export type ShopperKind = 'GUEST' | 'INDIVIDUAL' | 'COMPANY';

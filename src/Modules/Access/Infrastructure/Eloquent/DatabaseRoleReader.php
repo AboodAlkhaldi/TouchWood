@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Domain\ValueObject\RoleKind;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseRoleReader implements RoleReader

@@ -6,8 +6,14 @@ namespace Modules\Loyalty\Infrastructure;
 
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Loyalty\Application\LoyaltyApiImpl;
 use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Loyalty\Domain\Repository\PointsAccounts;
+use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsAccounts;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsLedger;
+use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 
 /**
@@ -17,6 +23,13 @@ use Modules\Platform\Public\Contracts\SettingsRegistry;
  */
 final class LoyaltyServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->bind(PointsAccounts::class, DatabasePointsAccounts::class);
+        $this->app->bind(PointsLedger::class, DatabasePointsLedger::class);
+        $this->app->bind(LoyaltyApi::class, LoyaltyApiImpl::class);
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');

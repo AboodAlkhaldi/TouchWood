@@ -168,10 +168,15 @@ it('passes its own check of the renames and removals every module declared', fun
         ->and($catalog->removals())->toBe([]);
 });
 
-it('gives every command handler a PERMISSION constant, save the one that reads it from the setting', function () {
-    // UpdateSetting takes its permission from the setting's own definition, so it declares
-    // none; every other handler must, or handlerPermissions() would pass over it.
-    expect(handlersWithoutPermissionConstant())->toBe(['Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler']);
+it('gives every command handler a PERMISSION constant, save those that read it from elsewhere', function () {
+    // UpdateSetting takes its permission from the setting's own definition, and Loyalty's Earn and
+    // Redeem take the calling module's, named by Sales on each call (loyalty.md §2.1), so they
+    // declare none; every other handler must, or handlerPermissions() would pass over it.
+    expect(handlersWithoutPermissionConstant())->toBe([
+        'Modules\Loyalty\Application\Command\Earn\EarnHandler',
+        'Modules\Loyalty\Application\Command\Redeem\RedeemHandler',
+        'Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler',
+    ]);
 });
 
 it('declares every Access permission', function () {

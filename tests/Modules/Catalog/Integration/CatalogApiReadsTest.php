@@ -48,7 +48,8 @@ describe('a product\'s variants and a category\'s products', function () {
     it('answers a product\'s variants in its own order, archived ones only when asked', function () {
         $ready = Px::ready(['60 cm', '80 cm', '90 cm']);
         [$sixty, $eighty, $ninety] = $ready['variants'];
-        DB::table('catalog.variants')->where('id', $sixty)->update(['position' => 3]);
+        // Added in order, 1, 2, 3 (amendment 16(d)); 60 cm moved past the others.
+        DB::table('catalog.variants')->where('id', $sixty)->update(['position' => 4]);
         Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
 
         expect(catalogReads()->variantIdsOf(strtoupper($ready['product'])))->toBe([$ninety, $sixty])

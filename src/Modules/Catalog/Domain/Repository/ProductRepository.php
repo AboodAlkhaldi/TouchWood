@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Domain\Repository;
 
 use Modules\Catalog\Domain\Model\Product;
+use Modules\Catalog\Public\Enums\ProductStage;
 
 /**
  * Products, their slugs and the codes their variants ever held (catalog.md §1.1, §1.2, §5.1),
@@ -50,10 +51,36 @@ interface ProductRepository
 
     public function anyWithWarranty(string $warrantyId): bool;
 
-    public function anyWithAttributeSet(string $setId): bool;
+    /**
+     * The product's variant attributes, in its order (catalog.md §1.7, amendment 16(b)): "Has
+     * Variants: Yes" while there is one.
+     *
+     * @return list<string>
+     */
+    public function variantAttributes(string $productId): array;
 
-    /** Whether any variant is built on the set — of a product taking it (amendment 3(k)). */
-    public function variantsOnSet(string $setId): bool;
+    /**
+     * Many products' variant attributes at once, each in its order (P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, list<string>> by product id
+     */
+    public function variantAttributesOf(array $productIds): array;
+
+    /**
+     * Many products' stages at once (P13); a product that does not exist is left out.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, ProductStage> by product id
+     */
+    public function stagesOf(array $productIds): array;
+
+    /**
+     * Writes the product's variant attributes as they now are, positions 1, 2, 3 … in this order.
+     *
+     * @param  list<string>  $attributeIds
+     */
+    public function replaceVariantAttributes(string $productId, array $attributeIds): void;
 
     /**
      * @return list<string> the gallery's media ids, in order

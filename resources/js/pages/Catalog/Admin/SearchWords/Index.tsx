@@ -14,6 +14,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { NoResultSearchData, SearchWordsPage, WordPairData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { useAllStoresReason, useLocale } from '../parts';
@@ -206,6 +207,14 @@ function PairDialog({ words, open, onOpenChange, returnFocusTo }: { words: strin
         }
     }, [open, words]);
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: each word one line of up to 50
+    // characters (WordPair::WORD_MAX), both required.
+    const word = { required: true, length: { max: 50 } };
+    const checks = useChecks([
+        { id: 'pair-word-a', label: t('catalog::admin_search_words.field.word_a'), value: form.data.word_a, rules: word },
+        { id: 'pair-word-b', label: t('catalog::admin_search_words.field.word_b'), subject: t('catalog::admin_search_words.field.word_b_subject'), value: form.data.word_b, rules: word },
+    ]);
+
     return (
         <PanelDialog
             open={open}
@@ -215,14 +224,19 @@ function PairDialog({ words, open, onOpenChange, returnFocusTo }: { words: strin
             description={t('catalog::admin_search_words.add_body')}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={() => form.post('/admin/search-words', { preserveScroll: true, onSuccess: () => onOpenChange(false) })} data-test="confirm-pair">
+                <ActionButton
+                    loading={form.processing}
+                    disabledReason={checks.reason}
+                    onClick={() => checks.submit(() => form.post('/admin/search-words', { preserveScroll: true, onSuccess: () => onOpenChange(false) }))}
+                    data-test="confirm-pair"
+                >
                     {t('catalog::admin_search_words.add')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                <TextField id="pair-word-a" label={t('catalog::admin_search_words.field.word_a')} value={form.data.word_a} error={form.errors.word_a ?? errors.word_pair} onChange={(event) => form.setData('word_a', event.target.value)} data-test="pair-word-a" />
-                <TextField id="pair-word-b" label={t('catalog::admin_search_words.field.word_b')} helper={t('catalog::admin_search_words.field.word_helper')} value={form.data.word_b} error={form.errors.word_b} onChange={(event) => form.setData('word_b', event.target.value)} data-test="pair-word-b" />
+                <TextField id="pair-word-a" label={t('catalog::admin_search_words.field.word_a')} value={form.data.word_a} check={checks.box('pair-word-a', form.errors.word_a ?? errors.word_pair)} onChange={(event) => form.setData('word_a', event.target.value)} data-test="pair-word-a" />
+                <TextField id="pair-word-b" label={t('catalog::admin_search_words.field.word_b')} helper={t('catalog::admin_search_words.field.word_helper')} value={form.data.word_b} check={checks.box('pair-word-b', form.errors.word_b)} onChange={(event) => form.setData('word_b', event.target.value)} data-test="pair-word-b" />
             </div>
         </PanelDialog>
     );

@@ -7,12 +7,15 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
 use Modules\Catalog\Application\Query\Products\ProductCore;
 use Modules\Catalog\Application\Query\Products\ProductFilter;
 use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
+use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
@@ -120,24 +123,30 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
 
     public function core(string $productId): ?ProductCore
     {
-        if (! Ulids::valid($productId)) {
-            return null;
+        return $this->cores([$productId])[strtolower($productId)] ?? null;
+    }
+
+    public function cores(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        if ($ids === []) {
+            return [];
         }
 
-        $row = $this->db->table('catalog.products as p')
+        $rows = $this->db->table('catalog.products as p')
             ->join('catalog.brands as b', 'b.id', '=', 'p.brand_id')
             ->leftJoin('catalog.categories as k', 'k.id', '=', 'p.category_id')
-            ->leftJoin('catalog.attribute_sets as s', 's.id', '=', 'p.attribute_set_id')
-            ->where('p.id', strtolower($productId))
+            ->whereIn('p.id', $ids)
             ->select([
                 'p.id', 'p.name_ar', 'p.name_en', 'p.stage', 'p.archived_from', 'p.brand_id', 'b.name_ar as brand_ar', 'b.name_en as brand_en',
-                'p.category_id', 'p.warranty_id', 'p.attribute_set_id', 's.name_ar as set_ar', 's.name_en as set_en',
+                'p.category_id', 'p.warranty_id',
                 'p.description_ar', 'p.description_en', 'p.hidden_by_category', 'p.hidden_by_brand',
             ])
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'ar' AND sl.is_current) as slug_ar")
             ->selectRaw("(SELECT sl.slug FROM catalog.product_slugs sl WHERE sl.product_id = p.id AND sl.locale = 'en' AND sl.is_current) as slug_en")
             ->selectRaw(self::CODES)
-            ->selectRaw("(SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = p.attribute_set_id) as set_attributes")
+            ->selectRaw("(SELECT coalesce(json_agg(pa.attribute_id ORDER BY pa.position), '[]') FROM catalog.product_attributes pa WHERE pa.product_id = p.id) as variant_attributes")
             ->selectRaw("(SELECT coalesce(json_agg(ph.media_id ORDER BY ph.position), '[]') FROM catalog.product_photos ph WHERE ph.product_id = p.id) as gallery")
             ->selectRaw("(SELECT coalesce(json_agg(DISTINCT sv.store_id), '[]') FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.is_active) as on_in")
             ->selectRaw('EXISTS (SELECT 1 FROM catalog.variants v WHERE v.product_id = p.id AND NOT v.is_archived) as has_variant')
@@ -160,12 +169,31 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                     'goesWith', (SELECT count(*) FROM catalog.product_relations r WHERE r.product_id = p.id AND r.kind = 'GOES_WITH')
                 ) as counts
                 SQL)
-            ->first();
+            ->get();
 
-        if ($row === null) {
-            return null;
+        $cores = [];
+
+        foreach ($rows as $row) {
+            $cores[(string) $row->id] = self::toCore($row);
         }
 
+        return $cores;
+    }
+
+    public function onSaleAmong(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        return $ids === [] ? [] : array_values(array_map('strval', $this->db->table('catalog.store_variants')
+            ->whereIn('product_id', $ids)
+            ->where('is_active', true)
+            ->distinct()
+            ->pluck('product_id')
+            ->all()));
+    }
+
+    private static function toCore(stdClass $row): ProductCore
+    {
         /** @var array{variants: int, photos: int, searchWords: int, filterValues: int, related: int, goesWith: int} $counts */
         $counts = array_map('intval', self::json($row->counts) ?? []) + ['variants' => 0, 'photos' => 0, 'searchWords' => 0, 'filterValues' => 0, 'related' => 0, 'goesWith' => 0];
 
@@ -184,10 +212,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             array_map(static fn (array $step): array => ['ar' => (string) ($step['ar'] ?? ''), 'en' => (string) ($step['en'] ?? '')], self::lists($row->category_path)),
             (bool) $row->category_showable,
             self::text($row->warranty_id),
-            self::text($row->attribute_set_id),
-            self::text($row->set_ar),
-            self::text($row->set_en),
-            self::strings($row->set_attributes),
+            self::strings($row->variant_attributes),
             self::json($row->description_ar),
             self::json($row->description_en),
             (bool) $row->hidden_by_category,
@@ -211,8 +236,9 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->select(['v.id', 'v.code', 'v.position', 'v.is_archived', 'v.weight_grams', 'v.length_mm', 'v.width_mm', 'v.height_mm'])
             ->selectRaw(<<<'SQL'
                 (SELECT coalesce(json_agg(json_build_object('attributeId', vv.attribute_id, 'valueId', vv.value_id, 'nameAr', av.name_ar, 'nameEn', av.name_en, 'swatch', av.swatch)
-                    ORDER BY a.position, a.name_en), '[]')
+                    ORDER BY pa.position, a.position, a.name_en), '[]')
                     FROM catalog.variant_values vv JOIN catalog.attribute_values av ON av.id = vv.value_id JOIN catalog.attributes a ON a.id = vv.attribute_id
+                    LEFT JOIN catalog.product_attributes pa ON pa.product_id = v.product_id AND pa.attribute_id = vv.attribute_id
                     WHERE vv.variant_id = v.id) as vals
                 SQL)
             ->selectRaw(<<<'SQL'
@@ -222,7 +248,8 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                     WHERE d.variant_id = v.id) as details
                 SQL)
             ->selectRaw("(SELECT coalesce(json_agg(vp.media_id ORDER BY vp.position), '[]') FROM catalog.variant_photos vp WHERE vp.variant_id = v.id) as photos")
-            ->orderBy('v.position')->orderBy('v.code')->orderBy('v.id')
+            // As every other read orders them, so the tab, a drag and the shop agree (the review of #120).
+            ->orderBy('v.position')->orderBy('v.id')
             ->get();
 
         return array_values($rows->map(static fn (stdClass $row): VariantView => new VariantView(
@@ -291,10 +318,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 (SELECT coalesce(json_agg(json_build_object('id', c.id, 'parentId', c.parent_id, 'ar', c.name_ar, 'en', c.name_en, 'active', c.is_active)
                     ORDER BY c.name_en, c.id), '[]') FROM catalog.categories c) as categories,
                 (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months, 'active', w.is_active)
-                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties,
-                (SELECT coalesce(json_agg(json_build_object('id', s.id, 'nameAr', s.name_ar, 'nameEn', s.name_en,
-                    'attributeIds', (SELECT coalesce(json_agg(m.attribute_id ORDER BY m.position), '[]') FROM catalog.attribute_set_members m WHERE m.attribute_set_id = s.id))
-                    ORDER BY s.name_en, s.id), '[]') FROM catalog.attribute_sets s WHERE s.is_active) as variations
+                    ORDER BY w.position, w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties
             SQL);
 
         return new ProductOptions(
@@ -313,12 +337,6 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 'periodMonths' => isset($warranty['periodMonths']) ? (int) $warranty['periodMonths'] : null,
                 'active' => (bool) ($warranty['active'] ?? false),
             ], self::lists($row?->warranties)),
-            array_map(static fn (array $set): array => [
-                'id' => (string) $set['id'],
-                'nameAr' => (string) $set['nameAr'],
-                'nameEn' => (string) $set['nameEn'],
-                'attributeIds' => array_values(array_map('strval', is_array($set['attributeIds'] ?? null) ? $set['attributeIds'] : [])),
-            ], self::lists($row?->variations)),
         );
     }
 
@@ -360,6 +378,77 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::text($row->name_en),
             self::strings($row->codes),
             (string) $row->stage,
+        ))->all());
+    }
+
+    public function storeRows(string $productId): array
+    {
+        if (! Ulids::valid($productId)) {
+            return [];
+        }
+
+        // Every store that chose it, each with its variants' rows and its labels, in one read.
+        $rows = $this->db->select(<<<'SQL'
+            SELECT sp.store_id, sp.not_available_now, sp.retail_minimum, sp.retail_maximum, sp.wholesale_minimum, sp.wholesale_maximum,
+                (SELECT coalesce(json_agg(x.label_id ORDER BY l.position, l.name_en, l.id), '[]')
+                    FROM catalog.store_product_labels x JOIN catalog.labels l ON l.id = x.label_id
+                    WHERE x.store_id = sp.store_id AND x.product_id = sp.product_id) as labels,
+                (SELECT coalesce(json_agg(json_build_object('variantId', v.variant_id, 'on', v.is_active, 'notAvailable', v.not_available_now,
+                    'retail', v.sells_retail, 'wholesale', v.sells_wholesale)), '[]')
+                    FROM catalog.store_variants v WHERE v.store_id = sp.store_id AND v.product_id = sp.product_id) as variants
+            FROM catalog.store_products sp
+            WHERE sp.product_id = ?
+            SQL, [strtolower($productId)]);
+
+        $stores = [];
+
+        foreach ($rows as $row) {
+            $variants = [];
+
+            foreach (self::lists($row->variants) as $variant) {
+                $variants[(string) $variant['variantId']] = [
+                    'on' => (bool) ($variant['on'] ?? false),
+                    'notAvailable' => (bool) ($variant['notAvailable'] ?? false),
+                    'retail' => (bool) ($variant['retail'] ?? false),
+                    'wholesale' => (bool) ($variant['wholesale'] ?? false),
+                ];
+            }
+
+            $stores[(string) $row->store_id] = new StoreListingRow(
+                (string) $row->store_id,
+                (bool) $row->not_available_now,
+                (int) $row->retail_minimum,
+                self::number($row->retail_maximum),
+                self::number($row->wholesale_minimum),
+                self::number($row->wholesale_maximum),
+                self::strings($row->labels),
+                $variants,
+            );
+        }
+
+        return $stores;
+    }
+
+    public function labelChoices(string $productId): array
+    {
+        // The active labels, and those the product carries in some store whatever their state: a
+        // label deactivated since stays where it is attached (§1.8, amendment 4).
+        $rows = $this->db->table('catalog.labels as l')
+            ->where(function ($where) use ($productId): void {
+                $where->where('l.is_active', true)->orWhereExists(function ($attached) use ($productId): void {
+                    $attached->from('catalog.store_product_labels as spl')->whereColumn('spl.label_id', 'l.id')->where('spl.product_id', strtolower($productId));
+                });
+            })
+            ->select(['l.id', 'l.name_ar', 'l.name_en', 'l.tone', 'l.is_active'])
+            ->orderBy('l.position')->orderBy('l.name_en')->orderBy('l.id')
+            ->get();
+
+        return array_values($rows->map(static fn (stdClass $row): LabelChoice => new LabelChoice(
+            (string) $row->id,
+            (string) $row->name_ar,
+            (string) $row->name_en,
+            (string) $row->tone,
+            (bool) $row->is_active,
         ))->all());
     }
 

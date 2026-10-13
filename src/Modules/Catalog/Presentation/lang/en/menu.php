@@ -8,8 +8,9 @@ return [
     'categories' => 'Categories',
     'brands' => 'Brands',
     'attributes' => 'Attributes',
-    'variations' => 'Variations',
     'labels' => 'Labels',
     'warranties' => 'Warranties',
     'search_words' => 'Search Words',
+    'store_files' => 'Store Files',
+    'imports' => 'Products Import',
 ];

@@ -88,9 +88,8 @@ function catalogSaleFileProduct(array $ready, array $with = []): array
 {
     $code = catalogSaleCode($ready['variants'][0]);
     $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
-    $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
 
-    return Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [$width => '60 cm']]], ...$with]);
+    return Ix::product($code, ['variants' => [['code' => $code, 'values' => [$width => '60 cm']]], ...$with]);
 }
 
 /**
@@ -205,9 +204,8 @@ describe('the confirm, again', function () {
         $ready = Px::ready(['60 cm']);
         $code = catalogSaleCode($ready['variants'][0]);
         $width = (string) DB::table('catalog.attributes')->where('id', $ready['width'])->value('name_en');
-        $set = (string) DB::table('catalog.attribute_sets')->where('id', DB::table('catalog.products')->where('id', $ready['product'])->value('attribute_set_id'))->value('name_en');
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
-        $import = Ix::uploadProducts([Ix::product($code, ['attribute_set' => $set, 'variants' => [['code' => $code, 'values' => [$width => '60 cm']], ['code' => '7777', 'values' => [$width => '80 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product($code, ['variants' => [['code' => $code, 'values' => [$width => '60 cm']], ['code' => '7777', 'values' => [$width => '80 cm']]]])]);
         Ix::decideNames($import, ['80 cm' => Ix::create('80 سم', '80 cm')]);
         $decide = fn (string $decision) => app(DecideImportCodesHandler::class)->handle(new DecideImportCodes($import, [['product_id' => Ix::productId($import, 1), 'decision' => $decision, 'sale' => 'KEEP']]));
         $decide('UPDATE');

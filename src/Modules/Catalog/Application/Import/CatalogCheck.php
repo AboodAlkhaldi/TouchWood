@@ -14,8 +14,6 @@ use Modules\Catalog\Public\Enums\AttributeKind;
  * - an attribute used for two jobs in the file (variant values, filters, details), or for a job the
  *   catalog's attribute of that name does not have — an attribute has one job (§1.7);
  * - a category path ending at a category that has sub-categories (the guide, §1.1);
- * - a set the catalog has whose attributes the variants' values do not match; a new set given
- *   different attributes by two products (the guide, §1.2);
  * - a photo that is not JPEG, PNG or WebP, or over the media library's limit (the guide, §1.6);
  * - a product whose codes two of the catalog's products hold: it can update or replace one only.
  *
@@ -30,9 +28,6 @@ final class CatalogCheck
 
     /** @var array<string, array{kind: AttributeKind, product: int}> an attribute's key => its first use in the file */
     private array $uses = [];
-
-    /** @var array<string, array{attributes: list<string>, product: int}> a new set's key => the attributes its first product gives it */
-    private array $newSets = [];
 
     /** @var array<string, true> each problem once, however many products repeat it */
     private array $reported = [];
@@ -146,10 +141,6 @@ final class CatalogCheck
             $this->category($product->category, "{$at} › category", $product->number);
         }
 
-        if ($product->attributeSet !== null) {
-            $this->set($product, $product->attributeSet, $at);
-        }
-
         foreach ($product->variants as $index => $variant) {
             $where = "{$at} › variants ".($index + 1);
 
@@ -192,39 +183,6 @@ final class CatalogCheck
             if ($this->names->category($prefix) === null) {
                 $this->need(ImportNameRow::CATEGORY, implode(' / ', $prefix), $prefix, null, null, $number, $this->names->categoryMatches($prefix));
             }
-        }
-    }
-
-    private function set(FileProduct $product, string $name, string $at): void
-    {
-        $attributes = array_map('strval', array_keys(($product->variants[0] ?? null)->values ?? []));
-        $setId = $this->names->set($name);
-
-        if ($setId === null) {
-            $this->need(ImportNameRow::SET, $name, [$name], null, null, $product->number, $this->names->setMatches($name));
-            $given = array_map(CatalogNames::key(...), $attributes);
-            sort($given);
-            $first = $this->newSets[CatalogNames::key($name)] ??= ['attributes' => $given, 'product' => $product->number];
-
-            if ($first['attributes'] !== $given) {
-                $this->problem("{$at} › attribute_set", "the same attributes in every product for the new set {$name}: product {$first['product']} gives it others");
-            }
-
-            return;
-        }
-
-        $members = $this->names->setMembers($setId);
-
-        foreach ($attributes as $attribute) {
-            $existing = $this->names->attribute($attribute);
-
-            if ($existing !== null && ! in_array($existing->id(), $members, true)) {
-                $this->problem("{$at} › variants › values › {$attribute}", "an attribute of the set {$name}");
-            }
-        }
-
-        if (count($attributes) !== count($members)) {
-            $this->problem("{$at} › variants › values", "one value for each of the {$name} set's ".count($members).' attributes');
         }
     }
 

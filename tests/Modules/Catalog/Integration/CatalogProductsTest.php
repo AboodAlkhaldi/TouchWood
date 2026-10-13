@@ -12,8 +12,6 @@ use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSet;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
 use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
@@ -24,7 +22,6 @@ use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
 use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
-use Modules\Catalog\Domain\Exception\AttributeSetLocked;
 use Modules\Catalog\Domain\Exception\BrandInactive;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
@@ -77,7 +74,6 @@ function catalogProductsEdit(string $productId, array $changes = []): void
         'descriptionEn' => $product->descriptionEn()?->toArray(),
         'categoryId' => $product->categoryId(),
         'warrantyId' => $product->warrantyId(),
-        'attributeSetId' => $product->attributeSetId(),
         ...$changes,
     ]));
 }
@@ -213,18 +209,6 @@ describe('editing details', function () {
             ->and(fn () => catalogProductsEdit($other, ['categoryId' => $category]))->toThrow(CategoryInactive::class)
             ->and(fn () => catalogProductsEdit($other, ['warrantyId' => $warranty]))->toThrow(ListItemInactive::class);
     });
-
-    it('fixes the attribute set once the product has a variant', function () {
-        $width = Px::attribute();
-        $set = Px::set([$width]);
-        $other = Px::set([$width], 'Other');
-        $id = Px::product();
-        catalogProductsEdit($id, ['attributeSetId' => $set]);
-        Px::variant($id, '1304', [$width => Px::value($width, '60 cm')]);
-
-        expect(fn () => catalogProductsEdit($id, ['attributeSetId' => $other]))->toThrow(AttributeSetLocked::class)
-            ->and(fn () => catalogProductsEdit($id, ['attributeSetId' => null]))->toThrow(AttributeSetLocked::class);
-    });
 });
 
 describe('deleting a draft', function () {
@@ -235,7 +219,7 @@ describe('deleting a draft', function () {
     it('removes it whole, each row audited, and frees its addresses and codes', function () {
         $width = Px::attribute();
         $id = Px::product('Drawer');
-        catalogProductsEdit($id, ['attributeSetId' => Px::set([$width])]);
+        Px::variantAttributes($id, [$width]);
         $variant = Px::variant($id, '1304', [$width => Px::value($width, '60 cm')]);
         $slugs = catalogProductsSlugs($id);
 
@@ -317,24 +301,5 @@ describe('an archived product', function () {
 
         expect(fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($id)))->toThrow(ProductArchived::class)
             ->and(DB::table('catalog.product_codes')->where('code', '1001')->value('product_id'))->toBe($id);
-    });
-});
-
-describe('an attribute set deactivated', function () {
-    it('stays on a product that has it, and is taken by no product newly', function () {
-        Cx::actAsStaffWith([CatalogPermissions::PRODUCT_UPDATE]);
-        [$held, $other] = [Px::set([Px::attribute()]), Px::set([Px::attribute()])];
-        $id = Px::product();
-        catalogProductsEdit($id, ['attributeSetId' => $held]);
-        Fx::asSystem(function () use ($held, $other): void {
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($held));
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($other));
-        });
-
-        catalogProductsEdit($id, ['nameAr' => 'درج مجدد']);
-
-        expect(app(ProductRepository::class)->find($id)?->attributeSetId())->toBe($held)
-            ->and(app(ProductRepository::class)->find($id)?->name()->ar)->toBe('درج مجدد')
-            ->and(fn () => catalogProductsEdit($id, ['attributeSetId' => $other]))->toThrow(ListItemInactive::class);
     });
 });

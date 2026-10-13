@@ -6,7 +6,8 @@ namespace Modules\Catalog\Application\Command\AddAttributeValue;
 
 /**
  * A new value of a filter or a variant-making attribute (catalog.md §1.7); a colour attribute's value
- * with its swatch, `#rrggbb`.
+ * with its swatch, `#rrggbb`. It goes last in its attribute's order of values: no place is typed
+ * (amendment 16(d)).
  */
 final readonly class AddAttributeValue
 {
@@ -15,6 +16,5 @@ final readonly class AddAttributeValue
         public string $nameAr,
         public string $nameEn,
         public ?string $swatch = null,
-        public int $position = 0,
     ) {}
 }
