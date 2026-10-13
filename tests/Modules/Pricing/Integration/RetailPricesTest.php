@@ -355,8 +355,10 @@ describe('one change, one transaction', function () {
 
         $pushes = array_values(array_filter($queries->getArrayCopy(), static fn (array $query): bool => str_contains($query['sql'], 'store_variant_facts')));
 
-        // Every write to Catalog's facts ran inside the change's own transaction (level 2 under the test's).
-        expect(array_values(array_unique(array_column($pushes, 'level'))))->toBe([2]);
+        // Every write to Catalog's facts ran inside the change's own transaction: level 2 under the
+        // test's, or deeper where Catalog opens one of its own.
+        expect($pushes)->not->toBe([])
+            ->and(array_filter($pushes, static fn (array $query): bool => $query['level'] < 2))->toBe([]);
 
         // The audit entry is written last: refused, it rolls the whole change back.
         DB::statement('ALTER TABLE platform.audit_entries ADD CONSTRAINT pricing_test_refused CHECK (false) NOT VALID');
