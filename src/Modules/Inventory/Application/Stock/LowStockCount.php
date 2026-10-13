@@ -28,6 +28,6 @@ final readonly class LowStockCount implements MenuCount
         $stores = $this->authorizer->storesWith(InventoryPermissions::STOCK_MANAGE)
             ?? array_map(static fn ($store): StoreId => $store->storeId(), $this->platform->allStores());
 
-        return array_sum(array_map(fn (StoreId $store): int => count($this->reader->low($store)), $stores));
+        return array_sum(array_map(fn (StoreId $store): int => count($this->reader->low($store)), $this->reader->shown($stores)));
     }
 }

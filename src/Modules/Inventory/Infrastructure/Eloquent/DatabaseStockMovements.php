@@ -41,4 +41,9 @@ final readonly class DatabaseStockMovements implements StockMovements
             'requested_by_id' => $actor->requestedBy?->id,
         ]);
     }
+
+    public function referenced(string $reference): bool
+    {
+        return $this->db->table('inventory.stock_movements')->where('reference', $reference)->exists();
+    }
 }

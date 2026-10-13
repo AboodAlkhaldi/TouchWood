@@ -15,7 +15,7 @@ Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongsi
 | 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed every minute, `HoldsShort` — `inventory.holds.expire` | **built** |
 | 4a | Facts to Catalog: orderable and ending soon, only on a flip, inside each change; sizes switched on and the default threshold's change told; `RebuildOrderable` and `inventory:orderable:rebuild` — `inventory.orderable.rebuild` | **built** |
 | 4b | Low Stock: the list (`LowStock`), its count (`LowStockCount`, for the menu entry the list's screen adds) and its Home card, from one reader; the store's file: the page's lines, and the stock set by a job once Catalog's change commits (a File movement, audited as the file's) | **built** |
-| 5 | The module's own pass | — |
+| 5 | The module's own pass - first: **`LowStockCount` in one query** before its menu entry goes in (step 4b's review: today about 3 queries a store, plus a read per 500 rows, on every admin page once the entry exists) | — |
 
 Moved from step 1 to step 2, where the first handler uses them: the off-store guard, the seam that
 answers "is this store wired" (no store is, until Sync), and the store check. A store id that is not

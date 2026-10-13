@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFile;
 use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFileHandler;
+use Shared\Domain\Error\DomainError;
 
 /**
  * A store file's stock for one size (inventory.md §1.8), queued by `StockImportSection` once Catalog's
@@ -31,10 +32,17 @@ final class SetStockFromFileJob implements ShouldQueue
         public readonly string $storeId,
         public readonly string $variantId,
         public readonly int $stock,
+        public readonly string $reference,
     ) {}
 
     public function handle(SetStockFromFileHandler $handler): void
     {
-        $handler->handle(new SetStockFromFile($this->storeId, $this->variantId, $this->stock));
+        try {
+            $handler->handle(new SetStockFromFile($this->storeId, $this->variantId, $this->stock, $this->reference));
+        } catch (DomainError $refused) {
+            // A refusal - a size archived meanwhile - is the same on every try: it goes to the failed
+            // jobs screen at once, with its reason.
+            $this->fail($refused);
+        }
     }
 }

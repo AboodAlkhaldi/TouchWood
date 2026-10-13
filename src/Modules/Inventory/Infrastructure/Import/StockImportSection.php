@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Infrastructure\Import;
 
+use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\ImportSection;
 use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\ValueObject\StockLimits;
@@ -44,7 +45,7 @@ final readonly class StockImportSection implements ImportSection
         }
 
         foreach ($variantIds as $variantId) {
-            SetStockFromFileJob::dispatch($store->value, $variantId, $stock)->afterCommit();
+            SetStockFromFileJob::dispatch($store->value, $variantId, $stock, 'file:'.Str::ulid())->afterCommit();
         }
     }
 

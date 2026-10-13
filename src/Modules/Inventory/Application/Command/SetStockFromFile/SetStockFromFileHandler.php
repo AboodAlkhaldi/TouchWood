@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Application\Command\SetStockFromFile;
 
-use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
@@ -17,9 +17,13 @@ use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Modules\Inventory\Domain\ValueObject\StockLimits;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **The store file's stock** (inventory.md §1.8): the size's in stock **set to** the file's number - a
@@ -34,6 +38,8 @@ final readonly class SetStockFromFileHandler
     public const string PERMISSION = InventoryPermissions::STOCK_MANAGE;
 
     public function __construct(
+        private Authorizer $authorizer,
+        private PlatformApi $platform,
         private InventoryChange $change,
         private StoreWiring $wiring,
         private SizeInput $sizes,
@@ -48,7 +54,20 @@ final readonly class SetStockFromFileHandler
      */
     public function handle(SetStockFromFile $command): void
     {
-        $store = $this->change->authorize(self::PERMISSION, $command->storeId)->storeId();
+        try {
+            $store = StoreId::fromString($command->storeId);
+        } catch (InvalidArgumentException) {
+            throw new InvalidInventoryInput('store');
+        }
+
+        // Answered for the system itself (Access's RoleAuthorizer). No off-store check here: whoever
+        // switched the item on may fill that store, off or not (§1.1 rule 6: "or by its file") -
+        // Catalog asked that; InventoryChange::authorize would ask whether *they* may switch stores.
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
+
+        if ($this->platform->store($store) === null) {
+            throw new InvalidInventoryInput('store');
+        }
 
         if ($this->wiring->isWired($store)) {
             return;
@@ -61,8 +80,13 @@ final readonly class SetStockFromFileHandler
         [$variantId, $productId] = $this->sizes->check([$command->variantId])[$command->variantId];
 
         $this->change->run($store, function () use ($store, $variantId, $productId, $command): array {
+            // Run again - a retry, a redelivery - it finds its own movement and sets nothing twice.
+            if ($this->movements->referenced($command->reference)) {
+                return [null, []];
+            }
+
             $row = $this->stock->lockFor($store, [$variantId => $productId])[$variantId];
-            $this->movements->record($store, $variantId, MovementReason::File, $row->inStock, $command->stock, null, 'file:'.Str::ulid());
+            $this->movements->record($store, $variantId, MovementReason::File, $row->inStock, $command->stock, null, $command->reference);
 
             if ($row->inStock === $command->stock) {
                 return [null, []];

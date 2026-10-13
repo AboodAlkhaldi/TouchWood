@@ -45,6 +45,12 @@ final readonly class LowStockCard implements HomeCard
             return null;
         }
 
+        $stores = $this->reader->shown($stores);
+
+        if ($stores === []) {
+            return null;
+        }
+
         /** @var list<array{StoreId, LowSize}> $low */
         $low = [];
 

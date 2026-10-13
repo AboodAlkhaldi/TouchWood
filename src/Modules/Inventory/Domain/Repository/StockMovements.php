@@ -18,4 +18,7 @@ interface StockMovements
      * One change of a size's in stock, by whoever acts now.
      */
     public function record(StoreId $store, string $variantId, MovementReason $reason, int $before, int $after, ?string $note, string $reference): void;
+
+    /** Whether a movement with this reference was recorded: work run again records nothing twice. */
+    public function referenced(string $reference): bool;
 }

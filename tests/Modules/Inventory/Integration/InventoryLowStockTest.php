@@ -7,6 +7,8 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFile;
@@ -17,7 +19,10 @@ use Modules\Inventory\Application\Query\LowStock\LowStockHandler;
 use Modules\Inventory\Application\Query\LowStock\LowStockRow;
 use Modules\Inventory\Application\Stock\LowStockCount;
 use Modules\Inventory\Infrastructure\Import\StockImportSection;
+use Modules\Inventory\Infrastructure\Queue\SetStockFromFileJob;
 use Modules\Inventory\Presentation\Home\LowStockCard;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Public\Dto\HomeFigure;
 use Modules\Platform\Public\Dto\HomeScope;
 use Shared\Application\Unauthorized;
@@ -117,6 +122,24 @@ describe('its count and its Home card', function () {
         expect(app(LowStockCount::class)->count())->toBe(0);
     });
 
+    it('leaves a switched-off store out for a reader who may not switch stores, as the list does', function () {
+        $ready = lowStockReady(['60 cm']);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('eg'), $ready['product'], true)));
+        $eg = Ix::storeId('eg');
+        $staff = Fx::staffWith([InventoryPermissions::STOCK_MANAGE], ['sa', 'eg']);
+        Fx::actAsStaff($staff);
+
+        // Both on: the size, at 0, is low in each.
+        expect(app(LowStockCount::class)->count())->toBe(2);
+
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsStaff($staff);
+
+        expect(app(LowStockCount::class)->count())->toBe(1)
+            ->and(app(LowStockCard::class)->data(HomeScope::store(StoreId::fromString($eg))))->toBeNull()
+            ->and(Fx::asSystem(fn (): int => app(LowStockCount::class)->count()))->toBe(2);
+    });
+
     it('shows the count and the fewest left on Home, to holders of Manage Stock there only', function () {
         [$few, $none] = lowStockReady(['60 cm', '80 cm'])['variants'];
         Ix::count('sa', [$few => 2]);
@@ -197,7 +220,7 @@ describe('the store\'s file (§1.8)', function () {
         Fx::asSystem(fn () => app(StockImportSection::class)->accepted(StoreId::fromString(Ix::storeId('sa')), [$size], '10', 9));
         Queue::assertNothingPushed();
 
-        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile(Ix::storeId('sa'), $size, 9)));
+        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile(Ix::storeId('sa'), $size, 9, 'file:wired')));
 
         expect(Ix::stock('sa', $size)?->in_stock)->toBe(4);
     });
@@ -206,9 +229,37 @@ describe('the store\'s file (§1.8)', function () {
         [$size] = lowStockReady(['60 cm'])['variants'];
         Ix::count('sa', [$size => 4]);
 
-        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile(Ix::storeId('sa'), $size, 4)));
+        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile(Ix::storeId('sa'), $size, 4, 'file:same')));
 
         expect(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'FILE 4→4 SYSTEM'])
             ->and(Ix::lastAudit('inventory.stock.filed', $size))->toBeNull();
+    });
+
+    it('sets nothing twice when the job runs again, though stock changed between', function () {
+        [$size] = lowStockReady(['60 cm'])['variants'];
+        $file = fn () => Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile(Ix::storeId('sa'), $size, 9, 'file:once')));
+
+        $file();
+        Ix::count('sa', [$size => 5]);
+        $file();
+
+        expect(Ix::stock('sa', $size)?->in_stock)->toBe(5)
+            ->and(Ix::ledger('sa', $size))->toBe(['FILE 0→9 SYSTEM', 'STOCKTAKE 9→5 SYSTEM']);
+    });
+
+    it('sets an off store\'s stock for the admin who filled it, though they may not switch stores', function () {
+        $ready = lowStockReady(['60 cm']);
+        [$size] = $ready['variants'];
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('eg'), $ready['product'], true)));
+        // Read while it is on: the fixtures look up stores that are.
+        $eg = Ix::storeId('eg');
+        $admin = Fx::staffWith([CatalogPermissions::LISTING_FILL], ['eg'], RoleLevel::Admin);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        // Queued by the admin, run by the queue as the system on their behalf.
+        Fx::actAsStaff($admin);
+        SetStockFromFileJob::dispatch($eg, $size, 7, 'file:off');
+
+        expect((int) DB::table('inventory.stock')->where('store_id', $eg)->where('variant_id', $size)->value('in_stock'))->toBe(7);
     });
 });

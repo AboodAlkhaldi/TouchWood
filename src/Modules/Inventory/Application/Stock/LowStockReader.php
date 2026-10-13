@@ -9,6 +9,8 @@ use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\PlatformPermissions;
+use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -21,11 +23,28 @@ use Shared\Domain\ValueObject\StoreId;
 final readonly class LowStockReader
 {
     public function __construct(
+        private Authorizer $authorizer,
         private PlatformApi $platform,
         private CatalogApi $catalog,
         private StoreWiring $wiring,
         private StockRows $stock,
     ) {}
+
+    /**
+     * Of these stores, the ones the reader is shown (platform.md §9.10): a store that is off only to
+     * whoever may switch stores - the list refuses it to anyone else, and the count and the card agree.
+     *
+     * @param  list<StoreId>  $stores
+     * @return list<StoreId>
+     */
+    public function shown(array $stores): array
+    {
+        if ($this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== []) {
+            return $stores;
+        }
+
+        return array_values(array_filter($stores, fn (StoreId $store): bool => $this->platform->store($store)?->isActive === true));
+    }
 
     /**
      * @return list<LowSize> the low sizes, the fewest left first, then by size id
