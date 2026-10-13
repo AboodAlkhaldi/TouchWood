@@ -57,4 +57,14 @@ interface PointsLedger
         DateTimeImmutable $expiresAt,
         DateTimeImmutable $now,
     ): bool;
+
+    /** Points added by hand (§1.9): one ADDED entry with the staff member and reason, and a lot that expires at `$expiresAt`. */
+    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void;
+
+    /**
+     * Points removed by hand (§1.9): one DEDUCTED entry, taken from the live lots expiring first, a
+     * movement per lot and no take — removed points never come back. The caller has checked the
+     * balance covers it.
+     */
+    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void;
 }

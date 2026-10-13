@@ -39,4 +39,12 @@ interface PointsAccounts
 
     /** What the account can use now: the live lots' points. A read: nothing is written (§1.1). */
     public function liveBalance(PointsAccount $account, DateTimeImmutable $now): int;
+
+    /**
+     * Accounts with a lot whose date has passed and points are left, in id order, after `$after` —
+     * a page of the nightly sweep (§1.10). A read: nothing is locked or written.
+     *
+     * @return list<PointsAccount>
+     */
+    public function withDeadLots(DateTimeImmutable $now, ?string $after, int $limit): array;
 }

@@ -17,8 +17,10 @@ The module is built in six steps (the execution plan, 2026-10-10). Done:
 | 2 — the ledger | The eight tables of spec §5 with every rule the database holds; the points arithmetic; the accounts repository and its lock. The id check it uses moved to the Shared kernel first (#118) | below |
 | 3a — the contract | `LoyaltyApi` for Sales: what an order would earn, a redemption's quote, placing it, earning on delivery, a balance; the caller's permission checked in the order's store | below |
 
-Still to come: changes by hand and the nightly expiry (3b), settling cancellations, returns and staff
-edits (4), the reads behind the screens (5), the module's own pass (6).
+| 3b — by hand and expiry | Admins adding and removing points, audited; the nightly expiry job | below |
+
+Still to come: settling cancellations, returns and staff edits (4), the reads behind the screens (5),
+the module's own pass (6).
 
 ## What is here
 
@@ -94,6 +96,20 @@ edits (4), the reads behind the screens (5), the module's own pass (6).
   orders' points and the ledger's writes for redeeming and earning, on an account already locked;
   then the order's row, alone (never another account's row with it), then the lots it spends.
   `Infrastructure/Eloquent/Moment` sends every moment in UTC.
+- **`Application/Command/AddPoints`**, **`…/DeductPoints`** (spec §1.9) — changes by hand under
+  `loyalty.points.adjust` (an admin's job only), checked in the points' store through
+  `Application/Points/StaffPointsAction`: the job held nowhere → `Unauthorized`; held, but not in this
+  store, or no such customer → `PointsAccountNotFound`, the same answer as no points there. Only a
+  staff member may make one (its `staff_id`), with a reason of 1 to 500 characters (trimmed),
+  audited as `loyalty.points.added` / `loyalty.points.deducted` with the points and the reason
+  (`Application/Points/PointsAudit`). Adding forms a lot that lives the store's period; removing
+  takes from the live lots expiring first, never more than the live balance (`DeductionTooLarge`),
+  and records no take, so removed points never come back. Both work while the programme is off.
+- **`Application/Command/ExpirePoints`**, **`Infrastructure/Queue/ExpirePointsJob`** (spec §1.10) —
+  the nightly sweep, queued at 00:30 UTC from one server, unique, one try. The system's alone:
+  `loyalty.points.expire` is reserved, and a Super Admin or a job queued for one is refused too.
+  It reads the accounts with a dead lot a page at a time (`PointsAccounts::withDeadLots`) and runs
+  each through `lockOrCreate` in its own transaction. Not audited: the ledger is its record.
 
 ## Approaches
 
@@ -125,4 +141,7 @@ and `LoyaltyCallerScopeTest` spec §8's Earning, Redeeming and Permissions cases
 with `Support/LoyaltyFixtures` standing in for Sales's permissions (declared in each test, exactly as
 sales.md §3 names them — nothing of Sales ships); `LoyaltyPlacementRaceTest` two placements at once
 on two connections — the only Loyalty test outside RefreshDatabase's transaction, so it commits its
-own rows and empties the test database with `migrate:fresh` before and after itself.
+own rows and empties the test database with `migrate:fresh` before and after itself. Step 3b:
+`LoyaltyByHandTest` adding and removing, the reason and points rules, who may, and the audit;
+`LoyaltyExpiryTest` the sweep store by store, its paging, its schedule and that it is the system's
+alone.

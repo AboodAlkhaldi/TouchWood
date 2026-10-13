@@ -61,4 +61,27 @@ final class Inputs
 
         return $amount->minorUnits;
     }
+
+    /** Points given or taken by hand: a positive whole number (§7). */
+    public static function points(int $points): int
+    {
+        if ($points < 1) {
+            throw new InvalidPointsAttribute('points', 'must be a positive whole number');
+        }
+
+        return $points;
+    }
+
+    /** A change by hand's reason: 1 to 500 characters, spaces around it dropped (§1.9). */
+    public static function reason(string $reason): string
+    {
+        $reason = trim($reason);
+        $length = mb_strlen($reason);
+
+        if ($length < 1 || $length > 500) {
+            throw new InvalidPointsAttribute('reason', 'must be 1 to 500 characters');
+        }
+
+        return $reason;
+    }
 }
