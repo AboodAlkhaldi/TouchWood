@@ -48,6 +48,7 @@ it('finds the actions Inventory records', function () {
     expect(inventoryAuditNamesRecorded())->toBe([
         'inventory.stock.adjusted',
         'inventory.stock.counted',
+        'inventory.stock.filed',
         'inventory.stock.stock_dependent_set',
         'inventory.stock.threshold_set',
         'inventory.store_product.ending_soon_set',

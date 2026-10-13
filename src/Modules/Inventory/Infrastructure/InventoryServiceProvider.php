@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Inventory\Application\InventoryApiImpl;
 use Modules\Inventory\Application\InventoryPermissions;
@@ -24,11 +25,15 @@ use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
 use Modules\Inventory\Infrastructure\External\NoStoreWired;
+use Modules\Inventory\Infrastructure\Import\StockImportSection;
 use Modules\Inventory\Infrastructure\Listener\TellCatalogOfStock;
 use Modules\Inventory\Infrastructure\Queue\ReleaseExpiredHoldsJob;
 use Modules\Inventory\Presentation\Console\RebuildOrderableCommand;
+use Modules\Inventory\Presentation\Home\LowStockCard;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Events\SettingChanged;
 
 /**
@@ -36,8 +41,9 @@ use Modules\Platform\Public\Events\SettingChanged;
  * (inventory.md). Registered after Catalog, whose variants it counts, and after Access, whose public
  * surface it uses to declare its permissions and for nothing else (handoff §4.4; inventory.md §2.4).
  *
- * Steps 1-4a: the schema, the permission, the default threshold, the errors and their words; stock,
- * the hand changes and the ledger; holds and `InventoryApi`; what Catalog is told.
+ * Steps 1-4: the schema, the permission, the default threshold, the errors and their words; stock,
+ * the hand changes and the ledger; holds and `InventoryApi`; what Catalog is told; Low Stock (the list,
+ * its count, its Home card) and its part of a store file.
  */
 final class InventoryServiceProvider extends ServiceProvider
 {
@@ -64,6 +70,16 @@ final class InventoryServiceProvider extends ServiceProvider
 
         // The store's default low-stock threshold (§1.2), on Platform's settings screen.
         $this->app->make(SettingsRegistry::class)->define('inventory', ...InventorySettings::definitions());
+
+        // Its part of a store file (§1.8): the stock each item sets, kept when the item is switched on.
+        $this->app->make(ImportSections::class)->register('inventory', StockImportSection::class);
+
+        // Its card on the admin home: the low sizes, the fewest left first (§1.7). The Low Stock menu
+        // entry, with LowStockCount beside it, comes with the list's screen: the menu links every
+        // entry to its route.
+        $this->app->make(HomeCards::class)->register(
+            new HomeCardDto('inventory', 'low_stock', InventoryPermissions::STOCK_MANAGE, LowStockCard::class, 30),
+        );
 
         // Catalog told of a size's figures when another module changes them (§2.3, §6.2).
         Event::listen(StoreListingChanged::class, [TellCatalogOfStock::class, 'switchedOn']);
