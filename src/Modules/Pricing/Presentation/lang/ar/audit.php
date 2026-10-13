@@ -7,4 +7,8 @@ declare(strict_types=1);
 return [
     'retail_price.set' => 'حُدّد سعر التجزئة',
     'retail_price.removed' => 'أُزيل سعر التجزئة',
+    'sale.added' => 'أُضيف تخفيض',
+    'sale.changed' => 'عُدّل تخفيض',
+    'sale.ended' => 'أُنهي تخفيض',
+    'sale.removed' => 'أُزيل تخفيض',
 ];

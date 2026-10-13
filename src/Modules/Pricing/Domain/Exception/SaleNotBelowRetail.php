@@ -12,7 +12,10 @@ use Shared\Domain\Error\ErrorCategory;
  */
 final class SaleNotBelowRetail extends PricingError
 {
-    public function __construct()
+    /**
+     * @param  list<string>  $variants  the sizes it is refused for, named for the note
+     */
+    public function __construct(public readonly array $variants = [])
     {
         parent::__construct('A sale price must be below the retail price.');
     }
@@ -25,5 +28,10 @@ final class SaleNotBelowRetail extends PricingError
     public function category(): ErrorCategory
     {
         return ErrorCategory::Invalid;
+    }
+
+    public function context(): array
+    {
+        return ['variants' => implode(',', $this->variants)];
     }
 }

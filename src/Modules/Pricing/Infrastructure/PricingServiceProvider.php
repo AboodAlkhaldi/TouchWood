@@ -6,15 +6,20 @@ namespace Modules\Pricing\Infrastructure;
 
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Platform\Public\Contracts\SettingGuards;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
+use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
 use Modules\Pricing\Domain\Repository\RetailPrices;
+use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePriceCandidates;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Public\Contracts\PricingApi;
@@ -38,6 +43,7 @@ final class PricingServiceProvider extends ServiceProvider
         // No store is wired until Sync is built (§1.1 rule 9).
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
+        $this->app->bind(Sales::class, DatabaseSales::class);
     }
 
     public function boot(): void
@@ -48,6 +54,11 @@ final class PricingServiceProvider extends ServiceProvider
         // Pricing sits above Access, so it declares its own permissions through Access's public
         // catalog (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('pricing', ...PricingPermissions::definitions());
+
+        // The store's discount ceiling (§1.12), one Platform setting: a lower one is held back while
+        // sales go deeper (owner, 2026-10-13).
+        $this->app->make(SettingsRegistry::class)->define('pricing', ...PricingSettings::definitions());
+        $this->app->make(SettingGuards::class)->register(PricingSettings::MAX_DISCOUNT_PERCENT, CeilingGuard::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([RebuildPriceCandidatesCommand::class]);

@@ -81,9 +81,23 @@ return [
         'detail' => 'The amounts do not fit these prices.',
     ],
 
+    'over_ceiling' => [
+        'title' => 'Deeper than the ceiling',
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price or the sale so it stays within it.",
+    ],
+    'ceiling_below_sales' => [
+        'title' => 'Sales go deeper',
+        'detail' => ':count running or scheduled sales go deeper than this ceiling, on :products. Change or end them first.',
+    ],
+
     'fields' => [
         'amount' => 'price',
+        'ends_at' => 'end',
+        'percent' => 'percentage',
+        'price' => 'sale price',
+        'product' => 'product',
         'quantity' => 'quantity',
+        'starts_at' => 'start',
         'store' => 'store',
         'variant' => 'size',
     ],

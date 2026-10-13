@@ -29,6 +29,9 @@ final class PricingPermissions
     /** Category discounts: preview, add, change, end, remove. */
     public const string CATEGORY_DISCOUNT_MANAGE = 'pricing.category_discount.manage';
 
+    /** The store's discount ceiling (§1.12): admin roles only (owner, 2026-10-13). */
+    public const string CEILING_MANAGE = 'pricing.ceiling.manage';
+
     /** The repair job that rewrites every size's price candidates - the system's. */
     public const string CANDIDATES_REBUILD = 'pricing.candidates.rebuild';
 
@@ -54,11 +57,14 @@ final class PricingPermissions
             self::reserved(),
         );
 
-        return [...$jobs, ...$reserved];
+        // Admin roles only: how deep any discount may go in a store (owner, 2026-10-13).
+        $adminOnly = new PermissionDefinitionDto(self::CEILING_MANAGE, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Pricing, adminOnly: true);
+
+        return [...$jobs, $adminOnly, ...$reserved];
     }
 
     /**
-     * @return list<string> the three jobs a role may hold (§3)
+     * @return list<string> the three jobs any role may hold (§3); the ceiling's is admin-only
      */
     public static function jobs(): array
     {

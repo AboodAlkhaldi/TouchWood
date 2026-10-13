@@ -344,6 +344,12 @@ that a key's prefix is the declaring module. A malformed, foreign or duplicate k
 that fails its own rules, throws `InvalidSettingDefinition` (a `LogicException`, not a
 `DomainError`) at boot.
 
+**A setting's guard** (`SettingGuards::register(key, guard)`, added 2026-10-13 for Pricing's discount
+ceiling): the declaring module's say over a change its rules cannot judge alone. `UpdateSetting` asks
+every guard of the key inside its transaction, after the stored value is locked and before the new
+one is saved; a guard refuses by throwing its own `DomainError`, which holds the change back with
+its note.
+
 **`MediaUsages` and `MediaUsage`** — how a module that stores media ids takes part in deleting
 media (§1.4, owner's decision 2026-09-18). It registers its class once, in its service provider;
 Platform resolves it only when media is deleted.
