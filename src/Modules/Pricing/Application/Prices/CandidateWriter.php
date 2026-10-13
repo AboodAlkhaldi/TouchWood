@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Prices;
 
 use Carbon\CarbonImmutable;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
@@ -31,8 +33,8 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * The retail price, a candidate on both lines; every sale not ended on the size, on both lines too -
  * a percentage worked out on the retail price, half up to the coin, a sale whose percentage would
- * leave 0 at today's retail price left out; the wholesale bands, on wholesale lines only. Category
- * discounts join with their step.
+ * leave 0 at today's retail price left out; the wholesale bands, on wholesale lines only; every
+ * category discount not ended reaching the size's product, on its lines.
  */
 final readonly class CandidateWriter
 {
@@ -45,6 +47,9 @@ final readonly class CandidateWriter
         private ListingFacts $listing,
         private Sales $sales,
         private WholesaleBands $bands,
+        private CategoryDiscounts $discounts,
+        private DiscountCoverage $coverage,
+        private CatalogApi $catalog,
     ) {}
 
     /**
@@ -53,9 +58,17 @@ final readonly class CandidateWriter
     public function refresh(StoreId $store, array $variantIds): void
     {
         $now = CarbonImmutable::now()->toDateTimeImmutable();
+        // The store's discounts not ended, each with the products it reaches now - read once.
+        $discounts = $this->discounts->notEnded($store, $now);
+        $reaches = [];
+
+        foreach ($discounts as $discount) {
+            $reaches[$discount->id] = $this->coverage->products($discount);
+        }
 
         foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
             $retail = $this->retailPrices->forVariants($store, $chunk);
+            $productOf = $discounts === [] ? [] : array_map(static fn ($variant): string => $variant->productId, $this->catalog->variants($chunk));
             $salesOn = [];
 
             foreach ($this->sales->notEndedOn($store, $chunk, $now) as $sale) {
@@ -85,6 +98,22 @@ final readonly class CandidateWriter
 
                             if ($amount !== null) {
                                 $candidates[] = new Candidate($mode, 1, $amount, PriceKind::Sale, $sale->alwaysWins, $sale->startsAt, $sale->endsAt, $sale->id);
+                            }
+                        }
+                    }
+
+                    // Every discount reaching the size's product, on the lines it applies to (§1.5); a
+                    // fixed amount that would take it to 0 or below skips it.
+                    foreach ($discounts as $discount) {
+                        $amount = isset($reaches[$discount->id][$productOf[$variantId] ?? '']) ? $discount->priceOn($retail[$variantId]) : null;
+
+                        if ($amount === null) {
+                            continue;
+                        }
+
+                        foreach ([SaleMode::Retail, SaleMode::Wholesale] as $mode) {
+                            if ($discount->lines->covers($mode)) {
+                                $candidates[] = new Candidate($mode, 1, $amount, PriceKind::Category, $discount->alwaysWins, $discount->startsAt, $discount->endsAt, $discount->id);
                             }
                         }
                     }

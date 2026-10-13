@@ -6,8 +6,10 @@ namespace Modules\Pricing\Application\Command\CheckPriceWindows;
 
 use Carbon\CarbonImmutable;
 use Modules\Pricing\Application\Prices\CandidateWriter;
+use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\PricingPermissions;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\Sales;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -30,6 +32,8 @@ final readonly class CheckPriceWindowsHandler
         private Authorizer $authorizer,
         private PricingChange $change,
         private Sales $sales,
+        private CategoryDiscounts $discounts,
+        private DiscountCoverage $coverage,
         private CandidateWriter $writer,
     ) {}
 
@@ -44,8 +48,15 @@ final readonly class CheckPriceWindowsHandler
         $now = CarbonImmutable::now();
         $sizes = [];
 
-        foreach ($this->sales->windowsBetween($now->subHours(25)->toDateTimeImmutable(), $now->toDateTimeImmutable()) as $sale) {
+        [$from, $to] = [$now->subHours(25)->toDateTimeImmutable(), $now->toDateTimeImmutable()];
+
+        foreach ($this->sales->windowsBetween($from, $to) as $sale) {
             $sizes[$sale->storeId] = [...$sizes[$sale->storeId] ?? [], ...$sale->variantIds];
+        }
+
+        foreach ($this->discounts->windowsBetween($from, $to) as $discount) {
+            $reached = array_keys($this->coverage->pricedSizes(StoreId::fromString($discount->storeId), [$discount]));
+            $sizes[$discount->storeId] = [...$sizes[$discount->storeId] ?? [], ...$reached];
         }
 
         $pushed = 0;

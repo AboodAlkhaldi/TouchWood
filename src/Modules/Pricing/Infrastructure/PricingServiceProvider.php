@@ -15,11 +15,13 @@ use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Repository\WholesaleBands;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseCategoryDiscounts;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePriceCandidates;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
@@ -53,6 +55,7 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
         $this->app->bind(Sales::class, DatabaseSales::class);
         $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);
+        $this->app->bind(CategoryDiscounts::class, DatabaseCategoryDiscounts::class);
         $this->app->bind(PriceWindowTasks::class, QueuedPriceWindowTasks::class);
     }
 

@@ -93,6 +93,7 @@ return [
     'fields' => [
         'amount' => 'price',
         'ends_at' => 'end',
+        'lines' => 'lines',
         'percent' => 'percentage',
         'price' => 'sale price',
         'product' => 'product',

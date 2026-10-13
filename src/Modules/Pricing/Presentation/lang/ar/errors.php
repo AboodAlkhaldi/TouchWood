@@ -93,6 +93,7 @@ return [
     'fields' => [
         'amount' => 'السعر',
         'ends_at' => 'النهاية',
+        'lines' => 'نوع الطلبات',
         'percent' => 'النسبة',
         'price' => 'سعر التخفيض',
         'product' => 'المنتج',
