@@ -25,6 +25,8 @@ final class OrderPointsFacts
         public int $pointsCovered = 0,
         public int $pointsDropped = 0,
         public int $expiredBackUnused = 0,
+        /** The `max_redemption_percent` it redeemed under (§1.8): an edit keeps the order's own rules. */
+        public readonly ?int $capPercent = null,
     ) {}
 
     /** The earned points settled so far: taken, counted as gone, covered or dropped. */

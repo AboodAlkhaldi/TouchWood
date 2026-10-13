@@ -8,17 +8,20 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\CandidateWriter;
+use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SizeInput;
 use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
+use Modules\Pricing\Domain\Exception\OverCeiling;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
 use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
+use Modules\Pricing\Domain\ValueObject\Sale;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 
@@ -40,6 +43,7 @@ final readonly class SetRetailPriceHandler
         private SizeInput $sizes,
         private RetailPrices $retailPrices,
         private CandidateWriter $writer,
+        private CeilingCheck $ceiling,
     ) {}
 
     /**
@@ -79,6 +83,16 @@ final readonly class SetRetailPriceHandler
         $this->change->run($storeId, function () use ($storeId, $store, $amounts): array {
             // Read again under the lock: the retried transaction runs this again (lesson 57).
             $before = $this->retailPrices->forVariants($storeId, array_keys($amounts));
+
+            // A retail price that would take a running or scheduled sale past the ceiling is held back,
+            // naming the sales and their products: staff change the price or the sale first (owner,
+            // 2026-10-11/13).
+            $ceiling = $this->ceiling->ceiling($storeId);
+            $over = $this->ceiling->salesOver($storeId, $ceiling, $amounts);
+
+            if ($over !== []) {
+                throw new OverCeiling($ceiling, array_map(static fn (Sale $sale): string => $sale->id, $over), [], $this->ceiling->productNames($over));
+            }
             $changed = [];
             $entries = [];
 

@@ -15,6 +15,9 @@ return [
     'category_discount' => [
         'manage' => 'إدارة خصومات الأقسام',
     ],
+    'ceiling' => [
+        'manage' => 'تحديد سقف الخصم',
+    ],
     'candidates' => [
         'rebuild' => 'إعادة حساب خيارات السعر لكل مقاس',
     ],

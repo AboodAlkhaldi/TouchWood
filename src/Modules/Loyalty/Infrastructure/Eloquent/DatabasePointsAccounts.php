@@ -38,6 +38,17 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
         return $this->row(strtolower($customerId), $store, lock: false);
     }
 
+    public function byId(string $accountId): ?PointsAccount
+    {
+        if (! Ulids::valid($accountId)) {
+            return null;
+        }
+
+        $row = $this->db->table('loyalty.accounts')->where('id', strtolower($accountId))->first();
+
+        return $row instanceof stdClass ? self::account($row) : null;
+    }
+
     public function lockOrCreate(string $customerId, StoreId $store, DateTimeImmutable $now): PointsAccount
     {
         // A lock outside a transaction ends with its statement and guards nothing, and the expiry's

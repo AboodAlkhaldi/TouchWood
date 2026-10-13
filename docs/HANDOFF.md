@@ -1233,6 +1233,10 @@ Segments are reusable: newsletters, pop-up targeting, notifications. Not coupon-
 Per store, admin-defined `max_discount_percent` (0–100). Measured against
 `gross_subtotal` — the full reduction from list price. **[REVISED 2026-10-10]** A wholesale line's
 list price is its band: a wholesale price is not a discount, so it never uses up the ceiling.
+**[REVISED 2026-10-13]** The ceiling also limits the store's own **sales and category discounts**:
+one deeper than it is refused when saved, and a retail change or a lower ceiling that would put a
+sale past it is held back (owner, 2026-10-11/13). The number lives in Pricing (pricing.md §1.12). The
+paragraph below now applies to the room left for coupons and points.
 
 **It only ever refuses customer-applied discounts. It never blocks an order that breaches
 from merchant pricing alone.** A clearance item at 70% off under a 50% ceiling sells
@@ -1379,9 +1383,15 @@ the wiring; admins and staff have nothing to do with it. **Each store has its ow
 isolated** — wiring one store changes nothing in another — and every wired store behaves the same
 way. A store with no connection has the sync layer dormant.
 
+**[2026-10-13, owner]** From the provider we take **the base (retail) price only**; every sale,
+discount and the ceiling live in our system alone and are **never written to the provider**; our
+order page, confirmation email and receipt show the base price and the price after discount — a
+receipt, not an invoice: invoices stay outside (§12.6; owner, 2026-10-13).
+
 - **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
-  read each product's **stock** and its **base retail price** — with the provider's discount and its
-  expiry, where it has one. **We never write to the provider**: not stock, not prices, not orders.
+  read each product's **stock** and its **base retail price** — nothing else (owner, 2026-10-13: the
+  provider's own discounts are not read). **We never write to the provider**: not stock, not prices,
+  not orders.
 - **We pull**, every few minutes, with the store's credentials, plus a **"Sync now"** action.
   The storefront always reads our own tables: **no external call ever happens inside a web request.**
 - A code the provider sends that we do not have is **reported, never created**. A product of ours
@@ -1392,18 +1402,14 @@ way. A store with no connection has the sync layer dormant.
 - Bulk changes are batched, never one job per product. A failure is retried, then halts that one
   entity, tells staff, and offers a screen to retry; nothing is rolled back.
 
-**Price mapping.** Only two rows ever come from the provider, and both are **read-only in our panel**
-for a wired store. Everything else is ours exclusively:
+**Price mapping.** One row comes from the provider, **read-only in our panel** for a wired store.
+Everything else is ours exclusively (owner, 2026-10-13; was: the provider's discount and its expiry
+as a dated SALE row too):
 
 | Provider field | Maps to |
 |---|---|
-| Product price | `kind = BASE`, `audience = PUBLIC`, min_qty 1, no dates |
-| Discount + expiry | `kind = SALE`, `audience = PUBLIC`, dated |
-| — | Wholesale tiers, company prices, campaign prices — **ours, never from the provider** |
-
-When a provider discount expires, the SALE row's window closes and BASE resolves again on
-its own. The original price was never overwritten, so there is nothing to restore and
-nothing to lose.
+| Product price | the size's retail (BASE) price, provider-owned |
+| — | Sales, category discounts, wholesale bands, the ceiling, campaigns — **ours, never from the provider, never written to it** |
 
 ### 12.3 Sales
 

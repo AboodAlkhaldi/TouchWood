@@ -12,8 +12,10 @@ use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Domain\Repository\PointsSettlements;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsAccounts;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsLedger;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsSettlements;
 use Modules\Loyalty\Infrastructure\Queue\ExpirePointsJob;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
@@ -29,6 +31,7 @@ final class LoyaltyServiceProvider extends ServiceProvider
     {
         $this->app->bind(PointsAccounts::class, DatabasePointsAccounts::class);
         $this->app->bind(PointsLedger::class, DatabasePointsLedger::class);
+        $this->app->bind(PointsSettlements::class, DatabasePointsSettlements::class);
         $this->app->bind(LoyaltyApi::class, LoyaltyApiImpl::class);
     }
 
