@@ -17,7 +17,9 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * One price for everyone (owner, 2026-10-07): Pricing never asks who is buying. The lowest applicable
  * price wins (pricing.md §1.6); every total of an order is computed here, in one place (§1.7).
- * Refusals arrive as `Shared\Domain\Error\DomainError` with a stable `type()` key (§2.1).
+ * Refusals arrive as `Shared\Domain\Error\DomainError` with a stable `type()` key (§2.1): a store that
+ * does not exist, or a quantity below 1 or above 2,147,483,647, is `pricing.invalid_pricing_input`
+ * (owner, 2026-10-11); a line's total beyond what minor units keep is `pricing.amounts_invalid`.
  */
 interface PricingApi
 {
@@ -57,6 +59,10 @@ interface PricingApi
      * or the parts of earlier edits - but once among the added lines (`pricing.duplicate_lines`).
      * The lines come back in the order given - the kept parts, then the added lines - so a caller
      * matches them by position; an added line with no price is named in `unpriced` instead.
+     *
+     * A kept part is in the store's currency, its prices above 0 and its quantity 1 or more - a part
+     * whose pieces were all taken off is left out - or the call is refused (`pricing.amounts_invalid`,
+     * `pricing.invalid_pricing_input`).
      *
      * @param  list<KeptPartDto>  $kept  as the order's snapshot holds them, quantities as edited
      * @param  list<CartLineDto>  $added  the pieces added by this edit

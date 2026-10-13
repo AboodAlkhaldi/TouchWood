@@ -65,23 +65,11 @@ final readonly class DatabasePointsLedger implements PointsLedger
             return false;
         }
 
-        // The lots it spends, locked after the account: the one expiring first first, equal dates
-        // the older lot first (§1.3). Dead lots were expired when the account was locked.
-        $lots = $this->db->table('loyalty.lots')
-            ->where('account_id', $account->id)
-            ->where('points_left', '>', 0)
-            ->where('expires_at', '>', Moment::of($now))
-            ->orderBy('expires_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get()
-            ->all();
-
+        $lots = $this->spendable($account, $now);
         $entry = $this->entry($account, 'REDEEMED', -$points, $orderId, $now);
         $left = $points;
 
         foreach ($lots as $lot) {
-            /** @var stdClass $lot */
             if ($left === 0) {
                 break;
             }
@@ -161,6 +149,89 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ->increment('balance', $points, ['updated_at' => Moment::of($now)]);
 
         return true;
+    }
+
+    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void
+    {
+        $this->guard();
+
+        $entry = $this->byHand($account, 'ADDED', $points, $staffId, $reason, $now);
+        $lot = $this->db->table('loyalty.lots')->insertGetId([
+            'account_id' => $account->id,
+            'entry_id' => $entry,
+            'points' => $points,
+            'points_left' => $points,
+            'expires_at' => Moment::of($expiresAt),
+        ]);
+        $this->db->table('loyalty.lot_movements')->insert([
+            'account_id' => $account->id, 'lot_id' => $lot, 'entry_id' => $entry, 'points' => $points,
+        ]);
+        $this->db->table('loyalty.accounts')
+            ->where('id', $account->id)
+            ->where('store_id', $account->store->value)
+            ->increment('balance', $points, ['updated_at' => Moment::of($now)]);
+    }
+
+    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void
+    {
+        $this->guard();
+
+        $entry = $this->byHand($account, 'DEDUCTED', -$points, $staffId, $reason, $now);
+        $left = $points;
+
+        // No take: removed points never come back (§1.9) — only each lot's movement.
+        foreach ($this->spendable($account, $now) as $lot) {
+            if ($left === 0) {
+                break;
+            }
+
+            $taken = min($left, (int) $lot->points_left);
+            $this->move($account, (int) $lot->id, $entry, -$taken);
+            $left -= $taken;
+        }
+
+        if ($left > 0) {
+            throw new LogicException('A deduction took more points than the account\'s live lots hold.');
+        }
+
+        $this->db->table('loyalty.accounts')
+            ->where('id', $account->id)
+            ->where('store_id', $account->store->value)
+            ->decrement('balance', $points, ['updated_at' => Moment::of($now)]);
+    }
+
+    /**
+     * The lots points are spent from, locked after the account: the one expiring first first, equal
+     * dates the older lot first (§1.3). Dead lots were expired when the account was locked.
+     *
+     * @return list<stdClass>
+     */
+    private function spendable(PointsAccount $account, DateTimeImmutable $now): array
+    {
+        /** @var list<stdClass> */
+        return $this->db->table('loyalty.lots')
+            ->where('account_id', $account->id)
+            ->where('points_left', '>', 0)
+            ->where('expires_at', '>', Moment::of($now))
+            ->orderBy('expires_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->all();
+    }
+
+    /** A change by hand's entry: no order, the staff member and the reason (§1.9). */
+    private function byHand(PointsAccount $account, string $kind, int $points, string $staffId, string $reason, DateTimeImmutable $now): int
+    {
+        return (int) $this->db->table('loyalty.entries')->insertGetId([
+            'account_id' => $account->id,
+            'store_id' => $account->store->value,
+            'kind' => $kind,
+            'points' => $points,
+            'staff_id' => $staffId,
+            'reason' => $reason,
+            'occurred_at' => Moment::of($now),
+        ]);
     }
 
     private function entry(PointsAccount $account, string $kind, int $points, string $orderId, DateTimeImmutable $now): int

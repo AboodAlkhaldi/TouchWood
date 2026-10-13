@@ -53,7 +53,9 @@ the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's tea
 The price of one piece of a size in a store: **one per size per store**, above 0, in the store's
 currency. Set by staff, by the store's file (§1.8) or, in a wired store, by the provider. **Removing
 it** (owner, 2026-10-08) takes the size off sale there; it returns to the Needs a Price list. A
-changed or removed price is audited from and to.
+changed or removed price is audited from and to. **An archived size — or a size of an archived
+product — is read-only until it is restored** (owner, 2026-10-11): its price is kept as it is, and
+setting or removing one is refused.
 
 ### 1.3 Sale
 
@@ -251,6 +253,10 @@ than once, §1.11).
 variant and sale mode once — Sales merges a cart's repeated lines first — and refuses two of the same
 (`pricing.duplicate_lines`) rather than guess.
 
+**A store that does not exist** is invalid input (`pricing.invalid_pricing_input`, field `store`; owner,
+2026-10-11), as is **a quantity below 1 or above 2,147,483,647** (field `quantity`); a line's total beyond
+what minor units keep is `pricing.amounts_invalid`.
+
 Refusals reach the caller as `Shared\Domain\Error\DomainError` with a stable `type()` key —
 `pricing.duplicate_lines`, `pricing.lines_without_price`, `pricing.amounts_invalid` — modules export
 no error classes.
@@ -264,7 +270,7 @@ no error classes.
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
-| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them (§1.11) |
+| `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held; 1 or more — a part whose pieces were all taken off is left out) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them, in the store's currency, above 0 (§1.11) |
 
 ### 2.3 What Pricing gives Catalog
 
@@ -407,6 +413,7 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
+| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number; a line's quantity below 1 (§2.1) — named by its field (`store`, `variant`, `amount`, `quantity`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive` |
 
 ---
 
