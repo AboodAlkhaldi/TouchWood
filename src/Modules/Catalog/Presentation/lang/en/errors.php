@@ -128,6 +128,8 @@ return [
         'agency_type' => 'agency type',
         'attribute' => 'attribute',
         'attribute_id' => 'attribute',
+        'target_id' => 'catalog item',
+        'new_codes' => 'new codes',
         'attribute_ids' => 'attributes',
         'description_ar' => 'Arabic description',
         'description_en' => 'English description',
@@ -177,5 +179,7 @@ return [
         'choice' => 'choice',
         'move_to' => 'where to move',
         'products' => 'products',
+        // An order sent from a list's screen (amendment 16(d)).
+        'ids' => 'order',
     ],
 ];

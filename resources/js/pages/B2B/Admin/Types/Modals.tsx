@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import type { StaffTypeRowData } from '@/types/generated/Modules/B2B/Presentation/Http/Resource';
 import { figure, nameIn, useLocale } from '../shared';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -80,11 +81,22 @@ export function TypeFormModal({
     const body =
         mode === 'add' ? t(`b2b::admin_types.list.${kind}.add_body`) : mode === 'rename' ? t(`b2b::admin_types.list.${kind}.rename_body`) : t(`b2b::admin_types.list.${kind}.move_body`);
 
+    // Each box as typed (frontend.md §1.7), with the domain's rules: names required, one line of at
+    // most 100 characters (TypeName::MAX), not sent by a move; a position from 0 to 10,000
+    // (TypePosition; the request reads an empty or broken number as -1, so it is required), not sent
+    // by a rename.
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'type-name-ar', label: t('b2b::admin_types.field.name_ar'), value: form.data.name_ar, rules: name, off: mode === 'move' },
+        { id: 'type-name-en', label: t('b2b::admin_types.field.name_en'), value: form.data.name_en, rules: name, off: mode === 'move' },
+        { id: 'type-position', label: t('b2b::admin_types.field.position'), value: form.data.position, rules: { required: true, number: { min: 0, max: 10000 } }, off: mode === 'rename' },
+    ]);
+
     function submit() {
         const target = mode === 'add' ? base(kind) : `${base(kind)}/${type?.id ?? ''}/${mode}`;
         // A new type names its store; a type changed is found in its own.
         form.transform((data) => (mode === 'add' ? { ...data, store } : data));
-        form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(target, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -96,7 +108,7 @@ export function TypeFormModal({
             description={body}
             busy={form.processing}
             confirm={
-                <ActionButton loading={form.processing} onClick={submit} data-test={`confirm-${mode}`}>
+                <ActionButton loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test={`confirm-${mode}`}>
                     {title}
                 </ActionButton>
             }
@@ -109,7 +121,7 @@ export function TypeFormModal({
                             dir="rtl"
                             label={t('b2b::admin_types.field.name_ar')}
                             value={form.data.name_ar}
-                            error={form.errors.name_ar}
+                            check={checks.box('type-name-ar', form.errors.name_ar)}
                             onChange={(event) => form.setData('name_ar', event.target.value)}
                             data-test="type-name-ar"
                         />
@@ -118,7 +130,7 @@ export function TypeFormModal({
                             dir="ltr"
                             label={t('b2b::admin_types.field.name_en')}
                             value={form.data.name_en}
-                            error={form.errors.name_en}
+                            check={checks.box('type-name-en', form.errors.name_en)}
                             onChange={(event) => form.setData('name_en', event.target.value)}
                             data-test="type-name-en"
                         />
@@ -134,7 +146,7 @@ export function TypeFormModal({
                         label={t('b2b::admin_types.field.position')}
                         helper={t('b2b::admin_types.field.position_helper')}
                         value={form.data.position}
-                        error={form.errors.position}
+                        check={checks.box('type-position', form.errors.position)}
                         onChange={(event) => form.setData('position', toLatinDigits(event.target.value))}
                         data-test="type-position"
                     />
@@ -247,9 +259,21 @@ export function DeactivateModal({
     const form = useForm<DeactivateForm>({ shown: 'HIDDEN', holders: 'leave', replacement: '', new_name_ar: '', new_name_en: '', new_position: '' });
     const holders = kind === 'company' ? (type.holders ?? 0) : 0;
     const title = t(`b2b::admin_types.list.${kind}.deactivate_title`);
+    // Each box as typed (frontend.md §1.7), checked only while its choice is made - the only time the
+    // controller reads it: the replacement chosen (CompanyTypeHolders::target refuses none); the new
+    // type's names required, one line of at most 100 characters (TypeName::MAX), and its position
+    // from 0 to 10,000 (TypePosition) - optional, as empty keeps this type's position (amendment 11(b)).
+    const into = holders > 0 ? form.data.holders : 'leave';
+    const name = { required: true, length: { max: 100 } };
+    const checks = useChecks([
+        { id: 'deactivate-replacement', label: t('b2b::admin_types.holders.replacement'), value: form.data.replacement, rules: { required: true }, off: into !== 'replace' },
+        { id: 'deactivate-new-name-ar', label: t('b2b::admin_types.field.name_ar'), value: form.data.new_name_ar, rules: name, off: into !== 'new' },
+        { id: 'deactivate-new-name-en', label: t('b2b::admin_types.field.name_en'), value: form.data.new_name_en, rules: name, off: into !== 'new' },
+        { id: 'deactivate-new-position', label: t('b2b::admin_types.field.position'), value: form.data.new_position, rules: { number: { min: 0, max: 10000 } }, off: into !== 'new' },
+    ]);
 
     function submit() {
-        form.post(`${base(kind)}/${type.id}/deactivate`, { preserveScroll: true, onSuccess: () => onOpenChange(false) });
+        checks.submit(() => form.post(`${base(kind)}/${type.id}/deactivate`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }));
     }
 
     return (
@@ -262,7 +286,7 @@ export function DeactivateModal({
             description={t(`b2b::admin_types.list.${kind}.deactivate_body`, { name: nameIn(locale, type.nameAr, type.nameEn) })}
             busy={form.processing}
             confirm={
-                <ActionButton variant="destructive" loading={form.processing} onClick={submit} data-test="confirm-deactivate">
+                <ActionButton variant="destructive" loading={form.processing} disabledReason={checks.reason} onClick={submit} data-test="confirm-deactivate">
                     {title}
                 </ActionButton>
             }
@@ -302,7 +326,7 @@ export function DeactivateModal({
                                 id="deactivate-replacement"
                                 label={t('b2b::admin_types.holders.replacement')}
                                 value={form.data.replacement}
-                                error={form.errors.replacement}
+                                check={checks.box('deactivate-replacement', form.errors.replacement)}
                                 onChange={(event) => form.setData('replacement', event.target.value)}
                                 data-test="deactivate-replacement"
                             >
@@ -324,7 +348,7 @@ export function DeactivateModal({
                                     dir="rtl"
                                     label={t('b2b::admin_types.field.name_ar')}
                                     value={form.data.new_name_ar}
-                                    error={form.errors.new_name_ar}
+                                    check={checks.box('deactivate-new-name-ar', form.errors.new_name_ar)}
                                     onChange={(event) => form.setData('new_name_ar', event.target.value)}
                                     data-test="deactivate-new-name-ar"
                                 />
@@ -333,7 +357,7 @@ export function DeactivateModal({
                                     dir="ltr"
                                     label={t('b2b::admin_types.field.name_en')}
                                     value={form.data.new_name_en}
-                                    error={form.errors.new_name_en}
+                                    check={checks.box('deactivate-new-name-en', form.errors.new_name_en)}
                                     onChange={(event) => form.setData('new_name_en', event.target.value)}
                                     data-test="deactivate-new-name-en"
                                 />
@@ -346,7 +370,7 @@ export function DeactivateModal({
                                     label={t('b2b::admin_types.field.position')}
                                     helper={t('b2b::admin_types.holders.new_position_helper')}
                                     value={form.data.new_position}
-                                    error={form.errors.new_position}
+                                    check={checks.box('deactivate-new-position', form.errors.new_position)}
                                     onChange={(event) => form.setData('new_position', toLatinDigits(event.target.value))}
                                 />
                             </div>
@@ -380,6 +404,9 @@ export function TransferModal({
     const locale = useLocale();
     const form = useForm({ target: '' });
     const title = t('b2b::admin_types.list.company.transfer_title');
+    // The type they go to, chosen (frontend.md §1.7): it opens with none, which
+    // CompanyTypeHolders::target refuses.
+    const checks = useChecks([{ id: 'transfer-target', label: t('b2b::admin_types.list.company.transfer_target'), value: form.data.target, rules: { required: true } }]);
 
     return (
         <PanelDialog
@@ -392,7 +419,8 @@ export function TransferModal({
             confirm={
                 <ActionButton
                     loading={form.processing}
-                    onClick={() => form.post(`/admin/company-types/${type.id}/transfer`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })}
+                    disabledReason={checks.reason}
+                    onClick={() => checks.submit(() => form.post(`/admin/company-types/${type.id}/transfer`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }))}
                     data-test="confirm-transfer"
                 >
                     {title}
@@ -404,7 +432,7 @@ export function TransferModal({
                     id="transfer-target"
                     label={t('b2b::admin_types.list.company.transfer_target')}
                     value={form.data.target}
-                    error={form.errors.target}
+                    check={checks.box('transfer-target', form.errors.target)}
                     onChange={(event) => form.setData('target', event.target.value)}
                     data-test="transfer-target"
                 >

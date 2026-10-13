@@ -180,6 +180,18 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         return $cores;
     }
 
+    public function onSaleAmong(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+
+        return $ids === [] ? [] : array_values(array_map('strval', $this->db->table('catalog.store_variants')
+            ->whereIn('product_id', $ids)
+            ->where('is_active', true)
+            ->distinct()
+            ->pluck('product_id')
+            ->all()));
+    }
+
     private static function toCore(stdClass $row): ProductCore
     {
         /** @var array{variants: int, photos: int, searchWords: int, filterValues: int, related: int, goesWith: int} $counts */
@@ -306,7 +318,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
                 (SELECT coalesce(json_agg(json_build_object('id', c.id, 'parentId', c.parent_id, 'ar', c.name_ar, 'en', c.name_en, 'active', c.is_active)
                     ORDER BY c.name_en, c.id), '[]') FROM catalog.categories c) as categories,
                 (SELECT coalesce(json_agg(json_build_object('id', w.id, 'nameAr', w.name_ar, 'nameEn', w.name_en, 'periodMonths', w.period_months, 'active', w.is_active)
-                    ORDER BY w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties
+                    ORDER BY w.position, w.name_en, w.id), '[]') FROM catalog.warranties w) as warranties
             SQL);
 
         return new ProductOptions(

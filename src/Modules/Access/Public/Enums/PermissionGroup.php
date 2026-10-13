@@ -12,7 +12,9 @@ namespace Modules\Access\Public\Enums;
  * Every group is named in Arabic and English at `access::permission_groups.{value}`.
  *
  * A permission needs a group only if a role can hold it: reserved actions and the ones everybody of
- * a kind holds automatically are never offered in the editor and never appear in the menu.
+ * a kind holds automatically are never offered in the editor. A menu entry names its own group, so a
+ * reserved action may still have one - Catalog's Products Import, the Super Admin's (catalog.md §4.4
+ * S11, its menu entry 100).
  */
 enum PermissionGroup: string
 {

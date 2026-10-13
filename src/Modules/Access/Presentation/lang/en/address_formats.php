@@ -16,6 +16,10 @@ return [
     'fields_hint' => 'In the order a customer fills them in, at most :count fields.',
     'field_key' => 'Name in the System',
     'field_key_hint' => 'Lower-case letters, digits and underscores, such as postal_code; changing it on a field already in use leaves those addresses without that part.',
+    // Said under the box as it is typed (frontend.md §1.7), the domain's own rule (AddressField::KEY).
+    'check' => [
+        'key' => ':field takes 2 to 40 lowercase letters, digits and underscores, starting with a letter.',
+    ],
     'label_ar' => 'Label in Arabic',
     'label_en' => 'Label in English',
     // Each field's group of inputs is named, so a screen reader hears which field it is in.
@@ -39,6 +43,8 @@ return [
     'no_fields' => 'A form needs at least one field.',
 
     'template' => 'How It Is Printed',
+    // The template named inside a sentence that says what is wrong with it (frontend.md §1.7).
+    'template_subject' => 'The printed form',
     'template_hint' => 'Write {city} for that field\'s value; an empty field disappears, and so does a line left empty.',
     'template_fields' => 'Fields you can use: :keys',
 

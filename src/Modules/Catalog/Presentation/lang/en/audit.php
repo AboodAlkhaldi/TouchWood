@@ -13,6 +13,7 @@ return [
     'brand.activated' => 'Brand reactivated',
     'brand.deleted' => 'Brand deleted',
     'brand.logo_detached' => 'Brand logo removed with its file',
+    'brand.ordered' => 'Brand moved in the brands\' order',
 
     'category.added' => 'Category added',
     'category.edited' => 'Category edited',
@@ -21,6 +22,7 @@ return [
     'category.activated' => 'Category reactivated',
     'category.deleted' => 'Category deleted',
     'category.ranked' => 'Category placed in the store menu',
+    'category.audience_set' => 'Who sees the category in the store changed',
     'category.image_detached' => 'Category photo removed with its file',
 
     'attribute.added' => 'Attribute added',
@@ -28,24 +30,28 @@ return [
     'attribute.deactivated' => 'Attribute deactivated',
     'attribute.activated' => 'Attribute reactivated',
     'attribute.deleted' => 'Attribute deleted',
+    'attribute.ordered' => 'Attribute moved in the attributes\' order',
 
     'attribute_value.added' => 'Attribute value added',
     'attribute_value.edited' => 'Attribute value edited',
     'attribute_value.deactivated' => 'Attribute value deactivated',
     'attribute_value.activated' => 'Attribute value reactivated',
     'attribute_value.deleted' => 'Attribute value deleted',
+    'attribute_value.ordered' => 'Attribute value moved in its attribute\'s order',
 
     'label.added' => 'Label added',
     'label.edited' => 'Label edited',
     'label.deactivated' => 'Label deactivated',
     'label.activated' => 'Label reactivated',
     'label.deleted' => 'Label deleted',
+    'label.ordered' => 'Label moved in the labels\' order',
 
     'warranty.added' => 'Warranty added',
     'warranty.edited' => 'Warranty edited',
     'warranty.deactivated' => 'Warranty deactivated',
     'warranty.activated' => 'Warranty reactivated',
     'warranty.deleted' => 'Warranty deleted',
+    'warranty.ordered' => 'Warranty moved in the warranties\' order',
 
     'product.added' => 'Product created',
     'product.edited' => 'Product edited',

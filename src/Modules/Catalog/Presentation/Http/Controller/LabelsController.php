@@ -18,6 +18,8 @@ use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabel;
 use Modules\Catalog\Application\Command\DeleteLabel\DeleteLabelHandler;
 use Modules\Catalog\Application\Command\EditLabel\EditLabel;
 use Modules\Catalog\Application\Command\EditLabel\EditLabelHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ListPages;
 
@@ -30,7 +32,7 @@ final readonly class LabelsController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_labels', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'tone', 'position'];
+    private const array FIELDS = ['name_ar', 'name_en', 'tone'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -49,7 +51,6 @@ final readonly class LabelsController
             $request->text('name_ar'),
             $request->text('name_en'),
             $request->text('tone'),
-            $request->number('position'),
         )), 'catalog::admin_labels.toast.added', self::FIELDS);
     }
 
@@ -60,8 +61,16 @@ final readonly class LabelsController
             $request->text('name_ar'),
             $request->text('name_en'),
             $request->text('tone'),
-            $request->number('position'),
         )), 'catalog::admin_labels.toast.edited', self::FIELDS);
+    }
+
+    /**
+     * The labels' order — the order on a card — as dragged, or with one moved to the top or the
+     * bottom (amendment 16(d)): the ids in their new order, the rest keeping theirs after them (P29).
+     */
+    public function order(CatalogFormRequest $request, OrderLabelsHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderLabels($request->texts('ids'))), 'catalog::admin.toast.ordered');
     }
 
     public function activate(Request $request, string $label, ActivateLabelHandler $handler): RedirectResponse

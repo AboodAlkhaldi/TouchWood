@@ -571,7 +571,7 @@ final readonly class ImportBringer
             $parent = $parentPath === [] ? null : $catalog->category($parentPath) ?? self::picked(ImportNameRow::CATEGORY, $parentPath, $names, $created);
 
             if ($parentPath === [] || $parent !== null) {
-                $created[$key] = $this->step("the category {$name->written}", fn (): string => $this->addCategory->handle(new AddCategory((string) $name->nameAr, (string) $name->nameEn, $parent, 0, $name->slugAr, $name->slugEn)));
+                $created[$key] = $this->step("the category {$name->written}", fn (): string => $this->addCategory->handle(new AddCategory((string) $name->nameAr, (string) $name->nameEn, $parent, $name->slugAr, $name->slugEn)));
             }
         }
 

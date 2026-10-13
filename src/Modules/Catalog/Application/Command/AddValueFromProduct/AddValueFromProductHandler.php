@@ -17,6 +17,7 @@ use Modules\Catalog\Domain\Exception\ProductNotFound;
 use Modules\Catalog\Domain\Model\AttributeValue;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ListOrders;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Shared\Application\Unauthorized;
@@ -40,6 +41,7 @@ final readonly class AddValueFromProductHandler
         private ProductRepository $products,
         private ProductReferences $references,
         private AttributeRepository $attributes,
+        private ListOrders $orders,
     ) {}
 
     /**
@@ -57,8 +59,9 @@ final readonly class AddValueFromProductHandler
             $product = $this->products->byId($command->productId) ?? throw new ProductNotFound($command->productId);
             $this->access->authorizeFor(self::PERMISSION, $product->id());
             $attribute = $this->references->newVariantAttribute($command->attributeId);
-            $last = array_reduce($this->attributes->valuesOf($attribute->id()), static fn (int $max, AttributeValue $value): int => max($max, $value->position()), 0);
-            $value = AttributeValue::add($id, $attribute, $name, $command->swatch, $last + 1);
+            // As the Attributes screen adds one: the place after the last, the list numbered again
+            // first should that pass the cap (amendment 16(d)).
+            $value = AttributeValue::add($id, $attribute, $name, $command->swatch, $this->orders->afterLast(ListOrders::VALUES, $attribute->id()));
 
             if ($this->attributes->valueNameTaken($attribute->id(), $name)) {
                 throw new NameTaken('value');

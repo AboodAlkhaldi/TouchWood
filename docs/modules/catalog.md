@@ -543,7 +543,10 @@ Catalog's side is here.
   — and orders only once that store approves it (B2B's rule, unchanged). **Guests see everything**,
   individuals' and companies' alike ("he can see everything … but when registering or login he will
   be limited to his profile") — what either kind of account sees, so a category switched off for both
-  is seen by no one **[PROPOSED P25]**; a staff member viewing the shop is a guest (access.md §1.11). What a
+  is seen by no one **[PROPOSED P25]**; **[DECIDED by the owner, 2026-10-11]** "Guest sees all
+  individuals+companies": a guest sees every product either kind of account sees, with its retail and
+  wholesale sizes — a product whose category is on for individuals only included, its wholesale sizes
+  and the companies' card shown to a guest there too (§2.2, §4.5); a staff member viewing the shop is a guest (access.md §1.11). What a
   guest may put in a cart, and what happens to it at sign-in, is Sales' question (stage 6), not
   Catalog's.
 - **What an individual is shown** (#6): only a product with at least one variant on sale **retail**
@@ -1649,7 +1652,7 @@ the owner's review of it before they are built**, unlike the rest.
 | P21 | **The budgets are kept**: 8 a shop page, 15 an admin page, each page's count recorded — the shop's menu, and a product's page, kept in the never-stale cache to get there; a page that cannot keep it is brought to the owner with its measured count | §4.4, §4.5 | — |
 | P22 | **The receiving side of `ListingFacts`** — `store_variant_facts`, the listing's price columns, the interface bound — built with the shop's pages so stage 5 has something to call; the contract's final shape is the owner's with Pricing's spec (#97). The price's shape is the stage 5 session's proposal, not mine | §2.2, §5.2, §5.4 | Stage 5's call |
 | P24 | **A sub-category added or moved takes its new parent's switches** for individuals and companies, in every store (found by the review of this spec: "no row means both" would otherwise show it to those its parent is off for) | §1.13 | One rule in the add and move handlers |
-| P25 | **A guest sees what either kind of account sees** — the owner's "everything the individuals and companies products" read literally: a category switched off for both is seen by no one | §1.13 | One condition in the listing's read |
+| P25 | **A guest sees what either kind of account sees** — the owner's "everything the individuals and companies products" read literally: a category switched off for both is seen by no one. **Confirmed by the owner, 2026-10-11**: "Guest sees all individuals+companies" — every product of either side, with its retail and wholesale sizes | §1.13 | One condition in the listing's read |
 | P26 | **A code is carried by one variant in the whole catalog** (a unique index on the variants' codes); `product_codes` stays the product's: a code it held keeps out every other product while it exists, and one of its own variants may take it back once no variant carries it | §1.2, §5.1 | A unique index |
 | P27 | **A product's variant attributes are kept, in order**, in `product_attributes` — the order of the shop's pickers and of the Variants tab's columns; changed by **Add Attribute…** (each variant, archived ones too, given its value in the same dialog, all or nothing), **Remove** (refused with `DuplicateCombination` while two variants would become the same) and **its order dragged** (`OrderVariantAttributes`); a variant's `combination` is kept in its attributes' id order, so a reorder rewrites nothing; a product with none has one variant | §1.7, S9 | A table and three commands |
 | P28 | **A new value from the Variants tab** is made inside Add Variant… / Edit… / Add Attribute… ("New value…": both names, a colour's swatch), active, last in its attribute's order, audited as on the Attributes screen; never under a deactivated attribute | S9 | One command |

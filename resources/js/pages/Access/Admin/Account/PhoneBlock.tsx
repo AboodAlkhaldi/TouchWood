@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { CodeInput } from '@/components/CodeInput';
 import { TextField } from '@/components/Fields';
 import { DialogError } from '@/components/FormError';
 import { PasswordInput } from '@/components/PasswordInput';
@@ -10,8 +9,14 @@ import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/comp
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+
+// The code's field is drawn only in the dialog's second step, never on the page's first paint, so it
+// is loaded then (frontend.md §5; lesson 180): the account page sat at 59.8 of its 60 KB, and the
+// shop's pages sharing the panel's Sheet and Breadcrumb (catalog.md §4.5) split them out of its layout.
+const CodeInput = lazy(() => import('@/components/CodeInput').then((loaded) => ({ default: loaded.CodeInput })));
 
 /*
 | B2 - changing the phone (frontend.md §3.2), on shadcn's Card and Dialog with Geist's rules (§1.11).
@@ -46,6 +51,17 @@ export function PhoneBlock({ account }: Props) {
     const request = useForm({ phone: '', current_password: '' });
     const confirm = useForm({ code: '' });
     const busy = request.processing || confirm.processing;
+    // Each box as typed (frontend.md §1.7): the number as Access keeps one, with its country code
+    // (PhoneNumber); the current password, its spaces kept as typed (OwnPhoneChangeRequest) - whether
+    // it is the right one is the server's alone to say. Afresh each time the dialog opens; the code's
+    // boxes keep their own check, below.
+    const checks = useChecks(
+        [
+            { id: 'new_phone', label: t('access::account.new_phone'), value: request.data.phone, rules: { required: true, phone: true }, off: step !== 'phone' },
+            { id: 'phone_current_password', label: t('access::account.current_password'), value: request.data.current_password, rules: { required: true, keepSpaces: true }, off: step !== 'phone' },
+        ],
+        open,
+    );
 
     function close() {
         setOpen(false);
@@ -87,11 +103,13 @@ export function PhoneBlock({ account }: Props) {
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
-                                request.post('/admin/account/phone', {
-                                    preserveScroll: true,
-                                    preserveState: true,
-                                    onSuccess: () => setStep('code'),
-                                });
+                                checks.submit(() =>
+                                    request.post('/admin/account/phone', {
+                                        preserveScroll: true,
+                                        preserveState: true,
+                                        onSuccess: () => setStep('code'),
+                                    }),
+                                );
                             }}
                         >
                             <div className="grid gap-4 p-6">
@@ -106,7 +124,7 @@ export function PhoneBlock({ account }: Props) {
                                     type="tel"
                                     label={t('access::account.new_phone')}
                                     helper={t('access::account.new_phone_hint')}
-                                    error={request.errors.phone}
+                                    check={checks.box('new_phone', request.errors.phone)}
                                     required
                                     autoFocus
                                     dir="ltr"
@@ -119,7 +137,7 @@ export function PhoneBlock({ account }: Props) {
                                     id="phone_current_password"
                                     name="current_password"
                                     label={t('access::account.current_password')}
-                                    error={request.errors.current_password}
+                                    check={checks.box('phone_current_password', request.errors.current_password)}
                                     autoComplete="current-password"
                                     required
                                     value={request.data.current_password}
@@ -130,7 +148,7 @@ export function PhoneBlock({ account }: Props) {
                                 <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">
                                     {t('ui.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={request.processing} data-test="send-phone-code">
+                                <ActionButton type="submit" loading={request.processing} disabledReason={checks.reason} data-test="send-phone-code">
                                     {t('access::account.send_code')}
                                 </ActionButton>
                             </DialogFooter>
@@ -162,18 +180,20 @@ export function PhoneBlock({ account }: Props) {
                                     <DialogDescription className="text-copy-14 text-ink-muted">{t('access::account.phone_dialog_body')}</DialogDescription>
                                 </DialogHeader>
                                 <DialogError open={open} />
-                                <CodeInput
-                                    id="phone_code"
-                                    label={t('access::account.phone_code')}
-                                    length={account.codeLength}
-                                    value={confirm.data.code}
-                                    onChange={(code) => {
-                                        confirm.setData('code', code);
-                                        confirm.clearErrors('code');
-                                    }}
-                                    error={confirm.errors.code}
-                                    autoFocus
-                                />
+                                <Suspense fallback={null}>
+                                    <CodeInput
+                                        id="phone_code"
+                                        label={t('access::account.phone_code')}
+                                        length={account.codeLength}
+                                        value={confirm.data.code}
+                                        onChange={(code) => {
+                                            confirm.setData('code', code);
+                                            confirm.clearErrors('code');
+                                        }}
+                                        error={confirm.errors.code}
+                                        autoFocus
+                                    />
+                                </Suspense>
                             </div>
                             <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
                                 <Button type="button" variant="outline" disabled={busy} onClick={close} data-test="modal-cancel">

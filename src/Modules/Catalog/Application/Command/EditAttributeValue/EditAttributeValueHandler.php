@@ -46,7 +46,7 @@ final readonly class EditAttributeValueHandler
             $attribute = $this->attributes->byId($found->attributeId()) ?? throw new LogicException('A value without its attribute.');
             $value = $this->attributes->valueById($command->valueId) ?? throw new ListItemNotFound($command->valueId);
 
-            $value->edit($attribute, $name, $command->swatch, $command->position);
+            $value->edit($attribute, $name, $command->swatch);
 
             if ($this->attributes->valueNameTaken($attribute->id(), $name, $value->id())) {
                 throw new NameTaken('value');

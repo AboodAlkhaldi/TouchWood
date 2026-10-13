@@ -12,4 +12,5 @@ return [
     'warranties' => 'Warranties',
     'search_words' => 'Search Words',
     'store_files' => 'Store Files',
+    'imports' => 'Products Import',
 ];

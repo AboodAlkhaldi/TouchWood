@@ -6,5 +6,6 @@ declare(strict_types=1);
 return [
     'bring_in_import' => "Bringing a products file's products into the catalog",
     'prune_search_log' => 'Removing search log entries older than twelve months',
+    'prune_shop_pages' => "Removing the shop's kept pages no longer in use",
     'refresh_card_photos' => "Showing a photo on its products' cards once its sizes are ready",
 ];

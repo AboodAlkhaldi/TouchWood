@@ -1719,6 +1719,14 @@ Decide these when the owning module is reached; do not design them now.
 - **Temporary files a stopped import leaves**: the import unpacks a zip's photos into the server's
   temporary folder and removes them when it ends; a worker killed mid-way (the 60-minute timeout, a
   restart) leaves them there. Sweep that folder's `twi*` files (the import's prefix) older than a day.
+- **The upload limits for the products import** (Catalog screens step 4): a products file is up to
+  20 MB as JSON and 500 MB as a zip, so PHP's `upload_max_filesize` and `post_max_size` and the web
+  server's request body limit must allow 500 MB on the admin's `/admin/imports`. Below that, Laravel
+  answers a larger upload with its 413 page before the import can say why (the local default is
+  2 MB / 8 MB).
+- **The `docs/` folder ships with the application**: the panel's files guide
+  (`/admin/import-guide`) is read from `docs/modules/catalog-import/` - the guide and its two
+  example files. A deploy that leaves `docs/` out breaks that page and its downloads.
 
 ---
 

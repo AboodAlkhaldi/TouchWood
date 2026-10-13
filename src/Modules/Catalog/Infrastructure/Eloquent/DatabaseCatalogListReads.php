@@ -73,6 +73,9 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             ->selectRaw('(SELECT count(*) FROM catalog.products p WHERE p.category_id = c.id) as products')
             ->selectRaw('(SELECT r.rank FROM catalog.store_category_ranks r WHERE r.category_id = c.id AND r.store_id = ?) as store_rank', [self::id($storeId)])
             ->selectRaw('(SELECT r.rank FROM catalog.store_category_ranks r WHERE r.category_id = c.id AND r.store_id = ?) as base_rank', [self::id($baseStoreId)])
+            // Who sees it in the store shown (amendment 14): a store that never switched it shows it to both.
+            ->selectRaw('COALESCE((SELECT a.for_individuals FROM catalog.store_category_audiences a WHERE a.category_id = c.id AND a.store_id = ?), true) as for_individuals', [self::id($storeId)])
+            ->selectRaw('COALESCE((SELECT a.for_companies FROM catalog.store_category_audiences a WHERE a.category_id = c.id AND a.store_id = ?), true) as for_companies', [self::id($storeId)])
             ->orderBy('c.name_en')->orderBy('c.id')
             ->get();
 
@@ -89,6 +92,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
             (int) $row->products,
             $row->store_rank === null ? null : (int) $row->store_rank,
             $row->base_rank === null ? null : (int) $row->base_rank,
+            (bool) $row->for_individuals,
+            (bool) $row->for_companies,
         ))->all());
     }
 
@@ -157,7 +162,8 @@ final readonly class DatabaseCatalogListReads implements CatalogListReads
         $rows = $this->db->table('catalog.warranties as w')
             ->select(['w.id', 'w.name_ar', 'w.name_en', 'w.period_months', 'w.terms_ar', 'w.terms_en', 'w.is_active'])
             ->selectRaw('(SELECT count(*) FROM catalog.products p WHERE p.warranty_id = w.id) as products')
-            ->orderBy('w.name_en')->orderBy('w.id')
+            // The list's own order, dragged (amendment 16(d)): the order of the product form's choice.
+            ->orderBy('w.position')->orderBy('w.name_en')->orderBy('w.id')
             ->get();
 
         return array_values($rows->map(static fn (stdClass $row): WarrantyRow => new WarrantyRow(

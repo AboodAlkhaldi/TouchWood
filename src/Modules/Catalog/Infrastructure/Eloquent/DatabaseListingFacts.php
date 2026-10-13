@@ -7,6 +7,8 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
+use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Shared\Domain\ValueObject\StoreId;
@@ -17,8 +19,10 @@ use Shared\Infrastructure\Persistence\Ulids;
  * kept in `catalog.store_variant_facts`, Catalog's own table, inside the caller's transaction, so a
  * listing written again from Catalog's tables never loses it. Only the facts given are written: a
  * price leaves whether the variant is orderable as it was, and the other way round. A variant that
- * is not Catalog's is left out. The cards read these facts with the shop's pages (P22); until then
- * they are kept, not shown.
+ * is not Catalog's is left out. **The listing reads them** (P22, amendment 16(h)): each push writes
+ * the listing rows of the products it touched again, under the products' lock — "Last pieces" on
+ * the cards, each side's card price kept for Pricing's stage — and so replaces the shop's cached
+ * pages' version (DatabaseListLocks).
  */
 final readonly class DatabaseListingFacts implements ListingFacts
 {
@@ -26,6 +30,8 @@ final readonly class DatabaseListingFacts implements ListingFacts
 
     public function __construct(
         private ConnectionInterface $db,
+        private ListLocks $locks,
+        private ListingRows $listingRows,
     ) {}
 
     public function orderable(StoreId $store, array $variantIds, bool $orderable): void
@@ -67,16 +73,35 @@ final readonly class DatabaseListingFacts implements ListingFacts
             }
         }
 
-        $known = $byId === [] ? [] : array_map('strval', $this->db->table('catalog.variants')->whereIn('id', array_keys($byId))->pluck('id')->all());
-
-        if ($known === []) {
+        if ($byId === []) {
             return;
         }
 
-        $now = CarbonImmutable::now();
-        $rows = array_map(static fn (string $id): array => ['store_id' => $store->value, 'variant_id' => $id, ...$byId[$id], 'created_at' => $now, 'updated_at' => $now], $known);
+        // Inside the caller's transaction, or a transaction of its own: the products' lock first, as
+        // every change that writes the listing takes it (ListLocks::PRODUCTS).
+        $this->db->transaction(function () use ($store, $byId): void {
+            $this->locks->lock(ListLocks::PRODUCTS);
 
-        // One shape of columns a call: every fact pushed in one call is the same kind.
-        $this->db->table(self::TABLE)->upsert($rows, ['store_id', 'variant_id'], [...array_keys($byId[$known[0]]), 'updated_at']);
+            $products = [];
+
+            foreach ($this->db->table('catalog.variants')->whereIn('id', array_keys($byId))->get(['id', 'product_id']) as $row) {
+                $products[(string) $row->id] = (string) $row->product_id;
+            }
+
+            if ($products === []) {
+                return;
+            }
+
+            $known = array_keys($products);
+            $now = CarbonImmutable::now();
+            $rows = array_map(static fn (string $id): array => ['store_id' => $store->value, 'variant_id' => $id, ...$byId[$id], 'created_at' => $now, 'updated_at' => $now], $known);
+
+            // One shape of columns a call: every fact pushed in one call is the same kind.
+            $this->db->table(self::TABLE)->upsert($rows, ['store_id', 'variant_id'], [...array_keys($byId[$known[0]]), 'updated_at']);
+
+            // The cards read them from the listing (P22, amendment 16(h)): written again at once, so
+            // a list is never stale (§2.2).
+            $this->listingRows->refresh(array_values(array_unique($products)));
+        });
     }
 }

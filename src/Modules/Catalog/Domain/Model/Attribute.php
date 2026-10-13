@@ -21,6 +21,9 @@ use Modules\Catalog\Public\Enums\AttributeKind;
  * a value list built for one job, and the variants built on it, would mean something else under
  * another. Only a filter or a variant-making attribute has values, and only such an attribute can be
  * a colour.
+ *
+ * Its position is the attributes' order — the order of the shop's filters — given when it is added,
+ * last, and changed only by ordering the list (amendment 16(d)), never by its form.
  */
 final class Attribute
 {
@@ -64,7 +67,7 @@ final class Attribute
      *
      * @throws AttributeKindLocked|InvalidCatalogAttribute
      */
-    public function edit(LocalizedName $name, AttributeKind $kind, ?string $unitAr, ?string $unitEn, bool $isColour, int $position, bool $hasValues): void
+    public function edit(LocalizedName $name, AttributeKind $kind, ?string $unitAr, ?string $unitEn, bool $isColour, bool $hasValues): void
     {
         if ($hasValues && ($kind !== $this->kind || $isColour !== $this->isColour)) {
             throw new AttributeKindLocked;
@@ -79,7 +82,6 @@ final class Attribute
         $this->unitAr = $unitAr;
         $this->unitEn = $unitEn;
         $this->isColour = $isColour;
-        $this->position = ListPosition::check($position);
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);

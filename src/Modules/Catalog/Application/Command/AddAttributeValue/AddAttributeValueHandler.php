@@ -13,13 +13,15 @@ use Modules\Catalog\Domain\Exception\NameTaken;
 use Modules\Catalog\Domain\Model\AttributeValue;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ListOrders;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Shared\Application\Unauthorized;
 
 /**
  * **Adding a value to an attribute** (catalog.md §1.7): never one named as another value of the same
  * attribute in either language, ignoring letter case (`NameTaken`) — asked under the attributes'
- * lock, with the database's unique index behind it.
+ * lock, with the database's unique index behind it. **It goes last** among the attribute's values
+ * (amendment 16(d), P29).
  */
 final readonly class AddAttributeValueHandler
 {
@@ -28,6 +30,7 @@ final readonly class AddAttributeValueHandler
     public function __construct(
         private SharedListChange $change,
         private AttributeRepository $attributes,
+        private ListOrders $orders,
     ) {}
 
     /**
@@ -43,7 +46,7 @@ final readonly class AddAttributeValueHandler
 
         return $this->change->run(ListLocks::ATTRIBUTES, function () use ($command, $name, $id): array {
             $attribute = $this->attributes->byId($command->attributeId) ?? throw new ListItemNotFound($command->attributeId);
-            $value = AttributeValue::add($id, $attribute, $name, $command->swatch, $command->position);
+            $value = AttributeValue::add($id, $attribute, $name, $command->swatch, $this->orders->afterLast(ListOrders::VALUES, $attribute->id()));
 
             if ($this->attributes->valueNameTaken($attribute->id(), $name)) {
                 throw new NameTaken('value');

@@ -13,6 +13,7 @@ return [
     'brand.activated' => 'أُعيد تفعيل ماركة',
     'brand.deleted' => 'حُذفت ماركة',
     'brand.logo_detached' => 'أُزيل شعار الماركة مع ملفه',
+    'brand.ordered' => 'نُقلت ماركة في ترتيب الماركات',
 
     'category.added' => 'أُضيف قسم',
     'category.edited' => 'عُدّل قسم',
@@ -21,6 +22,7 @@ return [
     'category.activated' => 'أُعيد تفعيل قسم',
     'category.deleted' => 'حُذف قسم',
     'category.ranked' => 'رُتّب قسم في قائمة المتجر',
+    'category.audience_set' => 'تغيّر من يرى القسم في المتجر',
     'category.image_detached' => 'أُزيلت صورة القسم مع ملفها',
 
     'attribute.added' => 'أُضيفت خاصية',
@@ -28,24 +30,28 @@ return [
     'attribute.deactivated' => 'أُوقفت خاصية',
     'attribute.activated' => 'أُعيد تفعيل خاصية',
     'attribute.deleted' => 'حُذفت خاصية',
+    'attribute.ordered' => 'نُقلت خاصية في ترتيب الخصائص',
 
     'attribute_value.added' => 'أُضيفت قيمة خاصية',
     'attribute_value.edited' => 'عُدّلت قيمة خاصية',
     'attribute_value.deactivated' => 'أُوقفت قيمة خاصية',
     'attribute_value.activated' => 'أُعيد تفعيل قيمة خاصية',
     'attribute_value.deleted' => 'حُذفت قيمة خاصية',
+    'attribute_value.ordered' => 'نُقلت قيمة خاصية في ترتيب قيمها',
 
     'label.added' => 'أُضيفت شارة',
     'label.edited' => 'عُدّلت شارة',
     'label.deactivated' => 'أُوقفت شارة',
     'label.activated' => 'أُعيد تفعيل شارة',
     'label.deleted' => 'حُذفت شارة',
+    'label.ordered' => 'نُقلت شارة في ترتيب الشارات',
 
     'warranty.added' => 'أُضيف ضمان',
     'warranty.edited' => 'عُدّل ضمان',
     'warranty.deactivated' => 'أُوقف ضمان',
     'warranty.activated' => 'أُعيد تفعيل ضمان',
     'warranty.deleted' => 'حُذف ضمان',
+    'warranty.ordered' => 'نُقل ضمان في ترتيب الضمانات',
 
     'product.added' => 'أُنشئ منتج',
     'product.edited' => 'عُدّل منتج',

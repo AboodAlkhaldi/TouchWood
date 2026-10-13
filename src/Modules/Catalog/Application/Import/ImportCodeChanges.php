@@ -11,6 +11,7 @@ use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
+use Modules\Catalog\Public\Enums\ProductStage;
 
 /**
  * **A product not a draft keeps its codes** (catalog.md §1.12; owner, 2026-10-06, amendment 11(b)):
@@ -55,11 +56,16 @@ final readonly class ImportCodeChanges
 
         $references = new ImportReferences(CatalogNames::load($this->brands, $this->categories, $this->attributes, $this->warranties), $names, [], $this->brands->defaultBrand()?->id() ?? '');
         $found = [];
+        // Every product the file changes, read together (P13): its stage, its variants.
+        $productIds = array_values(array_unique(array_map(static fn (ImportProduct $row): string => strtolower((string) $row->conflictProductId), $changing)));
+        $stages = $this->products->stagesOf($productIds);
+        $variantsOf = $this->variants->ofProducts($productIds);
 
         foreach ($changing as $row) {
-            $product = $this->products->find((string) $row->conflictProductId);
+            $productId = strtolower((string) $row->conflictProductId);
+            $stage = $stages[$productId] ?? null;
 
-            if ($product === null || $product->isDraft()) {
+            if ($stage === null || $stage === ProductStage::Draft) {
                 continue;
             }
 
@@ -68,7 +74,7 @@ final readonly class ImportCodeChanges
             $carried = [];
             $unnamed = [];
 
-            foreach ($this->variants->ofProduct($product->id()) as $variant) {
+            foreach ($variantsOf[$productId] ?? [] as $variant) {
                 $carried[$variant->code()->value] = true;
 
                 if (! in_array($variant->code()->value, $fileCodes, true)) {

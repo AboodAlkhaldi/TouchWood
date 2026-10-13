@@ -76,4 +76,30 @@ final readonly class StoreListingChange
             return $result;
         }, 3);
     }
+
+    /**
+     * As run(), for a store's change that reads a shared list as well — who sees a category there
+     * reaches everything under it (catalog.md §1.13): **the products' lock first, then the list's**,
+     * the order every change that writes products' listing rows and reads a list keeps
+     * (`SharedListChange::runAfterProducts`), so the two never wait on each other in a circle.
+     *
+     * @template T
+     *
+     * @param  Closure(): array{T, list<AuditEntryDto>}  $work
+     * @return T
+     */
+    public function runAfterProducts(string $list, Closure $work): mixed
+    {
+        return $this->db->transaction(function () use ($list, $work): mixed {
+            $this->locks->lock(ListLocks::PRODUCTS);
+            $this->locks->lock($list);
+            [$result, $entries] = $work();
+
+            foreach ($entries as $entry) {
+                $this->platform->recordAudit($entry);
+            }
+
+            return $result;
+        }, 3);
+    }
 }

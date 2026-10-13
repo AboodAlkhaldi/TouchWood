@@ -18,6 +18,8 @@ use Modules\Catalog\Application\Command\DeleteWarranty\DeleteWarranty;
 use Modules\Catalog\Application\Command\DeleteWarranty\DeleteWarrantyHandler;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarranty;
 use Modules\Catalog\Application\Command\EditWarranty\EditWarrantyHandler;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ListPages;
 
@@ -64,6 +66,15 @@ final readonly class WarrantiesController
             $request->marks('terms_en') ?? [],
             self::period($request),
         )), 'catalog::admin_warranties.toast.edited', self::FIELDS);
+    }
+
+    /**
+     * The warranties' order — the order of the product form's choice — as dragged, or with one moved
+     * to the top or the bottom (amendment 16(d)): the ids in their new order, the rest after (P29).
+     */
+    public function order(CatalogFormRequest $request, OrderWarrantiesHandler $handler): RedirectResponse
+    {
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderWarranties($request->texts('ids'))), 'catalog::admin.toast.ordered');
     }
 
     public function activate(Request $request, string $warranty, ActivateWarrantyHandler $handler): RedirectResponse
