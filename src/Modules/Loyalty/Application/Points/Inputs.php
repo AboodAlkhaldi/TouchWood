@@ -61,4 +61,34 @@ final class Inputs
 
         return $amount->minorUnits;
     }
+
+    /** The most points one change by hand may move: far inside the balance column's range. */
+    public const int MOST_BY_HAND = 1_000_000_000;
+
+    /** Points given or taken by hand: a positive whole number (§7), up to the most one change moves. */
+    public static function points(int $points): int
+    {
+        if ($points < 1) {
+            throw new InvalidPointsAttribute('points', 'must be a positive whole number');
+        }
+
+        if ($points > self::MOST_BY_HAND) {
+            throw new InvalidPointsAttribute('points', 'too many for one change');
+        }
+
+        return $points;
+    }
+
+    /** A change by hand's reason: 1 to 500 characters, spaces around it dropped (§1.9). */
+    public static function reason(string $reason): string
+    {
+        $reason = trim($reason);
+        $length = mb_strlen($reason);
+
+        if ($length < 1 || $length > 500) {
+            throw new InvalidPointsAttribute('reason', 'must be 1 to 500 characters');
+        }
+
+        return $reason;
+    }
 }

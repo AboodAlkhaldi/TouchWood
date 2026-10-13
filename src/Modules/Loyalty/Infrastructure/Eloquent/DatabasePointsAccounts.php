@@ -7,6 +7,7 @@ namespace Modules\Loyalty\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use LogicException;
 use Modules\Loyalty\Domain\Model\Lot;
@@ -90,6 +91,23 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
             ->where('points_left', '>', 0)
             ->where('expires_at', '>', Moment::of($now))
             ->sum('points_left');
+    }
+
+    public function withDeadLots(DateTimeImmutable $now, ?string $after, int $limit): array
+    {
+        $moment = Moment::of($now);
+        $query = $this->db->table('loyalty.accounts')
+            ->whereExists(fn (Builder $lots) => $lots->selectRaw('1')
+                ->from('loyalty.lots')
+                ->whereColumn('loyalty.lots.account_id', 'loyalty.accounts.id')
+                ->where('loyalty.lots.points_left', '>', 0)
+                ->where('loyalty.lots.expires_at', '<=', $moment));
+
+        if ($after !== null) {
+            $query->where('loyalty.accounts.id', '>', $after);
+        }
+
+        return array_values(array_map(self::account(...), $query->orderBy('loyalty.accounts.id')->limit($limit)->get()->all()));
     }
 
     /**
