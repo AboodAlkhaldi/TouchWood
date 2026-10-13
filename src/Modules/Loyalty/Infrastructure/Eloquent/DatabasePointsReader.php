@@ -32,7 +32,7 @@ final readonly class DatabasePointsReader implements PointsReader
             ->where('loyalty.entries.account_id', strtolower($accountId))
             ->select(['loyalty.entries.*', 'loyalty.orders.order_number']);
 
-        return array_values(array_map(
+        return array_map(
             static fn (stdClass $row): PointsHistoryRow => new PointsHistoryRow(
                 (int) $row->id,
                 EntryKind::from((string) $row->kind),
@@ -43,7 +43,7 @@ final readonly class DatabasePointsReader implements PointsReader
                 $row->staff_id === null ? null : (string) $row->staff_id,
             ),
             $this->page($query, $beforeAt, $beforeId, $limit),
-        ));
+        );
     }
 
     public function redemptions(string $storeId, ?DateTimeImmutable $beforeAt, ?int $beforeId, int $limit): array
@@ -55,7 +55,7 @@ final readonly class DatabasePointsReader implements PointsReader
             ->where('loyalty.entries.kind', EntryKind::Redeemed->value)
             ->select(['loyalty.entries.id', 'loyalty.entries.points', 'loyalty.entries.occurred_at', 'loyalty.orders.order_number', 'loyalty.orders.discount_minor', 'loyalty.orders.currency_code', 'loyalty.accounts.customer_id']);
 
-        return array_values(array_map(
+        return array_map(
             static fn (stdClass $row): RedemptionRow => new RedemptionRow(
                 (int) $row->id,
                 (string) $row->order_number,
@@ -65,7 +65,7 @@ final readonly class DatabasePointsReader implements PointsReader
                 new DateTimeImmutable((string) $row->occurred_at),
             ),
             $this->page($query, $beforeAt, $beforeId, $limit),
-        ));
+        );
     }
 
     /**
