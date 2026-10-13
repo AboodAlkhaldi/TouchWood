@@ -6,6 +6,7 @@ declare(strict_types=1);
 // with no line here is shown exactly as it is recorded.
 return [
     'retail_price.set' => 'Retail price set',
+    'retail_price.filed' => 'Retail price set by a store file',
     'retail_price.removed' => 'Retail price removed',
     'sale.added' => 'Sale added',
     'sale.changed' => 'Sale changed',
