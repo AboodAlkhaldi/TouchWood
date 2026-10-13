@@ -15,6 +15,7 @@ use Modules\Platform\Domain\Repository\MediaRepository;
 use Modules\Platform\Public\Dto\MediaUseDto;
 use Modules\Platform\Public\Enums\MediaVariantsStatus;
 use Modules\Platform\Public\Enums\MediaVisibility;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
@@ -28,9 +29,6 @@ final readonly class DatabaseMediaRepository implements MediaRepository
     /** PostgreSQL's code for a foreign-key violation. */
     private const string FOREIGN_KEY_VIOLATION = '23503';
 
-    /** Crockford base32, as Str::ulid() produces. */
-    private const string ULID_PATTERN = '/\A[0-9a-hjkmnp-tv-z]{26}\z/i';
-
     public function __construct(
         private ConnectionInterface $db,
     ) {}
@@ -42,7 +40,7 @@ final readonly class DatabaseMediaRepository implements MediaRepository
 
     public function byId(string $id): ?Media
     {
-        if (preg_match(self::ULID_PATTERN, $id) !== 1) {
+        if (! Ulids::valid($id)) {
             return null;
         }
 
@@ -55,7 +53,7 @@ final readonly class DatabaseMediaRepository implements MediaRepository
     {
         $ulids = array_values(array_unique(array_map(
             strtolower(...),
-            array_filter($ids, static fn (string $id): bool => preg_match(self::ULID_PATTERN, $id) === 1),
+            array_filter($ids, static fn (string $id): bool => Ulids::valid($id)),
         )));
 
         if ($ulids === []) {
@@ -70,7 +68,7 @@ final readonly class DatabaseMediaRepository implements MediaRepository
 
     public function lockById(string $id): ?Media
     {
-        if (preg_match(self::ULID_PATTERN, $id) !== 1) {
+        if (! Ulids::valid($id)) {
             return null;
         }
 

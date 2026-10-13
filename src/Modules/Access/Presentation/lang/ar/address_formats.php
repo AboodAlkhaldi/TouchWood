@@ -16,6 +16,10 @@ return [
     'fields_hint' => 'بالترتيب الذي يملؤها به العميل، وبحد أقصى :count حقلًا.',
     'field_key' => 'الاسم في النظام',
     'field_key_hint' => 'حروف صغيرة وأرقام وشرطات سفلية، مثل postal_code؛ وتغييره في حقل مستعمل يترك تلك العناوين بلا ذلك الجزء.',
+    // Said under the box as it is typed (frontend.md §1.7), the domain's own rule (AddressField::KEY).
+    'check' => [
+        'key' => 'يقبل الحقل «:field» من 2 إلى 40 من الحروف اللاتينية الصغيرة والأرقام والشرطات السفلية، على أن يبدأ بحرف.',
+    ],
     'label_ar' => 'التسمية بالعربية',
     'label_en' => 'التسمية بالإنجليزية',
     // Each field's group of inputs is named, so a screen reader hears which field it is in.
@@ -39,6 +43,8 @@ return [
     'no_fields' => 'يحتاج النموذج حقلًا واحدًا على الأقل.',
 
     'template' => 'شكل الطباعة',
+    // The template named inside a sentence that says what is wrong with it (frontend.md §1.7).
+    'template_subject' => 'شكل الطباعة',
     'template_hint' => 'اكتب ‎{city}‎ لقيمة ذلك الحقل؛ والحقل الفارغ يختفي، وكذلك السطر الذي يفرغ.',
     'template_fields' => 'الحقول التي يمكنك استعمالها: :keys',
 

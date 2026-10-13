@@ -14,6 +14,7 @@ use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseProductRepository implements ProductRepository
@@ -114,17 +115,61 @@ final readonly class DatabaseProductRepository implements ProductRepository
         return $this->anyWith('warranty_id', $warrantyId);
     }
 
-    public function anyWithAttributeSet(string $setId): bool
+    public function variantAttributes(string $productId): array
     {
-        return $this->anyWith('attribute_set_id', $setId);
+        return $this->ordered('catalog.product_attributes', 'product_id', $productId, 'attribute_id');
     }
 
-    public function variantsOnSet(string $setId): bool
+    public function variantAttributesOf(array $productIds): array
     {
-        return Ulids::valid($setId) && $this->db->table(self::TABLE.' as p')
-            ->join('catalog.variants as v', 'v.product_id', '=', 'p.id')
-            ->where('p.attribute_set_id', strtolower($setId))
-            ->exists();
+        $ids = self::validIds($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $byProduct = array_fill_keys($ids, []);
+
+        foreach ($this->db->table('catalog.product_attributes')->whereIn('product_id', $ids)->orderBy('position')->get(['product_id', 'attribute_id']) as $row) {
+            $byProduct[(string) $row->product_id][] = (string) $row->attribute_id;
+        }
+
+        return $byProduct;
+    }
+
+    public function stagesOf(array $productIds): array
+    {
+        $ids = self::validIds($productIds);
+        $stages = [];
+
+        foreach ($ids === [] ? [] : $this->db->table(self::TABLE)->whereIn('id', $ids)->get(['id', 'stage']) as $row) {
+            $stages[(string) $row->id] = ProductStage::from((string) $row->stage);
+        }
+
+        return $stages;
+    }
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> the ULIDs among them, lower-cased, once each
+     */
+    private static function validIds(array $productIds): array
+    {
+        return array_values(array_unique(array_map(strtolower(...), array_filter($productIds, Ulids::valid(...)))));
+    }
+
+    public function replaceVariantAttributes(string $productId, array $attributeIds): void
+    {
+        $this->db->table('catalog.product_attributes')->where('product_id', strtolower($productId))->delete();
+        $rows = [];
+
+        foreach ($attributeIds as $index => $attributeId) {
+            $rows[] = ['product_id' => strtolower($productId), 'attribute_id' => $attributeId, 'position' => $index + 1];
+        }
+
+        if ($rows !== []) {
+            $this->db->table('catalog.product_attributes')->insert($rows);
+        }
     }
 
     public function gallery(string $productId): array
@@ -317,7 +362,6 @@ final readonly class DatabaseProductRepository implements ProductRepository
             (string) $row->brand_id,
             $row->category_id === null ? null : (string) $row->category_id,
             $row->warranty_id === null ? null : (string) $row->warranty_id,
-            $row->attribute_set_id === null ? null : (string) $row->attribute_set_id,
             ProductStage::from((string) $row->stage),
             $row->archived_from === null ? null : ProductStage::from((string) $row->archived_from),
             (bool) $row->hidden_by_category,
@@ -338,7 +382,6 @@ final readonly class DatabaseProductRepository implements ProductRepository
             'brand_id' => $product->brandId(),
             'category_id' => $product->categoryId(),
             'warranty_id' => $product->warrantyId(),
-            'attribute_set_id' => $product->attributeSetId(),
             'stage' => $product->stage()->value,
             'archived_from' => $product->archivedFrom()?->value,
             'hidden_by_category' => $product->hiddenByCategory(),

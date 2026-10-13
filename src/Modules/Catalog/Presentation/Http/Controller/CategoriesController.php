@@ -22,10 +22,13 @@ use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
-use Modules\Catalog\Application\Command\RankCategories\RankCategories;
-use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategories;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategoriesHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImage;
 use Modules\Catalog\Application\Command\UploadCategoryImage\UploadCategoryImageHandler;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Presentation\Http\Request\CatalogFormRequest;
 use Modules\Catalog\Presentation\Http\Resource\ListPages;
 use Modules\Platform\Public\Contracts\StoreChoices;
@@ -41,7 +44,7 @@ final readonly class CategoriesController
     /** @var list<string> */
     private const array WORDS = ['catalog::admin', 'catalog::admin_categories', 'admin'];
 
-    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'rank', 'image_media_id'];
+    private const array FIELDS = ['name_ar', 'name_en', 'slug_ar', 'slug_en', 'parent_id', 'image_media_id'];
 
     // What asks who is acting - the pages, the store choices - is taken by each action, never kept here:
     // a controller is kept on its route, longer than one request.
@@ -64,7 +67,6 @@ final readonly class CategoriesController
             nameAr: $request->text('name_ar'),
             nameEn: $request->text('name_en'),
             parentId: $request->optionalText('parent_id'),
-            rank: $request->number('rank'),
             slugAr: $request->optionalText('slug_ar'),
             slugEn: $request->optionalText('slug_en'),
             imageMediaId: self::image($request, $upload),
@@ -83,27 +85,32 @@ final readonly class CategoriesController
         )), 'catalog::admin_categories.toast.edited', self::FIELDS);
     }
 
-    /** Another parent, or the top, and its place among the new siblings (amendment 2(c)). */
+    /** Another parent, or the top: last among its new siblings in every store (amendment 16(d)). */
     public function move(CatalogFormRequest $request, string $category, MoveCategoryHandler $handler): RedirectResponse
     {
         return CatalogRefusals::act($request, fn () => $handler->handle(new MoveCategory(
             $category,
             $request->optionalText('parent_id'),
-            $request->number('rank'),
         )), 'catalog::admin_categories.toast.moved', self::FIELDS);
     }
 
     /**
-     * One parent's children in the order dragged, written as places in the store the page shows
-     * (amendment 1(d)). A form that names no store, or one not offered here, is refused — never sent
-     * to the first store.
+     * One parent's children in the order dropped, or with one moved to the top or the bottom, written
+     * as places 1, 2, 3 … in the store the page shows (amendment 16(d)). A form that names no store, or
+     * one not offered here, is refused — never sent to the first store. An order has no field of its
+     * own on the page, so a refusal is said at its top and in a toast.
      */
-    public function rank(CatalogFormRequest $request, RankCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
+    /**
+     * One parent's children in the store shown, in their new order (amendment 16(d), P29): the ids
+     * dragged, or the one moved to the top, or every other then the one moved to the bottom.
+     */
+    public function order(CatalogFormRequest $request, OrderCategoriesHandler $handler, StoreChoices $choices): RedirectResponse
     {
-        return CatalogRefusals::act($request, fn () => $handler->handle(new RankCategories(
+        return CatalogRefusals::act($request, fn () => $handler->handle(new OrderCategories(
             self::storeId($choices, $request->optionalText('store')),
-            self::ranks($request->input('ranks')),
-        )), 'catalog::admin_categories.toast.ranked', ['rank', 'store']);
+            $request->optionalText('parent'),
+            $request->texts('ids'),
+        )), 'catalog::admin_categories.toast.ranked');
     }
 
     public function activate(Request $request, string $category, ActivateCategoryHandler $handler): RedirectResponse
@@ -131,31 +138,49 @@ final readonly class CategoriesController
     }
 
     /**
-     * @throws Unauthorized when no store is named, or one the reader does not order the menu of
+     * Who sees the category in the store the page shows (§1.13, amendment 14): the switch flipped —
+     * `individuals` or `companies`, each true or false, the other left out — saved the moment it flips
+     * (P9), reaching everything under it. A form that names no store, or one not offered here, is
+     * refused, as an order is.
      */
-    private static function storeId(StoreChoices $choices, ?string $code): string
+    public function audience(CatalogFormRequest $request, string $category, SetCategoryAudiencesHandler $handler, StoreChoices $choices): RedirectResponse
     {
-        if ($code === null) {
-            throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
-        }
-
-        return $choices->chosen($code, CatalogPermissions::CATEGORY_RANK)->id ?? throw new Unauthorized(CatalogPermissions::CATEGORY_RANK);
+        return CatalogRefusals::act($request, fn () => $handler->handle(new SetCategoryAudiences(
+            self::storeId($choices, $request->optionalText('store'), CatalogPermissions::CATEGORY_AUDIENCE),
+            $category,
+            self::switch($request->input('individuals')),
+            self::switch($request->input('companies')),
+        )), 'catalog::admin_categories.toast.audience_set');
     }
 
     /**
-     * Category id => its place, as posted; anything else is left for the handler to refuse.
-     *
-     * @return array<string, mixed>
+     * @throws Unauthorized when no store is named, or one the reader does not hold the job in
      */
-    private static function ranks(mixed $posted): array
+    private static function storeId(StoreChoices $choices, ?string $code, string $permission = CatalogPermissions::CATEGORY_RANK): string
     {
-        $ranks = [];
-
-        foreach (is_array($posted) ? $posted : [] as $categoryId => $rank) {
-            $ranks[(string) $categoryId] = is_numeric($rank) && (string) (int) $rank === trim((string) $rank) ? (int) $rank : $rank;
+        if ($code === null) {
+            throw new Unauthorized($permission);
         }
 
-        return $ranks;
+        return $choices->chosen($code, $permission)->id ?? throw new Unauthorized($permission);
+    }
+
+    /**
+     * A switch as posted: true or false — `1`, `0`, `true`, `false` — or left out.
+     *
+     * @throws InvalidCatalogAttribute for anything else
+     */
+    private static function switch(mixed $posted): ?bool
+    {
+        if ($posted === null || $posted === '') {
+            return null;
+        }
+
+        return is_bool($posted) ? $posted : match (is_scalar($posted) ? strtolower(trim((string) $posted)) : '') {
+            '1', 'true' => true,
+            '0', 'false' => false,
+            default => throw new InvalidCatalogAttribute('audience', 'a switch: on or off'),
+        };
     }
 
     private static function image(CatalogFormRequest $request, UploadCategoryImageHandler $upload): ?string

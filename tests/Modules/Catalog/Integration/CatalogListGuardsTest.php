@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttribute;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttributeHandler;
-use Modules\Catalog\Application\Command\ActivateAttributeSet\ActivateAttributeSet;
-use Modules\Catalog\Application\Command\ActivateAttributeSet\ActivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\ActivateAttributeValue\ActivateAttributeValue;
 use Modules\Catalog\Application\Command\ActivateAttributeValue\ActivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\ActivateBrand\ActivateBrand;
@@ -22,8 +20,6 @@ use Modules\Catalog\Application\Command\ActivateWarranty\ActivateWarranty;
 use Modules\Catalog\Application\Command\ActivateWarranty\ActivateWarrantyHandler;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValueHandler;
 use Modules\Catalog\Application\Command\AddBrand\AddBrand;
@@ -54,8 +50,6 @@ use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttribute;
 use Modules\Catalog\Application\Command\DeactivateAttribute\DeactivateAttributeHandler;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSet;
-use Modules\Catalog\Application\Command\DeactivateAttributeSet\DeactivateAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValue;
 use Modules\Catalog\Application\Command\DeactivateAttributeValue\DeactivateAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
@@ -68,8 +62,6 @@ use Modules\Catalog\Application\Command\DeactivateWarranty\DeactivateWarranty;
 use Modules\Catalog\Application\Command\DeactivateWarranty\DeactivateWarrantyHandler;
 use Modules\Catalog\Application\Command\DeleteAttribute\DeleteAttribute;
 use Modules\Catalog\Application\Command\DeleteAttribute\DeleteAttributeHandler;
-use Modules\Catalog\Application\Command\DeleteAttributeSet\DeleteAttributeSet;
-use Modules\Catalog\Application\Command\DeleteAttributeSet\DeleteAttributeSetHandler;
 use Modules\Catalog\Application\Command\DeleteAttributeValue\DeleteAttributeValue;
 use Modules\Catalog\Application\Command\DeleteAttributeValue\DeleteAttributeValueHandler;
 use Modules\Catalog\Application\Command\DeleteBrand\DeleteBrand;
@@ -88,8 +80,6 @@ use Modules\Catalog\Application\Command\DeleteWordPair\DeleteWordPair;
 use Modules\Catalog\Application\Command\DeleteWordPair\DeleteWordPairHandler;
 use Modules\Catalog\Application\Command\EditAttribute\EditAttribute;
 use Modules\Catalog\Application\Command\EditAttribute\EditAttributeHandler;
-use Modules\Catalog\Application\Command\EditAttributeSet\EditAttributeSet;
-use Modules\Catalog\Application\Command\EditAttributeSet\EditAttributeSetHandler;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValue;
 use Modules\Catalog\Application\Command\EditAttributeValue\EditAttributeValueHandler;
 use Modules\Catalog\Application\Command\EditBrand\EditBrand;
@@ -110,12 +100,26 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategory;
 use Modules\Catalog\Application\Command\MoveCategory\MoveCategoryHandler;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributes;
+use Modules\Catalog\Application\Command\OrderAttributes\OrderAttributesHandler;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValues;
+use Modules\Catalog\Application\Command\OrderAttributeValues\OrderAttributeValuesHandler;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrands;
+use Modules\Catalog\Application\Command\OrderBrands\OrderBrandsHandler;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategories;
+use Modules\Catalog\Application\Command\OrderCategories\OrderCategoriesHandler;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabels;
+use Modules\Catalog\Application\Command\OrderLabels\OrderLabelsHandler;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarranties;
+use Modules\Catalog\Application\Command\OrderWarranties\OrderWarrantiesHandler;
 use Modules\Catalog\Application\Command\RankCategories\RankCategories;
 use Modules\Catalog\Application\Command\RankCategories\RankCategoriesHandler;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProduct;
 use Modules\Catalog\Application\Command\RestoreProduct\RestoreProductHandler;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValues;
 use Modules\Catalog\Application\Command\SetFilterValues\SetFilterValuesHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
@@ -227,13 +231,6 @@ function catalogGuardsValue(string $attributeId): string
     return app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($attributeId, "قيمة {$n}", "Value {$n}"));
 }
 
-function catalogGuardsSet(string $attributeId): string
-{
-    $n = catalogGuardsNext();
-
-    return app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مجموعة {$n}", "Set {$n}", [$attributeId]));
-}
-
 function catalogGuardsLabel(): string
 {
     $n = catalogGuardsNext();
@@ -316,7 +313,7 @@ function catalogGuardsChanges(): array
         'edit a brand' => ['products,brands', function () {
             $id = catalogGuardsBrand();
 
-            return fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, 'ماركة معدلة', 'Edited brand', 'DISTRIBUTOR', true, 0));
+            return fn () => app(EditBrandHandler::class)->handle(new EditBrand($id, 'ماركة معدلة', 'Edited brand', 'DISTRIBUTOR', true));
         }],
         'make a brand the default' => ['brands', function () {
             $id = catalogGuardsOtherBrand();
@@ -349,7 +346,7 @@ function catalogGuardsChanges(): array
             $parent = catalogGuardsCategory();
             $id = catalogGuardsCategory();
 
-            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 1));
+            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent));
         }],
         'deactivate a category' => ['products,categories', function () {
             $id = catalogGuardsCategory();
@@ -371,6 +368,19 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsCategory();
 
             return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 3]));
+        }],
+        'order a store\'s categories' => ['categories', function () {
+            catalogGuardsCategory();
+            $id = catalogGuardsCategory();
+
+            return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
+        }],
+        // An admin role's job (amendment 14(c)), which this file's staff role cannot hold: asked as the
+        // system, whose check reads nothing of the catalog either.
+        'choose who sees a category in a store' => ['products,categories', function () {
+            $id = catalogGuardsCategory();
+
+            return fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), $id, false)));
         }],
         'add an attribute' => ['attributes', fn () => fn () => catalogGuardsAttribute()],
         'edit an attribute' => ['attributes', function () {
@@ -421,33 +431,6 @@ function catalogGuardsChanges(): array
 
             return fn () => app(DeleteAttributeValueHandler::class)->handle(new DeleteAttributeValue($id));
         }],
-        'add a set' => ['attributes', function () {
-            $attribute = catalogGuardsAttribute();
-
-            return fn () => catalogGuardsSet($attribute);
-        }],
-        'edit a set' => ['attributes', function () {
-            $attribute = catalogGuardsAttribute();
-            $id = catalogGuardsSet($attribute);
-
-            return fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet($id, 'مجموعة معدلة', 'Edited set', [$attribute]));
-        }],
-        'deactivate a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-        }],
-        'activate a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-
-            return fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet($id));
-        }],
-        'delete a set' => ['attributes', function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(DeleteAttributeSetHandler::class)->handle(new DeleteAttributeSet($id));
-        }],
         'add a label' => ['labels', fn () => fn () => catalogGuardsLabel()],
         'edit a label' => ['labels', function () {
             $id = catalogGuardsLabel();
@@ -491,6 +474,38 @@ function catalogGuardsChanges(): array
             $id = catalogGuardsWarranty();
 
             return fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty($id));
+        }],
+        // Every ordered list's order (amendment 16(d)): under its list's lock, as every other change.
+        'order the brands' => ['brands', function () {
+            catalogGuardsBrand();
+            $last = catalogGuardsBrand();
+
+            return fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands([$last]));
+        }],
+        'order the labels' => ['labels', function () {
+            catalogGuardsLabel();
+            $last = catalogGuardsLabel();
+
+            return fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([$last]));
+        }],
+        'order the warranties' => ['warranties', function () {
+            catalogGuardsWarranty();
+            $last = catalogGuardsWarranty();
+
+            return fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties([$last]));
+        }],
+        'order the attributes' => ['attributes', function () {
+            catalogGuardsAttribute();
+            $last = catalogGuardsAttribute();
+
+            return fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([$last]));
+        }],
+        'order an attribute\'s values' => ['attributes', function () {
+            $attribute = catalogGuardsAttribute();
+            catalogGuardsValue($attribute);
+            $last = catalogGuardsValue($attribute);
+
+            return fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues($attribute, [$last]));
         }],
         'create a product' => ['products', function () {
             $brand = catalogGuardsBrand();
@@ -656,7 +671,7 @@ describe('an id that is not in its list', function () {
     it('is answered as not found', function (string $error, Closure $change) {
         expect($change)->toThrow($error);
     })->with([
-        'edit a brand' => [BrandNotFound::class, fn () => app(EditBrandHandler::class)->handle(new EditBrand(CATALOG_GUARDS_UNKNOWN, 'ماركة', 'Brand', 'DISTRIBUTOR', true, 0))],
+        'edit a brand' => [BrandNotFound::class, fn () => app(EditBrandHandler::class)->handle(new EditBrand(CATALOG_GUARDS_UNKNOWN, 'ماركة', 'Brand', 'DISTRIBUTOR', true))],
         'make a brand the default' => [BrandNotFound::class, fn () => app(MakeBrandDefaultHandler::class)->handle(new MakeBrandDefault(CATALOG_GUARDS_UNKNOWN))],
         'deactivate a brand' => [BrandNotFound::class, fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand(CATALOG_GUARDS_UNKNOWN))],
         'activate a brand' => [BrandNotFound::class, fn () => app(ActivateBrandHandler::class)->handle(new ActivateBrand(CATALOG_GUARDS_UNKNOWN))],
@@ -669,6 +684,9 @@ describe('an id that is not in its list', function () {
         'delete a category' => [CategoryNotFound::class, fn () => app(DeleteCategoryHandler::class)->handle(new DeleteCategory(CATALOG_GUARDS_UNKNOWN))],
         'add under an unknown parent' => [CategoryNotFound::class, fn () => catalogGuardsCategory(CATALOG_GUARDS_UNKNOWN)],
         'rank an unknown category' => [CategoryNotFound::class, fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [CATALOG_GUARDS_UNKNOWN => 1]))],
+        'order an unknown category' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [CATALOG_GUARDS_UNKNOWN]))],
+        'order an unknown parent\'s categories' => [CategoryNotFound::class, fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), CATALOG_GUARDS_UNKNOWN, []))],
+        'choose who sees an unknown category' => [CategoryNotFound::class, fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), CATALOG_GUARDS_UNKNOWN, false)))],
         'edit an attribute' => [ListItemNotFound::class, fn () => app(EditAttributeHandler::class)->handle(new EditAttribute(CATALOG_GUARDS_UNKNOWN, 'خاصية', 'Attribute', 'VARIANT'))],
         'deactivate an attribute' => [ListItemNotFound::class, fn () => app(DeactivateAttributeHandler::class)->handle(new DeactivateAttribute(CATALOG_GUARDS_UNKNOWN))],
         'activate an attribute' => [ListItemNotFound::class, fn () => app(ActivateAttributeHandler::class)->handle(new ActivateAttribute(CATALOG_GUARDS_UNKNOWN))],
@@ -678,11 +696,6 @@ describe('an id that is not in its list', function () {
         'deactivate a value' => [ListItemNotFound::class, fn () => app(DeactivateAttributeValueHandler::class)->handle(new DeactivateAttributeValue(CATALOG_GUARDS_UNKNOWN))],
         'activate a value' => [ListItemNotFound::class, fn () => app(ActivateAttributeValueHandler::class)->handle(new ActivateAttributeValue(CATALOG_GUARDS_UNKNOWN))],
         'delete a value' => [ListItemNotFound::class, fn () => app(DeleteAttributeValueHandler::class)->handle(new DeleteAttributeValue(CATALOG_GUARDS_UNKNOWN))],
-        'add a set of an unknown attribute' => [ListItemNotFound::class, fn () => catalogGuardsSet(CATALOG_GUARDS_UNKNOWN)],
-        'edit a set' => [ListItemNotFound::class, fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet(CATALOG_GUARDS_UNKNOWN, 'مجموعة', 'Set', [catalogGuardsAttribute()]))],
-        'deactivate a set' => [ListItemNotFound::class, fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet(CATALOG_GUARDS_UNKNOWN))],
-        'activate a set' => [ListItemNotFound::class, fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet(CATALOG_GUARDS_UNKNOWN))],
-        'delete a set' => [ListItemNotFound::class, fn () => app(DeleteAttributeSetHandler::class)->handle(new DeleteAttributeSet(CATALOG_GUARDS_UNKNOWN))],
         'edit a label' => [ListItemNotFound::class, fn () => app(EditLabelHandler::class)->handle(new EditLabel(CATALOG_GUARDS_UNKNOWN, 'شارة', 'Label', 'blue'))],
         'deactivate a label' => [ListItemNotFound::class, fn () => app(DeactivateLabelHandler::class)->handle(new DeactivateLabel(CATALOG_GUARDS_UNKNOWN))],
         'activate a label' => [ListItemNotFound::class, fn () => app(ActivateLabelHandler::class)->handle(new ActivateLabel(CATALOG_GUARDS_UNKNOWN))],
@@ -692,6 +705,13 @@ describe('an id that is not in its list', function () {
         'activate a warranty' => [ListItemNotFound::class, fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a warranty' => [ListItemNotFound::class, fn () => app(DeleteWarrantyHandler::class)->handle(new DeleteWarranty(CATALOG_GUARDS_UNKNOWN))],
         'delete a word pair' => [ListItemNotFound::class, fn () => app(DeleteWordPairHandler::class)->handle(new DeleteWordPair(CATALOG_GUARDS_UNKNOWN))],
+        'order the brands' => [BrandNotFound::class, fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands([catalogGuardsBrand(), CATALOG_GUARDS_UNKNOWN]))],
+        'order the labels' => [ListItemNotFound::class, fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels([CATALOG_GUARDS_UNKNOWN]))],
+        'order the warranties' => [ListItemNotFound::class, fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties(['not-an-id']))],
+        'order the attributes' => [ListItemNotFound::class, fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([CATALOG_GUARDS_UNKNOWN]))],
+        'order the values of an unknown attribute' => [ListItemNotFound::class, fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues(CATALOG_GUARDS_UNKNOWN, []))],
+        // A value of another attribute is not one of this attribute's values.
+        'order another attribute\'s value' => [ListItemNotFound::class, fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues(catalogGuardsAttribute(), [catalogGuardsValue(catalogGuardsAttribute())]))],
         'edit a product' => [ProductNotFound::class, fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(CATALOG_GUARDS_UNKNOWN, 'منتج', 'Product', catalogGuardsBrand()))],
         'delete a draft product' => [ProductNotFound::class, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct(CATALOG_GUARDS_UNKNOWN))],
         'add a variant to an unknown product' => [ProductNotFound::class, fn () => app(AddVariantHandler::class)->handle(new AddVariant(CATALOG_GUARDS_UNKNOWN, '1001'))],
@@ -749,12 +769,23 @@ describe('a change that changes nothing', function () {
             $parent = catalogGuardsCategory();
             $id = catalogGuardsCategory($parent);
 
-            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent, 5));
+            return fn () => app(MoveCategoryHandler::class)->handle(new MoveCategory($id, $parent));
         }],
         'rank a category where it is' => [function () {
             $id = catalogGuardsCategory();
 
-            return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 0]));
+            return fn () => app(RankCategoriesHandler::class)->handle(new RankCategories(Fx::storeId('eg'), [$id => 1]));
+        }],
+        'order a store\'s categories as they are' => [function () {
+            $id = catalogGuardsCategory();
+            catalogGuardsCategory();
+
+            return fn () => app(OrderCategoriesHandler::class)->handle(new OrderCategories(Fx::storeId('eg'), null, [$id]));
+        }],
+        'switch who sees a category to what it is' => [function () {
+            $id = catalogGuardsCategory();
+
+            return fn () => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('eg'), $id, true, true)));
         }],
         'deactivate an attribute again' => [function () {
             $id = catalogGuardsAttribute();
@@ -784,24 +815,6 @@ describe('a change that changes nothing', function () {
 
             return fn () => app(ActivateAttributeValueHandler::class)->handle(new ActivateAttributeValue($id));
         }],
-        'edit a set to what it is' => [function () {
-            $attribute = catalogGuardsAttribute();
-            $n = catalogGuardsNext();
-            $id = app(AddAttributeSetHandler::class)->handle(new AddAttributeSet("مجموعة {$n}", "Set {$n}", [$attribute]));
-
-            return fn () => app(EditAttributeSetHandler::class)->handle(new EditAttributeSet($id, "مجموعة {$n}", "Set {$n}", [$attribute]));
-        }],
-        'deactivate a set again' => [function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-            app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-
-            return fn () => app(DeactivateAttributeSetHandler::class)->handle(new DeactivateAttributeSet($id));
-        }],
-        'activate an active set' => [function () {
-            $id = catalogGuardsSet(catalogGuardsAttribute());
-
-            return fn () => app(ActivateAttributeSetHandler::class)->handle(new ActivateAttributeSet($id));
-        }],
         'deactivate a label again' => [function () {
             $id = catalogGuardsLabel();
             app(DeactivateLabelHandler::class)->handle(new DeactivateLabel($id));
@@ -823,6 +836,34 @@ describe('a change that changes nothing', function () {
             $id = catalogGuardsWarranty();
 
             return fn () => app(ActivateWarrantyHandler::class)->handle(new ActivateWarranty($id));
+        }],
+        // Each added last, so 1, 2 already: the same order sent again moves nothing.
+        'order the brands as they are' => [function () {
+            $ids = [catalogGuardsBrand(), catalogGuardsBrand()];
+
+            return fn () => app(OrderBrandsHandler::class)->handle(new OrderBrands($ids));
+        }],
+        'order the labels as they are' => [function () {
+            $ids = [catalogGuardsLabel(), catalogGuardsLabel()];
+
+            return fn () => app(OrderLabelsHandler::class)->handle(new OrderLabels($ids));
+        }],
+        'order the warranties as they are' => [function () {
+            $ids = [catalogGuardsWarranty(), catalogGuardsWarranty()];
+
+            return fn () => app(OrderWarrantiesHandler::class)->handle(new OrderWarranties($ids));
+        }],
+        'order the attributes as they are, the first alone' => [function () {
+            $first = catalogGuardsAttribute();
+            catalogGuardsAttribute();
+
+            return fn () => app(OrderAttributesHandler::class)->handle(new OrderAttributes([$first]));
+        }],
+        'order an attribute\'s values as they are' => [function () {
+            $attribute = catalogGuardsAttribute();
+            $ids = [catalogGuardsValue($attribute), catalogGuardsValue($attribute)];
+
+            return fn () => app(OrderAttributeValuesHandler::class)->handle(new OrderAttributeValues($attribute, $ids));
         }],
         'edit a product to what it is' => [function () {
             $id = catalogGuardsProduct();
@@ -945,8 +986,9 @@ describe('what the audit log keeps', function () {
         expect(catalogGuardsAuditOf('catalog.brand.default_moved', $first))->toBe(['is_default' => [true, false]])
             ->and(catalogGuardsAuditOf('catalog.brand.made_default', $second))->toBe(['is_default' => [false, true]])
             ->and(catalogGuardsAuditOf('catalog.label.deactivated', $label))->toBe(['is_active' => [true, false]])
-            ->and(catalogGuardsAuditOf('catalog.category.ranked', $category))->toBe(['rank' => [0, 3]])
-            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->value('store_id'))->toBe($eg)
+            // In Egypt: its place when it was added, last (amendment 16(d)), then the one it was given.
+            ->and(DB::table('platform.audit_entries')->where('action', 'catalog.category.ranked')->where('subject_id', $category)->where('store_id', $eg)->orderBy('id')->pluck('changes')->map(fn ($changes): array => (array) json_decode((string) $changes, true))->all())
+            ->toBe([['rank' => [null, 1]], ['rank' => [1, 3]]])
             ->and(catalogGuardsAuditOf('catalog.warranty.deleted', $warranty))->toMatchArray(['name_en' => [$name, null], 'period_months' => [12, null]]);
     });
 });

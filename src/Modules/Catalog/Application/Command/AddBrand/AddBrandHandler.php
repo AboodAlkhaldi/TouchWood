@@ -14,11 +14,13 @@ use Modules\Catalog\Domain\Exception\SlugTaken;
 use Modules\Catalog\Domain\Model\Brand;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
+use Modules\Catalog\Domain\Repository\ListOrders;
 use Shared\Application\Unauthorized;
 
 /**
  * **Adding a brand** (catalog.md §1.6), under `catalog.brand.manage` with All stores. Its slugs are
- * free of every brand's, now and before.
+ * free of every brand's, now and before. **It goes last** in the brands' order, read under their
+ * lock (amendment 16(d), P29).
  *
  * Exactly one brand is the default at any time (§1.6): the seed makes TouchWood the default; should a
  * brand be added where there is none yet, it becomes the default itself.
@@ -31,6 +33,7 @@ final readonly class AddBrandHandler
         private SharedListChange $change,
         private BrandRepository $brands,
         private CatalogImages $images,
+        private ListOrders $orders,
     ) {}
 
     /**
@@ -49,7 +52,7 @@ final readonly class AddBrandHandler
             $logo = $this->images->check('logo_media_id', $command->logoMediaId);
             $input->requireFreeSlugs($this->brands);
 
-            $brand = Brand::add($id, $input->name, $input->slugs, $input->descriptionAr, $input->descriptionEn, $logo, $command->originCountry, $input->agencyType, $command->showInDefaultListings, $command->position);
+            $brand = Brand::add($id, $input->name, $input->slugs, $input->descriptionAr, $input->descriptionEn, $logo, $command->originCountry, $input->agencyType, $command->showInDefaultListings, $this->orders->afterLast(ListOrders::BRANDS));
 
             if ($this->brands->defaultBrand() === null) {
                 $brand->makeDefault();

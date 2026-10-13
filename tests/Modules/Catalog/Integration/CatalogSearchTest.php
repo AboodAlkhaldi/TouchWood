@@ -30,6 +30,7 @@ use Modules\Catalog\Application\Query\Shop\ProductCard;
 use Modules\Catalog\Application\Query\Shop\ShopSearch;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -70,7 +71,7 @@ function catalogSearchProduct(string $nameEn, string $nameAr, ?string $categoryI
 
     Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails(
         $id, $nameAr, $nameEn, $brandId ?? $product->brandId(),
-        descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId(), attributeSetId: $product->attributeSetId(),
+        descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId(),
     )));
 
     foreach ($stores as $store) {
@@ -94,7 +95,7 @@ function catalogSearchIds(array $cards): array
  */
 function catalogSearchFound(string $typed, string $locale = 'en', string $store = 'sa'): array
 {
-    return catalogSearchIds(app(ShopSearch::class)->suggest(catalogSearchStore($store), $locale, $typed, ShopSearch::SUGGESTIONS));
+    return catalogSearchIds(app(ShopSearch::class)->suggest(catalogSearchStore($store), $locale, ShopperKind::Guest, $typed, ShopSearch::SUGGESTIONS));
 }
 
 describe('the ranking', function () {
@@ -115,13 +116,13 @@ describe('the ranking', function () {
         // Found by nothing but its description, its brand or its code, a product is not found.
         catalogSearchProduct('Lamp', 'مصباح');
 
-        $found = app(ShopSearch::class)->results(catalogSearchStore(), 'en', 'Drawer');
+        $found = app(ShopSearch::class)->results(catalogSearchStore(), 'en', ShopperKind::Guest, 'Drawer');
 
         expect(catalogSearchIds($found->cards))->toBe([$exact, $prefixHigher, $prefixLower, $nearer, $near, $word, $category])
             ->and($found->total)->toBe(7);
 
         // The total counts every match, not only those on the page.
-        $page = app(ShopSearch::class)->results(catalogSearchStore(), 'en', 'drawer.', 2);
+        $page = app(ShopSearch::class)->results(catalogSearchStore(), 'en', ShopperKind::Guest, 'drawer.', 2);
 
         expect(catalogSearchIds($page->cards))->toBe([$exact, $prefixHigher])
             ->and($page->total)->toBe(7);
@@ -144,7 +145,7 @@ describe('the ranking', function () {
     it('finds a product by either language\'s name on every page, shown in the page\'s language', function () {
         $id = catalogSearchProduct('Pivot', 'مفصلة');
 
-        $cards = app(ShopSearch::class)->suggest(catalogSearchStore(), 'en', 'مفصله');
+        $cards = app(ShopSearch::class)->suggest(catalogSearchStore(), 'en', ShopperKind::Guest, 'مفصله');
 
         expect(catalogSearchIds($cards))->toBe([$id])
             ->and($cards[0]->name)->toBe('Pivot')
@@ -184,7 +185,7 @@ describe('the ranking', function () {
         Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'LEAVE')));
         $brand = Px::brand('Tallsen');
         $row = DB::table('catalog.brands')->where('id', $brand)->first() ?? throw new LogicException('No brand.');
-        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, (string) $row->name_en, (string) $row->agency_type, false, (int) $row->position)));
+        Fx::asSystem(fn () => app(EditBrandHandler::class)->handle(new EditBrand($brand, (string) $row->name_ar, (string) $row->name_en, (string) $row->agency_type, false)));
         $hidden = catalogSearchProduct('Corner hinge', 'مفصلة زاوية', brandId: $brand);
         $notHere = catalogSearchProduct('Door hinge', 'مفصلة باب', stores: ['eg']);
         $unavailable = catalogSearchProduct('Glass hinge', 'مفصلة زجاج');
@@ -212,8 +213,8 @@ describe('the search log', function () {
     it('keeps a submitted search — the words as read, the store, the language, how many — and no person', function () {
         catalogSearchProduct('Drawer', 'درج');
 
-        app(ShopSearch::class)->results(catalogSearchStore(), 'en', '  DRAWER. ');
-        app(ShopSearch::class)->results(catalogSearchStore('eg'), 'ar', 'مُفصلة');
+        app(ShopSearch::class)->results(catalogSearchStore(), 'en', ShopperKind::Guest, '  DRAWER. ');
+        app(ShopSearch::class)->results(catalogSearchStore('eg'), 'ar', ShopperKind::Guest, 'مُفصلة');
 
         expect(Schema::getColumnListing('catalog.search_log'))->toEqualCanonicalizing(['id', 'store_id', 'locale', 'query', 'results', 'searched_at'])
             ->and(DB::table('catalog.search_log')->orderBy('id')->get(['store_id', 'locale', 'query', 'results'])->map(static fn (stdClass $row): array => (array) $row)->all())->toBe([
@@ -225,8 +226,8 @@ describe('the search log', function () {
     it('keeps nothing of the suggestions shown while typing, nor of a search with no letter or digit', function () {
         catalogSearchProduct('Drawer', 'درج');
 
-        app(ShopSearch::class)->suggest(catalogSearchStore(), 'en', 'dra');
-        app(ShopSearch::class)->results(catalogSearchStore(), 'en', '?!');
+        app(ShopSearch::class)->suggest(catalogSearchStore(), 'en', ShopperKind::Guest, 'dra');
+        app(ShopSearch::class)->results(catalogSearchStore(), 'en', ShopperKind::Guest, '?!');
 
         expect(DB::table('catalog.search_log')->count())->toBe(0);
     });

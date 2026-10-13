@@ -8,7 +8,7 @@ use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Request;
 use Modules\Access\Application\Customer\GuestVisitors;
-use Modules\Access\Infrastructure\Eloquent\Ulids;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * The guest id the browser sends, from the storefront's encrypted cookie (spec §1.7). Access reads

@@ -513,6 +513,12 @@ type string and HTTP status.
 | `OrderNotSettleable` | CONFLICT | A delivery of a cancelled order; a cancellation of a delivered order; a return of an order whose delivery Loyalty never recorded (§1.8). A cancellation of an order Loyalty has no record of — it used no points and was never delivered — settles nothing and is not an error |
 | `InvalidPointsAttribute` | INVALID | A value refused: points not a positive whole number, a reason empty or too long, returned amounts past the order's, a currency that is not the store's, a store that is not the order's recorded store, a caller's permission that is not its own module's |
 
+**At placement** (owner, 2026-10-11): a quoted redemption that the rules refuse when worked out again
+— the balance spent elsewhere, a setting changed — is `RedemptionChanged`, as one that works out
+differently is, so checkout quotes again and shows the customer what now applies.
+`RedemptionRefused` answers a placement no quote could give — no points to redeem at all, or a
+discount of 0 — with its reason.
+
 `quoteRedemption` refuses nothing: it answers with a `RedemptionRefusal` the checkout shows. A Global
 permission named by a caller is the caller's programming error, which Access's authorizer already
 refuses.
@@ -625,6 +631,12 @@ refuses.
     given-back points cover only points spent on other orders.
 17. **A staff edit keeps the rules the order was placed under** — the points cap among them
     (2026-10-10, asked with Sales).
+18. **At placement, a quoted redemption the rules now refuse is `RedemptionChanged`** — "your
+    discount changed", checkout quotes again (2026-10-11, asked while building step 3; §7).
+19. **The four further database rules the step 2 reviews found** — an expiry entry naming a return
+    names its order; a cover's return id; a bound on `expired_back_unused`; an entry's return id
+    keyed to `order_returns` — **are added with step 4**, where those rows are first written
+    (2026-10-11).
 
 ### 9.2 Still open
 

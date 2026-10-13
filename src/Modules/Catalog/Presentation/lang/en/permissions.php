@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// The names of Catalog's permissions (CatalogPermissions): the seventeen jobs the role editor shows
+// The names of Catalog's permissions (CatalogPermissions): the nineteen jobs the role editor shows
 // under Catalog, and the three reserved to a Super Admin and the system, named for the screens that
 // list what a person may do.
 return [
@@ -26,13 +26,14 @@ return [
     ],
     'category' => [
         'rank' => 'Order the store\'s categories',
+        'audience' => 'Choose who sees the store\'s categories',
         'manage' => 'Manage categories',
     ],
     'brand' => [
         'manage' => 'Manage brands',
     ],
     'attribute' => [
-        'manage' => 'Manage attributes, values, colours and attribute sets',
+        'manage' => 'Manage attributes, values and colours',
     ],
     'label' => [
         'manage' => 'Manage labels',

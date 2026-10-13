@@ -16,6 +16,8 @@ use Modules\Catalog\Domain\ValueObject\LocalizedName;
  * - **Drawn with Geist's Badge, its colour following Geist's meanings** (amendment 1(e)): a tone.
  * - **One or two words** in each language (amendment 1(f), after Geist), at most 30 characters.
  * - Its position is the order labels take on a card; every attached label shows (amendment 1(g)).
+ *   It is given when the label is added — last — and changed only by ordering the list (amendment
+ *   16(d)), never by its form.
  */
 final class Label
 {
@@ -53,13 +55,12 @@ final class Label
     /**
      * @throws InvalidCatalogAttribute
      */
-    public function edit(LocalizedName $name, LabelTone $tone, int $position): void
+    public function edit(LocalizedName $name, LabelTone $tone): void
     {
         self::checkWords($name);
         $before = $this->snapshot();
         $this->name = $name;
         $this->tone = $tone;
-        $this->position = ListPosition::check($position);
 
         foreach ($this->snapshot() as $column => $now) {
             $this->changes->record($column, $before[$column], $now);

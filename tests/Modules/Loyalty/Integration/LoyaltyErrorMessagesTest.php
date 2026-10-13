@@ -12,6 +12,8 @@ use Modules\Loyalty\Domain\Exception\OrderNotSettleable;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
 use Modules\Loyalty\Domain\Exception\PointsProgrammeOff;
 use Modules\Loyalty\Domain\Exception\RedemptionChanged;
+use Modules\Loyalty\Domain\Exception\RedemptionRefused;
+use Modules\Loyalty\Public\Enums\RedemptionRefusal;
 use Shared\Domain\Error\ErrorCategory;
 
 /*
@@ -30,6 +32,7 @@ function loyaltyErrors(): array
     return [
         'programme off' => [new PointsProgrammeOff, 'loyalty.points_programme_off', ErrorCategory::Conflict],
         'redemption changed' => [new RedemptionChanged, 'loyalty.redemption_changed', ErrorCategory::Conflict],
+        'redemption refused' => [new RedemptionRefused(RedemptionRefusal::BelowMinimum), 'loyalty.redemption_refused', ErrorCategory::Invalid],
         'deduction too large' => [new DeductionTooLarge(120), 'loyalty.deduction_too_large', ErrorCategory::Conflict],
         'account not found' => [new PointsAccountNotFound, 'loyalty.points_account_not_found', ErrorCategory::NotFound],
         'order not settleable' => [new OrderNotSettleable('01j8z3k4m5n6p7q8r9s0t1v4o1', 'cancelled'), 'loyalty.order_not_settleable', ErrorCategory::Conflict],
@@ -60,13 +63,13 @@ function loyaltyErrorClassesInFolder(): array
     return $classes;
 }
 
-// A guard over files must find something, or it passes over nothing; and an error added later
-// (RedemptionRefused, with step 3) must join the list above, or none of these checks reaches it.
+// A guard over files must find something, or it passes over nothing; and an error added later must
+// join the list above, or none of these checks reaches it.
 it('checks every error in the module\'s folder, and the folder holds them all', function () {
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(loyaltyErrors()));
     sort($listed);
 
-    expect(loyaltyErrorClassesInFolder())->toHaveCount(6)
+    expect(loyaltyErrorClassesInFolder())->toHaveCount(7)
         ->and(loyaltyErrorClassesInFolder())->toBe($listed);
 });
 
@@ -111,7 +114,11 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("loyalty::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission']);
+})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission', 'amount', 'percent', 'rate', 'customer', 'order', 'order_number']);
+
+it('carries the refusal\'s reason for the caller, which reads errors by their type', function () {
+    expect((new RedemptionRefused(RedemptionRefusal::OutOfRange))->context())->toBe(['reason' => 'OUT_OF_RANGE']);
+});
 
 it('never shows the English written for the log', function (LoyaltyError $error) {
     App::setLocale('ar');

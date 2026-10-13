@@ -49,11 +49,17 @@ final readonly class VersionedCache
      * @template TSnapshot
      *
      * @param  Closure(): TSnapshot  $load
+     * @param  string  $part  one of several snapshots kept under the same version - a page per store
+     *                        and language - all replaced together by one invalidate()
+     * @param  string|null  $version  the version a caller already read, for several snapshots in one
+     *                                request at the price of one read of it; read here if not given
      * @return TSnapshot
      */
-    public function remember(Closure $load): mixed
+    public function remember(Closure $load, string $part = '', ?string $version = null): mixed
     {
-        return $this->cache->remember("{$this->name}:{$this->version()}", $this->snapshotSeconds, $load);
+        $key = "{$this->name}:".($version ?? $this->version()).($part === '' ? '' : ":{$part}");
+
+        return $this->cache->remember($key, $this->snapshotSeconds, $load);
     }
 
     /**
@@ -76,7 +82,8 @@ final readonly class VersionedCache
         $this->cache->forever($this->versionKey(), (string) Str::ulid());
     }
 
-    private function version(): string
+    /** The version snapshots are kept under now. */
+    public function version(): string
     {
         $version = $this->cache->get($this->versionKey());
 

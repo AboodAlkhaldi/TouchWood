@@ -75,7 +75,6 @@ function catalogBrandsEdit(string $brandId, array $changes = []): void
         'nameEn' => $brand->name()->en,
         'agencyType' => $brand->agencyType()->value,
         'showInDefaultListings' => $brand->showInDefaultListings(),
-        'position' => $brand->position(),
         'slugAr' => $brand->slugs()->ar->value,
         'slugEn' => $brand->slugs()->en->value,
         'descriptionAr' => $brand->descriptionAr()?->toArray(),
@@ -153,7 +152,7 @@ describe('adding and editing', function () {
 
     it('adds a brand with slugs made from its names, audited by value under the brands\' lock', function () {
         $locks = Cx::recordLocks();
-        $id = catalogBrandsAdd('Häfele', ['nameAr' => 'هيفيله', 'originCountry' => ' de ', 'position' => 4]);
+        $id = catalogBrandsAdd('Häfele', ['nameAr' => 'هيفيله', 'originCountry' => ' de ']);
         $brand = app(BrandRepository::class)->find($id);
 
         expect($brand?->slugs()->en->value)->toBe('hafele')
@@ -204,10 +203,10 @@ describe('adding and editing', function () {
 
         expect(Fx::audits('catalog.brand.edited', $id))->toBe(0);
 
-        catalogBrandsEdit($id, ['position' => 7, 'showInDefaultListings' => false]);
+        catalogBrandsEdit($id, ['agencyType' => 'HOUSE', 'showInDefaultListings' => false]);
         $changes = json_decode((string) DB::table('platform.audit_entries')->where('action', 'catalog.brand.edited')->value('changes'), true);
 
-        expect($changes)->toBe(['position' => [0, 7], 'show_in_default_listings' => [true, false]]);
+        expect($changes)->toBe(['agency_type' => ['DISTRIBUTOR', 'HOUSE'], 'show_in_default_listings' => [true, false]]);
     });
 
     it('takes a description in both languages or neither, and counts a bold word as a change', function () {

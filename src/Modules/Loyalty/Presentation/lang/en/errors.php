@@ -9,6 +9,10 @@ return [
         'title' => 'Points Are Off',
         'detail' => 'Points can\'t be used in this store right now.',
     ],
+    'redemption_refused' => [
+        'title' => 'Points Can\'t Be Used',
+        'detail' => 'Your points can\'t be used on this order. Check your points and try again.',
+    ],
     'redemption_changed' => [
         'title' => 'Your Points Discount Changed',
         'detail' => 'Your points discount changed since checkout worked it out. Check it and place the order again.',
@@ -37,5 +41,11 @@ return [
         'currency' => 'currency',
         'store' => 'store',
         'permission' => 'permission',
+        'amount' => 'amount',
+        'percent' => 'percentage',
+        'rate' => 'points rate',
+        'customer' => 'customer',
+        'order' => 'order',
+        'order_number' => 'order number',
     ],
 ];

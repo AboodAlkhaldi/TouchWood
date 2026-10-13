@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Domain\ValueObject\WarrantyPeriod;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 final readonly class DatabaseWarrantyRepository implements WarrantyRepository
@@ -57,7 +58,7 @@ final readonly class DatabaseWarrantyRepository implements WarrantyRepository
     {
         return array_values(array_map(
             static fn (stdClass $row): Warranty => self::toWarranty($row),
-            $this->db->table(self::TABLE)->orderBy('name_en')->orderBy('id')->get()->all(),
+            $this->db->table(self::TABLE)->orderBy('position')->orderBy('name_en')->orderBy('id')->get()->all(),
         ));
     }
 
@@ -80,6 +81,7 @@ final readonly class DatabaseWarrantyRepository implements WarrantyRepository
             StructuredText::fromJson('terms_ar', (string) $row->terms_ar, Warranty::TERMS_MAX),
             StructuredText::fromJson('terms_en', (string) $row->terms_en, Warranty::TERMS_MAX),
             WarrantyPeriod::of($row->period_months === null ? null : (int) $row->period_months),
+            (int) $row->position,
             (bool) $row->is_active,
         );
     }
@@ -95,6 +97,7 @@ final readonly class DatabaseWarrantyRepository implements WarrantyRepository
             'terms_ar' => $warranty->termsAr()->toJson(),
             'terms_en' => $warranty->termsEn()->toJson(),
             'period_months' => $warranty->period()->months,
+            'position' => $warranty->position(),
             'is_active' => $warranty->isActive(),
         ];
     }

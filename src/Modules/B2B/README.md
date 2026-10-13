@@ -38,7 +38,7 @@ with each step.
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
-| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query; `Ulids` |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
@@ -53,8 +53,8 @@ with each step.
 
 **The same shape as Access.** Aggregates record what changed (`pullChanges()`) for the audit log;
 repositories write with the query builder, never Eloquent models; ids are lower-case ULIDs, and an id
-that is not one is "not found" without a query. A module may not reach into another's
-Infrastructure, so B2B keeps its own ten-line `Ulids` rather than borrowing Access's.
+that is not one is "not found" without a query — the check is the Shared kernel's `Ulids` (owner,
+2026-10-10), once B2B's own copy.
 
 **Every rule twice: in code first, in the database behind it** (handoff amendment of 2026-09-18).
 A type's name is checked by `TypeName` — present, one line, real text, at most 100 characters — and

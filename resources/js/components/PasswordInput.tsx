@@ -1,8 +1,10 @@
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
+import { checked, describedBy, Messages } from '@/components/Fields';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { useTranslator } from '@/lib/t';
+import type { BoxCheck } from '@/lib/use-checks';
 
 /*
 | A password field with a way to see what you are typing (owner, 2026-09-22), on shadcn's
@@ -28,13 +30,15 @@ type Props = Omit<ComponentProps<typeof InputGroupInput>, 'type' | 'id'> & {
     /** Beside the label, at its end: login-02 puts "Forgot your password?" there. */
     labelEnd?: ReactNode;
     className?: string;
+    /** Its check as it is typed (frontend.md §1.7), as the shared fields take one (Fields.tsx). */
+    check?: BoxCheck;
 };
 
-export function PasswordInput({ id, label, helper, error, labelEnd, className, ...input }: Props) {
+export function PasswordInput({ id, label, helper, error, labelEnd, className, check, ...input }: Props) {
     const t = useTranslator();
     const [shown, setShown] = useState(false);
-    const invalid = error !== undefined && error !== '';
-    const described = [helper === undefined || helper === null ? null : `${id}-helper`, invalid ? `${id}-error` : null].filter(Boolean).join(' ') || undefined;
+    const message = check === undefined ? error : check.message;
+    const invalid = message !== undefined && message !== '';
 
     return (
         <Field className={className}>
@@ -47,15 +51,25 @@ export function PasswordInput({ id, label, helper, error, labelEnd, className, .
                 </div>
             )}
             <InputGroup>
-                <InputGroupInput {...input} id={id} type={shown ? 'text' : 'password'} aria-invalid={invalid || undefined} aria-describedby={described} />
+                <InputGroupInput
+                    {...input}
+                    {...checked(check, input)}
+                    onChange={(event) => {
+                        input.onChange?.(event);
+                        check?.onType();
+                    }}
+                    id={id}
+                    type={shown ? 'text' : 'password'}
+                    aria-invalid={invalid || undefined}
+                    aria-describedby={describedBy(id, helper, message)}
+                />
                 <InputGroupAddon align="inline-end">
                     <InputGroupButton size="icon-xs" aria-pressed={shown} aria-label={t('ui.show_password')} onClick={() => setShown((was) => !was)}>
                         {shown ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
                     </InputGroupButton>
                 </InputGroupAddon>
             </InputGroup>
-            {helper === undefined || helper === null ? null : <FieldDescription id={`${id}-helper`}>{helper}</FieldDescription>}
-            {invalid ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
+            <Messages id={id} helper={helper} error={message} check={check} />
         </Field>
     );
 }

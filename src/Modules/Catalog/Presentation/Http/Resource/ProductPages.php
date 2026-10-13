@@ -11,11 +11,13 @@ use Modules\Catalog\Application\Query\ListProducts\ListProducts;
 use Modules\Catalog\Application\Query\ListProducts\ListProductsHandler;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
 use Modules\Catalog\Application\Query\Products\ProductFilter;
 use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Catalog\Application\Query\ViewProduct\ProductView;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
 use Modules\Platform\Public\Contracts\StoreChoices;
@@ -110,7 +112,7 @@ final readonly class ProductPages
                 $core->brandId, $core->brandNameAr, $core->brandNameEn, $core->categoryId,
                 $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'ar')),
                 $core->categoryPath === [] ? null : implode(' › ', array_column($core->categoryPath, 'en')),
-                $core->warrantyId, $core->attributeSetId, $core->attributeSetNameAr, $core->attributeSetNameEn, $core->setAttributeIds,
+                $core->warrantyId, $core->variantAttributeIds,
                 DescriptionText::text($core->descriptionAr), DescriptionText::text($core->descriptionEn),
                 $core->hiddenByCategory, $core->hiddenByBrand, $core->codes,
                 new ProductCountsData(...$core->counts),
@@ -125,7 +127,6 @@ final readonly class ProductPages
             $view->options === null ? null : self::brands($view->options),
             $view->options === null ? null : self::categories($view->options),
             $view->options === null ? null : array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $view->options->warranties),
-            $view->options === null ? null : array_map(static fn (array $set): VariationOptionData => new VariationOptionData(...$set), $view->options->variations),
             $view->variants === null ? null : array_map(static fn (VariantView $variant): VariantData => new VariantData(
                 $variant->id, $variant->code, $variant->position, $variant->archived,
                 array_map(static fn (array $value): VariantValueData => new VariantValueData(...$value), $variant->values),
@@ -133,18 +134,62 @@ final readonly class ProductPages
                 $variant->weightGrams, $variant->lengthMm, $variant->widthMm, $variant->heightMm,
                 array_map($photo, $variant->photos),
             ), $view->variants),
-            $view->attributes === null ? null : array_map(static fn (AttributeChoice $attribute): AttributeChoiceData => new AttributeChoiceData(
-                $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
-                $attribute->isColour, $attribute->active,
-                array_map(static fn (array $value): ChoiceValueData => new ChoiceValueData(...$value), $attribute->values),
-            ), $view->attributes),
+            $view->attributes === null ? null : self::attributes($view->attributes),
             $view->searchWords,
             $view->filterValueIds,
             $view->related === null ? null : array_map(static fn (RelatedRow $row): RelatedData => new RelatedData(
                 $row->kind, $row->productId, $row->nameAr, $row->nameEn, $row->codes, $row->stage,
             ), $view->related),
             $found,
+            $view->stores === null ? null : $this->storeCards($view),
+            $view->labels === null ? null : array_map(static fn (LabelChoice $label): LabelChoiceData => new LabelChoiceData(
+                $label->id, $label->nameAr, $label->nameEn, $label->tone, $label->active,
+            ), $view->labels),
         );
+    }
+
+    /**
+     * A card for each store the reader covers, as every store screen offers them (StoreChoices: a
+     * Super Admin's off stores too, P6) - what it does with the product, and which of its jobs the
+     * reader holds there.
+     *
+     * @return list<StoreCardData>
+     */
+    private function storeCards(ProductView $view): array
+    {
+        // A job held with All stores is null: it reaches every store.
+        $jobs = $view->storeJobs ?? [];
+        $holds = static fn (string $job, string $storeId): bool => array_key_exists($job, $jobs) && ($jobs[$job] === null || in_array($storeId, $jobs[$job], true));
+        $cards = [];
+
+        foreach ($this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW) as $store) {
+            $id = strtolower($store->id);
+            $row = $view->stores[$id] ?? null;
+            $cards[] = new StoreCardData(
+                $id,
+                $store->code,
+                $store->name->in($this->locale()),
+                $store->isActive,
+                $row !== null,
+                $row !== null && $row->notAvailable,
+                $row === null ? 1 : $row->retailMinimum,
+                $row?->retailMaximum,
+                $row?->wholesaleMinimum,
+                $row?->wholesaleMaximum,
+                $row === null ? [] : $row->labelIds,
+                $row === null ? [] : array_map(
+                    static fn (string $variantId, array $variant): StoreVariantData => new StoreVariantData($variantId, $variant['on'], $variant['retail'], $variant['wholesale'], $variant['notAvailable']),
+                    array_keys($row->variants),
+                    array_values($row->variants),
+                ),
+                $holds(CatalogPermissions::LISTING_CHOOSE, $id),
+                $holds(CatalogPermissions::LISTING_SELLING, $id),
+                $holds(CatalogPermissions::LISTING_UNAVAILABLE, $id),
+                $holds(CatalogPermissions::LISTING_LABELS, $id),
+            );
+        }
+
+        return $cards;
     }
 
     /**
@@ -165,15 +210,36 @@ final readonly class ProductPages
     /**
      * @return list<BrandOptionData>
      */
-    private static function brands(ProductOptions $options): array
+    public static function brands(ProductOptions $options): array
     {
         return array_map(static fn (array $brand): BrandOptionData => new BrandOptionData(...$brand), $options->brands);
     }
 
     /**
+     * @param  list<AttributeChoice>  $attributes
+     * @return list<AttributeChoiceData>
+     */
+    public static function attributes(array $attributes): array
+    {
+        return array_map(static fn (AttributeChoice $attribute): AttributeChoiceData => new AttributeChoiceData(
+            $attribute->id, $attribute->nameAr, $attribute->nameEn, $attribute->kind, $attribute->unitAr, $attribute->unitEn,
+            $attribute->isColour, $attribute->active,
+            array_map(static fn (array $value): ChoiceValueData => new ChoiceValueData(...$value), $attribute->values),
+        ), $attributes);
+    }
+
+    /**
+     * @return list<WarrantyOptionData>
+     */
+    public static function warranties(ProductOptions $options): array
+    {
+        return array_map(static fn (array $warranty): WarrantyOptionData => new WarrantyOptionData(...$warranty), $options->warranties);
+    }
+
+    /**
      * @return list<CategoryOptionData>
      */
-    private static function categories(ProductOptions $options): array
+    public static function categories(ProductOptions $options): array
     {
         return array_map(static fn (array $category): CategoryOptionData => new CategoryOptionData(
             $category['id'],

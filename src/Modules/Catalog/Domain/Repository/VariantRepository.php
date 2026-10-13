@@ -37,6 +37,25 @@ interface VariantRepository
 
     public function delete(string $variantId): void;
 
+    /**
+     * Many products' variants at once, each product's in its order - an import's page and confirm
+     * read every product the file changes together (P13).
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, list<Variant>> by product id
+     */
+    public function ofProducts(array $productIds): array;
+
+    /**
+     * Writes the product's variants' places again, 1, 2, 3 … in this order (P29).
+     *
+     * @param  list<string>  $variantIds  every variant of the product
+     */
+    public function renumber(string $productId, array $variantIds): void;
+
+    /** The place after the product's last variant: a variant added goes last (amendment 16(d)). */
+    public function nextPosition(string $productId): int;
+
     /** Whether another variant of the product has this combination, archived ones included (§1.2). */
     public function combinationTaken(string $productId, string $combination, ?string $exceptVariantId = null): bool;
 

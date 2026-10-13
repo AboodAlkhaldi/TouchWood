@@ -6,6 +6,7 @@ namespace Modules\B2B\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\B2B\Application\Query\ViewTypeLists\TypeHolders;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * How many companies hold each company type of one store, in one grouped query (b2b.md §4.6). Read

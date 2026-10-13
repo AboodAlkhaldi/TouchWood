@@ -77,12 +77,14 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
 
                 <SidebarInset>
                     <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-                        <div className="flex items-center gap-2 px-4">
+                        {/* It may shrink: a long page name (a store file's) is cut short, never pushing
+                            the page wider than a phone (found by the store screens' browser test). */}
+                        <div className="flex min-w-0 items-center gap-2 px-4">
                             {/* shadcn writes its name in English; the page's language reads it. */}
                             <SidebarTrigger className="-ms-1" aria-label={t('admin.sidebar_toggle')} />
                             <Separator orientation="vertical" className="me-2 data-[orientation=vertical]:h-4" />
                             {/* Its landmark named in the page's language, not shadcn's English. */}
-                            <Breadcrumb aria-label={t('ui.breadcrumbs')}>
+                            <Breadcrumb aria-label={t('ui.breadcrumbs')} className="min-w-0">
                                 <BreadcrumbList>
                                     {trail.map((crumb, index) => {
                                         const last = index === trail.length - 1;
@@ -90,9 +92,9 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                                         return (
                                             <Fragment key={`${index}-${crumb.label}`}>
                                                 {/* On a phone only the page itself shows, as the block does. */}
-                                                <BreadcrumbItem className={last ? undefined : 'hidden md:block'}>
+                                                <BreadcrumbItem className={last ? 'min-w-0' : 'hidden md:block'}>
                                                     {last || crumb.href === undefined ? (
-                                                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                                                        <BreadcrumbPage className="block truncate">{crumb.label}</BreadcrumbPage>
                                                     ) : (
                                                         <BreadcrumbLink asChild>
                                                             <Link href={crumb.href}>{crumb.label}</Link>

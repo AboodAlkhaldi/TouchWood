@@ -6,16 +6,18 @@ namespace Modules\Catalog\Application\Query\ViewStoreFill;
 
 use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\InMemoryImportSections;
+use Modules\Catalog\Application\Import\StoreFillCode;
+use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Import\StoreFillItem;
 use Modules\Catalog\Application\Import\StoreFills;
-use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Application\Query\Products\CatalogProductReads;
+use Modules\Catalog\Application\Query\Products\ProductCore;
+use Modules\Catalog\Application\Query\Products\ProductMissing;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
-use Modules\Catalog\Domain\Repository\ProductRepository;
-use Modules\Catalog\Domain\Repository\StoreListingRepository;
-use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Public\Contracts\ImportSection;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -24,6 +26,11 @@ use Shared\Domain\ValueObject\StoreId;
  * store, asked as every change to the file asks it (`StoreFills`) — a file of a store not covered is
  * "not found". Each open item read against the catalog as it is now: unknown, not ready (and what its
  * product lacks), archived, already on there, or ready.
+ *
+ * **Read in batches** (P13): the items, then every item's code in one query, their products in
+ * one, their photos in one Platform read - never one an item, so a file at its 1,000 stays within the
+ * panel's 15 queries (frontend.md §5). What a product lacks follows the product page's rules
+ * (`ProductMissing`).
  */
 final readonly class ViewStoreFillHandler
 {
@@ -32,10 +39,9 @@ final readonly class ViewStoreFillHandler
     public function __construct(
         private StoreFills $fills,
         private Imports $imports,
-        private ProductRepository $products,
-        private VariantRepository $variants,
-        private StoreListingRepository $listings,
-        private Readiness $readiness,
+        private StoreFillCodes $codes,
+        private CatalogProductReads $products,
+        private PlatformApi $platform,
         private InMemoryImportSections $sections,
     ) {}
 
@@ -49,24 +55,35 @@ final readonly class ViewStoreFillHandler
         // The prices and stock are kept only once a module registers its part (§2.3): until then the
         // page says so, once.
         $sections = $this->sections->all();
+        $items = $this->imports->items($import->id);
+        // Every item's code: one switched on or removed still names its product (the review of step 3).
+        $codes = $this->codes->in($store, array_values(array_unique(array_map(static fn (StoreFillItem $item): string => $item->code, $items))));
+        $products = $this->products->cores(array_values(array_unique(array_map(static fn (StoreFillCode $code): string => $code->productId, $codes))));
+        $missing = ProductMissing::ofDrafts($this->platform, $products);
 
         return new StoreFillView(
             $import->id,
             $store,
             $import->fileName,
             (string) $import->uploadedAt,
-            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections), $this->imports->items($import->id)),
+            array_map(fn (StoreFillItem $item): StoreFillItemView => $this->item($item, $store, $sections, $codes, $products, $missing), $items),
             $sections !== [],
         );
     }
 
     /**
      * @param  list<ImportSection>  $sections
+     * @param  array<string, StoreFillCode>  $codes
+     * @param  array<string, ProductCore>  $products
+     * @param  array<string, list<string>>  $missing  what each draft lacks
      */
-    private function item(StoreFillItem $item, string $store, array $sections): StoreFillItemView
+    private function item(StoreFillItem $item, string $store, array $sections, array $codes, array $products, array $missing): StoreFillItemView
     {
+        $code = $codes[$item->code] ?? null;
+        $product = $code === null ? null : ($products[$code->productId] ?? null);
+
         if ($item->state !== StoreFillItem::OPEN) {
-            return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, null, null, []);
+            return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, null, $product?->id, [], [], $product?->nameAr, $product?->nameEn);
         }
 
         $lines = [];
@@ -75,16 +92,14 @@ final readonly class ViewStoreFillHandler
             array_push($lines, ...$section->lines(StoreId::fromString($store), $item->price, $item->stock));
         }
 
-        $holder = $this->products->codeHolder($item->code);
-        $product = $holder === null ? null : $this->products->find($holder);
         [$standing, $missing] = match (true) {
-            $product === null => [StoreFillItemView::UNKNOWN, []],
-            $product->stage() === ProductStage::Archived => [StoreFillItemView::ARCHIVED, []],
-            $product->stage() === ProductStage::Draft => [StoreFillItemView::NOT_READY, $this->readiness->missing($product)],
-            default => [$this->standing($product->id(), $item->code, $store), []],
+            $code === null, $product === null => [StoreFillItemView::UNKNOWN, []],
+            $product->stage === ProductStage::Archived->value => [StoreFillItemView::ARCHIVED, []],
+            $product->stage === ProductStage::Draft->value => [StoreFillItemView::NOT_READY, $missing[$product->id] ?? []],
+            default => [self::standing($code), []],
         };
 
-        return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $standing, $product?->id(), $missing, $lines);
+        return new StoreFillItemView($item->id, $item->number, $item->code, $item->price, $item->stock, $item->state, $standing, $product?->id, $missing, $lines, $product?->nameAr, $product?->nameEn);
     }
 
     /**
@@ -92,14 +107,12 @@ final readonly class ViewStoreFillHandler
      * (amendment 16(a)) — none, when the product held it once (`UNKNOWN`); archived (`ARCHIVED`); on
      * there already (`ALREADY_ON`); or to switch on (`READY`).
      */
-    private function standing(string $productId, string $code, string $store): string
+    private static function standing(StoreFillCode $code): string
     {
-        $variant = $this->variants->carrying($code);
-
         return match (true) {
-            $variant === null => StoreFillItemView::UNKNOWN,
-            $variant->isArchived() => StoreFillItemView::ARCHIVED,
-            in_array($variant->id(), $this->listings->of($store, $productId)->activeVariantIds(), true) => StoreFillItemView::ALREADY_ON,
+            $code->variantId === null => StoreFillItemView::UNKNOWN,
+            $code->variantArchived => StoreFillItemView::ARCHIVED,
+            $code->onHere => StoreFillItemView::ALREADY_ON,
             default => StoreFillItemView::READY,
         };
     }

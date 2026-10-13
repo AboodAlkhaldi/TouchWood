@@ -6,7 +6,8 @@ namespace Modules\Catalog\Application\Query\Lists;
 
 /**
  * A category as the categories screen reads it (catalog.md §1.5, §4.4 S2): its own products only —
- * the screen adds what sits below it — and its place in one store's menu, the base store's beside it.
+ * the screen adds what sits below it — and its place in one store's menu, the base store's beside it,
+ * and who sees it in that store (amendment 14): a store that never switched it shows it to both.
  */
 final readonly class CategoryRow
 {
@@ -23,5 +24,7 @@ final readonly class CategoryRow
         public int $products,
         public ?int $storeRank,
         public ?int $baseRank,
+        public bool $forIndividuals = true,
+        public bool $forCompanies = true,
     ) {}
 }

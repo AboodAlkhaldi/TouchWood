@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Query\ViewProduct;
 
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
+use Modules\Catalog\Application\Query\Products\LabelChoice;
 use Modules\Catalog\Application\Query\Products\ProductCore;
 use Modules\Catalog\Application\Query\Products\ProductOptions;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
+use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
 
 /**
@@ -25,6 +27,9 @@ final readonly class ProductView
      * @param  list<string>|null  $searchWords
      * @param  list<string>|null  $filterValueIds
      * @param  list<RelatedRow>|null  $related
+     * @param  array<string, StoreListingRow>|null  $stores  store id => what it does with the product, for the stores the reader covers that chose it
+     * @param  list<LabelChoice>|null  $labels  the labels a store may put on it
+     * @param  array<string, list<string>|null>|null  $storeJobs  each listing job => the stores where the reader holds it, null for every store
      */
     public function __construct(
         public ProductCore $product,
@@ -41,5 +46,8 @@ final readonly class ProductView
         public ?array $searchWords = null,
         public ?array $filterValueIds = null,
         public ?array $related = null,
+        public ?array $stores = null,
+        public ?array $labels = null,
+        public ?array $storeJobs = null,
     ) {}
 }

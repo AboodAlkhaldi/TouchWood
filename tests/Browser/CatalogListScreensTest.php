@@ -9,6 +9,8 @@ use Modules\Catalog\Application\Command\AddBrand\AddBrand;
 use Modules\Catalog\Application\Command\AddBrand\AddBrandHandler;
 use Modules\Catalog\Application\Command\AddCategory\AddCategory;
 use Modules\Catalog\Application\Command\AddCategory\AddCategoryHandler;
+use Modules\Catalog\Application\Command\AddLabel\AddLabel;
+use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPair;
 use Modules\Catalog\Application\Command\AddWordPair\AddWordPairHandler;
 use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
@@ -98,6 +100,138 @@ function catalogListBrowserBrand(string $n, string $nameEn): string
     return Fx::asSystem(fn (): string => app(AddBrandHandler::class)->handle(new AddBrand("ماركة {$n}", "{$nameEn} {$n}", 'DISTRIBUTOR')));
 }
 
+/**
+ * Every brand's id in the brands' order, as the screen reads it.
+ *
+ * @return list<string>
+ */
+function catalogListBrowserBrandOrder(): array
+{
+    return array_values(array_map('strval', DB::table('catalog.brands')->orderBy('position')->orderBy('name_en')->orderBy('id')->pluck('id')->all()));
+}
+
+/**
+ * A row's ⋯ menu opened from the middle of the screen. The toast an order's save shows sits in the
+ * corner at the foot of the page for some seconds, over the buttons of the last rows - and these
+ * lists grow every run, their rows kept - so a click there can wait on it until it times out (seen
+ * once in four runs, 2026-10-11).
+ */
+function catalogListBrowserMenu(mixed $page, string $selector): mixed
+{
+    $page->script("document.querySelector('{$selector}')?.scrollIntoView({ block: 'center' })");
+
+    return $page->click($selector);
+}
+
+/**
+ * Keys pressed on an element one at a time, a moment apart: dnd-kit measures the rows after each
+ * one, and keys sent in the same instant arrive before it has (AddressFormatScreenTest).
+ *
+ * @param  list<string>  $keys
+ */
+function catalogListBrowserKeys(mixed $page, string $selector, array $keys): void
+{
+    foreach ($keys as $key) {
+        $page->keys($selector, [$key]);
+        $page->wait(0.3);
+    }
+}
+
+it('orders the brands by dragging a row by its handle, and moves one to the top from its menu', function () {
+    $alpha = catalogListBrowserBrand(catalogListBrowserFresh(), 'Alpha');
+    $beta = catalogListBrowserBrand(catalogListBrowserFresh(), 'Beta');
+
+    // Each added last: the two end the list, Alpha then Beta.
+    expect(array_slice(catalogListBrowserBrandOrder(), -2))->toBe([$alpha, $beta]);
+
+    $page = catalogListBrowser([P::BRAND_MANAGE]);
+    $page->navigate('/admin/brands', BROWSER_PAGE_LOAD);
+
+    // dnd-kit's keyboard drag on the row's handle: Space picks Beta up, the up arrow moves it one
+    // place, Space puts it down - and the order is saved when dropped, with no Save button.
+    catalogListBrowserKeys($page, "[data-test=\"drag-brand-{$beta}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    $dragged = catalogListBrowserSoon($page, fn (): array => array_slice(catalogListBrowserBrandOrder(), -2), fn (array $ids): bool => $ids === [$beta, $alpha]);
+
+    expect($dragged)->toBe([$beta, $alpha])
+        // The page shows the order saved.
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test).slice(-2).join() === 'brand-{$beta},brand-{$alpha}'"))->toBeTrue();
+
+    // Move to Top, from Alpha's ⋯ menu.
+    catalogListBrowserMenu($page, "[data-test=\"brand-actions-{$alpha}\"]")
+        ->click('[data-test="move-top"]');
+
+    $first = catalogListBrowserSoon($page, fn (): ?string => catalogListBrowserBrandOrder()[0] ?? null, fn (?string $id): bool => $id === $alpha);
+
+    expect($first)->toBe($alpha)
+        ->and(browserUntil($page, "document.querySelector('tbody tr')?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
+
+    // Move to Bottom, from the same menu: Alpha goes last.
+    catalogListBrowserMenu($page, "[data-test=\"brand-actions-{$alpha}\"]")
+        ->click('[data-test="move-bottom"]');
+
+    $last = catalogListBrowserSoon($page, fn (): ?string => array_slice(catalogListBrowserBrandOrder(), -1)[0] ?? null, fn (?string $id): bool => $id === $alpha);
+
+    expect($last)->toBe($alpha)
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].at(-1)?.dataset.test === 'brand-{$alpha}'"))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('orders the labels by dragging a row by its handle', function () {
+    $n = catalogListBrowserFresh();
+    $add = fn (string $nameEn): string => Fx::asSystem(fn (): string => app(AddLabelHandler::class)->handle(new AddLabel("شارة {$n}", "{$nameEn} {$n}", 'blue')));
+    $sale = $add('Sale');
+    $new = $add('New');
+    $order = fn (): array => array_slice(array_values(array_map('strval', DB::table('catalog.labels')->orderBy('position')->orderBy('name_en')->orderBy('id')->pluck('id')->all())), -2);
+
+    // Each added last: the two end the list, Sale then New.
+    expect($order())->toBe([$sale, $new]);
+
+    $page = catalogListBrowser([P::LABEL_MANAGE]);
+    $page->navigate('/admin/labels', BROWSER_PAGE_LOAD);
+
+    catalogListBrowserKeys($page, "[data-test=\"drag-label-{$new}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    expect(catalogListBrowserSoon($page, $order, fn (array $ids): bool => $ids === [$new, $sale]))->toBe([$new, $sale])
+        ->and(browserUntil($page, "[...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test).slice(-2).join() === 'label-{$new},label-{$sale}'"))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+});
+
+it('orders a parent\'s sub-categories in the store shown by dragging, saved for that store alone', function () {
+    $n = catalogListBrowserFresh();
+    $top = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("خزائن {$n}", "Cabinets {$n}")));
+    $doors = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("أبواب {$n}", "Doors {$n}", $top)));
+    $shelves = Fx::asSystem(fn (): string => app(AddCategoryHandler::class)->handle(new AddCategory("رفوف {$n}", "Shelves {$n}", $top)));
+    $place = fn (string $store, string $id): int => (int) DB::table('catalog.store_category_ranks')->where('store_id', Fx::storeId($store))->where('category_id', $id)->value('rank');
+
+    // Each added last among its siblings, in every store.
+    expect([$place('eg', $doors), $place('eg', $shelves)])->toBe([1, 2]);
+
+    $page = catalogListBrowser([P::CATEGORY_RANK]);
+    $page->navigate('/admin/categories?store=eg', BROWSER_PAGE_LOAD);
+
+    // The first level opens with the page: its children are rows, each with its handle.
+    catalogListBrowserKeys($page, "[data-test=\"drag-category-{$shelves}\"]", ['Space', 'ArrowUp', 'Space']);
+
+    $places = catalogListBrowserSoon($page, fn (): array => [$place('eg', $shelves), $place('eg', $doors)], fn (array $now): bool => $now === [1, 2]);
+
+    expect($places)->toBe([1, 2])
+        // Egypt's menu only: the base store keeps its order.
+        ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
+
+    // Move to Top, from Doors' ⋯ menu: first among its siblings again, in Egypt alone.
+    catalogListBrowserMenu($page, "[data-test=\"category-actions-{$doors}\"]")
+        ->click('[data-test="move-top"]');
+
+    expect(catalogListBrowserSoon($page, fn (): array => [$place('eg', $doors), $place('eg', $shelves)], fn (array $now): bool => $now === [1, 2]))->toBe([1, 2])
+        ->and(browserUntil($page, "(() => { const rows = [...document.querySelectorAll('tbody tr')].map((row) => row.dataset.test); return rows.indexOf('category-{$doors}') >= 0 && rows.indexOf('category-{$doors}') < rows.indexOf('category-{$shelves}'); })()"))->toBeTrue()
+        ->and([$place('sa', $doors), $place('sa', $shelves)])->toBe([1, 2]);
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('adds a brand from its dialog, and deactivates another after reading the products it reaches', function () {
     $n = catalogListBrowserFresh();
     // Two brands, each its own number: the first one ever made is the default, which never goes (§1.6).
@@ -113,16 +247,17 @@ it('adds a brand from its dialog, and deactivates another after reading the prod
         ->type('#brand-name-ar', "هيتش {$n}")
         ->type('#brand-name-en', "Hettich {$n}")
         ->select('#brand-agency', 'EXCLUSIVE_AGENT')
-        ->type('#brand-position', '40')
         ->click('[data-test="confirm-brand"]');
 
     $added = catalogListBrowserSoon(
         $page,
-        fn () => DB::table('catalog.brands')->where('name_en', "Hettich {$n}")->first(['agency_type', 'position']),
+        fn () => DB::table('catalog.brands')->where('name_en', "Hettich {$n}")->first(['id', 'agency_type']),
         fn ($row): bool => $row !== null,
     );
 
-    expect($added)->toEqual((object) ['agency_type' => 'EXCLUSIVE_AGENT', 'position' => 40]);
+    // No place typed: it goes last in the brands' order (amendment 16(d)).
+    expect($added?->agency_type)->toBe('EXCLUSIVE_AGENT')
+        ->and(array_slice(catalogListBrowserBrandOrder(), -1))->toBe([$added?->id]);
 
     // The fates dialog reads the brand's products when it opens, and says how many before its button.
     $page->click("[data-test=\"brand-actions-{$brand}\"]")
@@ -269,6 +404,75 @@ it('adds a warranty for life, with its terms as typed', function () {
 
     expect($row?->period_months)->toBeNull()
         ->and((string) $row?->terms_en)->toContain('Covers the hinges.');
+    $page->assertNoJavaScriptErrors();
+});
+
+/*
+| Every box checks itself as it is typed (frontend.md §1.7; catalog.md amendment 16(f)): the owner's
+| own case, a letter typed into a number box, is said under it at once, and Save stays out of reach
+| until the box holds a number in its range.
+*/
+it('says a letter typed in the period at once, and keeps Save out of reach until the period is right', function () {
+    $n = catalogListBrowserFresh();
+    $page = catalogListBrowser([P::WARRANTY_MANAGE]);
+    $page->navigate('/admin/warranties', BROWSER_PAGE_LOAD);
+
+    $page->click('[data-test="add-warranty"]')
+        ->type('#warranty-name-ar', "ضمان {$n}")
+        ->type('#warranty-name-en', "Two Years {$n}")
+        ->type('#warranty-terms-ar', 'يشمل المفصلات.')
+        ->type('#warranty-terms-en', 'Covers the hinges.');
+
+    // A fresh box says nothing, and Save is in reach.
+    expect($page->script('document.getElementById("warranty-period-error")'))->toBeNull()
+        ->and($page->script('document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled")'))->toBeNull();
+
+    $page->typeSlowly('#warranty-period', '2a', 20);
+
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error")?.textContent === "Months takes numbers only."'))->toBeTrue()
+        ->and($page->script('document.getElementById("warranty-period").getAttribute("aria-invalid")'))->toBe('true')
+        ->and($page->script('document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled")'))->toBe('true');
+
+    // Pressed while out of reach, it sends nothing. (Playwright itself will not press a button marked
+    // disabled, so the press is the page's own click.)
+    $page->script('document.querySelector(\'[data-test="confirm-warranty"]\').click()');
+    $page->wait(0.5);
+    expect(DB::table('catalog.warranties')->where('name_en', "Two Years {$n}")->exists())->toBeFalse();
+
+    // Out of its range, it says the range.
+    $page->type('#warranty-period', '601');
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error")?.textContent === "Months is from 1 to 600."'))->toBeTrue();
+
+    $page->type('#warranty-period', '24');
+    expect(browserUntil($page, 'document.getElementById("warranty-period-error") === null && document.querySelector(\'[data-test="confirm-warranty"]\').getAttribute("aria-disabled") === null'))->toBeTrue();
+
+    $page->click('[data-test="confirm-warranty"]');
+
+    $period = catalogListBrowserSoon(
+        $page,
+        fn () => DB::table('catalog.warranties')->where('name_en', "Two Years {$n}")->value('period_months'),
+        fn ($value): bool => $value !== null,
+    );
+
+    expect($period)->toBe(24);
+    $page->assertNoJavaScriptErrors();
+});
+
+it('sends nothing when Save is pressed with a required box untouched, says every rule and focuses the first', function () {
+    $page = catalogListBrowser([P::WARRANTY_MANAGE]);
+    $page->navigate('/admin/warranties', BROWSER_PAGE_LOAD);
+    $before = DB::table('catalog.warranties')->count();
+
+    $page->click('[data-test="add-warranty"]')
+        ->click('[data-test="confirm-warranty"]');
+
+    expect(browserUntil($page, 'document.getElementById("warranty-name-ar-error")?.textContent === "Arabic name is required."'))->toBeTrue()
+        ->and($page->script('document.getElementById("warranty-name-en-error")?.textContent'))->toBe('English name is required.')
+        ->and($page->script('document.getElementById("warranty-period-error")?.textContent'))->toBe('Months is required.')
+        ->and($page->script('document.activeElement?.id'))->toBe('warranty-name-ar');
+
+    $page->wait(0.5);
+    expect(DB::table('catalog.warranties')->count())->toBe($before);
     $page->assertNoJavaScriptErrors();
 });
 

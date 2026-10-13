@@ -35,6 +35,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { fileSize } from '@/lib/file-size';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import { useChecks } from '@/lib/use-checks';
 import { useLoadMore } from '@/lib/use-load-more';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
@@ -268,6 +269,14 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
     const afterDelete = useMemo<RefObject<HTMLElement | null>>(() => ({ get current() { return more.current?.isConnected ? more.current : listTop.current; } }), [listTop]);
     const deleteFocus = useReturnFocus(confirming, afterDelete);
     const alt = useForm({ alt_ar: file.altAr ?? '', alt_en: file.altEn ?? '' });
+    // Each description as typed (frontend.md §1.7), with the domain's rule: optional, up to 255
+    // characters (Media::MAX_TEXT_LENGTH). Platform has no Form Request: a refusal still comes back as
+    // the form's.
+    const described = { length: { max: 255 } };
+    const checks = useChecks([
+        { id: `${file.id}-alt_ar`, label: t('platform::admin_media.alt_ar'), value: alt.data.alt_ar, rules: described },
+        { id: `${file.id}-alt_en`, label: t('platform::admin_media.alt_en'), value: alt.data.alt_en, rules: described },
+    ]);
     const hasMenu = file.retryable || mayUpdate || mayDelete;
 
     function remove() {
@@ -383,7 +392,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
-                                alt.post(`/admin/media/${file.id}/alt`, { preserveScroll: true, onSuccess: () => setDescribing(false) });
+                                checks.submit(() => alt.post(`/admin/media/${file.id}/alt`, { preserveScroll: true, onSuccess: () => setDescribing(false) }));
                             }}
                         >
                             <div className="grid gap-4 p-6">
@@ -395,7 +404,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                 <TextField
                                     id={`${file.id}-alt_ar`}
                                     label={t('platform::admin_media.alt_ar')}
-                                    error={alt.errors.alt_ar}
+                                    check={checks.box(`${file.id}-alt_ar`, alt.errors.alt_ar)}
                                     lang="ar"
                                     dir="rtl"
                                     value={alt.data.alt_ar}
@@ -404,7 +413,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                 <TextField
                                     id={`${file.id}-alt_en`}
                                     label={t('platform::admin_media.alt_en')}
-                                    error={alt.errors.alt_en}
+                                    check={checks.box(`${file.id}-alt_en`, alt.errors.alt_en)}
                                     lang="en"
                                     dir="ltr"
                                     value={alt.data.alt_en}
@@ -415,7 +424,7 @@ function Row({ file, mayUpdate, mayDelete, listTop }: { file: MediaFileRow; mayU
                                 <Button type="button" variant="outline" disabled={alt.processing} onClick={() => setDescribing(false)}>
                                     {t('ui.cancel')}
                                 </Button>
-                                <ActionButton type="submit" loading={alt.processing} data-test={`save-description-${file.id}`}>
+                                <ActionButton type="submit" loading={alt.processing} disabledReason={checks.reason} data-test={`save-description-${file.id}`}>
                                     {t('platform::admin_media.save')}
                                 </ActionButton>
                             </DialogFooter>

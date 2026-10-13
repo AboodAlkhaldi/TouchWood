@@ -9,14 +9,15 @@ use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\CategoryInactive;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Exception\CategoryNotLowest;
+use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Exception\ListItemInactive;
 use Modules\Catalog\Domain\Exception\ListItemNotFound;
 use Modules\Catalog\Domain\Model\Attribute;
-use Modules\Catalog\Domain\Model\AttributeSet;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\WarrantyRepository;
+use Modules\Catalog\Public\Enums\AttributeKind;
 
 /**
  * The list rows a product points at, read inside the product's change **with their rows locked**
@@ -115,37 +116,41 @@ final readonly class ProductReferences
     }
 
     /**
-     * @throws ListItemInactive|ListItemNotFound
-     */
-    public function attributeSet(?string $setId, ?string $held = null): ?AttributeSet
-    {
-        if ($setId === null || trim($setId) === '') {
-            return null;
-        }
-
-        $set = $this->attributes->setById($setId) ?? throw new ListItemNotFound($setId);
-
-        if (! $set->isActive() && $set->id() !== $held) {
-            throw new ListItemInactive;
-        }
-
-        return $set;
-    }
-
-    /**
-     * The set's attributes, in its order, their rows locked: none of them can be deleted while the
-     * set holds it, and none changes job while the set holds it (step 2), so a variant's values stay
-     * values of variant-making attributes.
+     * A product's variant attributes, their rows locked: none can be deleted, nor change job, while
+     * a product makes its variants of it (amendment 16(b)), so a variant's values stay values of
+     * variant-making attributes.
      *
+     * @param  list<string>  $attributeIds
      * @return list<Attribute>
      *
      * @throws ListItemNotFound
      */
-    public function members(AttributeSet $set): array
+    public function variantAttributes(array $attributeIds): array
     {
         return array_map(
             fn (string $id): Attribute => $this->attributes->byId($id) ?? throw new ListItemNotFound($id),
-            $set->memberIds(),
+            $attributeIds,
         );
+    }
+
+    /**
+     * An attribute a product newly makes its variants of: one of the library's variant-making
+     * attributes, every one offered (owner, 2026-10-10), active; its row locked.
+     *
+     * @throws InvalidCatalogAttribute|ListItemInactive|ListItemNotFound
+     */
+    public function newVariantAttribute(string $attributeId): Attribute
+    {
+        $attribute = $this->attributes->byId($attributeId) ?? throw new ListItemNotFound($attributeId);
+
+        if ($attribute->kind() !== AttributeKind::Variant) {
+            throw new InvalidCatalogAttribute('attribute_id', 'an attribute that makes variants');
+        }
+
+        if (! $attribute->isActive()) {
+            throw new ListItemInactive;
+        }
+
+        return $attribute;
     }
 }

@@ -132,7 +132,7 @@ describe('a name the catalog lacks', function () {
         expect(catalogDecidedName($name)['target_id'])->toBe($use);
     });
 
-    it('is created with its names in both languages, each on one line: a category or a set', function () {
+    it('is created with its names in both languages, each on one line: a category', function () {
         $import = Ix::uploadProducts([Ix::product('1', ['category' => 'Hinges'])]);
         $name = Ix::nameId($import, 'CATEGORY', 'Hinges');
 
@@ -170,7 +170,7 @@ describe('a value the catalog lacks', function () {
         $sixty = Px::value($width, '60 cm');
         $other = Px::value(Px::attribute('Depth'), '60 cm');
         $widthEn = catalogDecideEnglish('attributes', $width);
-        $import = Ix::uploadProducts([Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => [$widthEn => '60cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product('1', ['variants' => [['code' => '1', 'values' => [$widthEn => '60cm']]]])]);
         $name = Ix::nameId($import, 'VALUE', '60cm');
 
         expect(fn () => catalogDecideNames($import, [['name_id' => $name, 'decision' => 'EXISTING', 'target_id' => $other]]))->toThrow(InvalidCatalogAttribute::class, "a value of {$widthEn}")
@@ -183,7 +183,7 @@ describe('a value the catalog lacks', function () {
     it('under an attribute the catalog lacks, waits for that attribute to be decided as one it has', function () {
         $width = Px::attribute('Width');
         $sixty = Px::value($width, '60 cm');
-        $import = Ix::uploadProducts([Ix::product('1', ['attribute_set' => 'Sizes', 'variants' => [['code' => '1', 'values' => ['Widht' => '60 cm']]]])]);
+        $import = Ix::uploadProducts([Ix::product('1', ['variants' => [['code' => '1', 'values' => ['Widht' => '60 cm']]]])]);
         $attribute = Ix::nameId($import, 'ATTRIBUTE', 'Widht');
         $value = Ix::nameId($import, 'VALUE', '60 cm');
 
@@ -244,7 +244,7 @@ describe('a product whose code the catalog has', function () {
     it('gives no new code another variant of the product has: every variant its own (amendment 16(a))', function () {
         $ready = Px::ready(['60 cm', '80 cm']);
         $codes = array_map(static fn (string $variant): string => (string) DB::table('catalog.variants')->where('id', $variant)->value('code'), $ready['variants']);
-        $import = Ix::uploadProducts([Ix::product($codes[0], ['attribute_set' => 'Sizes', 'variants' => [
+        $import = Ix::uploadProducts([Ix::product($codes[0], ['variants' => [
             ['code' => $codes[0], 'values' => ['Width' => '60 cm']],
             ['code' => $codes[1], 'values' => ['Width' => '80 cm']],
             ['code' => '8810', 'values' => ['Width' => '90 cm']],

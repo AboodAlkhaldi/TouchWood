@@ -6,9 +6,9 @@ declare(strict_types=1);
 return [
     'title' => 'Categories',
     'subtitle' => 'One tree for every store; products sit in the categories with no sub-categories.',
-    'subtitle_store' => 'One tree for every store; the order shown is :store\'s menu.',
+    'subtitle_store' => 'One tree for every store; the order shown is :store\'s menu, dragged among siblings.',
     'add' => 'Add Category',
-    'add_body' => 'Its place among its siblings starts the same in every store.',
+    'add_body' => 'It goes last among its siblings, in every store.',
     'add_sub' => 'Add Sub-Category…',
     'add_sub_title' => 'Add Sub-Category',
     'edit' => 'Edit…',
@@ -17,25 +17,16 @@ return [
     'save' => 'Save Category',
     'move' => 'Move…',
     'move_title' => 'Move Category',
-    'move_body' => 'Its addresses stay; its place among its new siblings is written into every store.',
+    'move_body' => 'Its addresses stay; it goes last among its new siblings, in every store.',
     'move_confirm' => 'Move Category',
     'activate' => 'Activate Category',
     'deactivate' => 'Deactivate Category…',
     'delete' => 'Delete Category…',
     'delete_title' => 'Delete Category',
     'delete_body' => ':name is deleted, and its addresses are free again.',
-    'order_top' => 'Change Order…',
-    'order_children' => 'Change Order of Sub-Categories…',
-    'order_title' => 'Order Under :name',
-    'order_top_title' => 'Order of the Menu',
-    'order_body' => 'Drag the categories into the order :store\'s menu shows them.',
-    'order_save' => 'Save Order',
     'fold' => 'Fold :name',
     'unfold' => 'Unfold :name',
     'base_place' => 'Base Store\'s Place',
-    'column' => [
-        'place' => 'Place in Menu',
-    ],
     'empty' => [
         'title' => 'No Categories Yet',
         'body' => 'Add the top categories first, then the ones under them.',
@@ -49,8 +40,6 @@ return [
     'field' => [
         'parent' => 'Under',
         'top' => 'The top of the tree',
-        'place' => 'Place Among Siblings',
-        'place_helper' => 'From 0 to 10,000, lowest first.',
         'image' => 'Photo',
     ],
     'toast' => [
@@ -61,5 +50,15 @@ return [
         'activated' => 'Category activated',
         'deactivated' => 'Category deactivated',
         'deleted' => 'Category deleted',
+        'audience_set' => 'Switch saved',
+    ],
+    // Who sees each category in the store shown (amendment 14): two switches a row, each saved as it flips.
+    'audience' => [
+        'individuals' => 'Individuals',
+        'companies' => 'Companies',
+        'individuals_label' => 'Individuals see :name in :store',
+        'companies_label' => 'Companies see :name in :store',
+        'reason' => 'Choosing who sees categories in :store needs an admin role with that job.',
+        'saving' => 'Saving…',
     ],
 ];

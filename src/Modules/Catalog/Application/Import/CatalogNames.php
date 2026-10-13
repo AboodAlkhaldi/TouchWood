@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Import;
 
 use Modules\Catalog\Domain\Model\Attribute;
-use Modules\Catalog\Domain\Model\AttributeSet;
 use Modules\Catalog\Domain\Model\Brand;
 use Modules\Catalog\Domain\Model\Category;
 use Modules\Catalog\Domain\Model\Warranty;
@@ -35,8 +34,6 @@ final readonly class CatalogNames
      * @param  array<string, list<Category>>  $children  parent id ('' for the top) => its categories
      * @param  array<string, list<Attribute>>  $attributes  key => attributes
      * @param  array<string, array<string, list<string>>>  $values  attribute id => key => value ids
-     * @param  array<string, list<string>>  $sets  key => ids
-     * @param  array<string, list<string>>  $members  set id => its attributes' ids, in order
      * @param  array<string, list<string>>  $warranties  key => ids
      * @param  array<int, string>  $brandNumbers  a brand's fixed number => its id
      */
@@ -45,8 +42,6 @@ final readonly class CatalogNames
         private array $children,
         private array $attributes,
         private array $values,
-        private array $sets,
-        private array $members,
         private array $warranties,
         private array $brandNumbers,
     ) {}
@@ -70,20 +65,11 @@ final readonly class CatalogNames
             $values[$attribute->id()] = self::index(array_map(static fn ($value): array => [$value->id(), $value->name()], $attributes->valuesOf($attribute->id())));
         }
 
-        $sets = $attributes->sets();
-        $members = [];
-
-        foreach ($sets as $set) {
-            $members[$set->id()] = $set->memberIds();
-        }
-
         return new self(
             self::index(array_map(static fn (Brand $brand): array => [$brand->id(), $brand->name()], $brands->all())),
             $children,
             $byKey,
             $values,
-            self::index(array_map(static fn (AttributeSet $set): array => [$set->id(), $set->name()], $sets)),
-            $members,
             self::index(array_map(static fn (Warranty $warranty): array => [$warranty->id(), $warranty->name()], $warranties->all())),
             $brands->numbers(),
         );
@@ -175,24 +161,6 @@ final readonly class CatalogNames
     public function valueMatches(string $attributeId, string $name): int
     {
         return count($this->values[$attributeId][self::key($name)] ?? []);
-    }
-
-    public function set(string $name): ?string
-    {
-        return self::one($this->sets[self::key($name)] ?? []);
-    }
-
-    public function setMatches(string $name): int
-    {
-        return count($this->sets[self::key($name)] ?? []);
-    }
-
-    /**
-     * @return list<string> the set's attributes' ids, in order
-     */
-    public function setMembers(string $setId): array
-    {
-        return $this->members[$setId] ?? [];
     }
 
     public function warranty(string $name): ?string

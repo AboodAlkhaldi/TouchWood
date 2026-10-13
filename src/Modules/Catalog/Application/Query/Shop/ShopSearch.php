@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Query\Shop;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Application\Search\SearchTerms;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -17,7 +18,9 @@ use Shared\Domain\ValueObject\StoreId;
  * What a shopper can order here is searched — a product left in an inactive category included
  * (§1.4) — **of the brands shown in default listings only**: a secondary brand is reached through
  * its own category, never by search (owner, 2026-10-05, amendment 5(k)). Anyone may search; no
- * permission is asked.
+ * permission is asked. **Only what this viewer sees** (§1.13, amendment 14): the page passes in who is
+ * looking, as Platform's `ShopperType` answers it (`ShopCatalog`); a submitted search is logged with how
+ * many this viewer found, and still names no person.
  */
 final readonly class ShopSearch
 {
@@ -40,31 +43,36 @@ final readonly class ShopSearch
      *
      * @throws InvalidCatalogAttribute
      */
-    public function suggest(StoreId $store, string $locale, string $typed, int $limit = self::SUGGESTIONS): array
+    public function suggest(StoreId $store, string $locale, ShopperKind $viewer, string $typed, int $limit = self::SUGGESTIONS): array
     {
         $locale = ShopLocale::of($locale);
         $terms = $this->terms($typed);
 
-        return $terms === null ? [] : $this->reader->search($store->value, $locale, $terms, min(max($limit, 1), self::SUGGESTIONS))->cards;
+        return $terms === null ? [] : $this->reader->search($store->value, $locale, $viewer, $terms, null, min(max($limit, 1), self::SUGGESTIONS))->cards;
     }
 
     /**
      * Submitted — Enter, or the results page — and logged with how many it found (§1.11). Words that
-     * hold no letter or digit search nothing, and nothing is logged.
+     * hold no letter or digit search nothing, and nothing is logged. **Show More** asks for the next
+     * page from where the last ended (P16), and is not logged again: it is the same search.
      *
      * @throws InvalidCatalogAttribute
      */
-    public function results(StoreId $store, string $locale, string $typed, int $limit = self::RESULTS): SearchResults
+    public function results(StoreId $store, string $locale, ShopperKind $viewer, string $typed, int $limit = self::RESULTS, ?string $after = null): SearchResults
     {
         $locale = ShopLocale::of($locale);
+        $cursor = SearchCursor::parse($after);
         $terms = $this->terms($typed);
 
         if ($terms === null) {
             return new SearchResults([], 0);
         }
 
-        $found = $this->reader->search($store->value, $locale, $terms, min(max($limit, 1), self::RESULTS_MAX));
-        $this->log->record($store->value, $locale, $terms->text, $found->total);
+        $found = $this->reader->search($store->value, $locale, $viewer, $terms, $cursor, min(max($limit, 1), self::RESULTS_MAX));
+
+        if ($cursor === null) {
+            $this->log->record($store->value, $locale, $terms->text, $found->total);
+        }
 
         return $found;
     }

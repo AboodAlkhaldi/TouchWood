@@ -8,8 +8,9 @@ return [
     'categories' => 'الأقسام',
     'brands' => 'الماركات',
     'attributes' => 'الخصائص',
-    'variations' => 'الاختلافات',
     'labels' => 'الشارات',
     'warranties' => 'الضمانات',
+    'store_files' => 'ملفات المتاجر',
+    'imports' => 'استيراد المنتجات',
     'search_words' => 'كلمات البحث',
 ];

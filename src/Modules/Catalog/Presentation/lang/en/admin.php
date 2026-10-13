@@ -19,7 +19,6 @@ return [
         'name' => 'Name',
         'name_ar' => 'Arabic Name',
         'name_en' => 'English Name',
-        'position' => 'Position',
         'products' => 'Products',
         'state' => 'State',
         'actions' => 'Actions',
@@ -27,8 +26,6 @@ return [
     'field' => [
         'name_ar' => 'Arabic Name',
         'name_en' => 'English Name',
-        'position' => 'Position',
-        'position_helper' => 'From 0 to 10,000, lowest first.',
         'slug_ar' => 'Arabic Address',
         'slug_en' => 'English Address',
     ],
@@ -38,6 +35,11 @@ return [
     'addresses' => [
         'title' => 'Web Addresses',
         'helper' => 'Left empty, it is made from the name.',
+    ],
+    // A web address's shape, said under its box as it is typed (frontend.md §1.7; Slug).
+    'check' => [
+        'slug_ar' => ':field takes Arabic letters and digits, joined by single hyphens.',
+        'slug_en' => ':field takes the lower-case letters a to z and the digits 0 to 9, joined by single hyphens.',
     ],
     'marks' => [
         'helper' => 'A blank line starts a paragraph, "- " a list item, "# " a heading, and **bold** is bold.',
@@ -57,6 +59,17 @@ return [
         'moved' => ':item moved to position :position of :total.',
         'dropped' => ':item dropped at position :position of :total.',
         'cancelled' => ':item put back.',
+    ],
+    // Every ordered list is ordered by dragging, and from each row's ⋯ menu (amendment 16(d)).
+    'order' => [
+        'column' => 'Order',
+        'top' => 'Move to Top',
+        'bottom' => 'Move to Bottom',
+        'at_top' => 'It is first already.',
+        'at_bottom' => 'It is last already.',
+    ],
+    'toast' => [
+        'ordered' => 'Order saved',
     ],
     'fates' => [
         'title' => [

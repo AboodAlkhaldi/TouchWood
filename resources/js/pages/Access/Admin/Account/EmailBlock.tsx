@@ -9,6 +9,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
+import { useChecks } from '@/lib/use-checks';
 import { useReturnFocus } from '@/lib/use-return-focus';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -38,6 +39,10 @@ export function EmailBlock({ account }: Props) {
     const [open, setOpen] = useState(false);
     const form = useForm({ email: '' });
     const returnFocus = useReturnFocus(open);
+    // The address as typed (frontend.md §1.7), shaped as every staff address is (EmailAddress, at most
+    // 254 characters); whether another account holds it is the server's to say. Afresh each time the
+    // dialog opens.
+    const checks = useChecks([{ id: 'new_email', label: t('access::account.new_email'), value: form.data.email, rules: { required: true, email: true, length: { max: 254 } } }], open);
 
     return (
         <Card className="material-base gap-3 border-0 py-5">
@@ -82,17 +87,19 @@ export function EmailBlock({ account }: Props) {
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            form.post('/admin/account/email', {
-                                preserveScroll: true,
-                                preserveState: true,
-                                // Closed only when it worked. A refused address leaves the dialog
-                                // open, holding what was typed, with the refusal beside it - closing
-                                // on failure reads as the change having gone through.
-                                onSuccess: () => {
-                                    form.reset();
-                                    setOpen(false);
-                                },
-                            });
+                            checks.submit(() =>
+                                form.post('/admin/account/email', {
+                                    preserveScroll: true,
+                                    preserveState: true,
+                                    // Closed only when it worked. A refused address leaves the dialog
+                                    // open, holding what was typed, with the refusal beside it - closing
+                                    // on failure reads as the change having gone through.
+                                    onSuccess: () => {
+                                        form.reset();
+                                        setOpen(false);
+                                    },
+                                }),
+                            );
                         }}
                     >
                         <div className="grid gap-4 p-6">
@@ -106,7 +113,7 @@ export function EmailBlock({ account }: Props) {
                                 name="email"
                                 type="email"
                                 label={t('access::account.new_email')}
-                                error={form.errors.email}
+                                check={checks.box('new_email', form.errors.email)}
                                 required
                                 autoFocus
                                 dir="ltr"
@@ -118,7 +125,7 @@ export function EmailBlock({ account }: Props) {
                             <Button type="button" variant="outline" disabled={form.processing} onClick={() => setOpen(false)} data-test="modal-cancel">
                                 {t('ui.cancel')}
                             </Button>
-                            <ActionButton type="submit" loading={form.processing} data-test="send-email-link">
+                            <ActionButton type="submit" loading={form.processing} disabledReason={checks.reason} data-test="send-email-link">
                                 {t('access::account.email_dialog_title')}
                             </ActionButton>
                         </DialogFooter>

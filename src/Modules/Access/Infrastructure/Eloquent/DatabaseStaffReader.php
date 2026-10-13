@@ -7,6 +7,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Application\Query\StaffReader;
 use Shared\Domain\Text\LatinDigits;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**

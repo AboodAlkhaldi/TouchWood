@@ -11,6 +11,7 @@ use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * `ApiReads` in SQL: a variant list in two queries (its rows, then its values with their names), a
@@ -61,9 +62,12 @@ final readonly class DatabaseApiReads implements ApiReads
         foreach ($this->db->select(
             'SELECT vv.variant_id, vv.attribute_id, vv.value_id, a.name_ar AS attribute_ar, a.name_en AS attribute_en, av.name_ar AS value_ar, av.name_en AS value_en'
             .' FROM catalog.variant_values vv'
+            .' JOIN catalog.variants v ON v.id = vv.variant_id'
             .' JOIN catalog.attributes a ON a.id = vv.attribute_id'
             .' JOIN catalog.attribute_values av ON av.id = vv.value_id'
-            .' WHERE vv.variant_id IN ('.implode(',', array_fill(0, count($ids), '?')).')',
+            .' LEFT JOIN catalog.product_attributes pa ON pa.product_id = v.product_id AND pa.attribute_id = vv.attribute_id'
+            .' WHERE vv.variant_id IN ('.implode(',', array_fill(0, count($ids), '?')).')'
+            .' ORDER BY vv.variant_id, pa.position, vv.attribute_id',
             $ids,
         ) as $value) {
             $values[(string) $value->variant_id][(string) $value->value_id] = new VariantValueDto(
@@ -78,14 +82,8 @@ final readonly class DatabaseApiReads implements ApiReads
 
         foreach ($rows as $row) {
             $id = (string) $row->id;
-            // In the variant's own order of values, as its combination keeps them.
-            $ordered = [];
-
-            foreach ((string) $row->combination === '' ? [] : explode(',', (string) $row->combination) as $valueId) {
-                if (isset($values[$id][$valueId])) {
-                    $ordered[] = $values[$id][$valueId];
-                }
-            }
+            // In the product's own order of its variant attributes (amendment 16(b)), as read.
+            $ordered = array_values($values[$id] ?? []);
 
             $found[$id] = new VariantDto(
                 $id,

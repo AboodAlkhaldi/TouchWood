@@ -6,8 +6,6 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSet;
-use Modules\Catalog\Application\Command\AddAttributeSet\AddAttributeSetHandler;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
@@ -75,12 +73,12 @@ function catalogApiProduct(): array
     $width = Px::attribute('Width');
     $finish = Px::attribute('Finish');
     $values = ['w60' => Px::value($width, '60 cm'), 'w80' => Px::value($width, '80 cm'), 'black' => Px::value($finish, 'Black'), 'white' => Px::value($finish, 'White')];
-    $set = Fx::asSystem(fn (): string => app(AddAttributeSetHandler::class)->handle(new AddAttributeSet('مقاسات', 'Sizes', [$width, $finish])));
     $id = Px::product('Drawer');
     $category = Px::category();
     $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No product.');
     $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
-    Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $product->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: $category, attributeSetId: $set)));
+    Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $product->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: $category)));
+    Px::variantAttributes($id, [$width, $finish]);
 
     $variants = [
         '60-black' => Px::variant($id, '1304', [$width => $values['w60'], $finish => $values['black']]),
@@ -238,7 +236,7 @@ describe('resolving the variant', function () {
             ->and(catalogApi()->resolveVariant(Px::ready()['product'], [$v['w60'], $v['black']]))->toBeNull();
     });
 
-    it('resolves a product with no attribute set — one variant, nothing to pick — from no values', function () {
+    it('resolves a product with no variant attributes — one variant, nothing to pick — from no values', function () {
         $id = Px::product('Bracket');
         $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No product.');
         $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Bracket']]]]];
