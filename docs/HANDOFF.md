@@ -1384,7 +1384,8 @@ way. A store with no connection has the sync layer dormant.
 
 **[2026-10-13, owner]** From the provider we take **the base (retail) price only**; every sale,
 discount and the ceiling live in our system alone and are **never written to the provider**; our
-invoice shows the base price and the price after discount.
+order page, confirmation email and receipt show the base price and the price after discount — a
+receipt, not an invoice: invoices stay outside (§12.6; owner, 2026-10-13).
 
 - **One way: provider → us.** By **product code** (one per variant, the same in both systems), we
   read each product's **stock** and its **base retail price** — nothing else (owner, 2026-10-13: the

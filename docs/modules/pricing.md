@@ -47,7 +47,8 @@ the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's tea
 9. **A store wired to a provider** (Sync): its retail prices come from the provider and are
    read-only in our panel (handoff §12.2). **Its sales and discounts are ours, as in any store**
    (owner, 2026-10-13: §9.1 #1 settled): the provider gives the base price only; nothing is written
-   back to it; an invoice shows the base price and the price after discount.
+   back to it; the order page, confirmation email and receipt show the base price and the price
+   after discount (a receipt, not an invoice; owner, 2026-10-13).
 10. **The store's discount ceiling** limits every sale and category discount, as well as coupons and
    points (owner, 2026-10-11; §1.12).
 
