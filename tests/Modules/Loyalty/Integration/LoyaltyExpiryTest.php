@@ -14,10 +14,15 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Loyalty\Application\Command\ExpirePoints\ExpirePoints;
 use Modules\Loyalty\Application\Command\ExpirePoints\ExpirePointsHandler;
 use Modules\Loyalty\Application\LoyaltyPermissions;
+use Modules\Loyalty\Domain\Model\PointsAccount;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Infrastructure\Queue\ExpirePointsJob;
+use Psr\Log\AbstractLogger;
 use Shared\Application\Actor;
+use Shared\Application\ActorContext;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
 
@@ -96,6 +101,71 @@ it('reads the accounts with dead lots a page at a time, in id order', function (
         ->and($rest)->toHaveCount(1)
         // Before their date, none.
         ->and($accounts->withDeadLots(CarbonImmutable::parse('2027-05-31 12:00:00 UTC'), null, 10))->toBe([]);
+});
+
+it('sweeps every page, and passes over an account that fails without keeping the others waiting', function () {
+    $customers = [Fx::customer(), Fx::customer('two@example.test'), Fx::customer('three@example.test'), Fx::customer('four@example.test'), Fx::customer('five@example.test')];
+
+    foreach ($customers as $customer) {
+        Lx::deliver($customer, 10_000);
+    }
+
+    CarbonImmutable::setTestNow('2027-06-02 12:00:00 UTC');
+    $real = app(PointsAccounts::class);
+    // The second account in id order fails; pages of 2, so the sweep needs three of them.
+    $failing = (string) DB::table('loyalty.accounts')->orderBy('id')->skip(1)->value('customer_id');
+    $accounts = new class($real, $failing) implements PointsAccounts
+    {
+        public function __construct(private PointsAccounts $real, private string $failing) {}
+
+        public function find(string $customerId, StoreId $store): ?PointsAccount
+        {
+            return $this->real->find($customerId, $store);
+        }
+
+        public function lockOrCreate(string $customerId, StoreId $store, DateTimeImmutable $now): PointsAccount
+        {
+            return $customerId === $this->failing ? throw new RuntimeException('Stuck.') : $this->real->lockOrCreate($customerId, $store, $now);
+        }
+
+        public function liveLots(PointsAccount $account, DateTimeImmutable $now): array
+        {
+            return $this->real->liveLots($account, $now);
+        }
+
+        public function liveBalance(PointsAccount $account, DateTimeImmutable $now): int
+        {
+            return $this->real->liveBalance($account, $now);
+        }
+
+        public function withDeadLots(DateTimeImmutable $now, ?string $after, int $limit): array
+        {
+            return $this->real->withDeadLots($now, $after, $limit);
+        }
+    };
+    $log = new class extends AbstractLogger
+    {
+        /** @var list<string> */
+        public array $errors = [];
+
+        /**
+         * @param  mixed  $level
+         * @param  array<mixed>  $context
+         */
+        public function log($level, string|Stringable $message, array $context = []): void
+        {
+            $this->errors[] = (string) $message;
+        }
+    };
+    $handler = new ExpirePointsHandler(app(Authorizer::class), app(ActorContext::class), $accounts, DB::connection(), $log, 2);
+
+    $swept = Fx::asSystem(fn (): int => $handler->handle(new ExpirePoints));
+
+    // Tried once: the pages move on past it, never back to it.
+    expect($swept)->toBe(4)
+        ->and($log->errors)->toBe(['A points account could not be swept.'])
+        ->and(DB::table('loyalty.entries')->where('kind', 'EXPIRED')->count())->toBe(4)
+        ->and((int) DB::table('loyalty.accounts')->where('customer_id', $failing)->value('balance'))->toBe(100);
 });
 
 it('is queued by the scheduler once a day, at 00:30 UTC, from one server, one at a time', function () {

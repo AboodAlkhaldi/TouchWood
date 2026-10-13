@@ -162,7 +162,37 @@ it('refuses a change without a reason of 1 to 500 characters, or without a posit
     'a reason past 500 characters' => [10, str_repeat('a', 501), 'reason'],
     'no points' => [0, 'Goodwill', 'points'],
     'points below 0' => [-5, 'Goodwill', 'points'],
+    'more points than one change moves' => [1_000_000_001, 'Goodwill', 'points'],
 ]);
+
+it('takes the most points one change may move', function () {
+    $customer = Fx::customer();
+    loyaltyByHandAdmin();
+
+    loyaltyByHandAdd($customer, 1_000_000_000);
+
+    expect((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(1_000_000_000);
+});
+
+it('checks a removal in the points\' store too, and audits it on the account', function () {
+    $customer = Fx::customer();
+    $admin = loyaltyByHandAdmin();
+    loyaltyByHandAdd($customer, 100);
+    $account = (string) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('id');
+
+    loyaltyByHandAdmin('eg');
+    expect(fn () => loyaltyByHandDeduct($customer, 10))->toThrow(PointsAccountNotFound::class);
+
+    Fx::actAsStaff(Fx::staffWith([LoyaltyPermissions::VIEW], ['sa']));
+    expect(fn () => loyaltyByHandDeduct($customer, 10))->toThrow(Unauthorized::class);
+
+    Fx::actAsStaff($admin);
+    loyaltyByHandDeduct($customer, 10);
+
+    expect(loyaltyByHandAudit('loyalty.points.deducted'))->toMatchArray([
+        'subject_type' => 'loyalty.account', 'subject_id' => $account, 'store_id' => Fx::storeId('sa'), 'actor_id' => $admin,
+    ]);
+});
 
 it('takes a reason of exactly 500 characters', function () {
     $customer = Fx::customer();
