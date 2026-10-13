@@ -71,7 +71,7 @@ src/Modules/
 │                 search query log, product relations
 ├── Pricing/      Retail prices, sales, wholesale bands, category discounts,
 │                 resolution, totals and VAT (one price for everyone, 2026-10-07)
-├── Inventory/    Stock, reservations, movement ledger, display bands
+├── Inventory/    Stock, holds, the movement ledger, low stock
 └── Sales/        Cart, quote, order, cancellation, return
 ```
 
