@@ -13,6 +13,7 @@ use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\ValueObject\Sale;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -30,7 +31,18 @@ final readonly class CeilingCheck
         private CatalogApi $catalog,
         private CategoryDiscounts $discounts,
         private DiscountCoverage $coverage,
+        private StoreWiring $wiring,
     ) {}
+
+    /**
+     * Whether a fixed-amount category discount **skips** a size it would take past the ceiling rather
+     * than being refused for it: in a wired store, whose prices are the provider's and cannot be
+     * changed here (sync.md §9.3 #17, #20; owner, 2026-10-17). Elsewhere staff are refused (§1.12).
+     */
+    public function skipsPastCeiling(StoreId $store): bool
+    {
+        return $this->wiring->isWired($store);
+    }
 
     public function ceiling(StoreId $store): int
     {
@@ -83,6 +95,8 @@ final readonly class CeilingCheck
     public function discountsOver(StoreId $store, int $ceilingPercent, array $retail = []): array
     {
         $over = [];
+        // A fixed amount in a wired store skips what it would take past the ceiling: never over it.
+        $skips = $this->skipsPastCeiling($store);
         $productOf = $retail === [] ? [] : array_map(static fn ($variant): string => $variant->productId, $this->catalog->variants(array_map('strval', array_keys($retail))));
 
         foreach ($this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()) as $discount) {
@@ -91,6 +105,10 @@ final readonly class CeilingCheck
                     $over[$discount->id] = ['category' => $discount->categoryId, 'products' => []];
                 }
 
+                continue;
+            }
+
+            if ($skips) {
                 continue;
             }
 

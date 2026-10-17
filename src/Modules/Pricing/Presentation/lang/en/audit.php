@@ -7,6 +7,7 @@ declare(strict_types=1);
 return [
     'retail_price.set' => 'Retail price set',
     'retail_price.filed' => 'Retail price set by a store file',
+    'retail_price.provided' => 'Retail price set by the provider',
     'wholesale_prices.set' => 'Wholesale prices set',
     'category_discount.added' => 'Category discount added',
     'category_discount.changed' => 'Category discount changed',

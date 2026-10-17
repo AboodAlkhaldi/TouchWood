@@ -50,6 +50,7 @@ final readonly class CandidateWriter
         private CategoryDiscounts $discounts,
         private DiscountCoverage $coverage,
         private CatalogApi $catalog,
+        private CeilingCheck $ceilingCheck,
     ) {}
 
     /**
@@ -61,6 +62,9 @@ final readonly class CandidateWriter
         // The store's discounts not ended, each with the products it reaches now - read once.
         $discounts = $this->discounts->notEnded($store, $now);
         $reaches = [];
+        // In a wired store a fixed amount never goes deeper than the ceiling: where the provider's price
+        // would let it, it skips the size (sync.md §9.3 #17). Elsewhere such a price is refused (§1.12).
+        $ceiling = $discounts !== [] && $this->ceilingCheck->skipsPastCeiling($store) ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
 
         foreach ($discounts as $discount) {
             $reaches[$discount->id] = $this->coverage->products($discount);
@@ -103,11 +107,12 @@ final readonly class CandidateWriter
                     }
 
                     // Every discount reaching the size's product, on the lines it applies to (§1.5); a
-                    // fixed amount that would take it to 0 or below skips it.
+                    // fixed amount that would take it to 0 or below - or, in a wired store, past the ceiling
+                    // - skips it.
                     foreach ($discounts as $discount) {
                         $amount = isset($reaches[$discount->id][$productOf[$variantId] ?? '']) ? $discount->priceOn($retail[$variantId]) : null;
 
-                        if ($amount === null) {
+                        if ($amount === null || ($discount->percentBasisPoints === null && $discount->depthOn($retail[$variantId]) > $ceiling)) {
                             continue;
                         }
 

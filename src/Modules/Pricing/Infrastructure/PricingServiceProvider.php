@@ -14,10 +14,12 @@ use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Application\ProviderPricesImpl;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
@@ -37,6 +39,7 @@ use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Public\Contracts\PricingApi;
+use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
 
 /**
@@ -57,6 +60,7 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(PriceCandidates::class, DatabasePriceCandidates::class);
         // No store is wired until Sync is built (§1.1 rule 9).
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        $this->app->bind(ProviderPrices::class, ProviderPricesImpl::class);
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
         $this->app->bind(Sales::class, DatabaseSales::class);
         $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);
@@ -82,6 +86,8 @@ final class PricingServiceProvider extends ServiceProvider
         Event::listen(ProductChanged::class, [RepriceForDiscounts::class, 'productChanged']);
         Event::listen(ProductMadeReady::class, [RepriceForDiscounts::class, 'productMadeReady']);
         Event::listen(CategoryMoved::class, [RepriceForDiscounts::class, 'categoryMoved']);
+        // In a wired store the ceiling decides what a fixed amount reaches (sync.md §9.3 #17).
+        Event::listen(SettingChanged::class, [RepriceForDiscounts::class, 'ceilingChanged']);
 
         // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.
         $this->app->make(ImportSections::class)->register('pricing', PriceImportSection::class);

@@ -69,7 +69,7 @@ final readonly class DiscountCheck
             throw new OverCeiling($ceiling, [], [], $this->ceiling->namesFor([], [$discount->id => ['category' => $discount->categoryId, 'products' => []]]));
         }
 
-        if ($discount->amount !== null) {
+        if ($discount->amount !== null && ! $this->ceiling->skipsPastCeiling($store)) {
             $over = [];
 
             // In chunks, under PostgreSQL's bind-parameter limit, however many sizes the category holds.
