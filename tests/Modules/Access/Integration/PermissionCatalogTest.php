@@ -177,7 +177,8 @@ it('passes its own check of the renames and removals every module declared', fun
 it('gives every command handler a PERMISSION constant, save those that read it from elsewhere', function () {
     // UpdateSetting takes its permission from the setting's own definition, and Loyalty's Earn and
     // Redeem, and the three settlements, take the calling module's, named by Sales on each call (loyalty.md §2.1), so they
-    // declare none; every other handler must, or handlerPermissions() would pass over it.
+    // declare none — as Promotions' three writes for Sales (promotions.md §2.1); every other handler must, or
+    // handlerPermissions() would pass over it.
     expect(handlersWithoutPermissionConstant())->toBe([
         'Modules\Loyalty\Application\Command\Earn\EarnHandler',
         'Modules\Loyalty\Application\Command\Redeem\RedeemHandler',
@@ -185,6 +186,9 @@ it('gives every command handler a PERMISSION constant, save those that read it f
         'Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrderHandler',
         'Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrderHandler',
         'Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler',
+        'Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler',
+        'Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler',
+        'Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler',
     ]);
 });
 

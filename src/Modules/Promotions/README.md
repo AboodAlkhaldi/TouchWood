@@ -17,6 +17,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 |---|---|---|
 | 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 69) and Platform's Marketing menu section (platform.md §9.4) | below |
 | 2a — coupons: the rules and the reads | The coupon tables of §5 (coupons, rules, assignments, uses, order facts) with every rule the database holds; the coupon's rules as pure code; `PromotionsApi::applyCoupon` and `customerDiscountRoom`; Catalog's `lineFacts` (catalog.md amendment 18) | below |
+| 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
 
 ## What is here
 
@@ -45,12 +46,25 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 - **`Application/PromotionsApiImpl`** — `applyCoupon`: the code read as typed (trim, Latin digits,
   upper case; one that cannot be a code is `UNKNOWN_CODE`), prices of another store or currency
   refused, the cart's lines through `CartLines` (one `CatalogApi::lineFacts` call), the ceiling
-  through `Ceiling` (Pricing's setting, read through Platform). A fixed number of queries per quote.
-  `customerDiscountRoom`. The writes Sales makes come with step 2b.
-- **`Infrastructure/Eloquent/DatabaseCoupons`** — a coupon by code with its rules; a customer's uses
-  and assignment in one query.
+  through `Ceiling` (Pricing's setting, read through Platform), both via `Coupon/Quotes`. A fixed
+  number of queries per quote. `customerDiscountRoom`; `orderDiscountRoom` (the ceiling recorded with
+  the order); `couponAfterEdit` (`CouponRules::work` on the edited lines, ignoring dates, switch, uses
+  and assignment; at most the recorded use's discount and the caller's figure, then the room; refused
+  — 0 — under the minimum, with nothing eligible, or with no room or nothing left).
+- **`Application/Command`** — Sales's three writes, each through `Coupon/CallerCheck` (the calling
+  module's own permission, in the coupon's or the order's store, as Loyalty's): **`UseCoupon`** (the
+  coupon's store must be the one passed; the order's use read before and again under the coupon's
+  lock — the same coupon again does nothing, another is `CouponRefused::anotherCoupon()`; every check
+  of a quote asked again, then points not allowed, then `CouponChanged` unless the discount is the one
+  quoted; the use recorded and counted), **`RecordOrder`** (once per order, the store's ceiling of the
+  moment, the first of two at once wins), **`UpdateCouponUse`** (never higher; once per edit; to 0 with
+  the use still counted).
+- **`Infrastructure/Eloquent/DatabaseCoupons`** — a coupon by code or id (locked for placing) with its
+  rules; a customer's uses and assignment in one query; a use by its order; recording and lowering a
+  use. **`DatabaseOrderFacts`** — an order's fact, written once (`ON CONFLICT DO NOTHING`).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `ApplyCouponTest`, `CouponTablesTest`,
+`tests/Modules/Promotions/Integration` — `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

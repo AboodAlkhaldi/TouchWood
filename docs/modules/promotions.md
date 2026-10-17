@@ -264,7 +264,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | `useCoupon(UseCoupon $change): void` | Placing the order: **every check of §1.3 again, as the coupon is now** — dates, switch, uses for everyone and for this customer, the assignment, the minimum, the rules, the points, the ceiling — under a lock on the coupon so two orders never take its last use; **recomputes the discount and refuses (`CouponChanged`) if it is not the one quoted**, so checkout quotes again; then records the use. The same order with the same coupon again does nothing; the same order with another coupon is refused. **A use never comes back**, not even when the order is cancelled (owner, 2026-10-08) |
 | `orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money` | Sales, working out a staff edit: the room under the ceiling **recorded with the order** (§1.6) |
 | `couponAfterEdit(EditedCouponRequest $request): CouponResult` | Sales, after a staff edit (§1.3, the exception): the coupon's discount on the edited lines, never more than it is now, 0 if it no longer applies. Reads only |
-| `updateCouponUse(UpdateCouponUse $change): void` | Sales, after a staff edit: records the use's new discount (never higher). Idempotent by the edit's id |
+| `updateCouponUse(UpdateCouponUse $change): void` | Sales, after a staff edit: records the use's new discount (never higher). Idempotent by the edit's id — **the latest edit's**: the use keeps only its last edit, so an older edit replayed after a newer one is refused when it would raise the discount (built with step 2b) |
 | `recordOrder(RecordOrder $change): void` | Placing the order, with or without a coupon: the fact segments count (§1.5). The same order again does nothing |
 | `segmentMembers(string $segmentId, ?string $after, int $limit): list<string>` | Ops later: a segment's customer ids, keyset-paged (handoff §5.4) |
 
@@ -426,7 +426,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 | Error | Status | When |
 |---|---|---|
-| `CouponRefused` | INVALID | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal` — or the order already used another coupon |
+| `CouponRefused` | INVALID | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal`, in its context's `reason` — or the order already used another coupon (`reason`: `ANOTHER_COUPON`, which no quote gives; built with step 2b) |
 | `CouponChanged` | CONFLICT | `useCoupon` works the discount out again and it is not the one quoted (the coupon was changed meanwhile) — checkout quotes again |
 | `CodeTaken` | CONFLICT | A new coupon's code is another coupon's in the store |
 | `CouponInUse` | CONFLICT | Deleting a coupon already used; removing an assignment already used; lowering `max_uses_total` below the uses made |

@@ -4,40 +4,54 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Application;
 
-use Carbon\CarbonImmutable;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Promotions\Application\Command\RecordOrder\RecordOrderCommand;
+use Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler;
+use Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseCommand;
+use Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler;
+use Modules\Promotions\Application\Command\UseCoupon\UseCouponCommand;
+use Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler;
 use Modules\Promotions\Application\Coupon\CartLines;
-use Modules\Promotions\Application\Coupon\Ceiling;
 use Modules\Promotions\Application\Coupon\Inputs;
+use Modules\Promotions\Application\Coupon\Quotes;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Domain\Repository\OrderFacts;
 use Modules\Promotions\Domain\Service\CouponRules;
 use Modules\Promotions\Domain\Service\DiscountRoom;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
+use Modules\Promotions\Public\Dto\EditedCouponRequest;
+use Modules\Promotions\Public\Dto\RecordOrder;
+use Modules\Promotions\Public\Dto\UpdateCouponUse;
+use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
  * promotions.md §2.1. The reads: no lock, no transaction — each answers one question about one moment.
+ * The writes go through their command handlers, which check the caller's permission.
  */
 final readonly class PromotionsApiImpl implements PromotionsApi
 {
     public function __construct(
         private Coupons $coupons,
+        private OrderFacts $facts,
         private CartLines $lines,
-        private Ceiling $ceiling,
+        private Quotes $quotes,
+        private UseCouponHandler $use,
+        private RecordOrderHandler $record,
+        private UpdateCouponUseHandler $update,
+        private PlatformApi $platform,
     ) {}
 
     public function applyCoupon(CouponRequest $request): CouponResult
     {
         $store = Inputs::store($request->storeId);
         $customerId = Inputs::id($request->customerId, 'customer');
-
-        if (strtolower($request->prices->storeId) !== $store->value) {
-            throw new InvalidPromotionAttribute('store', 'the prices are another store\'s');
-        }
+        Quotes::sameStore($store, $request->prices);
 
         $code = Inputs::code($request->code);
         $coupon = $code === null ? null : $this->coupons->byCode($store, $code);
@@ -46,19 +60,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
             return CouponResult::refused(CouponRefusal::UnknownCode);
         }
 
-        if ($request->prices->currencyCode !== $coupon->currencyCode) {
-            throw new InvalidPromotionAttribute('currency', "the prices are in {$request->prices->currencyCode}, the coupon in {$coupon->currencyCode}");
-        }
-
-        $outcome = CouponRules::quote(
-            $coupon,
-            $this->coupons->usage($store, $coupon->id, $customerId),
-            $this->lines->of($request->prices),
-            $request->audience,
-            $request->prices->netSubtotal,
-            $this->customerDiscountRoom($store, $request->prices->grossSubtotal, $request->prices->netSubtotal),
-            CarbonImmutable::now(),
-        );
+        $outcome = $this->quotes->outcome($coupon, $store, $customerId, $request->audience, $request->prices);
 
         return $outcome->refusal !== null || $outcome->discount === null
             ? CouponResult::refused($outcome->refusal ?? CouponRefusal::WorthNothing, $coupon->id, $coupon->nameAr, $coupon->nameEn)
@@ -67,6 +69,76 @@ final readonly class PromotionsApiImpl implements PromotionsApi
 
     public function customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money
     {
-        return DiscountRoom::of($grossSubtotal, $netSubtotal, $this->ceiling->percentIn($store));
+        return $this->quotes->room($store, $grossSubtotal, $netSubtotal);
+    }
+
+    public function useCoupon(UseCoupon $change): void
+    {
+        $this->use->handle(new UseCouponCommand($change));
+    }
+
+    public function recordOrder(RecordOrder $change): void
+    {
+        $this->record->handle(new RecordOrderCommand($change));
+    }
+
+    public function orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money
+    {
+        $fact = $this->facts->of(Inputs::id($orderId, 'order')) ?? throw new InvalidPromotionAttribute('order', 'no such order recorded');
+        $currency = $this->platform->store(StoreId::fromString($fact->storeId))->currencyCode ?? null;
+
+        if ($grossSubtotal->currencyCode !== $currency || $netSubtotal->currencyCode !== $currency) {
+            throw new InvalidPromotionAttribute('currency', "the subtotals are not in the order's store's currency ({$currency})");
+        }
+
+        return DiscountRoom::of($grossSubtotal, $netSubtotal, $fact->ceilingPercent);
+    }
+
+    public function couponAfterEdit(EditedCouponRequest $request): CouponResult
+    {
+        $orderId = Inputs::id($request->orderId, 'order');
+        $couponId = Inputs::id($request->couponId, 'coupon');
+        $use = $this->coupons->useOf($orderId) ?? throw new InvalidPromotionAttribute('order', 'the order used no coupon');
+
+        if ($use->couponId !== $couponId) {
+            throw new InvalidPromotionAttribute('coupon', 'not the order\'s coupon');
+        }
+
+        $store = StoreId::fromString($use->storeId);
+        Quotes::sameStore($store, $request->prices);
+        $coupon = $this->coupons->byId($store, $couponId) ?? throw new InvalidPromotionAttribute('coupon', 'no such coupon');
+        Quotes::sameCurrency($coupon, $request->prices->currencyCode, 'the prices');
+        Quotes::sameCurrency($coupon, $request->room->currencyCode, 'the room');
+        Quotes::sameCurrency($coupon, $request->discountNow->currencyCode, 'the discount now');
+
+        // As the coupon is now, but its dates, switch, uses and assignment were settled at placement.
+        $outcome = CouponRules::work($coupon, $this->lines->of($request->prices), $request->audience, $request->prices->netSubtotal);
+
+        if ($outcome->refusal !== null || $outcome->discount === null) {
+            return CouponResult::refused($outcome->refusal ?? CouponRefusal::WorthNothing, $coupon->id, $coupon->nameAr, $coupon->nameEn);
+        }
+
+        // Never more than it is now — the recorded use is the truth, the caller's figure may only lower
+        // it — then trimmed to the room only if it alone passes it (the points gave way first, §1.3).
+        $now = min($use->discountMinor, $request->discountNow->minorUnits);
+        $most = min($now, $request->room->minorUnits);
+
+        if ($most <= 0) {
+            return CouponResult::refused($now <= 0 ? CouponRefusal::WorthNothing : CouponRefusal::PassesCeiling, $coupon->id, $coupon->nameAr, $coupon->nameEn);
+        }
+
+        if ($outcome->discount->minorUnits <= $most) {
+            return CouponResult::taken($coupon->id, $coupon->nameAr, $coupon->nameEn, $outcome->discount, $outcome->shares, $coupon->allowWithPoints);
+        }
+
+        $trimmed = Money::of($most, $coupon->currencyCode);
+        $shares = $trimmed->allocate(...array_map(static fn (Money $share): int => $share->minorUnits, $outcome->shares));
+
+        return CouponResult::taken($coupon->id, $coupon->nameAr, $coupon->nameEn, $trimmed, $shares, $coupon->allowWithPoints);
+    }
+
+    public function updateCouponUse(UpdateCouponUse $change): void
+    {
+        $this->update->handle(new UpdateCouponUseCommand($change));
     }
 }

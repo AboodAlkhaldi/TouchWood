@@ -6,13 +6,19 @@ namespace Modules\Promotions\Public\Contracts;
 
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
+use Modules\Promotions\Public\Dto\EditedCouponRequest;
+use Modules\Promotions\Public\Dto\RecordOrder;
+use Modules\Promotions\Public\Dto\UpdateCouponUse;
+use Modules\Promotions\Public\Dto\UseCoupon;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
  * What Sales asks Promotions (promotions.md §2.1): ids and values in, DTOs out (handoff §4.3). The
- * reads have no permission of their own — they serve flows their callers have authorized. The writes
- * Sales makes inside its checkout and its edits come with step 2b.
+ * reads have no permission of their own — they serve flows their callers have authorized. The three
+ * writes are Sales's, made inside its checkout's or its edit's transaction, and name the Sales
+ * permission that allowed them; Promotions builds the scope from the coupon's or the order's store.
+ * `giftLevels` and `segmentMembers` come with their steps.
  */
 interface PromotionsApi
 {
@@ -28,4 +34,32 @@ interface PromotionsApi
      * ceiling allows off `gross_subtotal`, less what the prices already took, never below 0.
      */
     public function customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money;
+
+    /**
+     * Placing the order (§2.1): every check of §1.3 again, as the coupon is now, under a lock on the
+     * coupon; refused (`CouponRefused`) or changed (`CouponChanged`) rather than ever applying anything
+     * the customer did not see; then the use recorded. The same order and coupon again does nothing;
+     * another coupon on the order is refused. A use never comes back.
+     */
+    public function useCoupon(UseCoupon $change): void;
+
+    /**
+     * Placing the order, with or without a coupon (§1.5): the fact segments count, with the store's
+     * ceiling of that moment. The same order again does nothing.
+     */
+    public function recordOrder(RecordOrder $change): void;
+
+    /** A staff edit (§1.6): the room under the ceiling **recorded with the order**, by the same formula. */
+    public function orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money;
+
+    /**
+     * After a staff edit (§1.3, the exception): the order's coupon worked out on the edited lines, as
+     * it is now but ignoring its dates, switch, uses and assignment — never more than its discount now,
+     * trimmed to the room only when it alone passes it, refused (0) when the edited order is under its
+     * minimum or nothing is eligible any more. Reads only.
+     */
+    public function couponAfterEdit(EditedCouponRequest $request): CouponResult;
+
+    /** After a staff edit: the use's new discount, never higher. Once per edit. */
+    public function updateCouponUse(UpdateCouponUse $change): void;
 }

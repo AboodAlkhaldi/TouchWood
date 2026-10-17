@@ -5,6 +5,10 @@ declare(strict_types=1);
 // Promotions' error messages, by error type (promotions.{key}), and the names of the fields they point
 // at (promotions.md §7).
 return [
+    'coupon_refused' => [
+        'title' => 'Coupon Can\'t Be Used',
+        'detail' => 'This coupon can\'t be used on this order any more. Remove it and place the order again.',
+    ],
     'coupon_changed' => [
         'title' => 'Your Coupon Changed',
         'detail' => 'Your coupon\'s discount changed since checkout worked it out. Check it and place the order again.',
@@ -48,5 +52,9 @@ return [
         'customer' => 'customer',
         'currency' => 'currency',
         'line' => 'cart line',
+        'order' => 'order',
+        'order_number' => 'order number',
+        'coupon' => 'coupon',
+        'edit' => 'order edit',
     ],
 ];
