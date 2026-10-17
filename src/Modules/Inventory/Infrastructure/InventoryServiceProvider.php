@@ -13,7 +13,7 @@ use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Inventory\Application\InventoryApiImpl;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
-use Modules\Inventory\Application\Stock\StoreWiring;
+use Modules\Inventory\Application\ProviderStockImpl;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\InventoryLocks;
 use Modules\Inventory\Domain\Repository\StockMovements;
@@ -31,6 +31,8 @@ use Modules\Inventory\Infrastructure\Queue\ReleaseExpiredHoldsJob;
 use Modules\Inventory\Presentation\Console\RebuildOrderableCommand;
 use Modules\Inventory\Presentation\Home\LowStockCard;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\Contracts\ProviderStock;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\HomeCardDto;
@@ -43,7 +45,7 @@ use Modules\Platform\Public\Events\SettingChanged;
  *
  * Steps 1-4: the schema, the permission, the default threshold, the errors and their words; stock,
  * the hand changes and the ledger; holds and `InventoryApi`; what Catalog is told; Low Stock (the list,
- * its count, its Home card) and its part of a store file.
+ * its count, its Home card) and its part of a store file. With Sync's step 2a: what it gives Sync (§2.5).
  */
 final class InventoryServiceProvider extends ServiceProvider
 {
@@ -57,6 +59,7 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
         $this->app->bind(Holds::class, DatabaseHolds::class);
         $this->app->bind(InventoryApi::class, InventoryApiImpl::class);
+        $this->app->bind(ProviderStock::class, ProviderStockImpl::class);
     }
 
     public function boot(): void

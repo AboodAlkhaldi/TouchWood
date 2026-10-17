@@ -6,9 +6,9 @@ namespace Modules\Inventory\Infrastructure\Import;
 
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\ImportSection;
-use Modules\Inventory\Application\Stock\StoreWiring;
 use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Inventory\Infrastructure\Queue\SetStockFromFileJob;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Shared\Domain\ValueObject\StoreId;
 
 /**

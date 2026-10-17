@@ -69,6 +69,9 @@ interface StockRows
 
     public function setInStock(StoreId $store, string $variantId, int $inStock): void;
 
+    /** The provider's number changed, or the store was unwired: its returned extra is followed or taken in (§1.9). */
+    public function setReturnedExtra(StoreId $store, string $variantId, int $returnedExtra): void;
+
     public function setThreshold(StoreId $store, string $variantId, ?int $threshold): void;
 
     public function setStockDependent(StoreId $store, string $variantId, bool $stockDependent): void;

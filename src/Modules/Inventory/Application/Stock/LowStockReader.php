@@ -10,6 +10,7 @@ use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Service\StockFigures;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;

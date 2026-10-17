@@ -15,6 +15,7 @@ Built in five steps, one PR each (stage 5's plan). Steps 1–3 are built alongsi
 | 3 | Holds and the contract: `InventoryApi` (stock, hold, adjustHold, ship, reducedInProvider, release, returned), expired holds freed every minute, `HoldsShort` — `inventory.holds.expire` | **built** |
 | 4a | Facts to Catalog: orderable and ending soon, only on a flip, inside each change; sizes switched on and the default threshold's change told; `RebuildOrderable` and `inventory:orderable:rebuild` — `inventory.orderable.rebuild` | **built** |
 | 4b | Low Stock: the list (`LowStock`), its count (`LowStockCount`, for the menu entry the list's screen adds) and its Home card, from one reader; the store's file: the page's lines, and the stock set by a job once Catalog's change commits (a File movement, audited as the file's) | **built** |
+| Sync 2a | What Inventory gives Sync (§2.5): `StoreWiring` in the Public contracts; `ProviderStock` - the provider's numbers in (a PROVIDER movement, a read counted once, the returned extra followed), the count before unwiring, and unwiring (the returned extra taken in, every size told again) | **built** |
 | 5 | The module's own pass - first: **`LowStockCount` in one query** before its menu entry goes in (step 4b's review: today about 3 queries a store, plus a read per 500 rows, on every admin page once the entry exists) | — |
 
 Moved from step 1 to step 2, where the first handler uses them: the off-store guard, the seam that
@@ -29,12 +30,12 @@ says; until then a hand change leaves Catalog's facts as they were.
 
 | Folder | Holds |
 |---|---|
-| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); bound to `Application/InventoryApiImpl` |
+| `Public/Contracts` | `InventoryApi` (inventory.md §2.1); bound to `Application/InventoryApiImpl`. For Sync (§2.5): `StoreWiring` (bound to `External/NoStoreWired` until Sync binds its own) and `ProviderStock`, bound to `Application/ProviderStockImpl` |
 | `Public/Events` | `HoldsShort`: every order still holding a size a hand change took below its holds, after commit |
-| `Public/Dto` | `StockDto`, `HoldLineDto` |
+| `Public/Dto` | `StockDto`, `HoldLineDto`, `ProviderStockResult` |
 | `Application` | `InventoryPermissions`: Manage Stock, per store, any role, in the Catalog group; the system's two, reserved (§3). `InventorySettings`: the store's default low-stock threshold, 10 (§1.2) |
 | `Application/Command` | `SetStock` (a stocktake, one size or several; a count that finds the number right is recorded, not audited), `AdjustStock` (one size, add or remove with a reason), `SetLowStockThreshold`, `SetEndingSoon` (a product, no provider), `SetStockDependent` (wired stores only) |
-| `Application/Stock` | What every change shares: `InventoryChange` (the permission in the store, the store known, an off store only with the store switch; one transaction, the store's lock first, the audit entries), `SizeInput` (the sizes named, checked in two reads: none unknown, archived or of an archived product), the `StoreWiring` port |
+| `Application/Stock` | What every change shares: `InventoryChange` (the permission in the store, the store known, an off store only with the store switch; one transaction, the store's lock first, the audit entries), `SizeInput` (the sizes named, checked in two reads: none unknown, archived or of an archived product - or, for the provider's numbers, sorted into those three) |
 | `Domain/Exception` | `InventoryError` and the thirteen errors of §7, each an `inventory.*` type with a category |
 | `Domain/Repository` | `StockRows` (made when missing and locked FOR UPDATE, in one order), `StoreProducts`, `StockMovements`, `InventoryLocks` |
 | `Domain/Service` | `HandAdjustment`: an add or a remove as a signed change — each reason one way, a correction with its note (owner, 2026-10-11) |
@@ -59,6 +60,7 @@ says; until then a hand change leaves Catalog's facts as they were.
 |---|---|
 | `tests/Modules/Inventory/Integration/InventorySchemaTest.php` | The schema exists, is on the search path, and is created and dropped (with what is in it) from nothing; its kinds stored as strings; every CHECK broken once, NULLs included (§8 #13); each key's delete rule |
 | `tests/Modules/Inventory/Integration/InventoryStockTest.php` | Stocktakes (a right count recorded, not audited), adds and removes with each reason one way, a correction's note, never below 0, thresholds 0–100,000 or the default, "last pieces", the stock-dependent switch; who may (per store, unknown and off stores, wired refusals, archived sizes and products); the store's lock and the rows' lock inside the change; nothing written after a rollback; the ledger append-only, a reference counted once (§8 #6, #9, #11, #12) |
+| `tests/Modules/Inventory/Integration/InventoryProviderStockTest.php` | The provider's numbers (§2.5): a PROVIDER movement, the same number nothing, a read run again counted once after a later one, the returned extra followed, Catalog told, `HoldsShort` once; off and draft sizes taken; archived, not found and impossible numbers named and left alone; a store not wired left alone; the read reference's limits. Unwiring: the count first, the returned extra a RETURNED movement, every size told again, refused while still wired |
 | `tests/Modules/Inventory/Integration/InventoryAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Modules/Inventory/Integration/InventoryPermissionsTest.php` | The one job and the two reserved, by name, kind, group and reservation; a staff role may hold Manage Stock; its English name; the default threshold's scope, type, default, bounds and permission |
 | `tests/Modules/Inventory/Unit/InventoryErrorsTest.php` | Exactly §7's thirteen errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |

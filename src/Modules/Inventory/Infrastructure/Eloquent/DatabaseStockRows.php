@@ -156,6 +156,11 @@ final readonly class DatabaseStockRows implements StockRows
         $this->update($store, $variantId, ['in_stock' => $inStock]);
     }
 
+    public function setReturnedExtra(StoreId $store, string $variantId, int $returnedExtra): void
+    {
+        $this->update($store, $variantId, ['returned_extra' => $returnedExtra]);
+    }
+
     public function setThreshold(StoreId $store, string $variantId, ?int $threshold): void
     {
         $this->update($store, $variantId, ['threshold' => $threshold]);

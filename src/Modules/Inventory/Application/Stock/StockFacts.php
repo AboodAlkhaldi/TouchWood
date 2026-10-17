@@ -10,6 +10,7 @@ use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
 use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Inventory\Domain\ValueObject\StockRow;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 

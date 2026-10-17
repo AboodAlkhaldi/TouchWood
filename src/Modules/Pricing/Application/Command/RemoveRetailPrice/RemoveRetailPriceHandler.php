@@ -9,12 +9,12 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SizeInput;
-use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
 use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Domain\Repository\RetailPrices;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Application\Unauthorized;
 
 /**
