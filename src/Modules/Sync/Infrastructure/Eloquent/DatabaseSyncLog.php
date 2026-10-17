@@ -10,11 +10,12 @@ use Shared\Domain\ValueObject\StoreId;
 use stdClass;
 
 /**
- * The report's and the reads' rows, straight from `sync.*` - one query a list, one a count.
+ * The report's and the reads' rows, straight from `sync.*` - one query a page, one a count.
  *
  * @phpstan-import-type EntryRow from SyncLog
  * @phpstan-import-type ReadRow from SyncLog
  * @phpstan-import-type LineRow from SyncLog
+ * @phpstan-import-type ReportedRow from SyncLog
  */
 final readonly class DatabaseSyncLog implements SyncLog
 {
@@ -53,20 +54,38 @@ final readonly class DatabaseSyncLog implements SyncLog
         return $row instanceof stdClass ? self::readRow($row) : null;
     }
 
-    public function lines(string $readId): array
+    public function lines(string $readId, string $kind, int $page, int $perPage): array
     {
-        return array_values(array_map(static fn (stdClass $row): array => [
-            'kind' => (string) $row->kind,
+        $query = $this->db->table('sync.read_lines')->where('read_id', $readId)->where('kind', $kind);
+        $total = (clone $query)->count();
+        $rows = array_map(static fn (stdClass $row): array => [
             'variantId' => (string) $row->variant_id,
             'code' => $row->code === null ? null : (string) $row->code,
             'before' => $row->before === null ? null : (string) $row->before,
             'after' => (string) $row->after,
-        ], $this->db->table('sync.read_lines')->where('read_id', $readId)->orderByRaw("kind = 'STOCK'")->orderBy('id')->get()->all()));
+        ], $query->orderBy('id')->forPage($page, $perPage)->get()->all());
+
+        return [array_values($rows), $total];
     }
 
-    public function entriesOf(string $readId): array
+    public function reported(string $readId, int $page, int $perPage): array
     {
-        return array_values(array_map(self::entry(...), $this->db->table('sync.report_entries')->where('read_id', $readId)->orderBy('kind')->orderBy('id')->get()->all()));
+        $query = $this->db->table('sync.read_reports')->where('read_id', $readId);
+        $total = (clone $query)->count();
+        $rows = array_map(static function (stdClass $row): array {
+            /** @var array<string, mixed> $detail */
+            $detail = json_decode((string) $row->detail, true, flags: JSON_THROW_ON_ERROR);
+
+            return [
+                'kind' => (string) $row->kind,
+                'code' => $row->code === null ? null : (string) $row->code,
+                'variantId' => $row->variant_id === null ? null : (string) $row->variant_id,
+                'saleId' => $row->sale_id === null ? null : (string) $row->sale_id,
+                'detail' => $detail,
+            ];
+        }, $query->orderBy('kind')->orderBy('id')->forPage($page, $perPage)->get()->all());
+
+        return [array_values($rows), $total];
     }
 
     /**
@@ -83,7 +102,6 @@ final readonly class DatabaseSyncLog implements SyncLog
             'code' => $row->code === null ? null : (string) $row->code,
             'variantId' => $row->variant_id === null ? null : (string) $row->variant_id,
             'saleId' => $row->sale_id === null ? null : (string) $row->sale_id,
-            'readId' => $row->read_id === null ? null : (string) $row->read_id,
             'detail' => $detail,
             'openedAt' => (string) $row->opened_at,
             'seenAt' => (string) $row->seen_at,

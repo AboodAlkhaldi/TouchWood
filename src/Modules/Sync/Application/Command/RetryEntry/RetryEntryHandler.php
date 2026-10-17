@@ -10,6 +10,7 @@ use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\EntryNotFound;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Domain\Exception\SizeNotFound;
 use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
@@ -20,7 +21,8 @@ use Shared\Application\Unauthorized;
 /**
  * **Retry** on a report entry (sync.md §1.6, §3): its code read again - the code the provider sent, or
  * the size's own today - queued, asked by the person who pressed it; a failed read's entry reads the
- * whole store. The entry closes when the read finds it right. An entry not open is not found.
+ * whole store, and a size deleted since is told, not read (owner, 2026-10-18). The entry closes when the
+ * read finds it right. An entry not open is not found; it is looked up first, to know its store.
  */
 final readonly class RetryEntryHandler
 {
@@ -35,7 +37,7 @@ final readonly class RetryEntryHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|EntryNotFound|NotWired
+     * @throws Unauthorized|InvalidSyncInput|EntryNotFound|NotWired|SizeNotFound
      */
     public function handle(RetryEntry $command): void
     {
@@ -46,13 +48,15 @@ final readonly class RetryEntryHandler
             throw new NotWired;
         }
 
-        $code = $entry['code'] ?? ($entry['variantId'] === null ? null : $this->catalog->variant($entry['variantId'])?->code);
-
-        if ($entry['kind'] === ReportKind::ReadFailed || $code === null) {
+        // A failed read's entry has no code: the whole store is read (owner, 2026-10-18).
+        if ($entry['kind'] === ReportKind::ReadFailed) {
             $this->reads->queue($store, ReadKind::Now);
 
             return;
         }
+
+        // The provider's code; or the size's own today - a size deleted since is told, not read.
+        $code = $entry['code'] ?? ($entry['variantId'] === null ? null : $this->catalog->variant($entry['variantId'])?->code) ?? throw new SizeNotFound;
 
         $this->reads->queue($store, ReadKind::Code, [$code]);
     }

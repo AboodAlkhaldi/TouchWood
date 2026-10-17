@@ -22,14 +22,13 @@ final readonly class ReportEntryView
         public ?string $productNameAr,
         public ?string $productNameEn,
         public ?string $saleId,
-        public ?string $readId,
         public array $detail,
         public string $openedAt,
         public string $seenAt,
     ) {}
 
     /**
-     * @param  array{id: int, kind: string, code: string|null, variantId: string|null, saleId: string|null, readId: string|null, detail: array<string, mixed>, openedAt: string, seenAt: string}  $row
+     * @param  array{id: int, kind: string, code: string|null, variantId: string|null, saleId: string|null, detail: array<string, mixed>, openedAt: string, seenAt: string}  $row
      * @param  array<string, array{productId: string, code: string, nameAr: string, nameEn: string|null}>  $names
      */
     public static function of(array $row, array $names): self
@@ -45,7 +44,6 @@ final readonly class ReportEntryView
             $size['nameAr'] ?? null,
             $size['nameEn'] ?? null,
             $row['saleId'],
-            $row['readId'],
             $row['detail'],
             $row['openedAt'],
             $row['seenAt'],

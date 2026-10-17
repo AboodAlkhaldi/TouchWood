@@ -186,6 +186,7 @@ describe('what the database refuses behind the code', function () {
             ->and(fn () => DB::transaction(fn () => DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_at' => now(), 'closed_by' => 'STAFF:'.strtoupper($staff)])))->toThrow(QueryException::class, 'report_entries_closed_by');
         DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_at' => now(), 'closed_by' => 'STAFF:'.$staff]);
         DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_by' => 'UNWIRED']);
+        DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_by' => 'CATALOG']);
         DB::table('sync.report_entries')->where('kind', 'UNKNOWN_CODE')->where('code', 'TW-1')->where('store_id', Fx::storeId('sa'))->update(['closed_at' => now(), 'closed_by' => 'READ']);
         $insert([])();
 
@@ -202,6 +203,7 @@ describe('what the database refuses behind the code', function () {
         expect($rules)->toBe([
             'connections_store' => 'r',
             'read_lines_read' => 'c',
+            'read_reports_read' => 'c',
             'reads_store' => 'r',
             'report_entries_store' => 'r',
         ]);

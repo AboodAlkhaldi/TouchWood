@@ -17,9 +17,8 @@ interface ReportEntries
      * Entries of a kind opened, or the open ones seen again - one statement for a batch (handoff §12.2).
      *
      * @param  list<array{code: string|null, variantId: string|null, saleId: string|null, detail: array<string, mixed>}>  $entries
-     * @param  string|null  $readId  the read that saw them, shown on its page (sync.md §9.3 #19)
      */
-    public function open(StoreId $store, ReportKind $kind, array $entries, ?string $readId = null): void;
+    public function open(StoreId $store, ReportKind $kind, array $entries): void;
 
     /**
      * An open entry: its store, kind, the provider's code and the size - null when there is none open.
@@ -44,6 +43,14 @@ interface ReportEntries
 
     /** The store's open entries of a kind closed - all of them (a failed read, once a read succeeds). */
     public function closeKind(StoreId $store, ReportKind $kind, string $closedBy): int;
+
+    /**
+     * The open off-or-draft entries of these sizes closed: Catalog switched them on in the store and
+     * their product is ready (sync.md §1.6).
+     *
+     * @param  list<string>  $variantIds
+     */
+    public function closeSwitchedOn(StoreId $store, array $variantIds): int;
 
     /** Every open entry of the store closed, saying by what (sync.md §1.8: unwiring). */
     public function closeAll(StoreId $store, string $closedBy): int;

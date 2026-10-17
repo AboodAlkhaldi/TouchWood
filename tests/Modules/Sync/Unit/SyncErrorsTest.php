@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use Modules\Sync\Domain\Exception\AlreadyWired;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\Exception\EntryNotDismissable;
 use Modules\Sync\Domain\Exception\EntryNotFound;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Domain\Exception\ReadNotFound;
+use Modules\Sync\Domain\Exception\SizeNotFound;
 use Modules\Sync\Domain\Exception\SyncError;
 use Shared\Domain\Error\ErrorCategory;
 
@@ -27,6 +30,9 @@ function syncErrorTable(): array
         NotWired::class => ['sync.not_wired', ErrorCategory::Conflict],
         EntryNotFound::class => ['sync.entry_not_found', ErrorCategory::NotFound],
         InvalidSyncInput::class => ['sync.invalid_sync_input', ErrorCategory::Invalid],
+        ReadNotFound::class => ['sync.read_not_found', ErrorCategory::NotFound],
+        SizeNotFound::class => ['sync.size_not_found', ErrorCategory::NotFound],
+        EntryNotDismissable::class => ['sync.entry_not_dismissable', ErrorCategory::Conflict],
     ];
 }
 
@@ -56,7 +62,7 @@ it('has exactly the errors of §7 in its folder, no more and no fewer', function
     sort($table);
 
     // A guard over files must find something, or it passes over nothing.
-    expect(syncErrorClassesFound())->toHaveCount(5)->toBe($table);
+    expect(syncErrorClassesFound())->toHaveCount(8)->toBe($table);
 });
 
 it('gives each error the type and the category of §7', function (SyncError $error, string $type, ErrorCategory $category) {

@@ -10,16 +10,20 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Sync\Application\Report\ReportAccess;
 use Modules\Sync\Application\SyncPermissions;
+use Modules\Sync\Domain\Exception\EntryNotDismissable;
 use Modules\Sync\Domain\Exception\EntryNotFound;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Repository\ReportEntries;
+use Modules\Sync\Domain\ValueObject\ReportKind;
 use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Application\Unauthorized;
 
 /**
  * **Dismiss** an entry, or **Leave it** - an off or draft size left as it is (sync.md §1.6, §3): closed by
  * the person who pressed it, and audited. The same thing seen again opens a new entry. An entry not
- * open is not found.
+ * open is not found; a failed read's is not dismissed - it closes when a read works again (owner,
+ * 2026-10-18). The entry is looked up first, to know its store, as Pricing finds a sale first.
  */
 final readonly class DismissEntryHandler
 {
@@ -34,22 +38,40 @@ final readonly class DismissEntryHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|EntryNotFound
+     * @throws Unauthorized|InvalidSyncInput|EntryNotFound|EntryNotDismissable
      */
     public function handle(DismissEntry $command): void
     {
         $entry = $this->entries->findOpen($command->entryId) ?? throw new EntryNotFound;
         $store = $this->access->authorize(self::PERMISSION, $entry['storeId']);
+        $actor = $this->actors->current();
 
-        $this->db->transaction(function () use ($command, $entry, $store): void {
-            if (! $this->entries->closeOne($command->entryId, 'STAFF:'.$this->actors->current()->id)) {
+        // Closed by a person: staff dismiss, never the system.
+        if ($actor->type !== ActorType::Staff || $actor->id === null) {
+            throw new Unauthorized(self::PERMISSION);
+        }
+
+        // A failed read closes only when a read works again (owner, 2026-10-18; sync.md §1.6).
+        if ($entry['kind'] === ReportKind::ReadFailed) {
+            throw new EntryNotDismissable;
+        }
+
+        $this->db->transaction(function () use ($command, $entry, $store, $actor): void {
+            if (! $this->entries->closeOne($command->entryId, 'STAFF:'.strtolower((string) $actor->id))) {
                 throw new EntryNotFound;
             }
 
-            $this->platform->recordAudit(new AuditEntryDto('sync.entry.dismissed', 'sync.report_entry', (string) $command->entryId, $store->value, AuditChanges::none()
-                ->changed('kind', null, $entry['kind']->value)
-                ->changed('code', null, $entry['code'])
-                ->changed('variant', null, $entry['variantId'])));
+            $changes = AuditChanges::none()->changed('kind', null, $entry['kind']->value);
+
+            if ($entry['code'] !== null) {
+                $changes->changed('code', null, $entry['code']);
+            }
+
+            if ($entry['variantId'] !== null) {
+                $changes->changed('variant', null, $entry['variantId']);
+            }
+
+            $this->platform->recordAudit(new AuditEntryDto('sync.entry.dismissed', 'sync.report_entry', (string) $command->entryId, $store->value, $changes));
         });
     }
 }

@@ -55,7 +55,7 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   size), the whole store (`READ_FAILED`, neither), or a size of ours (every other kind, the size and no
   code - its code is read from Catalog, so a corrected code is still the same entry). Only a stopped
   sale names its sale. The provider's code is kept up to 255 characters; step 4 cuts a longer one.
-  Who closed an entry (`closed_by`) is free text until step 5 defines it.
+  Who closed an entry: `READ`, `UNWIRED`, `CATALOG` (the size switched on and ready) or `STAFF:{id}`.
 - **A store** with a connection, reads or report entries cannot be deleted. A size or a sale keeps its
   report entries when it goes: no key on them, as the audit log names its subjects.
 - **The one call to the provider in a web request** is the Super Admin's test when saving a
@@ -93,11 +93,15 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   to staff as their correction failing.
 - **What staff read and do** (step 5a): the report's open entries, the latest seen first, each naming its
   size's product (two Catalog reads a page) or the provider's code; its count, one query, for the menu
-  entry the screen adds. The page of reads; each read's sections - its lines (`sync.read_lines`,
-  written per batch from `changes` in Pricing's and Inventory's results) and the entries it last saw
-  (`report_entries.read_id`). Sync now and Retry queue a read asked by the person (Retry reads the
-  provider's code, or the size's own today; a failed read's entry, the whole store); Dismiss / Leave it
-  closes the entry as `STAFF:{id}` and audits it. Views by `sync.report.view`, actions by
+  entry the screen adds. The page of reads; each read's sections, a page of 100 at a time - its lines
+  (`sync.read_lines`, written per batch from `changes` in Pricing's and Inventory's results) and what it
+  reported, as it was that day (`sync.read_reports`; owner, 2026-10-18). Sync now and Retry queue a
+  read asked by the person (Retry reads the provider's code, or the size's own today; a failed read's
+  entry, the whole store; a size deleted since is refused); Dismiss / Leave it closes the entry as
+  `STAFF:{id}` and audits it - never a failed read's, which closes when a read works again. An off or
+  draft size's entry closes by itself once Catalog switches it on and its product is ready
+  (`CloseSwitchedOnEntries`). An entry or a read is looked up first, to know its store, as Pricing finds
+  a sale first. Views by `sync.report.view`, actions by
   `sync.read.run`, per store (`ReportAccess`). The log - reads (their lines with them) and closed
   entries - deleted after 90 days each night at 03:00 Riyadh time.
 - **When a read fails** (§1.7): an attempt that fails goes back to the queue (or is failed as
@@ -106,6 +110,7 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   running past 30 is taken as dead - its own job takes it back, another read of the store fails and
   reports it. Staff see the provider's reason, never another error's text (that stays on the failed
   jobs screen).
+- **Not yet**: the menu entries and the screens come with stage 5's screens.
 - **Known limit**: every lookup decrypts the key and the secret; if the app's key were lost without
   `APP_PREVIOUS_KEYS`, the Provider page, a change and unwiring would fail until it is restored.
 - **The key and the secret** are encrypted with the app's key, never returned, logged or audited -

@@ -25,11 +25,13 @@ final readonly class DatabaseReportEntries implements ReportEntries
     /** Rows a statement: 7 values each, well under PostgreSQL's bind limit. */
     private const int CHUNK = 500;
 
+    private const int PRUNE_BATCH = 5000;
+
     public function __construct(
         private ConnectionInterface $db,
     ) {}
 
-    public function open(StoreId $store, ReportKind $kind, array $entries, ?string $readId = null): void
+    public function open(StoreId $store, ReportKind $kind, array $entries): void
     {
         // The same thing twice in one batch is one entry: the statement may not touch a row twice.
         $unique = [];
@@ -45,14 +47,14 @@ final readonly class DatabaseReportEntries implements ReportEntries
             $values = $bindings = [];
 
             foreach ($chunk as $entry) {
-                $values[] = '(?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)';
-                array_push($bindings, $store->value, $kind->value, $entry['code'], $entry['variantId'], $entry['saleId'], json_encode((object) $entry['detail'], JSON_THROW_ON_ERROR), $now, $now, $readId);
+                $values[] = '(?, ?, ?, ?, ?, ?::jsonb, ?, ?)';
+                array_push($bindings, $store->value, $kind->value, $entry['code'], $entry['variantId'], $entry['saleId'], json_encode((object) $entry['detail'], JSON_THROW_ON_ERROR), $now, $now);
             }
 
             $this->db->statement(
-                'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at, read_id) VALUES '.implode(', ', $values)
+                'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
                 ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
-                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id, read_id = COALESCE(EXCLUDED.read_id, sync.report_entries.read_id)',
+                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id',
                 $bindings,
             );
         }
@@ -105,7 +107,23 @@ final readonly class DatabaseReportEntries implements ReportEntries
 
     public function pruneClosedBefore(DateTimeImmutable $before): int
     {
-        return $this->db->table(self::TABLE)->whereNotNull('closed_at')->where('closed_at', '<', $before)->delete();
+        $deleted = 0;
+
+        // In batches: a long-closed backlog never holds the table in one statement.
+        do {
+            $batch = $this->db->delete(
+                'DELETE FROM sync.report_entries WHERE id IN (SELECT id FROM sync.report_entries WHERE closed_at IS NOT NULL AND closed_at < ? LIMIT ?)',
+                [$before, self::PRUNE_BATCH],
+            );
+            $deleted += $batch;
+        } while ($batch === self::PRUNE_BATCH);
+
+        return $deleted;
+    }
+
+    public function closeSwitchedOn(StoreId $store, array $variantIds): int
+    {
+        return $this->close($store, ReportKind::OffOrDraftPriced, [], $variantIds, 'CATALOG');
     }
 
     public function closeAll(StoreId $store, string $closedBy): int

@@ -176,7 +176,18 @@ final readonly class DatabaseReads implements Reads
 
     public function pruneFinishedBefore(DateTimeImmutable $before): int
     {
-        return $this->db->table(self::TABLE)->whereIn('state', ['DONE', 'FAILED'])->where('finished_at', '<', $before)->delete();
+        $deleted = 0;
+
+        // In batches, their lines and records going with each: a backlog never holds the tables at once.
+        do {
+            $batch = $this->db->delete(
+                "DELETE FROM sync.reads WHERE id IN (SELECT id FROM sync.reads WHERE state IN ('DONE', 'FAILED') AND finished_at < ? LIMIT ?)",
+                [$before, 1000],
+            );
+            $deleted += $batch;
+        } while ($batch === 1000);
+
+        return $deleted;
     }
 
     public function storeOf(string $readId): ?string

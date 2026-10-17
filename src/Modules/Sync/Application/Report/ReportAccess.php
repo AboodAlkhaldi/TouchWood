@@ -13,9 +13,9 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * What every report read and action shares (sync.md §3): the permission in that store, asked before
- * anything is looked up - a malformed store id is no store the person holds anything in - and a store
- * that exists.
+ * What every report read and action shares (sync.md §3): the permission in that store - a malformed
+ * store id is no store the person holds anything in - and a store that exists. An action on an entry or
+ * a read looks that up first, to know its store (as Pricing finds a sale first).
  */
 final readonly class ReportAccess
 {
