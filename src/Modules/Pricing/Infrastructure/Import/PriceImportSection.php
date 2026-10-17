@@ -21,12 +21,25 @@ use Shared\Domain\ValueObject\StoreId;
  * switched on, its price is set by a job queued once Catalog's change commits
  * (`SetPriceFromFileHandler` says why not inside it). An item with no price leaves the size's price.
  */
-final readonly class PriceImportSection implements ImportSection
+final class PriceImportSection implements ImportSection
 {
+    /**
+     * Each store's wiring, asked once per page: the section is made once for all the page's rows
+     * (Catalog's `ImportSections::all`). Switching items on asks afresh.
+     *
+     * @var array<string, bool>
+     */
+    private array $wired = [];
+
     public function __construct(
-        private PlatformApi $platform,
-        private StoreWiring $wiring,
+        private readonly PlatformApi $platform,
+        private readonly StoreWiring $wiring,
     ) {}
+
+    private function wiredForPage(StoreId $store): bool
+    {
+        return $this->wired[$store->value] ??= $this->wiring->isWired($store);
+    }
 
     public function lines(StoreId $store, ?string $price, ?int $stock): array
     {
@@ -36,7 +49,7 @@ final readonly class PriceImportSection implements ImportSection
             return [];
         }
 
-        if ($this->wiring->isWired($store)) {
+        if ($this->wiredForPage($store)) {
             return [trans('pricing::import.price_ignored')];
         }
 
