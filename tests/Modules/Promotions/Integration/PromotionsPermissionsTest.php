@@ -48,6 +48,17 @@ function promotionsDeclaredPermissions(): array
     return $names;
 }
 
+/**
+ * The four jobs, written out from spec §3 rather than read from the code under test, so a job left out
+ * of `jobs()` is still checked.
+ *
+ * @return list<string>
+ */
+function promotionsJobs(): array
+{
+    return ['promotions.marketing.view', 'promotions.coupon.manage', 'promotions.segment.manage', 'promotions.gift.manage'];
+}
+
 /** Whether the role editor offers the permission for a role of that level, and how. */
 function promotionsOffered(string $name, RoleLevel $level): ?EditorPermission
 {
@@ -68,7 +79,7 @@ it('declares the six permissions of the spec, and no setting of its own', functi
         'promotions.marketing.view',
         'promotions.segment.manage',
         'promotions.segment.refresh',
-    ]);
+    ])->and(PromotionsPermissions::jobs())->toBe(promotionsJobs());
 });
 
 it('gives every customer their own coupons, store-free, outside the role editor', function () {
@@ -92,7 +103,7 @@ it('makes the four jobs per store, offered under Marketing, never reserved', fun
         ->and($permission?->group)->toBe(PermissionGroup::Marketing)
         ->and($permission?->reserved)->toBeFalse()
         ->and(array_map(static fn (PermissionDefinitionDto $offered): string => $offered->name, app(InMemoryPermissionCatalog::class)->assignable()))->toContain($name);
-})->with(PromotionsPermissions::jobs());
+})->with(promotionsJobs());
 
 describe('the four jobs, open to a staff role (owner, 2026-10-08)', function () {
     it('goes into a staff role and is offered there, not marked admin-only', function (string $name) {
@@ -103,7 +114,7 @@ describe('the four jobs, open to a staff role (owner, 2026-10-08)', function () 
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
         expect(promotionsOffered($name, RoleLevel::Staff)?->adminOnly)->toBeFalse();
-    })->with(PromotionsPermissions::jobs());
+    })->with(promotionsJobs());
 
     it('is granted in the role\'s own store only', function (string $name) {
         Fx::actAsStaff(Fx::staffWith([$name], ['sa']));
@@ -111,7 +122,7 @@ describe('the four jobs, open to a staff role (owner, 2026-10-08)', function () 
         expect(Fx::allows($name, PermissionScope::store(StoreId::fromString(Fx::storeId('sa')))))->toBeTrue()
             ->and(Fx::allows($name, PermissionScope::store(StoreId::fromString(Fx::storeId('ae')))))->toBeFalse()
             ->and(app(Authorizer::class)->storesWith($name))->toEqual([StoreId::fromString(Fx::storeId('sa'))]);
-    })->with(PromotionsPermissions::jobs());
+    })->with(promotionsJobs());
 });
 
 it('reserves the nightly refresh to the system, store-free and never offered', function () {

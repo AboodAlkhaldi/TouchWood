@@ -10,12 +10,12 @@ return [
         'detail' => 'Your coupon\'s discount changed since checkout worked it out. Check it and place the order again.',
     ],
     'code_taken' => [
-        'title' => 'Code Already Used',
+        'title' => 'Code Already Taken',
         'detail' => 'Another coupon in this store already has the code :code. Choose another code.',
     ],
     'coupon_in_use' => [
         'title' => 'Coupon Already Used',
-        'detail' => 'This coupon has been used, so it can\'t be changed that way. Switch it off instead.',
+        'detail' => 'This coupon has already been used, so its uses can\'t be removed or set below those already made.',
     ],
     'gift_level_clash' => [
         'title' => 'Gift Level Already Set',
@@ -42,7 +42,7 @@ return [
         'code' => 'code',
         'percent' => 'percentage',
         'amount' => 'amount',
-        'dates' => 'dates',
+        'dates' => 'date range',
         'store' => 'store',
         'permission' => 'permission',
     ],

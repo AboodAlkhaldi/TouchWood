@@ -99,7 +99,7 @@ it('names the taken code in the message, in both languages', function () {
     expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('Another coupon in this store already has the code SUMMER10. Choose another code.');
 
     App::setLocale('ar');
-    expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('لدى كوبون آخر في هذا المتجر الرمز SUMMER10. اختر رمزًا آخر.')
+    expect(FormErrors::message(new CodeTaken('SUMMER10')))->toBe('الرمز SUMMER10 مستخدم لكوبون آخر في هذا المتجر. اختر رمزًا آخر.')
         ->and((new CodeTaken('SUMMER10'))->context())->toBe(['code' => 'SUMMER10']);
 });
 
@@ -116,6 +116,11 @@ it('has a word in both languages for every value a refusal can name', function (
         expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
 })->with(['code', 'percent', 'amount', 'dates', 'store', 'permission']);
+
+it('names the dates as one range, so the sentence reads right', function () {
+    App::setLocale('en');
+    expect(FormErrors::message(new InvalidPromotionAttribute('dates', 'end before start')))->toBe('The date range isn\'t valid. Check it and try again.');
+});
 
 it('never shows the English written for the log', function (PromotionsError $error) {
     App::setLocale('ar');
