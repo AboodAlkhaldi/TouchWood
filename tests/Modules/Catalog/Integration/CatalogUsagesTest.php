@@ -44,10 +44,10 @@ final class CatalogUsagesStandIn implements CatalogUsage
     {
         self::$asked[] = [$item, $ids];
 
-        return array_values(array_map(
+        return array_map(
             static fn (string $id): CatalogUseDto => new CatalogUseDto('standin', 'thing', 'held-'.$id, $item, $id),
             array_values(array_intersect($ids, self::$holds[$item->value] ?? [])),
-        ));
+        );
     }
 }
 
@@ -68,7 +68,7 @@ function catalogUsagesHold(CatalogItem $item, string $id): void
 }
 
 it('refuses to delete a category, a brand, a draft product or a draft variant another module uses, and deletes nothing', function (Closure $make) {
-    [$table, $id, $delete] = $make();
+    [$table, $id, $delete, $item, $itemId] = $make();
 
     $refused = null;
 
@@ -80,39 +80,39 @@ it('refuses to delete a category, a brand, a draft product or a draft variant an
 
     expect($refused?->modules)->toBe(['standin'])
         ->and($refused?->uses)->toBe(1)
-        ->and($refused?->context())->toBe(['modules' => 'standin', 'uses' => 1])
+        ->and($refused?->context())->toBe(['modules' => 'standin', 'uses' => 1, 'item' => $item->value, 'item_id' => $itemId])
         ->and(DB::table("catalog.{$table}")->where('id', $id)->exists())->toBeTrue();
 })->with([
     'a category' => [function () {
         $category = Px::category('Doors');
         catalogUsagesHold(CatalogItem::Category, $category);
 
-        return ['categories', $category, fn () => app(DeleteCategoryHandler::class)->handle(new DeleteCategory($category))];
+        return ['categories', $category, fn () => app(DeleteCategoryHandler::class)->handle(new DeleteCategory($category)), CatalogItem::Category, $category];
     }],
     'a brand' => [function () {
         $brand = Px::brand('Hafele');
         catalogUsagesHold(CatalogItem::Brand, $brand);
 
-        return ['brands', $brand, fn () => app(DeleteBrandHandler::class)->handle(new DeleteBrand($brand))];
+        return ['brands', $brand, fn () => app(DeleteBrandHandler::class)->handle(new DeleteBrand($brand)), CatalogItem::Brand, $brand];
     }],
     'a draft product' => [function () {
         $product = Px::product('Hinge');
         catalogUsagesHold(CatalogItem::Product, $product);
 
-        return ['products', $product, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product))];
+        return ['products', $product, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product)), CatalogItem::Product, $product];
     }],
     'a draft product whose variant is used' => [function () {
         $product = Px::product('Hinge');
         $variant = Px::variant($product, '7100001');
         catalogUsagesHold(CatalogItem::Variant, $variant);
 
-        return ['products', $product, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product))];
+        return ['products', $product, fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product)), CatalogItem::Variant, $variant];
     }],
     'a draft variant' => [function () {
         $variant = Px::variant(Px::product('Hinge'), '7100002');
         catalogUsagesHold(CatalogItem::Variant, $variant);
 
-        return ['variants', $variant, fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($variant))];
+        return ['variants', $variant, fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($variant)), CatalogItem::Variant, $variant];
     }],
 ]);
 
@@ -123,10 +123,17 @@ it('deletes what no module uses, having asked about it', function () {
     // Held by the stand-in, but a different item: no answer for these.
     catalogUsagesHold(CatalogItem::Category, Px::category('Other'));
 
+    $brand = Px::brand('Hafele');
+    $lone = Px::variant(Px::product('Hinge'), '7100004');
+
     app(DeleteCategoryHandler::class)->handle(new DeleteCategory($category));
     app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product));
+    app(DeleteBrandHandler::class)->handle(new DeleteBrand($brand));
+    app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($lone));
 
     expect(DB::table('catalog.categories')->where('id', $category)->exists())->toBeFalse()
+        ->and(DB::table('catalog.brands')->where('id', $brand)->exists())->toBeFalse()
+        ->and(DB::table('catalog.variants')->where('id', $lone)->exists())->toBeFalse()
         ->and(DB::table('catalog.products')->where('id', $product)->exists())->toBeFalse()
         ->and(CatalogUsagesStandIn::$asked)->toContain([CatalogItem::Category, [$category]])
         ->and(CatalogUsagesStandIn::$asked)->toContain([CatalogItem::Product, [$product]])

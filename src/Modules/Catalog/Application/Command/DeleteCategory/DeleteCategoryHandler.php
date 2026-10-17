@@ -8,6 +8,7 @@ use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Exception\CategoryNotEmpty;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -33,7 +34,7 @@ final readonly class DeleteCategoryHandler
     ) {}
 
     /**
-     * @throws CategoryNotEmpty|CategoryNotFound|Unauthorized
+     * @throws CatalogItemInUse|CategoryNotEmpty|CategoryNotFound|Unauthorized
      */
     public function handle(DeleteCategory $command): void
     {

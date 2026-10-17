@@ -62,7 +62,12 @@ final class InMemoryCatalogUsages implements CatalogUsages
         }
 
         if ($uses !== []) {
-            throw new CatalogItemInUse(array_values(array_unique(array_map(static fn (CatalogUseDto $use): string => $use->module, $uses))), count($uses));
+            throw new CatalogItemInUse(
+                array_values(array_unique(array_map(static fn (CatalogUseDto $use): string => $use->module, $uses))),
+                count($uses),
+                $uses[0]->item,
+                $uses[0]->itemId,
+            );
         }
     }
 }

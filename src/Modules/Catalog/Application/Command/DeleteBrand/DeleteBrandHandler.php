@@ -10,6 +10,7 @@ use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Exception\BrandInUse;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Exception\DefaultBrandRequired;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
@@ -34,7 +35,7 @@ final readonly class DeleteBrandHandler
     ) {}
 
     /**
-     * @throws BrandInUse|BrandNotFound|DefaultBrandRequired|Unauthorized
+     * @throws CatalogItemInUse|BrandInUse|BrandNotFound|DefaultBrandRequired|Unauthorized
      */
     public function handle(DeleteBrand $command): void
     {

@@ -14,6 +14,7 @@ use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
 use Modules\Catalog\Public\Enums\AgencyType;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -71,7 +72,8 @@ final readonly class DatabaseBrandRepository implements BrandRepository
 
     public function delete(string $brandId): void
     {
-        $this->db->table(self::TABLE)->where('id', strtolower($brandId))->delete();
+        // Another module's row written since its usage check refuses it here (amendment 19).
+        ReferencedDelete::run($this->db, CatalogItem::Brand, $brandId, fn () => $this->db->table(self::TABLE)->where('id', strtolower($brandId))->delete());
     }
 
     public function all(): array

@@ -12,6 +12,7 @@ use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\Readiness;
 use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
@@ -40,7 +41,7 @@ final readonly class DeleteDraftVariantHandler
     ) {}
 
     /**
-     * @throws InvalidStageChange|ProductArchived|Unauthorized|VariantNotFound
+     * @throws CatalogItemInUse|InvalidStageChange|ProductArchived|Unauthorized|VariantNotFound
      */
     public function handle(DeleteDraftVariant $command): void
     {

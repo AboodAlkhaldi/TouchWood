@@ -9,6 +9,7 @@ use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\ProductDeletion;
 use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\ProductNotFound;
@@ -35,7 +36,7 @@ final readonly class DeleteDraftProductHandler
     ) {}
 
     /**
-     * @throws InvalidStageChange|ProductArchived|ProductNotFound|Unauthorized
+     * @throws CatalogItemInUse|InvalidStageChange|ProductArchived|ProductNotFound|Unauthorized
      */
     public function handle(DeleteDraftProduct $command): void
     {
