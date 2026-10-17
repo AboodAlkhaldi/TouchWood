@@ -15,7 +15,7 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
 | 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | built (#151) |
 | 4a | The read engine: `ReadStoreJob` and `RunRead` - one read per store at a time, batched through Pricing and Inventory, the report opened and closed, retries then failing - `sync.read.scheduled`; Catalog's amendment 21 (`variantsByCodes`) | built (#153) |
-| 4b | The triggers: the provider's notice (`POST /sync/notify/{store id}`, signed, 5 minutes, 60 a minute, 1-1,000 codes, 202), the hourly read and the nightly one at 02:00 Riyadh time for every wired store (`QueueScheduledReadsJob`, each on one server under a lock of its own), a corrected code read again in every wired store (`ReadCorrectedCode`) | **this step** |
+| 4b | The triggers: the provider's notice (`POST /sync/notify/{store id}`, signed, 5 minutes, 60 a minute, 1-1,000 codes, 202), the hourly read and the nightly one at 02:00 Riyadh time for every wired store (`QueueHourlyReadsJob`, `QueueNightlyReadsJob`, each on one server under a lock of its own), a corrected code read again in every wired store (`ReadCorrectedCode`) | **this step** |
 | 5 | The report and its count, Retry, Sync now, dismissing; the log pruned after 90 days - `sync.report.view`, `sync.read.run`, `sync.log.prune` | — |
 | 6 | The module's own pass | — |
 
@@ -85,8 +85,9 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   no screen links to it. Its parameter is `{storeId}`, a ULID or no route, since Platform constrains
   `{store}` to a store's code; `/sync` is reserved, never a store's code. One read of each kind waits
   per store: a notice's or a corrected code's codes join the one waiting. The hour's and the night's
-  reads for every wired store, off ones too - the two scheduled events named apart, or the hour's would
-  take the night's one-server lock at 02:00; one store's error never stops the others. A corrected code
+  reads for every wired store, off ones too - a job class each, since an event and its one-server lock are
+  named after its job's class (the rule that scheduled work is a queued job, `ScheduledWorkTest`, reads
+  the same name): one class for both would let the hour's take the night's lock at 02:00; one store's error never stops the others. A corrected code
   in every wired store, after Catalog's change commits; an error queuing it is reported, never shown
   to staff as their correction failing.
 - **When a read fails** (§1.7): an attempt that fails goes back to the queue (or is failed as

@@ -12,30 +12,24 @@ use Modules\Sync\Application\Command\QueueScheduledReads\QueueScheduledReads;
 use Modules\Sync\Application\Command\QueueScheduledReads\QueueScheduledReadsHandler;
 
 /**
- * The hour's or the night's reads queued, by the scheduler (sync.md §1.3). Each store's read is a job of
- * its own (`ReadStoreJob`).
+ * The night's reads queued, by the scheduler (sync.md §1.3): one for every wired store - the full check,
+ * and the only read that finds our sizes the provider does not know. A class of its own, so its
+ * one-server lock is its own (`QueueHourlyReadsJob` says why).
  */
-final class QueueScheduledReadsJob implements ShouldQueue
+final class QueueNightlyReadsJob implements ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
     use Queueable;
 
-    /** Three tries (platform.md §3: every queued job states its own); a lost hour is the next one's. */
+    /** Three tries (platform.md §3: every queued job states its own); a lost night is the next one's. */
     public int $tries = 3;
 
     /** @var list<int> */
     public array $backoff = [10, 60];
 
-    /**
-     * @param  'HOURLY'|'NIGHTLY'  $kind
-     */
-    public function __construct(
-        public readonly string $kind,
-    ) {}
-
     public function handle(QueueScheduledReadsHandler $handler): void
     {
-        $handler->handle(new QueueScheduledReads($this->kind));
+        $handler->handle(new QueueScheduledReads('NIGHTLY'));
     }
 }

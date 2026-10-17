@@ -23,7 +23,8 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseReportEntries;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
 use Modules\Sync\Infrastructure\Provider\ContainerProviderAdapters;
-use Modules\Sync\Infrastructure\Queue\QueueScheduledReadsJob;
+use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
+use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
 
 /**
  * Reading a store's provider - Odoo the first - one way: the base price and the stock of each size, by
@@ -67,10 +68,10 @@ final class SyncServiceProvider extends ServiceProvider
         // The hour's read catches a lost notice; the night's checks everything (§1.3). Scheduled work
         // is queued as a job (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            // Named apart: both are the same job class, and onOneServer's lock is named after the event -
-            // at 02:00 the hour's would otherwise take the night's lock and the night's never run.
-            $schedule->job(new QueueScheduledReadsJob('HOURLY'))->name('sync-hourly-reads')->hourly()->onOneServer();
-            $schedule->job(new QueueScheduledReadsJob('NIGHTLY'))->name('sync-nightly-reads')->timezone('Asia/Riyadh')->dailyAt('02:00')->onOneServer();
+            // A job class each: an event and its one-server lock are named after its job's class, so one
+            // class for both would let the hour's take the night's lock at 02:00.
+            $schedule->job(QueueHourlyReadsJob::class)->hourly()->onOneServer();
+            $schedule->job(QueueNightlyReadsJob::class)->timezone('Asia/Riyadh')->dailyAt('02:00')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

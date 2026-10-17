@@ -18,7 +18,8 @@ use Modules\Sync\Application\Command\QueueScheduledReads\QueueScheduledReads;
 use Modules\Sync\Application\Command\QueueScheduledReads\QueueScheduledReadsHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
-use Modules\Sync\Infrastructure\Queue\QueueScheduledReadsJob;
+use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
+use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
 use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
@@ -235,20 +236,19 @@ describe('the hour\'s and the night\'s reads', function () {
     });
 
     it('is scheduled every hour, and every night at 02:00 in Riyadh, each on one server under a lock of its own', function () {
-        $events = collect(app(Schedule::class)->events())->filter(static fn ($event): bool => str_starts_with((string) $event->description, 'sync-'))->values();
-        $shown = $events->mapWithKeys(static fn ($event): array => [(string) $event->description => $event->expression.' '.($event->timezone instanceof DateTimeZone ? $event->timezone->getName() : $event->timezone).($event->onOneServer ? ' one' : '')])->sortKeys()->all();
+        $events = collect(app(Schedule::class)->events())->filter(static fn ($event): bool => in_array($event->description, [QueueHourlyReadsJob::class, QueueNightlyReadsJob::class], true))->values();
+        $shown = $events->mapWithKeys(static fn ($event): array => [class_basename((string) $event->description) => $event->expression.' '.($event->timezone instanceof DateTimeZone ? $event->timezone->getName() : $event->timezone).($event->onOneServer ? ' one' : '')])->sortKeys()->all();
 
-        expect($shown)->toBe(['sync-hourly-reads' => '0 * * * * UTC one', 'sync-nightly-reads' => '0 2 * * * Asia/Riyadh one'])
-            // The same job class: without names apart, the hour's would take the night's lock at 02:00.
+        expect($shown)->toBe(['QueueHourlyReadsJob' => '0 * * * * UTC one', 'QueueNightlyReadsJob' => '0 2 * * * Asia/Riyadh one'])
+            // One class each, so one lock each: the hour's never takes the night's at 02:00.
             ->and($events->map(static fn ($event): string => $event->mutexName())->unique()->count())->toBe(2);
+    });
 
-        // Each runs its own kind.
-        foreach ($events as $event) {
-            Queue::fake();
-            $event->run(app());
-            $kind = $event->description === 'sync-hourly-reads' ? 'HOURLY' : 'NIGHTLY';
-            Queue::assertPushed(QueueScheduledReadsJob::class, fn (QueueScheduledReadsJob $job): bool => $job->kind === $kind);
-        }
+    it('queues the hour\'s and the night\'s kind from its own job', function () {
+        app(QueueHourlyReadsJob::class)->handle(app(QueueScheduledReadsHandler::class));
+        app(QueueNightlyReadsJob::class)->handle(app(QueueScheduledReadsHandler::class));
+
+        expect(collect(syncTriggered())->pluck('kind')->all())->toBe(['HOURLY', 'NIGHTLY']);
     });
 });
 
