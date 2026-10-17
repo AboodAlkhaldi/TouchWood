@@ -56,7 +56,14 @@ final readonly class DatabaseReads implements Reads
                     'queued_at' => CarbonImmutable::now(),
                 ]));
             } catch (UniqueConstraintViolationException) {
-                $waiting = $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->value('id');
+                // One waiting read of each kind (§1.3): a notice's or a code's takes the new codes too.
+                $waiting = $codes === null
+                    ? $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->value('id')
+                    : ($this->db->select(
+                        'UPDATE sync.reads SET codes = (SELECT jsonb_agg(DISTINCT code ORDER BY code) FROM jsonb_array_elements_text(codes || ?::jsonb) AS code)'
+                        ." WHERE store_id = ? AND kind = ? AND state = 'QUEUED' RETURNING id",
+                        [json_encode($codes, JSON_THROW_ON_ERROR), $store->value, $kind->value],
+                    )[0]->id ?? null);
 
                 if ($waiting === null) {
                     continue;

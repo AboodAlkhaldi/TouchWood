@@ -16,8 +16,9 @@ interface Reads
 {
     /**
      * A read waiting its turn, asked by whoever acts now when staff do (sync.md §1.3), its job queued
-     * once the caller's transaction commits. A full read of a kind already waiting is not queued twice:
-     * that one's job is queued again (harmless: only one claim wins), and its id answered.
+     * once the caller's transaction commits. A read of a kind already waiting is not queued twice: a
+     * notice's or a code's adds its codes to the one waiting; that one's job is queued again (harmless:
+     * only one claim wins), and its id answered.
      *
      * @param  list<string>|null  $codes  a notified or one-code read's codes
      * @return string its id

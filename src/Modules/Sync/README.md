@@ -14,8 +14,8 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | 1 | Foundation: the `sync` schema and its three tables, the permissions and the role editor's Sync group, the errors and their words | built (#142) |
 | 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
 | 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | built (#151) |
-| 4a | The read engine: `ReadStoreJob` and `RunRead` - one read per store at a time, batched through Pricing and Inventory, the report opened and closed, retries then failing - `sync.read.scheduled`; Catalog's amendment 21 (`variantsByCodes`) | **this step** |
-| 4b | The triggers: the provider's notices (signed), the hourly and nightly schedules, one code after a corrected one | next |
+| 4a | The read engine: `ReadStoreJob` and `RunRead` - one read per store at a time, batched through Pricing and Inventory, the report opened and closed, retries then failing - `sync.read.scheduled`; Catalog's amendment 21 (`variantsByCodes`) | built (#153) |
+| 4b | The triggers: the provider's notice (`POST /sync/notify/{store id}`, signed, 5 minutes, 60 a minute, 1-1,000 codes, 202), the hourly read and the nightly one at 02:00 Riyadh time for every wired store (`QueueHourlyReadsJob`, `QueueNightlyReadsJob`, each on one server under a lock of its own), a corrected code read again in every wired store (`ReadCorrectedCode`) | **this step** |
 | 5 | The report and its count, Retry, Sync now, dismissing; the log pruned after 90 days - `sync.report.view`, `sync.read.run`, `sync.log.prune` | — |
 | 6 | The module's own pass | — |
 
@@ -77,6 +77,19 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   (`connections.created_at`): unwired, or wired again, it stops; unwiring fails reads not finished.
   The hourly read asks from the start of the last read that covered every change (the hour's or a full
   one) - never moved by a notice's - so a lost notice is caught within the hour.
+- **What starts a read** (step 4b): the provider's notice - its signature (an HMAC of the timestamp and
+  the body, with the store's secret, compared in constant time) its only authority; refused with no
+  body when not its own, more than 5 minutes off, or the store not wired; counted per store before any
+  work (60 a minute, `Retry-After` when over); a body over 300 KB refused; the same signed notice again
+  answered without queuing twice; never calling the provider. The route is unnamed and has no session:
+  no screen links to it. Its parameter is `{storeId}`, a ULID or no route, since Platform constrains
+  `{store}` to a store's code; `/sync` is reserved, never a store's code. One read of each kind waits
+  per store: a notice's or a corrected code's codes join the one waiting. The hour's and the night's
+  reads for every wired store, off ones too - a job class each, since an event and its one-server lock are
+  named after its job's class (the rule that scheduled work is a queued job, `ScheduledWorkTest`, reads
+  the same name): one class for both would let the hour's take the night's lock at 02:00; one store's error never stops the others. A corrected code
+  in every wired store, after Catalog's change commits; an error queuing it is reported, never shown
+  to staff as their correction failing.
 - **When a read fails** (§1.7): an attempt that fails goes back to the queue (or is failed as
   superseded when the same kind already waits), tried after 1, 5 and 15 minutes; the last one fails
   the read, marks the store failing, opens `READ_FAILED` and audits. A read is given 20 minutes; one
@@ -101,5 +114,6 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | `tests/Modules/Sync/Integration/SyncWiringTest.php` | Wiring tested first and refused when the test fails; the key and secret encrypted and never audited or shown; the store wired for Pricing and Inventory at once, a NOW read queued by the Super Admin, Catalog told; each field refused by name; Odoo's adapter refusing until built; changing (key kept, secret replaced, tested first); unwiring (the count first, the connection, report and waiting reads); Super Admins only |
 | `tests/Modules/Sync/Integration/SyncReadsTest.php` | A read: prices and stock written, counts, the connection marked read, audited once; the hourly read asking from the last covering read's start, never moved by a notice's; each report kind opened and closed when right again (unknown codes, archived, bad values - 0, fractions, below 0 kept as 0 - off and draft sizes, stopped sales, skipped discounts, sizes the provider does not know, at night only); one read at a time, one full read of a kind waiting, its job queued again; dead reads taken back or failed and reported; a failed attempt requeued or superseded, the last failing and reporting the store; stopping when unwired or wired again mid-read; staff shown the provider's reason only; the system's and Super Admins' alone |
 | `tests/Modules/Catalog/Integration/CatalogVariantsByCodesTest.php` | Amendment 21: by each code as given (spaces, Arabic-Indic digits), archived ones too, a few queries for many |
+| `tests/Modules/Sync/Integration/SyncTriggersTest.php` | The notice: 202 and one NOTIFIED read of the trimmed codes, nothing called; 401 with no body for a wrong secret, no signature, another body, a time 6 minutes off either way, a store not wired or not one; 5 minutes taken; 422 for each body that is not 1-1,000 codes; 429 past 60 a minute, signed or not, until the minute passes. The hour's and night's reads for every wired store (off ones too), never piled up, the system's; scheduled hourly and at 02:00 on one server. A corrected code read again |
 | `tests/Modules/Sync/Integration/SyncAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Architecture/SyncAccessUseTest.php` | Sync takes from Access only what declaring its permissions needs |
