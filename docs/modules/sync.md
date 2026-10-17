@@ -97,6 +97,9 @@ For each code the provider sends with a price (owner, 2026-10-13):
    sale stops on that size**; it is reported (`SALE_STOPPED`) (owner, 2026-10-13 #2: "go with 2 and
    report too"). The size leaves the sale; a sale left with no size ends if running, or is removed if
    not started — audited as Sync's. *(§9.2 #16)*
+6. **A price that takes a running or scheduled fixed-amount category discount past the ceiling is
+   taken**, and **the discount skips that size** while it would be too deep, reaching it again once
+   the price allows; reported (`DISCOUNT_SKIPPED`). *(§9.3 #17, owner, 2026-10-17)*
 
 An unchanged price changes nothing and is not audited.
 
@@ -128,6 +131,11 @@ and product (or the provider's code), what happened, and when:
 | `SALE_STOPPED` | The provider's price stopped a sale on a size (§1.4 #5) | Staff dismiss it (seen) |
 | `BAD_VALUE` | A value was skipped or kept as 0 | A good value arrives, or staff dismiss it |
 | `READ_FAILED` | A read of the store failed after its retries (§1.7) | A later read of the store succeeds |
+| `DISCOUNT_SKIPPED` | The provider's price made a category discount skip a size (§1.4 #6; §9.3 #17) | The discount reaches the size again, or staff dismiss it |
+
+`SALE_STOPPED`, `DISCOUNT_SKIPPED` and `READ_FAILED` also send a panel notification to staff with
+View the Sync Report in that store (§9.3 #18). **The page of the store's reads**, each opening on what
+it changed and reported: §9.3 #19.
 
 One entry per kind and size stays open; the same thing again updates its time. **Retry** on an entry
 reads that code again; **Sync now** reads the store. Closed entries and the log of reads are **kept 90
@@ -326,3 +334,14 @@ Points A–G, asked with this spec, were accepted (owner, 2026-10-13): §9.2 #10
 | 14 (E) | Notifications per store | **At most 60 a minute, up to 1,000 codes each**; one refused is answered "too many" and the hourly read covers it (§1.3) |
 | 15 (F) | How codes are compared | **Exactly as written, spaces trimmed** (`0123` ≠ `123`) (§1.1) |
 | 16 (G) | A sale stopped on a size | **The size leaves the sale; a sale left with none ends (running) or is removed (scheduled)**, audited as Sync's and reported (§1.4) |
+
+### 9.3 Answered (owner, 2026-10-17) — while Sync was being built
+
+Category discounts (pricing.md §1.12) came after this spec; these answers fill the gap and add two
+things the owner asked for. They change §1.4 #5, §1.6, §3 and §5 as below.
+
+| # | Question | Answer |
+|---|---|---|
+| 17 | The provider's price takes a running or scheduled **fixed-amount category discount** past the store's ceiling on a size (a percentage one goes as deep on every price, so a price never does that) | **The price is taken; the discount skips that size** while it would be too deep — as it already skips a size it would take to 0 — and reaches it again by itself once the price allows. The rest of the category keeps the discount. Reported: a new kind **`DISCOUNT_SKIPPED`** (the size, the discount), closed when the discount reaches the size again, or by staff. Only in a wired store: elsewhere staff setting such a price are still refused (pricing.md §1.12). |
+| 18 | Who is told when the provider undoes staff's work | **A panel notification** to staff holding **View the Sync Report** in that store — a new staff notification topic, switched off like the others — when **a sale stops on a size (`SALE_STOPPED`), a discount skips a size (`DISCOUNT_SKIPPED`), or a read fails after its retries (`READ_FAILED`)**. Every other entry waits on the report and its count. |
+| 19 | Seeing each read | **A page of the store's reads** — when, which kind, who asked, how many prices and stock numbers changed, how many skipped — each opening on its sections: **prices changed** (before → after), **stock changed** (before → after), and **reported**; each line links to the product, the sale or the discount, to be changed there, as the bulk import's product page does. The provider's prices stay read-only. For staff with View the Sync Report. A read's lines are kept with the read: **90 days**, then deleted with it (a new table, `sync.read_lines`). |
