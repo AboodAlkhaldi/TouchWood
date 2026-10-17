@@ -11,11 +11,6 @@ use stdClass;
 
 /**
  * The report's and the reads' rows, straight from `sync.*` - one query a page, one a count.
- *
- * @phpstan-import-type EntryRow from SyncLog
- * @phpstan-import-type ReadRow from SyncLog
- * @phpstan-import-type LineRow from SyncLog
- * @phpstan-import-type ReportedRow from SyncLog
  */
 final readonly class DatabaseSyncLog implements SyncLog
 {
@@ -89,7 +84,7 @@ final readonly class DatabaseSyncLog implements SyncLog
     }
 
     /**
-     * @return EntryRow
+     * @return array{id: int, kind: string, code: string|null, variantId: string|null, saleId: string|null, detail: array<string, mixed>, openedAt: string, seenAt: string}
      */
     private static function entry(stdClass $row): array
     {
@@ -109,7 +104,7 @@ final readonly class DatabaseSyncLog implements SyncLog
     }
 
     /**
-     * @return ReadRow
+     * @return array{id: string, storeId: string, kind: string, state: string, codes: list<string>|null, requestedById: string|null, pricesChanged: int, stockChanged: int, skipped: int, error: string|null, queuedAt: string, startedAt: string|null, finishedAt: string|null}
      */
     private static function readRow(stdClass $row): array
     {

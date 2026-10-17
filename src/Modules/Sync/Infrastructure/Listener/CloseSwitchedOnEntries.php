@@ -29,14 +29,25 @@ final readonly class CloseSwitchedOnEntries
 
     public function switchedOn(StoreListingChanged $event): void
     {
-        $this->close(StoreId::fromString($event->storeId), $event->variantIds);
+        // A store not wired has no such entries: Catalog is not read for it.
+        $store = StoreId::fromString($event->storeId);
+
+        if (in_array($store->value, $this->connections->wiredStores(), true)) {
+            $this->close($store, $event->variantIds);
+        }
     }
 
     public function madeReady(ProductMadeReady $event): void
     {
+        $wired = $this->connections->wiredStores();
+
+        if ($wired === []) {
+            return;
+        }
+
         $sizes = $this->catalog->variantIdsOf($event->productId);
 
-        foreach ($this->connections->wiredStores() as $store) {
+        foreach ($wired as $store) {
             $this->close(StoreId::fromString($store), $sizes);
         }
     }
