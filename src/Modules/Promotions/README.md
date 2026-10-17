@@ -18,8 +18,8 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 69) and Platform's Marketing menu section (platform.md §9.4) | below |
 | 2a — coupons: the rules and the reads | The coupon tables of §5 (coupons, rules, assignments, uses, order facts) with every rule the database holds; the coupon's rules as pure code; `PromotionsApi::applyCoupon` and `customerDiscountRoom`; Catalog's `lineFacts` (catalog.md amendment 18) | below |
 | 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
-| 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
 | 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
+| 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
 
 ## What is here
 
@@ -73,7 +73,9 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   `…deactivated`, `…activated`, `…deleted`). Terms are checked by the domain's **`CouponTerms`**
   (names, kind and amounts, dates, uses, sale modes and buyers — the public only on wholesale lines
   never applies — the rules, deduplicated, at most 500); the lists by **`Coupon/RuleTargets`** (ready
-  products, active categories and brands, through `CatalogApi`). The code is read as typed and unique in
+  products, active categories and brands, through `CatalogApi`) — on a change, only the entries it adds
+  (owner, 2026-10-17, answer 22). Dates are kept in UTC to the second and written with their offset
+  (`Infrastructure/Eloquent/Moment`). The code is read as typed and unique in
   the store (`CodeTaken`, the unique index the backstop); never changed. A change locks the coupon's row
   first, so an order being placed never reads it half changed; the total of uses below those made is
   `CouponInUse`. A used coupon is never deleted (`CouponInUse`).

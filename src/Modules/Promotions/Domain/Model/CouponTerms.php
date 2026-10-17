@@ -19,6 +19,9 @@ final readonly class CouponTerms
     /** The most rules one coupon carries: a list a screen can show and a cart read can walk. */
     public const int MOST_RULES = 500;
 
+    /** The most uses a limit can name: the column's own (`integer`). */
+    public const int MOST_USES = 2_147_483_647;
+
     /**
      * @param  list<CouponRule>  $rules  each once
      */
@@ -96,13 +99,18 @@ final readonly class CouponTerms
             throw new InvalidPromotionAttribute('minimum', 'more than 0, or none');
         }
 
+        // In UTC to the second, as they are stored: compared and shown as saved, whatever offset the
+        // screen sent.
+        $startsAt = self::moment($startsAt);
+        $endsAt = $endsAt === null ? null : self::moment($endsAt);
+
         if ($endsAt !== null && $endsAt <= $startsAt) {
             throw new InvalidPromotionAttribute('dates', 'the end after the start');
         }
 
         foreach ([$maxUsesPerCustomer, $maxUsesTotal] as $most) {
-            if ($most !== null && $most < 1) {
-                throw new InvalidPromotionAttribute('max_uses', 'more than 0, or none');
+            if ($most !== null && ($most < 1 || $most > self::MOST_USES)) {
+                throw new InvalidPromotionAttribute('max_uses', 'from 1 to '.self::MOST_USES.', or none');
             }
         }
 
@@ -175,6 +183,30 @@ final readonly class CouponTerms
             'for_company' => $this->forCompany,
             'rules' => $rules,
         ];
+    }
+
+    /**
+     * A coupon's terms as stored, read back unchecked: what was saved is what it is, whatever a rule
+     * says today — so an old coupon can still be changed or deleted.
+     *
+     * @param  list<CouponRule>  $rules
+     */
+    public static function stored(
+        string $nameAr, string $nameEn, CouponEligibility $eligibility, DiscountKind $discountKind, ?int $percent,
+        ?int $capMinor, ?int $amountMinor, string $currencyCode, ?int $minimumMinor, DateTimeImmutable $startsAt,
+        ?DateTimeImmutable $endsAt, ?int $maxUsesPerCustomer, ?int $maxUsesTotal, bool $allowWithPoints,
+        bool $onReducedLines, bool $forRetail, bool $forWholesale, bool $forPublic, bool $forCompany, array $rules,
+    ): self {
+        return new self(
+            $nameAr, $nameEn, $eligibility, $discountKind, $percent, $capMinor, $amountMinor, $currencyCode, $minimumMinor,
+            self::moment($startsAt), $endsAt === null ? null : self::moment($endsAt), $maxUsesPerCustomer, $maxUsesTotal,
+            $allowWithPoints, $onReducedLines, $forRetail, $forWholesale, $forPublic, $forCompany, $rules,
+        );
+    }
+
+    private static function moment(DateTimeImmutable $at): DateTimeImmutable
+    {
+        return new DateTimeImmutable('@'.$at->getTimestamp());
     }
 
     private static function name(string $name): string

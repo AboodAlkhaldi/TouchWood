@@ -25,8 +25,9 @@ use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
- * `Coupons` in SQL, no Eloquent model (§1.8, as Loyalty and Catalog): a coupon in two queries (its
- * row, its rules), a customer's usage in one, a use by its order in one.
+ * `Coupons` in SQL, no Eloquent model (§1.8, as Loyalty and Catalog): a coupon with its rules in one
+ * query, a customer's usage in one, a use by its order in one. Moments are written in UTC with their
+ * fraction and offset (`Moment`).
  */
 final readonly class DatabaseCoupons implements Coupons
 {
@@ -36,17 +37,17 @@ final readonly class DatabaseCoupons implements Coupons
 
     public function byCode(StoreId $store, string $code): ?Coupon
     {
-        return $this->toCoupon($this->coupons($store)->where('code', $code)->first());
+        return $this->toCoupon($this->read($store)->where('c.code', $code)->first());
     }
 
     public function byId(StoreId $store, string $couponId): ?Coupon
     {
-        return Ulids::valid($couponId) ? $this->toCoupon($this->coupons($store)->where('id', strtolower($couponId))->first()) : null;
+        return Ulids::valid($couponId) ? $this->toCoupon($this->read($store)->where('c.id', strtolower($couponId))->first()) : null;
     }
 
     public function lock(StoreId $store, string $couponId): ?Coupon
     {
-        return Ulids::valid($couponId) ? $this->toCoupon($this->coupons($store)->where('id', strtolower($couponId))->lockForUpdate()->first()) : null;
+        return Ulids::valid($couponId) ? $this->toCoupon($this->read($store)->where('c.id', strtolower($couponId))->lockForUpdate()->first()) : null;
     }
 
     public function storeOf(string $couponId): ?StoreId
@@ -95,12 +96,12 @@ final readonly class DatabaseCoupons implements Coupons
             'order_id' => $orderId,
             'order_number' => $orderNumber,
             'discount_minor' => $discountMinor,
-            'used_at' => $at,
+            'used_at' => Moment::of($at),
         ]);
 
         $this->db->table('promotions.coupons')->where('id', $coupon->id)->where('store_id', $coupon->storeId)->update([
             'uses_total' => $this->db->raw('uses_total + 1'),
-            'updated_at' => $at,
+            'updated_at' => Moment::of($at),
         ]);
     }
 
@@ -123,22 +124,22 @@ final readonly class DatabaseCoupons implements Coupons
             ...self::termsRow($terms),
             'uses_total' => 0,
             'active' => $active,
-            'created_at' => $at,
-            'updated_at' => $at,
+            'created_at' => Moment::of($at),
+            'updated_at' => Moment::of($at),
         ]);
         $this->writeRules($couponId, $terms);
     }
 
     public function change(Coupon $coupon, CouponTerms $terms, DateTimeImmutable $at): void
     {
-        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update([...self::termsRow($terms), 'updated_at' => $at]);
+        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update([...self::termsRow($terms), 'updated_at' => Moment::of($at)]);
         $this->db->table('promotions.coupon_rules')->where('coupon_id', $coupon->id)->delete();
         $this->writeRules($coupon->id, $terms);
     }
 
     public function switchTo(Coupon $coupon, bool $active, DateTimeImmutable $at): void
     {
-        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update(['active' => $active, 'updated_at' => $at]);
+        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update(['active' => $active, 'updated_at' => Moment::of($at)]);
     }
 
     public function wasUsed(Coupon $coupon): bool
@@ -168,8 +169,8 @@ final readonly class DatabaseCoupons implements Coupons
             'amount_minor' => $terms->amountMinor,
             'currency_code' => $terms->currencyCode,
             'minimum_minor' => $terms->minimumMinor,
-            'starts_at' => $terms->startsAt,
-            'ends_at' => $terms->endsAt,
+            'starts_at' => Moment::of($terms->startsAt),
+            'ends_at' => $terms->endsAt === null ? null : Moment::of($terms->endsAt),
             'max_uses_per_customer' => $terms->maxUsesPerCustomer,
             'max_uses_total' => $terms->maxUsesTotal,
             'allow_with_points' => $terms->allowWithPoints,
@@ -197,6 +198,18 @@ final readonly class DatabaseCoupons implements Coupons
         ], $terms->rules));
     }
 
+    /**
+     * A store's coupons with their rules, **in one statement**: read together, so a staff change
+     * committing meanwhile is never seen half — its old terms with its new rules (step 3b's review).
+     */
+    private function read(StoreId $store): Builder
+    {
+        return $this->db->table('promotions.coupons as c')
+            ->where('c.store_id', $store->value)
+            ->select('c.*')
+            ->selectRaw("(SELECT coalesce(json_agg(json_build_object('kind', r.kind, 'product_id', r.product_id, 'category_id', r.category_id, 'brand_id', r.brand_id) ORDER BY r.id), '[]'::json) FROM promotions.coupon_rules r WHERE r.coupon_id = c.id) AS rules_json");
+    }
+
     private function coupons(StoreId $store): Builder
     {
         return $this->db->table('promotions.coupons')->where('store_id', $store->value);
@@ -208,11 +221,13 @@ final readonly class DatabaseCoupons implements Coupons
             return null;
         }
 
-        $rules = array_map(static fn (stdClass $rule): CouponRule => match (true) {
-            $rule->product_id !== null => new CouponRule(RuleKind::from((string) $rule->kind), RuleTarget::Product, (string) $rule->product_id),
-            $rule->category_id !== null => new CouponRule(RuleKind::from((string) $rule->kind), RuleTarget::Category, (string) $rule->category_id),
-            default => new CouponRule(RuleKind::from((string) $rule->kind), RuleTarget::Brand, (string) $rule->brand_id),
-        }, $this->db->table('promotions.coupon_rules')->where('coupon_id', $row->id)->orderBy('id')->get()->all());
+        /** @var list<array{kind: string, product_id: ?string, category_id: ?string, brand_id: ?string}> $stored */
+        $stored = json_decode((string) $row->rules_json, true, 4, JSON_THROW_ON_ERROR);
+        $rules = array_map(static fn (array $rule): CouponRule => match (true) {
+            $rule['product_id'] !== null => new CouponRule(RuleKind::from($rule['kind']), RuleTarget::Product, $rule['product_id']),
+            $rule['category_id'] !== null => new CouponRule(RuleKind::from($rule['kind']), RuleTarget::Category, $rule['category_id']),
+            default => new CouponRule(RuleKind::from($rule['kind']), RuleTarget::Brand, (string) $rule['brand_id']),
+        }, $stored);
 
         $currency = (string) $row->currency_code;
         $money = static fn (mixed $minor): ?Money => $minor === null ? null : Money::of((int) $minor, $currency);
@@ -242,7 +257,7 @@ final readonly class DatabaseCoupons implements Coupons
             (bool) $row->for_public,
             (bool) $row->for_company,
             (bool) $row->active,
-            array_values($rules),
+            $rules,
         );
     }
 }

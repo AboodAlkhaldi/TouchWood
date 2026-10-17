@@ -40,7 +40,7 @@ final readonly class DatabaseOrderFacts implements OrderFacts
             'order_id' => $orderId,
             'store_id' => $storeId,
             'customer_id' => $customerId,
-            'placed_at' => $placedAt,
+            'placed_at' => Moment::of($placedAt),
             'ceiling_percent' => $ceilingPercent,
         ]);
 

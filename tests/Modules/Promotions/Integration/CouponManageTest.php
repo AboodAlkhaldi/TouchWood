@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Promotions\Application\Command\ChangeCoupon\ChangeCoupon;
@@ -184,6 +186,8 @@ describe('creating a coupon', function () {
         'an end at its start' => ['NEW-1', ['startsAt' => CarbonImmutable::parse('2026-11-01 00:00'), 'endsAt' => CarbonImmutable::parse('2026-11-01 00:00')], 'dates'],
         'no uses per customer' => ['NEW-1', ['maxUsesPerCustomer' => 0], 'max_uses'],
         'no uses in all' => ['NEW-1', ['maxUsesTotal' => 0], 'max_uses'],
+        'more uses than the column holds' => ['NEW-1', ['maxUsesTotal' => 2_147_483_648], 'max_uses'],
+        'an end before its start, given in another offset' => ['NEW-1', ['startsAt' => CarbonImmutable::parse('2026-11-01 12:00:00+03:00'), 'endsAt' => CarbonImmutable::parse('2026-11-01 09:00:00+00:00')], 'dates'],
         'no sale mode' => ['NEW-1', ['forRetail' => false, 'forWholesale' => false], 'sale_modes'],
         'no buyer' => ['NEW-1', ['forPublic' => false, 'forCompany' => false], 'buyers'],
         'the public only on wholesale lines only' => ['NEW-1', ['forCompany' => false, 'forRetail' => false], 'buyers'],
@@ -267,6 +271,49 @@ describe('changing, switching, deleting', function () {
         // The same terms again: nothing changed, nothing audited.
         app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, $changed));
         expect(DB::table('platform.audit_entries')->where('action', 'promotions.coupon.updated')->count())->toBe(1);
+    });
+
+    it('keeps a time given in another offset as the same moment, and saving it again changes nothing', function () {
+        couponManager();
+        $fields = couponFields(['startsAt' => CarbonImmutable::parse('2026-11-01 12:00:00.123456+03:00'), 'endsAt' => CarbonImmutable::parse('2026-11-30 23:59:59+03:00')]);
+        $id = couponCreate(fields: $fields);
+        $updatedAt = DB::table('promotions.coupons')->where('id', $id)->value('updated_at');
+
+        app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, $fields));
+        app(SwitchCouponHandler::class)->handle(new SwitchCoupon($id, true));
+
+        expect(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('starts_at'))->utc()->format('Y-m-d H:i:s.u'))->toBe('2026-11-01 09:00:00.000000')
+            ->and(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('ends_at'))->utc()->format('Y-m-d H:i:s'))->toBe('2026-11-30 20:59:59')
+            ->and(DB::table('platform.audit_entries')->where('action', 'promotions.coupon.updated')->exists())->toBeFalse()
+            // Nothing written either: the row is as it was.
+            ->and(DB::table('promotions.coupons')->where('id', $id)->value('updated_at'))->toBe($updatedAt);
+    });
+
+    it('checks only the list entries a change adds: an old entry since archived never blocks a rename', function () {
+        couponManager();
+        $ready = Px::ready()['product'];
+        $id = couponCreate(fields: couponFields(['rules' => [['kind' => 'INCLUDE', 'target' => 'product', 'id' => $ready]]]));
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($ready)));
+        $draft = Px::product('Hinge');
+
+        app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, couponFields(['nameEn' => 'Renamed', 'rules' => [['kind' => 'INCLUDE', 'target' => 'product', 'id' => $ready]]])));
+
+        expect(DB::table('promotions.coupons')->where('id', $id)->value('name_en'))->toBe('Renamed')
+            ->and(Pr::thrown(fn () => app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, couponFields(['rules' => [
+                ['kind' => 'INCLUDE', 'target' => 'product', 'id' => $ready],
+                ['kind' => 'INCLUDE', 'target' => 'product', 'id' => $draft],
+            ]]))), InvalidPromotionAttribute::class)->attribute)->toBe('product');
+    });
+
+    it('changes and deletes a stored coupon a rule of today would refuse', function () {
+        couponManager();
+        // Written before the rule: the public only, on wholesale lines only.
+        $id = Pr::coupon('OLD-ONE', with: ['for_company' => false, 'for_retail' => false]);
+
+        app(SwitchCouponHandler::class)->handle(new SwitchCoupon($id, false));
+        app(DeleteCouponHandler::class)->handle(new DeleteCoupon($id));
+
+        expect(DB::table('promotions.coupons')->where('id', $id)->exists())->toBeFalse();
     });
 
     it('refuses the total of uses below the uses made, and ends the coupon set to exactly them', function () {
