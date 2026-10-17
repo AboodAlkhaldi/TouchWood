@@ -1714,6 +1714,10 @@ Decide these when the owning module is reached; do not design them now.
   TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer
   email-verification link would fail its signature and answer 403 (review of Access step 7).
 - **CDN purge** of a deleted public image's sizes.
+- **Sync's reads' queue** (Sync step 4a): a store's read (`ReadStoreJob`) may run up to 20 minutes;
+  like the import below, it needs a queue connection whose `retry_after` is longer than that, or a
+  second worker takes a long read as failed while it still works (the read itself stays safe: one
+  per store runs at a time, and one past 30 minutes is taken as dead and reported).
 - **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a

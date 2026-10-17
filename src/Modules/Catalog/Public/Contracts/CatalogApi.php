@@ -34,9 +34,9 @@ interface CatalogApi
 
     /**
      * **The variants carrying these codes, in one read** (amendment 21): for Sync, whose reads name
-     * thousands of the provider's codes at once. Keyed by the code as the variant carries it (spaces
-     * around trimmed), archived ones included; a code that is not one, or one no variant carries, is
-     * left out. A few queries however many.
+     * thousands of the provider's codes at once. Keyed by each code as given - read as `variantByCode`
+     * reads one (spaces around trimmed, Arabic-Indic digits as Latin) - archived ones included; a code
+     * that is not one, or one no variant carries, is left out. A few queries however many.
      *
      * @param  list<string>  $codes
      * @return array<string, VariantDto>

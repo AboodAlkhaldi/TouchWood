@@ -9,16 +9,16 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The Sync report's entries (sync.md §1.6, §5 `sync.report_entries`): one open per store, kind, code and
- * size - the same thing again updates when it was last seen.
+ * size - the same thing again updates when it was last seen and what it says.
  */
 interface ReportEntries
 {
     /**
-     * An entry opened, or the open one seen again with what it says now.
+     * Entries of a kind opened, or the open ones seen again - one statement for a batch (handoff §12.2).
      *
-     * @param  array<string, mixed>  $detail
+     * @param  list<array{code: string|null, variantId: string|null, saleId: string|null, detail: array<string, mixed>}>  $entries
      */
-    public function open(StoreId $store, ReportKind $kind, ?string $code, ?string $variantId, ?string $saleId, array $detail): void;
+    public function open(StoreId $store, ReportKind $kind, array $entries): void;
 
     /**
      * The open entries of a kind about these codes or sizes closed: what they said is right again.

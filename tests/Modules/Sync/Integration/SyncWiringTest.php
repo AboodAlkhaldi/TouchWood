@@ -26,6 +26,7 @@ use Modules\Sync\Domain\Exception\AlreadyWired;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
@@ -98,6 +99,8 @@ describe('wiring', function () {
             ->and(DB::table('sync.reads')->where('store_id', syncSa())->get(['kind', 'state', 'requested_by_type', 'requested_by_id'])->map(fn ($read) => (array) $read)->all())
             ->toBe([['kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'STAFF', 'requested_by_id' => syncActor()]])
             ->and(Fx::audits('sync.connection.wired', syncSa()))->toBe(1);
+
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === DB::table('sync.reads')->value('id'));
 
         $audit = (string) DB::table('platform.audit_entries')->where('action', 'sync.connection.wired')->value('changes');
 

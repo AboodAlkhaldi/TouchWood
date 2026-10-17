@@ -104,7 +104,21 @@ describe('what the database refuses behind the code', function () {
             ->and($insert([...$failed, 'finished_at' => null]))->toThrow(QueryException::class, 'reads_finished')
             // A failure says why; nothing else carries a reason.
             ->and($insert([...$failed, 'error' => null]))->toThrow(QueryException::class, 'reads_error')
-            ->and($insert([...$done, 'error' => 'Timed out']))->toThrow(QueryException::class, 'reads_error');
+            ->and($insert([...$done, 'error' => 'Timed out']))->toThrow(QueryException::class, 'reads_error')
+            // A notice's and one code's read name their codes, a list; no other read does.
+            ->and($insert(['kind' => 'CODE']))->toThrow(QueryException::class, 'reads_codes')
+            ->and($insert(['kind' => 'NOTIFIED', 'codes' => '{"a": "1"}']))->toThrow(QueryException::class, 'reads_codes')
+            ->and($insert(['codes' => '["1"]']))->toThrow(QueryException::class, 'reads_codes')
+            // One running read per store; one full read of each kind waiting.
+            // Each pair in its own transaction, so the first row goes with the second's refusal.
+            ->and(fn () => DB::transaction(function () use ($insert): void {
+                $insert(['kind' => 'NIGHTLY', 'state' => 'RUNNING', 'started_at' => now()])();
+                $insert(['kind' => 'NOW', 'state' => 'RUNNING', 'started_at' => now()])();
+            }))->toThrow(QueryException::class, 'reads_one_running')
+            ->and(fn () => DB::transaction(function () use ($insert): void {
+                $insert(['kind' => 'HOURLY'])();
+                $insert(['kind' => 'HOURLY'])();
+            }))->toThrow(QueryException::class, 'reads_one_waiting');
 
         $insert([])();
         $insert([...$staff, 'kind' => 'NOW'])();

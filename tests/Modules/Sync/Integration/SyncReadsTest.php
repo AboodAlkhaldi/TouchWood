@@ -138,19 +138,32 @@ describe('a read', function () {
             ->and(syncReadsOpen())->toBe([]);
     });
 
-    it('asks the provider for what changed since the last read, the hour\'s; and only the codes, a notice\'s', function () {
+    it('asks, each hour, for what changed since the last read that covered every change - from its start - never moved by a notice\'s read', function () {
+        // The first full read starts at 10:00.
         syncReadsRun();
-        $last = CarbonImmutable::parse((string) DB::table('sync.connections')->value('last_read_at'));
-
-        syncReadsQueue(ReadKind::Hourly);
-        syncReadsRun();
+        // A notice at 10:20 reads its codes only.
+        CarbonImmutable::setTestNow('2026-10-17 10:20:00+00');
         syncReadsQueue(ReadKind::Notified, ['123', '456']);
+        syncReadsRun();
+        // The hour, at 11:00, asks from 10:00: a notice lost meanwhile is still caught.
+        CarbonImmutable::setTestNow('2026-10-17 11:00:00+00');
+        syncReadsQueue(ReadKind::Hourly);
         syncReadsRun();
 
         expect(syncReadsFake()->reads[0])->toBe(['codes' => null, 'changedSince' => null])
-            ->and(syncReadsFake()->reads[1]['changedSince']?->getTimestamp())->toBe($last->getTimestamp())
-            ->and(syncReadsFake()->reads[2])->toBe(['codes' => ['123', '456'], 'changedSince' => null])
-            ->and(DB::table('sync.connections')->value('last_full_read_at'))->toBe(DB::table('sync.reads')->where('kind', 'NOW')->value('finished_at'));
+            ->and(syncReadsFake()->reads[1])->toBe(['codes' => ['123', '456'], 'changedSince' => null])
+            ->and(syncReadsFake()->reads[2]['changedSince']?->format('H:i'))->toBe('10:00')
+            ->and(CarbonImmutable::parse((string) DB::table('sync.connections')->value('last_read_at'))->format('H:i'))->toBe('11:00')
+            // The hour's is not a full read.
+            ->and(CarbonImmutable::parse((string) DB::table('sync.connections')->value('last_full_read_at'))->format('H:i'))->toBe('10:00');
+    });
+
+    it('runs a finished read no more', function () {
+        $read = syncReadsRun();
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        expect(syncReadsFake()->reads)->toHaveCount(1);
     });
 });
 
@@ -162,6 +175,16 @@ describe('what a read reports (§1.6)', function () {
 
         expect(syncReadsOpen())->toBe(['UNKNOWN_CODE 987654'])
             ->and(DB::table('catalog.variants')->where('code', '987654')->exists())->toBeFalse();
+
+        // Seen again an hour later: the same entry, its time seen moved.
+        CarbonImmutable::setTestNow('2026-10-17 11:00:00+00');
+        syncReadsQueue(ReadKind::Now);
+        syncReadsRun();
+        $entry = DB::table('sync.report_entries')->first();
+
+        expect(DB::table('sync.report_entries')->count())->toBe(1)
+            ->and(CarbonImmutable::parse((string) $entry?->opened_at)->format('H:i'))->toBe('10:00')
+            ->and(CarbonImmutable::parse((string) $entry?->seen_at)->format('H:i'))->toBe('11:00');
 
         $made = Px::variant(Px::product('Hinge'), '987654');
         syncReadsQueue(ReadKind::Now);
@@ -175,6 +198,7 @@ describe('what a read reports (§1.6)', function () {
     it('skips and reports an archived size, and a value that is not one - a price of 0, a fraction of a piece - keeping a number below 0 as 0', function () {
         [$archived, $zero, $fraction, $below] = syncReadsSelling(['1', '2', '3', '4']);
         DB::table('catalog.variants')->where('id', $archived)->update(['is_archived' => true]);
+        DB::table('inventory.stock')->insert(['store_id' => Fx::storeId('sa'), 'variant_id' => $below, 'product_id' => DB::table('catalog.variants')->where('id', $below)->value('product_id'), 'in_stock' => 5, 'updated_at' => now()]);
         syncReadsFake()->values = [
             new ProviderValue(syncReadsCode($archived), '10', 1),
             new ProviderValue(syncReadsCode($zero), '0', 1),
@@ -187,7 +211,7 @@ describe('what a read reports (§1.6)', function () {
         expect(syncReadsOpen())->toEqualCanonicalizing(["ARCHIVED_SKIPPED {$archived}", "BAD_VALUE {$zero}", "BAD_VALUE {$fraction}", "BAD_VALUE {$below}"])
             ->and(Rx::retail('sa', $zero))->toBeNull()
             ->and(DB::table('inventory.stock')->where('variant_id', $fraction)->exists())->toBeFalse()
-            ->and(DB::table('inventory.stock')->where('variant_id', $below)->value('in_stock'))->toBeNull()
+            ->and(DB::table('inventory.stock')->where('variant_id', $below)->value('in_stock'))->toBe(0)
             ->and(DB::table('sync.reads')->where('id', $read)->value('skipped'))->toBe(4);
 
         // Good values the next time: their entries close; the archived size waits to be restored.
@@ -306,18 +330,104 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
             ->and(syncReadsOpen())->toBe([]);
     });
 
+    it('stops, writing nothing more, when the store is unwired while it reads - or unwired and wired again', function (bool $again) {
+        $size = syncReadsSelling()[0];
+        syncReadsFake()->values = [new ProviderValue(syncReadsCode($size), '10', 4), new ProviderValue('999999', '1', 1)];
+        syncReadsFake()->whileReading = function () use ($again): void {
+            DB::table('sync.connections')->update(['created_at' => $again ? now()->addSecond() : now()]);
+
+            if (! $again) {
+                DB::table('sync.connections')->delete();
+            }
+        };
+
+        $read = syncReadsRun();
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
+            ->and(Rx::retail('sa', $size))->toBeNull()
+            ->and(DB::table('sync.report_entries')->count())->toBe(0)
+            ->and(Fx::audits('sync.read.failed', $read))->toBe(1);
+    })->with(['unwired' => false, 'wired again' => true]);
+
+    it('fails another read of the store dead for over 30 minutes the way a failed read fails - reported, the store failing', function () {
+        $dead = (string) DB::table('sync.reads')->value('id');
+        DB::table('sync.reads')->where('id', $dead)->update(['state' => 'RUNNING', 'started_at' => now()->subMinutes(31)]);
+        syncReadsQueue(ReadKind::Nightly);
+        $nightly = (string) DB::table('sync.reads')->where('kind', 'NIGHTLY')->value('id');
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($nightly)));
+
+        expect(DB::table('sync.reads')->where('id', $dead)->value('state'))->toBe('FAILED')
+            ->and(DB::table('sync.reads')->where('id', $nightly)->value('state'))->toBe('DONE')
+            ->and(Fx::audits('sync.read.failed', $dead))->toBe(1)
+            // Reported, then mended by the nightly read that ran.
+            ->and(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->whereNotNull('closed_at')->count())->toBe(1);
+    });
+
+    it('takes back its own read killed past its time, and runs it', function () {
+        $read = (string) DB::table('sync.reads')->value('id');
+        DB::table('sync.reads')->where('id', $read)->update(['state' => 'RUNNING', 'started_at' => now()->subMinutes(31)]);
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE');
+    });
+
+    it('fails an attempt as superseded, keeping the real error, when a read of the same kind already waits', function () {
+        $running = (string) DB::table('sync.reads')->value('id');
+        syncReadsFake()->failure = 'Timed out';
+        // While it runs, a change of connection queues another full read.
+        syncReadsFake()->whileReading = fn () => syncReadsQueue(ReadKind::Now);
+        Queue::fake();
+
+        expect(fn () => Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($running))))->toThrow(ConnectionFailed::class, 'Timed out');
+
+        $waiting = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
+
+        expect(DB::table('sync.reads')->where('id', $running)->value('state'))->toBe('FAILED')
+            ->and(DB::table('sync.reads')->where('id', $running)->value('error'))->toStartWith('Superseded')
+            ->and($waiting)->not->toBe('');
+
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $waiting);
+    });
+
+    it('queues the job of a full read already waiting again, so one whose job was lost still runs', function () {
+        $waiting = (string) DB::table('sync.reads')->value('id');
+        Queue::fake();
+
+        syncReadsQueue(ReadKind::Now);
+
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $waiting);
+    });
+
+    it('shows staff the provider\'s reason, and keeps any other error on the failed jobs screen', function () {
+        $read = (string) DB::table('sync.reads')->value('id');
+
+        (new ReadStoreJob($read))->failed(new RuntimeException('SQLSTATE[...] select * from secrets'));
+
+        expect(DB::table('sync.connections')->value('last_error'))->toBe('The read failed: see the failed jobs screen.')
+            ->and((string) DB::table('sync.report_entries')->value('detail'))->not->toContain('SQLSTATE');
+    });
+
     it('fails a read of a store unwired meanwhile, reading nothing', function () {
         DB::table('sync.connections')->delete();
 
         $read = syncReadsRun();
 
         expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
-            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('The store was unwired.')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Stopped: the store was unwired, or wired again, while it ran.')
             ->and(syncReadsFake()->reads)->toBe([]);
     });
 
     it('is the system\'s, and a Super Admin\'s - never a staff member\'s', function () {
         $read = (string) DB::table('sync.reads')->value('id');
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(RunReadHandler::class)->handle(new RunRead($read));
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE');
+
+        syncReadsQueue(ReadKind::Now);
+        $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
         Fx::actAsStaff(Fx::staff());
 
         expect(fn () => app(RunReadHandler::class)->handle(new RunRead($read)))->toThrow(Unauthorized::class);

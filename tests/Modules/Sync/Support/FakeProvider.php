@@ -78,9 +78,18 @@ final class FakeProvider implements ProviderAdapter
     /** @var list<array{codes: list<string>|null, changedSince: DateTimeImmutable|null}> each read asked of it */
     public array $reads = [];
 
+    /** @var (callable(): mixed)|null run once, during the next read - what happens while the provider answers */
+    public $whileReading = null;
+
     public function read(Connection $connection, ?array $codes, ?DateTimeImmutable $changedSince): iterable
     {
         $this->reads[] = ['codes' => $codes, 'changedSince' => $changedSince];
+
+        if ($this->whileReading !== null) {
+            $meanwhile = $this->whileReading;
+            $this->whileReading = null;
+            $meanwhile();
+        }
 
         if ($this->failure !== null) {
             throw new ConnectionFailed($this->failure);

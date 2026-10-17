@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -79,16 +80,21 @@ final readonly class DatabaseConnections implements Connections
         return true;
     }
 
-    public function markRead(StoreId $store, bool $full): void
+    public function markRead(StoreId $store, ?DateTimeImmutable $changesUpTo, bool $full): void
     {
-        $now = CarbonImmutable::now();
-
         $this->db->table(self::TABLE)->where('store_id', $store->value)->update([
             'state' => 'OK',
             'last_error' => null,
-            'last_read_at' => $now,
-            ...($full ? ['last_full_read_at' => $now] : []),
+            ...($changesUpTo === null ? [] : ['last_read_at' => $changesUpTo]),
+            ...($full && $changesUpTo !== null ? ['last_full_read_at' => $changesUpTo] : []),
         ]);
+    }
+
+    public function wiredAt(StoreId $store): ?string
+    {
+        $at = $this->db->table(self::TABLE)->where('store_id', $store->value)->value('created_at');
+
+        return $at === null ? null : (string) $at;
     }
 
     public function markFailing(StoreId $store, string $why): void

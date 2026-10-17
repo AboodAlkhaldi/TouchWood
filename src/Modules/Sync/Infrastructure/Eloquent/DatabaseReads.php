@@ -21,7 +21,8 @@ use stdClass;
 /**
  * `sync.reads`. A read is asked by staff only (its CHECK, `reads_requested_by`); the system's are no
  * one's. One running per store, and one full read of each kind waiting, are the table's unique indexes
- * (`reads_one_running`, `reads_one_waiting`): two workers never both win.
+ * (`reads_one_running`, `reads_one_waiting`): two workers never both win. Every time written is the
+ * app's clock, so the log reads in one order.
  */
 final readonly class DatabaseReads implements Reads
 {
@@ -37,43 +38,58 @@ final readonly class DatabaseReads implements Reads
         $actor = $this->actors->current();
         $staff = $actor->type === ActorType::Staff ? $actor : ($actor->requestedBy?->type === ActorType::Staff ? $actor->requestedBy : null);
         $asked = $staff !== null && ! in_array($kind, [ReadKind::Notified, ReadKind::Hourly], true);
-        $id = strtolower((string) Str::ulid());
 
-        try {
-            // A savepoint of its own: a full read already waiting must not abort the caller's work.
-            $this->db->transaction(fn () => $this->db->table(self::TABLE)->insert([
-                'id' => $id,
-                'store_id' => $store->value,
-                'kind' => $kind->value,
-                'codes' => $codes === null ? null : json_encode($codes, JSON_THROW_ON_ERROR),
-                'requested_by_type' => $asked ? ActorType::Staff->value : null,
-                'requested_by_id' => $asked ? $staff->id : null,
-                'state' => 'QUEUED',
-                'queued_at' => CarbonImmutable::now(),
-            ]));
-        } catch (UniqueConstraintViolationException) {
-            return (string) $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->value('id');
+        // Twice at most: a waiting read claimed between the refused insert and the look-up leaves room.
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $id = strtolower((string) Str::ulid());
+
+            try {
+                // A savepoint of its own: a full read already waiting must not abort the caller's work.
+                $this->db->transaction(fn () => $this->db->table(self::TABLE)->insert([
+                    'id' => $id,
+                    'store_id' => $store->value,
+                    'kind' => $kind->value,
+                    'codes' => $codes === null ? null : json_encode($codes, JSON_THROW_ON_ERROR),
+                    'requested_by_type' => $asked ? ActorType::Staff->value : null,
+                    'requested_by_id' => $asked ? $staff->id : null,
+                    'state' => 'QUEUED',
+                    'queued_at' => CarbonImmutable::now(),
+                ]));
+            } catch (UniqueConstraintViolationException) {
+                $waiting = $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->value('id');
+
+                if ($waiting === null) {
+                    continue;
+                }
+
+                // Its job may be gone (its claim refused while another ran): queued again, harmless.
+                $id = (string) $waiting;
+            }
+
+            ReadStoreJob::dispatch($id)->afterCommit();
+
+            return $id;
         }
 
-        ReadStoreJob::dispatch($id)->afterCommit();
-
-        return $id;
+        throw new \RuntimeException('A read could not be queued.');
     }
 
-    public function dropQueued(StoreId $store, string $why): int
+    public function dropUnfinished(StoreId $store, string $why): int
     {
         return $this->db->table(self::TABLE)
             ->where('store_id', $store->value)
-            ->where('state', 'QUEUED')
+            ->whereIn('state', ['QUEUED', 'RUNNING'])
             ->update(['state' => 'FAILED', 'error' => $why, 'finished_at' => CarbonImmutable::now()]);
     }
 
-    public function claim(string $readId): ?Read
+    public function claim(string $readId, DateTimeImmutable $deadBefore): ?Read
     {
         try {
             $rows = $this->db->transaction(fn (): array => $this->db->select(
-                "UPDATE sync.reads SET state = 'RUNNING', started_at = now() WHERE id = ? AND state = 'QUEUED' RETURNING id, store_id, kind, codes",
-                [$readId],
+                "UPDATE sync.reads SET state = 'RUNNING', started_at = ?"
+                ." WHERE id = ? AND (state = 'QUEUED' OR (state = 'RUNNING' AND started_at < ?))"
+                .' RETURNING id, store_id, kind, codes, started_at',
+                [CarbonImmutable::now(), $readId, $deadBefore],
             ));
         } catch (UniqueConstraintViolationException) {
             // Another read of the store runs: this one waits its turn (startNext).
@@ -89,32 +105,48 @@ final readonly class DatabaseReads implements Reads
         /** @var list<string>|null $codes */
         $codes = $row->codes === null ? null : json_decode((string) $row->codes, true, flags: JSON_THROW_ON_ERROR);
 
-        return new Read((string) $row->id, (string) $row->store_id, ReadKind::from((string) $row->kind), $codes);
+        return new Read((string) $row->id, (string) $row->store_id, ReadKind::from((string) $row->kind), $codes, CarbonImmutable::parse((string) $row->started_at)->toDateTimeImmutable());
     }
 
-    public function failStale(StoreId $store, DateTimeImmutable $runningSince): int
+    public function failStale(StoreId $store, DateTimeImmutable $runningSince, string $why, string $except): array
     {
-        return $this->db->table(self::TABLE)
-            ->where('store_id', $store->value)
-            ->where('state', 'RUNNING')
-            ->where('started_at', '<', $runningSince)
-            ->update(['state' => 'FAILED', 'error' => 'Stopped: its worker went away.', 'finished_at' => CarbonImmutable::now()]);
+        $rows = $this->db->select(
+            "UPDATE sync.reads SET state = 'FAILED', error = ?, finished_at = ? WHERE store_id = ? AND state = 'RUNNING' AND started_at < ? AND id <> ? RETURNING id",
+            [$why, CarbonImmutable::now(), $store->value, $runningSince, $except],
+        );
+
+        return array_values(array_map(static fn (stdClass $row): string => (string) $row->id, $rows));
+    }
+
+    public function isRunning(string $readId): bool
+    {
+        return $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->exists();
     }
 
     public function requeue(string $readId): void
     {
-        $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->update(['state' => 'QUEUED', 'started_at' => null]);
+        try {
+            $this->db->transaction(fn () => $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->update(['state' => 'QUEUED', 'started_at' => null]));
+        } catch (UniqueConstraintViolationException) {
+            // A read of the same kind waits already: it covers this one, which is superseded.
+            $this->fail($readId, 'Superseded: a read of the same kind waits.');
+            $store = $this->storeOf($readId);
+
+            if ($store !== null) {
+                $this->startNext(StoreId::fromString($store));
+            }
+        }
     }
 
-    public function finish(string $readId, int $pricesChanged, int $stockChanged, int $skipped): void
+    public function finish(string $readId, int $pricesChanged, int $stockChanged, int $skipped): bool
     {
-        $this->db->table(self::TABLE)->where('id', $readId)->update([
+        return $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->update([
             'state' => 'DONE',
             'prices_changed' => $pricesChanged,
             'stock_changed' => $stockChanged,
             'skipped' => $skipped,
             'finished_at' => CarbonImmutable::now(),
-        ]);
+        ]) === 1;
     }
 
     public function fail(string $readId, string $why): void
