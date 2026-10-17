@@ -171,7 +171,7 @@ it('is a topic staff choose, in the panel by default (access.md amendment 71)', 
     }
 
     expect(StaffNotificationTopic::SyncProblems->value)->toBe('SYNC_PROBLEMS')
-        ->and($preferences['SYNC_PROBLEMS'])->toBe([false, true])
+        ->and($preferences)->toMatchArray(['SYNC_PROBLEMS' => [false, true]])
         ->and(__('access::account.topic.SYNC_PROBLEMS', [], 'en'))->toBe('Sync Problems')
         ->and(__('access::account.topic.SYNC_PROBLEMS', [], 'ar'))->toBe('مشاكل المزامنة');
 });
