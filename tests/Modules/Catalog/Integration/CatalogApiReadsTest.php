@@ -154,6 +154,24 @@ describe('many at once', function () {
     });
 });
 
+describe('a brand, for Promotions (amendment 20)', function () {
+    it('answers a brand with its names and whether it is switched on; nothing for an unknown id', function () {
+        $brand = Px::brand('Hafele');
+        DB::table('catalog.brands')->where('id', $brand)->update(['is_active' => false]);
+        $found = catalogReads()->brand(strtoupper($brand));
+
+        expect($found?->id)->toBe($brand)
+            ->and($found?->nameEn)->toStartWith('Hafele')
+            ->and($found?->nameAr)->toStartWith('ماركة')
+            ->and($found?->isActive)->toBeFalse()
+            ->and(catalogReads()->brand('01k6abcdefghjkmnpqrstvwxyz'))->toBeNull()
+            ->and(catalogReads()->brand('not-an-id'))->toBeNull();
+
+        DB::table('catalog.brands')->where('id', $brand)->update(['is_active' => true]);
+        expect(catalogReads()->brand($brand)?->isActive)->toBeTrue();
+    });
+});
+
 describe('a cart\'s line facts, for Promotions (amendment 18)', function () {
     it('answers each variant\'s product, brand and every category above its product\'s, nearest first', function () {
         $kitchens = Px::category('Kitchens');

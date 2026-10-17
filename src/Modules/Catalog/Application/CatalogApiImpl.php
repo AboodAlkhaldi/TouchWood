@@ -6,12 +6,14 @@ namespace Modules\Catalog\Application;
 
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
+use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\StoreListingRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\CategoryDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
@@ -30,6 +32,7 @@ final readonly class CatalogApiImpl implements CatalogApi
         private VariantRepository $variants,
         private StoreListingRepository $listings,
         private CategoryRepository $categories,
+        private BrandRepository $brands,
         private ApiReads $reads,
     ) {}
 
@@ -72,6 +75,13 @@ final readonly class CatalogApiImpl implements CatalogApi
             $category->name()->en,
             $category->isActive(),
         );
+    }
+
+    public function brand(string $brandId): ?BrandDto
+    {
+        $brand = $this->brands->find($brandId);
+
+        return $brand === null ? null : new BrandDto($brand->id(), $brand->name()->ar, $brand->name()->en, $brand->isActive());
     }
 
     public function switchedOnVariantIds(StoreId $store): array
