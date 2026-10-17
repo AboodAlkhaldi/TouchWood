@@ -37,6 +37,10 @@ them at volume:
   and the daily check.
 - **Needs a Price's count** (`NeedsAPriceCount`): 2 reads per store the reader may edit prices in -
   measure before its menu entry goes in, as Inventory's `LowStockCount`.
+- **The notes and the preview** (`OverlapsFor`, `PreviewCategoryDiscount`, `ViewCategoryDiscount`):
+  about 4 reads of Catalog per discount not ended, and the preview's reads grow with the store's priced
+  sizes - over an admin page's 15 when a store has thousands; to bring down with the screens (step 7b's
+  review).
 
 **Moved from step 1 to step 3a**, where the first handler uses them: the off-store guard
 (`pricing.store_off` unless the person may switch stores), the seam that answers "is this store wired"

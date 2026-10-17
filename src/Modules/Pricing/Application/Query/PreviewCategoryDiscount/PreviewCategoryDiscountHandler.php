@@ -52,14 +52,15 @@ final readonly class PreviewCategoryDiscountHandler
         $now = CarbonImmutable::now()->toDateTimeImmutable();
 
         return $this->previewer->preview($store->storeId(), new CategoryDiscount(
-            'preview',
+            // Its own id when it is being changed, so it is not its own overlap.
+            $query->discountId === null ? 'preview' : strtolower(trim($query->discountId)),
             $store->id,
             $categoryId,
             $query->percent === null ? null : SaleInput::percent($query->percent),
             $query->amount === null ? null : AmountInput::of($query->amount, $store),
             DiscountInput::lines($query->lines),
-            $now,
-            null,
+            SaleInput::start($query->startsAt, $now),
+            SaleInput::end($query->endsAt),
             false,
             $this->input->leftOut($query->leftOut),
         ));

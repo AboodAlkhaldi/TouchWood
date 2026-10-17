@@ -13,8 +13,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Needs a Price** (pricing.md §1.9, §3), under **Edit Prices and Sales** in that store (owner,
- * 2026-10-08): every size switched on with no retail price, named in two reads of Catalog however many
- * there are (§2.4). A read: no lock, nothing written.
+ * 2026-10-08): every size switched on with no retail price, named by Catalog's sizes (a read per 1,000)
+ * and their products (one read) (§2.4). A read: no lock, nothing written.
  */
 final readonly class NeedsAPriceHandler
 {
@@ -32,7 +32,12 @@ final readonly class NeedsAPriceHandler
     public function handle(NeedsAPrice $query): array
     {
         $store = $this->access->authorize($query->storeId, [PricingPermissions::PRICE_EDIT])->storeId();
-        $variants = $this->catalog->variants($this->unpriced->in($store));
+        $variants = [];
+
+        // In reads of 1,000, under PostgreSQL's bind-parameter limit, however many need a price.
+        foreach (array_chunk($this->unpriced->in($store), 1000) as $chunk) {
+            $variants += $this->catalog->variants($chunk);
+        }
         $products = $this->catalog->products(array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, array_values($variants)))));
         $rows = [];
 

@@ -116,7 +116,17 @@ describe('a discount\'s preview (§1.5)', function () {
         $saved = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, '10', null, 'BOTH', null, null)));
         $view = app(ViewCategoryDiscountHandler::class)->handle(new ViewCategoryDiscount($saved));
 
-        expect($view->discount->state)->toBe('RUNNING')
+        // The note of what it overlaps (§1.3): a sale on a size it reaches, another discount on the same
+        // products, in its dates - and never itself when it is being changed.
+        Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, [$reached['variants'][0]], '5', null, null, null)));
+        $note = app(PreviewCategoryDiscountHandler::class)->handle(new PreviewCategoryDiscount(Rx::storeId('sa'), $category, '5', null, 'BOTH', [], null, null, $saved));
+        $later = app(PreviewCategoryDiscountHandler::class)->handle(new PreviewCategoryDiscount(Rx::storeId('sa'), $category, '5', null, 'BOTH', [], '2027-01-01 00:00:00+00', '2027-01-02 00:00:00+00'));
+
+        expect($note->overlappingSales)->toHaveCount(1)
+            ->and($note->overlappingDiscounts)->toBe([])
+            ->and(app(PreviewCategoryDiscountHandler::class)->handle(new PreviewCategoryDiscount(Rx::storeId('sa'), $category, '5', null, 'BOTH'))->overlappingDiscounts)->toHaveCount(1)
+            ->and($later->overlappingSales)->toHaveCount(1)
+            ->and($view->discount->state)->toBe('RUNNING')
             ->and($view->preview->reached)->toHaveCount(2)
             ->and(app(ListCategoryDiscountsHandler::class)->handle(new ListCategoryDiscounts(Rx::storeId('sa')))->total)->toBe(1);
     });

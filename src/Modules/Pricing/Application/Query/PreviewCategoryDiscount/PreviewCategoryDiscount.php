@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Query\PreviewCategoryDiscount;
 
 /**
- * What a category discount would do, before it is saved (pricing.md §1.5, §3): as the form holds it.
+ * What a category discount would do, before it is saved (pricing.md §1.5, §3): as the form holds it -
+ * its dates for the note of what it overlaps, and its own id when it is being changed.
  */
 final readonly class PreviewCategoryDiscount
 {
@@ -19,5 +20,8 @@ final readonly class PreviewCategoryDiscount
         public ?string $amount,
         public string $lines,
         public array $leftOut = [],
+        public ?string $startsAt = null,
+        public ?string $endsAt = null,
+        public ?string $discountId = null,
     ) {}
 }
