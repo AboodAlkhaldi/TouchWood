@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Modules\Pricing\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\ImportSections;
+use Modules\Catalog\Public\Events\CategoryMoved;
+use Modules\Catalog\Public\Events\ProductChanged;
+use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
@@ -15,16 +19,21 @@ use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\Repository\WholesaleBands;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseCategoryDiscounts;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePriceCandidates;
 use Modules\Pricing\Infrastructure\Eloquent\DatabasePricingLocks;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseRetailPrices;
 use Modules\Pricing\Infrastructure\Eloquent\DatabaseSales;
+use Modules\Pricing\Infrastructure\Eloquent\DatabaseWholesaleBands;
 use Modules\Pricing\Infrastructure\External\NoStoreWired;
 use Modules\Pricing\Infrastructure\Import\PriceImportSection;
+use Modules\Pricing\Infrastructure\Listener\RepriceForDiscounts;
 use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
@@ -50,6 +59,8 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
         $this->app->bind(Sales::class, DatabaseSales::class);
+        $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);
+        $this->app->bind(CategoryDiscounts::class, DatabaseCategoryDiscounts::class);
         $this->app->bind(PriceWindowTasks::class, QueuedPriceWindowTasks::class);
     }
 
@@ -66,6 +77,11 @@ final class PricingServiceProvider extends ServiceProvider
         // sales go deeper (owner, 2026-10-13).
         $this->app->make(SettingsRegistry::class)->define('pricing', ...PricingSettings::definitions());
         $this->app->make(SettingGuards::class)->register(PricingSettings::MAX_DISCOUNT_PERCENT, CeilingGuard::class);
+
+        // A product moving into or out of a discounted category follows at once (§1.5, §6.2).
+        Event::listen(ProductChanged::class, [RepriceForDiscounts::class, 'productChanged']);
+        Event::listen(ProductMadeReady::class, [RepriceForDiscounts::class, 'productMadeReady']);
+        Event::listen(CategoryMoved::class, [RepriceForDiscounts::class, 'categoryMoved']);
 
         // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.
         $this->app->make(ImportSections::class)->register('pricing', PriceImportSection::class);

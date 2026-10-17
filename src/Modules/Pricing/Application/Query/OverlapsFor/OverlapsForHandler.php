@@ -6,37 +6,30 @@ namespace Modules\Pricing\Application\Query\OverlapsFor;
 
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
-use InvalidArgumentException;
-use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Pricing\Application\Prices\DiscountCoverage;
+use Modules\Pricing\Application\Prices\ReadAccess;
 use Modules\Pricing\Application\Prices\SaleInput;
 use Modules\Pricing\Application\Prices\SaleSizes;
-use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\Sales;
-use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **The note before saving** (`OverlapsFor`, pricing.md §1.3, §3), for whoever holds any of Pricing's
  * three jobs in that store (owner, 2026-10-08). The sizes are read as adding the sale reads them
  * (`SaleSizes`), its start now when empty or past; every sale not ended on those sizes whose dates meet
- * it is named, the sale itself left out when it is being changed. A read: no lock, nothing written.
+ * it is named, the sale itself left out when it is being changed - and every category discount reaching
+ * the product in those dates (step 7b). A read: no lock, nothing written.
  */
 final readonly class OverlapsForHandler
 {
-    /** Any of the three, in that store. */
-    public const array PERMISSIONS = [
-        PricingPermissions::PRICE_EDIT,
-        PricingPermissions::WHOLESALE_EDIT,
-        PricingPermissions::CATEGORY_DISCOUNT_MANAGE,
-    ];
-
     public function __construct(
-        private Authorizer $authorizer,
-        private PlatformApi $platform,
+        private ReadAccess $access,
         private SaleSizes $sizes,
         private Sales $sales,
+        private CategoryDiscounts $discounts,
+        private DiscountCoverage $coverage,
     ) {}
 
     /**
@@ -44,7 +37,7 @@ final readonly class OverlapsForHandler
      */
     public function handle(OverlapsFor $query): OverlapNote
     {
-        $store = $this->storeFor($query->storeId);
+        $store = $this->access->authorize($query->storeId)->storeId();
         [$productId, $variantIds] = $this->sizes->of($query->productId, $query->variantIds);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $startsAt = SaleInput::start($query->startsAt, $now);
@@ -68,30 +61,24 @@ final readonly class OverlapsForHandler
             }
         }
 
-        return new OverlapNote($productId, $variantIds, $overlapping);
-    }
+        $discounts = [];
 
-    /**
-     * @throws Unauthorized
-     */
-    private function storeFor(string $storeId): StoreId
-    {
-        try {
-            $store = StoreId::fromString($storeId);
-        } catch (InvalidArgumentException) {
-            throw new Unauthorized(self::PERMISSIONS[0]);
-        }
-
-        foreach (self::PERMISSIONS as $permission) {
-            $stores = $this->authorizer->storesWith($permission);
-
-            if ($stores === null || in_array($store->value, array_map(static fn (StoreId $id): string => $id->value, $stores), true)) {
-                // A store that does not exist is invalid input, as saving a sale finds it (owner,
-                // 2026-10-10) - asked only of a reader allowed there, so it tells no one else anything.
-                return $this->platform->store($store) === null ? throw new InvalidPricingInput('store') : $store;
+        foreach ($this->discounts->notEnded($store, $now) as $discount) {
+            if ($discount->overlaps($startsAt, $endsAt) && isset($this->coverage->products($discount)[$productId])) {
+                $discounts[] = new OverlappingDiscount(
+                    $discount->id,
+                    $discount->categoryId,
+                    $discount->percentBasisPoints,
+                    $discount->amount?->minorUnits,
+                    $discount->amount?->currencyCode,
+                    $discount->lines->value,
+                    $discount->startsAt->format(DateTimeInterface::ATOM),
+                    $discount->endsAt?->format(DateTimeInterface::ATOM),
+                    $discount->alwaysWins,
+                );
             }
         }
 
-        throw new Unauthorized(self::PERMISSIONS[0]);
+        return new OverlapNote($productId, $variantIds, $overlapping, $discounts);
     }
 }

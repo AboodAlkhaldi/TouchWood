@@ -15,11 +15,32 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 | 3b | `PricingApi` bound with all its methods (`prices`, `totals` through `OrderTotals`, `pricesForEdit`): one read of the candidates for any number of lines; an unknown store and a quantity below 1 invalid input | — | **built** |
 | 4a | Sales (add, change, end, remove; a price or a percentage; one size, some, or every size of a product, none of an archived one; refused whole naming the sizes; the ceiling's notes name the products; "always wins" twice refused), the store's discount ceiling moved here (setting `pricing.ceiling.max_discount_percent`, job `pricing.ceiling.manage`, admin-only) and held: sales deeper refused, a retail price or a lower ceiling taking a sale past it held back (Platform's setting guard) | `pricing.price.edit`, `pricing.ceiling.manage` | **built** |
 | 4b | The timed tasks at a sale's start and end (queued after the change commits, delayed to the moment; one whose sale changed or went does nothing), the daily check at 03:30 over the last 25 hours, the overlap note before saving (`OverlapsFor`, any of the three jobs) | `pricing.windows.apply`, `pricing.windows.check` | **built** |
-| 5 | Wholesale bands | `pricing.wholesale.edit` | — |
-| 6 | Category discounts | `pricing.category_discount.manage` | after Catalog's amendment 16 is built |
+| 5 | Wholesale bands (`SetWholesalePrices`, all at once, none removes them): the first at the wholesale minimum and below the retail price, each next higher and cheaper, for a size sold wholesale; written as wholesale-line candidates | `pricing.wholesale.edit` | **built** |
+| 6a | Category discounts: add, change (scheduled in full, running its end), end, remove; a percentage or a fixed amount off every product in the category and below it now, less those left out, on the lines chosen; refused on a category missing or off (Catalog amendment 17), deeper than the ceiling, or "always winning" twice on a size across sales and discounts; written as CATEGORY candidates; timed tasks and the daily check | `pricing.category_discount.manage` | **built** |
+| 6b | Following Catalog (`ProductChanged`, `ProductMadeReady`, `CategoryMoved`: the product's priced sizes repriced in every store with a discount); the ceiling held against discounts (a retail price taking a fixed amount past it, a first price too; a lower ceiling below a percentage) | — | **built**; the preview and the note naming discounts go with 7b's screen reads |
 | 7a | The store's file (§1.8): the page's lines, and the price set by a job once Catalog's change commits - the staff writer (`RetailPriceWriter`), the ceiling held, source File; an off store's too, for whoever filled it | the system's, for the file | **built** (ahead of 5-6, to land with Inventory's part) |
-| 7b | Needs a Price, the screens' reads | any of the three, to read | — |
-| 8 | The module's own pass | — | — |
+| 7b | Needs a Price (the list, and `NeedsAPriceCount` for the menu entry its screen adds); the screens' reads - `ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount` and `PreviewCategoryDiscount` (the preview), `ViewPrices`, `OverlapsFor` naming discounts too; an off store only for whoever may switch stores | Edit Prices and Sales (Needs a Price), Manage Category Discounts (preview), any of the three (the rest) | **built** |
+| 8 | The module's own pass: the known costs below written down, the status brought up to date | — | **built** with 5-7b |
+
+## Known costs (step 8, from the reviews of steps 6 and 7b)
+
+What each piece reads, counted from the code - to measure against real data before the screens use
+them at volume:
+
+- **Writing a size's candidates** (`CandidateWriter::refresh`, every price change): the store's
+  discounts not ended (1 read), and for each of them the products under its category (Catalog: about 3
+  reads); then per 500 sizes, Catalog's variants (1 read, only when a discount exists) besides Pricing's
+  own reads. With a handful of discounts this stays small; dozens would want the expansion kept per
+  request.
+- **A discount's reach** (`DiscountCoverage::pricedSizes`): every priced size of the store, matched to
+  the products, in reads of 1,000 - on adding, changing, ending or removing a discount, its timed task,
+  and the daily check.
+- **Needs a Price's count** (`NeedsAPriceCount`): 2 reads per store the reader may edit prices in -
+  measure before its menu entry goes in, as Inventory's `LowStockCount`.
+- **The notes and the preview** (`OverlapsFor`, `PreviewCategoryDiscount`, `ViewCategoryDiscount`):
+  about 4 reads of Catalog per discount not ended, and the preview's reads grow with the store's priced
+  sizes - over an admin page's 15 when a store has thousands; to bring down with the screens (step 7b's
+  review).
 
 **Moved from step 1 to step 3a**, where the first handler uses them: the off-store guard
 (`pricing.store_off` unless the person may switch stores), the seam that answers "is this store wired"

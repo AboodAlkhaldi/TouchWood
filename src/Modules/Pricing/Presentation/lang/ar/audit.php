@@ -7,6 +7,11 @@ declare(strict_types=1);
 return [
     'retail_price.set' => 'حُدّد سعر التجزئة',
     'retail_price.filed' => 'حُدّد سعر التجزئة من ملف المتجر',
+    'wholesale_prices.set' => 'حُدّدت أسعار الجملة',
+    'category_discount.added' => 'أُضيف خصم على فئة',
+    'category_discount.changed' => 'غُيّر خصم على فئة',
+    'category_discount.ended' => 'أُنهي خصم على فئة',
+    'category_discount.removed' => 'أُزيل خصم على فئة',
     'retail_price.removed' => 'أُزيل سعر التجزئة',
     'sale.added' => 'أُضيف تخفيض',
     'sale.changed' => 'عُدّل تخفيض',

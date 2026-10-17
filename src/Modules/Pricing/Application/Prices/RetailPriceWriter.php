@@ -43,9 +43,11 @@ final readonly class RetailPriceWriter
             $before = $this->retailPrices->forVariants($storeId, array_keys($amounts));
             $ceiling = $this->ceiling->ceiling($storeId);
             $over = $this->ceiling->salesOver($storeId, $ceiling, $amounts);
+            // A fixed-amount category discount goes deeper as a retail price falls (§1.12).
+            $discounts = $this->ceiling->discountsOver($storeId, $ceiling, $amounts);
 
-            if ($over !== []) {
-                throw new OverCeiling($ceiling, array_map(static fn (Sale $sale): string => $sale->id, $over), [], $this->ceiling->productNames($over));
+            if ($over !== [] || $discounts !== []) {
+                throw new OverCeiling($ceiling, [...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)], [], $this->ceiling->namesFor($over, $discounts));
             }
 
             $changed = [];

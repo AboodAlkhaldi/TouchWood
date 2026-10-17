@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Public\Contracts;
 
+use Modules\Catalog\Public\Dto\CategoryDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -46,6 +47,13 @@ interface CatalogApi
      * @return list<string>
      */
     public function productIdsInCategory(string $categoryId): array;
+
+    /**
+     * For Pricing's category discounts: **the category, and whether it is switched on** (amendment 17;
+     * owner, 2026-10-13) - a discount on one that does not exist or is off is refused. Null for an
+     * unknown category.
+     */
+    public function category(string $categoryId): ?CategoryDto;
 
     /**
      * For Pricing's "Needs a Price" and Inventory: **the variants switched on in the store** — Active

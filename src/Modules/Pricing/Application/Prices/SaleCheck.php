@@ -13,6 +13,7 @@ use Modules\Pricing\Domain\Exception\PercentOutOfRange;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\SaleNotBelowRetail;
 use Modules\Pricing\Domain\Exception\WindowInvalid;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Service\PercentOff;
@@ -25,8 +26,8 @@ use Shared\Domain\ValueObject\StoreId;
  * - every size it covers with a retail price, a sale price below it, a percentage that leaves more
  *   than 0 (owner, 2026-10-10), and no deeper than the store's ceiling (owner, 2026-10-11) - one size
  *   that cannot take it refuses the whole sale, naming the sizes (owner, 2026-10-11);
- * - marked "always wins", no other "always wins" sale on those sizes in the same dates (owner,
- *   2026-10-09). Category discounts join this check with step 6.
+ * - marked "always wins", no other "always wins" sale or category discount on those sizes in the same
+ *   dates (owner, 2026-10-09).
  */
 final readonly class SaleCheck
 {
@@ -34,6 +35,8 @@ final readonly class SaleCheck
         private RetailPrices $retailPrices,
         private Sales $sales,
         private CeilingCheck $ceiling,
+        private CategoryDiscounts $discounts,
+        private DiscountCoverage $coverage,
     ) {}
 
     /**
@@ -126,6 +129,13 @@ final readonly class SaleCheck
         foreach ($this->sales->notEndedOn($store, $sale->variantIds, self::now()) as $other) {
             if ($other->id !== $sale->id && $other->alwaysWins && $other->overlaps($sale->startsAt, $sale->endsAt)) {
                 array_push($clash, ...array_intersect($other->variantIds, $sale->variantIds));
+            }
+        }
+
+        // A category discount marked so, reaching the sale's product in the same dates (§1.5).
+        foreach ($this->discounts->notEnded($store, self::now()) as $discount) {
+            if ($discount->alwaysWins && $discount->overlaps($sale->startsAt, $sale->endsAt) && isset($this->coverage->products($discount)[$sale->productId])) {
+                array_push($clash, ...$sale->variantIds);
             }
         }
 

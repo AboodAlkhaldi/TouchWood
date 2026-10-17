@@ -133,6 +133,10 @@ describe('what the database refuses behind the code (§8 #15)', function () {
         ))->mapWithKeys(static fn (stdClass $key): array => [(string) $key->conname => (string) $key->confdeltype])->all();
 
         expect($rules)->toBe([
+            'category_discount_exclusions_discount' => 'c',
+            'category_discount_exclusions_product' => 'c',
+            'category_discounts_category' => 'c',
+            'category_discounts_store' => 'r',
             'price_candidates_store' => 'r',
             'price_candidates_variant' => 'c',
             'retail_prices_store' => 'r',
@@ -141,6 +145,8 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             'sale_variants_variant' => 'c',
             'sales_product' => 'c',
             'sales_store' => 'r',
+            'wholesale_bands_store' => 'r',
+            'wholesale_bands_variant' => 'c',
         ]);
 
         $size = Px::ready()['variants'][0];

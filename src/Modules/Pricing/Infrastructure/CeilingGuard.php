@@ -12,8 +12,8 @@ use Modules\Pricing\Domain\ValueObject\Sale;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Holds back a lower discount ceiling while sales running or scheduled go deeper than it (pricing.md
- * §1.12; owner, 2026-10-13), naming them. A higher one, or the same, always passes.
+ * Holds back a lower discount ceiling while sales or category discounts running or scheduled go deeper
+ * than it (pricing.md §1.12; owner, 2026-10-13), naming them. A higher one, or the same, always passes.
  */
 final readonly class CeilingGuard implements SettingGuard
 {
@@ -32,9 +32,10 @@ final readonly class CeilingGuard implements SettingGuard
         // waiting for it reads the new ceiling. The setting is locked first, never the other way round.
         $this->locks->lockStore($store);
         $over = $this->check->salesOver($store, $to);
+        $discounts = $this->check->discountsOver($store, $to);
 
-        if ($over !== []) {
-            throw new CeilingBelowSales(array_map(static fn (Sale $sale): string => $sale->id, $over), $this->check->productNames($over));
+        if ($over !== [] || $discounts !== []) {
+            throw new CeilingBelowSales([...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)], $this->check->namesFor($over, $discounts));
         }
     }
 }

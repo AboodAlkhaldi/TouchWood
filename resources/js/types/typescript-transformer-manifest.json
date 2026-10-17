@@ -15,7 +15,7 @@
     "generated\\Modules\\Loyalty\\Public\\Enums\\index.ts": "bb528db26fec96e331a0a075e4e6448c",
     "generated\\Modules\\Platform\\Presentation\\Http\\Resource\\index.ts": "e2b4eee6a37df32099510a7740ec4dc6",
     "generated\\Modules\\Platform\\Public\\Enums\\index.ts": "f72b17dde529c312d4d597175015389f",
-    "generated\\Modules\\Pricing\\Domain\\ValueObject\\index.ts": "04676ea87c9794aa410dfa840dc865aa",
+    "generated\\Modules\\Pricing\\Domain\\ValueObject\\index.ts": "30c50b500ed3d188297b77c89ff3ffba",
     "generated\\Modules\\Pricing\\Public\\Enums\\index.ts": "06df20fe8d7764b35be867cc31109bfb",
     "generated\\Shared\\Application\\index.ts": "98233a3c81f7fda28a0e0e1e91802372",
     "generated\\Shared\\Domain\\Error\\index.ts": "30f1ec768e42620cd0674bc9195db687"

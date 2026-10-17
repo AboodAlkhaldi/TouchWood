@@ -46,7 +46,7 @@ return [
     ],
     'bands_invalid' => [
         'title' => 'Check the quantity prices',
-        'detail' => 'The first band starts at the wholesale minimum; each next band starts at a higher quantity and costs less.',
+        'detail' => 'The first band starts at the wholesale minimum and costs less than the retail price; each next band starts at a higher quantity and costs less.',
     ],
     'not_sold_wholesale' => [
         'title' => 'Not sold wholesale',
@@ -93,6 +93,7 @@ return [
     'fields' => [
         'amount' => 'price',
         'ends_at' => 'end',
+        'lines' => 'lines',
         'percent' => 'percentage',
         'price' => 'sale price',
         'product' => 'product',

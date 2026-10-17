@@ -1,8 +1,9 @@
 # Pricing — module specification
 
 **Status (2026-10-10): the full spec, accepted** (#100, 2026-10-09); **amended 2026-10-10** — a
-wholesale line's list price is its band (§1.6 step 5, §9.2); **being built** from 2026-10-10 in eight
-steps — see [its README](../../src/Modules/Pricing/README.md). §2 — what other modules call — was agreed
+wholesale line's list price is its band (§1.6 step 5, §9.2); **built** in eight steps from 2026-10-10 to
+2026-10-14 — see [its README](../../src/Modules/Pricing/README.md); its screens are the frontend
+session's (§9.1 #5). §2 — what other modules call — was agreed
 first and is on `main` (#97, "interfaces first", owner 2026-10-07). The rest follows from the owner's
 answers of 2026-10-07 to 2026-10-09; my proposals of the first draft were accepted on 2026-10-08,
 the timing one replaced on 2026-10-09 (§9.2). What waits for the provider's team is §9.1. Handoff
@@ -122,7 +123,9 @@ A discount on every product in a category and its sub-categories, in one store (
   wholesale band (lowest wins).
 - **Products can be left out** by name.
 - **A start, and an end only if wanted**, as a sale; the same life (§4.1); the same note of what it
-  affects and what it overlaps, and the same **"always wins"** choice (§1.3).
+  affects and what it overlaps, and the same **"always wins"** choice (§1.3) — **two "always wins"
+  discounts on lines that differ (one retail only, one wholesale only) may run together**, as they
+  never price the same line (owner, 2026-10-14).
 - **A product moving into or out of the category follows at once**: the discount covers what is in
   the category now, not what was when it was made — a product moved (`ProductChanged`), a draft made
   ready after its category changed (`ProductMadeReady`), or a whole category moved under another
@@ -385,7 +388,7 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 | `pricing.sales` | `id` ULID PK · `store_id` · `product_id` FK · `percent_bp` int NULL CHECK 1–9999 · `amount_minor` bigint NULL CHECK > 0 · `currency_code` NULL · exactly one of percent and amount · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` (no `source`: every sale is ours, owner 2026-10-13) — two "always wins" on one size at once refused under the store's pricing lock, as nothing in a CHECK can see across rows |
 | `pricing.sale_variants` | (`sale_id` FK CASCADE, `variant_id` FK CASCADE) PK — the sizes it covers (one, some of the product's, or every size it had when the sale was made) |
 | `pricing.wholesale_bands` | (`store_id`, `variant_id`, `from_quantity` CHECK ≥ 1) PK · `amount_minor` bigint CHECK > 0 · `currency_code` |
-| `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` RESTRICT · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
+| `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` CASCADE (Catalog deletes only an empty category: its discounts reach nothing and go with it, the audit log keeping them; step 6 review) · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
 | `pricing.category_discount_exclusions` | (`discount_id` FK CASCADE, `product_id` FK CASCADE) PK |
 | `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `always_wins` boolean · `source_id` NULL (the sale or discount) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
 
@@ -430,10 +433,10 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `SaleNotFound`, `CategoryDiscountNotFound` | NOT_FOUND | — |
 | `NotChangeable` | CONFLICT | changing an ended one; removing a running one |
 | `AlwaysWinsOverlap` | CONFLICT | a second "always wins" sale or discount on a size in the same dates (owner, 2026-10-09) |
-| `BandsInvalid` | INVALID | the first band not at the wholesale minimum; a band not higher, or not cheaper, than the one before |
+| `BandsInvalid` | INVALID | the first band not at the wholesale minimum, or not below the retail price (owner, 2026-10-10); a band not higher, or not cheaper, than the one before |
 | `NotSoldWholesale` | CONFLICT | wholesale bands for a size the store does not sell wholesale |
 | `CategoryNotUsable` | INVALID | a category that does not exist or is off |
-| `NoRetailPrice` | CONFLICT | a percentage sale for a size with no retail price |
+| `NoRetailPrice` | CONFLICT | a percentage sale for a size with no retail price; wholesale bands for one (the first band is measured against it, step 5) |
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |

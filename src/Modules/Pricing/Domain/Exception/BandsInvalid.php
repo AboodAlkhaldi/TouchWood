@@ -14,7 +14,7 @@ final class BandsInvalid extends PricingError
 {
     public function __construct()
     {
-        parent::__construct('The first band starts at the wholesale minimum; each next band starts higher and costs less.');
+        parent::__construct('The first band starts at the wholesale minimum and costs less than the retail price; each next band starts higher and costs less.');
     }
 
     public function type(): string
