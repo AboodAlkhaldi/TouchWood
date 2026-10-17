@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Promotions\Application\Coupon;
+namespace Modules\Promotions\Application;
 
 use Closure;
 use Illuminate\Database\ConnectionInterface;
@@ -13,14 +13,17 @@ use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Modules\Promotions\Domain\Exception\CouponNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
+use Modules\Promotions\Domain\Exception\PromotionsError;
+use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Domain\Repository\Segments;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * What every staff change to a store's coupons shares (promotions.md §1.8, §3, §7), as Pricing's
+ * What every staff change to a store's coupons and segments shares (promotions.md §1.8, §3, §7), as Pricing's
  * `PricingChange`:
  *
  * 1. **The permission in that store**, before anything is looked up — a malformed store id is no store
@@ -32,12 +35,13 @@ use Shared\Domain\ValueObject\StoreId;
  * 4. **Its own transaction** (a savepoint inside a caller's), the store's coupon lock first, then the
  *    audit entries the work answers — none when nothing changed — inside it.
  */
-final readonly class CouponChange
+final readonly class MarketingChange
 {
     public function __construct(
         private Authorizer $authorizer,
         private PlatformApi $platform,
         private Coupons $coupons,
+        private Segments $segments,
         private ConnectionInterface $db,
     ) {}
 
@@ -73,16 +77,35 @@ final readonly class CouponChange
      */
     public function couponStore(string $permission, string $couponId): string
     {
+        return $this->covered($permission, fn (): ?StoreId => $this->coupons->storeOf($couponId), static fn (): CouponNotFound => new CouponNotFound);
+    }
+
+    /**
+     * An existing segment's store, as `couponStore` (§7: `SegmentNotFound` for both).
+     *
+     * @throws Unauthorized|SegmentNotFound
+     */
+    public function segmentStore(string $permission, string $segmentId): string
+    {
+        return $this->covered($permission, fn (): ?StoreId => $this->segments->storeOf($segmentId), static fn (): SegmentNotFound => new SegmentNotFound);
+    }
+
+    /**
+     * @param  Closure(): ?StoreId  $storeOf
+     * @param  Closure(): PromotionsError  $notFound
+     */
+    private function covered(string $permission, Closure $storeOf, Closure $notFound): string
+    {
         $covered = $this->authorizer->storesWith($permission);
 
         if ($covered === []) {
             throw new Unauthorized($permission);
         }
 
-        $store = $this->coupons->storeOf($couponId) ?? throw new CouponNotFound;
+        $store = $storeOf() ?? throw $notFound();
 
         if ($covered !== null && ! in_array($store->value, array_map(static fn (StoreId $id): string => $id->value, $covered), true)) {
-            throw new CouponNotFound;
+            throw $notFound();
         }
 
         return $store->value;
@@ -97,9 +120,9 @@ final readonly class CouponChange
     public function run(StoreDto $store, Closure $work): mixed
     {
         return $this->db->transaction(function () use ($store, $work): mixed {
-            // One staff change of a store's coupons at a time: two new coupons with one code cannot
-            // both pass the check (the unique index is the backstop).
-            $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['promotions:coupons:'.$store->id], false);
+            // One staff change of a store's marketing at a time: two new coupons with one code cannot
+            // both pass the check (the unique index is the backstop), nor a segment be refreshed twice.
+            $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['promotions:store:'.$store->id], false);
             [$result, $entries] = $work();
 
             foreach ($entries as $entry) {

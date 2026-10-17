@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Command\DeleteCoupon;
 
 use Modules\Promotions\Application\Coupon\CouponAudit;
-use Modules\Promotions\Application\Coupon\CouponChange;
+use Modules\Promotions\Application\MarketingChange;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Domain\Exception\CouponInUse;
 use Modules\Promotions\Domain\Exception\CouponNotFound;
@@ -24,7 +24,7 @@ final readonly class DeleteCouponHandler
     public const string PERMISSION = PromotionsPermissions::COUPON_MANAGE;
 
     public function __construct(
-        private CouponChange $change,
+        private MarketingChange $change,
         private Coupons $coupons,
     ) {}
 

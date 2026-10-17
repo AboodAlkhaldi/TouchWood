@@ -169,6 +169,18 @@ final class PromotionsFixtures
         return $id;
     }
 
+    /** A placed order's fact, as `recordOrder` writes it, placed some time ago. */
+    public static function ordered(string $customerId, CarbonImmutable $placedAt, string $storeCode = 'sa'): string
+    {
+        $orderId = strtolower((string) Str::ulid());
+        DB::table('promotions.order_facts')->insert([
+            'order_id' => $orderId, 'store_id' => Fx::storeId($storeCode), 'customer_id' => $customerId,
+            'placed_at' => $placedAt->utc()->format('Y-m-d H:i:s.uP'), 'ceiling_percent' => 30,
+        ]);
+
+        return $orderId;
+    }
+
     public static function assign(string $couponId, string $customerId, string $storeCode = 'sa'): void
     {
         DB::table('promotions.coupon_assignments')->insert([

@@ -46,4 +46,46 @@ final readonly class DatabaseOrderFacts implements OrderFacts
 
         return $this->of($orderId) ?? throw new LogicException("The order {$orderId} was recorded and cannot be read.");
     }
+
+    public function whoOrdered(string $storeId, array $customerIds): array
+    {
+        if ($customerIds === []) {
+            return [];
+        }
+
+        return array_values(array_map(strval(...), $this->db->table('promotions.order_facts')
+            ->where('store_id', $storeId)
+            ->whereIn('customer_id', $customerIds)
+            ->distinct()
+            ->orderBy('customer_id')
+            ->pluck('customer_id')
+            ->all()));
+    }
+
+    public function lastOrderBefore(string $storeId, DateTimeImmutable $cutoff, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table('promotions.order_facts')
+            ->where('store_id', $storeId)
+            ->when($after !== null, fn ($query) => $query->where('customer_id', '>', $after))
+            ->groupBy('customer_id')
+            ->havingRaw('max(placed_at) < ?::timestamptz', [Moment::of($cutoff)])
+            ->orderBy('customer_id')
+            ->limit($limit)
+            ->pluck('customer_id')
+            ->all()));
+    }
+
+    public function atLeastOrdersSince(string $storeId, DateTimeImmutable $since, int $orders, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table('promotions.order_facts')
+            ->where('store_id', $storeId)
+            ->where('placed_at', '>=', Moment::of($since))
+            ->when($after !== null, fn ($query) => $query->where('customer_id', '>', $after))
+            ->groupBy('customer_id')
+            ->havingRaw('count(*) >= ?', [$orders])
+            ->orderBy('customer_id')
+            ->limit($limit)
+            ->pluck('customer_id')
+            ->all()));
+    }
 }

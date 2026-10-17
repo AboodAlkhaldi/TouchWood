@@ -6,7 +6,7 @@ namespace Modules\Promotions\Application\Command\SwitchCoupon;
 
 use Carbon\CarbonImmutable;
 use Modules\Promotions\Application\Coupon\CouponAudit;
-use Modules\Promotions\Application\Coupon\CouponChange;
+use Modules\Promotions\Application\MarketingChange;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Domain\Exception\CouponNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
@@ -24,7 +24,7 @@ final readonly class SwitchCouponHandler
     public const string PERMISSION = PromotionsPermissions::COUPON_MANAGE;
 
     public function __construct(
-        private CouponChange $change,
+        private MarketingChange $change,
         private Coupons $coupons,
     ) {}
 

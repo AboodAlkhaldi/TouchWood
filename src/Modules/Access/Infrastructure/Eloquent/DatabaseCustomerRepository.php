@@ -67,6 +67,30 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
         return $row instanceof stdClass ? $this->toCustomer($row) : null;
     }
 
+    public function findMany(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (string $id): string => strtolower(trim($id)), $ids), Ulids::valid(...))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return array_values(array_map($this->toCustomer(...), $this->db->table(self::TABLE)->whereIn('id', $ids)->orderBy('id')->get()->all()));
+    }
+
+    public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            ->where('account_type', $type->value)
+            ->whereNull('anonymized_at')
+            ->when($after !== null, fn ($query) => $query->where('id', '>', strtolower((string) $after)))
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->all()));
+    }
+
     public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array
     {
         $ids = $this->db->table(self::TABLE)

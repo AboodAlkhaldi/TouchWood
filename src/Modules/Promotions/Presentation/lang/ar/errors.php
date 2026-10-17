@@ -68,5 +68,11 @@ return [
         'product' => 'المنتج',
         'category' => 'القسم',
         'brand' => 'الماركة',
+        'segment_type' => 'نوع الشريحة',
+        'audience' => 'من تضم',
+        'rule' => 'القاعدة',
+        'rule_months' => 'عدد الأشهر',
+        'rule_orders' => 'عدد الطلبات',
+        'members' => 'العملاء المختارون',
     ],
 ];
