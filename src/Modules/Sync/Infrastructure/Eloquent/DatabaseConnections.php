@@ -79,6 +79,26 @@ final readonly class DatabaseConnections implements Connections
         return true;
     }
 
+    public function markRead(StoreId $store, bool $full): void
+    {
+        $now = CarbonImmutable::now();
+
+        $this->db->table(self::TABLE)->where('store_id', $store->value)->update([
+            'state' => 'OK',
+            'last_error' => null,
+            'last_read_at' => $now,
+            ...($full ? ['last_full_read_at' => $now] : []),
+        ]);
+    }
+
+    public function markFailing(StoreId $store, string $why): void
+    {
+        $this->db->table(self::TABLE)->where('store_id', $store->value)->update([
+            'state' => 'FAILING',
+            'last_error' => mb_substr($why, 0, 1000),
+        ]);
+    }
+
     public function delete(StoreId $store): void
     {
         $this->db->table(self::TABLE)->where('store_id', $store->value)->delete();

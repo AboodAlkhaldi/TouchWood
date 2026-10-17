@@ -39,8 +39,17 @@ final class FakeProvider implements ProviderAdapter
     {
         $fake = new self($failure, [], $fields);
         app()->instance(OdooAdapter::class, $fake);
+        self::$bound = $fake;
 
         return $fake;
+    }
+
+    private static ?self $bound = null;
+
+    /** The one the test bound last. */
+    public static function bound(): self
+    {
+        return self::$bound ?? throw new \LogicException('No pretend provider bound.');
     }
 
     public function fields(): array
@@ -66,8 +75,13 @@ final class FakeProvider implements ProviderAdapter
         }
     }
 
+    /** @var list<array{codes: list<string>|null, changedSince: DateTimeImmutable|null}> each read asked of it */
+    public array $reads = [];
+
     public function read(Connection $connection, ?array $codes, ?DateTimeImmutable $changedSince): iterable
     {
+        $this->reads[] = ['codes' => $codes, 'changedSince' => $changedSince];
+
         if ($this->failure !== null) {
             throw new ConnectionFailed($this->failure);
         }

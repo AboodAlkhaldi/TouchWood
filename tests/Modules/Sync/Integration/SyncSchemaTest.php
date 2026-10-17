@@ -93,7 +93,7 @@ describe('what the database refuses behind the code', function () {
             ->and($insert(['kind' => 'NOW', 'requested_by_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'reads_requested_by')
             ->and($insert(['kind' => 'NOW', 'requested_by_type' => 'CUSTOMER', 'requested_by_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class, 'reads_requested_by')
             ->and($insert([...$staff, 'kind' => 'HOURLY']))->toThrow(QueryException::class, 'reads_requested_by')
-            ->and($insert([...$staff, 'kind' => 'NOTIFIED']))->toThrow(QueryException::class, 'reads_requested_by')
+            ->and($insert([...$staff, 'kind' => 'NOTIFIED', 'codes' => '["1"]']))->toThrow(QueryException::class, 'reads_requested_by')
             // Started once out of the queue.
             ->and($insert(['started_at' => now()]))->toThrow(QueryException::class, 'reads_times')
             ->and($insert(['state' => 'RUNNING']))->toThrow(QueryException::class, 'reads_times')
@@ -109,8 +109,8 @@ describe('what the database refuses behind the code', function () {
         $insert([])();
         $insert([...$staff, 'kind' => 'NOW'])();
         $insert([...$staff, 'kind' => 'NIGHTLY'])();
-        $insert([...$staff, 'kind' => 'CODE', 'state' => 'RUNNING', 'started_at' => now()])();
-        $insert([...$done, 'kind' => 'CODE', 'prices_changed' => 1])();
+        $insert([...$staff, 'kind' => 'CODE', 'codes' => '["123"]', 'state' => 'RUNNING', 'started_at' => now()])();
+        $insert([...$done, 'kind' => 'CODE', 'codes' => '["123"]', 'prices_changed' => 1])();
         $insert([...$failed, 'kind' => 'NIGHTLY'])();
         // A read that never started: it gave up waiting, or its store was unwired.
         $insert([...$failed, 'started_at' => null])();

@@ -36,7 +36,7 @@ function syncAuditNamesRecorded(): array
 
 it('finds the actions Sync records', function () {
     // A guard over files must find something, or it passes over nothing.
-    expect(syncAuditNamesRecorded())->toBe(['sync.connection.changed', 'sync.connection.unwired', 'sync.connection.wired']);
+    expect(syncAuditNamesRecorded())->toBe(['sync.connection.changed', 'sync.connection.unwired', 'sync.connection.wired', 'sync.read.done', 'sync.read.failed']);
 });
 
 it('names every action Sync records, in Arabic and English', function () {

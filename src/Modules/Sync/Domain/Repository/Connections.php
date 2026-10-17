@@ -26,6 +26,16 @@ interface Connections
      */
     public function save(Connection $connection, bool $new): bool;
 
+    /**
+     * A read succeeded (sync.md §4): working again, when it last read - everything, for a full read -
+     * and no error. Never locks the row: a read must not take it after Pricing's or Inventory's store
+     * lock, which unwiring takes after it.
+     */
+    public function markRead(StoreId $store, bool $full): void;
+
+    /** A read failed after its retries (§1.7): failing, saying why. Never locks the row either. */
+    public function markFailing(StoreId $store, string $why): void;
+
     /** The connection gone, its key and secret with it (sync.md §1.8). */
     public function delete(StoreId $store): void;
 }

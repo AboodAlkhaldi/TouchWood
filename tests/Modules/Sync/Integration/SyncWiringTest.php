@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
@@ -47,6 +48,8 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
+    // Wiring queues a read; reading is SyncReadsTest's.
+    Queue::fake();
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 });
 
@@ -216,7 +219,8 @@ describe('changing the connection', function () {
             ->and($row?->address)->toBe('https://odoo2.test/api')
             ->and(Crypt::decryptString((string) $row?->key_encrypted))->toBe('key-1')
             ->and(Crypt::decryptString((string) $row?->secret_encrypted))->toBe('secret-2')
-            ->and(DB::table('sync.reads')->count())->toBe(2)
+            // The full read wiring queued still waits: asking again queues no second (§1.3).
+            ->and(DB::table('sync.reads')->count())->toBe(1)
             ->and($audit)->toContain('odoo2.test')->toContain('replaced')
             ->and(str_contains($audit, 'secret-2') || str_contains($audit, 'key-1'))->toBeFalse();
     });
