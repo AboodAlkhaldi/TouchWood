@@ -93,7 +93,20 @@ describe('what it takes off', function () {
         expect(shareMinors($result))->toBe([15_00, 0, 0]);
     });
 
-    it('skips a reduced line unless the coupon allows it, and takes a wholesale line at its band price as not reduced', function () {
+    it('skips an excluded sub-category inside an included one: "all of Kitchens except Drawers"', function () {
+        $customer = Fx::customer();
+        $kitchens = Px::category('Kitchens');
+        $drawers = Px::category('Drawers', $kitchens);
+        [$inDrawers] = Px::ready(['60 cm'], Px::category('Soft close', $drawers))['variants'];
+        [$inCabinets] = Px::ready(['60 cm'], Px::category('Cabinets', $kitchens))['variants'];
+        Pr::coupon(rules: [['INCLUDE', 'category', $kitchens], ['EXCLUDE', 'category', $drawers]]);
+
+        expect(shareMinors(tryCoupon('SUMMER-15', $customer, [Pr::line($inDrawers, 100_00), Pr::line($inCabinets, 100_00)])))->toBe([0, 15_00]);
+    });
+
+    // Pricing gives a wholesale line its band as `listUnit` (pricing.md §1.6, owner 2026-10-10), so a
+    // line at its band price comes here with `unit` equal to `listUnit` — what this cart builds.
+    it('skips a reduced line unless the coupon allows it, and takes a line at its normal price as not reduced', function () {
         $customer = Fx::customer('co@example.test', 'sa', 'company');
         [$a, $b] = Px::ready(['60 cm', '80 cm'])['variants'];
         Pr::coupon();
@@ -230,6 +243,9 @@ describe('what Sales passes in', function () {
             ->and(fn () => Pr::api()->applyCoupon(new CouponRequest(Fx::storeId('sa'), 'SUMMER-15', 'nobody', Audience::Public, $sa)))->toThrow(InvalidPromotionAttribute::class);
 
         $wrongCurrency = new CartPricesDto(Fx::storeId('sa'), Pr::currency('eg'), 1500, [Pr::line($a, 100_00, storeCode: 'eg')], [], Pr::money(100_00, 'eg'), Pr::money(100_00, 'eg'), now()->toImmutable(), null);
+
+        // Another store's prices are refused before any code is looked up — even one that names no coupon.
+        expect(fn () => Pr::api()->applyCoupon(new CouponRequest(Fx::storeId('sa'), 'NO-SUCH-CODE', $customer, Audience::Public, $eg)))->toThrow(InvalidPromotionAttribute::class);
 
         $refused = null;
 

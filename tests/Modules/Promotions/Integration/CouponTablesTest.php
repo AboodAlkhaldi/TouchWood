@@ -131,6 +131,8 @@ it('refuses what the code would never write', function (Closure $write, string $
     'more uses than allowed' => [fn (array $r) => DB::table('promotions.coupons')->where('id', $r['percent'])->update(['max_uses_total' => 1, 'uses_total' => 2]), 'coupons_uses'],
     'no sale mode' => [fn (array $r) => Pr::coupon('NEW-1', with: ['for_retail' => false, 'for_wholesale' => false]), 'coupons_sale_modes'],
     'no buyer' => [fn (array $r) => Pr::coupon('NEW-1', with: ['for_public' => false, 'for_company' => false]), 'coupons_audiences'],
+    'a coupon in no currency' => [fn (array $r) => Pr::coupon('NEW-1', with: ['currency_code' => 'XXX']), 'coupons_currency'],
+    'its uses lowered' => [fn (array $r) => DB::table('promotions.coupons')->where('id', $r['percent'])->update(['uses_total' => 0]), 'uses never fall'],
     'a coupon in no store' => [fn (array $r) => DB::table('promotions.coupons')->where('id', $r['fixed'])->update(['store_id' => couponTablesUlid()]), 'coupons_store'],
     // coupon_rules
     'an unknown rule kind' => [fn (array $r) => DB::table('promotions.coupon_rules')->insert(['id' => couponTablesUlid(), 'coupon_id' => $r['fixed'], 'kind' => 'MAYBE', 'brand_id' => DB::table('catalog.brands')->value('id')]), 'coupon_rules_kind'],
@@ -150,6 +152,7 @@ it('refuses what the code would never write', function (Closure $write, string $
     'a use of another store\'s coupon' => [fn (array $r) => couponTablesUse($r, ['coupon_id' => $r['egypt']]), 'coupon_uses_coupon'],
     'a use by no customer' => [fn (array $r) => couponTablesUse($r, ['customer_id' => couponTablesUlid()]), 'coupon_uses_customer'],
     'a discount below 0' => [fn (array $r) => couponTablesUse($r, ['discount_minor' => -1]), 'coupon_uses_discount'],
+    'an empty order number' => [fn (array $r) => couponTablesUse($r, ['order_number' => '']), 'coupon_uses_number'],
     'a used coupon deleted' => [fn (array $r) => DB::table('promotions.coupons')->where('id', $r['percent'])->delete(), 'coupon_uses_coupon'],
     'a use deleted' => [fn (array $r) => DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->delete(), 'a use is kept'],
     'a use emptied' => [fn (array $r) => DB::statement('TRUNCATE promotions.coupon_uses CASCADE'), 'a use is kept'],

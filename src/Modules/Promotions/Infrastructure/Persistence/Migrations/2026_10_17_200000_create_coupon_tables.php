@@ -55,6 +55,7 @@ return new class extends Migration
 
             $table->primary('id', 'coupons_pkey');
             $table->foreign('store_id', 'coupons_store')->references('id')->on('platform.stores')->restrictOnDelete();
+            $table->foreign('currency_code', 'coupons_currency')->references('code')->on('platform.currencies')->restrictOnDelete();
             $table->unique(['store_id', 'code'], 'coupons_store_code');
             $table->unique(['id', 'store_id'], 'coupons_id_store');
         });
@@ -139,7 +140,11 @@ return new class extends Migration
             $table->index(['coupon_id', 'customer_id'], 'coupon_uses_by_customer');
         });
 
-        DB::statement('ALTER TABLE promotions.coupon_uses ADD CONSTRAINT coupon_uses_discount CHECK (discount_minor >= 0)');
+        DB::statement(<<<'SQL'
+            ALTER TABLE promotions.coupon_uses
+                ADD CONSTRAINT coupon_uses_discount CHECK (discount_minor >= 0),
+                ADD CONSTRAINT coupon_uses_number CHECK (char_length(order_number) BETWEEN 1 AND 40)
+            SQL);
 
         Schema::create('promotions.order_facts', function (Blueprint $table) {
             $table->ulid('order_id');
@@ -186,6 +191,22 @@ return new class extends Migration
                 BEFORE TRUNCATE ON promotions.coupon_uses
                 FOR EACH STATEMENT EXECUTE FUNCTION promotions.coupon_use_is_kept();
 
+            -- The count of uses is what "used up" reads: lowered, it would give a use back.
+            CREATE OR REPLACE FUNCTION promotions.coupon_uses_never_fall() RETURNS trigger
+            LANGUAGE plpgsql AS $$
+            BEGIN
+                IF NEW.uses_total < OLD.uses_total THEN
+                    RAISE EXCEPTION 'promotions.coupons: a coupon''s uses never fall (% to %)', OLD.uses_total, NEW.uses_total;
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER coupons_uses_never_fall
+                BEFORE UPDATE OF uses_total ON promotions.coupons
+                FOR EACH ROW EXECUTE FUNCTION promotions.coupon_uses_never_fall();
+
             CREATE OR REPLACE FUNCTION promotions.order_fact_is_kept() RETURNS trigger
             LANGUAGE plpgsql AS $$
             BEGIN
@@ -211,6 +232,7 @@ return new class extends Migration
         Schema::dropIfExists('promotions.coupon_rules');
         Schema::dropIfExists('promotions.coupons');
         DB::unprepared('DROP FUNCTION IF EXISTS promotions.order_fact_is_kept()');
+        DB::unprepared('DROP FUNCTION IF EXISTS promotions.coupon_uses_never_fall()');
         DB::unprepared('DROP FUNCTION IF EXISTS promotions.coupon_use_is_kept()');
     }
 };
