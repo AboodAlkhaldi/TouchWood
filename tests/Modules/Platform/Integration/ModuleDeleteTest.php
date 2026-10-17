@@ -59,7 +59,7 @@ afterEach(function () {
 
 function moduleDeleteDirectory(): string
 {
-    return sys_get_temp_dir().'/tw-module-delete-tests';
+    return testTempDirectory('tw-module-delete-tests');
 }
 
 /**

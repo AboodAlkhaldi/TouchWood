@@ -79,7 +79,7 @@ afterEach(function () {
 
 function mediaTestDirectory(): string
 {
-    return sys_get_temp_dir().'/tw-media-tests';
+    return testTempDirectory('tw-media-tests');
 }
 
 function mediaTestPath(string $name): string
