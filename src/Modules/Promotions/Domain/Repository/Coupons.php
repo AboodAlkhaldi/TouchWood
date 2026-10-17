@@ -6,6 +6,7 @@ namespace Modules\Promotions\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
 use Shared\Domain\ValueObject\StoreId;
@@ -43,4 +44,21 @@ interface Coupons
 
     /** Lowers a use's discount for a staff edit, naming the edit (§1.3). */
     public function lowerUse(string $orderId, string $editId, int $discountMinor): void;
+
+    /** Whether another coupon of the store carries the code (§1.1), whatever its case was typed. */
+    public function codeTaken(StoreId $store, string $code): bool;
+
+    /** A new coupon with its rules, unused. */
+    public function create(string $couponId, StoreId $store, string $code, CouponTerms $terms, bool $active, DateTimeImmutable $at): void;
+
+    /** The coupon's terms and rules replaced; its code, store, uses and switch kept. */
+    public function change(Coupon $coupon, CouponTerms $terms, DateTimeImmutable $at): void;
+
+    public function switchTo(Coupon $coupon, bool $active, DateTimeImmutable $at): void;
+
+    /** Whether any order used the coupon — then it is never deleted (§1.1). */
+    public function wasUsed(Coupon $coupon): bool;
+
+    /** An unused coupon gone, its rules and assignments with it (§1.1). */
+    public function delete(Coupon $coupon): void;
 }

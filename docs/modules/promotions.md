@@ -101,6 +101,12 @@ a usage check Promotions registers with Catalog, as modules register theirs for 
 (`MediaUsages`). A rule is never dropped silently: dropping an exclusion would widen what a coupon
 covers. (A Catalog addition, §2.3.)
 
+**Checked when an entry is added, not again later** (owner, 2026-10-17, answer 22): changing a coupon
+checks only the list entries the change adds; one already on it stays though its product was archived
+or its category or brand switched off since — it matches no cart line — so a rename is never blocked
+by an old entry. **At most 500 entries per coupon** — my assumption, stated for the owner to reject: a
+list a screen can show whole.
+
 ### 1.3 What a coupon takes off
 
 In the store currency's smallest unit (handoff §5.1), on the eligible lines' `total` (Pricing's
@@ -243,6 +249,8 @@ by composite keys (§5), so nothing of one store reaches another's.
 **A store switched off** has its coupons, segments and gift levels set by Super Admins only — the
 panel offers off stores to Super Admins alone (platform.md §9.10) — as its prices and stock are
 (pricing.md §1.1 rule 8, inventory.md §1.1 rule 6). My assumption, stated for the owner to reject.
+Built with step 3b: anyone else is answered `Unauthorized` — §7 has no error of its own for it, and the
+panel never offers them the store.
 
 ---
 
@@ -553,6 +561,11 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 20. After a staff edit the coupon is **checked again; trimmed or removed if it no longer fits — and it
     can only stay or shrink** (sales.md §1.7).
 21. **An edit keeps the rules the order was placed under** — the ceiling among them (2026-10-10).
+
+**2026-10-17:**
+
+22. A coupon's list entry whose product was archived (or whose category or brand was switched off)
+    after it was added: **check new entries only** — an edit checks just what it adds (§1.2).
 
 ### 9.2 Still open
 

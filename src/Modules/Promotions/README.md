@@ -19,6 +19,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 2a — coupons: the rules and the reads | The coupon tables of §5 (coupons, rules, assignments, uses, order facts) with every rule the database holds; the coupon's rules as pure code; `PromotionsApi::applyCoupon` and `customerDiscountRoom`; Catalog's `lineFacts` (catalog.md amendment 18) | below |
 | 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
 | 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
+| 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
 
 ## What is here
 
@@ -63,13 +64,28 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 - **`Infrastructure/Eloquent/DatabaseCoupons`** — a coupon by code or id (locked for placing) with its
   rules; a customer's uses and assignment in one query; a use by its order; recording and lowering a
   use. **`DatabaseOrderFacts`** — an order's fact, written once (`ON CONFLICT DO NOTHING`).
+- **Staff's coupon commands** (`Application/Command/{Create,Change,Switch,Delete}Coupon`, all under
+  `promotions.coupon.manage`), through **`Coupon/CouponChange`** as Pricing's `PricingChange`: the
+  permission in the store first; an existing coupon's store must be one the staff member covers, or it
+  is `CouponNotFound` as an unknown one is; a switched-off store is the Super Admins' alone
+  (`Unauthorized`); its own transaction with a per-store advisory lock, and the audit entries
+  (`Coupon/CouponAudit`: `promotions.coupon.created`, `…updated` with only what changed,
+  `…deactivated`, `…activated`, `…deleted`). Terms are checked by the domain's **`CouponTerms`**
+  (names, kind and amounts, dates, uses, sale modes and buyers — the public only on wholesale lines
+  never applies — the rules, deduplicated, at most 500); the lists by **`Coupon/RuleTargets`** (ready
+  products, active categories and brands, through `CatalogApi`) — on a change, only the entries it adds
+  (owner, 2026-10-17, answer 22). Dates are kept in UTC to the second and written with their offset
+  (`Infrastructure/Eloquent/Moment`). The code is read as typed and unique in
+  the store (`CodeTaken`, the unique index the backstop); never changed. A change locks the coupon's row
+  first, so an order being placed never reads it half changed; the total of uses below those made is
+  `CouponInUse`. A used coupon is never deleted (`CouponInUse`).
 - **`Infrastructure/Eloquent/CouponRulesUsage`** — registered with Catalog's `CatalogUsages`: every
   coupon whose include or exclude list names a product, category or brand Catalog is about to delete,
   in one query; Catalog then refuses the delete (`catalog.item_in_use`). Variants answer nothing until
   gift levels (step 5).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+`tests/Modules/Promotions/Integration` — `CouponManageTest` (staff's commands), `CouponRulesUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

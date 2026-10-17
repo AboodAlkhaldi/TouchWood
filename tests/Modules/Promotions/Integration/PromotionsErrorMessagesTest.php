@@ -118,7 +118,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission', 'customer', 'currency', 'line', 'order', 'order_number', 'coupon', 'edit']);
+})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission', 'customer', 'currency', 'line', 'order', 'order_number', 'coupon', 'edit', 'name', 'eligibility', 'discount_kind', 'cap', 'minimum', 'max_uses', 'sale_modes', 'buyers', 'rules', 'product', 'category', 'brand']);
 
 it('carries the refusal\'s reason for the caller, which reads errors by their type', function () {
     expect(CouponRefused::because(CouponRefusal::UsedUp)->context())->toBe(['reason' => 'USED_UP'])
