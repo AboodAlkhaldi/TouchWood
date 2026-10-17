@@ -278,9 +278,12 @@ describe('changing, switching, deleting', function () {
         $fields = couponFields(['startsAt' => CarbonImmutable::parse('2026-11-01 12:00:00.123456+03:00'), 'endsAt' => CarbonImmutable::parse('2026-11-30 23:59:59+03:00')]);
         $id = couponCreate(fields: $fields);
         $updatedAt = DB::table('promotions.coupons')->where('id', $id)->value('updated_at');
+        // An hour on (the column keeps whole seconds): a needless write would show.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, $fields));
         app(SwitchCouponHandler::class)->handle(new SwitchCoupon($id, true));
+        CarbonImmutable::setTestNow();
 
         expect(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('starts_at'))->utc()->format('Y-m-d H:i:s.u'))->toBe('2026-11-01 09:00:00.000000')
             ->and(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('ends_at'))->utc()->format('Y-m-d H:i:s'))->toBe('2026-11-30 20:59:59')
