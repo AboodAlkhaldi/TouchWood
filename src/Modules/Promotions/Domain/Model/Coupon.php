@@ -46,4 +46,31 @@ final readonly class Coupon
         public bool $active,
         public array $rules,
     ) {}
+
+    /** What staff set on it, as an editor change compares it (§3). */
+    public function terms(): CouponTerms
+    {
+        return CouponTerms::of(
+            $this->nameAr,
+            $this->nameEn,
+            $this->eligibility->value,
+            $this->discountKind->value,
+            $this->percent,
+            $this->cap?->minorUnits,
+            $this->amount?->minorUnits,
+            $this->currencyCode,
+            $this->minimum?->minorUnits,
+            $this->startsAt,
+            $this->endsAt,
+            $this->maxUsesPerCustomer,
+            $this->maxUsesTotal,
+            $this->allowWithPoints,
+            $this->onReducedLines,
+            $this->forRetail,
+            $this->forWholesale,
+            $this->forPublic,
+            $this->forCompany,
+            array_map(static fn (CouponRule $rule): array => ['kind' => $rule->kind->value, 'target' => $rule->target->value, 'id' => $rule->targetId], $this->rules),
+        );
+    }
 }

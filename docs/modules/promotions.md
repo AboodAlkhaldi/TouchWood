@@ -243,6 +243,8 @@ by composite keys (§5), so nothing of one store reaches another's.
 **A store switched off** has its coupons, segments and gift levels set by Super Admins only — the
 panel offers off stores to Super Admins alone (platform.md §9.10) — as its prices and stock are
 (pricing.md §1.1 rule 8, inventory.md §1.1 rule 6). My assumption, stated for the owner to reject.
+Built with step 3b: anyone else is answered `Unauthorized` — §7 has no error of its own for it, and the
+panel never offers them the store.
 
 ---
 

@@ -8,8 +8,10 @@ use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Str;
 use Modules\Promotions\Domain\Model\Coupon;
 use Modules\Promotions\Domain\Model\CouponRule;
+use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
 use Modules\Promotions\Domain\Model\RuleKind;
@@ -105,6 +107,94 @@ final readonly class DatabaseCoupons implements Coupons
     public function lowerUse(string $orderId, string $editId, int $discountMinor): void
     {
         $this->db->table('promotions.coupon_uses')->where('order_id', $orderId)->update(['discount_minor' => $discountMinor, 'last_edit_id' => $editId]);
+    }
+
+    public function codeTaken(StoreId $store, string $code): bool
+    {
+        return $this->coupons($store)->where('code', $code)->exists();
+    }
+
+    public function create(string $couponId, StoreId $store, string $code, CouponTerms $terms, bool $active, DateTimeImmutable $at): void
+    {
+        $this->db->table('promotions.coupons')->insert([
+            'id' => $couponId,
+            'store_id' => $store->value,
+            'code' => $code,
+            ...self::termsRow($terms),
+            'uses_total' => 0,
+            'active' => $active,
+            'created_at' => $at,
+            'updated_at' => $at,
+        ]);
+        $this->writeRules($couponId, $terms);
+    }
+
+    public function change(Coupon $coupon, CouponTerms $terms, DateTimeImmutable $at): void
+    {
+        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update([...self::termsRow($terms), 'updated_at' => $at]);
+        $this->db->table('promotions.coupon_rules')->where('coupon_id', $coupon->id)->delete();
+        $this->writeRules($coupon->id, $terms);
+    }
+
+    public function switchTo(Coupon $coupon, bool $active, DateTimeImmutable $at): void
+    {
+        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->update(['active' => $active, 'updated_at' => $at]);
+    }
+
+    public function wasUsed(Coupon $coupon): bool
+    {
+        return $coupon->usesTotal > 0 || $this->db->table('promotions.coupon_uses')->where('coupon_id', $coupon->id)->exists();
+    }
+
+    public function delete(Coupon $coupon): void
+    {
+        // Its rules and assignments go with it (CASCADE); a use refuses it (RESTRICT) — the caller
+        // asked first, and the foreign key is the backstop.
+        $this->coupons(StoreId::fromString($coupon->storeId))->where('id', $coupon->id)->delete();
+    }
+
+    /**
+     * @return array<string, bool|int|string|DateTimeImmutable|null>
+     */
+    private static function termsRow(CouponTerms $terms): array
+    {
+        return [
+            'name_ar' => $terms->nameAr,
+            'name_en' => $terms->nameEn,
+            'eligibility' => $terms->eligibility->value,
+            'discount_kind' => $terms->discountKind->value,
+            'percent' => $terms->percent,
+            'cap_minor' => $terms->capMinor,
+            'amount_minor' => $terms->amountMinor,
+            'currency_code' => $terms->currencyCode,
+            'minimum_minor' => $terms->minimumMinor,
+            'starts_at' => $terms->startsAt,
+            'ends_at' => $terms->endsAt,
+            'max_uses_per_customer' => $terms->maxUsesPerCustomer,
+            'max_uses_total' => $terms->maxUsesTotal,
+            'allow_with_points' => $terms->allowWithPoints,
+            'on_reduced_lines' => $terms->onReducedLines,
+            'for_retail' => $terms->forRetail,
+            'for_wholesale' => $terms->forWholesale,
+            'for_public' => $terms->forPublic,
+            'for_company' => $terms->forCompany,
+        ];
+    }
+
+    private function writeRules(string $couponId, CouponTerms $terms): void
+    {
+        if ($terms->rules === []) {
+            return;
+        }
+
+        $this->db->table('promotions.coupon_rules')->insert(array_map(static fn (CouponRule $rule): array => [
+            'id' => strtolower((string) Str::ulid()),
+            'coupon_id' => $couponId,
+            'kind' => $rule->kind->value,
+            'product_id' => $rule->target === RuleTarget::Product ? $rule->targetId : null,
+            'category_id' => $rule->target === RuleTarget::Category ? $rule->targetId : null,
+            'brand_id' => $rule->target === RuleTarget::Brand ? $rule->targetId : null,
+        ], $terms->rules));
     }
 
     private function coupons(StoreId $store): Builder

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Public\Contracts;
 
+use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\CategoryDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
@@ -91,6 +92,13 @@ interface CatalogApi
      * @return array<string, LineFactsDto>
      */
     public function lineFacts(array $variantIds): array;
+
+    /**
+     * For Promotions — a coupon's include and exclude lists (amendment 20; promotions.md §1.2): **the
+     * brand and whether it is switched on**, so a list naming one that does not exist or is off is
+     * refused; null for an unknown one. As `category()` for Pricing (amendment 17).
+     */
+    public function brand(string $brandId): ?BrandDto;
 
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;

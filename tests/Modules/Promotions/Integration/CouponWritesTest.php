@@ -14,6 +14,7 @@ use Modules\Promotions\Domain\Exception\CouponChanged;
 use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
 use Modules\Promotions\Domain\Repository\Coupons;
@@ -323,6 +324,36 @@ describe('using the coupon: replays and races', function () {
             public function lowerUse(string $orderId, string $editId, int $discountMinor): void
             {
                 $this->real->lowerUse($orderId, $editId, $discountMinor);
+            }
+
+            public function codeTaken(StoreId $store, string $code): bool
+            {
+                return $this->real->codeTaken($store, $code);
+            }
+
+            public function create(string $couponId, StoreId $store, string $code, CouponTerms $terms, bool $active, DateTimeImmutable $at): void
+            {
+                $this->real->create($couponId, $store, $code, $terms, $active, $at);
+            }
+
+            public function change(Coupon $coupon, CouponTerms $terms, DateTimeImmutable $at): void
+            {
+                $this->real->change($coupon, $terms, $at);
+            }
+
+            public function switchTo(Coupon $coupon, bool $active, DateTimeImmutable $at): void
+            {
+                $this->real->switchTo($coupon, $active, $at);
+            }
+
+            public function wasUsed(Coupon $coupon): bool
+            {
+                return $this->real->wasUsed($coupon);
+            }
+
+            public function delete(Coupon $coupon): void
+            {
+                $this->real->delete($coupon);
             }
         });
         app()->forgetInstance(UseCouponHandler::class);
