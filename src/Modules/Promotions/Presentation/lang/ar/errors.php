@@ -45,5 +45,8 @@ return [
         'dates' => 'التواريخ',
         'store' => 'المتجر',
         'permission' => 'الصلاحية',
+        'customer' => 'العميل',
+        'currency' => 'العملة',
+        'line' => 'سطر السلة',
     ],
 ];

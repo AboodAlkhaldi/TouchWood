@@ -45,5 +45,8 @@ return [
         'dates' => 'date range',
         'store' => 'store',
         'permission' => 'permission',
+        'customer' => 'customer',
+        'currency' => 'currency',
+        'line' => 'cart line',
     ],
 ];

@@ -153,3 +153,46 @@ describe('many at once', function () {
             ->and($count(fn () => catalogReads()->products([$few['product']])))->toBe($count(fn () => catalogReads()->products([$few['product'], $many['product']])));
     });
 });
+
+describe('a cart\'s line facts, for Promotions (amendment 18)', function () {
+    it('answers each variant\'s product, brand and every category above its product\'s, nearest first', function () {
+        $kitchens = Px::category('Kitchens');
+        $drawers = Px::category('Drawers', $kitchens);
+        $softClose = Px::category('Soft close', $drawers);
+        $deep = Px::ready(['60 cm', '80 cm'], $softClose);
+        $top = Px::ready(['90 cm'], Px::category('Lighting'));
+        [$sixty, $eighty] = $deep['variants'];
+        $brand = (string) DB::table('catalog.products')->where('id', $deep['product'])->value('brand_id');
+
+        $facts = catalogReads()->lineFacts([strtoupper($sixty), $eighty, $top['variants'][0], '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id', $sixty]);
+
+        expect(array_keys($facts))->toEqualCanonicalizing([$sixty, $eighty, $top['variants'][0]])
+            ->and($facts[$sixty]->variantId)->toBe($sixty)
+            ->and($facts[$sixty]->productId)->toBe($deep['product'])
+            ->and($facts[$sixty]->brandId)->toBe($brand)
+            ->and($facts[$sixty]->categoryIds)->toBe([$softClose, $drawers, $kitchens])
+            ->and($facts[$eighty]->categoryIds)->toBe([$softClose, $drawers, $kitchens])
+            ->and($facts[$top['variants'][0]]->categoryIds)->toHaveCount(1)
+            ->and(catalogReads()->lineFacts([]))->toBe([]);
+    });
+
+    it('answers a draft product with no category, with no category', function () {
+        $draft = Px::product('Hinge');
+        $variant = Px::variant($draft, '7000001');
+
+        expect(catalogReads()->lineFacts([$variant])[$variant]->categoryIds)->toBe([])
+            ->and(catalogReads()->lineFacts([$variant])[$variant]->productId)->toBe($draft);
+    });
+
+    it('answers a whole cart in one query however many lines it has', function () {
+        $few = Px::ready(['60 cm'], Px::category('Doors', Px::category('Wardrobes')));
+        $many = Px::ready(['60 cm', '70 cm', '80 cm', '90 cm', '100 cm']);
+        $queries = Cx::recordQueries();
+        catalogReads()->lineFacts($few['variants']);
+        $one = count($queries);
+        $queries = Cx::recordQueries();
+        catalogReads()->lineFacts([...$few['variants'], ...$many['variants']]);
+
+        expect($one)->toBe(1)->and(count($queries))->toBe(1);
+    });
+});

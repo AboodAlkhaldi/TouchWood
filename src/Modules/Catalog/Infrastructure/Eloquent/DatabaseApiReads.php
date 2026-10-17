@@ -6,6 +6,7 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
@@ -121,6 +122,54 @@ final readonly class DatabaseApiReads implements ApiReads
                 $row->category_id === null ? null : (string) $row->category_id,
                 $row->warranty_id === null ? null : (string) $row->warranty_id,
             );
+        }
+
+        return $found;
+    }
+
+    public function lineFacts(array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // One query whatever the cart: each variant's product and brand, and its product's category
+        // walked up to the top. The depth bound only guards the walk; Catalog keeps the tree acyclic.
+        $rows = $this->db->select(
+            'WITH RECURSIVE lines AS ('
+            .' SELECT v.id AS variant_id, p.id AS product_id, p.brand_id, p.category_id'
+            .' FROM catalog.variants v JOIN catalog.products p ON p.id = v.product_id'
+            .' WHERE v.id IN ('.implode(',', array_fill(0, count($ids), '?')).')'
+            .'), up AS ('
+            .' SELECT variant_id, category_id, 0 AS depth FROM lines WHERE category_id IS NOT NULL'
+            .' UNION ALL'
+            .' SELECT up.variant_id, c.parent_id, up.depth + 1 FROM up JOIN catalog.categories c ON c.id = up.category_id'
+            .' WHERE c.parent_id IS NOT NULL AND up.depth < 100'
+            .') SELECT l.variant_id, l.product_id, l.brand_id, up.category_id'
+            .' FROM lines l LEFT JOIN up ON up.variant_id = l.variant_id'
+            .' ORDER BY l.variant_id, up.depth',
+            $ids,
+        );
+
+        $facts = [];
+        $categories = [];
+
+        foreach ($rows as $row) {
+            $variantId = (string) $row->variant_id;
+            $facts[$variantId] ??= [(string) $row->product_id, (string) $row->brand_id];
+            $categories[$variantId] ??= [];
+
+            if ($row->category_id !== null) {
+                $categories[$variantId][] = (string) $row->category_id;
+            }
+        }
+
+        $found = [];
+
+        foreach ($facts as $variantId => [$productId, $brandId]) {
+            $found[$variantId] = new LineFactsDto($variantId, $productId, $brandId, $categories[$variantId]);
         }
 
         return $found;

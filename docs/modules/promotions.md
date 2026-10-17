@@ -452,7 +452,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 **Coupons — refused whole**
 - Unknown code; inactive; before its start; after its end; used up overall; used up for this customer;
   an `ASSIGNED` coupon by a customer it was not assigned to; under the minimum on `net_subtotal`;
-  nothing eligible; worth nothing (1% of 50 halalas); with points when it does not allow them.
+  nothing eligible; worth nothing (1% of 49 halalas — 1% of 50 rounds half up to 1, answer 19); with points when it does not allow them.
 - **Passing the ceiling**: a coupon that fits alone but not with the prices' own reductions is
   refused, never trimmed; a 70%-off clearance line under a 30% ceiling sells, with no coupon on top.
 - The code typed in lower case or with Arabic digits finds the coupon.
