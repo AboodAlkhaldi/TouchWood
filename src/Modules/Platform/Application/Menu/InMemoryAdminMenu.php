@@ -35,6 +35,8 @@ final class InMemoryAdminMenu implements AdminMenu
         'orders',
         'companies',
         'customers',
+        // Handoff §14 places Marketing after Customers and before Points (platform.md §9.4).
+        'marketing',
         // Handoff §14 places Points after Customers and before Staff (platform.md §9.4).
         'points',
         'staff_and_permissions',

@@ -46,6 +46,9 @@ enum PermissionGroup: string
     /** Loyalty's jobs: the store's points and its programme (loyalty.md §3, access.md amendment 66). */
     case Points = 'points';
 
+    /** Promotions' jobs: the store's coupons, segments and gifts (promotions.md §3, access.md amendment 68). */
+    case Marketing = 'marketing';
+
     public function labelKey(): string
     {
         return "access::permission_groups.{$this->value}";
