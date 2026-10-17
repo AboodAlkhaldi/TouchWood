@@ -310,6 +310,16 @@ describe('unwiring (sync.md §1.8)', function () {
             ->and((string) DB::table('platform.audit_entries')->where('action', 'sync.connection.unwired')->value('changes'))->toContain('stopped_orderable');
     });
 
+    it('fails a read running when the store is unwired: it stops before its next batch', function () {
+        FakeProvider::bind();
+        syncWire();
+        DB::table('sync.reads')->update(['state' => 'RUNNING', 'started_at' => now()]);
+
+        app(UnwireStoreHandler::class)->handle(new UnwireStore(syncSa()));
+
+        expect(DB::table('sync.reads')->value('state'))->toBe('FAILED');
+    });
+
     it('leaves every other store as it is', function () {
         FakeProvider::bind();
         syncWire();

@@ -14,6 +14,8 @@ use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
+use Modules\Pricing\Public\Contracts\ProviderPrices;
+use Modules\Pricing\Public\Dto\ProviderPricesResult;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
@@ -220,6 +222,13 @@ describe('what a read reports (§1.6)', function () {
         syncReadsRun();
 
         expect(syncReadsOpen())->toBe(["ARCHIVED_SKIPPED {$archived}"]);
+
+        // A price that is not one, and no stock: nothing checked whether it is still archived.
+        syncReadsFake()->values = [new ProviderValue(syncReadsCode($archived), '0', null)];
+        syncReadsQueue(ReadKind::Now);
+        syncReadsRun();
+
+        expect(syncReadsOpen())->toContain("ARCHIVED_SKIPPED {$archived}");
     });
 
     it('lists an off or draft size it priced, a sale it stopped and a discount it made skip a size', function () {
@@ -348,6 +357,35 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
             ->and(DB::table('sync.report_entries')->count())->toBe(0)
             ->and(Fx::audits('sync.read.failed', $read))->toBe(1);
     })->with(['unwired' => false, 'wired again' => true]);
+
+    it('stops when Pricing finds the store unwired between the read\'s check and its batch', function () {
+        $size = syncReadsSelling()[0];
+        syncReadsFake()->values = [new ProviderValue(syncReadsCode($size), '10', null), new ProviderValue('999999', '1', null)];
+        app()->instance(ProviderPrices::class, new class implements ProviderPrices
+        {
+            public function apply(StoreId $store, array $prices, string $readRef): ProviderPricesResult
+            {
+                return new ProviderPricesResult(wired: false);
+            }
+        });
+
+        $read = syncReadsRun();
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
+            ->and(DB::table('sync.report_entries')->count())->toBe(0);
+    });
+
+    it('never marks done a read taken over while it ran', function () {
+        $read = (string) DB::table('sync.reads')->value('id');
+        // Nothing to read, so no batch checks it: the end must.
+        syncReadsFake()->whileReading = fn () => DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'Stopped: its worker went away.', 'finished_at' => now()]);
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Stopped: its worker went away.')
+            ->and(Fx::audits('sync.read.done', $read))->toBe(0);
+    });
 
     it('fails another read of the store dead for over 30 minutes the way a failed read fails - reported, the store failing', function () {
         $dead = (string) DB::table('sync.reads')->value('id');
