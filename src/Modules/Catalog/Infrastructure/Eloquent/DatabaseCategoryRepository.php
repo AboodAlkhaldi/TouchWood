@@ -12,6 +12,7 @@ use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\ValueObject\ListPosition;
 use Modules\Catalog\Domain\ValueObject\LocalizedName;
 use Modules\Catalog\Domain\ValueObject\Slugs;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -95,7 +96,8 @@ final readonly class DatabaseCategoryRepository implements CategoryRepository
 
     public function delete(string $categoryId): void
     {
-        $this->db->table(self::TABLE)->where('id', strtolower($categoryId))->delete();
+        // Another module's row written since its usage check refuses it here (amendment 19).
+        ReferencedDelete::run($this->db, CatalogItem::Category, $categoryId, fn () => $this->db->table(self::TABLE)->where('id', strtolower($categoryId))->delete());
     }
 
     public function all(): array

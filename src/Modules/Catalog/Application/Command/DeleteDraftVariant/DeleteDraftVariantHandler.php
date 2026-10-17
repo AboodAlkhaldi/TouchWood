@@ -11,12 +11,15 @@ use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Lists\SharedListChange;
 use Modules\Catalog\Application\Products\ProductAccess;
 use Modules\Catalog\Application\Products\Readiness;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Exception\InvalidStageChange;
 use Modules\Catalog\Domain\Exception\ProductArchived;
 use Modules\Catalog\Domain\Exception\VariantNotFound;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Application\Unauthorized;
 
 /**
@@ -34,10 +37,11 @@ final readonly class DeleteDraftVariantHandler
         private VariantRepository $variants,
         private Readiness $readiness,
         private ProductEvents $events,
+        private InMemoryCatalogUsages $usages,
     ) {}
 
     /**
-     * @throws InvalidStageChange|ProductArchived|Unauthorized|VariantNotFound
+     * @throws CatalogItemInUse|InvalidStageChange|ProductArchived|Unauthorized|VariantNotFound
      */
     public function handle(DeleteDraftVariant $command): void
     {
@@ -51,6 +55,9 @@ final readonly class DeleteDraftVariantHandler
             if (! $product->isDraft()) {
                 throw new InvalidStageChange;
             }
+
+            // A gift level may name it (amendment 19): refused, never dropped silently.
+            $this->usages->refuseIfUsed(CatalogItem::Variant, [$variant->id()]);
 
             $was = ['product_id' => $product->id(), ...$variant->snapshot()];
             $this->variants->delete($variant->id());

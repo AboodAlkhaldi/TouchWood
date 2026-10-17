@@ -26,6 +26,7 @@ use Modules\Catalog\Application\Query\Products\CatalogProductReads;
 use Modules\Catalog\Application\Query\Shop\ShopPagesCache;
 use Modules\Catalog\Application\Query\Shop\ShopReader;
 use Modules\Catalog\Application\Search\SearchLog;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Repository\AttributeRepository;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryAudienceRepository;
@@ -71,6 +72,7 @@ use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Catalog\Presentation\Storefront\CatalogFramePart;
 use Modules\Catalog\Presentation\Storefront\ShopVisit;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Platform\Public\Contracts\AdminMenu;
@@ -124,6 +126,9 @@ final class CatalogServiceProvider extends ServiceProvider
         // One registry for the whole application: the modules above register from their providers.
         $this->app->singleton(InMemoryImportSections::class);
         $this->app->alias(InMemoryImportSections::class, ImportSections::class);
+        // The modules that hold on to Catalog's items, asked before a delete (amendment 19).
+        $this->app->singleton(InMemoryCatalogUsages::class);
+        $this->app->alias(InMemoryCatalogUsages::class, CatalogUsages::class);
     }
 
     public function boot(): void

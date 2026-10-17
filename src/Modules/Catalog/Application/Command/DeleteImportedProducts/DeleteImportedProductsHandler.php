@@ -50,6 +50,9 @@ final readonly class DeleteImportedProductsHandler
     /**
      * @return int how many products it deleted
      *
+     * Each product goes through the product deletion, which refuses one another module uses
+     * (`CatalogItemInUse`, amendment 19) — the whole batch then stands.
+     *
      * @throws ImportClosed|InvalidCatalogAttribute|ListItemNotFound|Unauthorized
      */
     public function handle(DeleteImportedProducts $command): int

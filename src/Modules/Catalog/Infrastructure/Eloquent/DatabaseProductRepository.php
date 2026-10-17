@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\ValueObject\ProductName;
 use Modules\Catalog\Domain\ValueObject\ProductSlugs;
 use Modules\Catalog\Domain\ValueObject\StructuredText;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
@@ -66,7 +67,8 @@ final readonly class DatabaseProductRepository implements ProductRepository
 
     public function delete(string $productId): void
     {
-        $this->db->table(self::TABLE)->where('id', strtolower($productId))->delete();
+        // Another module's row written since its usage check refuses it here (amendment 19).
+        ReferencedDelete::run($this->db, CatalogItem::Product, $productId, fn () => $this->db->table(self::TABLE)->where('id', strtolower($productId))->delete());
     }
 
     public function codeHolder(string $code): ?string

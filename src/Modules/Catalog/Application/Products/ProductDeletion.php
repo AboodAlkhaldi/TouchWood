@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Modules\Catalog\Application\Products;
 
 use Modules\Catalog\Application\Audit\ListAudit;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Model\Product;
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Domain\Repository\VariantRepository;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
@@ -22,6 +24,7 @@ final readonly class ProductDeletion
     public function __construct(
         private ProductRepository $products,
         private VariantRepository $variants,
+        private InMemoryCatalogUsages $usages,
     ) {}
 
     /**
@@ -30,8 +33,13 @@ final readonly class ProductDeletion
     public function delete(Product $product): array
     {
         $entries = [];
+        $variants = $this->variants->ofProduct($product->id());
 
-        foreach ($this->variants->ofProduct($product->id()) as $variant) {
+        // A coupon's list may name the product, a gift level one of its variants (amendment 19).
+        $this->usages->refuseIfUsed(CatalogItem::Product, [$product->id()]);
+        $this->usages->refuseIfUsed(CatalogItem::Variant, array_map(static fn ($variant): string => $variant->id(), $variants));
+
+        foreach ($variants as $variant) {
             $entries[] = ListAudit::deleted('variant', $variant->id(), ['product_id' => $product->id(), ...$variant->snapshot()]);
         }
 

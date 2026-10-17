@@ -13,6 +13,7 @@ use Modules\Catalog\Domain\ValueObject\Combination;
 use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Domain\ValueObject\VariantDetail;
 use Modules\Catalog\Domain\ValueObject\VariantMeasures;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -96,7 +97,8 @@ final readonly class DatabaseVariantRepository implements VariantRepository
 
     public function delete(string $variantId): void
     {
-        $this->db->table(self::TABLE)->where('id', strtolower($variantId))->delete();
+        // Another module's row written since its usage check refuses it here (amendment 19).
+        ReferencedDelete::run($this->db, CatalogItem::Variant, $variantId, fn () => $this->db->table(self::TABLE)->where('id', strtolower($variantId))->delete());
     }
 
     public function combinationTaken(string $productId, string $combination, ?string $exceptVariantId = null): bool
