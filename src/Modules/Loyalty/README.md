@@ -7,31 +7,33 @@ the module is built.
 
 Loyalty depends on **Platform and Access only** (handoff §4.4). Sales calls it; it never calls Sales.
 
-## Built so far
+## Built
 
-The module is built in six steps (the execution plan, 2026-10-10). Done:
+The module was built in six steps (the execution plan, 2026-10-10), every one merged:
 
 | Step | What | Where |
 |---|---|---|
 | 1 — foundation | The `loyalty` schema; the five permissions; the programme's eight settings; the errors; Access's Points group (access.md amendment 66) and Platform's Points menu section (platform.md §9.4). With it, a fix to Platform's settings page: an emptied number field is refused instead of saved as 0 (owner, 2026-10-10) | below |
 | 2 — the ledger | The eight tables of spec §5 with every rule the database holds; the points arithmetic; the accounts repository and its lock. The id check it uses moved to the Shared kernel first (#118) | below |
 | 3a — the contract | `LoyaltyApi` for Sales: what an order would earn, a redemption's quote, placing it, earning on delivery, a balance; the caller's permission checked in the order's store | below |
-
 | 3b — by hand and expiry | Admins adding and removing points, audited; the nightly expiry job | below |
 | 4a — the settlement rules | Cancellations, returns and staff edits worked out as pure code | below |
 | 4b — settlements on the ledger | Those settlements written, Sales's four calls, four more database rules (answer 19) | below |
-
 | 5 — the reads | A customer's own points; a customer's points for staff, with each change by hand's admin and reason; a store's redemptions | below |
+| 6 — the module's pass | The spec swept against the code by one whole-module review; its fixes; this file completed | — |
 
-Still to come: the module's own pass (6).
+Not built here, by design: the screens (another session builds them from step 5's reads, spec
+§9.2(2)); events (nothing listens yet, §6).
 
 The reads (`Application/Query`, spec §3): `ViewMyPoints` (`loyalty.points.view_own`, the signed-in
-customer's own account only), `ViewCustomerPoints` (`loyalty.points.view` in the store the points
-belong to; a store not covered or no such customer → `PointsAccountNotFound`) and `ListRedemptions`
-(`loyalty.points.view` in that store) — through `PointsViews` and `PointsReader`
-(`Infrastructure/Eloquent/DatabasePointsReader`): live lots only, no ids shown, the history newest
-first and keyset-paged on (`occurred_at`, `id`); a withheld Super Admin is named as the reader may see
-them, with no id. Nothing is written. Tests: `LoyaltyReadsTest`.
+customer's own account only), `ViewCustomerPoints` and `ListRedemptions` (`loyalty.points.view` in
+the store the points belong to; a store not covered, or no such customer → `PointsAccountNotFound`;
+the job held nowhere → `Unauthorized`) — through `PointsViews` and `PointsReader`
+(`Infrastructure/Eloquent/DatabasePointsReader`): live lots only; the history newest first and
+keyset-paged on (`occurred_at`, `id`). Lots carry no ids; a history row carries its entry id (the
+page cursor) and an admin's id, except a withheld Super Admin, who has none; a redemption row carries
+the customer's id, for the screen to name them through Access — a screen shows none of these ids.
+Nothing is written. Tests: `LoyaltyReadsTest`.
 
 ## What is here
 
@@ -78,7 +80,8 @@ them, with no id. Nothing is written. Tests: `LoyaltyReadsTest`.
   PostgreSQL in UTC with its offset: Laravel binds a date as `Y-m-d H:i:s`, which drops both.
 - **`Public/Contracts/LoyaltyApi`**, **`Application/LoyaltyApiImpl`** (spec §2.1) — what Sales calls,
   with `Public/Dto` and `Public/Enums` (`Audience`, `RedemptionMode`, `RedemptionRefusal`,
-  `EntryKind`; generated to TypeScript). The settlements join it with step 4.
+  `EntryKind`; generated to TypeScript), and the settlements below. `Application/Points/Inputs`
+  checks what a caller passes before anything is read or written.
   - **The writes** — `redeem` (`Application/Command/Redeem`) and `earn` (`…/Earn`) — run inside
     Sales's transaction and name **Sales's permission** (`CallerPermission`). `Application/Points/
     CallerCheck` refuses a permission that is not the calling module's own, or is Loyalty's, and

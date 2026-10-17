@@ -114,7 +114,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("loyalty::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission', 'amount', 'percent', 'rate', 'customer', 'order', 'order_number', 'return']);
+})->with(['points', 'reason', 'returned_amounts', 'currency', 'store', 'permission', 'amount', 'percent', 'rate', 'customer', 'order', 'order_number', 'return', 'edit']);
 
 it('carries the refusal\'s reason for the caller, which reads errors by their type', function () {
     expect((new RedemptionRefused(RedemptionRefusal::OutOfRange))->context())->toBe(['reason' => 'OUT_OF_RANGE']);

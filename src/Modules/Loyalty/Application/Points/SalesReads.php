@@ -6,6 +6,7 @@ namespace Modules\Loyalty\Application\Points;
 
 use Carbon\CarbonImmutable;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
+use Modules\Loyalty\Domain\Exception\OrderNotSettleable;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
 use Modules\Loyalty\Domain\Repository\PointsSettlements;
@@ -83,6 +84,11 @@ final readonly class SalesReads
 
         if ($facts === null || $facts->pointsRedeemed === 0) {
             return new EditedPoints(Money::zero($programme->currencyCode), 0);
+        }
+
+        // An edit is the one settlement before shipping: a delivered or cancelled order has none.
+        if ($recorded !== null && ($recorded->delivered || $recorded->cancelled)) {
+            throw new OrderNotSettleable($orderId, $recorded->delivered ? 'delivered' : 'cancelled');
         }
 
         [$discount, $points] = SettlementTargets::afterEdit($facts, $facts->capPercent ?? 0, $net, $room);

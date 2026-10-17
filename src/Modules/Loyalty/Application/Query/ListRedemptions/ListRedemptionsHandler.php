@@ -6,12 +6,13 @@ namespace Modules\Loyalty\Application\Query\ListRedemptions;
 
 use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Points\Inputs;
+use Modules\Loyalty\Application\Points\StaffPointsAction;
 use Modules\Loyalty\Application\Query\PointsReader;
 use Modules\Loyalty\Application\Query\PointsViews;
 use Modules\Loyalty\Application\Query\RedemptionsPage;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
+use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
 use Shared\Application\Authorizer;
-use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 
 /**
@@ -24,16 +25,18 @@ final readonly class ListRedemptionsHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private StaffPointsAction $staff,
         private PointsReader $reader,
     ) {}
 
     /**
-     * @throws InvalidPointsAttribute|Unauthorized
+     * @throws InvalidPointsAttribute|PointsAccountNotFound|Unauthorized
      */
     public function handle(ListRedemptions $query): RedemptionsPage
     {
         $store = Inputs::store($query->storeId);
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
+        // A store the reader does not cover reads as no points there (§7), as a customer's points do.
+        $this->authorizer->authorize(self::PERMISSION, $this->staff->scope(self::PERMISSION, $store));
         $perPage = min(max($query->perPage, 1), PointsViews::PER_PAGE);
 
         $rows = $this->reader->redemptions($store->value, $query->beforeAt, $query->beforeId, $perPage + 1);

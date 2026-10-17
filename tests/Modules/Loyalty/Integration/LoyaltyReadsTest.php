@@ -167,7 +167,12 @@ it('lists a store\'s redemptions newest first, a page at a time, never skipping 
         ->and([$first->points, $first->discount->minorUnits, $first->discount->currencyCode])->toBe([10, 10, 'SAR'])
         ->and($first->customerId)->toBe($customer)
         ->and(loyaltyReadsRows())->toBe($before)
-        ->and(fn () => app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('eg'))))->toThrow(Unauthorized::class);
+        // A store the reader does not cover reads as no points there (§7); no job at all is refused.
+        ->and(fn () => app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('eg'))))->toThrow(PointsAccountNotFound::class);
+
+    Fx::actAsStaff(Fx::staffWith([LoyaltyPermissions::ADJUST], ['sa'], RoleLevel::Admin));
+
+    expect(fn () => app(ListRedemptionsHandler::class)->handle(new ListRedemptions(Fx::storeId('sa'))))->toThrow(Unauthorized::class);
 });
 
 it('never counts a lot whose date has passed, even before the sweep, and writes nothing for staff either', function () {
