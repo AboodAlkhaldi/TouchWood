@@ -238,7 +238,7 @@ written so a NULL cannot slip through.
 | `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by` NULL · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
 | `sync.read_lines` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` CHECK (`PRICE`, `STOCK`) · `variant_id` (no key) · `code` NULL · `before` NULL · `after` — each price and stock number a read changed (§9.3 #19), deleted with its read |
 | `sync.read_reports` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` · `code` NULL · `variant_id` NULL · `sale_id` NULL · `detail` jsonb — what each read reported, as it was that day (§9.3 #22), deleted with its read |
-| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
+| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `announced_at` NULL (when staff were told of it, §9.3 #18 - each entry once) · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
 
 ---
 
@@ -248,7 +248,11 @@ written so a NULL cannot slip through.
 |---|---|---|
 | `VariantCodeCorrected` | Catalog | In a wired store, a One-code read of the size's new code |
 
-Sync publishes none; Pricing and Inventory tell Catalog of every change themselves.
+| Published | When | For |
+|---|---|---|
+| `SyncNeedsAttention` (`eventId`, `storeId`, `readId`, `opened` - a count by kind, `occurredAt`) | A read ends - done, or failed after its retries - having opened entries of `SALE_STOPPED`, `DISCOUNT_SKIPPED` or `READ_FAILED` not yet told of; each entry told once (`announced_at`), one event a read, after the change commits | Ops: the store's holders of View the Sync Report who chose Sync problems (access.md amendment 71; §9.3 #18) |
+
+Pricing and Inventory tell Catalog of every change themselves.
 
 ---
 
