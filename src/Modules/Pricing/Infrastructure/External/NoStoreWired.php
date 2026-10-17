@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Infrastructure\External;
 
-use Modules\Pricing\Application\Prices\StoreWiring;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Domain\ValueObject\StoreId;
 
 /**

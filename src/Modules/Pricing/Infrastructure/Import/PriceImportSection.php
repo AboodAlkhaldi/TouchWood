@@ -7,10 +7,10 @@ namespace Modules\Pricing\Infrastructure\Import;
 use Modules\Catalog\Public\Contracts\ImportSection;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\Prices\AmountInput;
-use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
 use Modules\Pricing\Infrastructure\Queue\SetPriceFromFileJob;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 

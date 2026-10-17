@@ -15,7 +15,6 @@ use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
-use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
@@ -38,6 +37,7 @@ use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Public\Contracts\PricingApi;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 
 /**
  * What a size costs, and every amount of an order (pricing.md). Registered after Catalog, whose

@@ -236,7 +236,23 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 | Catalog | **Many sizes and products in one read** — the Low Stock list's and the stock screens' names, within an admin page's 15 queries (frontend.md §5): `variants(list<string> $variantIds)`, `products(list<string> $productIds)`, keyed by id | On `main` with Catalog's amendment 16(i) (#114, 5bffba6) |
 | Catalog | `ListingFacts` bound, with `endingSoon` added (§2.3) | With the shop's pages (catalog.md amendment 15); `endingSoon` is amendment 16(h) (PR #103) — kept in `catalog.store_variant_facts.ending_soon` |
 | Sales | Calls §2.1; shows the "not enough stock" flag from §6.1 | Stage 6 |
-| Sync | The provider's stock in, and a store's wired state — **`ProviderStock`** and `StoreWiring` in Inventory's Public contracts (sync.md §2.3, §1.5, §1.8) | With Sync's build, after sync.md is approved |
+| Sync | The provider's stock in, and a store's wired state — **`ProviderStock`** and `StoreWiring` in Inventory's Public contracts (sync.md §2.3, §1.5, §1.8) | §2.5; built with Sync step 2a (2026-10-17). Sync binds `StoreWiring` with its step 3; until then no store is wired |
+
+### 2.5 What Inventory gives Sync
+
+Module to module, as §2.1: no permission is checked here — Sync's read checks its own — and nothing
+here is audited: Sync audits each read once, the detail being in the ledger (sync.md §1.6).
+
+| Contract | Says |
+|---|---|
+| `StoreWiring::isWired(StoreId): bool` | Moved from Inventory's Application layer to its Public contracts, so Sync can answer it. Inventory binds "no store is wired" until Sync binds its own. |
+| `ProviderStock::apply(StoreId, array<variantId, int>, string $readRef): ProviderStockResult` | Each size's in stock set to the provider's number (§1.1 rule 3, §1.9; sync.md §1.5 #3): the same number as now changes nothing — a size with no row that the provider has at 0 gets none, so sizes the store does not sell stay off its Low Stock list; a different one is a `PROVIDER` movement to it, its reference the read's and the size's, so the same read run again is counted once; the size's returned extra goes back to 0; orderable and "last pieces" pushed to Catalog. A size switched off in the store, or of a draft product, takes it too. 500 sizes a transaction, under the store's lock, the wiring asked again in each: a store unwired while the read ran gets nothing from then on (`wired` false). **Not written, and named in the result** for Sync to report: an archived size or one of an archived product, a size not found, a number below 0 or above the most pieces a size holds (Sync drops fractions and keeps a number below 0 as 0 first, sync.md §1.5 #2), a second id written for the same size. `HoldsShort` is not sent: §6.1 names hand changes only. **Sync's part**: `readRef` is the read's own id (letters, digits, `-` and `_`, at most 64 — the ledger's reference holds 120), never reused; one read per store at a time, a retry asking the provider again (sync.md §1.3, §1.7) — an old read's numbers are never applied after a later read's. |
+| `ProviderStock::wired(StoreId): void` | Sync calls it once the store is wired (`StoreWiring` answers true; refused otherwise; sync.md §1.2): every size switched on or with a row is told to Catalog again for a wired store — an ordinary product orderable whatever its number (§1.3). Nothing is written. *(Added in step 2a's review: without it, a size the provider reports at the number it had, or never reports, kept the unwired figures.)* |
+| `ProviderStock::stopsWhenUnwired(StoreId): int` | How many sizes switched on in the store would stop being orderable once it is unwired — orderable now, nothing free with no provider: ordinary ones at 0 or all held, sizes never counted — for the Super Admin's confirmation (sync.md §1.8). Reads only. |
+| `ProviderStock::unwired(StoreId): int` | Sync calls it once the store is unwired (`StoreWiring` answers false; refused otherwise): each size's returned extra — a stock-dependent size's or a gift's (§1.9) — is added into its in stock, a `CORRECTION` movement noted "unwired" (sync.md §9.2 #12); every size switched on or with a row is told to Catalog again for a store with no provider, a size with no row as 0. Nothing else is cleared. Answers how many sizes switched on there stopped being orderable. |
+
+`ProviderStockResult`: `wired` · `changed`, `archived`, `notFound`, `invalid` — lists of the variant ids
+as given.
 
 ---
 

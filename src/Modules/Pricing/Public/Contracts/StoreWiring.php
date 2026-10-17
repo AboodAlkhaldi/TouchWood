@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Pricing\Application\Prices;
+namespace Modules\Pricing\Public\Contracts;
 
 use Shared\Domain\ValueObject\StoreId;
 

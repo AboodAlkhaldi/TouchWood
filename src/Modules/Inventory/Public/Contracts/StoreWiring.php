@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Inventory\Application\Stock;
+namespace Modules\Inventory\Public\Contracts;
 
 use Shared\Domain\ValueObject\StoreId;
 

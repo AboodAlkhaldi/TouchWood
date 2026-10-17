@@ -8,7 +8,6 @@ use Modules\Pricing\Application\Prices\AmountInput;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\RetailPriceWriter;
 use Modules\Pricing\Application\Prices\SizeInput;
-use Modules\Pricing\Application\Prices\StoreWiring;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
@@ -16,6 +15,7 @@ use Modules\Pricing\Domain\Exception\PriceTooPrecise;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
 use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Domain\ValueObject\PriceSource;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 
