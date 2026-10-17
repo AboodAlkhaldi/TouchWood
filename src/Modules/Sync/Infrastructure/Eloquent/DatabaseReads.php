@@ -174,6 +174,11 @@ final readonly class DatabaseReads implements Reads
         }
     }
 
+    public function pruneFinishedBefore(DateTimeImmutable $before): int
+    {
+        return $this->db->table(self::TABLE)->whereIn('state', ['DONE', 'FAILED'])->where('finished_at', '<', $before)->delete();
+    }
+
     public function storeOf(string $readId): ?string
     {
         $store = $this->db->table(self::TABLE)->where('id', $readId)->value('store_id');

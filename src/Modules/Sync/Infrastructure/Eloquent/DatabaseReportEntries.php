@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ReportKind;
@@ -28,7 +29,7 @@ final readonly class DatabaseReportEntries implements ReportEntries
         private ConnectionInterface $db,
     ) {}
 
-    public function open(StoreId $store, ReportKind $kind, array $entries): void
+    public function open(StoreId $store, ReportKind $kind, array $entries, ?string $readId = null): void
     {
         // The same thing twice in one batch is one entry: the statement may not touch a row twice.
         $unique = [];
@@ -44,14 +45,14 @@ final readonly class DatabaseReportEntries implements ReportEntries
             $values = $bindings = [];
 
             foreach ($chunk as $entry) {
-                $values[] = '(?, ?, ?, ?, ?, ?::jsonb, ?, ?)';
-                array_push($bindings, $store->value, $kind->value, $entry['code'], $entry['variantId'], $entry['saleId'], json_encode((object) $entry['detail'], JSON_THROW_ON_ERROR), $now, $now);
+                $values[] = '(?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)';
+                array_push($bindings, $store->value, $kind->value, $entry['code'], $entry['variantId'], $entry['saleId'], json_encode((object) $entry['detail'], JSON_THROW_ON_ERROR), $now, $now, $readId);
             }
 
             $this->db->statement(
-                'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
+                'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at, read_id) VALUES '.implode(', ', $values)
                 ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
-                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id',
+                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id, read_id = COALESCE(EXCLUDED.read_id, sync.report_entries.read_id)',
                 $bindings,
             );
         }
@@ -82,6 +83,29 @@ final readonly class DatabaseReportEntries implements ReportEntries
             ->where('kind', $kind->value)
             ->whereNull('closed_at')
             ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);
+    }
+
+    public function findOpen(int $entryId): ?array
+    {
+        $row = $this->db->table(self::TABLE)->where('id', $entryId)->whereNull('closed_at')->first(['store_id', 'kind', 'code', 'variant_id']);
+
+        return $row === null ? null : [
+            'storeId' => (string) $row->store_id,
+            'kind' => ReportKind::from((string) $row->kind),
+            'code' => $row->code === null ? null : (string) $row->code,
+            'variantId' => $row->variant_id === null ? null : (string) $row->variant_id,
+        ];
+    }
+
+    public function closeOne(int $entryId, string $closedBy): bool
+    {
+        return $this->db->table(self::TABLE)->where('id', $entryId)->whereNull('closed_at')
+            ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]) === 1;
+    }
+
+    public function pruneClosedBefore(DateTimeImmutable $before): int
+    {
+        return $this->db->table(self::TABLE)->whereNotNull('closed_at')->where('closed_at', '<', $before)->delete();
     }
 
     public function closeAll(StoreId $store, string $closedBy): int

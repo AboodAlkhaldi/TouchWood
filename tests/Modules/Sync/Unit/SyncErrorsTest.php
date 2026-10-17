@@ -97,7 +97,7 @@ it('has an Arabic and an English title and detail for every error, none empty, w
     // Every field an invalid input names has its name in both languages (§7: store, address, key,
     // secret, provider).
     expect($placeholders($en['invalid_sync_input']['detail']))->toBe([':attribute'])
-        ->and(array_keys($en['fields']))->toBe(['address', 'key', 'provider', 'secret', 'store'])
+        ->and(array_keys($en['fields']))->toBe(['address', 'key', 'kind', 'provider', 'secret', 'store'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 

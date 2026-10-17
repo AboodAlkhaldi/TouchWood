@@ -28,6 +28,7 @@ return [
     'fields' => [
         'address' => 'address',
         'key' => 'key',
+        'kind' => 'kind of entry',
         'provider' => 'provider',
         'secret' => 'notification secret',
         'store' => 'store',

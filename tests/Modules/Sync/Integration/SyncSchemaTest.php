@@ -180,6 +180,12 @@ describe('what the database refuses behind the code', function () {
         $insert(['code' => 'TW-2'])();
         $insert(['code' => str_repeat('C', 255)])();
         $insert(['store_id' => Fx::storeId('ae')])();
+        // Closed by a read, by unwiring, or by a staff member by id - nothing else.
+        $staff = strtolower((string) Str::ulid());
+        expect(fn () => DB::transaction(fn () => DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_at' => now(), 'closed_by' => 'SOMEONE'])))->toThrow(QueryException::class, 'report_entries_closed_by')
+            ->and(fn () => DB::transaction(fn () => DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_at' => now(), 'closed_by' => 'STAFF:'.strtoupper($staff)])))->toThrow(QueryException::class, 'report_entries_closed_by');
+        DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_at' => now(), 'closed_by' => 'STAFF:'.$staff]);
+        DB::table('sync.report_entries')->where('code', 'TW-2')->update(['closed_by' => 'UNWIRED']);
         DB::table('sync.report_entries')->where('kind', 'UNKNOWN_CODE')->where('code', 'TW-1')->where('store_id', Fx::storeId('sa'))->update(['closed_at' => now(), 'closed_by' => 'READ']);
         $insert([])();
 
@@ -192,8 +198,10 @@ describe('what the database refuses behind the code', function () {
         ))->mapWithKeys(static fn (stdClass $key): array => [(string) $key->conname => (string) $key->confdeltype])->all();
 
         // No key on variant_id or sale_id: the report names them as the audit log names a subject.
+        // A read's lines go with it (90 days, §5).
         expect($rules)->toBe([
             'connections_store' => 'r',
+            'read_lines_read' => 'c',
             'reads_store' => 'r',
             'report_entries_store' => 'r',
         ]);

@@ -65,4 +65,7 @@ interface Reads
     public function startNext(StoreId $store): void;
 
     public function storeOf(string $readId): ?string;
+
+    /** Reads finished before this time deleted, their lines with them (sync.md §5: kept 90 days); how many. */
+    public function pruneFinishedBefore(DateTimeImmutable $before): int;
 }

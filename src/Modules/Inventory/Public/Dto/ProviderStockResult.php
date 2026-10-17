@@ -17,6 +17,7 @@ final readonly class ProviderStockResult
      * @param  list<string>  $archived
      * @param  list<string>  $notFound
      * @param  list<string>  $invalid
+     * @param  list<array{variantId: string, before: int, after: int}>  $changes  each number that changed - Sync's log of the read (sync.md §9.3 #19)
      */
     public function __construct(
         public bool $wired,
@@ -24,5 +25,6 @@ final readonly class ProviderStockResult
         public array $archived = [],
         public array $notFound = [],
         public array $invalid = [],
+        public array $changes = [],
     ) {}
 }

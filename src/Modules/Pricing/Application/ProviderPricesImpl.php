@@ -102,7 +102,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
         }
 
         ksort($given, SORT_STRING);
-        $changed = $offOrDraft = $salesStopped = $discountsSkipped = [];
+        $changed = $offOrDraft = $salesStopped = $discountsSkipped = $changes = [];
         $wired = true;
 
         foreach (array_chunk($given, self::CHUNK, true) as $chunk) {
@@ -119,14 +119,15 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             array_push($offOrDraft, ...$done['offOrDraft']);
             array_push($salesStopped, ...$done['salesStopped']);
             array_push($discountsSkipped, ...$done['discountsSkipped']);
+            array_push($changes, ...$done['changes']);
         }
 
-        return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid);
+        return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid, $changes);
     }
 
     /**
      * @param  array<string, array{string, Money, bool}>  $chunk  own id => [the id as given, its price, off or a draft]
-     * @return array{array{changed: list<string>, offOrDraft: list<string>, salesStopped: list<array{saleId: string, variantId: string, outcome: 'left'|'ended'|'removed'}>, discountsSkipped: list<array{discountId: string, variantId: string}>}|null, list<AuditEntryDto>}
+     * @return array{array{changed: list<string>, offOrDraft: list<string>, salesStopped: list<array{saleId: string, variantId: string, outcome: 'left'|'ended'|'removed'}>, discountsSkipped: list<array{discountId: string, variantId: string}>, changes: list<array{variantId: string, before: string|null, after: string}>}|null, list<AuditEntryDto>}
      */
     private function applyChunk(StoreId $store, StoreDto $found, array $chunk, string $readRef): array
     {
@@ -144,7 +145,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             }
         }
 
-        $done = ['changed' => [], 'offOrDraft' => [], 'salesStopped' => [], 'discountsSkipped' => []];
+        $done = ['changed' => [], 'offOrDraft' => [], 'salesStopped' => [], 'discountsSkipped' => [], 'changes' => []];
 
         if ($new === []) {
             return [$done, []];
@@ -212,6 +213,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
                     ->changed('read', null, $readRef),
             );
             $done['changed'][] = $chunk[$variantId][0];
+            $done['changes'][] = ['variantId' => $chunk[$variantId][0], 'before' => ($before[$variantId] ?? null)?->toDecimal($found->currencyExponent), 'after' => $amount->toDecimal($found->currencyExponent)];
 
             if ($chunk[$variantId][2]) {
                 $done['offOrDraft'][] = $chunk[$variantId][0];
