@@ -112,6 +112,10 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'pricing.candidates.rebuild',
         'pricing.windows.apply',
         'pricing.windows.check',
+        // Reserved: wiring a store is a Super Admin's, the reads and the pruning the system's (sync.md §3).
+        'sync.connection.manage',
+        'sync.log.prune',
+        'sync.read.scheduled',
     ]);
 });
 
@@ -251,9 +255,9 @@ it('gives every action a role can hold a business area, and names every area in 
     // The areas the modules actually use today (owner, 2026-09-19 and 2026-09-22); B2B's staff jobs
     // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29), Catalog's
     // jobs Catalog (catalog.md §3), Pricing's jobs Pricing (pricing.md §3), Loyalty's jobs Points
-    // (loyalty.md §3, amendment 66).
+    // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'media', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'media', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'sync', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {

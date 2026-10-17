@@ -62,8 +62,9 @@ src/Modules/
 ├── Payments/     Gateway adapters, transactions, manual refunds,
 │                 bank transfer verification
 ├── Feedback/     Reviews, ratings, product questions & answers
-├── Sync/         External provider adapters (one way, per store), code
-│                 mapping, pull schedule, sync report
+├── Sync/         External provider reads (one way, per store): base price
+│                 and stock by product code; notices, hourly and nightly
+│                 reads; the sync report
 │
 │  TIER 1 — commerce core
 ├── Catalog/      Products, variants, categories, brands, attributes,
