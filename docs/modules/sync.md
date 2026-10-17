@@ -311,7 +311,7 @@ staff error.
 | 6 | Which stock quantity (on hand / available), per product or per warehouse, and which warehouse is which store (inventory.md §9.1 #1) |
 | 7 | Can we ask for what changed since a time (the hourly read, §1.3)? About how many products? |
 | 8 | Call limits, page size, hours to avoid |
-| 9 | Their notification (§1.3): our shape, or theirs? A technical contact |
+| 9 | Their notification (§1.3): our shape, or theirs? A technical contact — **built in our shape** (the Odoo request's Format B, which the owner found fine on 2026-10-13): `POST /sync/notify/{store id}` (a store id that is not one has no route: 404), body `{"codes": [...]}` of 1–1,000 codes, each text of 1–255 characters, spaces around trimmed, at most 300 KB (else 413); headers `X-TouchWood-Timestamp` (unix seconds, within 5 minutes either way) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `timestamp.body` with the store's secret). 202 queued — the same signed notice again within its window answered 202, queuing nothing more; 401 with no body for a wrong or missing signature, a time off, a store not wired or unknown; 422 not a list of codes; 429 over 60 calls a minute for the store, with `Retry-After`. A notice's codes join the one notice read waiting for the store. Changed if their team asks for theirs |
 
 Points A–G, asked with this spec, were accepted (owner, 2026-10-13): §9.2 #10–16.
 
