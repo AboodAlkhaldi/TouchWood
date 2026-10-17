@@ -21,6 +21,9 @@ interface Connections
     /** Whether the store is wired: a connection row, nothing decrypted. */
     public function exists(StoreId $store): bool;
 
+    /** The store's notification secret alone - null when not wired, or when it cannot be decrypted. */
+    public function notificationSecret(StoreId $store): ?string;
+
     /**
      * @return list<string> every wired store, on or off (sync.md §1.1 rule 8: an off store is still read)
      */

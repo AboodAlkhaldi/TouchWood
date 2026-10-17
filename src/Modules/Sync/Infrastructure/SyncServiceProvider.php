@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
+use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
@@ -46,6 +47,9 @@ final class SyncServiceProvider extends ServiceProvider
         // them, so these bindings win.
         $this->app->bind(PricingWiring::class, ConnectionWiring::class);
         $this->app->bind(InventoryWiring::class, ConnectionWiring::class);
+
+        // `/sync/...` is the provider's: never a store's code (platform.md, reserved paths).
+        $this->app->make(ReservedPaths::class)->reserve('sync', 'sync');
     }
 
     public function boot(): void
@@ -63,8 +67,10 @@ final class SyncServiceProvider extends ServiceProvider
         // The hour's read catches a lost notice; the night's checks everything (§1.3). Scheduled work
         // is queued as a job (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->job(new QueueScheduledReadsJob('HOURLY'))->hourly()->onOneServer();
-            $schedule->job(new QueueScheduledReadsJob('NIGHTLY'))->dailyAt('02:00')->onOneServer();
+            // Named apart: both are the same job class, and onOneServer's lock is named after the event -
+            // at 02:00 the hour's would otherwise take the night's lock and the night's never run.
+            $schedule->job(new QueueScheduledReadsJob('HOURLY'))->name('sync-hourly-reads')->hourly()->onOneServer();
+            $schedule->job(new QueueScheduledReadsJob('NIGHTLY'))->name('sync-nightly-reads')->timezone('Asia/Riyadh')->dailyAt('02:00')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

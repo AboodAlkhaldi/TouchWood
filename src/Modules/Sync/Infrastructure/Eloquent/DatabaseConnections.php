@@ -6,6 +6,7 @@ namespace Modules\Sync\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -42,6 +43,17 @@ final readonly class DatabaseConnections implements Connections
     public function exists(StoreId $store): bool
     {
         return $this->db->table(self::TABLE)->where('store_id', $store->value)->exists();
+    }
+
+    public function notificationSecret(StoreId $store): ?string
+    {
+        $encrypted = $this->db->table(self::TABLE)->where('store_id', $store->value)->value('secret_encrypted');
+
+        try {
+            return $encrypted === null ? null : $this->encrypter->decryptString((string) $encrypted);
+        } catch (DecryptException) {
+            return null;
+        }
     }
 
     public function wiredStores(): array

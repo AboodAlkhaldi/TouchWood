@@ -11,4 +11,5 @@ use Modules\Sync\Presentation\Http\Controller\NotificationController;
 | authority (NotificationReceiver). Its parameter is not `{store}`, which Platform binds to a store's code.
 */
 
-Route::post('sync/notify/{storeId}', NotificationController::class);
+// A store id is a ULID: anything else is no route, before any work or any rate-limit row.
+Route::post('sync/notify/{storeId}', NotificationController::class)->whereUlid('storeId');

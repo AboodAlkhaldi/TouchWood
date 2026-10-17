@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Notifications;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use InvalidArgumentException;
 use JsonException;
 use Modules\Sync\Domain\Repository\Connections;
@@ -32,6 +33,7 @@ final readonly class NotificationReceiver
     public function __construct(
         private Connections $connections,
         private Reads $reads,
+        private CacheRepository $cache,
     ) {}
 
     public function receive(string $storeId, ?string $timestamp, ?string $signature, string $body): NotificationOutcome
@@ -42,13 +44,20 @@ final readonly class NotificationReceiver
             return NotificationOutcome::Refused;
         }
 
-        $connection = $this->connections->find($store);
+        $secret = $this->connections->notificationSecret($store);
+        // Worked out whether the store is wired or not, so the answer takes as long either way.
+        $expected = hash_hmac('sha256', ($timestamp ?? '').'.'.$body, $secret ?? random_bytes(32));
 
         // Not wired, or not signed by its provider: refused the same way, saying nothing of which.
-        if ($connection === null || $timestamp === null || $signature === null || preg_match('/\A\d{1,12}\z/', $timestamp) !== 1
+        if ($secret === null || $timestamp === null || $signature === null || preg_match('/\A\d{1,12}\z/', $timestamp) !== 1
             || abs(CarbonImmutable::now()->getTimestamp() - (int) $timestamp) > self::MOST_SKEW_SECONDS
-            || ! hash_equals(hash_hmac('sha256', $timestamp.'.'.$body, $connection->secret), strtolower(trim($signature)))) {
+            || ! hash_equals($expected, strtolower(trim($signature)))) {
             return NotificationOutcome::Refused;
+        }
+
+        // The same signed notice again, within its window: answered as before, queuing nothing more.
+        if (! $this->cache->add('sync-notify-seen:'.hash('sha256', $signature), true, 2 * self::MOST_SKEW_SECONDS + 60)) {
+            return NotificationOutcome::Queued;
         }
 
         $codes = self::codes($body);

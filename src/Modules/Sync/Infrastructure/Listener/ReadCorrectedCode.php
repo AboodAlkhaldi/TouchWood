@@ -10,6 +10,7 @@ use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * Staff corrected a size's code (catalog.md §6.1): in every wired store, the size is matched again at
@@ -33,7 +34,13 @@ final readonly class ReadCorrectedCode
         }
 
         foreach ($this->connections->wiredStores() as $store) {
-            $this->reads->queue(StoreId::fromString($store), ReadKind::Code, [$code]);
+            // The correction is saved already: a read that cannot be queued is reported, not shown to
+            // staff as their correction failing. The nightly read matches the size all the same.
+            try {
+                $this->reads->queue(StoreId::fromString($store), ReadKind::Code, [$code]);
+            } catch (Throwable $error) {
+                report($error);
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * **The hour's and the night's reads** (sync.md §1.3), the system's: one of the kind queued for every
@@ -40,7 +41,12 @@ final readonly class QueueScheduledReadsHandler
         $stores = $this->connections->wiredStores();
 
         foreach ($stores as $store) {
-            $this->reads->queue(StoreId::fromString($store), $kind);
+            // One store's error never keeps the others from their read.
+            try {
+                $this->reads->queue(StoreId::fromString($store), $kind);
+            } catch (Throwable $error) {
+                report($error);
+            }
         }
 
         return count($stores);
