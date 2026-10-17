@@ -18,4 +18,5 @@ return [
     'companies' => 'Company Approvals',
     'points' => 'Points',
     'sync' => 'Sync',
+    'marketing' => 'Marketing',
 ];

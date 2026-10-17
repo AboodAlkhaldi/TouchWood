@@ -49,6 +49,9 @@ enum PermissionGroup: string
     /** Sync's jobs: the report of a store's reads from its provider (sync.md §3, access.md amendment 68). */
     case Sync = 'sync';
 
+    /** Promotions' jobs: the store's coupons, segments and gifts (promotions.md §3, access.md amendment 69). */
+    case Marketing = 'marketing';
+
     public function labelKey(): string
     {
         return "access::permission_groups.{$this->value}";

@@ -11,6 +11,7 @@ use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
 use Modules\Pricing\Infrastructure\PricingServiceProvider;
+use Modules\Promotions\Infrastructure\PromotionsServiceProvider;
 use Modules\Sync\Infrastructure\SyncServiceProvider;
 
 return [
@@ -34,4 +35,7 @@ return [
     // After Access too: Loyalty declares its permissions through it, and depends on Platform and
     // Access only (handoff §4.4).
     LoyaltyServiceProvider::class,
+    // After Catalog, Pricing and Loyalty: Promotions reads Catalog's lines, sits on Pricing's
+    // ceiling, and declares its permissions through Access (handoff §4.4, promotions.md §2).
+    PromotionsServiceProvider::class,
 ];

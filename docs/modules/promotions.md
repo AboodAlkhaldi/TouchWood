@@ -328,7 +328,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Assign a coupon to a segment; remove an unused assignment | `promotions.coupon.manage` |
 | Create, change, delete a segment; pick a static segment's customers; refresh it now | `promotions.segment.manage` (per store) |
 | Create, change, switch off a gift level | `promotions.gift.manage` (per store) |
-| Change the store's discount ceiling | `promotions.settings.update` (per store, **admin-only**) — Platform's `UpdateSetting` |
+| Change the store's discount ceiling | **Not Promotions'**: `pricing.ceiling.manage` (per store, **admin-only**), Pricing's (pricing.md §3) — `promotions.settings.update` dropped (owner, 2026-10-17) |
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
@@ -348,12 +348,12 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | `promotions.coupon.manage` | Role | per store | `Marketing` | no |
 | `promotions.segment.manage` | Role | per store | `Marketing` | no |
 | `promotions.gift.manage` | Role | per store | `Marketing` | no |
-| `promotions.settings.update` | Role | per store | `Marketing` | **yes** |
 | `promotions.coupon.view_own` | every customer | global | — | — |
 | `promotions.segment.refresh` | Role, reserved | global | — | — |
 
-**The ceiling is admin-only; coupons, segments and gifts are ordinary permissions** an admin may give
-to a marketing staff role (owner, 2026-10-08).
+**Coupons, segments and gifts are ordinary permissions** an admin may give to a marketing staff role
+(owner, 2026-10-08). **The ceiling is Pricing's**, admin-only there; Promotions declares no setting
+permission of its own (owner, 2026-10-17).
 
 ---
 
@@ -557,8 +557,8 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 1. **Bundles / kits** — their own spec after stage 6: what a bundle is (Catalog), its price (Pricing),
    its pieces' stock (Inventory), a line of several items (Sales).
-2. **The `Marketing` permission group and menu section** — my assumption, following the owner's
-   answer for Loyalty's Points section; to confirm.
+2. ~~**The `Marketing` permission group and menu section**~~ — **settled**: the owner approved the
+   build plan that adds them (2026-10-17); built with step 1 (access.md amendment 69, platform.md §9.4).
 3. **Promotions' screens** — coupons, segments, gift levels, the account centre's coupons — the
    frontend session's, to confirm (as for Loyalty).
 4. **Content and segments** — the handoff wants segments for pop-up targeting (§11.2), but Content may
