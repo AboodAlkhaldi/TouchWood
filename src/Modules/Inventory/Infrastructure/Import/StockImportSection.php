@@ -17,11 +17,24 @@ use Shared\Domain\ValueObject\StoreId;
  * queued once Catalog's change commits (`SetStockFromFileHandler` says why not inside it). A store
  * wired to a provider ignores it, the provider being its source; an item with no stock leaves it.
  */
-final readonly class StockImportSection implements ImportSection
+final class StockImportSection implements ImportSection
 {
+    /**
+     * Each store's wiring, asked once per page: the section is made once for all the page's rows
+     * (Catalog's `ImportSections::all`). Switching items on asks afresh.
+     *
+     * @var array<string, bool>
+     */
+    private array $wired = [];
+
     public function __construct(
-        private StoreWiring $wiring,
+        private readonly StoreWiring $wiring,
     ) {}
+
+    private function wiredForPage(StoreId $store): bool
+    {
+        return $this->wired[$store->value] ??= $this->wiring->isWired($store);
+    }
 
     public function lines(StoreId $store, ?string $price, ?int $stock): array
     {
@@ -29,7 +42,7 @@ final readonly class StockImportSection implements ImportSection
             return [];
         }
 
-        if ($this->wiring->isWired($store)) {
+        if ($this->wiredForPage($store)) {
             return [trans('inventory::import.stock_ignored')];
         }
 

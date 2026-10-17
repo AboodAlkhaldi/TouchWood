@@ -474,8 +474,10 @@ describe('store files (S10)', function () {
         $many = basename((string) catalogStoreScreensUpload($admin, [...$kinds, ...$unknown(57)])->headers->get('Location'));
         $own = catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$few}");
 
-        // 8 of its own and the list 4, however many items: none is read one item at a time (P13).
-        expect($own)->toBe(8)
+        // 9 of its own and the list 4, however many items: none is read one item at a time (P13). The
+        // ninth: whether the store is wired, which Sync answers from its connections since Sync step 3
+        // - asked once for the page (sync.md §2.2).
+        expect($own)->toBe(9)
             ->and(catalogStoreScreensOwnQueries($admin, "/admin/store-files/{$many}"))->toBe($own)
             ->and(catalogStoreScreensOwnQueries($admin, '/admin/store-files'))->toBe(4);
     });
