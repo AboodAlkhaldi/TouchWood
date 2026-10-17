@@ -77,9 +77,13 @@ afterEach(function () {
     File::deleteDirectory(mediaTestDirectory());
 });
 
+/**
+ * This test process's own folder: the system's temp folder is shared by every worktree's test run, and
+ * one run's cleanup deleted another's files (lesson 206).
+ */
 function mediaTestDirectory(): string
 {
-    return sys_get_temp_dir().'/tw-media-tests';
+    return sys_get_temp_dir().'/tw-media-tests-'.getmypid();
 }
 
 function mediaTestPath(string $name): string
