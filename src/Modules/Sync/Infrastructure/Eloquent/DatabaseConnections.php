@@ -44,6 +44,11 @@ final readonly class DatabaseConnections implements Connections
         return $this->db->table(self::TABLE)->where('store_id', $store->value)->exists();
     }
 
+    public function wiredStores(): array
+    {
+        return array_values(array_map('strval', $this->db->table(self::TABLE)->orderBy('store_id')->pluck('store_id')->all()));
+    }
+
     public function save(Connection $connection, bool $new): bool
     {
         $now = CarbonImmutable::now();
