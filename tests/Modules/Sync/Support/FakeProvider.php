@@ -30,7 +30,11 @@ final class FakeProvider implements ProviderAdapter
         public array $fields = [],
     ) {}
 
-    /** In place of Odoo's adapter, for the rest of the test. */
+    /**
+     * In place of Odoo's adapter, for the rest of the test.
+     *
+     * @param  list<string>  $fields
+     */
     public static function bind(?string $failure = null, array $fields = []): self
     {
         $fake = new self($failure, [], $fields);
@@ -44,9 +48,18 @@ final class FakeProvider implements ProviderAdapter
         return $this->fields;
     }
 
+    /** @var (callable(): mixed)|null run once, during the next test - what happens while the provider answers */
+    public $whileTesting = null;
+
     public function test(Connection $connection): void
     {
         $this->tested[] = $connection;
+
+        if ($this->whileTesting !== null) {
+            $meanwhile = $this->whileTesting;
+            $this->whileTesting = null;
+            $meanwhile();
+        }
 
         if ($this->failure !== null) {
             throw new ConnectionFailed($this->failure);

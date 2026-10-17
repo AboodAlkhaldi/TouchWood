@@ -22,6 +22,7 @@ use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -31,8 +32,8 @@ use Shared\Domain\ValueObject\StoreId;
  * **Wiring a store** (sync.md §1.2): a Super Admin's alone (`sync.connection.manage`, reserved). The
  * connection is tested first - one small read, 10 seconds at most, the one call to the provider made in
  * a web request (§9.3 #21) - and nothing is saved when it fails. Then, together: the connection saved
- * (key and secret encrypted), the store wired that second, a full read queued, Inventory telling Catalog
- * every size as a wired store's, and the audit entry - never the key or the secret.
+ * (key and secret encrypted), the store wired that second, a full read queued, and the audit entry -
+ * never the key or the secret. Then Inventory tells Catalog every size as a wired store's.
  */
 final readonly class WireStoreHandler
 {
@@ -78,7 +79,7 @@ final readonly class WireStoreHandler
             ConnectionState::Ok,
             null,
             null,
-            (string) $this->actors->current()->id,
+            $this->staffId(),
         );
 
         if ($this->connections->exists($store)) {
@@ -95,7 +96,6 @@ final readonly class WireStoreHandler
             }
 
             $this->reads->queue($store, ReadKind::Now);
-            $this->stock->wired($store);
             $this->platform->recordAudit(new AuditEntryDto(
                 'sync.connection.wired',
                 'sync.connection',
@@ -107,5 +107,19 @@ final readonly class WireStoreHandler
                     ->changed('settings', null, $connection->settings === [] ? null : $connection->settings),
             ));
         });
+
+        // After the commit, in Inventory's own transactions: its store lock is not held for the whole
+        // pass, and the store answers wired to everyone by then. The repair tells Catalog again if this
+        // fails.
+        $this->stock->wired($store);
+    }
+
+    /** The Super Admin who wires it, or whose action the system carries out. */
+    private function staffId(): string
+    {
+        $actor = $this->actors->current();
+        $staff = $actor->type === ActorType::Staff ? $actor : ($actor->requestedBy?->type === ActorType::Staff ? $actor->requestedBy : null);
+
+        return $staff->id ?? throw new Unauthorized(self::PERMISSION);
     }
 }

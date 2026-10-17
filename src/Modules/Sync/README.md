@@ -13,7 +13,7 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 |---|---|---|
 | 1 | Foundation: the `sync` schema and its three tables, the permissions and the role editor's Sync group, the errors and their words | built (#142) |
 | 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
-| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page - `sync.connection.manage` | **this step** |
+| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | **this step** |
 | 4 | Reads (the job that runs the read wiring queues): one per store at a time, the provider's notices, the hourly and nightly reads, one code - `sync.read.scheduled` | — |
 | 5 | The report and its count, Retry, Sync now, dismissing; the log pruned after 90 days - `sync.report.view`, `sync.read.run`, `sync.log.prune` | — |
 | 6 | The module's own pass | — |
@@ -58,6 +58,17 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   report entries when it goes: no key on them, as the audit log names its subjects.
 - **The one call to the provider in a web request** is the Super Admin's test when saving a
   connection, 10 seconds at most (owner, 2026-10-17, sync.md §9.3 #21); every read is a queued job.
+  The 10 seconds are the adapter's to keep: Odoo's, when it is written, sets its HTTP client's connect
+  and total timeouts at or below them.
+- **Wiring and changing**: tested before any lock; a change is rebuilt from the row as locked, so two
+  changes at once never undo each other (what is saved is tested again if the other landed
+  meanwhile), and it writes only what the form holds - the state and the last read are the reads'.
+  Wiring tells Inventory after its commit, so the store's stock is not locked for the whole pass;
+  unwiring does it inside, as it moves stock (the store's checkouts wait for that pass).
+- **The address**: HTTPS, the scheme kept in lower case, no name or password in it (it is audited and
+  shown).
+- **Known limit**: every lookup decrypts the key and the secret; if the app's key were lost without
+  `APP_PREVIOUS_KEYS`, the Provider page, a change and unwiring would fail until it is restored.
 - **The key and the secret** are encrypted with the app's key, never returned, logged or audited -
   a change audits only that they were replaced. The audit names the provider's address `url`: the
   audit log refuses an `address` field as personal data.

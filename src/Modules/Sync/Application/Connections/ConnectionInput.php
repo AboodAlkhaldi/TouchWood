@@ -32,11 +32,13 @@ final readonly class ConnectionInput
     {
         $address = trim($address);
 
-        if (mb_strlen($address) > self::MOST_ADDRESS || preg_match('#\Ahttps://[^\s/?\#]+[^\s]*\z#i', $address) !== 1) {
+        // A name or a password in the address would be audited and shown: the key is for that.
+        if (mb_strlen($address) > self::MOST_ADDRESS || preg_match('#\Ahttps://[^\s/?\#@]+([/?\#][^\s]*)?\z#i', $address) !== 1) {
             throw new InvalidSyncInput('address');
         }
 
-        return $address;
+        // The table holds the scheme as written in lower case (its CHECK, `connections_address`).
+        return 'https://'.substr($address, strlen('https://'));
     }
 
     /**
@@ -52,19 +54,28 @@ final readonly class ConnectionInput
     }
 
     /**
-     * @param  array<string, string>  $settings
+     * Every field the provider asks for, as text, and no other.
+     *
+     * @param  array<array-key, mixed>  $settings
      * @return array<string, string>
      */
     public function settings(ProviderKind $provider, array $settings): array
     {
         $asked = $this->adapters->for($provider)->fields();
+        $kept = [];
 
         foreach ($settings as $field => $value) {
-            if (! in_array($field, $asked, true) || trim($value) === '') {
+            if (! in_array($field, $asked, true) || ! is_string($value) || trim($value) === '') {
                 throw new InvalidSyncInput('provider');
             }
+
+            $kept[$field] = $value;
         }
 
-        return $settings;
+        if (count($kept) !== count($asked)) {
+            throw new InvalidSyncInput('provider');
+        }
+
+        return $kept;
     }
 }

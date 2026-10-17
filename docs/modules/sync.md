@@ -32,7 +32,8 @@ calls Odoo waits for the provider's team (§9.1).
    has Sync dormant.
 3. **Only a Super Admin** wires a store, changes its key or removes the wiring (handoff §12.2).
 4. **No call to the provider ever happens inside a web request**: every read is a queued job (handoff
-   §12.2). A notification from the provider (§1.3) only queues a read.
+   §12.2). A notification from the provider (§1.3) only queues a read. The one exception: the Super
+   Admin's test when saving a connection, 10 seconds at most (§1.2; §9.3 #21).
 5. **Matched by product code** — one per size, the same in both systems (catalog.md §1.2: digits only,
    1–10 of them). A code is compared **exactly as written, spaces around it trimmed**.
 6. **The provider's values are read-only in our panel** while the store is wired: Pricing refuses a

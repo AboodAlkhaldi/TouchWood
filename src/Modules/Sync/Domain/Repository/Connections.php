@@ -20,7 +20,10 @@ interface Connections
     /** Whether the store is wired: a connection row, nothing decrypted. */
     public function exists(StoreId $store): bool;
 
-    /** A new connection, or the store's replaced; false when a new one finds the store wired meanwhile. */
+    /**
+     * A new connection, or the store's changed - its provider, address, fields, key and secret only, never
+     * its state or last read; false when a new one finds the store wired meanwhile.
+     */
     public function save(Connection $connection, bool $new): bool;
 
     /** The connection gone, its key and secret with it (sync.md §1.8). */

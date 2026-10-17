@@ -6,7 +6,7 @@ namespace Modules\Sync\Application\Query\ViewConnection;
 
 /**
  * What the Provider page shows (sync.md §1.2): never the key or the secret - only that they are set,
- * and when; how many sizes would stop being orderable if it were unwired (§1.8). Not wired: `provider`
+ * and when the connection last changed; how many sizes would stop being orderable if it were unwired (§1.8). Not wired: `provider`
  * null.
  */
 final readonly class ConnectionView
@@ -22,7 +22,7 @@ final readonly class ConnectionView
         public array $settings,
         public array $fields,
         public bool $keySet,
-        public ?string $setAt,
+        public ?string $changedAt,
         public ?string $state,
         public ?string $lastReadAt,
         public ?string $lastError,

@@ -31,4 +31,14 @@ final readonly class Connection
         public string $createdBy,
         public ?DateTimeImmutable $updatedAt = null,
     ) {}
+
+    /**
+     * Never the key or the secret in a dump.
+     *
+     * @return array<string, mixed>
+     */
+    public function __debugInfo(): array
+    {
+        return [...get_object_vars($this), 'key' => '[hidden]', 'secret' => '[hidden]'];
+    }
 }

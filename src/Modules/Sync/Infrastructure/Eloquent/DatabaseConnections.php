@@ -52,12 +52,10 @@ final readonly class DatabaseConnections implements Connections
             'settings' => json_encode((object) $connection->settings, JSON_THROW_ON_ERROR),
             'key_encrypted' => $this->encrypter->encryptString($connection->key),
             'secret_encrypted' => $this->encrypter->encryptString($connection->secret),
-            'state' => $connection->state->value,
-            'last_read_at' => $connection->lastReadAt,
-            'last_error' => $connection->lastError,
             'updated_at' => $now,
         ];
 
+        // A change writes only what the form holds: the state and the last read are the reads'.
         if (! $new) {
             $this->db->table(self::TABLE)->where('store_id', $connection->storeId)->update($columns);
 
@@ -65,7 +63,15 @@ final readonly class DatabaseConnections implements Connections
         }
 
         try {
-            $this->db->table(self::TABLE)->insert([...$columns, 'store_id' => $connection->storeId, 'created_by' => $connection->createdBy, 'created_at' => $now]);
+            $this->db->table(self::TABLE)->insert([
+                ...$columns,
+                'state' => $connection->state->value,
+                'last_read_at' => $connection->lastReadAt,
+                'last_error' => $connection->lastError,
+                'store_id' => $connection->storeId,
+                'created_by' => $connection->createdBy,
+                'created_at' => $now,
+            ]);
         } catch (UniqueConstraintViolationException) {
             return false;
         }

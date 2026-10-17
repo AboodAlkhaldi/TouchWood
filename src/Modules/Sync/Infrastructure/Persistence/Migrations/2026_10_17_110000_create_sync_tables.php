@@ -72,7 +72,7 @@ return new class extends Migration
                 ADD CONSTRAINT reads_state CHECK (state IN ('QUEUED', 'RUNNING', 'DONE', 'FAILED')),
                 ADD CONSTRAINT reads_counts CHECK (prices_changed >= 0 AND stock_changed >= 0 AND skipped >= 0),
                 -- Who asked: staff only - Sync now, Retry, wiring (§1.2, §1.3). The provider's notices and
-                -- the hourly read are never anyone's; which kind wiring's first read is, step 3 decides.
+                -- the hourly read are never anyone's; wiring's first read is a NOW read.
                 ADD CONSTRAINT reads_requested_by CHECK (
                     (requested_by_type IS NULL) = (requested_by_id IS NULL)
                     AND (requested_by_type IS NULL OR (requested_by_type = 'STAFF' AND kind NOT IN ('NOTIFIED', 'HOURLY')))
