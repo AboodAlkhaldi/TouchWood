@@ -7,20 +7,86 @@ namespace Modules\Sync\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Sync\Domain\Repository\ReportEntries;
+use Modules\Sync\Domain\ValueObject\ReportKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * `sync.report_entries`.
+ * `sync.report_entries`: one open per store, kind, code and size - its unique partial index,
+ * `report_entries_open`, which an entry seen again lands on. Times are the app's clock.
  */
 final readonly class DatabaseReportEntries implements ReportEntries
 {
+    private const string TABLE = 'sync.report_entries';
+
+    /** The provider's code is kept up to the column's length (sync.md §5). */
+    private const int MOST_CODE = 255;
+
+    /** Rows a statement: 7 values each, well under PostgreSQL's bind limit. */
+    private const int CHUNK = 500;
+
     public function __construct(
         private ConnectionInterface $db,
     ) {}
 
+    public function open(StoreId $store, ReportKind $kind, array $entries): void
+    {
+        // The same thing twice in one batch is one entry: the statement may not touch a row twice.
+        $unique = [];
+
+        foreach ($entries as $entry) {
+            $code = $entry['code'] === null ? null : mb_substr($entry['code'], 0, self::MOST_CODE);
+            $unique[($code ?? '').'|'.($entry['variantId'] ?? '')] = [...$entry, 'code' => $code];
+        }
+
+        $now = CarbonImmutable::now();
+
+        foreach (array_chunk(array_values($unique), self::CHUNK) as $chunk) {
+            $values = $bindings = [];
+
+            foreach ($chunk as $entry) {
+                $values[] = '(?, ?, ?, ?, ?, ?::jsonb, ?, ?)';
+                array_push($bindings, $store->value, $kind->value, $entry['code'], $entry['variantId'], $entry['saleId'], json_encode((object) $entry['detail'], JSON_THROW_ON_ERROR), $now, $now);
+            }
+
+            $this->db->statement(
+                'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
+                ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
+                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id',
+                $bindings,
+            );
+        }
+    }
+
+    public function close(StoreId $store, ReportKind $kind, array $codes, array $variantIds, string $closedBy): int
+    {
+        $closed = 0;
+
+        foreach ([['code', $codes], ['variant_id', $variantIds]] as [$column, $values]) {
+            foreach (array_chunk(array_values(array_unique($values)), 1000) as $chunk) {
+                $closed += $this->db->table(self::TABLE)
+                    ->where('store_id', $store->value)
+                    ->where('kind', $kind->value)
+                    ->whereNull('closed_at')
+                    ->whereIn($column, $chunk)
+                    ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);
+            }
+        }
+
+        return $closed;
+    }
+
+    public function closeKind(StoreId $store, ReportKind $kind, string $closedBy): int
+    {
+        return $this->db->table(self::TABLE)
+            ->where('store_id', $store->value)
+            ->where('kind', $kind->value)
+            ->whereNull('closed_at')
+            ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);
+    }
+
     public function closeAll(StoreId $store, string $closedBy): int
     {
-        return $this->db->table('sync.report_entries')
+        return $this->db->table(self::TABLE)
             ->where('store_id', $store->value)
             ->whereNull('closed_at')
             ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);

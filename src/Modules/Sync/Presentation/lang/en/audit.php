@@ -7,4 +7,6 @@ return [
     'connection.changed' => 'Provider connection changed',
     'connection.unwired' => 'Store unwired from its provider',
     'connection.wired' => 'Store wired to a provider',
+    'read.done' => 'Store read from its provider',
+    'read.failed' => 'Reading the provider failed',
 ];

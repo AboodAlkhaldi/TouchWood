@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
@@ -25,6 +26,7 @@ use Modules\Sync\Domain\Exception\AlreadyWired;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
@@ -47,6 +49,8 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
+    // Wiring queues a read; reading is SyncReadsTest's.
+    Queue::fake();
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 });
 
@@ -95,6 +99,8 @@ describe('wiring', function () {
             ->and(DB::table('sync.reads')->where('store_id', syncSa())->get(['kind', 'state', 'requested_by_type', 'requested_by_id'])->map(fn ($read) => (array) $read)->all())
             ->toBe([['kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'STAFF', 'requested_by_id' => syncActor()]])
             ->and(Fx::audits('sync.connection.wired', syncSa()))->toBe(1);
+
+        Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === DB::table('sync.reads')->value('id'));
 
         $audit = (string) DB::table('platform.audit_entries')->where('action', 'sync.connection.wired')->value('changes');
 
@@ -216,7 +222,8 @@ describe('changing the connection', function () {
             ->and($row?->address)->toBe('https://odoo2.test/api')
             ->and(Crypt::decryptString((string) $row?->key_encrypted))->toBe('key-1')
             ->and(Crypt::decryptString((string) $row?->secret_encrypted))->toBe('secret-2')
-            ->and(DB::table('sync.reads')->count())->toBe(2)
+            // The full read wiring queued still waits: asking again queues no second (§1.3).
+            ->and(DB::table('sync.reads')->count())->toBe(1)
             ->and($audit)->toContain('odoo2.test')->toContain('replaced')
             ->and(str_contains($audit, 'secret-2') || str_contains($audit, 'key-1'))->toBeFalse();
     });
@@ -301,6 +308,16 @@ describe('unwiring (sync.md §1.8)', function () {
             ->and(DB::table('sync.reads')->value('error'))->toBe('The store was unwired.')
             ->and(Fx::audits('sync.connection.unwired', syncSa()))->toBe(1)
             ->and((string) DB::table('platform.audit_entries')->where('action', 'sync.connection.unwired')->value('changes'))->toContain('stopped_orderable');
+    });
+
+    it('fails a read running when the store is unwired: it stops before its next batch', function () {
+        FakeProvider::bind();
+        syncWire();
+        DB::table('sync.reads')->update(['state' => 'RUNNING', 'started_at' => now()]);
+
+        app(UnwireStoreHandler::class)->handle(new UnwireStore(syncSa()));
+
+        expect(DB::table('sync.reads')->value('state'))->toBe('FAILED');
     });
 
     it('leaves every other store as it is', function () {

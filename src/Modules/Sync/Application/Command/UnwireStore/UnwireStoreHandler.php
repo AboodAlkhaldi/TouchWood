@@ -23,7 +23,8 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Unwiring a store** (sync.md §1.8), together: the connection gone with its key and secret, so the
- * store is not wired from that second; its report closed and its waiting reads dropped; Inventory taking
+ * store is not wired from that second; its report closed and its reads not finished dropped (a running
+ * one stops before its next batch); Inventory taking
  * the returned pieces in and telling Catalog every size again. Nothing else is cleared: the last prices
  * and stock stay, now staff's. Answers how many sizes stopped being orderable - the count the Super Admin
  * saw before confirming.
@@ -59,7 +60,7 @@ final readonly class UnwireStoreHandler
             $connection = $this->connections->lockFor($store) ?? throw new NotWired;
             $this->connections->delete($store);
             $closed = $this->entries->closeAll($store, 'UNWIRED');
-            $this->reads->dropQueued($store, 'The store was unwired.');
+            $this->reads->dropUnfinished($store, 'The store was unwired.');
             $stopped = $this->stock->unwired($store);
 
             $this->platform->recordAudit(new AuditEntryDto(

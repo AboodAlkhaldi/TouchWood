@@ -13,8 +13,9 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 |---|---|---|
 | 1 | Foundation: the `sync` schema and its three tables, the permissions and the role editor's Sync group, the errors and their words | built (#142) |
 | 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
-| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | **this step** |
-| 4 | Reads (the job that runs the read wiring queues): one per store at a time, the provider's notices, the hourly and nightly reads, one code - `sync.read.scheduled` | — |
+| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | built (#151) |
+| 4a | The read engine: `ReadStoreJob` and `RunRead` - one read per store at a time, batched through Pricing and Inventory, the report opened and closed, retries then failing - `sync.read.scheduled`; Catalog's amendment 21 (`variantsByCodes`) | **this step** |
+| 4b | The triggers: the provider's notices (signed), the hourly and nightly schedules, one code after a corrected one | next |
 | 5 | The report and its count, Retry, Sync now, dismissing; the log pruned after 90 days - `sync.report.view`, `sync.read.run`, `sync.log.prune` | — |
 | 6 | The module's own pass | — |
 
@@ -67,6 +68,21 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   unwiring does it inside, as it moves stock (the store's checkouts wait for that pass).
 - **The address**: HTTPS, the scheme kept in lower case, no name or password in it (it is audited and
   shown).
+- **A read** (step 4a): one per store at a time - `reads_one_running`; a second waits and the one that
+  ends starts it - and one full read of each kind waiting (`reads_one_waiting`: asked again, its job is
+  queued again, never a second read). Batches of 500 values: codes matched in one Catalog read
+  (`variantsByCodes`), prices and stock written in Pricing's and Inventory's own transactions, the
+  report's entries written per batch in one statement per kind, only after they confirm the store is
+  still wired. Before each batch the read checks it still runs, for the store's present wiring
+  (`connections.created_at`): unwired, or wired again, it stops; unwiring fails reads not finished.
+  The hourly read asks from the start of the last read that covered every change (the hour's or a full
+  one) - never moved by a notice's - so a lost notice is caught within the hour.
+- **When a read fails** (§1.7): an attempt that fails goes back to the queue (or is failed as
+  superseded when the same kind already waits), tried after 1, 5 and 15 minutes; the last one fails
+  the read, marks the store failing, opens `READ_FAILED` and audits. A read is given 20 minutes; one
+  running past 30 is taken as dead - its own job takes it back, another read of the store fails and
+  reports it. Staff see the provider's reason, never another error's text (that stays on the failed
+  jobs screen).
 - **Known limit**: every lookup decrypts the key and the secret; if the app's key were lost without
   `APP_PREVIOUS_KEYS`, the Provider page, a change and unwiring would fail until it is restored.
 - **The key and the secret** are encrypted with the app's key, never returned, logged or audited -
@@ -83,5 +99,7 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | `tests/Modules/Sync/Integration/SyncPermissionsTest.php` | The two jobs and the three reserved, by name, kind, group and reservation; a staff role may hold both jobs; the group's and the jobs' names |
 | `tests/Modules/Sync/Unit/SyncErrorsTest.php` | Exactly §7's five thrown errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders; the fields an invalid input names |
 | `tests/Modules/Sync/Integration/SyncWiringTest.php` | Wiring tested first and refused when the test fails; the key and secret encrypted and never audited or shown; the store wired for Pricing and Inventory at once, a NOW read queued by the Super Admin, Catalog told; each field refused by name; Odoo's adapter refusing until built; changing (key kept, secret replaced, tested first); unwiring (the count first, the connection, report and waiting reads); Super Admins only |
+| `tests/Modules/Sync/Integration/SyncReadsTest.php` | A read: prices and stock written, counts, the connection marked read, audited once; the hourly read asking from the last covering read's start, never moved by a notice's; each report kind opened and closed when right again (unknown codes, archived, bad values - 0, fractions, below 0 kept as 0 - off and draft sizes, stopped sales, skipped discounts, sizes the provider does not know, at night only); one read at a time, one full read of a kind waiting, its job queued again; dead reads taken back or failed and reported; a failed attempt requeued or superseded, the last failing and reporting the store; stopping when unwired or wired again mid-read; staff shown the provider's reason only; the system's and Super Admins' alone |
+| `tests/Modules/Catalog/Integration/CatalogVariantsByCodesTest.php` | Amendment 21: by each code as given (spaces, Arabic-Indic digits), archived ones too, a few queries for many |
 | `tests/Modules/Sync/Integration/SyncAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Architecture/SyncAccessUseTest.php` | Sync takes from Access only what declaring its permissions needs |
