@@ -43,7 +43,7 @@ it('finds the actions Pricing records', function () {
     // A guard over files must find something, or it passes over nothing.
     expect(pricingAuditNamesRecorded())->toBe([
         'pricing.category_discount.added', 'pricing.category_discount.changed', 'pricing.category_discount.ended', 'pricing.category_discount.removed',
-        'pricing.retail_price.filed', 'pricing.retail_price.removed', 'pricing.retail_price.set',
+        'pricing.retail_price.filed', 'pricing.retail_price.provided', 'pricing.retail_price.removed', 'pricing.retail_price.set',
         'pricing.sale.added', 'pricing.sale.changed', 'pricing.sale.ended', 'pricing.sale.removed',
         'pricing.wholesale_prices.set',
     ]);

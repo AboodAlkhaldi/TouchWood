@@ -9,6 +9,8 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
@@ -50,6 +52,7 @@ final readonly class CandidateWriter
         private CategoryDiscounts $discounts,
         private DiscountCoverage $coverage,
         private CatalogApi $catalog,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -61,6 +64,10 @@ final readonly class CandidateWriter
         // The store's discounts not ended, each with the products it reaches now - read once.
         $discounts = $this->discounts->notEnded($store, $now);
         $reaches = [];
+        // A fixed amount never goes deeper than the ceiling: where a price would let it, it skips the
+        // size (sync.md §9.3 #17) - reached in a wired store, whose prices are the provider's;
+        // elsewhere such a price is refused (§1.12).
+        $ceiling = $discounts === [] ? 0 : (int) $this->platform->setting(PricingSettings::MAX_DISCOUNT_PERCENT, $store)->value * 100;
 
         foreach ($discounts as $discount) {
             $reaches[$discount->id] = $this->coverage->products($discount);
@@ -103,11 +110,11 @@ final readonly class CandidateWriter
                     }
 
                     // Every discount reaching the size's product, on the lines it applies to (§1.5); a
-                    // fixed amount that would take it to 0 or below skips it.
+                    // fixed amount that would take it to 0 or below, or past the ceiling, skips it.
                     foreach ($discounts as $discount) {
                         $amount = isset($reaches[$discount->id][$productOf[$variantId] ?? '']) ? $discount->priceOn($retail[$variantId]) : null;
 
-                        if ($amount === null) {
+                        if ($amount === null || ($discount->percentBasisPoints === null && $discount->depthOn($retail[$variantId]) > $ceiling)) {
                             continue;
                         }
 

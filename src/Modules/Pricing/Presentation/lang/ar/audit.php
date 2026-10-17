@@ -7,6 +7,7 @@ declare(strict_types=1);
 return [
     'retail_price.set' => 'حُدّد سعر التجزئة',
     'retail_price.filed' => 'حُدّد سعر التجزئة من ملف المتجر',
+    'retail_price.provided' => 'حُدّد سعر التجزئة من المزوّد',
     'wholesale_prices.set' => 'حُدّدت أسعار الجملة',
     'category_discount.added' => 'أُضيف خصم على فئة',
     'category_discount.changed' => 'غُيّر خصم على فئة',

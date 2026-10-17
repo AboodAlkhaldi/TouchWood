@@ -18,6 +18,7 @@ use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Application\ProviderPricesImpl;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\PricingLocks;
@@ -37,6 +38,7 @@ use Modules\Pricing\Infrastructure\Queue\CheckPriceWindowsJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
 use Modules\Pricing\Public\Contracts\PricingApi;
+use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
 
 /**
@@ -57,6 +59,7 @@ final class PricingServiceProvider extends ServiceProvider
         $this->app->bind(PriceCandidates::class, DatabasePriceCandidates::class);
         // No store is wired until Sync is built (§1.1 rule 9).
         $this->app->bind(StoreWiring::class, NoStoreWired::class);
+        $this->app->bind(ProviderPrices::class, ProviderPricesImpl::class);
         $this->app->bind(PricingApi::class, PricingApiImpl::class);
         $this->app->bind(Sales::class, DatabaseSales::class);
         $this->app->bind(WholesaleBands::class, DatabaseWholesaleBands::class);

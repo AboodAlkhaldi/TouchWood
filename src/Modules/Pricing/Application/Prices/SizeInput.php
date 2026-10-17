@@ -28,25 +28,46 @@ final readonly class SizeInput
      */
     public function check(array $given): array
     {
+        [$own, $archived, $notFound] = $this->sort($given);
+
+        if ($archived !== [] || $notFound !== []) {
+            throw new InvalidPricingInput('variant');
+        }
+
+        return array_map(static fn (array $size): string => $size[0], $own);
+    }
+
+    /**
+     * The same reads, for a change that writes what it can and names the rest - the provider's
+     * prices (§2.6): the sizes that may be written, with their product and whether it is a draft;
+     * the archived ones (the size or its product); those that do not exist.
+     *
+     * @param  list<string>  $given
+     * @return array{array<string, array{string, string, bool}>, list<string>, list<string>} [each writable id as given => [its own id, its product's id, a draft product], archived ids as given, ids as given not found]
+     */
+    public function sort(array $given): array
+    {
         $variants = $this->catalog->variants($given);
         $products = $this->catalog->products(array_values(array_unique(array_map(
             static fn (VariantDto $variant): string => $variant->productId,
             array_values($variants),
         ))));
-        $own = [];
+        $own = $archived = $notFound = [];
 
         foreach ($given as $id) {
             // Keyed by the size's own id, as Catalog writes it: lower case, no spaces around.
             $variant = $variants[strtolower(trim($id))] ?? null;
             $product = $variant === null ? null : ($products[$variant->productId] ?? null);
 
-            if ($variant === null || $variant->isArchived || $product === null || $product->stage === ProductStage::Archived) {
-                throw new InvalidPricingInput('variant');
+            if ($variant === null || $product === null) {
+                $notFound[] = $id;
+            } elseif ($variant->isArchived || $product->stage === ProductStage::Archived) {
+                $archived[] = $id;
+            } else {
+                $own[$id] = [$variant->id, $variant->productId, $product->stage === ProductStage::Draft];
             }
-
-            $own[$id] = $variant->id;
         }
 
-        return $own;
+        return [$own, $archived, $notFound];
     }
 }
