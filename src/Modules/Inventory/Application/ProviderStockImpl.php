@@ -8,7 +8,6 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
 use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
 use Modules\Inventory\Application\Stock\StockFacts;
@@ -24,10 +23,11 @@ use Modules\Inventory\Public\Dto\ProviderStockResult;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The provider's stock in, and a store unwired (inventory.md §2.5, §1.1 rule 3, §1.9; sync.md §1.5,
- * §1.8). Each batch is its own transaction under the store's lock, as every change (`InventoryChange`),
- * with no audit entry: Sync audits the read. Called from Sync's queued read, never inside Catalog's
- * lock, so the store's lock and then Catalog's are taken in the order every change takes them.
+ * The provider's stock in, and a store wired or unwired (inventory.md §2.5, §1.1 rule 3, §1.9; sync.md
+ * §1.5, §1.8). Each batch is its own transaction under the store's lock, as every change
+ * (`InventoryChange`), with no audit entry: Sync audits the read. Called from Sync's queued read or its
+ * wiring, never inside Catalog's lock, so the store's lock and then Catalog's are taken in the order
+ * every change takes them.
  */
 final readonly class ProviderStockImpl implements ProviderStock
 {
@@ -41,7 +41,6 @@ final readonly class ProviderStockImpl implements ProviderStock
         private SizeInput $sizes,
         private StockRows $stock,
         private StockMovements $movements,
-        private HoldsShortNotice $notice,
         private StockFacts $facts,
     ) {}
 
@@ -73,6 +72,13 @@ final readonly class ProviderStockImpl implements ProviderStock
         $given = [];
 
         foreach ($own as $id => [$variantId, $productId]) {
+            // Two ids written for one size: the first is taken, the other named, never dropped silently.
+            if (isset($given[$variantId])) {
+                $invalid[] = $id;
+
+                continue;
+            }
+
             $given[$variantId] = [$id, $productId];
         }
 
@@ -81,10 +87,26 @@ final readonly class ProviderStockImpl implements ProviderStock
 
         foreach (array_chunk($given, self::CHUNK, true) as $chunk) {
             $done = $this->change->run($store, fn (): array => [$this->applyChunk($store, $chunk, $numbers, $readRef), []]);
+
+            // Unwired between two batches: what is left is staff's now (sync.md §1.8).
+            if ($done === null) {
+                return new ProviderStockResult(false, $changed, $archived, $notFound, $invalid);
+            }
+
             array_push($changed, ...$done);
         }
 
         return new ProviderStockResult(true, $changed, $archived, $notFound, $invalid);
+    }
+
+    public function wired(StoreId $store): void
+    {
+        if (! $this->wiring->isWired($store)) {
+            throw new LogicException('Wire the store before telling Inventory: orderability is worked out for a wired store.');
+        }
+
+        // Every size told again, a size with no row too: an ordinary product counts on stock no more.
+        $this->tellEverySize($store, static fn (): int => 0);
     }
 
     public function stopsWhenUnwired(StoreId $store): int
@@ -106,56 +128,80 @@ final readonly class ProviderStockImpl implements ProviderStock
             throw new LogicException('Unwire the store before telling Inventory: orderability is worked out for a store with no provider.');
         }
 
+        $run = strtolower((string) Str::ulid());
+
+        return $this->tellEverySize($store, function (array $chunk, array $switchedOn) use ($store, $run): int {
+            $rows = $this->stock->lockExisting($store, $chunk);
+            $stops = 0;
+
+            foreach ($chunk as $variantId) {
+                $row = $rows[$variantId] ?? null;
+                $stops += isset($switchedOn[$variantId]) && self::stops($row) ? 1 : 0;
+
+                // The pieces returned while the provider ruled are ours now: a correction, noted
+                // "unwired" (sync.md §9.2 #12).
+                if ($row !== null && $row->returnedExtra > 0) {
+                    $after = $row->inStock + $row->returnedExtra;
+                    $this->movements->record($store, $variantId, MovementReason::Correction, $row->inStock, $after, 'unwired', "unwired:{$run}:{$variantId}");
+                    $this->stock->setInStock($store, $variantId, $after);
+                    $this->stock->setReturnedExtra($store, $variantId, 0);
+                }
+            }
+
+            return $stops;
+        });
+    }
+
+    /**
+     * Every size the store has switched on or a row for, told to Catalog again as the store is wired
+     * now - the repair's set - after `$before` ran on each batch under the same lock.
+     *
+     * @param  callable(list<string>, array<string, int>): int  $before  answers what it counted
+     */
+    private function tellEverySize(StoreId $store, callable $before): int
+    {
         $switchedOn = array_flip($this->catalog->switchedOnVariantIds($store));
         $sizes = array_values(array_unique([...$this->stock->variantIds($store), ...array_keys($switchedOn)]));
         sort($sizes, SORT_STRING);
-        $run = strtolower((string) Str::ulid());
-        $stops = 0;
+        $counted = 0;
 
         foreach (array_chunk($sizes, self::CHUNK) as $chunk) {
-            $stops += $this->change->run($store, function () use ($store, $chunk, $switchedOn, $run): array {
-                $rows = $this->stock->lockExisting($store, $chunk);
-                $stops = 0;
-
-                foreach ($chunk as $variantId) {
-                    $row = $rows[$variantId] ?? null;
-                    $stops += isset($switchedOn[$variantId]) && self::stops($row) ? 1 : 0;
-
-                    // The pieces returned while the provider ruled are ours now (§1.9; sync.md §9.2 #12).
-                    if ($row !== null && $row->returnedExtra > 0) {
-                        $after = $row->inStock + $row->returnedExtra;
-                        $this->movements->record($store, $variantId, MovementReason::Returned, $row->inStock, $after, null, "unwired:{$run}:{$variantId}");
-                        $this->stock->setInStock($store, $variantId, $after);
-                        $this->stock->setReturnedExtra($store, $variantId, 0);
-                    }
-                }
-
-                // Every size told again, a size with no row too: the store has no provider now.
+            $counted += $this->change->run($store, function () use ($store, $chunk, $switchedOn, $before): array {
+                $counted = $before($chunk, $switchedOn);
                 $this->facts->refresh($store, $chunk, all: true);
 
-                return [$stops, []];
+                return [$counted, []];
             });
         }
 
-        return $stops;
+        return $counted;
     }
 
     /**
      * @param  array<string, array{string, string}>  $chunk  own id => [the id as given, its product's id]
      * @param  array<string, int>  $numbers  id as given => the provider's number
-     * @return list<string> the sizes changed, by the id as given
+     * @return list<string>|null the sizes changed, by the id as given; null when the store is no longer wired
      */
-    private function applyChunk(StoreId $store, array $chunk, array $numbers, string $readRef): array
+    private function applyChunk(StoreId $store, array $chunk, array $numbers, string $readRef): ?array
     {
-        $rows = $this->stock->lockFor($store, array_map(static fn (array $size): string => $size[1], $chunk));
+        // Asked again under the store's lock, which unwiring takes too: no batch lands after it.
+        if (! $this->wiring->isWired($store)) {
+            return null;
+        }
+
+        // A size with no row that the provider has at 0 is 0 already: no row is made for it, so the
+        // sizes the store does not sell stay off its Low Stock list.
+        $existing = $this->stock->read($store, array_keys($chunk));
+        $write = array_filter($chunk, static fn (array $size, string $variantId): bool => isset($existing[$variantId]) || $numbers[$size[0]] > 0, ARRAY_FILTER_USE_BOTH);
+        $rows = $this->stock->lockFor($store, array_map(static fn (array $size): string => $size[1], $write));
         $changed = $told = [];
 
-        foreach ($chunk as $variantId => [$id]) {
+        foreach ($write as $variantId => [$id]) {
             $row = $rows[$variantId];
             $number = $numbers[$id];
             $reference = "provider:{$readRef}:{$variantId}";
 
-            // The same number changes nothing; a read run again after a later one finds its own movement.
+            // The same number changes nothing; the same read run again finds its own movement.
             if ($row->inStock === $number || $this->movements->referenced($reference)) {
                 continue;
             }
@@ -166,10 +212,6 @@ final readonly class ProviderStockImpl implements ProviderStock
             // The provider's number changed: we follow it, and what was returned meanwhile goes (§1.9).
             if ($row->returnedExtra !== 0) {
                 $this->stock->setReturnedExtra($store, $variantId, 0);
-            }
-
-            if ($number < $row->inStock + $row->returnedExtra && $number < $row->held) {
-                $this->notice->send($store, $variantId);
             }
 
             $changed[] = $id;

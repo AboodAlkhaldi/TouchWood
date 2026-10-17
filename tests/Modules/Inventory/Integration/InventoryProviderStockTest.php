@@ -88,13 +88,17 @@ describe('the provider\'s numbers', function () {
 
         $result = providerStockApply([$a => 9, $b => 0]);
 
-        // B had no row and gets one at 0: the same number as "none", so no movement.
+        // B has no row: at 0 it is 0 already, so it gets none - and stays off the Low Stock list.
         expect($result->wired)->toBeTrue()
             ->and($result->changed)->toBe([$a])
             ->and([$result->archived, $result->notFound, $result->invalid])->toBe([[], [], []])
             ->and(Ix::stock('sa', $a)?->in_stock)->toBe(9)
             ->and(Ix::ledger('sa', $a))->toBe(['STOCKTAKE 0→4 SYSTEM', 'PROVIDER 4→9 SYSTEM'])
-            ->and(Ix::ledger('sa', $b))->toBe([]);
+            ->and(Ix::stock('sa', $b))->toBeNull();
+
+        // Above 0, a size with no row gets one.
+        expect(providerStockApply([$b => 2], 'read-3')->changed)->toBe([$b])
+            ->and(Ix::ledger('sa', $b))->toBe(['PROVIDER 0→2 SYSTEM']);
 
         expect(providerStockApply([$a => 9], 'read-2')->changed)->toBe([])
             ->and(Ix::ledger('sa', $a))->toHaveCount(2);
@@ -192,24 +196,47 @@ describe('the provider\'s numbers', function () {
         expect(providerStockApply([$size => 5], str_repeat('r', 64))->changed)->toBe([$size]);
     });
 
-    it('names every order still holding a stock-dependent size the provider\'s number took below its holds', function () {
+    it('sends no HoldsShort: §6.1 names hand changes only', function () {
         $size = Px::ready()['variants'][0];
         Ix::wired();
         providerStockRow($size, ['in_stock' => 4, 'stock_dependent' => true]);
-        [$first, $second] = [strtolower((string) Str::ulid()), strtolower((string) Str::ulid())];
-        app(InventoryApi::class)->hold(providerStockSa(), $first, [new HoldLineDto($size, 2)], null);
-        app(InventoryApi::class)->hold(providerStockSa(), $second, [new HoldLineDto($size, 2)], null);
+        app(InventoryApi::class)->hold(providerStockSa(), strtolower((string) Str::ulid()), [new HoldLineDto($size, 4)], null);
         Event::fake([HoldsShort::class]);
 
-        providerStockApply([$size => 2]);
-        // Back up, still below what is held: flagged once already.
-        providerStockApply([$size => 3], 'read-2');
+        providerStockApply([$size => 1]);
 
-        $expected = [$first, $second];
-        sort($expected);
+        Event::assertNotDispatched(HoldsShort::class);
+    });
 
-        Event::assertDispatchedTimes(HoldsShort::class, 1);
-        Event::assertDispatched(HoldsShort::class, fn (HoldsShort $event): bool => $event->variantId === $size && $event->orderIds === $expected);
+    it('names a second id written for the same size, and takes the first', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::wired();
+
+        $result = providerStockApply([$size => 3, strtoupper($size) => 8]);
+
+        expect($result->changed)->toBe([$size])
+            ->and($result->invalid)->toBe([strtoupper($size)])
+            ->and(Ix::stock('sa', $size)?->in_stock)->toBe(3);
+    });
+
+    it('stops at the batch where it finds the store unwired, asked again under the lock', function () {
+        $size = Px::ready()['variants'][0];
+        // Wired when the read starts, unwired by the time its first batch takes the store's lock.
+        app()->instance(StoreWiring::class, new class implements StoreWiring
+        {
+            private int $asked = 0;
+
+            public function isWired(StoreId $store): bool
+            {
+                return $this->asked++ === 0;
+            }
+        });
+
+        $result = providerStockApply([$size => 5]);
+
+        expect($result->wired)->toBeFalse()
+            ->and($result->changed)->toBe([])
+            ->and(Ix::stock('sa', $size))->toBeNull();
     });
 });
 
@@ -225,15 +252,37 @@ function providerStockFour(): array
     $ready = Px::ready(['60 cm', '80 cm', '100 cm', '120 cm', '140 cm']);
     [$atZero, $withStock, $returned, $never, $dependentAtZero] = $ready['variants'];
     $notOn = Px::ready(['160 cm'])['variants'][0];
+    // Counted and switched on before the store is wired, as a store is.
     Ix::count('sa', [$atZero => 0, $withStock => 3, $notOn => 0]);
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
     Ix::wired();
     providerStockRow($returned, ['in_stock' => 0, 'stock_dependent' => true, 'returned_extra' => 2]);
     providerStockRow($dependentAtZero, ['in_stock' => 0, 'stock_dependent' => true]);
-    // Switched on while wired, so Catalog is told as a wired store tells it: ordinary sizes orderable.
-    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
+    Fx::asSystem(fn () => app(ProviderStock::class)->wired(providerStockSa()));
 
     return [$atZero, $withStock, $returned, $never, $dependentAtZero, $notOn];
 }
+
+describe('wiring (sync.md §1.2)', function () {
+    it('tells Catalog every size again as a wired store\'s: an ordinary product orderable at 0, one never counted too', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
+        [$atZero, $never] = $ready['variants'];
+        Ix::count('sa', [$atZero => 0]);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
+        expect(array_map(providerStockOrderable(...), [$atZero, $never]))->toBe([false, false]);
+        Ix::wired();
+
+        Fx::asSystem(fn () => app(ProviderStock::class)->wired(providerStockSa()));
+
+        expect(array_map(providerStockOrderable(...), [$atZero, $never]))->toBe([true, true])
+            // Nothing written: the stocktake's line is the only one.
+            ->and(Ix::ledger('sa', $atZero))->toBe(['STOCKTAKE 0→0 SYSTEM']);
+    });
+
+    it('refuses to work orderability out for a store not wired', function () {
+        expect(fn () => app(ProviderStock::class)->wired(providerStockSa()))->toThrow(LogicException::class);
+    });
+});
 
 describe('unwiring (sync.md §1.8)', function () {
     it('counts first the sizes that will stop being orderable: ordinary ones the provider left at 0', function () {
@@ -253,7 +302,7 @@ describe('unwiring (sync.md §1.8)', function () {
         expect($stopped)->toBe(2)
             ->and(Ix::stock('sa', $returned)?->in_stock)->toBe(2)
             ->and(Ix::stock('sa', $returned)?->returned_extra)->toBe(0)
-            ->and(Ix::ledger('sa', $returned))->toBe(['RETURNED 0→2 SYSTEM'])
+            ->and(Ix::ledger('sa', $returned))->toBe(['CORRECTION 0→2 unwired SYSTEM'])
             ->and(Ix::ledger('sa', $withStock))->toBe(['STOCKTAKE 0→3 SYSTEM'])
             ->and(array_map(providerStockOrderable(...), [$atZero, $withStock, $returned, $never, $dependentAtZero, $notOn]))->toBe([false, true, true, false, false, false]);
     });
