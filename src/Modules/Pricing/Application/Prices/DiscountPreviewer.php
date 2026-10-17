@@ -37,11 +37,14 @@ final readonly class DiscountPreviewer
         private CatalogApi $catalog,
         private Sales $sales,
         private CategoryDiscounts $discounts,
+        private CeilingCheck $ceiling,
     ) {}
 
     public function preview(StoreId $store, CategoryDiscount $discount): DiscountPreview
     {
         $sizes = $this->coverage->pricedSizes($store, [$discount]);
+        // In a wired store a fixed amount skips a size it would take past the ceiling (sync.md §9.3 #17).
+        $ceiling = $discount->amount !== null && $this->ceiling->skipsPastCeiling($store) ? $this->ceiling->ceiling($store) * 100 : PHP_INT_MAX;
         $retail = [];
 
         foreach (array_chunk(array_keys($sizes), self::CHUNK) as $chunk) {
@@ -64,7 +67,7 @@ final readonly class DiscountPreviewer
                 continue;
             }
 
-            $new = $discount->priceOn($price);
+            $new = $discount->depthOn($price) > $ceiling ? null : $discount->priceOn($price);
             $reached[$productId][] = new PreviewSize(
                 $variantId,
                 $variants[$variantId]->code ?? '',

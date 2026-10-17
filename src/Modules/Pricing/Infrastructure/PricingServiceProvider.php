@@ -14,6 +14,7 @@ use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
 use Modules\Pricing\Application\PricingApiImpl;
 use Modules\Pricing\Application\PricingPermissions;
@@ -85,6 +86,8 @@ final class PricingServiceProvider extends ServiceProvider
         Event::listen(ProductChanged::class, [RepriceForDiscounts::class, 'productChanged']);
         Event::listen(ProductMadeReady::class, [RepriceForDiscounts::class, 'productMadeReady']);
         Event::listen(CategoryMoved::class, [RepriceForDiscounts::class, 'categoryMoved']);
+        // In a wired store the ceiling decides what a fixed amount reaches (sync.md §9.3 #17).
+        Event::listen(SettingChanged::class, [RepriceForDiscounts::class, 'ceilingChanged']);
 
         // Its part of a store file (§1.8): the price each item sets, kept when the item is switched on.
         $this->app->make(ImportSections::class)->register('pricing', PriceImportSection::class);

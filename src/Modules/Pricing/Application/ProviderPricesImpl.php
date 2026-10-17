@@ -77,7 +77,9 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             // The store's own rules for a price (§1.2): refused, never rounded; the provider gives no
             // currency, so it is the store's (sync.md §9.1).
             try {
-                $amounts[(string) $variantId] = AmountInput::of($price, $found);
+                // Sync passes the provider's text; anything else is not a price (sync.md §1.7: the
+                // read goes on).
+                $amounts[(string) $variantId] = is_string($price) ? AmountInput::of($price, $found) : throw new InvalidPricingInput('amount');
             } catch (InvalidPricingInput|PriceTooPrecise|PriceNotPositive) {
                 $invalid[] = (string) $variantId;
             }

@@ -11,11 +11,20 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
+use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
+use Modules\Pricing\Application\Prices\DiscountPreviewer;
+use Modules\Pricing\Application\PricingSettings;
+use Modules\Pricing\Domain\Exception\OverCeiling;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
@@ -257,5 +266,113 @@ describe('the ceiling (sync.md §1.4 #5, #6; 30% by default)', function () {
 
         expect(providerPricesApply([$a => '180'], 'read-2')->discountsSkipped)->toBe([])
             ->and(providerPricesUnit($a))->toBe(13000);
+    });
+
+    it('removes a sale that started this very moment, having no time to end at', function () {
+        $size = Px::ready()['variants'][0];
+        Rx::set('sa', [$size => '100']);
+        $sale = providerPricesSale([$size], '80');
+        providerPricesWired();
+
+        expect(providerPricesApply([$size => '200'])->salesStopped)->toBe([['saleId' => $sale, 'variantId' => $size, 'outcome' => 'removed']])
+            ->and(providerPricesSaleRow($sale))->toBeNull();
+    });
+
+    it('ends a running sale at the moment the price arrived', function () {
+        $size = Px::ready()['variants'][0];
+        Rx::set('sa', [$size => '100']);
+        $sale = providerPricesSale([$size], '80');
+        providerPricesWired();
+        CarbonImmutable::setTestNow('2026-10-17 11:00:00+00');
+
+        providerPricesApply([$size => '200']);
+
+        expect(CarbonImmutable::parse((string) providerPricesSaleRow($sale)?->ends_at)->equalTo(CarbonImmutable::parse('2026-10-17 11:00:00+00')))->toBeTrue();
+    });
+
+    it('names a price that is not text as invalid, and the read goes on', function () {
+        [$a, $b, $c] = Px::ready(['60 cm', '80 cm', '100 cm'])['variants'];
+        providerPricesWired();
+
+        $result = Fx::asSystem(fn (): ProviderPricesResult => app(ProviderPrices::class)->apply(StoreId::fromString(Rx::storeId('sa')), [$a => 120.5, $b => null, $c => '30'], 'read-1'));
+
+        expect($result->invalid)->toBe([$a, $b])
+            ->and($result->changed)->toBe([$c]);
+    });
+});
+
+describe('a wired store\'s ceiling skips, never refuses (sync.md §9.3 #17, #20)', function () {
+    /**
+     * Two sizes at 200 in a category with 50 off - 25% - one taken by the provider to 120: 42%.
+     *
+     * @return array{string, string, string, string}
+     */
+    function providerPricesSkipped(): array
+    {
+        $category = Px::category('Kitchens');
+        [$a, $b] = Px::ready(['60 cm', '80 cm'], $category)['variants'];
+        Rx::set('sa', [$a => '200', $b => '200']);
+        $discount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, null, '50', 'BOTH', null, null)));
+        providerPricesWired();
+        providerPricesApply([$a => '120']);
+
+        return [$category, $a, $b, $discount];
+    }
+
+    function providerPricesCeiling(int $percent): void
+    {
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', $percent));
+    }
+
+    it('reaches a skipped size again when the ceiling is raised, and skips more when it is lowered', function () {
+        [, $a, $b] = providerPricesSkipped();
+
+        providerPricesCeiling(50);
+        expect(providerPricesUnit($a))->toBe(7000);
+
+        // Lowered below what the discount takes off every size: allowed, every size skipped.
+        providerPricesCeiling(20);
+        expect([providerPricesUnit($a), providerPricesUnit($b)])->toBe([12000, 20000]);
+    });
+
+    it('saves a new fixed amount in a category with a size too deep, which skips it - as its preview shows', function () {
+        [$category, $a, $b] = providerPricesSkipped();
+
+        $second = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, null, '40', 'BOTH', null, null, true)));
+        $preview = app(DiscountPreviewer::class)->preview(StoreId::fromString(Rx::storeId('sa')), app(CategoryDiscounts::class)->find($second) ?? throw new LogicException('No discount.'));
+        $newPrices = [];
+
+        foreach ($preview->reached as $product) {
+            foreach ($product->sizes as $size) {
+                $newPrices[$size->variantId] = $size->newMinor;
+            }
+        }
+
+        // "Always wins", so the second discount is the price wherever it reaches.
+        expect($newPrices)->toEqual([$a => null, $b => 16000])
+            ->and(providerPricesUnit($a))->toBe(12000)
+            ->and(providerPricesUnit($b))->toBe(16000);
+    });
+
+    it('leaves a store not wired as it was: a product moved into a category reaches its fixed amount, however deep', function () {
+        $category = Px::category('Kitchens');
+        $inside = Px::ready(['60 cm'], $category);
+        $outside = Px::ready(['60 cm'], Px::category('Doors'));
+        Rx::set('sa', [$inside['variants'][0] => '200', $outside['variants'][0] => '120']);
+        Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, null, '50', 'BOTH', null, null)));
+        $product = app(ProductRepository::class)->find($outside['product']) ?? throw new LogicException('No product.');
+        $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
+
+        // 50 off 120 is 42%, past 30%: no skip where the store is not wired (pricing.md §1.12, as before).
+        Fx::asSystem(fn () => app(EditProductDetailsHandler::class)->handle(new EditProductDetails($outside['product'], $product->name()->ar, $product->name()->en, $product->brandId(), descriptionAr: $text, descriptionEn: $text, categoryId: $category)));
+
+        expect(providerPricesUnit($outside['variants'][0]))->toBe(7000);
+    });
+
+    it('still refuses a percentage deeper than the ceiling, wired or not', function () {
+        [$category] = providerPricesSkipped();
+
+        expect(fn () => Fx::asSystem(fn () => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, '40', null, 'BOTH', null, null))))->toThrow(OverCeiling::class);
     });
 });

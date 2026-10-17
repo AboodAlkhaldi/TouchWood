@@ -10,10 +10,14 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Events\CategoryMoved;
 use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Catalog\Public\Events\ProductMadeReady;
+use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Pricing\Application\Prices\CandidateWriter;
+use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
+use Modules\Pricing\Application\PricingSettings;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
+use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Shared\Domain\ValueObject\StoreId;
 use Throwable;
 
@@ -33,6 +37,7 @@ final readonly class RepriceForDiscounts
         private CandidateWriter $writer,
         private PricingChange $change,
         private CatalogApi $catalog,
+        private CeilingCheck $ceiling,
     ) {}
 
     public function productChanged(ProductChanged $event): void
@@ -48,6 +53,38 @@ final readonly class RepriceForDiscounts
     public function categoryMoved(CategoryMoved $event): void
     {
         $this->reprice(fn (): array => array_fill_keys($this->catalog->productIdsInCategory($event->categoryId), true));
+    }
+
+    /**
+     * The ceiling changed in a wired store: its fixed-amount discounts reach or skip sizes again
+     * (sync.md §9.3 #17, #20). Elsewhere the ceiling never decides what a discount reaches.
+     */
+    public function ceilingChanged(SettingChanged $event): void
+    {
+        if ($event->key !== PricingSettings::MAX_DISCOUNT_PERCENT || $event->storeId === null) {
+            return;
+        }
+
+        $store = StoreId::fromString($event->storeId);
+
+        if (! $this->ceiling->skipsPastCeiling($store)) {
+            return;
+        }
+
+        $fixed = array_values(array_filter(
+            $this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()),
+            static fn (CategoryDiscount $discount): bool => $discount->amount !== null,
+        ));
+
+        if ($fixed === []) {
+            return;
+        }
+
+        $this->change->run($store, function () use ($store, $fixed): array {
+            $this->writer->refresh($store, array_keys($this->coverage->pricedSizes($store, $fixed)));
+
+            return [null, []];
+        });
     }
 
     /**
