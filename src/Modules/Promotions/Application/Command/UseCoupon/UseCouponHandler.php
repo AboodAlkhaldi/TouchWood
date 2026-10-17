@@ -6,6 +6,8 @@ namespace Modules\Promotions\Application\Command\UseCoupon;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Promotions\Application\Coupon\CallerCheck;
 use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Coupon\Quotes;
@@ -14,8 +16,11 @@ use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Model\CouponUse;
 use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Uses the quoted coupon as the order is placed (promotions.md §2.1), inside Sales's checkout
@@ -34,6 +39,7 @@ final readonly class UseCouponHandler
         private CallerCheck $caller,
         private Coupons $coupons,
         private Quotes $quotes,
+        private AccessApi $access,
     ) {}
 
     /**
@@ -62,7 +68,7 @@ final readonly class UseCouponHandler
             throw new InvalidPromotionAttribute('amount', 'a quoted discount is more than 0');
         }
 
-        if ($this->usedAlready($this->coupons->useOf($orderId), $couponId, $customerId)) {
+        if ($this->usedAlready($this->coupons->useOf($orderId), $couponId, $customerId, $change->quotedDiscount)) {
             return;
         }
 
@@ -71,11 +77,37 @@ final readonly class UseCouponHandler
             throw CouponRefused::because(CouponRefusal::UnknownCode);
         }
 
+        if ($this->access->customer($customerId) === null) {
+            throw new InvalidPromotionAttribute('customer', 'no such customer');
+        }
+
+        try {
+            $this->place($change, $store, $orderId, $couponId, $customerId, $orderNumber);
+        } catch (UniqueConstraintViolationException $taken) {
+            // Two coupons on one order at once: each locked its own coupon, so only the order's unique
+            // key stops the second. Its savepoint is gone; what the first left answers.
+            $use = $this->coupons->useOf($orderId);
+
+            if ($use === null || $use->couponId === $couponId) {
+                throw $taken;
+            }
+
+            throw CouponRefused::anotherCoupon();
+        }
+    }
+
+    /**
+     * @throws CouponRefused|CouponChanged|InvalidPromotionAttribute|UniqueConstraintViolationException
+     */
+    private function place(UseCoupon $change, StoreId $store, string $orderId, string $couponId, string $customerId, string $orderNumber): void
+    {
+        $request = $change->request;
+
         $this->db->transaction(function () use ($change, $request, $store, $orderId, $couponId, $customerId, $orderNumber): void {
             $coupon = $this->coupons->lock($store, $couponId) ?? throw CouponRefused::because(CouponRefusal::UnknownCode);
 
             // Read again under the coupon's lock: the same order placed twice at once finds the first.
-            if ($this->usedAlready($this->coupons->useOf($orderId, lock: true), $couponId, $customerId)) {
+            if ($this->usedAlready($this->coupons->useOf($orderId, lock: true), $couponId, $customerId, $change->quotedDiscount)) {
                 return;
             }
 
@@ -101,9 +133,11 @@ final readonly class UseCouponHandler
 
     /**
      * Whether this order used this coupon already — then nothing more is done. Another coupon on the
-     * order is refused: one coupon per order (§1.2); another customer's order is the caller's mistake.
+     * order is refused: one coupon per order (§1.2); another customer's order, or the placement replayed
+     * with another discount than the one recorded, is the caller's mistake. Once a staff edit lowered
+     * the use, the placement's own figure is no longer the recorded one, so a replay is not compared.
      */
-    private function usedAlready(?CouponUse $use, string $couponId, string $customerId): bool
+    private function usedAlready(?CouponUse $use, string $couponId, string $customerId, Money $quotedDiscount): bool
     {
         if ($use === null) {
             return false;
@@ -115,6 +149,10 @@ final readonly class UseCouponHandler
 
         if ($use->customerId !== $customerId) {
             throw new InvalidPromotionAttribute('customer', 'the order is another customer\'s');
+        }
+
+        if ($use->lastEditId === null && $use->discountMinor !== $quotedDiscount->minorUnits) {
+            throw new InvalidPromotionAttribute('amount', 'the order used the coupon for another discount');
         }
 
         return true;

@@ -157,6 +157,11 @@ it('refuses what the code would never write', function (Closure $write, string $
     'a use deleted' => [fn (array $r) => DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->delete(), 'a use is kept'],
     'a use emptied' => [fn (array $r) => DB::statement('TRUNCATE promotions.coupon_uses CASCADE'), 'a use is kept'],
     'a discount raised' => [fn (array $r) => DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->update(['discount_minor' => 2_00, 'last_edit_id' => couponTablesUlid()]), 'a use is kept'],
+    'a second lowering under the same edit' => [function (array $r) {
+        $edit = couponTablesUlid();
+        DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->update(['discount_minor' => 80, 'last_edit_id' => $edit]);
+        DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->update(['discount_minor' => 50, 'last_edit_id' => $edit]);
+    }, 'a use is kept'],
     'a discount lowered with no edit' => [fn (array $r) => DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->update(['discount_minor' => 50]), 'a use is kept'],
     'a use moved to another order' => [fn (array $r) => DB::table('promotions.coupon_uses')->where('order_id', $r['order'])->update(['order_id' => couponTablesUlid(), 'last_edit_id' => couponTablesUlid()]), 'a use is kept'],
     // order_facts

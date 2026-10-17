@@ -9,9 +9,15 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Authorization\InvalidPermissionCheck;
 use Modules\Pricing\Public\Dto\LinePriceDto;
+use Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler;
 use Modules\Promotions\Domain\Exception\CouponChanged;
 use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
+use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponUsage;
+use Modules\Promotions\Domain\Model\CouponUse;
+use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CallerPermission;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
@@ -232,6 +238,104 @@ describe('using the coupon as the order is placed', function () {
     });
 });
 
+describe('using the coupon: replays and races', function () {
+    it('refuses the placement replayed with another discount than the one recorded, and takes it after an edit', function () {
+        $customer = Fx::customer();
+        [$a] = Px::ready()['variants'];
+        Pr::coupon();
+        Fx::actAsCustomer($customer);
+        $order = couponWritesPlace($customer, [Pr::line($a, 200_00)]);
+
+        expect(Pr::thrown(fn () => couponWritesPlace($customer, [Pr::line($a, 200_00)], orderId: $order, quoted: Pr::money(29_00)), InvalidPromotionAttribute::class)->attribute)->toBe('amount');
+
+        // Lowered by an edit since: the placement's own figure is no longer the recorded one.
+        Fx::actAsStaff(Fx::staffWith([Pr::EDIT], ['sa']));
+        Pr::api()->updateCouponUse(new UpdateCouponUse($order, Pr::orderId(), Pr::money(20_00), Pr::editing()));
+        Fx::actAsCustomer($customer);
+        couponWritesPlace($customer, [Pr::line($a, 200_00)], orderId: $order);
+
+        expect((int) DB::table('promotions.coupon_uses')->where('order_id', $order)->value('discount_minor'))->toBe(20_00);
+    });
+
+    it('refuses a customer who does not exist before anything is written', function () {
+        $customer = Fx::customer();
+        [$a] = Px::ready()['variants'];
+        $coupon = Pr::coupon();
+        Fx::actAsCustomer($customer);
+        $quote = Pr::api()->applyCoupon(couponWritesRequest($customer, [Pr::line($a, 200_00)]));
+        $nobody = Pr::orderId();
+
+        expect(Pr::thrown(fn () => Pr::api()->useCoupon(new UseCoupon(Pr::orderId(), 'SA-1', $coupon, couponWritesRequest($nobody, [Pr::line($a, 200_00)]), $quote->discount ?? Pr::money(0), false, Pr::placing())), InvalidPromotionAttribute::class)->attribute)->toBe('customer')
+            ->and(couponWritesUses($coupon))->toBe(0);
+    });
+
+    it('answers two coupons on one order at once with "another coupon", the order\'s unique key the backstop', function () {
+        $customer = Fx::customer();
+        [$a] = Px::ready()['variants'];
+        Pr::coupon();
+        $other = Pr::coupon('OTHER-10', with: ['percent' => 10]);
+        Fx::actAsCustomer($customer);
+        $order = couponWritesPlace($customer, [Pr::line($a, 200_00)]);
+        // The second placement read the order before the first wrote it: its two reads find nothing.
+        $real = app(Coupons::class);
+        app()->instance(Coupons::class, new class($real) implements Coupons
+        {
+            private int $reads = 0;
+
+            public function __construct(private readonly Coupons $real) {}
+
+            public function byCode(StoreId $store, string $code): ?Coupon
+            {
+                return $this->real->byCode($store, $code);
+            }
+
+            public function byId(StoreId $store, string $couponId): ?Coupon
+            {
+                return $this->real->byId($store, $couponId);
+            }
+
+            public function lock(StoreId $store, string $couponId): ?Coupon
+            {
+                return $this->real->lock($store, $couponId);
+            }
+
+            public function storeOf(string $couponId): ?StoreId
+            {
+                return $this->real->storeOf($couponId);
+            }
+
+            public function usage(StoreId $store, string $couponId, string $customerId): CouponUsage
+            {
+                return $this->real->usage($store, $couponId, $customerId);
+            }
+
+            public function useOf(string $orderId, bool $lock = false): ?CouponUse
+            {
+                // Its read before the lock and its read under it saw no use; what comes after is real.
+                return ++$this->reads <= 2 ? null : $this->real->useOf($orderId, $lock);
+            }
+
+            public function recordUse(Coupon $coupon, string $customerId, string $orderId, string $orderNumber, int $discountMinor, DateTimeImmutable $at): void
+            {
+                $this->real->recordUse($coupon, $customerId, $orderId, $orderNumber, $discountMinor, $at);
+            }
+
+            public function lowerUse(string $orderId, string $editId, int $discountMinor): void
+            {
+                $this->real->lowerUse($orderId, $editId, $discountMinor);
+            }
+        });
+        app()->forgetInstance(UseCouponHandler::class);
+        app()->forgetInstance(PromotionsApi::class);
+
+        $request = couponWritesRequest($customer, [Pr::line($a, 200_00)], 'OTHER-10');
+
+        expect(Pr::thrown(fn () => app(PromotionsApi::class)->useCoupon(new UseCoupon($order, 'SA-1', $other, $request, Pr::money(20_00), false, Pr::placing())), CouponRefused::class)->context())->toBe(['reason' => 'ANOTHER_COUPON'])
+            ->and(couponWritesUses($other))->toBe(0)
+            ->and(DB::table('promotions.coupon_uses')->count())->toBe(1);
+    });
+});
+
 describe('recording the order', function () {
     it('records the order with the store\'s ceiling of the moment, once', function () {
         $customer = Fx::customer();
@@ -270,8 +374,13 @@ describe('recording the order', function () {
             ->and(fn () => Pr::api()->recordOrder(new RecordOrder(Pr::orderId(), $customer, Fx::storeId('eg'), now()->toImmutable(), Pr::editing())))->toThrow(Unauthorized::class)
             ->and(DB::table('promotions.order_facts')->count())->toBe(0);
 
-        Pr::api()->recordOrder(new RecordOrder(Pr::orderId(), $customer, Fx::storeId('sa'), now()->toImmutable(), Pr::editing()));
+        $order = Pr::orderId();
+        Pr::api()->recordOrder(new RecordOrder($order, $customer, Fx::storeId('sa'), now()->toImmutable(), Pr::editing()));
         expect(DB::table('promotions.order_facts')->count())->toBe(1);
+
+        // The order's recorded store answers first: another store passed in is refused as such, even
+        // by a caller with no permission there.
+        expect(Pr::thrown(fn () => Pr::api()->recordOrder(new RecordOrder($order, $customer, Fx::storeId('eg'), now()->toImmutable(), Pr::editing())), InvalidPromotionAttribute::class)->attribute)->toBe('store');
     });
 
     it('works an edited order\'s room by the ceiling it was placed under, though the store\'s changed since', function () {
@@ -283,7 +392,9 @@ describe('recording the order', function () {
 
         expect(Pr::api()->orderDiscountRoom($order, Pr::money(1_000_00), Pr::money(900_00))->minorUnits)->toBe(200_00)
             ->and(Pr::api()->customerDiscountRoom(StoreId::fromString(Fx::storeId('sa')), Pr::money(1_000_00), Pr::money(900_00))->minorUnits)->toBe(0)
-            ->and(fn () => Pr::api()->orderDiscountRoom(Pr::orderId(), Pr::money(1_000_00), Pr::money(900_00)))->toThrow(InvalidPromotionAttribute::class);
+            ->and(fn () => Pr::api()->orderDiscountRoom(Pr::orderId(), Pr::money(1_000_00), Pr::money(900_00)))->toThrow(InvalidPromotionAttribute::class)
+            ->and(Pr::thrown(fn () => Pr::api()->orderDiscountRoom($order, Pr::money(1_000_00, 'eg'), Pr::money(900_00, 'eg')), InvalidPromotionAttribute::class)->attribute)->toBe('currency')
+            ->and(Pr::thrown(fn () => Pr::api()->orderDiscountRoom($order, Pr::money(1_000_00), Pr::money(900_00, 'eg')), InvalidPromotionAttribute::class)->attribute)->toBe('currency');
     });
 });
 
@@ -326,7 +437,12 @@ describe('after a staff edit', function () {
         Fx::actAsCustomer($customer);
         $order = couponWritesPlace($customer, [Pr::line($a, 200_00)]);
 
-        expect(couponWritesAfterEdit($order, $coupon, [Pr::line($a, 200_00)], 25_00, 30_00)->discount?->minorUnits)->toBe(25_00)
+        // Trimmed shares follow the lines' own: 25 over lines of 150 and 50 is 18.75 and 6.25 — 19 and 6.
+        $uneven = couponWritesAfterEdit($order, $coupon, [Pr::line($a, 150_00), Pr::line($a, 50_00)], 25_00, 30_00);
+
+        expect(array_map(static fn (Money $share): int => $share->minorUnits, $uneven->shares))->toBe([18_75, 6_25])
+            ->and($uneven->discount?->minorUnits)->toBe(25_00)
+            ->and(couponWritesAfterEdit($order, $coupon, [Pr::line($a, 200_00)], 25_00, 30_00)->discount?->minorUnits)->toBe(25_00)
             ->and(couponWritesAfterEdit($order, $coupon, [Pr::line($a, 200_00)], 30_00, 30_00)->discount?->minorUnits)->toBe(30_00)
             ->and(couponWritesAfterEdit($order, $coupon, [Pr::line($a, 200_00)], 0, 30_00)->refusal)->toBe(CouponRefusal::PassesCeiling);
     });
@@ -386,6 +502,11 @@ describe('after a staff edit', function () {
             ->and(Pr::thrown(fn () => Pr::api()->updateCouponUse(new UpdateCouponUse($order, Pr::orderId(), Pr::money(20_01), Pr::editing())), InvalidPromotionAttribute::class)->attribute)->toBe('amount')
             ->and(fn () => Pr::api()->updateCouponUse(new UpdateCouponUse($order, Pr::orderId(), Pr::money(-1), Pr::editing())))->toThrow(InvalidPromotionAttribute::class)
             ->and(Pr::thrown(fn () => Pr::api()->updateCouponUse(new UpdateCouponUse($order, Pr::orderId(), Pr::money(5_00, 'eg'), Pr::editing())), InvalidPromotionAttribute::class)->attribute)->toBe('currency');
+
+        // Only the latest edit is held (§2.1): the first, replayed after a later one, would raise it.
+        $later = Pr::orderId();
+        Pr::api()->updateCouponUse(new UpdateCouponUse($order, $later, Pr::money(15_00), Pr::editing()));
+        expect(Pr::thrown(fn () => Pr::api()->updateCouponUse(new UpdateCouponUse($order, $edit, Pr::money(20_00), Pr::editing())), InvalidPromotionAttribute::class)->attribute)->toBe('amount');
 
         Pr::api()->updateCouponUse(new UpdateCouponUse($order, Pr::orderId(), Pr::money(0), Pr::editing()));
 

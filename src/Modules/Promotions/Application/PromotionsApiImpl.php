@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Application;
 
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderCommand;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler;
 use Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseCommand;
@@ -43,6 +44,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         private UseCouponHandler $use,
         private RecordOrderHandler $record,
         private UpdateCouponUseHandler $update,
+        private PlatformApi $platform,
     ) {}
 
     public function applyCoupon(CouponRequest $request): CouponResult
@@ -83,6 +85,11 @@ final readonly class PromotionsApiImpl implements PromotionsApi
     public function orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money
     {
         $fact = $this->facts->of(Inputs::id($orderId, 'order')) ?? throw new InvalidPromotionAttribute('order', 'no such order recorded');
+        $currency = $this->platform->store(StoreId::fromString($fact->storeId))->currencyCode ?? null;
+
+        if ($grossSubtotal->currencyCode !== $currency || $netSubtotal->currencyCode !== $currency) {
+            throw new InvalidPromotionAttribute('currency', "the subtotals are not in the order's store's currency ({$currency})");
+        }
 
         return DiscountRoom::of($grossSubtotal, $netSubtotal, $fact->ceilingPercent);
     }

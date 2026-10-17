@@ -8,6 +8,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\ParallelTesting;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Promotions\Application\Command\UseCoupon\UseCouponCommand;
 use Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler;
 use Modules\Promotions\Application\Coupon\CallerCheck;
@@ -85,7 +86,7 @@ it('lets one of two orders at once take the last use, and refuses the other', fu
     $second = DB::connection('promotions_race');
     // The second order's own repository, on its own connection.
     $secondCoupons = new DatabaseCoupons($second);
-    $other = new UseCouponHandler($second, app(CallerCheck::class), $secondCoupons, new Quotes($secondCoupons, app(CartLines::class), app(Ceiling::class)));
+    $other = new UseCouponHandler($second, app(CallerCheck::class), $secondCoupons, new Quotes($secondCoupons, app(CartLines::class), app(Ceiling::class)), app(AccessApi::class));
     $secondOrder = $order($omar);
     $second->statement("SET lock_timeout = '500ms'");
 
