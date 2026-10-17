@@ -15,7 +15,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 
 | Step | What | Where |
 |---|---|---|
-| 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 68) and Platform's Marketing menu section (platform.md §9.4) | below |
+| 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 69) and Platform's Marketing menu section (platform.md §9.4) | below |
 
 ## What is here
 

@@ -12,6 +12,7 @@ use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
 use Modules\Pricing\Infrastructure\PricingServiceProvider;
 use Modules\Promotions\Infrastructure\PromotionsServiceProvider;
+use Modules\Sync\Infrastructure\SyncServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -28,6 +29,9 @@ return [
     // After Catalog: Inventory counts Catalog's variants, declares its permissions through Access
     // and its default threshold through Platform (handoff §4.4, inventory.md §2.4).
     InventoryServiceProvider::class,
+    // After Pricing and Inventory: Sync fills their provider contracts, and declares its permissions
+    // through Access (handoff §4.4, sync.md §2.3).
+    SyncServiceProvider::class,
     // After Access too: Loyalty declares its permissions through it, and depends on Platform and
     // Access only (handoff §4.4).
     LoyaltyServiceProvider::class,

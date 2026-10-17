@@ -558,7 +558,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 1. **Bundles / kits** — their own spec after stage 6: what a bundle is (Catalog), its price (Pricing),
    its pieces' stock (Inventory), a line of several items (Sales).
 2. ~~**The `Marketing` permission group and menu section**~~ — **settled**: the owner approved the
-   build plan that adds them (2026-10-17); built with step 1 (access.md amendment 68, platform.md §9.4).
+   build plan that adds them (2026-10-17); built with step 1 (access.md amendment 69, platform.md §9.4).
 3. **Promotions' screens** — coupons, segments, gift levels, the account centre's coupons — the
    frontend session's, to confirm (as for Loyalty).
 4. **Content and segments** — the handoff wants segments for pop-up targeting (§11.2), but Content may
