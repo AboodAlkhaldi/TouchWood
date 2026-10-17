@@ -21,7 +21,17 @@ The module is built in six steps (the execution plan, 2026-10-10). Done:
 | 4a — the settlement rules | Cancellations, returns and staff edits worked out as pure code | below |
 | 4b — settlements on the ledger | Those settlements written, Sales's four calls, four more database rules (answer 19) | below |
 
-Still to come: the reads behind the screens (5), the module's own pass (6).
+| 5 — the reads | A customer's own points; a customer's points for staff, with each change by hand's admin and reason; a store's redemptions | below |
+
+Still to come: the module's own pass (6).
+
+The reads (`Application/Query`, spec §3): `ViewMyPoints` (`loyalty.points.view_own`, the signed-in
+customer's own account only), `ViewCustomerPoints` (`loyalty.points.view` in the store the points
+belong to; a store not covered or no such customer → `PointsAccountNotFound`) and `ListRedemptions`
+(`loyalty.points.view` in that store) — through `PointsViews` and `PointsReader`
+(`Infrastructure/Eloquent/DatabasePointsReader`): live lots only, no ids shown, the history newest
+first and keyset-paged on (`occurred_at`, `id`); a withheld Super Admin is named as the reader may see
+them, with no id. Nothing is written. Tests: `LoyaltyReadsTest`.
 
 ## What is here
 
