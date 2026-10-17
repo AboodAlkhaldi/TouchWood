@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Pricing\Infrastructure\Listener;
 
 use Carbon\CarbonImmutable;
+use Closure;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Events\CategoryMoved;
 use Modules\Catalog\Public\Events\ProductChanged;
@@ -36,29 +37,33 @@ final readonly class RepriceForDiscounts
 
     public function productChanged(ProductChanged $event): void
     {
-        $this->reprice([$event->productId => true]);
+        $this->reprice(static fn (): array => [$event->productId => true]);
     }
 
     public function productMadeReady(ProductMadeReady $event): void
     {
-        $this->reprice([$event->productId => true]);
+        $this->reprice(static fn (): array => [$event->productId => true]);
     }
 
     public function categoryMoved(CategoryMoved $event): void
     {
-        $this->reprice(array_fill_keys($this->catalog->productIdsInCategory($event->categoryId), true));
+        $this->reprice(fn (): array => array_fill_keys($this->catalog->productIdsInCategory($event->categoryId), true));
     }
 
     /**
-     * @param  array<string, true>  $products
+     * @param  Closure(): array<string, true>  $products  read only when a store has a discount: with none,
+     *                                                    Catalog's change costs it nothing
      */
-    private function reprice(array $products): void
+    private function reprice(Closure $products): void
     {
+        $stores = $this->discounts->storesWithDiscounts(CarbonImmutable::now()->toDateTimeImmutable());
+        $products = $stores === [] ? [] : $products();
+
         if ($products === []) {
             return;
         }
 
-        foreach ($this->discounts->storesWithDiscounts(CarbonImmutable::now()->toDateTimeImmutable()) as $storeId) {
+        foreach ($stores as $storeId) {
             $store = StoreId::fromString($storeId);
 
             try {
