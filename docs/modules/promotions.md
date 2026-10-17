@@ -426,7 +426,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 | Error | Status | When |
 |---|---|---|
-| `CouponRefused` | INVALID | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal` — or the order already used another coupon |
+| `CouponRefused` | INVALID | `useCoupon` finds the coupon no longer usable — the same reasons as `CouponRefusal`, in its context's `reason` — or the order already used another coupon (`reason`: `ANOTHER_COUPON`, which no quote gives; built with step 2b) |
 | `CouponChanged` | CONFLICT | `useCoupon` works the discount out again and it is not the one quoted (the coupon was changed meanwhile) — checkout quotes again |
 | `CodeTaken` | CONFLICT | A new coupon's code is another coupon's in the store |
 | `CouponInUse` | CONFLICT | Deleting a coupon already used; removing an assignment already used; lowering `max_uses_total` below the uses made |

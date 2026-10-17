@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Modules\Promotions\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Modules\Promotions\Domain\Model\Coupon;
 use Modules\Promotions\Domain\Model\CouponRule;
 use Modules\Promotions\Domain\Model\CouponUsage;
+use Modules\Promotions\Domain\Model\CouponUse;
 use Modules\Promotions\Domain\Model\RuleKind;
 use Modules\Promotions\Domain\Model\RuleTarget;
 use Modules\Promotions\Domain\Repository\Coupons;
@@ -16,11 +19,12 @@ use Modules\Promotions\Public\Enums\CouponEligibility;
 use Modules\Promotions\Public\Enums\DiscountKind;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
- * `Coupons` in SQL, no Eloquent model (§1.8, as Loyalty and Catalog): a coupon by its code in two
- * queries (its row, its rules), a customer's usage in one.
+ * `Coupons` in SQL, no Eloquent model (§1.8, as Loyalty and Catalog): a coupon in two queries (its
+ * row, its rules), a customer's usage in one, a use by its order in one.
  */
 final readonly class DatabaseCoupons implements Coupons
 {
@@ -30,8 +34,86 @@ final readonly class DatabaseCoupons implements Coupons
 
     public function byCode(StoreId $store, string $code): ?Coupon
     {
-        $row = $this->db->table('promotions.coupons')->where('store_id', $store->value)->where('code', $code)->first();
+        return $this->toCoupon($this->coupons($store)->where('code', $code)->first());
+    }
 
+    public function byId(StoreId $store, string $couponId): ?Coupon
+    {
+        return Ulids::valid($couponId) ? $this->toCoupon($this->coupons($store)->where('id', strtolower($couponId))->first()) : null;
+    }
+
+    public function lock(StoreId $store, string $couponId): ?Coupon
+    {
+        return Ulids::valid($couponId) ? $this->toCoupon($this->coupons($store)->where('id', strtolower($couponId))->lockForUpdate()->first()) : null;
+    }
+
+    public function storeOf(string $couponId): ?StoreId
+    {
+        $store = Ulids::valid($couponId) ? $this->db->table('promotions.coupons')->where('id', strtolower($couponId))->value('store_id') : null;
+
+        return $store === null ? null : StoreId::fromString((string) $store);
+    }
+
+    public function usage(StoreId $store, string $couponId, string $customerId): CouponUsage
+    {
+        $row = $this->db->selectOne(
+            'SELECT'
+            .' (SELECT count(*) FROM promotions.coupon_uses WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS uses,'
+            .' EXISTS (SELECT 1 FROM promotions.coupon_assignments WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS assigned',
+            [$couponId, $store->value, $customerId, $couponId, $store->value, $customerId],
+        );
+
+        return new CouponUsage((int) ($row->uses ?? 0), (bool) ($row->assigned ?? false));
+    }
+
+    public function useOf(string $orderId, bool $lock = false): ?CouponUse
+    {
+        if (! Ulids::valid($orderId)) {
+            return null;
+        }
+
+        $row = $this->db->table('promotions.coupon_uses')->where('order_id', strtolower($orderId))->when($lock, fn (Builder $query) => $query->lockForUpdate())->first();
+
+        return $row instanceof stdClass ? new CouponUse(
+            (string) $row->order_id,
+            (string) $row->coupon_id,
+            (string) $row->store_id,
+            (string) $row->customer_id,
+            (int) $row->discount_minor,
+            $row->last_edit_id === null ? null : (string) $row->last_edit_id,
+        ) : null;
+    }
+
+    public function recordUse(Coupon $coupon, string $customerId, string $orderId, string $orderNumber, int $discountMinor, DateTimeImmutable $at): void
+    {
+        $this->db->table('promotions.coupon_uses')->insert([
+            'coupon_id' => $coupon->id,
+            'store_id' => $coupon->storeId,
+            'customer_id' => $customerId,
+            'order_id' => $orderId,
+            'order_number' => $orderNumber,
+            'discount_minor' => $discountMinor,
+            'used_at' => $at,
+        ]);
+
+        $this->db->table('promotions.coupons')->where('id', $coupon->id)->where('store_id', $coupon->storeId)->update([
+            'uses_total' => $this->db->raw('uses_total + 1'),
+            'updated_at' => $at,
+        ]);
+    }
+
+    public function lowerUse(string $orderId, string $editId, int $discountMinor): void
+    {
+        $this->db->table('promotions.coupon_uses')->where('order_id', $orderId)->update(['discount_minor' => $discountMinor, 'last_edit_id' => $editId]);
+    }
+
+    private function coupons(StoreId $store): Builder
+    {
+        return $this->db->table('promotions.coupons')->where('store_id', $store->value);
+    }
+
+    private function toCoupon(mixed $row): ?Coupon
+    {
         if (! $row instanceof stdClass) {
             return null;
         }
@@ -72,17 +154,5 @@ final readonly class DatabaseCoupons implements Coupons
             (bool) $row->active,
             array_values($rules),
         );
-    }
-
-    public function usage(StoreId $store, string $couponId, string $customerId): CouponUsage
-    {
-        $row = $this->db->selectOne(
-            'SELECT'
-            .' (SELECT count(*) FROM promotions.coupon_uses WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS uses,'
-            .' EXISTS (SELECT 1 FROM promotions.coupon_assignments WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS assigned',
-            [$couponId, $store->value, $customerId, $couponId, $store->value, $customerId],
-        );
-
-        return new CouponUsage((int) ($row->uses ?? 0), (bool) ($row->assigned ?? false));
     }
 }

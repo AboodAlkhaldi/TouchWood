@@ -38,6 +38,18 @@ final class Inputs
         return strtolower($id);
     }
 
+    /** An order's public number, the one its customer reads: 1 to 40 characters (§5). */
+    public static function orderNumber(string $number): string
+    {
+        $length = mb_strlen($number);
+
+        if ($length < 1 || $length > 40) {
+            throw new InvalidPromotionAttribute('order_number', 'must be 1 to 40 characters');
+        }
+
+        return $number;
+    }
+
     /**
      * The code as a coupon stores it (§1.1): read without regard to case, Arabic digits as 0-9 (the
      * system's rule since 2026-10-06), spaces around it ignored. Null when it cannot be any coupon's.

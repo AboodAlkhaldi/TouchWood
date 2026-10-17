@@ -9,11 +9,13 @@ use Modules\Promotions\Domain\Exception\CodeTaken;
 use Modules\Promotions\Domain\Exception\CouponChanged;
 use Modules\Promotions\Domain\Exception\CouponInUse;
 use Modules\Promotions\Domain\Exception\CouponNotFound;
+use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\GiftLevelClash;
 use Modules\Promotions\Domain\Exception\GiftLevelNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\PromotionsError;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
+use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Domain\Error\ErrorCategory;
 
 /*
@@ -30,6 +32,7 @@ use Shared\Domain\Error\ErrorCategory;
 function promotionsErrors(): array
 {
     return [
+        'coupon refused' => [CouponRefused::because(CouponRefusal::Ended), 'promotions.coupon_refused', ErrorCategory::Invalid],
         'coupon changed' => [new CouponChanged, 'promotions.coupon_changed', ErrorCategory::Conflict],
         'code taken' => [new CodeTaken('SUMMER10'), 'promotions.code_taken', ErrorCategory::Conflict],
         'coupon in use' => [new CouponInUse, 'promotions.coupon_in_use', ErrorCategory::Conflict],
@@ -70,7 +73,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(promotionsErrors()));
     sort($listed);
 
-    expect(promotionsErrorClassesInFolder())->toHaveCount(8)
+    expect(promotionsErrorClassesInFolder())->toHaveCount(9)
         ->and(promotionsErrorClassesInFolder())->toBe($listed);
 });
 
@@ -115,7 +118,13 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission', 'customer', 'currency', 'line']);
+})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission', 'customer', 'currency', 'line', 'order', 'order_number', 'coupon', 'edit']);
+
+it('carries the refusal\'s reason for the caller, which reads errors by their type', function () {
+    expect(CouponRefused::because(CouponRefusal::UsedUp)->context())->toBe(['reason' => 'USED_UP'])
+        ->and(CouponRefused::anotherCoupon()->context())->toBe(['reason' => 'ANOTHER_COUPON'])
+        ->and(CouponRefused::anotherCoupon()->reason)->toBeNull();
+});
 
 it('names the dates as one range, so the sentence reads right', function () {
     App::setLocale('en');
