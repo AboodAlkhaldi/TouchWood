@@ -46,6 +46,9 @@ enum PermissionGroup: string
     /** Loyalty's jobs: the store's points and its programme (loyalty.md §3, access.md amendment 66). */
     case Points = 'points';
 
+    /** Sync's jobs: the report of a store's reads from its provider (sync.md §3, access.md amendment 68). */
+    case Sync = 'sync';
+
     public function labelKey(): string
     {
         return "access::permission_groups.{$this->value}";
