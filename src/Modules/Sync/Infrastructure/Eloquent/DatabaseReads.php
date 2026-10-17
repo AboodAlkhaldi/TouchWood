@@ -156,13 +156,13 @@ final readonly class DatabaseReads implements Reads
         ]) === 1;
     }
 
-    public function fail(string $readId, string $why): void
+    public function fail(string $readId, string $why): bool
     {
-        $this->db->table(self::TABLE)->where('id', $readId)->whereIn('state', ['QUEUED', 'RUNNING'])->update([
+        return $this->db->table(self::TABLE)->where('id', $readId)->whereIn('state', ['QUEUED', 'RUNNING'])->update([
             'state' => 'FAILED',
             'error' => mb_substr($why, 0, 1000),
             'finished_at' => CarbonImmutable::now(),
-        ]);
+        ]) > 0;
     }
 
     public function startNext(StoreId $store): void

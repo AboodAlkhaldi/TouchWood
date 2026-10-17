@@ -17,8 +17,10 @@ use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Domain\Repository\Reads;
+use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
+use Modules\Sync\Domain\ValueObject\ReportKind;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -123,6 +125,40 @@ it('tells of a read that failed - once, however often it fails again - and of on
     syncAttentionFail();
 
     Event::assertDispatchedTimes(SyncNeedsAttention::class, 2);
+});
+
+it('tells again of another sale stopped, or another discount skipped, on a size already told of - never of the same one seen again', function () {
+    $entries = app(ReportEntries::class);
+    $store = StoreId::fromString(Fx::storeId('sa'));
+    $size = strtolower((string) Str::ulid());
+    [$first, $second] = [strtolower((string) Str::ulid()), strtolower((string) Str::ulid())];
+    $sale = static fn (string $sale, string $outcome): array => [['code' => null, 'variantId' => $size, 'saleId' => $sale, 'detail' => ['outcome' => $outcome]]];
+    $discount = static fn (string $discount): array => [['code' => null, 'variantId' => $size, 'saleId' => null, 'detail' => ['discount' => $discount]]];
+    $told = static fn (): array => $entries->announce($store, [ReportKind::SaleStopped, ReportKind::DiscountSkipped, ReportKind::ReadFailed]);
+
+    $entries->open($store, ReportKind::SaleStopped, $sale($first, 'left'));
+    $entries->open($store, ReportKind::DiscountSkipped, $discount($first));
+    $once = $told();
+    $entries->open($store, ReportKind::SaleStopped, $sale($first, 'ended'));
+    $entries->open($store, ReportKind::DiscountSkipped, $discount($first));
+    $same = $told();
+    $entries->open($store, ReportKind::SaleStopped, $sale($second, 'left'));
+    $entries->open($store, ReportKind::DiscountSkipped, $discount($second));
+
+    expect($once)->toBe(['DISCOUNT_SKIPPED' => 1, 'SALE_STOPPED' => 1])
+        ->and($same)->toBe([])
+        ->and($told())->toBe(['DISCOUNT_SKIPPED' => 1, 'SALE_STOPPED' => 1]);
+});
+
+it('never reports a read failed already - superseded or stopped - as the store failing', function () {
+    $read = syncAttentionWaiting();
+    DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'Superseded: a read of the same kind waits.', 'finished_at' => now()]);
+
+    Fx::asSystem(fn () => app(RunReadHandler::class)->failed($read, 'Timed out'));
+
+    Event::assertNotDispatched(SyncNeedsAttention::class);
+    expect(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->count())->toBe(0)
+        ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Superseded: a read of the same kind waits.');
 });
 
 it('is a topic staff choose, in the panel by default (access.md amendment 71)', function () {

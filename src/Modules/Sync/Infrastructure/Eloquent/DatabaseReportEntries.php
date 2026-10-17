@@ -54,7 +54,9 @@ final readonly class DatabaseReportEntries implements ReportEntries
             $this->db->statement(
                 'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
                 ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
-                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id',
+                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id,'
+                // Another sale stopped, or another discount skipped, on the size: told again (§9.3 #18).
+                ." announced_at = CASE WHEN sync.report_entries.sale_id IS DISTINCT FROM EXCLUDED.sale_id OR sync.report_entries.detail->'discount' IS DISTINCT FROM EXCLUDED.detail->'discount' THEN NULL ELSE sync.report_entries.announced_at END",
                 $bindings,
             );
         }

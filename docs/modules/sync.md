@@ -250,7 +250,7 @@ written so a NULL cannot slip through.
 
 | Published | When | For |
 |---|---|---|
-| `SyncNeedsAttention` (`eventId`, `storeId`, `readId`, `opened` - a count by kind, `occurredAt`) | A read ends - done, or failed after its retries - having opened entries of `SALE_STOPPED`, `DISCOUNT_SKIPPED` or `READ_FAILED` not yet told of; each entry told once (`announced_at`), one event a read, after the change commits | Ops: the store's holders of View the Sync Report who chose Sync problems (access.md amendment 71; §9.3 #18) |
+| `SyncNeedsAttention` (`eventId`, `storeId`, `readId`, `opened` - a count by kind, `occurredAt`) | A read ends - done, or failed after its retries - and the store has open entries of `SALE_STOPPED`, `DISCOUNT_SKIPPED` or `READ_FAILED` not yet told of, whichever read opened them; each entry told once (`announced_at`) - another sale stopped, or discount skipped, on the same size told again - one event a read, after the change commits | Ops: the store's holders of View the Sync Report who chose Sync problems (access.md amendment 71; §9.3 #18) |
 
 Pricing and Inventory tell Catalog of every change themselves.
 

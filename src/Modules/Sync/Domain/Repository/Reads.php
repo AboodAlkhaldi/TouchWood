@@ -58,8 +58,8 @@ interface Reads
     /** Done, with its counts - false when it was no longer running (unwired, or taken over). */
     public function finish(string $readId, int $pricesChanged, int $stockChanged, int $skipped): bool;
 
-    /** Failed, saying why - if it was not finished already. */
-    public function fail(string $readId, string $why): void;
+    /** Failed, saying why - if it was not finished already; false when it was. */
+    public function fail(string $readId, string $why): bool;
 
     /** The store's oldest waiting read, if any, its job queued again: the next one's turn. */
     public function startNext(StoreId $store): void;

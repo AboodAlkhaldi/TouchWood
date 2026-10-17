@@ -15,8 +15,8 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
 | 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page's read (its screen comes with stage 5's screens) - `sync.connection.manage` | built (#151) |
 | 4a | The read engine: `ReadStoreJob` and `RunRead` - one read per store at a time, batched through Pricing and Inventory, the report opened and closed, retries then failing - `sync.read.scheduled`; Catalog's amendment 21 (`variantsByCodes`) | built (#153) |
-| 4b | The triggers: the provider's notice (`POST /sync/notify/{store id}`, signed, 5 minutes, 60 a minute, 1-1,000 codes, 202), the hourly read and the nightly one at 02:00 Riyadh time for every wired store (`QueueHourlyReadsJob`, `QueueNightlyReadsJob`, each on one server under a lock of its own), a corrected code read again in every wired store (`ReadCorrectedCode`) | **this step** |
-| 5a | What staff read and do (§1.6, §9.3 #19): `ViewSyncReport` and `CountSyncReport` (`sync.report.view`), `ListSyncReads` and `ViewSyncRead` - each read's lines, before and after, from Pricing's and Inventory's results; `SyncNow`, `RetryEntry`, `DismissEntry` (`sync.read.run`); `PruneSyncLog`, nightly at 03:00 Riyadh (`sync.log.prune`, 90 days) | **this step** |
+| 4b | The triggers: the provider's notice (`POST /sync/notify/{store id}`, signed, 5 minutes, 60 a minute, 1-1,000 codes, 202), the hourly read and the nightly one at 02:00 Riyadh time for every wired store (`QueueHourlyReadsJob`, `QueueNightlyReadsJob`, each on one server under a lock of its own), a corrected code read again in every wired store (`ReadCorrectedCode`) | built (#154) |
+| 5a | What staff read and do (§1.6, §9.3 #19): `ViewSyncReport` and `CountSyncReport` (`sync.report.view`), `ListSyncReads` and `ViewSyncRead` - each read's lines, before and after, from Pricing's and Inventory's results; `SyncNow`, `RetryEntry`, `DismissEntry` (`sync.read.run`); `PruneSyncLog`, nightly at 03:00 Riyadh (`sync.log.prune`, 90 days) | built (#155) |
 | 5b | The notifications (§9.3 #18): Access's `SYNC_PROBLEMS` topic and Sync's `SyncNeedsAttention` event; Ops sends them | **this step** |
 | 6 | The module's own pass | — |
 
@@ -113,8 +113,11 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 - **What staff are told of** (step 5b, §9.3 #18): when a read ends - done, or failed after its
   retries - the store's open `SALE_STOPPED`, `DISCOUNT_SKIPPED` and `READ_FAILED` entries not yet told
   of are marked (`announced_at`) and one `SyncNeedsAttention` carries their counts by kind, after the
-  change commits. Each entry is told once, however many reads see it, and however often a read is
-  tried; the entries open before the step were marked by its migration. Ops sends it to the store's
+  change commits - whichever read opened them, so one a read stopped or taken over is told when the
+  next ends. Each entry is told once, however many reads see it, and however often a read is tried;
+  another sale stopped, or discount skipped, on the same size is told again; a read failed already
+  (superseded) is not reported again. The entries open before the step were marked by its migration.
+  Marked before it is sent: Ops's listener must be queued, so a send that fails is retried, not lost. Ops sends it to the store's
   holders of `sync.report.view` who chose Access's `SYNC_PROBLEMS` topic (access.md amendment 71).
 - **Not yet**: the menu entries and the screens come with stage 5's screens; the sending with Ops.
 - **Known limit**: every lookup decrypts the key and the secret; if the app's key were lost without

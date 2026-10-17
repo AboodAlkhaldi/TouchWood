@@ -123,8 +123,12 @@ final readonly class RunReadHandler
         }
 
         $store = StoreId::fromString($storeId);
-        $this->reads->fail($readId, $why);
-        $this->report($store, $readId, $why);
+
+        // Failed already (superseded, or stopped): its failure is not the store's to report again.
+        if ($this->reads->fail($readId, $why)) {
+            $this->report($store, $readId, $why);
+        }
+
         $this->reads->startNext($store);
     }
 
