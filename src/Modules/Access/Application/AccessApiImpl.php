@@ -50,6 +50,10 @@ final readonly class AccessApiImpl implements AccessApi
 
     public function customers(array $customerIds): array
     {
+        if (count($customerIds) > 1000) {
+            throw new InvalidArgumentException('At most 1000 customers a read, not '.count($customerIds).'.');
+        }
+
         $found = [];
 
         foreach ($this->customers->findMany($customerIds) as $customer) {

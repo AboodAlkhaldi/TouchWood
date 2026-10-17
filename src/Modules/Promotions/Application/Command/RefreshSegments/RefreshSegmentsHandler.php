@@ -49,18 +49,20 @@ final readonly class RefreshSegmentsHandler
 
             foreach ($page as $segment) {
                 try {
-                    $this->db->transaction(function () use ($segment): void {
+                    // Deleted since the page was read: nothing to refresh, and not counted.
+                    $refreshed += $this->db->transaction(function () use ($segment): int {
                         $locked = $this->segments->lock(StoreId::fromString($segment->storeId), $segment->id);
 
                         if ($locked === null) {
-                            return;
+                            return 0;
                         }
 
                         $now = CarbonImmutable::now();
                         $this->segments->replaceMembers($locked, $this->membership->of($locked, $now), $now);
                         $this->segments->markRefreshed($locked, $now);
+
+                        return 1;
                     });
-                    $refreshed++;
                 } catch (Throwable $error) {
                     $this->log->warning('promotions: a segment could not be refreshed', ['segment' => $segment->id, 'store' => $segment->storeId, 'error' => $error->getMessage()]);
                 }

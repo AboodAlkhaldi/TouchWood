@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Promotions\Application\Command\ChangeSegment\ChangeSegment;
@@ -21,10 +22,16 @@ use Modules\Promotions\Application\Command\RefreshSegments\RefreshSegmentsHandle
 use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
 use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
 use Modules\Promotions\Application\PromotionsPermissions;
+use Modules\Promotions\Application\Segment\SegmentMembership;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
+use Modules\Promotions\Domain\Model\Segment;
+use Modules\Promotions\Domain\Model\SegmentTerms;
+use Modules\Promotions\Domain\Repository\OrderFacts;
+use Modules\Promotions\Domain\Repository\Segments;
 use Modules\Promotions\Infrastructure\Queue\RefreshSegmentsJob;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
@@ -130,6 +137,55 @@ describe('the rules', function () {
         expect(segmentMembers(segmentCreate(rule: 'AT_LEAST_ORDERS', months: 6, orders: 6)))->toBe([$monthly]);
     });
 
+    it('keeps the order-based rules to the audience and away from the anonymized', function (string $rule, ?int $months, ?int $orders) {
+        $person = Fx::customer('person@example.test');
+        $firm = Fx::customer('firm@example.test', 'sa', 'company');
+        $gone = Fx::customer('gone@example.test');
+
+        foreach ([$person, $firm, $gone] as $customer) {
+            Pr::ordered($customer, CarbonImmutable::now()->subMonths(8));
+        }
+
+        DB::table('access.customers')->where('id', $gone)->update(['anonymized_at' => now()]);
+        segmentManager();
+
+        expect(segmentMembers(segmentCreate(rule: $rule, months: $months, orders: $orders)))->toBe([$person])
+            ->and(segmentMembers(segmentCreate(audience: 'COMPANY', rule: $rule, months: $months, orders: $orders)))->toBe([$firm]);
+    })->with([
+        'no order for 6 months' => ['NO_ORDER_FOR', 6, null],
+        'at least 1 order in 12 months' => ['AT_LEAST_ORDERS', 12, 1],
+    ]);
+
+    it('takes the month edge as written: "more than M months old" leaves out an order exactly M months ago; "in the last M months" counts it', function () {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-18 12:00:00'));
+        $edge = Fx::customer('edge@example.test');
+        Pr::ordered($edge, CarbonImmutable::parse('2026-04-18 12:00:00'));
+        segmentManager();
+
+        expect(segmentMembers(segmentCreate(rule: 'NO_ORDER_FOR', months: 6)))->toBe([])
+            ->and(segmentMembers(segmentCreate(rule: 'AT_LEAST_ORDERS', months: 6, orders: 1)))->toBe([$edge]);
+
+        CarbonImmutable::setTestNow();
+    });
+
+    it('reads every page: with pages of two, five customers each rule', function () {
+        app()->instance(SegmentMembership::class, new SegmentMembership(app(AccessApi::class), app(OrderFacts::class), app(Segments::class), page: 2));
+        $never = [];
+        $lapsed = [];
+
+        foreach (range(1, 5) as $n) {
+            $never[] = Fx::customer("never{$n}@example.test");
+            $lapsed[] = $customer = Fx::customer("lapsed{$n}@example.test");
+            Pr::ordered($customer, CarbonImmutable::now()->subMonths(8));
+        }
+
+        segmentManager();
+
+        expect(segmentMembers(segmentCreate()))->toBe(sortedIds($never))
+            ->and(segmentMembers(segmentCreate(rule: 'NO_ORDER_FOR', months: 6)))->toBe(sortedIds($lapsed))
+            ->and(segmentMembers(segmentCreate(rule: 'AT_LEAST_ORDERS', months: 12, orders: 1)))->toBe(sortedIds($lapsed));
+    });
+
     it('holds a companies segment\'s companies only', function () {
         $firm = Fx::customer('firm@example.test', 'sa', 'company');
         Fx::customer('person@example.test');
@@ -155,6 +211,13 @@ describe('picking by hand', function () {
 
         app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$omar]));
         expect(segmentMembers($segment))->toBe([$omar]);
+
+        // One swapped for another is audited too: who came and went, not only how many.
+        app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$sara]));
+        $last = DB::table('platform.audit_entries')->where('action', 'promotions.segment.members_set')->orderByDesc('id')->first();
+
+        expect(DB::table('platform.audit_entries')->where('action', 'promotions.segment.members_set')->count())->toBe(3)
+            ->and(json_decode((string) $last?->changes, true))->toBe(['added' => [null, 1], 'removed' => [null, 1]]);
     });
 
     it('refuses a customer who may not be in the segment, and changes nothing', function (Closure $who) {
@@ -261,6 +324,8 @@ describe('creating, changing, deleting, refreshing', function () {
         $segment = segmentCreate();
         $addedAt = DB::table('promotions.segment_members')->where('segment_id', $segment)->value('added_at');
         $second = Fx::customer('second@example.test');
+        // An hour on (the column keeps whole seconds): a staying member re-added would show.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         expect(Fx::asSystem(fn (): int => app(RefreshSegmentsHandler::class)->handle(new RefreshSegments)))->toBe(1);
         $nightly = segmentMembers($segment);
@@ -272,6 +337,76 @@ describe('creating, changing, deleting, refreshing', function () {
             ->and(segmentMembers($segment))->toBe($nightly)
             ->and(DB::table('promotions.segment_members')->where('segment_id', $segment)->where('customer_id', $first)->value('added_at'))->toBe($addedAt)
             ->and(DB::table('promotions.segments')->where('id', $segment)->value('refreshed_at'))->not->toBeNull();
+        CarbonImmutable::setTestNow();
+    });
+
+    it('goes on past a segment that fails at night, refreshing the rest', function () {
+        $sara = Fx::customer('sara@example.test');
+        segmentManager();
+        $failing = segmentCreate();
+        $fine = segmentCreate();
+        DB::table('promotions.segment_members')->delete();
+        $real = app(Segments::class);
+        app()->instance(Segments::class, new class($real, $failing) implements Segments
+        {
+            public function __construct(private readonly Segments $real, private readonly string $failing) {}
+
+            public function storeOf(string $segmentId): ?StoreId
+            {
+                return $this->real->storeOf($segmentId);
+            }
+
+            public function byId(StoreId $store, string $segmentId): ?Segment
+            {
+                return $this->real->byId($store, $segmentId);
+            }
+
+            public function lock(StoreId $store, string $segmentId): ?Segment
+            {
+                return $this->real->lock($store, $segmentId);
+            }
+
+            public function create(string $segmentId, StoreId $store, SegmentTerms $terms, DateTimeImmutable $at): void
+            {
+                $this->real->create($segmentId, $store, $terms, $at);
+            }
+
+            public function change(Segment $segment, SegmentTerms $terms, DateTimeImmutable $at): void
+            {
+                $this->real->change($segment, $terms, $at);
+            }
+
+            public function delete(Segment $segment): void
+            {
+                $this->real->delete($segment);
+            }
+
+            public function memberIds(string $segmentId): array
+            {
+                return $this->real->memberIds($segmentId);
+            }
+
+            public function replaceMembers(Segment $segment, array $customerIds, DateTimeImmutable $at): array
+            {
+                return $segment->id === $this->failing ? throw new RuntimeException('Broken on purpose.') : $this->real->replaceMembers($segment, $customerIds, $at);
+            }
+
+            public function markRefreshed(Segment $segment, DateTimeImmutable $at): void
+            {
+                $this->real->markRefreshed($segment, $at);
+            }
+
+            public function pageAcrossStores(?string $afterId, int $limit): array
+            {
+                return $this->real->pageAcrossStores($afterId, $limit);
+            }
+        });
+        app()->forgetInstance(RefreshSegmentsHandler::class);
+        app()->forgetInstance(SegmentMembership::class);
+
+        expect(Fx::asSystem(fn (): int => app(RefreshSegmentsHandler::class)->handle(new RefreshSegments)))->toBe(1)
+            ->and(segmentMembers($fine))->toBe([$sara])
+            ->and(segmentMembers($failing))->toBe([]);
     });
 
     it('runs the nightly refresh as a queued job of the system, refused to anyone else', function () {

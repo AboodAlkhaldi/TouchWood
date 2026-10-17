@@ -28,6 +28,13 @@ final class RefreshSegmentsJob implements ShouldBeUnique, ShouldQueue
      */
     public int $tries = 1;
 
+    /**
+     * Every store's segments, thousands of customers each, take minutes — never the worker's default
+     * 60 seconds, after which the later segments would never be refreshed (step 4a's review). The
+     * queue's `retry_after` must stay above it where this runs (config/queue.php).
+     */
+    public int $timeout = 3600;
+
     public int $uniqueFor = 3600;
 
     public function handle(RefreshSegmentsHandler $handler): void

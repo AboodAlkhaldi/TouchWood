@@ -72,10 +72,14 @@ return new class extends Migration
                 ADD CONSTRAINT coupon_assignments_segment FOREIGN KEY (segment_id, store_id)
                     REFERENCES promotions.segments (id, store_id) ON DELETE SET NULL (segment_id)
             SQL);
+
+        // A segment's delete finds its assignments by this, rather than reading them all.
+        DB::statement('CREATE INDEX coupon_assignments_by_segment ON promotions.coupon_assignments (segment_id)');
     }
 
     public function down(): void
     {
+        DB::statement('DROP INDEX IF EXISTS promotions.coupon_assignments_by_segment');
         DB::statement('ALTER TABLE promotions.coupon_assignments DROP CONSTRAINT IF EXISTS coupon_assignments_segment');
         Schema::dropIfExists('promotions.segment_members');
         Schema::dropIfExists('promotions.segments');

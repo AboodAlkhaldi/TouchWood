@@ -41,7 +41,8 @@ it('reads many customers keyed by id, as one would be read, leaving out ids that
         ->and($found[$sara])->toBeInstanceOf(CustomerDto::class)
         ->and($found[$sara])->toEqual(bulkAccess()->customer($sara))
         ->and($found[$omar]->accountType)->toBe(AccountType::Company)
-        ->and(bulkAccess()->customers([]))->toBe([]);
+        ->and(bulkAccess()->customers([]))->toBe([])
+        ->and(fn () => bulkAccess()->customers(array_fill(0, 1001, $sara)))->toThrow(InvalidArgumentException::class);
 });
 
 it('pages the customers registered in a store by type, leaving out other stores, other types and the anonymized', function () {

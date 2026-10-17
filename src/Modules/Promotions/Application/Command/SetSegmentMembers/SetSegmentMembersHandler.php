@@ -59,9 +59,15 @@ final readonly class SetSegmentMembersHandler
 
             $before = count($this->segments->memberIds($segment->id));
             $members = $this->membership->picked($segment, $customerIds);
-            $this->segments->replaceMembers($segment, $members, CarbonImmutable::now());
+            $changed = $this->segments->replaceMembers($segment, $members, CarbonImmutable::now());
 
-            return [null, array_filter([CouponAudit::entry('members_set', $segment->id, $storeId->value, ['members' => $before], ['members' => count($members)], 'segment')])];
+            // Who came and went, not only how many: one member swapped for another is still a change.
+            return [null, $changed['added'] + $changed['removed'] === 0 ? [] : array_filter([CouponAudit::entry(
+                'members_set', $segment->id, $storeId->value,
+                ['members' => $before],
+                ['members' => count($members), 'added' => $changed['added'], 'removed' => $changed['removed']],
+                'segment',
+            )])];
         });
     }
 }

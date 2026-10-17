@@ -43,10 +43,15 @@ final readonly class RefreshSegmentHandler
             $now = CarbonImmutable::now();
             $before = count($this->segments->memberIds($segment->id));
             $members = $this->membership->of($segment, $now);
-            $this->segments->replaceMembers($segment, $members, $now);
+            $changed = $this->segments->replaceMembers($segment, $members, $now);
             $this->segments->markRefreshed($segment, $now);
 
-            return [null, array_filter([CouponAudit::entry('refreshed', $segment->id, $storeId->value, ['members' => $before], ['members' => count($members)], 'segment')])];
+            return [null, $changed['added'] + $changed['removed'] === 0 ? [] : array_filter([CouponAudit::entry(
+                'refreshed', $segment->id, $storeId->value,
+                ['members' => $before],
+                ['members' => count($members), 'added' => $changed['added'], 'removed' => $changed['removed']],
+                'segment',
+            )])];
         });
     }
 }

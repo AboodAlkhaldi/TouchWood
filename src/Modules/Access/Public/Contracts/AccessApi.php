@@ -27,8 +27,9 @@ interface AccessApi
 
     /**
      * For Promotions' segments (amendment 70; promotions.md §1.5): **many customers in one read**,
-     * keyed by id, an unknown id left out — so a refresh of thousands never asks one at a time
-     * (handoff §5.4). The caller decides what of them a person may see.
+     * keyed by id, an unknown id left out, at most 1000 ids a read — so a refresh of thousands never
+     * asks one at a time (handoff §5.4). The caller decides what of them a person may see: Promotions
+     * shows a member's **name only** to a store's staff (amendment 70).
      *
      * @param  list<string>  $customerIds
      * @return array<string, CustomerDto>

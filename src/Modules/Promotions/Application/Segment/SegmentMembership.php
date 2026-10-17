@@ -26,12 +26,15 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class SegmentMembership
 {
-    private const int PAGE = 1000;
-
+    /**
+     * @param  positive-int  $page
+     */
     public function __construct(
         private AccessApi $access,
         private OrderFacts $facts,
         private Segments $segments,
+        /** How many customers a page or a batch reads: a thousand; smaller only in a test that crosses pages. */
+        private int $page = 1000,
     ) {}
 
     /**
@@ -50,8 +53,8 @@ final readonly class SegmentMembership
 
         return match ($segment->rule) {
             SegmentRule::NoOrdersEver => $this->neverOrdered($segment),
-            SegmentRule::NoOrderFor => $this->paged(fn (?string $after): array => $this->facts->lastOrderBefore($segment->storeId, $since, $after, self::PAGE), $segment),
-            SegmentRule::AtLeastOrders => $this->paged(fn (?string $after): array => $this->facts->atLeastOrdersSince($segment->storeId, $since, (int) $segment->ruleOrders, $after, self::PAGE), $segment),
+            SegmentRule::NoOrderFor => $this->paged(fn (?string $after): array => $this->facts->lastOrderBefore($segment->storeId, $since, $after, $this->page), $segment),
+            SegmentRule::AtLeastOrders => $this->paged(fn (?string $after): array => $this->facts->atLeastOrdersSince($segment->storeId, $since, (int) $segment->ruleOrders, $after, $this->page), $segment),
             null => [],
         };
     }
@@ -72,7 +75,7 @@ final readonly class SegmentMembership
         $type = AccountType::from($segment->audience->value);
         $kept = [];
 
-        foreach (array_chunk($customerIds, self::PAGE) as $chunk) {
+        foreach (array_chunk($customerIds, $this->page) as $chunk) {
             $found = $this->access->customers($chunk);
             $ordered = array_flip($this->facts->whoOrdered($segment->storeId, $chunk));
 
@@ -105,7 +108,7 @@ final readonly class SegmentMembership
         $after = null;
 
         do {
-            $page = $this->access->customerIdsInStore($store, $type, $after, self::PAGE);
+            $page = $this->access->customerIdsInStore($store, $type, $after, $this->page);
             $ordered = array_flip($this->facts->whoOrdered($segment->storeId, $page));
 
             foreach ($page as $customerId) {
@@ -115,7 +118,7 @@ final readonly class SegmentMembership
             }
 
             $after = $page === [] ? null : $page[array_key_last($page)];
-        } while (count($page) === self::PAGE);
+        } while (count($page) === $this->page);
 
         return $members;
     }
@@ -135,7 +138,7 @@ final readonly class SegmentMembership
             $ids = $page($after);
             array_push($members, ...$this->live($segment, $ids));
             $after = $ids === [] ? null : $ids[array_key_last($ids)];
-        } while (count($ids) === self::PAGE);
+        } while (count($ids) === $this->page);
 
         return $members;
     }
@@ -151,7 +154,7 @@ final readonly class SegmentMembership
         $type = AccountType::from($segment->audience->value);
         $live = [];
 
-        foreach (array_chunk($customerIds, self::PAGE) as $chunk) {
+        foreach (array_chunk($customerIds, $this->page) as $chunk) {
             foreach ($this->access->customers($chunk) as $customer) {
                 if (! $customer->anonymized && $customer->accountType === $type) {
                     $live[] = $customer->id;
