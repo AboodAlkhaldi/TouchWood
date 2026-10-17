@@ -33,6 +33,12 @@ interface ApiReads
     public function variants(array $variantIds): array;
 
     /**
+     * @param  list<string>  $codes  valid codes
+     * @return array<string, string> code => the id of the variant carrying it
+     */
+    public function variantIdsByCodes(array $codes): array;
+
+    /**
      * @param  list<string>  $productIds
      * @return array<string, ProductDto> keyed by id
      */

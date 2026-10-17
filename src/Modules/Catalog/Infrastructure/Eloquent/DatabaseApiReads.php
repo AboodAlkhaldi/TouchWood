@@ -49,6 +49,20 @@ final readonly class DatabaseApiReads implements ApiReads
             ->all()));
     }
 
+    public function variantIdsByCodes(array $codes): array
+    {
+        $ids = [];
+
+        // Under PostgreSQL's bind-parameter limit, however many codes a read names.
+        foreach (array_chunk(array_values(array_unique($codes)), 1000) as $chunk) {
+            foreach ($this->db->table('catalog.variants')->whereIn('code', $chunk)->get(['id', 'code']) as $row) {
+                $ids[(string) $row->code] = (string) $row->id;
+            }
+        }
+
+        return $ids;
+    }
+
     public function variants(array $variantIds): array
     {
         $ids = self::ids($variantIds);

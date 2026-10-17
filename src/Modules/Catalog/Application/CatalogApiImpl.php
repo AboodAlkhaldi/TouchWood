@@ -49,6 +49,36 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $variant === null ? null : $this->variant($variant->id());
     }
 
+    public function variantsByCodes(array $codes): array
+    {
+        $valid = [];
+
+        foreach ($codes as $code) {
+            try {
+                $valid[] = ProductCode::of($code)->value;
+            } catch (InvalidCatalogAttribute) {
+                // Not a code: no variant carries it.
+            }
+        }
+
+        $ids = $this->reads->variantIdsByCodes($valid);
+        $variants = [];
+
+        foreach (array_chunk(array_values($ids), 1000) as $chunk) {
+            $variants += $this->reads->variants($chunk);
+        }
+
+        $byCode = [];
+
+        foreach ($ids as $code => $id) {
+            if (isset($variants[$id])) {
+                $byCode[(string) $code] = $variants[$id];
+            }
+        }
+
+        return $byCode;
+    }
+
     public function variantIdsOf(string $productId, bool $includeArchived = false): array
     {
         return $this->reads->variantIdsOf($productId, $includeArchived);
