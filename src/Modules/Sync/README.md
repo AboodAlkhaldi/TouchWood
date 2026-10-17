@@ -11,10 +11,10 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 
 | Step | What | State |
 |---|---|---|
-| 1 | Foundation: the `sync` schema and its three tables, the permissions and the role editor's Sync group, the errors and their words | **this step** |
-| 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply` and `unwired` | next |
-| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire - `sync.connection.manage` | — |
-| 4 | Reads: one per store at a time, the provider's notices, the hourly and nightly reads, one code - `sync.read.scheduled` | — |
+| 1 | Foundation: the `sync` schema and its three tables, the permissions and the role editor's Sync group, the errors and their words | built (#142) |
+| 2 | The contracts Pricing and Inventory give (§2.3): `StoreWiring` in their Public, `ProviderPrices::apply`, `ProviderStock::apply`, `wired` and `unwired` | built (#144, #147) |
+| 3 | Wiring: the provider adapter, a pretend provider for the tests, Wire / Change / Unwire, the Provider page - `sync.connection.manage` | **this step** |
+| 4 | Reads (the job that runs the read wiring queues): one per store at a time, the provider's notices, the hourly and nightly reads, one code - `sync.read.scheduled` | — |
 | 5 | The report and its count, Retry, Sync now, dismissing; the log pruned after 90 days - `sync.report.view`, `sync.read.run`, `sync.log.prune` | — |
 | 6 | The module's own pass | — |
 
@@ -22,10 +22,14 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 
 | Folder | Holds |
 |---|---|
+| `Application/Command` | `WireStore` (tested first, then saved, a full read queued, Inventory told - §1.2), `ChangeConnection` (the same, a key or secret left empty kept), `UnwireStore` (§1.8: the connection gone, the report closed, waiting reads dropped, Inventory told; answers the count) |
+| `Application/Query` | `ViewConnection`: the Provider page - never the key or the secret, only that they are set and when; the count before unwiring |
+| `Application/Connections` | `ConnectionInput`: the fields checked, each refusal naming its field |
 | `Application` | `SyncPermissions`: View the Sync Report and Run Sync Reads, per store, any role, in the Sync group (access.md amendment 68); wiring, the system's reads and the pruning, reserved (§3) |
+| `Domain` | `Model/Connection` (key and secret plain in memory only), `Provider/ProviderAdapter` and `ProviderAdapters` (§2.1), `Repository/Connections`, `Reads`, `ReportEntries`; `ProviderKind`, `ConnectionState`, `ReadKind`, `ProviderValue` |
 | `Domain/Exception` | `SyncError` and the five errors of §7 thrown, each a `sync.*` type with a category (`ReadRunning` is never thrown: a second read waits) |
-| `Infrastructure` | `SyncServiceProvider` (after Pricing and Inventory in `bootstrap/providers.php`); `Persistence/SyncSchema` and the migrations that create the schema and its tables |
-| `Presentation/lang/{ar,en}` | `permissions.php` (the names the role editor shows), `errors.php` (each error's title and detail, and the fields an invalid input names) |
+| `Infrastructure` | `SyncServiceProvider` (after Pricing and Inventory in `bootstrap/providers.php`, so its `StoreWiring` binding wins); `Persistence/SyncSchema` and the migrations; `Eloquent/` the three repositories (the key and the secret encrypted with the app's key); `Provider/` the adapters - `OdooAdapter` waits for the provider's documentation and fails every test, calling nothing; `External/ConnectionWiring`: a store is wired while it has a connection, for Pricing and Inventory both |
+| `Presentation/lang/{ar,en}` | `permissions.php` (the names the role editor shows), `audit.php`, `errors.php` (each error's title and detail, and the fields an invalid input names) |
 
 ## How it is built
 
@@ -42,8 +46,8 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   - a second open report entry for the same store, kind, code and size.
 - **Who asked for a read** is two columns, `requested_by_type` and `requested_by_id`, as Inventory's
   ledger names its asker (§5 writes one, `requested_by`). Only staff ask - Sync now, Retry, wiring;
-  the provider's notices and the hourly read are never anyone's. Which kind wiring's first read is,
-  step 3 decides. A failed read may never have started (a job that gave up waiting, or one dropped
+  the provider's notices and the hourly read are never anyone's. Wiring's first read is a `NOW` read,
+  asked by the Super Admin who wired the store. A failed read may never have started (a job that gave up waiting, or one dropped
   when its store was unwired).
 - **A report entry is about one thing**: a code we do not have (`UNKNOWN_CODE`, the code and no
   size), the whole store (`READ_FAILED`, neither), or a size of ours (every other kind, the size and no
@@ -52,6 +56,11 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
   Who closed an entry (`closed_by`) is free text until step 5 defines it.
 - **A store** with a connection, reads or report entries cannot be deleted. A size or a sale keeps its
   report entries when it goes: no key on them, as the audit log names its subjects.
+- **The one call to the provider in a web request** is the Super Admin's test when saving a
+  connection, 10 seconds at most (owner, 2026-10-17, sync.md §9.3 #21); every read is a queued job.
+- **The key and the secret** are encrypted with the app's key, never returned, logged or audited -
+  a change audits only that they were replaced. The audit names the provider's address `url`: the
+  audit log refuses an `address` field as personal data.
 - **The permissions** are declared into Access's catalog at boot, as Inventory's are.
 - **Errors** reach other modules only as `DomainError` with a stable `sync.*` type.
 
@@ -62,4 +71,6 @@ provider; only the adapter that calls Odoo waits for the provider's team (sync.m
 | `tests/Modules/Sync/Integration/SyncSchemaTest.php` | The schema exists, is on the search path, and is created and dropped (with what is in it) from nothing; each table's CHECKs, the one open entry per store, kind, code and size, and the foreign keys' delete rules |
 | `tests/Modules/Sync/Integration/SyncPermissionsTest.php` | The two jobs and the three reserved, by name, kind, group and reservation; a staff role may hold both jobs; the group's and the jobs' names |
 | `tests/Modules/Sync/Unit/SyncErrorsTest.php` | Exactly §7's five thrown errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders; the fields an invalid input names |
+| `tests/Modules/Sync/Integration/SyncWiringTest.php` | Wiring tested first and refused when the test fails; the key and secret encrypted and never audited or shown; the store wired for Pricing and Inventory at once, a NOW read queued by the Super Admin, Catalog told; each field refused by name; Odoo's adapter refusing until built; changing (key kept, secret replaced, tested first); unwiring (the count first, the connection, report and waiting reads); Super Admins only |
+| `tests/Modules/Sync/Integration/SyncAuditNamesTest.php` | Every audited action named in both languages, nothing named that is not recorded |
 | `tests/Architecture/SyncAccessUseTest.php` | Sync takes from Access only what declaring its permissions needs |
