@@ -52,6 +52,10 @@ return [
         'title' => 'Category not empty',
         'detail' => 'Move the products and categories inside it first.',
     ],
+    'item_in_use' => [
+        'title' => 'Used in Marketing',
+        'detail' => 'Coupons or gift levels in Marketing use this (:uses). Remove it from them first.',
+    ],
     'list_item_in_use' => [
         'title' => 'Still in use',
         'detail' => 'It is still in use, so it cannot be deleted. Deactivate it instead.',

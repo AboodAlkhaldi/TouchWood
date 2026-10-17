@@ -7,11 +7,13 @@ namespace Modules\Catalog\Application\Command\DeleteCategory;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Exception\CategoryNotEmpty;
 use Modules\Catalog\Domain\Exception\CategoryNotFound;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Application\Unauthorized;
 
 /**
@@ -27,6 +29,7 @@ final readonly class DeleteCategoryHandler
         private SharedListChange $change,
         private CategoryRepository $categories,
         private ProductRepository $products,
+        private InMemoryCatalogUsages $usages,
     ) {}
 
     /**
@@ -42,6 +45,9 @@ final readonly class DeleteCategoryHandler
             if ($this->categories->childrenOf($category->id()) !== [] || $this->products->anyInCategory($category->id())) {
                 throw new CategoryNotEmpty;
             }
+
+            // A coupon's list may name it (amendment 19): refused, never dropped silently.
+            $this->usages->refuseIfUsed(CatalogItem::Category, [$category->id()]);
 
             $was = $category->snapshot();
             $this->categories->delete($category->id());

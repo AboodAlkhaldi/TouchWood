@@ -18,6 +18,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 1 — foundation | The `promotions` schema; the six permissions of spec §3; the errors of §7 in both languages; Access's Marketing group (access.md amendment 69) and Platform's Marketing menu section (platform.md §9.4) | below |
 | 2a — coupons: the rules and the reads | The coupon tables of §5 (coupons, rules, assignments, uses, order facts) with every rule the database holds; the coupon's rules as pure code; `PromotionsApi::applyCoupon` and `customerDiscountRoom`; Catalog's `lineFacts` (catalog.md amendment 18) | below |
 | 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
+| 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
 
 ## What is here
 
@@ -62,6 +63,10 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 - **`Infrastructure/Eloquent/DatabaseCoupons`** — a coupon by code or id (locked for placing) with its
   rules; a customer's uses and assignment in one query; a use by its order; recording and lowering a
   use. **`DatabaseOrderFacts`** — an order's fact, written once (`ON CONFLICT DO NOTHING`).
+- **`Infrastructure/Eloquent/CouponRulesUsage`** — registered with Catalog's `CatalogUsages`: every
+  coupon whose include or exclude list names a product, category or brand Catalog is about to delete,
+  in one query; Catalog then refuses the delete (`catalog.item_in_use`). Variants answer nothing until
+  gift levels (step 5).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
 `tests/Modules/Promotions/Integration` — `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two

@@ -6,10 +6,12 @@ namespace Modules\Promotions\Infrastructure;
 
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Promotions\Application\PromotionsApiImpl;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Domain\Repository\Coupons;
 use Modules\Promotions\Domain\Repository\OrderFacts;
+use Modules\Promotions\Infrastructure\Eloquent\CouponRulesUsage;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseCoupons;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseOrderFacts;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
@@ -34,5 +36,7 @@ final class PromotionsServiceProvider extends ServiceProvider
         $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'promotions');
 
         $this->app->make(PermissionCatalog::class)->declare('promotions', ...PromotionsPermissions::definitions());
+        // What its coupons name of Catalog's, asked before Catalog deletes it (catalog.md amendment 19).
+        $this->app->make(CatalogUsages::class)->register('promotions', CouponRulesUsage::class);
     }
 }

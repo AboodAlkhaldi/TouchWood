@@ -7,12 +7,14 @@ namespace Modules\Catalog\Application\Command\DeleteBrand;
 use Modules\Catalog\Application\Audit\ListAudit;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Lists\SharedListChange;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Exception\BrandInUse;
 use Modules\Catalog\Domain\Exception\BrandNotFound;
 use Modules\Catalog\Domain\Exception\DefaultBrandRequired;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Catalog\Public\Enums\CatalogItem;
 use Shared\Application\Unauthorized;
 
 /**
@@ -28,6 +30,7 @@ final readonly class DeleteBrandHandler
         private SharedListChange $change,
         private BrandRepository $brands,
         private ProductRepository $products,
+        private InMemoryCatalogUsages $usages,
     ) {}
 
     /**
@@ -47,6 +50,9 @@ final readonly class DeleteBrandHandler
             if ($this->products->anyWithBrand($brand->id())) {
                 throw new BrandInUse;
             }
+
+            // A coupon's list may name it (amendment 19): refused, never dropped silently.
+            $this->usages->refuseIfUsed(CatalogItem::Brand, [$brand->id()]);
 
             $was = $brand->snapshot();
             $this->brands->delete($brand->id());
