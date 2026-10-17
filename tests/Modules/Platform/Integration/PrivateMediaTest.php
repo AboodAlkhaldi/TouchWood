@@ -73,7 +73,7 @@ afterEach(function () {
 
 function privateMediaDirectory(): string
 {
-    return sys_get_temp_dir().'/tw-private-media-tests';
+    return testTempDirectory('tw-private-media-tests');
 }
 
 /**

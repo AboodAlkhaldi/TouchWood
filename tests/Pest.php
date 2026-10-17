@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\ParallelTesting;
 use Tests\TestCase;
 
 /*
@@ -65,3 +66,17 @@ function signedInToPanel(mixed $page): bool
 | 2026-10-06).
 */
 const BROWSER_PAGE_LOAD = ['timeout' => 5_000];
+
+/*
+| A test's own temporary folder. The system's temp folder is one per machine, and every worktree's
+| run - and every process of a parallel run - shares it: a test that empties a folder of a fixed name
+| there deletes another run's files in the middle of its tests (nine of Platform's media tests failed
+| that way on 2026-10-17, two sessions' full checks at once). The folder's name carries this checkout
+| and the parallel process, so each run empties only its own.
+*/
+function testTempDirectory(string $name): string
+{
+    $process = ParallelTesting::token();
+
+    return sys_get_temp_dir().'/'.$name.'-'.substr(md5(dirname(__DIR__)), 0, 8).($process === false ? '' : '-'.$process);
+}

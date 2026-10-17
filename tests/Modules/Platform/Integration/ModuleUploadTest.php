@@ -41,7 +41,7 @@ afterEach(function () {
  */
 function moduleUploadDirectory(): string
 {
-    return sys_get_temp_dir().'/tw-module-upload-tests';
+    return testTempDirectory('tw-module-upload-tests');
 }
 
 /**
