@@ -6,7 +6,11 @@ namespace Modules\Promotions\Infrastructure;
 
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Promotions\Application\PromotionsApiImpl;
 use Modules\Promotions\Application\PromotionsPermissions;
+use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Infrastructure\Eloquent\DatabaseCoupons;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
 
 /**
  * Promotions (promotions.md). Registered after Access, Catalog and Pricing: it declares its permissions
@@ -15,6 +19,12 @@ use Modules\Promotions\Application\PromotionsPermissions;
  */
 final class PromotionsServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->bind(Coupons::class, DatabaseCoupons::class);
+        $this->app->bind(PromotionsApi::class, PromotionsApiImpl::class);
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');

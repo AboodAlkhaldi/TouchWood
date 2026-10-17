@@ -271,7 +271,8 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
 
 - `CouponRequest`: store, the code as typed, customer id, `Audience`, and Pricing's `CartPricesDto`
-  for the cart (its lines' `kind` and `total`, its `grossSubtotal` and `netSubtotal`).
+  for the cart (its lines' variant, `mode`, `unit` against `listUnit` — reduced when below — and
+  `total`, its `grossSubtotal` and `netSubtotal`).
 - `CouponResult`: the coupon's id and names, the total discount, **one share per line of the prices
   passed, in their order** (0 for a line not eligible) — an edited order may hold one variant and mode
   in several parts (pricing.md §1.11), so a share follows its line's place, not its variant and mode —
@@ -300,7 +301,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 
 | From | What | State |
 |---|---|---|
-| Pricing | The cart's prices: each line's `kind` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
+| Pricing | The cart's prices: each line's variant, `mode`, `unit`, `listUnit` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
 | Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)`. Today `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories. Catalog's amendment, numbered when it lands |
 | Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exists (`CatalogApi::product`, `variant`); categories and brands by the same addition |
 | Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **A Catalog addition, built with Promotions**: a usage check modules register, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with what uses it |
@@ -452,7 +453,7 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 **Coupons — refused whole**
 - Unknown code; inactive; before its start; after its end; used up overall; used up for this customer;
   an `ASSIGNED` coupon by a customer it was not assigned to; under the minimum on `net_subtotal`;
-  nothing eligible; worth nothing (1% of 50 halalas); with points when it does not allow them.
+  nothing eligible; worth nothing (1% of 49 halalas — 1% of 50 rounds half up to 1, answer 19); with points when it does not allow them.
 - **Passing the ceiling**: a coupon that fits alone but not with the prices' own reductions is
   refused, never trimmed; a 70%-off clearance line under a 30% ceiling sells, with no coupon on top.
 - The code typed in lower case or with Arabic digits finds the coupon.

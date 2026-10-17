@@ -115,7 +115,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission']);
+})->with(['code', 'percent', 'amount', 'dates', 'store', 'permission', 'customer', 'currency', 'line']);
 
 it('names the dates as one range, so the sentence reads right', function () {
     App::setLocale('en');

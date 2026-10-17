@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Public\Contracts;
 
 use Modules\Catalog\Public\Dto\CategoryDto;
+use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -79,6 +80,17 @@ interface CatalogApi
      * @return array<string, ProductDto>
      */
     public function products(array $productIds): array;
+
+    /**
+     * For Promotions, once per cart (amendment 18; promotions.md §1.2): **each variant's product,
+     * brand, and the product's category with every one above it**, nearest first, in one query —
+     * keyed by variant id, an unknown id left out. Archived variants and products in any stage
+     * answer too: what a line may take is the coupon's question, not this read's.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, LineFactsDto>
+     */
+    public function lineFacts(array $variantIds): array;
 
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;

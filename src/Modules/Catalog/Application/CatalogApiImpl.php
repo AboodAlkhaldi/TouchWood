@@ -89,6 +89,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->products($productIds);
     }
 
+    public function lineFacts(array $variantIds): array
+    {
+        return $this->reads->lineFacts($variantIds);
+    }
+
     public function product(string $productId): ?ProductDto
     {
         $product = $this->products->find($productId);

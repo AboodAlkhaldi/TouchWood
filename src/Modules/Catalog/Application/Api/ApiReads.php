@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application\Api;
 
+use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 
@@ -36,4 +37,10 @@ interface ApiReads
      * @return array<string, ProductDto> keyed by id
      */
     public function products(array $productIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, LineFactsDto> keyed by variant id (amendment 18)
+     */
+    public function lineFacts(array $variantIds): array;
 }
