@@ -47,6 +47,7 @@ return [
         'customer' => 'العميل',
         'order' => 'الطلب',
         'return' => 'المرتجع',
+        'edit' => 'تعديل الطلب',
         'order_number' => 'رقم الطلب',
     ],
 ];

@@ -45,7 +45,7 @@ final readonly class SettleEditedOrderHandler
         $change = $command->change;
         $store = Inputs::store($change->storeId);
         $orderId = Inputs::id($change->orderId, 'order');
-        $editId = Inputs::id($change->editId, 'return');
+        $editId = Inputs::id($change->editId, 'edit');
         $recorded = $this->ledger->order($orderId);
 
         if ($recorded !== null && ! $recorded->store->equals($store)) {

@@ -47,6 +47,7 @@ return [
         'customer' => 'customer',
         'order' => 'order',
         'return' => 'return',
+        'edit' => 'order edit',
         'order_number' => 'order number',
     ],
 ];
