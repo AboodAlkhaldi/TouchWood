@@ -91,8 +91,14 @@ reviews are approved or unpublished.
   changes): Feedback listens for its own key and pushes that store's flag — and, when it turns on, the
   store's ratings. Catalog's own default is "shown", matching the setting's, so a store opened later
   shows ratings without any event.
-- **Sorting by rating** — where products with no reviews, or few, fall — is the Catalog addition's to
-  set (§9.2).
+- **Sorting by rating — a weighted average** (owner, 2026-10-18; numbers 2026-10-19, answer 15): each
+  product scores `(5 × C + sum of its ratings) / (5 + its count)`, where **C** is the average of every
+  approved review of the products the store sells — as if each product had 5 more reviews at the
+  store's average, so one 5★ review never outranks twenty at 4.5. A store with no reviews at all takes
+  the plain average. **Products with no reviews come last**; best-rated first only; ties, and the
+  no-review group, newest product first. A store whose switch is off offers no rating sort, and a
+  request for it gets best-selling. The score is worked out when the list is read, from the sum and
+  count Feedback pushes; the stars show the average **to one decimal, half up**.
 
 | Key | Scope | Type | Default | Changed under |
 |---|---|---|---|---|
@@ -102,9 +108,9 @@ My assumption, stated for the owner to reject: the switch starts **on**.
 
 ### 1.3 Product questions and answers
 
-**Per store** (owner, 2026-10-09): asked in a store by **a signed-in customer**, answered by **that
-store's staff**, and shown on the product **in that store** — an answer may speak of that store's
-delivery or stock. Guests sign in to ask.
+**Global, as reviews** (owner, 2026-10-19, answer 16 — replacing "per store" of 2026-10-09): asked in
+a store by **a signed-in customer**, answered — or rejected — by **the staff of the store it was asked
+in**, and once answered shown on the product **in every store that sells it**. Guests sign in to ask.
 
 - **A question becomes public only once answered.** `PENDING` is staff-only; `REJECTED` never appears
   (handoff §13.1). Staff work a queue filtered by status.
@@ -115,10 +121,13 @@ delivery or stock. Guests sign in to ask.
 - An answer may be corrected later by the store's staff; each change is audited. My assumption,
   stated for the owner to reject.
 - Text: a question 1 to 1,000 characters, an answer 1 to 2,000. A customer may have at most **5
-  questions waiting** per store, against spam. My assumption, stated for the owner to reject.
+  questions waiting** in all, against spam (questions being global, answer 16).
 - Shown on the product page **newest answer first**; correcting an answer does not move it. The asker
-  reads as on a review; **the answer is signed "{store}'s team"**, never a staff member's name. My
-  assumption, stated for the owner to reject.
+  reads as on a review; **the answer is signed "{store}'s team"** — the store that answered, wherever
+  it is read — never a staff member's name.
+- **An answered question may be unpublished** by the answering store's staff, as a review (§1.1), with
+  or without a reason (owner, 2026-10-19, answer 18): it leaves every shop page; the customer still
+  sees it, and the reason if one was written.
 - **An archived product**'s pending questions and reviews stay in the queues and can still be decided;
   nothing new can be written about it.
 
@@ -128,8 +137,9 @@ delivery or stock. Guests sign in to ask.
 keeps a cart, with no favourites").
 
 - **Each item is a product saved in a store**, so the list is grouped by store; saving the same product
-  in the same store twice is one item. **A product the current store does not sell shows as
-  unavailable** rather than disappearing (handoff §13.1).
+  in the same store twice is one item. **An item the store it was saved in no longer sells shows as
+  unavailable** rather than disappearing (handoff §13.1) — judged in that store, not the store being
+  browsed (owner, 2026-10-19, answer 17); an item of a store switched off shows as unavailable too.
 - At most 500 items. My assumption, stated for the owner to reject.
 - **Staff see** (the admin menu's "Customers › Favourited products", handoff §14):
   - **a customer's list — only its items saved in stores where the reader holds
@@ -150,8 +160,8 @@ itself (handoff §7.9: "anything else the account had chosen for itself cleared"
 
 ### 1.6 Each store's rows
 
-Questions and wishlist items belong to a store; a review is global but records the store it was
-written in, whose staff moderate it. As Loyalty and Promotions: one repository per kind names the store
+Wishlist items belong to a store; a review and a question are global but record the store they were
+written in, whose staff moderate them (answer 16). As Loyalty and Promotions: one repository per kind names the store
 in every call; no Eloquent model. No Feedback table points at another, so there is no cross-store key
 to hold.
 
@@ -211,7 +221,7 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 | Ask a question in a store | `feedback.question.ask` — every customer |
 | Save a product to the wishlist, remove it | `feedback.wishlist.manage` — every customer, their own list |
 | Approve, reject, unpublish a review written in the store | `feedback.review.moderate` (per store: the review's store) |
-| Answer, correct an answer, reject a question of the store | `feedback.question.answer` (per store) |
+| Answer, correct an answer, reject or unpublish a question asked in the store | `feedback.question.answer` (per store: the question's store) |
 | Switch ratings in the store's lists | `feedback.settings.update` (per store, **admin-only**) — Platform's `UpdateSetting` |
 | Flip reviews to "Returned" on a completed return; clear an anonymized account's wishlist | Listeners, as the system (§6) |
 
@@ -220,7 +230,7 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 | My reviews, my questions (with answers and reasons), my wishlist | `feedback.own.view` — every customer, their own only |
 | The store's review queue and its reviews; its question queue | `feedback.review.moderate`, `feedback.question.answer` |
 | A customer's wishlist — only its items of stores where the reader holds the permission; the store's "Favourited products" with counts | `feedback.wishlist.view` (per store; `storesWith` for the list) |
-| A product's approved reviews and rating; a store's answered questions | Shop readers, public (§2.1) |
+| A product's approved reviews and rating; its answered questions | Shop readers, public (§2.1) |
 
 **The permissions Feedback declares** (three-part names, as Access requires):
 
@@ -269,12 +279,12 @@ every kind column has a CHECK `IN (…)` (lessons 35, 162).
 |---|---|---|
 | `feedback.reviews` | `id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT (the variant bought), `customer_id` → `access.customers` RESTRICT, `store_id` → `platform.stores` RESTRICT (written in), `rating`, `body`, `locale`, `status`, `mark`, `reason` NULL, `moderated_by` NULL → `access.staff_users` RESTRICT, `moderated_at` NULL, `created_at` | UNIQUE (`customer_id`, `product_id`) — one review per product, for ever (a rejected one keeps its row); CHECK `rating BETWEEN 1 AND 5`; CHECK `char_length(body) BETWEEN 1 AND 2000`; CHECK `locale IN ('ar', 'en')`; CHECK `status IN ('PENDING', 'APPROVED', 'REJECTED', 'UNPUBLISHED')`, `mark IN ('VERIFIED_PURCHASE', 'RETURNED')`; CHECK `(moderated_by IS NULL) = (moderated_at IS NULL)` and `(status = 'PENDING') = (moderated_at IS NULL)`; CHECK `reason IS NULL OR (status IN ('REJECTED', 'UNPUBLISHED') AND char_length(reason) BETWEEN 1 AND 500)`. The variant belongs to the product: a code rule, tested (§1.1) |
 | `feedback.product_ratings` | `product_id` PK → `catalog.products` RESTRICT, `rating_sum`, `rating_count`, `updated_at` | CHECK `rating_count >= 0 AND rating_sum BETWEEN rating_count AND 5 * rating_count`; kept in the same transaction as each approval or unpublishing |
-| `feedback.questions` | `id`, `product_id` → `catalog.products` RESTRICT, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` RESTRICT, `body`, `locale`, `status`, `answer` NULL, `answered_by` NULL → `access.staff_users` RESTRICT, `answered_at` NULL, `reason` NULL, `created_at`, `updated_at` | CHECK `char_length(body) BETWEEN 1 AND 1000`, `locale IN ('ar', 'en')`, `status IN ('PENDING', 'ANSWERED', 'REJECTED')`; CHECK `num_nonnulls(answer, answered_by, answered_at) IN (0, 3)` and `(status = 'ANSWERED') = (answer IS NOT NULL)`; CHECK `answer IS NULL OR char_length(answer) BETWEEN 1 AND 2000`; CHECK `reason IS NULL OR (status = 'REJECTED' AND char_length(reason) BETWEEN 1 AND 500)` |
+| `feedback.questions` | `id`, `product_id` → `catalog.products` RESTRICT, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` RESTRICT, `body`, `locale`, `status`, `answer` NULL, `answered_by` NULL → `access.staff_users` RESTRICT, `answered_at` NULL, `reason` NULL, `created_at`, `updated_at` | CHECK `char_length(body) BETWEEN 1 AND 1000`, `locale IN ('ar', 'en')`, `status IN ('PENDING', 'ANSWERED', 'REJECTED', 'UNPUBLISHED')`; CHECK `num_nonnulls(answer, answered_by, answered_at) IN (0, 3)` and `(status IN ('ANSWERED', 'UNPUBLISHED')) = (answer IS NOT NULL)`; CHECK `answer IS NULL OR char_length(answer) BETWEEN 1 AND 2000`; CHECK `reason IS NULL OR (status IN ('REJECTED', 'UNPUBLISHED') AND char_length(reason) BETWEEN 1 AND 500)` |
 | `feedback.wishlist_items` | `customer_id` → `access.customers` RESTRICT, `product_id` → `catalog.products` CASCADE, `store_id` → `platform.stores` RESTRICT, `saved_at` | PK (`customer_id`, `product_id`, `store_id`). A product Catalog deletes leaves the lists (nothing to keep) |
 
 **Indexes:** reviews by (`product_id`, `status`, `created_at` DESC, `id`) — a product's page; by
 (`store_id`, `status`, `created_at`, `id`) — a store's queue; by `customer_id` — "my reviews";
-questions by (`product_id`, `store_id`, `status`, `answered_at` DESC, `id`), by (`store_id`,
+questions by (`product_id`, `status`, `answered_at` DESC, `id`), by (`store_id`,
 `status`, `created_at`, `id`) and by `customer_id` — "my questions"; wishlist items by (`store_id`,
 `product_id`) — the counts; by `customer_id`.
 
@@ -307,7 +317,7 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 |---|---|---|
 | `NotAVerifiedPurchase` | FORBIDDEN | Writing a review with no delivered order of the product |
 | `AlreadyReviewed` | CONFLICT | A second review of a product — whatever became of the first, a rejected one included |
-| `TooManyWaitingQuestions` | CONFLICT | A sixth question waiting in one store (§1.3) |
+| `TooManyWaitingQuestions` | CONFLICT | A sixth question waiting, in any store (§1.3) |
 | `WishlistFull` | CONFLICT | A 501st item (§1.4) |
 | `InvalidModeration` | CONFLICT | A change its state does not allow: approving a rejected review, answering a rejected question, unpublishing one not approved |
 | `ReviewNotFound`, `QuestionNotFound` | NOT_FOUND | Unknown, or of a store the staff member does not cover — the same answer for both |
@@ -340,13 +350,14 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 - Only an admin role may change the switch.
 
 **Questions**
-- Asked per store by a signed-in customer; public only when answered, in that store only; a rejected
-  one never public; at most 5 waiting per store.
+- Asked in a store by a signed-in customer, answered by that store; public only when answered, then in
+  every store selling the product; a rejected one never public; an unpublished one leaves the shop; at
+  most 5 waiting in all.
 - The answer shows in the customer's account; a correction is audited.
 
 **Wishlist**
-- Saving twice in a store is one item; the same product in two stores is two; a product the store
-  stops selling shows as unavailable.
+- Saving twice in a store is one item; the same product in two stores is two; a product the store it
+  was saved in stops selling shows as unavailable, whichever store is browsed.
 - Staff's "Favourited products" counts per store, sorted by count; a customer's list shows a KSA-only
   reader the KSA items only.
 - An anonymized account's list is deleted; at most 500 items, even with two saves at once.
@@ -375,7 +386,7 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 3. The translate button: **later, when a service is chosen** (each review's language kept now).
 4. A verified purchase: **an order of it delivered**; returning some or all **flips its mark to
    "Returned"**, also after the review — **per product**.
-5. Questions: **signed-in customers, per store.**
+5. Questions: **signed-in customers, per store** — made global on 2026-10-19 (answer 16).
 6. Staff and wishlists: **a customer's list, and how many customers saved each product.**
 7. Review photos: **no — rating and text only.**
 8. How staff see saved counts: **per store, a list sortable by count** (lifts handoff §16's ban).
@@ -386,6 +397,27 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 12. Who moderates a review: **the store it was written in.**
 13. A rejection's reason: **shown when staff write one; no reason, no message at all.**
 14. An answered question: **in the account now; a message with Ops.**
+
+### 9.1b The owner's answers, 2026-10-19 (before the build)
+
+15. **The rating sort's numbers:** a weighted average with a weight of 5 reviews at the store's
+    average; no reviews last; best-rated first only; off, best-selling instead (§1.2).
+16. **Questions are global, as reviews** — "feedbacks become all global, since all products are same
+    across stores": the store a question was asked in answers it; once answered it shows in every
+    store selling the product; at most 5 waiting per customer in all (§1.3).
+17. **A wishlist item's "unavailable" is judged in the store it was saved in** (§1.4).
+18. **An answered question can be unpublished**, as a review (§1.3).
+19. **"A store sells a product"** — for reviews, questions and the wishlist — means: the product is
+    ready, chosen in that store, and not marked "not available now"; stock does not count, so a
+    product out of stock can still be saved and asked about. Asking or saving in a store that does not
+    sell it is `InvalidFeedbackAttribute`; a review is written in a store that sells the product, so
+    the store that moderates it shows it.
+20. With the spec's other picks: a product a store stopped selling stays in "Favourited products",
+    marked; a customer's wishlist is read only where Access lets the reader see the customer; a gift
+    line counts neither as a delivered nor a returned purchase; only pieces actually received make a
+    return; the caps and one-review rule held by transaction-scoped advisory locks (Feedback has no
+    customer row of its own); repeating an approval is `InvalidModeration`; a correction keeps who
+    answered, the corrector in the audit; removing an item not on the list does nothing.
 
 ### 9.2 Still open
 
