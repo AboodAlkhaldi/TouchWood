@@ -401,8 +401,8 @@ NONE (on Needs a Price) ──Set──► SET ──Set──► SET
 **Written 2026-10-18, detailed 2026-10-19.** The owner chose (2026-10-18): the screens **by module** in
 the menu; a product's prices edited **on its page as well as on the store-wide pages**; **every detail
 settled before building, then built without stopping** (2026-10-19). Proposals S1-S8 accepted
-(2026-10-19). Points waiting for the owner are marked **(Qn)** - §9.4 - and written here as recommended;
-an answer that differs is written in before building. The use cases behind every button are §3's. These
+(2026-10-19). **Every question of §9.4 is answered** (owner, 2026-10-19): the points marked **(Qn)** are
+written as answered. The use cases behind every button are §3's. These
 rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) screens too.
 
 #### 4.3.1 What every screen keeps (Pricing, Inventory, Sync)
@@ -484,6 +484,10 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
   must be after the start.").
 
 **Words**
+- **"Offer" in the panel** (owner, 2026-10-19): the screens say **Offer** wherever this spec says sale - the
+  menu entry, the page, every button, badge, toast and text ("Add Offer", "Offer ended", the badge
+  **Offer**, Sync's **Offer Stopped** and **Open Offer**) - so it never meets the orders section, which
+  handoff §14 calls Sales. In Arabic **عرض / العروض**. The code, the audit log and this spec keep "sale".
 - Writing rules (frontend.md §1.10): buttons and menu items Title Case Verb + Noun; a destructive button
   and its toast share the verb; toasts "{Noun} {past participle}", no period; validation names the field
   and its rule, a sentence with a period; "Couldn't …" for the person's state, "Failed to …" for the
@@ -509,7 +513,7 @@ classes in `Presentation/Http/Resource/`; pages under `resources/js/pages/Pricin
 | # | Entry | Address | Offered for |
 |---|---|---|---|
 | 10 | Prices · الأسعار | `/admin/prices` | any of the three jobs |
-| 20 | Sales · العروض (Q42) | `/admin/sales` | any of the three |
+| 20 | Offers · العروض | `/admin/offers` | any of the three |
 | 30 | Category Discounts · خصومات الأقسام | `/admin/category-discounts` | any of the three |
 | 40 | Wholesale Prices · أسعار الجملة | `/admin/wholesale-prices` | any of the three |
 | 50 | Needs a Price · بلا سعر | `/admin/needs-a-price` | `pricing.price.edit`, with its count **kept per store** as Low Stock's is (Q43) |
@@ -583,19 +587,20 @@ sales here" for P2's filter); `categoriesWithPaths(ids)`; a category's products 
   `material-menu`, in the address (`?size=`): the product, size and code; **Retail** (amount, source, when;
   the box for whoever may type it, with its own **Save Price**); **Today** (one piece retail, one piece
   wholesale, and why each); **What Reaches It** - every sale, discount and band with its state badge, amount,
-  dates and a link (a sale → P2 `?sale=`, a discount → its page, bands → P4's dialog).
+  dates and a link (a sale → P2 `?sale=`, at `/admin/offers`, a discount → its page, bands → P4's dialog).
 - **Empty**: "No sizes yet" · "Sizes appear here once the store switches them on." Filtered: "No sizes match
   these filters" · "Clear the filters to see every size."
 
-#### P2 · Sales - `/admin/sales?store=&state=&product=&sale=`
+#### P2 · Offers - `/admin/offers?store=&state=&sort=&product=&sale=`
 
 - **Subtitle**: "Lower prices for chosen sizes, for a time."
 - **Main action**: **Add Sale** (`pricing.price.edit`).
 - **Filters**: `ToggleGroup` **All** · **Running** · **Scheduled** · **Ended**; **Product** (a picker of the
   products that have sales in this store, any state). `?sale=` shows that one sale (from a link), with
   "Show All Sales".
-- **Order (Q7)**: running (ending soonest first), scheduled (starting soonest first), ended (ended last
-  first).
+- **Order (Q7; owner, 2026-10-19)**: a **Sort** switch above the list - **By State** (the default): running
+  (ending soonest first), scheduled (starting soonest first), ended (ended last first); or **Newest Added**
+  (the date each was added, newest first). The state filter works with either.
 - **Columns**: **Product** (names; a link when the reader may view products) · **Sizes** - "All Sizes" when
   the sale covers every size the store has switched on now, else "3 of 5" (of those switched on now), the
   sizes in a tooltip; "1 archived since" (amber) · **Price** (the sale price, or "−12.5%") · **Starts** ·
@@ -889,10 +894,15 @@ used up a 30% ceiling on its own.
 | S3 | **Catalog's product page gains the modules' store sections** through a registry (catalog.md amendment 23), as its store files gained `ImportSections` | The owner chose prices and stock on the product page (2026-10-18); Catalog's page shows them without Catalog reading Pricing or Inventory |
 | S4 | **One money formatter** shared by every Pricing screen: the store's currency, its own decimals, Latin digits | Prices look the same on every screen; frontend.md has none yet |
 
-### 9.4 Questions for stage 5's screens - round 1 (2026-10-19), one list for Pricing, Inventory and Sync
+### 9.4 Questions for stage 5's screens - answered (owner, 2026-10-19), one list for Pricing, Inventory and Sync
 
-Each is written into the screens' specs as **recommended**; an answer that differs is written in before
-building. A later round asks only what these answers open.
+**Round 1**: every question as recommended, except **Q7** - a **Sort** switch, **By State** the default and
+**Newest Added** the other - and Q10, Q17 and Q27, explained and then answered. **Round 2**: Q7's default
+**By State**; Pricing's menu entry **renamed "Offers"** (العروض), "Offer" the panel's word for a sale
+(§4.3.1); **Q17 - out of stock in the shop stays as decided on 2026-10-02 (option A)**: what can't be ordered
+leaves lists, search and suggestions, a direct link says "Not available now" - stock decides that for every
+product in a store with no provider, and only for stock-dependent sizes in a store wired to a provider;
+**Q10 and Q27 confirmed** as recommended. Nothing is left open.
 
 | # | Question | Recommended | What it changes |
 |---|---|---|---|
@@ -907,7 +917,7 @@ building. A later round asks only what these answers open.
 | Q41 | Two people editing the same price | **The last save wins** (as everywhere in the panel); both are in the audit log; rows reload after each save | The other choice is refusing a save over a newer change |
 | Q42 | The Arabic words (table below) | **As proposed** | Words only |
 | **Pricing** ||||
-| Q7 | Sales and discounts: order and filter | **Running first** (ending soonest), then scheduled (starting soonest), then ended; a filter **All · Running · Scheduled · Ended** | The built order is latest start first |
+| Q7 | Offers and discounts: order and filter | **Answered**: a Sort switch - **By State** (default: running, then scheduled, then ended) or **Newest Added**; the filter **All · Running · Scheduled · Ended** | The built order is latest start first |
 | Q8 | A retail price typed below a running sale's price, or below the first wholesale band | **A warning under the box, never a refusal** ("The sale stops winning.") | Today nothing is said |
 | Q9 | The discount preview's skipped sizes | **Say why**: "Would be 0 or below" or "Past the ceiling" | Today both look the same |
 | Q10 | A discount's "products left out" | **Only the category's products** (and its children's); the server refuses others | Today any product passes |
@@ -931,7 +941,7 @@ building. A later round asks only what these answers open.
 | ~~Q25~~ | ~~Low Stock opening on the store with the most low sizes~~ | **Withdrawn**: every store page opens on the first store that is on (your rule, 2026-10-07); the subtitle says "12 low in KSA" | - |
 | **Sync** ||||
 | Q26 | Sync Now while a read runs | **Allowed** - one more read follows it; disabled only while a Now read already waits | The first spec said disabled while one runs |
-| Q27 | Retry on "Sale Stopped" and "Off or Draft" | **Not offered** (a read never closes them); **Open Sale** / **Open Product** instead | Today Retry is accepted and changes nothing |
+| Q27 | Retry on "Offer Stopped" and "Off or Draft" | **Not offered** (a read never closes them); **Open Offer** / **Open Product** instead | Today Retry is accepted and changes nothing |
 | Q28 | The closing word | **"Dismiss Entry"** for every kind | "Leave it" was the off-or-draft word |
 | Q29 | "Last read" | **The newest finished read of any kind**, and **Last full read** beside it | Today's field is the last hourly or full read's start |
 | Q30 | A failed read's counts | **Counted from what it wrote** | Today a failed read shows 0 |
@@ -948,12 +958,12 @@ building. A later round asks only what these answers open.
 
 | English | Arabic | English | Arabic |
 |---|---|---|---|
-| Sales (menu) | العروض | Discount (badge) | خصم |
-| Sale (badge) | عرض | Always Wins | يتقدّم دائمًا |
+| Offers (menu) | العروض | Discount (badge) | خصم |
+| Offer (badge) | عرض | Always Wins | يتقدّم دائمًا |
 | Scheduled · Running · Ended | مجدول · سارٍ · منتهٍ | Retail · Wholesale · Both | التجزئة · الجملة · كلاهما |
 | Set Here · From File · From Provider | مُدخل هنا · من ملف · من المزوّد | Wholesale Only | جملة فقط |
 | Out of Stock · Low · Short by 3 · Orderable | نفد · منخفض · ناقص 3 · متاح للطلب | Counts on Stock | يعتمد على المخزون |
 | Last Pieces | آخر القطع | Received · Damaged or Lost · Offline Sale · Correction | استلام · تالف أو مفقود · بيع خارج المتجر · تصحيح |
-| Unknown Code · Not at Provider · Archived · Off or Draft | رمز غير معروف · غير موجود لدى المزوّد · مؤرشف · متوقف أو مسودة | Sale Stopped · Bad Value · Read Failed · Discount Skipped | عرض متوقف · قيمة غير صالحة · فشلت القراءة · خصم مُتجاوَز |
+| Unknown Code · Not at Provider · Archived · Off or Draft | رمز غير معروف · غير موجود لدى المزوّد · مؤرشف · متوقف أو مسودة | Offer Stopped · Bad Value · Read Failed · Discount Skipped | عرض متوقف · قيمة غير صالحة · فشلت القراءة · خصم مُتجاوَز |
 | Notice · Hourly · Nightly · Now · One Code | إشعار · كل ساعة · ليلية · الآن · رمز واحد | Waiting · Running · Done · Failed | بالانتظار · قيد التشغيل · تمّت · فشلت |
 | Working · Failing · Not Wired | يعمل · متعثّر · غير مربوط | Wire Store · Unwire Store · Sync Now · Dismiss Entry | ربط المتجر · فكّ ربط المتجر · مزامنة الآن · إغلاق البند |

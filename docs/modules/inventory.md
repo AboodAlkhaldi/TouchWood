@@ -309,8 +309,8 @@ edit adds starts HELD (or NOTED).
 
 **Written 2026-10-18, detailed 2026-10-19**, with Pricing's and Sync's, on the owner's answers (by module
 in the menu; a product's stock on its page as well as on the store-wide pages; every detail settled
-before building; S1-S8 accepted). **(Qn)** marks a point waiting for the owner - one list in pricing.md
-§9.4 - written here as recommended. **Everything pricing.md §4.3.1 says holds here**: who may do what,
+before building; S1-S8 accepted). Every **(Qn)** is answered (owner, 2026-10-19; pricing.md
+§9.4). **Everything pricing.md §4.3.1 says holds here**: who may do what,
 off stores, the frame, the store filter, rows that hold boxes with the save bar, a batch's refusal
 marking its rows, numbers and moments, the words and plurals, 15 queries a page. Every Inventory page is
 **one job**: Manage Stock (`inventory.stock.manage`) in that store.

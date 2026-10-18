@@ -232,13 +232,12 @@ after its retries / a read succeeds) → (UnwireStore) → `NOT WIRED`.
 
 **Written 2026-10-18, detailed 2026-10-19**, with Pricing's and Inventory's, on the owner's answers (a Sync
 section in the menu; the Sync Report and the Provider page; every detail settled before building; S1-S8
-accepted). **(Qn)** marks a point waiting for the owner - one list in pricing.md §9.4 - written here as
-recommended. **Everything pricing.md §4.3.1 says holds here.**
+accepted). Every **(Qn)** is answered (owner, 2026-10-19; pricing.md §9.4). **Everything pricing.md §4.3.1 says holds here.**
 
 #### 4.1.1 What every Sync screen keeps
 
 - **Kinds' badges** (§1.6): **Unknown Code** gray · **Not at Provider** gray · **Archived** gray · **Off or
-  Draft** gray · **Sale Stopped** amber · **Bad Value** gray · **Read Failed** red · **Discount Skipped**
+  Draft** gray · **Offer Stopped** amber ("Offer": pricing.md §4.3.1) · **Bad Value** gray · **Read Failed** red · **Discount Skipped**
   amber.
 - **Reads**: kinds **Notice**, **Hourly**, **Nightly**, **Now**, **One Code**; states **Waiting** gray,
   **Running** blue, **Done** green, **Failed** red. A store: **Working** green, **Failing** red, **Not Wired**
@@ -294,15 +293,15 @@ Pricing, icon `sync` (Lucide's `RefreshCw`):
     **Detail** · **First Seen** · **Last Seen** · ⋯.
   - **Detail per kind**: Unknown Code - the price and stock sent; Not at Provider - "The provider has no such
     code."; Archived - "Archived here; the provider still sends it."; Off or Draft - the price sent, "Make
-    the product ready and switch the size on to sell it at this price."; Sale Stopped - the sale (a link to
-    P2 `?sale=`; "Sale removed" when it is gone, Q37) and what the provider's price did, taking the size past
-    the ceiling: **Left** "The size left the sale." / **Ended** "The sale ended." / **Removed** "The scheduled
-    sale was removed."; Bad Value - what came ("0", "12.5", "−3") and what was kept; Read Failed - the read
+    the product ready and switch the size on to sell it at this price."; Offer Stopped - the sale (a link to
+    P2 `?sale=`; "Offer removed" when it is gone, Q37) and what the provider's price did, taking the size past
+    the ceiling: **Left** "The size left the offer." / **Ended** "The offer ended." / **Removed** "The scheduled
+    offer was removed."; Bad Value - what came ("0", "12.5", "−3") and what was kept; Read Failed - the read
     (a link to Y2) and its reason; Discount Skipped - the discount (linked) and "Past the ceiling at the
     provider's price."
   - **The ⋯ menu** (`sync.read.run`): **Retry Read** - reads that size's code again (a One Code read) →
-    "Read queued" - for every kind but **Sale Stopped** and **Off or Draft**, which a read never closes; those
-    offer **Open Sale** / **Open Product** instead (Q27); a **Read Failed** entry's Retry Read is a whole read
+    "Read queued" - for every kind but **Offer Stopped** and **Off or Draft**, which a read never closes; those
+    offer **Open Offer** / **Open Product** instead (Q27); a **Read Failed** entry's Retry Read is a whole read
     of the store, as Sync Now. A size deleted since: Retry Read disabled, "This size no longer exists.
     Dismiss the entry instead." Separator; **Dismiss Entry…** (Q28) - every kind but Read Failed, where it is
     disabled: "Closes by itself when a read works." It asks "Dismiss Entry" · "It leaves the report, and
