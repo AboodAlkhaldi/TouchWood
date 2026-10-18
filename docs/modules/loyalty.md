@@ -666,6 +666,36 @@ page scrolls to the card named in the address once it has drawn. The settings th
 **Every screen above** is checked at phone width (375 px, no sideways scroll), in Arabic and English,
 light and dark; its query count recorded by a feature test; its page under 60 KB gzipped.
 
+#### As built — the build and its three reviews, 2026-10-19
+
+Where the built screens say or do something other than the lines above, and why. Nothing here changes
+an owner's answer.
+
+- **The words have no plurals** (the screens' words never had them), so the lines quoted above read,
+  in English: the expiring line "Expiring on {day}: {points}"; the toasts "Points added: 1,200." and
+  "Points removed: 300."; the "how it works" line (P3) "Every 1.00 SAR you spend adds 1 to your
+  points. Every 100 of your points takes 1.00 SAR off an order." The Arabic reads the same way.
+- **The reads are a fixed few, not one**: `CustomerPointsInStores` reads the accounts, then their
+  live lots (two queries for every block); the shop's rates and on/off are read from the programme's
+  settings beside `ViewMyPoints`, not inside it. Recorded own counts: Points › Customers 5, a
+  customer's points 8, Redemptions 3, the customer page's section 3 — each the same for one row as for
+  six (`Feature/LoyaltyScreensTest`).
+- **A store the reader may not open is the panel's 403** on every Points page, as on every store screen
+  (the filter's refusal); an unknown customer, or one with no points here whom the reader may not view,
+  is its 404.
+- **A search typed into the address that the box would never send** (under 3 or over 100 characters)
+  searches nothing; a Show More cursor given only in part is refused (422).
+- **Remove is out of reach at a balance of 0** on its own choice, and the main button says why.
+- **A change by hand always names its store**: one that names none is refused, never made in the first
+  store that is on.
+- **Points › Settings opens the settings screen with a full page load**, since an Inertia visit's
+  redirect drops the "#" the screen scrolls to.
+- **An amount on Redemptions** is written with its own order's currency's decimals.
+- **Dates, amounts and the typed search inside a sentence are isolated** (frontend.md §1.8), so an
+  Arabic sentence keeps "1.00 SAR" and an order number in their order; the points box takes digits
+  typed in Arabic-Indic too.
+- **Accounts by store**: an index `accounts_by_store` (`store_id`, `id`), §5.
+
 ---
 
 ## 5 · Tables
@@ -688,7 +718,8 @@ and every CHECK touching a nullable column is written so that NULL fails it wher
 | `loyalty.covers` | `id` bigint identity, `account_id`, `lot_id` (the earned lot whose reversal it settles), `order_id`, `return_id` (the return that made it — NOT NULL since 2026-10-11, answer 19: only a return takes earned points back — a cover may move no point, so it is keyed to the settlement, not to an entry), `source` (`EXPIRED_POINTS`, `LOT`, `DROPPED`), `source_take_id` NULL (the `COVER` take from the covering lot), `points`, `undone` | (`lot_id`, `account_id`) → lots; (`order_id`, `account_id`) → orders; (`source_take_id`, `account_id`) → takes; CHECK `points > 0`, `undone >= 0`, `undone <= points`; CHECK `(source = 'LOT') = (source_take_id IS NOT NULL)` |
 | `loyalty.lot_movements` | `id` bigint identity, `account_id`, `lot_id`, `entry_id`, `points` (+ onto the lot, − off it) | (`lot_id`, `account_id`) → lots; (`entry_id`, `account_id`) → entries; CHECK `points <> 0`; **append-only** — every lot's history |
 
-**Indexes:** lots by (`account_id`, `expires_at`, `id`) WHERE `points_left > 0` — spending and the next
+**Indexes:** accounts by (`store_id`, `id`) — a store's accounts, for Points › Customers (§4.1,
+2026-10-19); lots by (`account_id`, `expires_at`, `id`) WHERE `points_left > 0` — spending and the next
 expiry; lots by `expires_at` WHERE `points_left > 0` — the sweep; takes by (`lot_id`, `id`) — a lot's
 takes, oldest first; takes by `entry_id`; covers by (`lot_id`, `id`) — a lot's covers, oldest first; entries by (`account_id`,
 `occurred_at` DESC, `id` DESC) — the history; entries by (`store_id`, `kind`, `occurred_at` DESC, `id`
@@ -935,11 +966,11 @@ written, for the owner to review with the built screens. Each says what changing
 
 | # | Proposal | Changing it later |
 |---|---|---|
-| P1 | **Only the name** of a customer registered in a store whose customers the reader may not view — no email, no phone — on Points › Customers and Redemptions; the email shows under the name for a customer the reader may open | One field in the list's row |
+| P1 | **Only the name** of a customer registered in a store whose customers the reader may not view — no email, no phone — on Points › Customers and Redemptions; on Points › Customers the email shows under the name for a customer the reader may open (Redemptions shows names only, as L4 says) | One field in the list's row |
 | P2 | **A search that matches 1,000 customers or more** asks for more of the text and shows none, rather than a partial list that would look complete | The search's cap and the message |
 | P3 | **A "how it works" line** on the customer's Points tab from the store's two rates ("You earn 1 point for every 1.00 SAR. 100 points take 1.00 SAR off an order."), only while the programme is on | One line and two values in the read |
 | P4 | **Remove Points is not red**: a correction, not a deletion; the dialog's main button names the action | A button variant |
 | P5 | **Give Points…** on the customer page's section, for a reader who may change points and open L2 in a store where the customer has none yet — otherwise only customers who already hold points could be given any | A link |
 | P6 | **The search matches email and phone only among customers the reader may already view** (names in every store), so an email or phone typed in never reveals who owns it — the review of 2026-10-19 found that matching them everywhere would show more than answer 7's "the name only" | The search's query, in Access |
-| P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name | One check in the handler |
+| P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; whether to close it too is the owner's call (2026-10-19) | One check in the handler |
 | P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |
