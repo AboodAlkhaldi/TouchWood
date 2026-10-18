@@ -14,6 +14,7 @@ use Modules\Catalog\Public\Events\ProductChanged;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Catalog\Public\Events\ProductRestored;
 use Modules\Catalog\Public\Events\StoreListingChanged;
+use Modules\Catalog\Public\Events\StoreListingWithdrawn;
 use Modules\Catalog\Public\Events\VariantAdded;
 use Modules\Catalog\Public\Events\VariantArchived;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
@@ -80,6 +81,16 @@ final readonly class ProductEvents
     public function storeListingChanged(string $storeId, array $variantIds): void
     {
         $this->events->dispatch(new StoreListingChanged((string) Str::uuid(), $storeId, $variantIds, CarbonImmutable::now()));
+    }
+
+    /**
+     * A store switched these variants off (amendment 22).
+     *
+     * @param  list<string>  $variantIds
+     */
+    public function storeListingWithdrawn(string $storeId, array $variantIds): void
+    {
+        $this->events->dispatch(new StoreListingWithdrawn((string) Str::uuid(), $storeId, $variantIds, CarbonImmutable::now()));
     }
 
     public function variantAdded(Product $product, string $variantId): void

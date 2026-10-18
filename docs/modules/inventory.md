@@ -130,8 +130,8 @@ adds up the stores the reader holds Manage Stock in; its entry comes with the li
 links every entry to its route. *(Step 5; owner, 2026-10-18:)* each store's count is **kept**
 (`inventory.low_counts`) and the menu reads it in **one query**: counted again by a job with the list's
 own reader - so the list, the count and the Home card never disagree - after every change of stock,
-holds, thresholds, wiring or the store's default, when a size or a product is archived or restored, and
-each night for every store. One recount waits per store and runs 30 seconds after the change, so the
+holds, thresholds, wiring or the store's default, when a store switches sizes off (catalog.md amendment
+22), when a size or a product is archived or restored, and each night for every store. One recount waits per store and runs 30 seconds after the change, so the
 count is about half a minute behind the list at most; a store not counted yet is counted live once.
 
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
@@ -342,6 +342,7 @@ A low-stock event for Ops comes with Ops (stage 8).
 | `SettingChanged` (`inventory.low_stock.default`) | Platform | The store's sizes told again: "last pieces" may flip (step 4) |
 | `VariantArchived`, `ProductArchived` | Catalog | Nothing: stock is kept; an archived size is not on sale anyway, and read-only by hand until restored (owner, 2026-10-11) — read from `VariantDto::isArchived` and `ProductDto::stage` when a change names it |
 | `VariantArchived`, `VariantRestored`, `ProductArchived`, `ProductRestored` | Catalog | Every store's Low Stock count counted again: an archived size leaves the list, a restored one may come back (step 5) |
+| `StoreListingWithdrawn` | Catalog | The store's Low Stock count counted again: sizes switched off with no stock row leave the list (step 5) |
 
 ---
 

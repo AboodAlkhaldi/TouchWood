@@ -11,7 +11,8 @@ use Shared\Domain\ValueObject\StoreId;
  */
 interface LowCounts
 {
-    public function save(StoreId $store, int $low): void;
+    /** Kept unless a count started later is kept already: an older count never overwrites a newer one. */
+    public function save(StoreId $store, int $low, \DateTimeImmutable $countedAt): void;
 
     /** Marks the store's recount queued - true for whoever marks it first, false while one already waits. */
     public function claimRecount(StoreId $store): bool;

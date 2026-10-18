@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Infrastructure\Eloquent;
 
-use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Inventory\Domain\Repository\LowCounts;
 use Shared\Domain\ValueObject\StoreId;
@@ -20,9 +20,14 @@ final readonly class DatabaseLowCounts implements LowCounts
         private ConnectionInterface $db,
     ) {}
 
-    public function save(StoreId $store, int $low): void
+    public function save(StoreId $store, int $low, DateTimeImmutable $countedAt): void
     {
-        $this->db->table(self::TABLE)->upsert([['store_id' => $store->value, 'low' => $low, 'counted_at' => CarbonImmutable::now()]], ['store_id'], ['low', 'counted_at']);
+        $this->db->statement(
+            'INSERT INTO inventory.low_counts (store_id, low, counted_at) VALUES (?, ?, ?)'
+            .' ON CONFLICT (store_id) DO UPDATE SET low = EXCLUDED.low, counted_at = EXCLUDED.counted_at'
+            .' WHERE inventory.low_counts.counted_at IS NULL OR inventory.low_counts.counted_at <= EXCLUDED.counted_at',
+            [$store->value, $low, $countedAt],
+        );
     }
 
     public function claimRecount(StoreId $store): bool

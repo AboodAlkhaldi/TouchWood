@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Console\Scheduling\Event;
@@ -18,10 +19,15 @@ use Modules\Inventory\Application\Command\CountLowStock\CountLowStockHandler;
 use Modules\Inventory\Application\Command\SetLowStockThreshold\SetLowStockThreshold;
 use Modules\Inventory\Application\Command\SetLowStockThreshold\SetLowStockThresholdHandler;
 use Modules\Inventory\Application\InventoryPermissions;
+use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\Stock\LowStockCount;
+use Modules\Inventory\Domain\Repository\LowCounts;
 use Modules\Inventory\Infrastructure\Queue\CountLowStockJob;
 use Modules\Inventory\Infrastructure\Queue\QueuedLowStockRecounts;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -144,4 +150,38 @@ it('counts every store each night at 03:30 Riyadh time on one server, and is the
     expect(Fx::asSystem(fn (): int => app(CountLowStockHandler::class)->handle(new CountLowStock)))->toBeGreaterThan(1)
         ->and(lowCountKept())->toBe(3)
         ->and(lowCountKept('ae'))->toBe(0);
+});
+
+it('follows a store switching sizes off, and its default threshold changing (Catalog amendment 22)', function () {
+    [$a, $b, $c] = lowCountSizes();
+    Ix::count('sa', [$a => 15, $b => 15, $c => 15]);
+
+    expect(lowCountKept())->toBe(0);
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(InventorySettings::LOW_STOCK_DEFAULT, 'sa', 20));
+
+    expect(lowCountKept())->toBe(3);
+
+    $product = (string) DB::table('catalog.variants')->where('id', $a)->value('product_id');
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $product, false)));
+
+    // Switched off, but stocked: still on the list, as a size with a stock row is (§1.7).
+    expect(lowCountKept())->toBe(3);
+
+    DB::table('inventory.stock')->where('store_id', Ix::storeId('sa'))->delete();
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $product, true)));
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $product, false)));
+
+    expect(lowCountKept())->toBe(0);
+});
+
+it('never writes an older count over a newer one', function () {
+    lowCountSizes();
+    $store = StoreId::fromString(Ix::storeId('sa'));
+
+    app(LowCounts::class)->save($store, 7, CarbonImmutable::now()->addMinute()->toDateTimeImmutable());
+    app(LowCounts::class)->save($store, 2, CarbonImmutable::now()->toDateTimeImmutable());
+
+    expect(lowCountKept())->toBe(7);
 });

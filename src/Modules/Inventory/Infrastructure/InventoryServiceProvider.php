@@ -12,6 +12,7 @@ use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductRestored;
 use Modules\Catalog\Public\Events\StoreListingChanged;
+use Modules\Catalog\Public\Events\StoreListingWithdrawn;
 use Modules\Catalog\Public\Events\VariantArchived;
 use Modules\Catalog\Public\Events\VariantRestored;
 use Modules\Inventory\Application\InventoryApiImpl;
@@ -104,6 +105,8 @@ final class InventoryServiceProvider extends ServiceProvider
         foreach ([VariantArchived::class, VariantRestored::class, ProductArchived::class, ProductRestored::class] as $event) {
             Event::listen($event, [RecountLowStock::class, 'handle']);
         }
+
+        Event::listen(StoreListingWithdrawn::class, [RecountLowStock::class, 'withdrawn']);
 
         if ($this->app->runningInConsole()) {
             $this->commands([RebuildOrderableCommand::class]);

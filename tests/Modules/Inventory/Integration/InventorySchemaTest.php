@@ -83,6 +83,18 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             ->and(DB::table('inventory.stock')->value('in_stock'))->toBe(0);
     });
 
+    it('keeps a store\'s kept Low Stock count at 0 or more, counted with its time or neither', function () {
+        $insert = static fn (array $row): Closure => fn () => DB::transaction(fn () => DB::table('inventory.low_counts')->insert(['store_id' => Fx::storeId('sa'), ...$row]));
+
+        expect($insert(['low' => -1, 'counted_at' => now()]))->toThrow(QueryException::class, 'low_counts_low')
+            ->and($insert(['low' => 1]))->toThrow(QueryException::class, 'low_counts_counted')
+            ->and($insert(['counted_at' => now()]))->toThrow(QueryException::class, 'low_counts_counted');
+
+        $insert(['low' => 0, 'counted_at' => now()])();
+
+        expect(DB::table('inventory.low_counts')->value('recount_queued'))->toBeFalse();
+    });
+
     it('keeps each ledger line\'s numbers adding up, its reason known, and a correction\'s note there', function () {
         $row = [
             'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready()['variants'][0], 'reason' => 'RECEIVED', 'change' => 2,

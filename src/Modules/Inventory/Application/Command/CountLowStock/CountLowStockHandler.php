@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Application\Command\CountLowStock;
 
+use Carbon\CarbonImmutable;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\LowStockReader;
 use Modules\Inventory\Domain\Repository\LowCounts;
@@ -52,7 +53,9 @@ final readonly class CountLowStockHandler
         foreach ($stores as $store) {
             // A store gone since the job was queued has nothing to count.
             if ($this->platform->store($store) !== null) {
-                $this->counts->save($store, count($this->reader->low($store)));
+                // Its start, not its end: a count started later, and kept first, is the newer one.
+                $startedAt = CarbonImmutable::now()->toDateTimeImmutable();
+                $this->counts->save($store, count($this->reader->low($store)), $startedAt);
             }
         }
 

@@ -29,8 +29,8 @@ final readonly class LowStockCount implements MenuCount
     ) {}
 
     /**
-     * The kept counts, one query (owner, 2026-10-18); a store not counted yet is counted live this once
-     * and its count queued - the only write a read makes, marking that one recount waiting.
+     * The kept counts, one query (owner, 2026-10-18). A store not counted yet is counted live, and its
+     * count queued, until that first count lands - about half a minute after it is first needed.
      */
     public function count(): int
     {

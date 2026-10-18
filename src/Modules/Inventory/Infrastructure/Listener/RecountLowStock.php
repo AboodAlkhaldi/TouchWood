@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Infrastructure\Listener;
 
+use Modules\Catalog\Public\Events\StoreListingWithdrawn;
 use Modules\Inventory\Application\Stock\LowStockRecounts;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A size or a product archived or restored leaves the Low Stock list, or comes back to it, in any store
@@ -19,5 +21,11 @@ final readonly class RecountLowStock
     public function handle(): void
     {
         $this->recounts->queueAll();
+    }
+
+    /** A store switched sizes off (Catalog's amendment 22): they leave its list. */
+    public function withdrawn(StoreListingWithdrawn $event): void
+    {
+        $this->recounts->queue(StoreId::fromString($event->storeId));
     }
 }
