@@ -100,6 +100,7 @@ describe('a store\'s coupons', function () {
         // A coupon starting this very second is active, in the list's filter and on its row.
         Pr::coupon('NOW-1', with: ['starts_at' => $now]);
         expect(listedCodes(CouponState::Active))->toEqualCanonicalizing(['SUMMER-1', 'NOW-1'])
+            ->and(listedCodes(CouponState::Scheduled))->toBe(['SUMMER-2'])
             ->and(app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), codeStart: 'NOW'))->rows[0]->state)->toBe(CouponState::Active);
         DB::table('promotions.coupons')->where('code', 'NOW-1')->delete();
 
