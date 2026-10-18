@@ -32,4 +32,9 @@ final readonly class DatabaseReadLines implements ReadLines
             ], $chunk));
         }
     }
+
+    public function count(string $readId, string $kind): int
+    {
+        return $this->db->table('sync.read_lines')->where('read_id', $readId)->where('kind', $kind)->count();
+    }
 }

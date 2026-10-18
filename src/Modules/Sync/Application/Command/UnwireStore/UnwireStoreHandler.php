@@ -56,6 +56,10 @@ final readonly class UnwireStoreHandler
             throw new InvalidSyncInput('store');
         }
 
+        if ($this->platform->store($store) === null) {
+            throw new InvalidSyncInput('store');
+        }
+
         return $this->db->transaction(function () use ($store): int {
             $connection = $this->connections->lockFor($store) ?? throw new NotWired;
             $this->connections->delete($store);

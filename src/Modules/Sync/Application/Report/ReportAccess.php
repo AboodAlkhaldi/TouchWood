@@ -6,7 +6,9 @@ namespace Modules\Sync\Application\Report;
 
 use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Exception\SyncError;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -25,10 +27,18 @@ final readonly class ReportAccess
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput
+     * @param  SyncError|null  $notFound  for an entry or a read looked up by its id: one of a store the
+     *                                    person holds neither this permission nor View the Sync Report in
+     *                                    is not found - nothing tells them it exists (owner, 2026-10-18)
+     *
+     * @throws Unauthorized|InvalidSyncInput|SyncError
      */
-    public function authorize(string $permission, string $storeId): StoreId
+    public function authorize(string $permission, string $storeId, ?SyncError $notFound = null): StoreId
     {
+        if ($notFound !== null && ! $this->holds($permission, $storeId) && ! $this->holds(SyncPermissions::REPORT_VIEW, $storeId)) {
+            throw $notFound;
+        }
+
         try {
             $store = StoreId::fromString($storeId);
         } catch (InvalidArgumentException) {
@@ -42,5 +52,13 @@ final readonly class ReportAccess
         }
 
         return $store;
+    }
+
+    /** Whether the person holds the permission in the store, or in every store. */
+    private function holds(string $permission, string $storeId): bool
+    {
+        $stores = $this->authorizer->storesWith($permission);
+
+        return $stores === null || in_array(strtolower($storeId), array_map(static fn (StoreId $store): string => $store->value, $stores), true);
     }
 }

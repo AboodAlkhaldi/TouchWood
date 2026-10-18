@@ -33,4 +33,17 @@ final readonly class DatabaseReadReports implements ReadReports
             ], $chunk));
         }
     }
+
+    public function clear(string $readId): void
+    {
+        $this->db->table('sync.read_reports')->where('read_id', $readId)->delete();
+    }
+
+    public function skipped(string $readId): int
+    {
+        return (int) $this->db->selectOne(
+            "SELECT count(*) FILTER (WHERE kind = 'UNKNOWN_CODE') + count(DISTINCT variant_id) FILTER (WHERE kind IN ('ARCHIVED_SKIPPED', 'BAD_VALUE')) AS skipped FROM sync.read_reports WHERE read_id = ?",
+            [$readId],
+        )?->skipped;
+    }
 }

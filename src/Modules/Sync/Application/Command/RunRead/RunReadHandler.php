@@ -72,15 +72,18 @@ final readonly class RunReadHandler
     ) {}
 
     /**
+     * @return int|null seconds to wait before trying again: the read runs elsewhere and is not yet
+     *                  taken as dead (a copy of its job picked up again, or its worker gone)
+     *
      * @throws Unauthorized|ConnectionFailed
      */
-    public function handle(RunRead $command): void
+    public function handle(RunRead $command): ?int
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $storeId = $this->reads->storeOf($command->readId);
 
         if ($storeId === null) {
-            return;
+            return null;
         }
 
         $store = StoreId::fromString($storeId);
@@ -95,9 +98,16 @@ final readonly class RunReadHandler
         $read = $this->reads->claim($command->readId, $deadBefore);
 
         // Not waiting any more, or another read of the store runs: that one starts this when it ends.
+        // Itself still running elsewhere: tried again once it is taken as dead, so a worker that went
+        // away never leaves it to be reported failed by the next read (§1.7).
         if ($read === null) {
-            return;
+            $since = $this->reads->runningSince($command->readId);
+
+            return $since === null ? null : max(1, $since->getTimestamp() + self::STALE_MINUTES * 60 + 1 - CarbonImmutable::now()->getTimestamp());
         }
+
+        // An attempt tried again reports everything again: its record stays exact (owner, 2026-10-18).
+        $this->reports->clear($read->id);
 
         try {
             $this->finishRun($store, $read);
@@ -107,6 +117,8 @@ final readonly class RunReadHandler
 
             throw $error;
         }
+
+        return null;
     }
 
     /**
@@ -134,14 +146,26 @@ final readonly class RunReadHandler
 
     private function finishRun(StoreId $store, Read $read): void
     {
+        // The store's next read, whatever happens to this one - while this one still runs, so it is
+        // never itself, put back to wait for its own retry.
+        try {
+            $this->finishAttempt($store, $read);
+        } finally {
+            $this->reads->startNext($store);
+        }
+    }
+
+    private function finishAttempt(StoreId $store, Read $read): void
+    {
         $connection = $this->connections->find($store);
-        $counts = $connection === null ? null : $this->run($store, $read, $connection);
+        $ran = $connection !== null && $this->run($store, $read, $connection);
+        // Counted from what it wrote, over every attempt: an attempt tried again finds its prices set.
+        $counts = [$this->lines->count($read->id, 'PRICE'), $this->lines->count($read->id, 'STOCK'), $this->reports->skipped($read->id)];
 
         // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its.
-        if ($counts === null || ! $this->reads->finish($read->id, ...$counts)) {
+        if (! $ran || ! $this->reads->finish($read->id, ...$counts)) {
             $this->reads->fail($read->id, self::STOPPED);
             $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, AuditChanges::none()->changed('error', null, self::STOPPED)));
-            $this->reads->startNext($store);
 
             return;
         }
@@ -155,7 +179,6 @@ final readonly class RunReadHandler
             ->changed('stock_changed', null, $stock)
             ->changed('skipped', null, $skipped)));
         $this->announce($store, $read->id);
-        $this->reads->startNext($store);
     }
 
     /** A read failed: the store failing and reported - while still wired - and the failure audited. */
@@ -197,15 +220,12 @@ final readonly class RunReadHandler
         $this->reports->add($readId, $kind, $entries);
     }
 
-    /**
-     * @return array{int, int, int}|null prices changed, stock changed, skipped; null when it stopped
-     */
-    private function run(StoreId $store, Read $read, Connection $connection): ?array
+    /** Whether it ran to its end - false when it stopped. */
+    private function run(StoreId $store, Read $read, Connection $connection): bool
     {
         $wiring = $this->connections->wiredAt($store);
         $changedSince = $read->kind === ReadKind::Hourly ? $connection->lastReadAt : null;
         $values = $this->adapters->for($connection->provider)->read($connection, $read->codes, $changedSince);
-        $counts = [0, 0, 0];
         $seen = [];
         $batch = [];
 
@@ -213,22 +233,22 @@ final readonly class RunReadHandler
             $batch[] = $value;
 
             if (count($batch) === self::BATCH) {
-                if (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $batch, $counts, $seen)) {
-                    return null;
+                if (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen)) {
+                    return false;
                 }
 
                 $batch = [];
             }
         }
 
-        if ($batch !== [] && (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $batch, $counts, $seen))) {
-            return null;
+        if ($batch !== [] && (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen))) {
+            return false;
         }
 
         // Only the night's full read finds our sizes the provider does not know (§1.3, §1.6).
         if ($read->kind === ReadKind::Nightly) {
             if (! $this->current($store, $read, $wiring)) {
-                return null;
+                return false;
             }
 
             $this->reported($store, $read->id, ReportKind::NotInProvider, array_map(
@@ -237,7 +257,7 @@ final readonly class RunReadHandler
             ));
         }
 
-        return $counts;
+        return true;
     }
 
     /** Whether the read still runs for the store's present wiring. */
@@ -252,16 +272,15 @@ final readonly class RunReadHandler
      * closed.
      *
      * @param  list<ProviderValue>  $values
-     * @param  array{int, int, int}  $counts
      * @param  array<string, true>  $seen  sizes the provider sent
      */
-    private function batch(StoreId $store, Read $read, array $values, array &$counts, array &$seen): bool
+    private function batch(StoreId $store, Read $read, ?string $wiring, array $values, array &$seen): bool
     {
-        $variants = $this->catalog->variantsByCodes(array_map(static fn (ProviderValue $value): string => trim($value->code), $values));
+        $variants = $this->catalog->variantsByCodes(array_map(static fn (ProviderValue $value): string => self::code($value->code), $values));
         $codeOf = $priceIn = $stockIn = $bad = $unknown = [];
 
         foreach ($values as $value) {
-            $code = trim($value->code);
+            $code = self::code($value->code);
             $variant = $variants[$code] ?? null;
 
             // A code we do not have: reported, never created (§1.4 #1).
@@ -293,17 +312,32 @@ final readonly class RunReadHandler
             }
         }
 
+        // The read's lines (§9.3 #19), each written as soon as its module has written: an attempt that
+        // fails between the two keeps what the first changed, and its retry counts it.
         $prices = $priceIn === [] ? null : $this->prices->apply($store, $priceIn, $read->id);
+
+        if ($prices?->wired === false) {
+            return false;
+        }
+
+        $this->lines->add($read->id, 'PRICE', self::lines($prices->changes ?? [], $codeOf));
         $stock = $stockIn === [] ? null : $this->stock->apply($store, $stockIn, $read->id);
 
-        if ($prices?->wired === false || $stock?->wired === false) {
+        if ($stock?->wired === false) {
+            return false;
+        }
+
+        $this->lines->add($read->id, 'STOCK', self::lines($stock->changes ?? [], $codeOf));
+
+        // Pricing and Inventory confirm the wiring as they write; with nothing for them, it is checked here.
+        if ($prices === null && $stock === null && ! $this->current($store, $read, $wiring)) {
             return false;
         }
 
         $archived = array_values(array_unique([...($prices->archived ?? []), ...($stock->archived ?? [])]));
 
         foreach ([...($prices->invalid ?? []), ...($stock->invalid ?? [])] as $variantId) {
-            $bad[$variantId] ??= ['price' => $priceIn[$variantId] ?? null, 'stock' => $stockIn[$variantId] ?? null];
+            $bad[$variantId] ??= ['price' => self::cut($priceIn[$variantId] ?? null), 'stock' => $stockIn[$variantId] ?? null];
         }
 
         // Sizes a contract took and checked: archived or not is known only for them.
@@ -317,13 +351,9 @@ final readonly class RunReadHandler
         $this->entries->close($store, ReportKind::UnknownCode, array_values($codeOf), [], self::CLOSED_BY_READ);
         $this->reported($store, $read->id, ReportKind::ArchivedSkipped, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['code' => $codeOf[$variantId] ?? null]], $archived));
         $this->reported($store, $read->id, ReportKind::BadValue, array_map(static fn (string $variantId, array $detail): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => $detail], array_keys($bad), $bad));
-        $this->reported($store, $read->id, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => $priceIn[$variantId] ?? null]], $prices->offOrDraft ?? []));
+        $this->reported($store, $read->id, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => self::cut($priceIn[$variantId] ?? null)]], $prices->offOrDraft ?? []));
         $this->reported($store, $read->id, ReportKind::SaleStopped, array_map(static fn (array $stopped): array => ['code' => null, 'variantId' => $stopped['variantId'], 'saleId' => $stopped['saleId'], 'detail' => ['outcome' => $stopped['outcome']]], $prices->salesStopped ?? []));
         $this->reported($store, $read->id, ReportKind::DiscountSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['discount' => $skipped['discountId']]], $prices->discountsSkipped ?? []));
-
-        // The read's lines (§9.3 #19): each price and stock number it changed, from and to.
-        $this->lines->add($read->id, 'PRICE', array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $prices->changes ?? []));
-        $this->lines->add($read->id, 'STOCK', array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $stock->changes ?? []));
 
         // Right again: a good value, a size checked and not archived, a discount reaching it, a size found.
         $skippedNow = array_column($prices->discountsSkipped ?? [], 'variantId');
@@ -332,11 +362,34 @@ final readonly class RunReadHandler
         $this->entries->close($store, ReportKind::DiscountSkipped, [], array_values(array_diff($prices->changed ?? [], $skippedNow)), self::CLOSED_BY_READ);
         $this->entries->close($store, ReportKind::NotInProvider, [], $sizes, self::CLOSED_BY_READ);
 
-        $counts[0] += count($prices->changed ?? []);
-        $counts[1] += count($stock->changed ?? []);
-        $counts[2] += count($unknown) + count(array_unique([...$archived, ...array_keys($bad)]));
-
         return true;
+    }
+
+    /**
+     * The provider's code as matched and reported: trimmed, valid UTF-8, a control character written as
+     * "?" - the database refuses some, and no code of ours has one.
+     */
+    private static function code(string $code): string
+    {
+        return trim((string) preg_replace('/\p{Cc}/u', '?', mb_scrub($code, 'UTF-8')));
+    }
+
+    /**
+     * A module's changes as the read's lines, each with the provider's code.
+     *
+     * @param  list<array{variantId: string, before: int|string|null, after: int|string}>  $changes
+     * @param  array<string, string>  $codeOf
+     * @return list<array{variantId: string, code: string|null, before: int|string|null, after: int|string}>
+     */
+    private static function lines(array $changes, array $codeOf): array
+    {
+        return array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $changes);
+    }
+
+    /** The provider's text kept in a report, 100 characters at most. */
+    private static function cut(?string $text): ?string
+    {
+        return $text === null ? null : mb_substr(mb_scrub($text, 'UTF-8'), 0, 100);
     }
 
     /** A whole number as the provider may write it - 5, 5.0, "5" - or null when it is not one. */
@@ -357,7 +410,11 @@ final readonly class RunReadHandler
      */
     private static function detail(ProviderValue $value): array
     {
-        $plain = static fn (mixed $given): string|int|float|bool|null => is_scalar($given) || $given === null ? $given : get_debug_type($given);
+        $plain = static fn (mixed $given): string|int|float|bool|null => match (true) {
+            is_string($given) => self::cut($given),
+            is_scalar($given), $given === null => $given,
+            default => get_debug_type($given),
+        };
 
         return ['price' => $plain($value->price), 'stock' => $plain($value->stock)];
     }

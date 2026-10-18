@@ -42,7 +42,7 @@ final readonly class RetryEntryHandler
     public function handle(RetryEntry $command): void
     {
         $entry = $this->entries->findOpen($command->entryId) ?? throw new EntryNotFound;
-        $store = $this->access->authorize(self::PERMISSION, $entry['storeId']);
+        $store = $this->access->authorize(self::PERMISSION, $entry['storeId'], new EntryNotFound);
 
         if (! $this->connections->exists($store)) {
             throw new NotWired;

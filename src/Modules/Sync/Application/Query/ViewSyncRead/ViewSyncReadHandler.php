@@ -38,7 +38,7 @@ final readonly class ViewSyncReadHandler
     public function handle(ViewSyncRead $query): ReadDetailView
     {
         $read = $this->log->read($query->readId) ?? throw new ReadNotFound;
-        $this->access->authorize(SyncPermissions::REPORT_VIEW, $read['storeId']);
+        $this->access->authorize(SyncPermissions::REPORT_VIEW, $read['storeId'], new ReadNotFound);
         $page = max(1, $query->page);
         [$prices, $pricesTotal] = $this->log->lines($read['id'], 'PRICE', $page, self::PER_PAGE);
         [$stock, $stockTotal] = $this->log->lines($read['id'], 'STOCK', $page, self::PER_PAGE);

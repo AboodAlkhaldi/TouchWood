@@ -58,6 +58,9 @@ interface Reads
     /** Done, with its counts - false when it was no longer running (unwired, or taken over). */
     public function finish(string $readId, int $pricesChanged, int $stockChanged, int $skipped): bool;
 
+    /** When the read started, while it runs - null when it does not. */
+    public function runningSince(string $readId): ?DateTimeImmutable;
+
     /** Failed, saying why - if it was not finished already; false when it was. */
     public function fail(string $readId, string $why): bool;
 

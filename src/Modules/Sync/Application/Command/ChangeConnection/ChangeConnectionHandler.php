@@ -58,6 +58,10 @@ final readonly class ChangeConnectionHandler
             throw new InvalidSyncInput('store');
         }
 
+        if ($this->platform->store($store) === null) {
+            throw new InvalidSyncInput('store');
+        }
+
         $provider = $this->input->provider($command->provider);
         $address = $this->input->address($command->address);
         $settings = $this->input->settings($provider, $command->settings);

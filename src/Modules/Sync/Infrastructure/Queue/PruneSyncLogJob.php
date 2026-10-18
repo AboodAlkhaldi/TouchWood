@@ -23,6 +23,9 @@ final class PruneSyncLogJob implements ShouldQueue
     /** Three tries (platform.md §3: every queued job states its own); a night missed is the next one's. */
     public int $tries = 3;
 
+    /** Batched deletes, each on an index: minutes at most, even after a long gap. */
+    public int $timeout = 900;
+
     /** @var list<int> */
     public array $backoff = [10, 60];
 

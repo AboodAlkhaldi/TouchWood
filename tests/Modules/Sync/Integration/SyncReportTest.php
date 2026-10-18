@@ -127,11 +127,11 @@ describe('the page of reads (§9.3 #19)', function () {
             ->and(array_map(static fn ($entry): string => $entry->kind.' '.($entry->productId ?? $entry->code), $view->reported))->toEqualCanonicalizing(["BAD_VALUE {$product}", 'UNKNOWN_CODE 987654']);
     });
 
-    it('shows a read to whoever may see its store\'s report, and to no one else', function () {
+    it('shows a read to whoever may see its store\'s report; to anyone else it is not there (owner, 2026-10-18)', function () {
         ['read' => $read] = syncReportRead();
         Fx::actAsStaff(Fx::staffWith([SyncPermissions::REPORT_VIEW], ['ae']));
 
-        expect(fn () => app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read)))->toThrow(Unauthorized::class)
+        expect(fn () => app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read)))->toThrow(ReadNotFound::class)
             ->and(fn () => app(ViewSyncReadHandler::class)->handle(new ViewSyncRead('01jbzzzzzzzzzzzzzzzzzzzzzz')))->toThrow(ReadNotFound::class);
     });
 });
@@ -252,15 +252,15 @@ describe('the actions (§3: Run Sync Reads)', function () {
             ->and(fn () => app(RetryEntryHandler::class)->handle(new RetryEntry($entry)))->toThrow(EntryNotFound::class);
     });
 
-    it('refuses an entry\'s action to whoever may not run that store\'s reads - a viewer, or a runner elsewhere', function () {
+    it('refuses an entry\'s action to its store\'s viewer; to a runner elsewhere the entry is not there (owner, 2026-10-18)', function () {
         syncReportRead();
         $entry = (int) DB::table('sync.report_entries')->value('id');
 
-        foreach ([syncReportViewer(), Fx::staffWith([SyncPermissions::READ_RUN], ['ae'])] as $staff) {
+        foreach ([[syncReportViewer(), Unauthorized::class], [Fx::staffWith([SyncPermissions::READ_RUN], ['ae']), EntryNotFound::class]] as [$staff, $error]) {
             Fx::actAsStaff($staff);
 
-            expect(fn () => app(DismissEntryHandler::class)->handle(new DismissEntry($entry)))->toThrow(Unauthorized::class)
-                ->and(fn () => app(RetryEntryHandler::class)->handle(new RetryEntry($entry)))->toThrow(Unauthorized::class);
+            expect(fn () => app(DismissEntryHandler::class)->handle(new DismissEntry($entry)))->toThrow($error)
+                ->and(fn () => app(RetryEntryHandler::class)->handle(new RetryEntry($entry)))->toThrow($error);
         }
 
         Fx::actAsStaff(Fx::staffWith([SyncPermissions::REPORT_VIEW], ['ae']));
