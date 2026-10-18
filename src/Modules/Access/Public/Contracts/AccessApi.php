@@ -10,6 +10,7 @@ use Modules\Access\Public\Dto\StaffDisplayNameDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
+use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -43,6 +44,31 @@ interface AccessApi
      * @return list<string>
      */
     public function customerIdsInStore(StoreId $store, AccountType $accountType, ?string $after, int $limit): array;
+
+    /**
+     * For a module's own staff list searched by a person (amendment 72(b); Loyalty's points
+     * holders): the customers, not anonymized, whose first or last name holds the text **in any
+     * store**, or whose email or phone holds it **among the customers the acting staff member may
+     * view** (amendment 44(b), in the query) — so an email typed in never names a customer the reader
+     * could not see. By id, at most `$limit` (1 to 1000). The caller keeps only its own customers and
+     * shows nothing more than its rules allow.
+     *
+     * @return list<string>
+     *
+     * @throws DomainError (Access's InvalidAccessAttribute) for a text of fewer than 3 or more than
+     *                     100 characters, or one with control characters
+     */
+    public function customerIdsMatching(string $text, int $limit): array;
+
+    /**
+     * The home stores whose customers the acting staff member may view - open their page, read their
+     * email and phone (amendment 44(b), G2's own rule) - for a module deciding what of a customer to
+     * show (amendment 72(e)): compare with `CustomerDto::$homeStoreId`. Null for every store, now and
+     * later; an empty list for none (a customer, a guest, the system without the job).
+     *
+     * @return list<StoreId>|null
+     */
+    public function customerViewStores(): ?array;
 
     /**
      * The staff member, for the work of other modules — sending them a notification, say. **Not for

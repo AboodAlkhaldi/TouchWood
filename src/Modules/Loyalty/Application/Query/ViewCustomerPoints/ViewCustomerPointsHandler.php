@@ -39,8 +39,15 @@ final readonly class ViewCustomerPointsHandler
     {
         $store = Inputs::store($query->storeId);
         $this->authorizer->authorize(self::PERMISSION, $this->staff->scope(self::PERMISSION, $store));
-        $customerId = $this->staff->customer($query->customerId);
+        $customer = $this->staff->existingCustomer($query->customerId);
+        $account = $this->accounts->find(strtolower($customer->id), $store);
 
-        return $this->views->of($this->accounts->find($customerId, $store), $store, true, $query->beforeAt, $query->beforeId, $query->perPage);
+        // No points here: answered as no customer at all, unless the reader may see the customer
+        // anyway (access.md amendment 44(c); loyalty.md §9.5 P7) - an id tells nobody anything.
+        if ($account === null && ! $this->staff->mayViewCustomer($customer)) {
+            throw new PointsAccountNotFound;
+        }
+
+        return $this->views->of($account, $store, true, $query->beforeAt, $query->beforeId, $query->perPage);
     }
 }

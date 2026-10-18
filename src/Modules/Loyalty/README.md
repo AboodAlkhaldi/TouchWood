@@ -22,8 +22,33 @@ The module was built in six steps (the execution plan, 2026-10-10), every one me
 | 5 — the reads | A customer's own points; a customer's points for staff, with each change by hand's admin and reason; a store's redemptions | below |
 | 6 — the module's pass | The spec swept against the code by one whole-module review; its fixes; this file completed | — |
 
-Not built here, by design: the screens (another session builds them from step 5's reads, spec
-§9.2(2)); events (nothing listens yet, §6).
+Not built here, by design: events (nothing listens yet, §6). The screens came after, built by the
+stage 6 screens session (below).
+
+**The screens** (spec §4.1, 2026-10-19; Access amendment 72, platform.md §9.4 of that day):
+
+- **Admin** (`Presentation/admin-routes.php`, `loyalty.admin.*`, `Http/Controller/PointsAdminController`):
+  L1 Points › Customers (`ListPointHolders`: the store's accounts by *live* points — the live lots'
+  sum, never the stored balance — keyset on (live points, account id), a search through Access's
+  `customerIdsMatching`); L2 a customer's points (`ViewCustomerPoints`, which now answers "not found"
+  for a customer with no points in the store unless the reader may view the customer — P7) with L3,
+  the change-by-hand dialog posting to `AddPoints`/`DeductPoints`; L4 Redemptions; L6 Settings, a
+  redirect to Platform's settings screen at `#settings-loyalty`. What a reader may do comes from
+  `Application/Query/LoyaltyActions/LoyaltyActionsForReader`, never from the authorizer in a screen.
+- **The customer page's section** (L5): `Presentation/Http/Resource/PointsCustomerSection`, registered
+  with Access's `CustomerPageSections`, reading `CustomerPointsInStores` (one query for every store's
+  account, one for their live lots), drawn by `resources/js/sections/customer/loyalty-points.tsx`.
+- **The shop** (`Presentation/shop-routes.php`, `storefront.loyalty.points`, `MyPointsController`):
+  the account's Points tab, offered through Access's `CustomerAccountPages` while
+  `Application/Points/PointsTabOffered` says so — the programme on (from the settings the page
+  already read), or the customer has an account in the store (one query, only when off).
+- **Shared pieces**: `Presentation/Http/Resource/PointsPages` builds every page's data; `MoneyData`
+  sends an amount as decimal text and its currency, which `resources/js/lib/money.ts` writes;
+  `Application/Query/ExpiringNext` sums the lots ending on the soonest day in the store's zone.
+  The pages are `resources/js/pages/Loyalty/Admin/Points/*` and `Loyalty/Storefront/Points.tsx`.
+- **Tests**: `LoyaltyScreenReadsTest` (the reads), `Feature/LoyaltyScreensTest` (the pages over
+  HTTP), `tests/Browser/LoyaltyScreensTest` (a person using them, at a phone's width too); Access's
+  `CustomerSearchForModulesTest` and `Unit/ModuleRegistriesTest`.
 
 The reads (`Application/Query`, spec §3): `ViewMyPoints` (`loyalty.points.view_own`, the signed-in
 customer's own account only), `ViewCustomerPoints` and `ListRedemptions` (`loyalty.points.view` in

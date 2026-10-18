@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Public\Dto;
 
+use Modules\Access\Public\Contracts\CustomerAccountPageCondition;
 use Modules\Access\Public\Enums\AccountType;
 
 /**
@@ -21,6 +22,9 @@ final readonly class CustomerAccountPageDto
      * @param  AccountType|null  $onlyFor  the one account type it is offered to, or null for every
      *                                     account
      * @param  int  $position  where it sits among the other modules' pages, lowest first
+     * @param  class-string|null  $condition  a CustomerAccountPageCondition that says, for the
+     *                                        signed-in customer, whether the page is offered
+     *                                        now (amendment 72(d)); null for always
      */
     public function __construct(
         public string $module,
@@ -28,6 +32,7 @@ final readonly class CustomerAccountPageDto
         public string $routeName,
         public ?AccountType $onlyFor = null,
         public int $position = 0,
+        public ?string $condition = null,
     ) {}
 
     /** The page's full name, `{module}.{key}`: how the account menu and `return` name it. */

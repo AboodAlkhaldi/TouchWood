@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use Modules\Access\Domain\Exception\EmailAlreadyRegistered;
@@ -19,6 +20,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
+use Shared\Domain\Text\LatinDigits;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -89,6 +91,49 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             ->limit($limit)
             ->pluck('id')
             ->all()));
+    }
+
+    public function idsMatching(string $text, ?array $contactStoreIds, int $limit): array
+    {
+        $like = self::like($text);
+        // A phone is saved in Latin digits, so it is searched in Latin however it was typed, as the
+        // staff list's search does (amendment 63).
+        $phone = self::like(LatinDigits::of($text));
+        $contacts = $contactStoreIds === null ? null : array_map(strtolower(...), $contactStoreIds);
+
+        return array_values(array_map(strval(...), $this->db->table(self::TABLE)
+            ->whereNull('anonymized_at')
+            ->where(function (Builder $where) use ($like, $phone, $contacts): void {
+                $where->whereRaw('lower(first_name) like ?', [$like])
+                    ->orWhereRaw('lower(last_name) like ?', [$like]);
+
+                // An email or a phone names its owner, so it is matched only among the customers
+                // the reader may already see (amendment 44(b)): none at all for an empty list.
+                if ($contacts !== []) {
+                    $where->orWhere(function (Builder $contact) use ($like, $phone, $contacts): void {
+                        if ($contacts !== null) {
+                            $contact->whereIn('home_store_id', $contacts);
+                        }
+
+                        $contact->where(function (Builder $either) use ($like, $phone): void {
+                            $either->whereRaw('lower(email) like ?', [$like])->orWhere('phone', 'like', $phone);
+                        });
+                    });
+                }
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->all()));
+    }
+
+    /**
+     * A search as a LIKE pattern, as the staff list's: the backslash escaped first, PostgreSQL's own
+     * escape inside LIKE, so escaping only % and _ would let a trailing one swallow the wildcard.
+     */
+    private static function like(string $text): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower(trim($text))).'%';
     }
 
     public function dueForAnonymizing(DateTimeImmutable $now, int $limit): array

@@ -120,7 +120,9 @@ it('reads a customer\'s points in the store they belong to: not covered is not f
 
     // A Saudi-registered customer's Egyptian points are Egypt's.
     expect(app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints($customer, Fx::storeId('eg')))->balance)->toBe(200)
-        ->and(app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints(Fx::customer('none@example.test'), Fx::storeId('eg')))->balance)->toBe(0)
+        // A customer with no points here, whom this reader may not view (Saudi-registered), is no
+        // customer at all (loyalty.md §9.5 P7, 2026-10-19); LoyaltyScreenReadsTest has the rest.
+        ->and(fn () => app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints(Fx::customer('none@example.test'), Fx::storeId('eg'))))->toThrow(PointsAccountNotFound::class)
         ->and(fn () => app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints($customer, Fx::storeId('sa'))))->toThrow(PointsAccountNotFound::class)
         ->and(fn () => app(ViewCustomerPointsHandler::class)->handle(new ViewCustomerPoints(Lx::orderId(), Fx::storeId('eg'))))->toThrow(PointsAccountNotFound::class);
 

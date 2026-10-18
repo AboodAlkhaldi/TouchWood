@@ -8,8 +8,10 @@ use InvalidArgumentException;
 use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Customer\CustomerMapper;
+use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Staff\StaffDisplayNames;
 use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
@@ -21,6 +23,7 @@ use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
+use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
 final readonly class AccessApiImpl implements AccessApi
@@ -34,6 +37,7 @@ final readonly class AccessApiImpl implements AccessApi
         private AddressMapper $addressMapper,
         private OpenStores $openStores,
         private StaffDisplayNames $displayNames,
+        private Authorizer $authorizer,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -71,6 +75,38 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $this->customers->idsRegisteredIn($store->value, $accountType, $after, $limit);
+    }
+
+    public function customerIdsMatching(string $text, int $limit): array
+    {
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidArgumentException("A search answers 1 to 1000 customers, not {$limit}.");
+        }
+
+        $text = trim($text);
+        $length = mb_strlen($text);
+
+        if ($length < 3 || $length > 100) {
+            throw new InvalidAccessAttribute('search', '3 to 100 characters');
+        }
+
+        // A control character or a byte that is not UTF-8 never reaches PostgreSQL as a pattern.
+        if (! mb_check_encoding($text, 'UTF-8') || preg_match('/\p{Cc}/u', $text) === 1) {
+            throw new InvalidAccessAttribute('search', 'plain text');
+        }
+
+        // Whose emails and phones this reader may match: the customers they may view (amendment
+        // 44(b)).
+        $stores = $this->customerViewStores();
+        $contactStoreIds = $stores === null ? null : array_map(static fn (StoreId $store): string => $store->value, $stores);
+
+        return $this->customers->idsMatching($text, $contactStoreIds, $limit);
+    }
+
+    public function customerViewStores(): ?array
+    {
+        // null from storesWith() is every store: the job is a per-store one, never store-free.
+        return $this->authorizer->storesWith(AccessPermissions::CUSTOMER_VIEW);
     }
 
     public function staff(string $staffId): ?StaffDto

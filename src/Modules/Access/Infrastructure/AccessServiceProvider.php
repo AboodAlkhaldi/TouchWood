@@ -28,6 +28,7 @@ use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
 use Modules\Access\Application\Customer\CustomerLinks;
 use Modules\Access\Application\Customer\CustomerShopperType;
 use Modules\Access\Application\Customer\GuestVisitors;
+use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
 use Modules\Access\Application\Customer\RequestCustomers;
 use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
@@ -110,6 +111,7 @@ use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\CustomerAccountPages;
+use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Contracts\ShopperLines;
@@ -150,6 +152,9 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->alias(InMemoryCustomerAccountPages::class, CustomerAccountPages::class);
         $this->app->singleton(InMemoryShopperLines::class);
         $this->app->alias(InMemoryShopperLines::class, ShopperLines::class);
+        // And to the staff customer page (amendment 72(a)).
+        $this->app->singleton(InMemoryCustomerPageSections::class);
+        $this->app->alias(InMemoryCustomerPageSections::class, CustomerPageSections::class);
 
         $this->app->bind(StaffUserRepository::class, DatabaseStaffUserRepository::class);
         // The panel's session rows, for the screen that lists them and the button that ends them.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -52,6 +52,16 @@ export default function Index({ groups, storeName, storeCode, stores }: Props) {
     const t = useTranslator();
     const store: Store = { name: storeName, code: storeCode };
 
+    // A card named in the address (`#settings-loyalty`) is scrolled to once the page has drawn - how
+    // the Points menu's Settings opens this screen at its card (platform.md §9.4, 2026-10-19).
+    useEffect(() => {
+        const named = window.location.hash.slice(1);
+
+        if (named.startsWith('settings-')) {
+            document.getElementById(named)?.scrollIntoView({ block: 'start' });
+        }
+    }, []);
+
     return (
         <AdminLayout title={t('platform::admin_settings.title')} subtitle={t('platform::admin_settings.subtitle')}>
             <div className="grid gap-6">
@@ -68,7 +78,7 @@ export default function Index({ groups, storeName, storeCode, stores }: Props) {
                     </Empty>
                 ) : (
                     groups.map((group) => (
-                        <Card key={group.module} className="material-base gap-0 overflow-hidden border-0 py-0" data-test={`settings-${group.module}`}>
+                        <Card key={group.module} id={`settings-${group.module}`} className="material-base scroll-mt-6 gap-0 overflow-hidden border-0 py-0" data-test={`settings-${group.module}`}>
                             <CardHeader className="border-b border-line px-6 py-4 [.border-b]:pb-4">
                                 <CardTitle>
                                     <h2 className="text-heading-16 text-ink">{group.label}</h2>

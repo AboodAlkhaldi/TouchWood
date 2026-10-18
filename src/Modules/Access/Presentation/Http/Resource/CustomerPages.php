@@ -6,6 +6,7 @@ namespace Modules\Access\Presentation\Http\Resource;
 
 use Illuminate\Contracts\Foundation\Application;
 use Modules\Access\Application\Command\RequestAccountDeletion\RequestAccountDeletionHandler;
+use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
 use Modules\Access\Application\Query\CustomerActions\CustomerActionsForReader;
 use Modules\Access\Application\Query\ListCustomers\CustomerSummary;
 use Modules\Access\Application\Query\ListCustomers\ListCustomers;
@@ -35,6 +36,7 @@ final readonly class CustomerPages
         private CustomerActionsForReader $actions,
         private ListCustomersHandler $list,
         private ViewCustomerHandler $view,
+        private InMemoryCustomerPageSections $sections,
     ) {}
 
     /** G1. */
@@ -92,6 +94,11 @@ final readonly class CustomerPages
             mayStartDeletion: $may->mayStartDeletion,
             mayCancelDeletion: $may->mayCancelDeletion,
             deletionDays: RequestAccountDeletionHandler::DAYS,
+            // Read only once Access has let this reader see the customer, above.
+            sections: array_map(
+                static fn (array $answer): CustomerSection => new CustomerSection($answer['module'], $answer['key'], $answer['data']),
+                $this->sections->answersFor($details->customer->id),
+            ),
         );
     }
 

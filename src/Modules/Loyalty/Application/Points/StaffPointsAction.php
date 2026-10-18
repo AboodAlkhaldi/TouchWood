@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Application\Points;
 
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
@@ -74,11 +75,46 @@ final readonly class StaffPointsAction
      */
     public function customer(string $customerId): string
     {
-        if (! Ulids::valid($customerId) || $this->access->customer($customerId) === null) {
+        return strtolower($this->existingCustomer($customerId)->id);
+    }
+
+    /**
+     * The same, answering the customer itself.
+     *
+     * @throws PointsAccountNotFound
+     */
+    public function existingCustomer(string $customerId): CustomerDto
+    {
+        $customer = Ulids::valid($customerId) ? $this->access->customer($customerId) : null;
+
+        if ($customer === null) {
             throw new PointsAccountNotFound;
         }
 
-        return strtolower($customerId);
+        return $customer;
+    }
+
+    /**
+     * Whether the staff member looking may open this customer's own page, as Access answers it
+     * (access.md amendments 44(b), 72(e)): a customer of a store they see. Who may read a customer
+     * with no points in a store, and their email (loyalty.md §4.1, §9.5 P1, P7).
+     */
+    public function mayViewCustomer(CustomerDto $customer): bool
+    {
+        $stores = $this->access->customerViewStores();
+
+        return $stores === null || self::covers($stores, StoreId::fromString($customer->homeStoreId));
+    }
+
+    /**
+     * Whether the staff member looking holds this job in this store - for what a screen offers, never
+     * for what a handler allows: each handler still asks (handoff §19).
+     */
+    public function holds(string $permission, StoreId $store): bool
+    {
+        $stores = $this->authorizer->storesWith($permission);
+
+        return $stores === null || self::covers($stores, $store);
     }
 
     /**
