@@ -50,6 +50,13 @@ interface Segments
     public function markRefreshed(Segment $segment, DateTimeImmutable $at): void;
 
     /**
+     * A page of a segment's members, keyset by customer id (handoff §5.4).
+     *
+     * @return list<string>
+     */
+    public function membersPage(string $segmentId, ?string $after, int $limit): array;
+
+    /**
      * Every store's segments, keyset by id — the nightly refresh's one pass across stores (§1.8).
      *
      * @return list<Segment>

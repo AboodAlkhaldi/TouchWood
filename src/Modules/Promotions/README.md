@@ -21,6 +21,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
 | 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
 | 4a — segments | The segment tables; create, change (name and rule — type and audience fixed, answer 23), delete, pick by hand, refresh now; the nightly refresh job; Access's bulk customer reads (access.md amendment 70) | below |
+| 4b — assignments | Assigning an `ASSIGNED` coupon to a segment's members of that moment (answer 24); removing an unused assignment; a coupon assigned from a segment may not leave its audience out; `PromotionsApi::segmentMembers` | below |
 
 ## What is here
 
@@ -92,13 +93,26 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   hand-picked segment keeps its picks but loses the anonymized; a pick must be of the audience, not
   anonymized, and registered in the store or have ordered there. `DatabaseSegments::replaceMembers`
   rewrites the members as a set — staying members keep when they were added.
+- **Assignments** (`Application/Command/AssignCoupon`, `RemoveAssignment`, under
+  `promotions.coupon.manage`, audited `promotions.coupon.assigned` — the segment and how many new —
+  and `…assignment_removed`): the coupon's row locked, then the segment's; only an `ASSIGNED` coupon
+  (answer 24), a segment of its own store, an audience it allows; the stored members of that moment
+  written through `Domain/Repository/Assignments` (`insertOrIgnore`, in chunks — those who have it keep
+  their row, a customer who leaves the segment keeps the coupon). A used assignment is never removed
+  (`CouponInUse`). Changing a coupon refuses leaving out the audience of a segment it was assigned
+  from (§1.1) — `audience` — and refuses making it public while customers have it (answer 25) —
+  `eligibility`. Taking back an assignment never given does nothing, whatever the customer did with
+  the coupon. Known limits, by the letter of §1.1 and §1.4: the audience lock rests on the segments the
+  coupon came from, so deleting a segment releases it; and assigning writes the stored members, so one
+  anonymized since the last refresh is assigned too (harmless: an anonymized account cannot order).
+  `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000.
 - **`Infrastructure/Eloquent/CouponRulesUsage`** — registered with Catalog's `CatalogUsages`: every
   coupon whose include or exclude list names a product, category or brand Catalog is about to delete,
   in one query; Catalog then refuses the delete (`catalog.item_in_use`). Variants answer nothing until
   gift levels (step 5).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `CouponRulesUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `CouponRulesUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

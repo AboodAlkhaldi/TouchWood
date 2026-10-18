@@ -15,8 +15,10 @@ use Modules\Promotions\Application\Coupon\CartLines;
 use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Coupon\Quotes;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
+use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Repository\Coupons;
 use Modules\Promotions\Domain\Repository\OrderFacts;
+use Modules\Promotions\Domain\Repository\Segments;
 use Modules\Promotions\Domain\Service\CouponRules;
 use Modules\Promotions\Domain\Service\DiscountRoom;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
@@ -45,6 +47,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         private RecordOrderHandler $record,
         private UpdateCouponUseHandler $update,
         private PlatformApi $platform,
+        private Segments $segments,
     ) {}
 
     public function applyCoupon(CouponRequest $request): CouponResult
@@ -140,5 +143,20 @@ final readonly class PromotionsApiImpl implements PromotionsApi
     public function updateCouponUse(UpdateCouponUse $change): void
     {
         $this->update->handle(new UpdateCouponUseCommand($change));
+    }
+
+    public function segmentMembers(string $segmentId, ?string $after, int $limit): array
+    {
+        $segmentId = Inputs::id($segmentId, 'segment');
+
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidPromotionAttribute('limit', 'from 1 to 1000');
+        }
+
+        if ($this->segments->storeOf($segmentId) === null) {
+            throw new SegmentNotFound;
+        }
+
+        return $this->segments->membersPage($segmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
     }
 }

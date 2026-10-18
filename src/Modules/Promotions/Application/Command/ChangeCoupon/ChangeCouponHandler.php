@@ -13,7 +13,10 @@ use Modules\Promotions\Domain\Exception\CouponInUse;
 use Modules\Promotions\Domain\Exception\CouponNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Model\CouponRule;
+use Modules\Promotions\Domain\Repository\Assignments;
 use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Public\Enums\CouponEligibility;
+use Modules\Promotions\Public\Enums\SegmentAudience;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -35,6 +38,7 @@ final readonly class ChangeCouponHandler
         private MarketingChange $change,
         private Coupons $coupons,
         private RuleTargets $targets,
+        private Assignments $assignments,
     ) {}
 
     /**
@@ -56,6 +60,19 @@ final readonly class ChangeCouponHandler
 
             if ($terms->maxUsesTotal !== null && $terms->maxUsesTotal < $coupon->usesTotal) {
                 throw new CouponInUse;
+            }
+
+            // Given to customers, it stays for assigned customers only: no silent loss or return of the
+            // coupon for them (owner, 2026-10-18, answer 25) — they are removed first, or a new coupon made.
+            if ($coupon->eligibility === CouponEligibility::Assigned && $terms->eligibility !== CouponEligibility::Assigned && $this->assignments->any($coupon)) {
+                throw new InvalidPromotionAttribute('eligibility', 'assigned customers have it; remove them first');
+            }
+
+            // Assigned from an individuals' (or companies') segment, it may not then leave them out (§1.1).
+            foreach ($this->assignments->segmentAudiences($coupon) as $audience) {
+                if ($audience === SegmentAudience::Individual ? ! $terms->forPublic : ! $terms->forCompany) {
+                    throw new InvalidPromotionAttribute('audience', "it was assigned from a segment of {$audience->value} customers");
+                }
             }
 
             $entry = CouponAudit::entry('updated', $coupon->id, $storeId->value, $coupon->terms()->snapshot(), $terms->snapshot());

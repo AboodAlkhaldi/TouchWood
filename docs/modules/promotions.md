@@ -574,6 +574,8 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
     make a new segment (§1.5).
 24. **Only an `ASSIGNED` coupon is assigned to a segment** — a public coupon works for anyone who types
     it (§1.4).
+25. **An assigned coupon is not made public while customers have it** — staff remove the assignments
+    first, or make a new public coupon; its customers never silently lose or regain it (§1.4).
 
 ### 9.2 Still open
 

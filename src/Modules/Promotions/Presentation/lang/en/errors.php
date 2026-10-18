@@ -74,5 +74,8 @@ return [
         'rule_months' => 'number of months',
         'rule_orders' => 'number of orders',
         'members' => 'customers picked',
+        'segment' => 'segment',
+        'limit' => 'page size',
+        'after' => 'page position',
     ],
 ];
