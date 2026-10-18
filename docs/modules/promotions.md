@@ -236,6 +236,12 @@ My assumption, stated for the owner to reject: two active levels of one store wi
 for overlapping audiences and dates, are refused — one amount, one gift. Saving a level locks the
 store's levels first, so two saved at once cannot both pass that check.
 
+A level already ended never clashes — it gives no gift again — so an ended level left switched on
+does not block a new one; extending its dates is checked again (step 5's review).
+
+My assumption, stated for the owner to reject: **"over 1,000" counts an order of exactly 1,000** — a
+level is reached when the goods total is at least its amount (`amount <= goods_total`).
+
 My assumption, stated for the owner to reject (built in step 5): **a change checks only a new gift**,
 as a change checks only a coupon's new list entries (answer 22) — a level whose variant was archived
 since keeps it, so changing its dates is never blocked; Sales finds it out of stock and goes a level
@@ -596,8 +602,9 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 5. **A guest trying a code in the cart** — Sales's spec asks it (their cart). Using one needs an account.
 6. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
    deleted, an unused one deleted with its assignments; unused assignments removable; anonymized
-   customers leaving segments; two levels with one amount refused; gift levels in the Marketing
-   section; an off store's promotions for Super Admins only.
+   customers leaving segments; two levels with one amount refused (an ended one never counts); a
+   level reached at exactly its amount; a gift level's change checking only a new gift; gift levels in
+   the Marketing section; an off store's promotions for Super Admins only.
 
 ### 9.3 The independent review of the draft (2026-10-08/09)
 

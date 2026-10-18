@@ -30,8 +30,8 @@ use Shared\Domain\ValueObject\StoreId;
  *
  * 1. **The permission in that store**, before anything is looked up — a malformed store id is no store
  *    the actor holds anything in.
- * 2. **A coupon of a store the staff member does not cover is not found** — the same answer as an
- *    unknown one (§7) — while someone holding the job nowhere is simply not allowed.
+ * 2. **A coupon, segment or gift level of a store the staff member does not cover is not found** — the
+ *    same answer as an unknown one (§7) — while someone holding the job nowhere is simply not allowed.
  * 3. **A store that exists**, and **a store switched off** changed only by whoever may switch stores —
  *    Super Admins, to whom alone the panel offers off stores (§1.8).
  * 4. **Its own transaction** (a savepoint inside a caller's), the store's coupon lock first, then the

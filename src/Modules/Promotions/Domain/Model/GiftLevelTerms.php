@@ -59,10 +59,15 @@ final readonly class GiftLevelTerms
         return new self($level->amountMinor, $level->currencyCode, $level->variantId, $level->forPublic, $level->forCompany, $level->startsAt, $level->endsAt);
     }
 
-    /** Whether another level of the store, both active, would give two gifts for one amount (§1.7). */
-    public function clashesWith(GiftLevel $other): bool
+    /**
+     * Whether another level of the store, both active, would give two gifts for one amount (§1.7). A
+     * level already ended gives no gift again, and so never clashes; extending it is checked again.
+     */
+    public function clashesWith(GiftLevel $other, DateTimeImmutable $now): bool
     {
-        return $other->amountMinor === $this->amountMinor
+        return ($this->endsAt === null || $this->endsAt > $now)
+            && ($other->endsAt === null || $other->endsAt > $now)
+            && $other->amountMinor === $this->amountMinor
             && (($this->forPublic && $other->forPublic) || ($this->forCompany && $other->forCompany))
             && ($this->startsAt === null || $other->endsAt === null || $this->startsAt < $other->endsAt)
             && ($other->startsAt === null || $this->endsAt === null || $other->startsAt < $this->endsAt);

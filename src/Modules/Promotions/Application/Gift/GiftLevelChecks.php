@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Application\Gift;
 
+use Carbon\CarbonImmutable;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Promotions\Domain\Exception\GiftLevelClash;
@@ -15,8 +16,8 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * What saving a gift level checks (promotions.md §1.2, §1.7): its gift **a variant that is not
  * archived, of a ready product** — through Catalog's public reads — and **no other active level of the
- * store with the same amount for overlapping buyers and dates** (one amount, one gift), read under the
- * store's lock.
+ * store with the same amount for overlapping buyers and dates** (one amount, one gift) — a level already
+ * ended never counts — read under the store's lock.
  */
 final readonly class GiftLevelChecks
 {
@@ -42,8 +43,10 @@ final readonly class GiftLevelChecks
      */
     public function noClash(StoreId $store, GiftLevelTerms $terms, ?string $exceptId): void
     {
+        $now = CarbonImmutable::now();
+
         foreach ($this->levels->activeWithAmount($store, $terms->amountMinor, $exceptId) as $other) {
-            if ($terms->clashesWith($other)) {
+            if ($terms->clashesWith($other, $now)) {
                 throw new GiftLevelClash;
             }
         }

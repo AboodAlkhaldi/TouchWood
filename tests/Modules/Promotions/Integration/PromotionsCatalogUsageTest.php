@@ -18,6 +18,7 @@ use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedPro
 use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedProductsHandler;
 use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
+use Modules\Catalog\Domain\Repository\VariantRepository;
 use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Promotions\Infrastructure\Eloquent\PromotionsCatalogUsage;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -152,4 +153,16 @@ it('makes Catalog refuse to delete a variant a gift level gives, alone or with i
     app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($pen));
 
     expect(DB::table('catalog.variants')->where('id', $pen)->exists())->toBeFalse();
+});
+
+it('turns a gift level written after the check into the same refusal for its variant', function () {
+    $pen = Px::variant(Px::product('Pen'), '7003');
+    Pr::giftLevel($pen, 1000_00);
+
+    // The repository's own delete, as if the check had run before the level was written.
+    $refused = Pr::thrown(fn () => app(VariantRepository::class)->delete($pen), CatalogItemInUse::class);
+
+    expect($refused->modules)->toBe(['gift_levels'])
+        ->and($refused->context()['item_id'])->toBe($pen)
+        ->and(DB::table('catalog.variants')->where('id', $pen)->exists())->toBeTrue();
 });

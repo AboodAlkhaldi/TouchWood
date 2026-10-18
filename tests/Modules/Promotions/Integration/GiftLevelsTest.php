@@ -387,3 +387,35 @@ describe('the table', function () {
         expect(DB::table('promotions.gift_levels')->count())->toBe(2);
     });
 });
+
+describe('review follow-ups', function () {
+    it('never counts a level already ended, left switched on; extending it is checked again', function () {
+        giftManager();
+        [$pen, $mug] = gifts();
+        $now = CarbonImmutable::now()->startOfSecond();
+        CarbonImmutable::setTestNow($now);
+        $ended = giftCreate(giftFields($pen, with: ['startsAt' => $now->subDays(10), 'endsAt' => $now]));
+
+        $open = giftCreate(giftFields($mug));
+
+        expect(DB::table('promotions.gift_levels')->where('id', $open)->exists())->toBeTrue()
+            ->and(fn () => app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($ended, giftFields($pen, with: ['startsAt' => $now->subDays(10), 'endsAt' => $now->addSecond()]))))
+            ->toThrow(GiftLevelClash::class);
+    });
+
+    it('saves the same dates given in another offset as no change: nothing written, nothing audited', function () {
+        giftManager();
+        [$pen] = gifts();
+        $fields = giftFields($pen, with: ['startsAt' => CarbonImmutable::parse('2026-11-01 12:00:00.5+03:00'), 'endsAt' => CarbonImmutable::parse('2026-11-30 23:59:59+03:00')]);
+        $id = giftCreate($fields);
+        $updatedAt = DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
+
+        app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($id, $fields));
+        CarbonImmutable::setTestNow();
+
+        expect(DB::table('platform.audit_entries')->where('action', 'promotions.gift_level.updated')->exists())->toBeFalse()
+            ->and(DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at'))->toBe($updatedAt)
+            ->and(CarbonImmutable::parse((string) DB::table('promotions.gift_levels')->where('id', $id)->value('starts_at'))->utc()->format('Y-m-d H:i:s.u'))->toBe('2026-11-01 09:00:00.000000');
+    });
+});
