@@ -115,11 +115,12 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   currency, a variant id, individuals or companies or both, the end after the start; times to the
   second in UTC). **`Gift/GiftLevelChecks`**: the gift a variant not archived of a ready product
   (`CatalogApi::variant`, `product`) — on a change, only a new gift, as a coupon's new list entries
-  (answer 22, carried to gifts by assumption); and no other active level of the store with the same
-  amount, overlapping buyers and overlapping dates (`GiftLevelClash`), read under the store's lock, on
-  create, on a change of an active level, and on switching one on. `PromotionsApi::giftLevels`: the
-  levels an order's goods total reaches now for the buyer, highest first (`GiftOfferDto`); the total
-  must be in the store's currency.
+  (answer 28); and no other active level of the store with the same amount, overlapping buyers and
+  overlapping dates (`GiftLevelClash`) — a level already ended never counts (answer 26) — read under
+  the store's lock, on create, on a change of an active level, and on switching one on
+  (`GiftLevelRaceTest`: two saves at once). `PromotionsApi::giftLevels`: the levels an order's goods
+  total reaches now for the buyer — at exactly its amount too (answer 27) — highest first
+  (`GiftOfferDto`); the total must be in the store's currency.
 - **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
   every coupon whose include or exclude list names a product, category or brand Catalog is about to
   delete, and every gift level giving a variant it is about to delete, in one query; Catalog then

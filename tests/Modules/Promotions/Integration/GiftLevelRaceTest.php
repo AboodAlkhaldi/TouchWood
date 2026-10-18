@@ -82,7 +82,7 @@ it('refuses the second of two levels with one amount saved at once', function ()
         $waited = null;
 
         try {
-            $other->handle($secondSave);
+            $second->transaction(fn () => $other->handle($secondSave));
         } catch (QueryException $timedOut) {
             $waited = $timedOut;
         }

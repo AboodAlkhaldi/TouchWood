@@ -237,12 +237,12 @@ for overlapping audiences and dates, are refused — one amount, one gift. Savin
 store's levels first, so two saved at once cannot both pass that check.
 
 A level already ended never clashes — it gives no gift again — so an ended level left switched on
-does not block a new one; extending its dates is checked again (step 5's review).
+does not block a new one; extending its dates is checked again (owner, 2026-10-19, answer 26).
 
-My assumption, stated for the owner to reject: **"over 1,000" counts an order of exactly 1,000** — a
-level is reached when the goods total is at least its amount (`amount <= goods_total`).
+**"Over 1,000" counts an order of exactly 1,000** — a level is reached when the goods total is at
+least its amount, `amount <= goods_total` (owner, 2026-10-19, answer 27).
 
-My assumption, stated for the owner to reject (built in step 5): **a change checks only a new gift**,
+**A change checks only a new gift** (owner, 2026-10-19, answer 28),
 as a change checks only a coupon's new list entries (answer 22) — a level whose variant was archived
 since keeps it, so changing its dates is never blocked; Sales finds it out of stock and goes a level
 down.
@@ -588,6 +588,15 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 25. **An assigned coupon is not made public while customers have it** — staff remove the assignments
     first, or make a new public coupon; its customers never silently lose or regain it (§1.4).
 
+Owner, 2026-10-19 ("accept for all", after step 5's review):
+
+26. **A gift level already ended never clashes** with another — an ended level left switched on does
+    not block a new one; extending its dates is checked again (§1.7).
+27. **A level is reached at exactly its amount** — "over 1,000" counts an order of 1,000
+    (`amount <= goods_total`, §1.7).
+28. **A change of a gift level checks only a new gift** against Catalog, as answer 22 for a coupon's
+    lists (§1.7).
+
 ### 9.2 Still open
 
 1. **Bundles / kits** — their own spec after stage 6: what a bundle is (Catalog), its price (Pricing),
@@ -602,9 +611,9 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 5. **A guest trying a code in the cart** — Sales's spec asks it (their cart). Using one needs an account.
 6. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
    deleted, an unused one deleted with its assignments; unused assignments removable; anonymized
-   customers leaving segments; two levels with one amount refused (an ended one never counts); a
-   level reached at exactly its amount; a gift level's change checking only a new gift; gift levels in
-   the Marketing section; an off store's promotions for Super Admins only.
+   customers leaving segments; two levels with one amount refused; gift levels in the Marketing
+   section; an off store's promotions for Super Admins only. (The three gift-level picks of step 5 are
+   settled: §9.1, answers 26–28.)
 
 ### 9.3 The independent review of the draft (2026-10-08/09)
 

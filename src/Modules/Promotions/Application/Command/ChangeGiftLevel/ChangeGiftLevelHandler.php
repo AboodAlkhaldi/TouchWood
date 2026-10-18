@@ -22,7 +22,7 @@ use Shared\Domain\ValueObject\StoreId;
  * a clash again.
  *
  * **Only a new gift is checked against Catalog**, as only a coupon's new list entries are (owner,
- * 2026-10-17, answer 22; carried to gifts by my assumption, promotions.md §1.7): a level whose variant
+ * 2026-10-19, answer 28): a level whose variant
  * was archived since keeps it — Sales finds it out of stock and goes a level down — so changing the
  * dates is never blocked by the old gift.
  */
