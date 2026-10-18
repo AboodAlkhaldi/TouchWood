@@ -359,6 +359,12 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | A store's coupons (with their uses — each by the order's **public number**, never its id, handoff §5.3), segments (with their members' names, §1.5) and gift levels | `promotions.marketing.view` (per store) — or any of the three manage permissions |
 | **My coupons** in a store, in the account centre: those assigned to me and still usable | `promotions.coupon.view_own` — every customer, their own only |
 
+Built in step 6 (`Application/Query`): `ListCoupons` (newest first; by state now — §4 — and by the
+start of the code), `ViewCoupon` (its lists named through Catalog, how many customers have it),
+`ListCouponUses` (the order's public number, the customer's name), `ListCouponAssignments` (name,
+segment, uses) — a page at a time by keyset, 50 at most; names through `AccessApi::customers` in one
+call. A store switched off is read by Super Admins alone, as it is changed (§1.8).
+
 **The permissions Promotions declares** — every name has three parts, as Access requires
 (`InMemoryPermissionCatalog::NAME`):
 
@@ -420,7 +426,9 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 **Indexes:** coupons by (`store_id`, `code`) (the UNIQUE); coupon uses by (`coupon_id`, `customer_id`)
 — uses per customer; order facts by (`store_id`, `customer_id`, `placed_at`) — the segment rules;
 assignments by `customer_id` — "my coupons"; segment members by `customer_id`; gift levels by
-(`store_id`, `amount_minor` DESC).
+(`store_id`, `amount_minor` DESC). For the staff screens' pages (step 6): coupons by (`store_id`,
+`created_at` DESC, `id` DESC); uses by (`coupon_id`, `used_at` DESC, `id` DESC); assignments by
+(`coupon_id`, `assigned_at` DESC, `customer_id` DESC).
 
 ---
 
