@@ -378,3 +378,46 @@ describe('L7 the shop account\'s Points tab', function () {
         $shopper->get('/sa/en/account/points')->assertOk();
     });
 });
+
+describe('what the reviews of 2026-10-19 asked', function () {
+    it('treats a search the box would never send - too short - as no search, and a half cursor as a refusal, never a 500', function () {
+        loyaltyScreensCustomer('w1@example.test', 'Wafa', points: 10);
+        $browser = loyaltyScreens([LoyaltyPermissions::VIEW]);
+
+        $props = loyaltyScreensProps($browser, '/admin/points/customers?search=ab', 'Loyalty/Admin/Points/Customers');
+
+        expect([$props['search'], count($props['holders'])])->toBe([null, 1]);
+
+        $browser->get('/admin/points/customers?after_points=10')->assertStatus(422);
+    });
+
+    it('refuses a change by hand that names no store, rather than making it in the first store that is on', function () {
+        $customer = loyaltyScreensCustomer('w2@example.test', 'Wael', points: 10);
+        $admin = loyaltyScreens([LoyaltyPermissions::VIEW, LoyaltyPermissions::ADJUST], level: RoleLevel::Admin);
+
+        $refused = $admin->post("/admin/points/customers/{$customer}/change", ['mode' => 'add', 'points' => '5', 'reason' => 'No store']);
+
+        expect(AdminBrowser::formError($refused))->toBe('Open the customer\'s points in a store first.')
+            ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(10);
+    });
+
+    it('opens Settings with a full page load, so the address keeps its #', function () {
+        $response = loyaltyScreens([LoyaltyPermissions::SETTINGS_UPDATE], level: RoleLevel::Admin)->get('/admin/points/settings?store=sa');
+
+        expect($response->headers->get('Location'))->toEndWith('/admin/settings?store=sa#settings-loyalty');
+    });
+
+    it('reads the shop\'s Points tab in a fixed few queries of its own, the programme on or off', function () {
+        $customer = loyaltyScreensCustomer('w3@example.test', 'Widad', points: 30);
+        $own = static fn (): int => loyaltyScreensOwnQueries(loyaltyScreensShopper($customer), '/sa/en/account/points');
+        $on = $own();
+
+        Lx::programme(settings: [ProgrammeSettings::ENABLED => false]);
+        $off = $own();
+
+        // Recorded (frontend.md §5); off costs the Points tab's own question once more, on the page
+        // and in the account menu (access.md amendment 72(d)).
+        expect([$on, $off])->toBe([0, 0])
+            ->and(max($on, $off))->toBeLessThanOrEqual(8);
+    });
+});

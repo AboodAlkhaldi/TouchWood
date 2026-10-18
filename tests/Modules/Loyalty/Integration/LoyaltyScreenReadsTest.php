@@ -26,6 +26,8 @@ use Modules\Loyalty\Application\Query\ViewCustomerPoints\ViewCustomerPointsHandl
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Shared\Application\StoreContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
@@ -270,4 +272,73 @@ it('offers the Points tab while the programme is on, or while the customer has a
     app(AddPointsHandler::class)->handle(new AddPoints($customer, Fx::storeId('sa'), 5, 'Kept'));
 
     expect($offered())->toBeTrue();
+});
+
+it('pages holders with the same live points by account id, never skipping or repeating one (the cursor\'s tie-break)', function () {
+    $ids = [];
+
+    foreach (range(1, 3) as $n) {
+        $ids[] = screenReadsCustomer("tie{$n}@example.test", "Tie{$n}", points: 300);
+    }
+
+    Fx::actAsStaff(Fx::staffWith([LoyaltyPermissions::VIEW], ['sa']));
+    $accounts = DB::table('loyalty.accounts')->whereIn('customer_id', $ids)->orderByDesc('id')->pluck('customer_id')->all();
+
+    $first = app(ListPointHoldersHandler::class)->handle(new ListPointHolders(Fx::storeId('sa'), perPage: 2));
+    $second = app(ListPointHoldersHandler::class)->handle(new ListPointHolders(Fx::storeId('sa'), afterPoints: $first->nextPoints, afterAccountId: $first->nextAccountId, perPage: 2));
+    $seen = array_map(static fn (PointHolder $row): string => $row->customer->customerId, [...$first->rows, ...$second->rows]);
+
+    // Equal points: account id, newest first, decides - and the second page starts after the cursor.
+    expect($seen)->toBe($accounts)
+        ->and($second->rows)->toHaveCount(1)
+        ->and($second->nextAccountId)->toBeNull();
+});
+
+it('finds a store\'s accounts through their own index', function () {
+    expect(DB::table('pg_indexes')->where('schemaname', 'loyalty')->where('indexname', 'accounts_by_store')->value('indexdef'))
+        ->toContain('(store_id, id)');
+});
+
+it('links a block only where the reader\'s points filter offers the store: never an off store, for someone who cannot switch stores', function () {
+    $customer = screenReadsCustomer('off@example.test', 'Off', 'sa', 40);
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    app(AddPointsHandler::class)->handle(new AddPoints($customer, Fx::storeId('eg'), 20, 'Egypt'));
+    $reader = Fx::staffWith([LoyaltyPermissions::VIEW, LoyaltyPermissions::ADJUST, AccessPermissions::CUSTOMER_VIEW], ['sa', 'eg'], RoleLevel::Admin);
+    Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+    Fx::actAsStaff($reader);
+
+    $points = app(CustomerPointsInStoresHandler::class)->handle(new CustomerPointsInStores($customer));
+
+    expect(array_map(static fn (StorePoints $store): array => [$store->storeCode, $store->storeIsActive, $store->mayOpen], $points->stores))
+        ->toBe([['sa', true, true], ['eg', false, false]]);
+});
+
+it('offers Give Points only in a store the reader may open, and Change Points only in a store where they hold the job', function () {
+    $customer = screenReadsCustomer('give@example.test', 'Give', 'sa');
+    $egypt = StoreId::fromString(Fx::storeId('eg'));
+    // Points read in both stores, changed in Egypt only (the job's own stores).
+    $reader = Fx::staffWith([LoyaltyPermissions::VIEW, LoyaltyPermissions::ADJUST, AccessPermissions::CUSTOMER_VIEW], ['sa', 'eg'], RoleLevel::Admin, [LoyaltyPermissions::ADJUST => ['eg']]);
+    Fx::actAsStaff($reader);
+
+    expect(app(LoyaltyActionsForReader::class)->forCustomer($customer, StoreId::fromString(Fx::storeId('sa')))->mayChangePoints)->toBeFalse()
+        ->and(app(LoyaltyActionsForReader::class)->forCustomer($customer, $egypt)->mayChangePoints)->toBeTrue()
+        // A first point where the reader may change points and open the page: Egypt.
+        ->and(app(CustomerPointsInStoresHandler::class)->handle(new CustomerPointsInStores($customer))->giveStoreCode)->toBe('eg');
+
+    // Egypt off: its points page is not offered to an admin, so neither is a first point there.
+
+    Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+    Fx::actAsStaff($reader);
+
+    expect(app(CustomerPointsInStoresHandler::class)->handle(new CustomerPointsInStores($customer))->giveStoreCode)->toBeNull();
+});
+
+it('never offers to open a deleted customer\'s page', function () {
+    $customer = screenReadsCustomer('gone@example.test', 'Gone', 'sa', 10);
+    DB::table('access.customers')->where('id', $customer)->update(['anonymized_at' => '2026-01-01 00:00:00+00']);
+    Fx::actAsStaff(Fx::staffWith([LoyaltyPermissions::VIEW, AccessPermissions::CUSTOMER_VIEW], ['sa']));
+
+    $may = app(LoyaltyActionsForReader::class)->forCustomer($customer, StoreId::fromString(Fx::storeId('sa')));
+
+    expect([$may->mayOpenCustomer, $may->customer->deleted])->toBe([false, true]);
 });

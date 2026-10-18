@@ -90,6 +90,7 @@ return [
         'at_most' => 'At most the balance, :balance.',
         'nothing_to_remove' => 'There are no points to remove.',
         'mode_missing' => 'Choose Add or Remove.',
+        'store_missing' => 'Open the customer\'s points in a store first.',
         'points_whole' => 'Points are a whole number, 1 or more.',
         'add_points' => 'Add Points',
         'remove_points' => 'Remove Points',

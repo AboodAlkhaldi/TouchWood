@@ -3,11 +3,11 @@ import { ActionButton } from '@/components/ActionButton';
 import { TextField, TextareaField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { figure } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
-import { useLocale } from '@/pages/Loyalty/Admin/Points/parts';
+import { useLocale } from '@/components/loyalty/parts';
 
 /*
 | L3 - the change made by hand (loyalty.md §4.1; answer 8): one dialog, Add or Remove, the points, a
@@ -118,7 +118,8 @@ export function ChangePointsDialog({
                     <ToggleGroupItem value="add" className={SWITCH_ITEM} data-test="mode-add">
                         {t('loyalty::admin_points.dialog.add')}
                     </ToggleGroupItem>
-                    <ToggleGroupItem value="remove" className={SWITCH_ITEM} data-test="mode-remove">
+                    {/* Out of reach with nothing to remove; the main button says why (L3). */}
+                    <ToggleGroupItem value="remove" disabled={balance === 0} className={SWITCH_ITEM} data-test="mode-remove">
                         {t('loyalty::admin_points.dialog.remove')}
                     </ToggleGroupItem>
                 </ToggleGroup>
@@ -133,7 +134,8 @@ export function ChangePointsDialog({
                     autoFocus
                     required
                     value={form.data.points}
-                    onChange={(event) => form.setData('points', event.target.value)}
+                    // Digits typed in Arabic-Indic or Persian are kept in Latin, as every number box does (frontend.md §1.8).
+                    onChange={(event) => form.setData('points', toLatinDigits(event.target.value))}
                 />
 
                 <TextareaField
@@ -142,7 +144,7 @@ export function ChangePointsDialog({
                     helper={
                         <>
                             {t('loyalty::admin_points.dialog.reason_hint')}{' '}
-                            <bdi dir="ltr" className="tw-figure">{`${figure(locale, form.data.reason.trim().length)} / ${figure(locale, REASON_MAX)}`}</bdi>
+                            <bdi dir="ltr" className="tw-figure">{`${figure(locale, [...form.data.reason.trim()].length)} / ${figure(locale, REASON_MAX)}`}</bdi>
                         </>
                     }
                     check={checks.box('reason', form.errors.reason)}

@@ -11,7 +11,7 @@ return [
     'expiring_line' => 'Expiring on :day: :points',
     'none_expiring' => 'No points are waiting to expire.',
     // Worded so it reads right for any number, 1 included: the screens' words have no plurals.
-    'how_it_works' => 'Every :unit you spend adds :earn to your points. Every :off of your points take :unit off an order.',
+    'how_it_works' => 'Every :unit you spend adds :earn to your points. Every :off of your points takes :unit off an order.',
     'paused' => 'Points are paused in this store. You cannot earn or use points for now; your points stay until they expire.',
     'live' => 'Live Points',
     'history' => 'History',

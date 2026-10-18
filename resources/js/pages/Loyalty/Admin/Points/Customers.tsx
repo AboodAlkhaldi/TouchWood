@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldDescription } from '@/components/ui/field';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
-import { Amount, ExpiringCell, Points, ProgrammeOffNote, Unknown } from '@/pages/Loyalty/Admin/Points/parts';
+import { Amount, ExpiringCell, Points, ProgrammeOffNote, Unknown } from '@/components/loyalty/parts';
 import type { PointHolderData, PointHoldersPage } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*
@@ -106,7 +107,7 @@ export default function Customers({ holders, nextPoints, nextAccountId, tooMany,
                     <Empty className="material-base" data-test="holders-empty">
                         <EmptyHeader>
                             {searching ? (
-                                <EmptyDescription className="text-copy-14 text-ink-muted">{t('loyalty::admin_points.search.no_match', { text: search ?? '' })}</EmptyDescription>
+                                <EmptyDescription className="text-copy-14 text-ink-muted">{t('loyalty::admin_points.search.no_match', { text: isolate(search ?? '') })}</EmptyDescription>
                             ) : (
                                 <>
                                     <EmptyTitle className="text-heading-16 text-ink">{t('loyalty::admin_points.empty.holders_title')}</EmptyTitle>

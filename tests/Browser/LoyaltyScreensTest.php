@@ -104,7 +104,8 @@ it('opens a holder from the list and adds points by hand, the balance and the hi
     [$customer, , $name] = loyaltyScreenCustomer(70_000);
     $page = loyaltyScreenPanel();
 
-    $page->navigate('/admin/points/customers?store=sa', BROWSER_PAGE_LOAD)
+    // Found by name: this suite keeps its rows, so a holder may not be on the first page of a long list.
+    $page->navigate('/admin/points/customers?store=sa&search='.rawurlencode(explode(' ', $name)[0]), BROWSER_PAGE_LOAD)
         ->assertSee('Who holds points in this store')
         ->assertSee($name)
         ->click("[data-test=\"holder-{$customer}\"] a")
@@ -171,4 +172,15 @@ it('draws the shop account\'s Points tab, with how it works, at a phone\'s width
     $page->navigate('/sa/en/account/points', BROWSER_PAGE_LOAD);
 
     expect(loyaltyScreenOverflow($page))->toBe('');
+});
+
+it('opens Points › Settings from the menu at the Points card of the settings screen', function () {
+    $page = loyaltyScreenPanel();
+
+    $page->click('[data-test="area-points"]')
+        ->click('a[href="/admin/points/settings"]');
+
+    // A full page load keeps the address's #, and the screen scrolls to the card it names.
+    expect(browserUntil($page, "window.location.pathname === '/admin/settings' && window.location.hash === '#settings-loyalty'"))->toBeTrue()
+        ->and(browserUntil($page, "(() => { const card = document.getElementById('settings-loyalty'); if (!card) { return false; } const box = card.getBoundingClientRect(); return box.top >= -2 && box.top < window.innerHeight / 2; })()"))->toBeTrue();
 });

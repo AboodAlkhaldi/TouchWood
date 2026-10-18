@@ -6,7 +6,6 @@ namespace Modules\Loyalty\Presentation\Http\Resource;
 
 use Illuminate\Contracts\Foundation\Application;
 use Modules\Access\Public\Contracts\CustomerPageSection;
-use Modules\Loyalty\Application\Points\ProgrammeReader;
 use Modules\Loyalty\Application\Query\CustomerPointsInStores\CustomerPointsInStores;
 use Modules\Loyalty\Application\Query\CustomerPointsInStores\CustomerPointsInStoresHandler;
 use Modules\Loyalty\Application\Query\CustomerPointsInStores\StorePoints;
@@ -25,7 +24,6 @@ final readonly class PointsCustomerSection implements CustomerPageSection
     public function __construct(
         private Application $app,
         private CustomerPointsInStoresHandler $handler,
-        private ProgrammeReader $programmes,
         private PlatformApi $platform,
     ) {}
 
@@ -49,7 +47,7 @@ final readonly class PointsCustomerSection implements CustomerPageSection
                     $known?->name->in($locale) ?? $store->storeCode,
                     $store->storeIsActive,
                     $store->livePoints,
-                    MoneyData::of($store->worth, $this->programmes->of(StoreId::fromString($store->storeId))->exponent),
+                    MoneyData::of($store->worth, $store->exponent),
                     ExpiringData::of($store->expiringNext),
                     $store->mayOpen,
                 );

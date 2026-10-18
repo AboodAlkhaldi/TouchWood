@@ -102,6 +102,7 @@ final readonly class CustomerPointsInStoresHandler
                 $store->isActive,
                 $points,
                 Money::of(PointsArithmetic::worth($points, $programme->pointsPerUnitOff, $programme->exponent), $programme->currencyCode),
+                $programme->exponent,
                 ExpiringNext::of($live, $store->timezone),
                 $mayOpen,
             );

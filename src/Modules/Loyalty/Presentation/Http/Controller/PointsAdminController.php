@@ -9,6 +9,7 @@ use App\Http\FormErrors;
 use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Loyalty\Application\Command\AddPoints\AddPoints;
 use Modules\Loyalty\Application\Command\AddPoints\AddPointsHandler;
@@ -23,6 +24,7 @@ use Modules\Loyalty\Presentation\Http\Resource\PointsPages;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /*
 | Loyalty's staff screens (loyalty.md §4.1): Points › Customers (L1), one customer's points (L2) and
@@ -48,7 +50,7 @@ final readonly class PointsAdminController
     {
         return $this->page->render('Loyalty/Admin/Points/Customers', $pages->holders(
             self::text($request, 'store'),
-            self::text($request, 'search'),
+            self::search($request),
             self::number($request, 'after_points'),
             self::text($request, 'after_account'),
             $list,
@@ -79,6 +81,14 @@ final readonly class PointsAdminController
             return back()->withErrors(['form' => __('loyalty::admin_points.dialog.mode_missing')]);
         }
 
+        // The store the page shows, always sent: none would mean the first store that is on, which
+        // nobody chose (the review of 2026-10-19).
+        $storeCode = self::text($request, 'store');
+
+        if ($storeCode === null) {
+            return back()->withErrors(['form' => __('loyalty::admin_points.dialog.store_missing')]);
+        }
+
         // A whole number typed as digits, as the box checks it; the handler checks its size.
         $digits = is_int($points) ? (string) $points : (is_string($points) ? trim($points) : '');
 
@@ -87,7 +97,7 @@ final readonly class PointsAdminController
         }
 
         try {
-            $store = $choices->chosen(self::text($request, 'store'), LoyaltyPermissions::VIEW) ?? throw new Unauthorized(LoyaltyPermissions::VIEW);
+            $store = $choices->chosen($storeCode, LoyaltyPermissions::VIEW) ?? throw new Unauthorized(LoyaltyPermissions::VIEW);
             $reason = is_string($reason) ? $reason : '';
 
             if ($mode === 'add') {
@@ -117,12 +127,28 @@ final readonly class PointsAdminController
         )->toArray(), self::WORDS);
     }
 
-    /** L6: Platform's settings screen, at the Points card, for the same store. */
-    public function settings(Request $request): RedirectResponse
+    /**
+     * L6: Platform's settings screen, at the Points card, for the same store. A full page load, not
+     * Inertia's own visit: a visit's redirect drops the address's "#", so the screen would open at
+     * its top instead of at the card (the review of 2026-10-19).
+     */
+    public function settings(Request $request): SymfonyResponse
     {
         $store = self::text($request, 'store');
 
-        return redirect('/'.AdminArea::PREFIX.'/settings'.($store === null ? '' : '?store='.rawurlencode($store)).'#settings-loyalty');
+        return Inertia::location('/'.AdminArea::PREFIX.'/settings'.($store === null ? '' : '?store='.rawurlencode($store)).'#settings-loyalty');
+    }
+
+    /**
+     * The search as asked in the address: 3 to 100 characters searches; anything shorter or longer
+     * searches nothing (§4.1 L1), as the box itself never sends it, rather than refusing the page.
+     */
+    private static function search(Request $request): ?string
+    {
+        $text = self::text($request, 'search');
+        $length = $text === null ? 0 : mb_strlen($text);
+
+        return $length < 3 || $length > 100 ? null : $text;
     }
 
     private static function text(Request $request, string $key): ?string

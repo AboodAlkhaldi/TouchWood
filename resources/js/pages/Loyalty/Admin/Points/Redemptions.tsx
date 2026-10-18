@@ -8,7 +8,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
-import { Amount, Points, ProgrammeOffNote } from '@/pages/Loyalty/Admin/Points/parts';
+import { Amount, Points, ProgrammeOffNote } from '@/components/loyalty/parts';
 import type { RedemptionsListPage } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*

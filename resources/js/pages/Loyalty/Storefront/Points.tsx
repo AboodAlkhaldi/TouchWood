@@ -11,7 +11,7 @@ import { figure } from '@/lib/digits';
 import { formatMoney } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
-import { LotsTable, Points as PointsFigure, SignedPoints, useDay } from '@/pages/Loyalty/Admin/Points/parts';
+import { LotsTable, Points as PointsFigure, SignedPoints, useDay } from '@/components/loyalty/parts';
 import type { HistoryRowData, MyPointsPage } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
@@ -32,7 +32,8 @@ export default function Points({ points, worth, expiring, lots, history, nextAt,
     const day = useDay();
     const list = useLoadMore(history, (row) => String(row.id));
     const nothing = lots.length === 0 && list.rows.length === 0;
-    const unitText = formatMoney(unit, locale);
+    // Amounts inside sentences, isolated so an Arabic sentence keeps "1.00 SAR" in its order (§1.8).
+    const unitText = isolate(formatMoney(unit, locale));
 
     return (
         <AccountLayout title={t('loyalty::shop_points.title')} subtitle={t('loyalty::shop_points.subtitle')} page="loyalty.points">
@@ -51,7 +52,7 @@ export default function Points({ points, worth, expiring, lots, history, nextAt,
                         <CardDescription className="grid gap-1">
                             <PointsFigure value={points} className="text-heading-32 text-ink" />
                             <span className="text-copy-14 text-ink-muted">
-                                {t('loyalty::shop_points.worth', { amount: formatMoney(worth, locale) })}
+                                {t('loyalty::shop_points.worth', { amount: isolate(formatMoney(worth, locale)) })}
                             </span>
                         </CardDescription>
                     </CardHeader>

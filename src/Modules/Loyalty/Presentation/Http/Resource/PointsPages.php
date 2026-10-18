@@ -120,7 +120,11 @@ final readonly class PointsPages
     {
         [$store, $offered] = $this->store($storeCode);
         $page = $list->handle(new ListRedemptions($store->id, self::before($beforeAt), $beforeId));
-        $exponent = $this->programmes->of($store->storeId())->exponent;
+        // Each amount with its own currency's decimals: an order keeps the currency it was placed in.
+        $exponents = [];
+        $exponent = function (string $code) use (&$exponents, $store): int {
+            return $exponents[$code] ??= $this->platform->currency($code)->exponent ?? $this->programmes->of($store->storeId())->exponent;
+        };
         // The names in one read (access.md amendment 70), the name only (§9.5 P1).
         $customers = $page->rows === [] ? [] : $this->access->customers(array_values(array_unique(array_map(static fn (RedemptionRow $row): string => $row->customerId, $page->rows))));
 
@@ -130,7 +134,7 @@ final readonly class PointsPages
                 $row->orderNumber,
                 CustomerNameData::of(CustomerName::of($row->customerId, $customers[$row->customerId] ?? null, false)),
                 $row->points,
-                MoneyData::of($row->discount, $exponent),
+                MoneyData::of($row->discount, $exponent($row->discount->currencyCode)),
                 self::moment($row->occurredAt),
             ), $page->rows),
             $page->nextAt === null ? null : self::cursor($page->nextAt),

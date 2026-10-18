@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
-import { Amount, Points, useDay, useLocale } from '@/pages/Loyalty/Admin/Points/parts';
+import { Amount, Points, useDay, useLocale } from '@/components/loyalty/parts';
 import type { PointsSectionData } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*

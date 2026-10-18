@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import { Note } from '@/components/Note';
 import { formatDate, Time } from '@/components/Time';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { isolate } from '@/lib/bidi';
 import { figure } from '@/lib/digits';
 import { formatMoney, type Money } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
@@ -10,9 +11,9 @@ import type { SharedProps } from '@/types/page';
 import type { ExpiringData, HistoryRowData, LotData } from '@/types/generated/Modules/Loyalty/Presentation/Http/Resource';
 
 /*
-| The parts Loyalty's staff screens share (loyalty.md §4.1): the programme-off note, points and money
-| written as every screen writes them, "expiring next", a history and the live lots. Helpers, not a
-| page: each counts inside the pages that import it.
+| The parts Loyalty's screens share (loyalty.md §4.1) - the panel's, the customer page's section and
+| the shop's: the programme-off note, points and money written as every screen writes them,
+| "expiring next", a history and the live lots. Not a page: each counts inside the pages that import it.
 */
 
 /** The page's language, for numbers and dates in Latin digits (frontend.md §1.8). */
@@ -43,11 +44,14 @@ export function Amount({ value, className }: { value: Money; className?: string 
     );
 }
 
-/** A day, YYYY-MM-DD already in the store's zone, written as the page writes dates. */
+/**
+ * A day, YYYY-MM-DD already in the store's zone, written as the page writes dates - isolated, since it
+ * always goes inside a sentence, where an Arabic one would otherwise reorder its parts (frontend.md §1.8).
+ */
 export function useDay(): (day: string) => string {
     const locale = useLocale();
 
-    return (day: string) => formatDate(`${day}T12:00:00Z`, 'UTC', locale);
+    return (day: string) => isolate(formatDate(`${day}T12:00:00Z`, 'UTC', locale));
 }
 
 /** A value that is not there: Geist's em dash. */

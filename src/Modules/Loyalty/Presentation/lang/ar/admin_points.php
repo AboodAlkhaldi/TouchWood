@@ -90,6 +90,7 @@ return [
         'at_most' => 'لا يزيد على الرصيد، :balance.',
         'nothing_to_remove' => 'لا توجد نقاط لخصمها.',
         'mode_missing' => 'اختر الإضافة أو الخصم.',
+        'store_missing' => 'افتح نقاط العميل في متجر أولًا.',
         'points_whole' => 'النقاط عدد صحيح، 1 أو أكثر.',
         'add_points' => 'إضافة النقاط',
         'remove_points' => 'خصم النقاط',
