@@ -36,6 +36,7 @@ use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Public\Enums\AccessLevel;
+use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Access\Public\Events\StaffActivated;
 use Modules\Access\Public\Events\StaffDisabled;
@@ -110,7 +111,7 @@ describe('creating a Super Admin', function () {
             ->and($row['password'])->toBeNull()
             ->and($row['phone'])->toBe('+966501112233')
             ->and(DB::table('access.role_assignments')->where('staff_user_id', $row['id'])->exists())->toBeFalse()
-            ->and(DB::table('access.staff_notification_preferences')->where('staff_user_id', $row['id'])->count())->toBe(4)
+            ->and(DB::table('access.staff_notification_preferences')->where('staff_user_id', $row['id'])->count())->toBe(count(StaffNotificationTopic::cases()))
             ->and(superAdminMessages()->invitations)->toHaveCount(1)
             ->and(superAdminMessages()->invitations[0]['locale'])->toBe('ar');
     });

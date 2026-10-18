@@ -318,6 +318,11 @@ describe('the actions (§3: Run Sync Reads)', function () {
             {
                 return $this->real->closeAll($store, $closedBy);
             }
+
+            public function announce(StoreId $store, array $kinds): array
+            {
+                return $this->real->announce($store, $kinds);
+            }
         });
         Fx::actAsStaff(Fx::staffWith([SyncPermissions::READ_RUN], ['sa']));
 

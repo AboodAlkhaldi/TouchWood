@@ -52,6 +52,15 @@ interface ReportEntries
      */
     public function closeSwitchedOn(StoreId $store, array $variantIds): int;
 
+    /**
+     * The store's open entries of these kinds not yet told of, marked told (sync.md §9.3 #18): how
+     * many of each kind - so each is told once, however many reads see it.
+     *
+     * @param  list<ReportKind>  $kinds
+     * @return array<string, int>
+     */
+    public function announce(StoreId $store, array $kinds): array;
+
     /** Every open entry of the store closed, saying by what (sync.md §1.8: unwiring). */
     public function closeAll(StoreId $store, string $closedBy): int;
 }

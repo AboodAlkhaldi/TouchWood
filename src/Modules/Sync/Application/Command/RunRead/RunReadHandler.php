@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Command\RunRead;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -24,6 +26,7 @@ use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Modules\Sync\Domain\ValueObject\ReportKind;
+use Modules\Sync\Public\Events\SyncNeedsAttention;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -65,6 +68,7 @@ final readonly class RunReadHandler
         private ProviderStock $stock,
         private ReadLines $lines,
         private ReadReports $reports,
+        private Dispatcher $events,
     ) {}
 
     /**
@@ -119,8 +123,12 @@ final readonly class RunReadHandler
         }
 
         $store = StoreId::fromString($storeId);
-        $this->reads->fail($readId, $why);
-        $this->report($store, $readId, $why);
+
+        // Failed already (superseded, or stopped): its failure is not the store's to report again.
+        if ($this->reads->fail($readId, $why)) {
+            $this->report($store, $readId, $why);
+        }
+
         $this->reads->startNext($store);
     }
 
@@ -146,6 +154,7 @@ final readonly class RunReadHandler
             ->changed('prices_changed', null, $prices)
             ->changed('stock_changed', null, $stock)
             ->changed('skipped', null, $skipped)));
+        $this->announce($store, $read->id);
         $this->reads->startNext($store);
     }
 
@@ -157,9 +166,23 @@ final readonly class RunReadHandler
         if ($this->connections->exists($store)) {
             $this->connections->markFailing($store, $why);
             $this->reported($store, $readId, ReportKind::ReadFailed, [['code' => null, 'variantId' => null, 'saleId' => null, 'detail' => ['read' => $readId, 'error' => $why]]]);
+            $this->announce($store, $readId);
         }
 
         $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, AuditChanges::none()->changed('error', null, $why)));
+    }
+
+    /**
+     * What staff are told of (sync.md §9.3 #18): a sale stopped, a discount skipped, a read failed -
+     * each entry once, in one event a read, when the read ends. Ops sends it.
+     */
+    private function announce(StoreId $store, string $readId): void
+    {
+        $opened = $this->entries->announce($store, [ReportKind::SaleStopped, ReportKind::DiscountSkipped, ReportKind::ReadFailed]);
+
+        if ($opened !== []) {
+            $this->events->dispatch(new SyncNeedsAttention((string) Str::uuid(), $store->value, $readId, $opened, CarbonImmutable::now()));
+        }
     }
 
     /**
