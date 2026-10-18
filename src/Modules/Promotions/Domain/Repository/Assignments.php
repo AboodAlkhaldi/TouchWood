@@ -22,6 +22,9 @@ interface Assignments
      */
     public function assign(Coupon $coupon, array $customerIds, ?string $segmentId, DateTimeImmutable $at): int;
 
+    /** Whether the coupon was given to anyone. */
+    public function any(Coupon $coupon): bool;
+
     /** Takes the coupon back from one customer; answers whether they had it. */
     public function remove(Coupon $coupon, string $customerId): bool;
 

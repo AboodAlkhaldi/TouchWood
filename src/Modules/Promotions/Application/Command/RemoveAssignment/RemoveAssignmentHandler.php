@@ -43,13 +43,18 @@ final readonly class RemoveAssignmentHandler
         $this->change->run($store, function () use ($storeId, $command, $customerId): array {
             $coupon = $this->coupons->lock($storeId, $command->couponId) ?? throw new CouponNotFound;
 
-            if ($this->coupons->usage($storeId, $coupon->id, $customerId)->usesByCustomer > 0) {
+            $usage = $this->coupons->usage($storeId, $coupon->id, $customerId);
+
+            // Never given to them: nothing to take back, whatever they did with it.
+            if (! $usage->assigned) {
+                return [null, []];
+            }
+
+            if ($usage->usesByCustomer > 0) {
                 throw new CouponInUse;
             }
 
-            if (! $this->assignments->remove($coupon, $customerId)) {
-                return [null, []];
-            }
+            $this->assignments->remove($coupon, $customerId);
 
             return [null, array_filter([CouponAudit::entry('assignment_removed', $coupon->id, $storeId->value, ['customer' => $customerId], [])])];
         });

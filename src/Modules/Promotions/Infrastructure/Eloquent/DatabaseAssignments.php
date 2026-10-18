@@ -36,6 +36,11 @@ final readonly class DatabaseAssignments implements Assignments
         return $added;
     }
 
+    public function any(Coupon $coupon): bool
+    {
+        return $this->db->table('promotions.coupon_assignments')->where('coupon_id', $coupon->id)->where('store_id', $coupon->storeId)->exists();
+    }
+
     public function remove(Coupon $coupon, string $customerId): bool
     {
         return $this->db->table('promotions.coupon_assignments')

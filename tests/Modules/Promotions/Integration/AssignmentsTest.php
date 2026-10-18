@@ -143,15 +143,44 @@ it('refuses what can never be assigned, writing nothing', function (Closure $mak
     'companies to a coupon for the public only' => [fn () => [assignedCoupon(['for_company' => false]), neverOrderedSegment('COMPANY')], 'audience'],
 ]);
 
-it('refuses a coupon assigned from an individuals\' segment being changed to leave individuals out', function () {
+/** A coupon's fields as the editor sends them: assigned, 15%, for these buyers. */
+function assignedFields(bool $forPublic = true, bool $forCompany = true, string $eligibility = 'ASSIGNED'): CouponFields
+{
+    return new CouponFields('كوبون', 'Coupon', $eligibility, 'PERCENT', 15, null, null, null, CarbonImmutable::now(), null, null, null, true, false, true, true, $forPublic, $forCompany, []);
+}
+
+it('refuses a coupon assigned from a segment being changed to leave that segment\'s buyers out, and takes a change that keeps them', function (string $audience, bool $forPublic, bool $forCompany) {
     Fx::customer('sara@example.test');
+    Fx::customer('firm@example.test', 'sa', 'company');
+    marketer();
+    $segment = neverOrderedSegment($audience);
+    $coupon = assignedCoupon();
+    app(AssignCouponHandler::class)->handle(new AssignCoupon($coupon, $segment));
+
+    expect(Pr::thrown(fn () => app(ChangeCouponHandler::class)->handle(new ChangeCoupon($coupon, assignedFields($forPublic, $forCompany))), InvalidPromotionAttribute::class)->attribute)->toBe('audience');
+
+    // Keeping them (and leaving out the others) is a change like any other.
+    app(ChangeCouponHandler::class)->handle(new ChangeCoupon($coupon, assignedFields(! $forPublic, ! $forCompany)));
+    expect((bool) DB::table('promotions.coupons')->where('id', $coupon)->value($audience === 'INDIVIDUAL' ? 'for_public' : 'for_company'))->toBeTrue();
+})->with([
+    'individuals left out' => ['INDIVIDUAL', false, true],
+    'companies left out' => ['COMPANY', true, false],
+]);
+
+it('refuses making an assigned coupon public while customers have it, and allows it once none do (owner, 2026-10-18, answer 25)', function () {
+    $sara = Fx::customer('sara@example.test');
     marketer();
     $segment = neverOrderedSegment();
     $coupon = assignedCoupon();
     app(AssignCouponHandler::class)->handle(new AssignCoupon($coupon, $segment));
-    $fields = new CouponFields('كوبون', 'Coupon', 'ASSIGNED', 'PERCENT', 15, null, null, null, CarbonImmutable::now(), null, null, null, true, false, true, true, false, true, []);
 
-    expect(Pr::thrown(fn () => app(ChangeCouponHandler::class)->handle(new ChangeCoupon($coupon, $fields)), InvalidPromotionAttribute::class)->attribute)->toBe('buyers');
+    expect(Pr::thrown(fn () => app(ChangeCouponHandler::class)->handle(new ChangeCoupon($coupon, assignedFields(eligibility: 'PUBLIC'))), InvalidPromotionAttribute::class)->attribute)->toBe('eligibility')
+        ->and(DB::table('promotions.coupons')->where('id', $coupon)->value('eligibility'))->toBe('ASSIGNED');
+
+    app(RemoveAssignmentHandler::class)->handle(new RemoveAssignment($coupon, $sara));
+    app(ChangeCouponHandler::class)->handle(new ChangeCoupon($coupon, assignedFields(eligibility: 'PUBLIC')));
+
+    expect(DB::table('promotions.coupons')->where('id', $coupon)->value('eligibility'))->toBe('PUBLIC');
 });
 
 it('takes back an unused assignment, audited; never a used one; nothing for one never given', function () {
@@ -205,5 +234,6 @@ it('pages a segment\'s members by id for Ops, refusing an unknown segment and a 
         ->and(Pr::api()->segmentMembers($segment, $last[0], 2))->toBe([])
         ->and(fn () => Pr::api()->segmentMembers(Pr::orderId(), null, 2))->toThrow(SegmentNotFound::class)
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
-        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit');
+        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
+        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
 });

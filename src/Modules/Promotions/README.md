@@ -100,7 +100,12 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   written through `Domain/Repository/Assignments` (`insertOrIgnore`, in chunks — those who have it keep
   their row, a customer who leaves the segment keeps the coupon). A used assignment is never removed
   (`CouponInUse`). Changing a coupon refuses leaving out the audience of a segment it was assigned
-  from (§1.1). `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000.
+  from (§1.1) — `audience` — and refuses making it public while customers have it (answer 25) —
+  `eligibility`. Taking back an assignment never given does nothing, whatever the customer did with
+  the coupon. Known limits, by the letter of §1.1 and §1.4: the audience lock rests on the segments the
+  coupon came from, so deleting a segment releases it; and assigning writes the stored members, so one
+  anonymized since the last refresh is assigned too (harmless: an anonymized account cannot order).
+  `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000.
 - **`Infrastructure/Eloquent/CouponRulesUsage`** — registered with Catalog's `CatalogUsages`: every
   coupon whose include or exclude list names a product, category or brand Catalog is about to delete,
   in one query; Catalog then refuses the delete (`catalog.item_in_use`). Variants answer nothing until
