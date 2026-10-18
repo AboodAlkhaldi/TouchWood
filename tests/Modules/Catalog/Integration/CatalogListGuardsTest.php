@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttribute;
 use Modules\Catalog\Application\Command\ActivateAttribute\ActivateAttributeHandler;
@@ -640,6 +641,9 @@ function catalogGuardsChanges(): array
 describe('the lock', function () {
     it('is the first thing a change does inside its own transaction, and its list\'s', function (string $list, Closure $prepare) {
         $change = $prepare();
+        // Other modules' queued work runs on a worker, never in the change: held back here, as the
+        // test queue would otherwise run it at once (Inventory's Low Stock recount reads Catalog).
+        Queue::fake();
         $queries = Cx::recordQueries();
 
         $change();
