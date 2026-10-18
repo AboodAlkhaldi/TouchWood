@@ -323,6 +323,11 @@ describe('the actions (§3: Run Sync Reads)', function () {
             {
                 return $this->real->announce($store, $kinds);
             }
+
+            public function hasOpen(StoreId $store, ReportKind $kind): bool
+            {
+                return $this->real->hasOpen($store, $kind);
+            }
         });
         Fx::actAsStaff(Fx::staffWith([SyncPermissions::READ_RUN], ['sa']));
 

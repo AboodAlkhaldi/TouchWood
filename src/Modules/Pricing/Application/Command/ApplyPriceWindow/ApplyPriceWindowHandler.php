@@ -57,7 +57,7 @@ final readonly class ApplyPriceWindowHandler
                 return [false, []];
             }
 
-            $this->writer->refresh($store, $sale !== null ? $sale->variantIds : array_keys($this->coverage->pricedSizes($store, $discount === null ? [] : [$discount])));
+            $this->writer->refresh($store, $sale !== null ? $sale->variantIds : array_keys($this->coverage->pricedSizes($store, $discount === null ? [] : [$discount])), discountsChanged: $sale === null);
 
             return [true, []];
         });

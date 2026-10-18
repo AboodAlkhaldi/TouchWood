@@ -46,7 +46,7 @@ final readonly class EndCategoryDiscountHandler
 
             $after = new CategoryDiscount($before->id, $before->storeId, $before->categoryId, $before->percentBasisPoints, $before->amount, $before->lines, $before->startsAt, $now, $before->alwaysWins, $before->excludedProductIds);
             $this->discounts->save($after);
-            $this->writer->refresh($storeId, array_keys($this->coverage->pricedSizes($storeId, [$after])));
+            $this->writer->refresh($storeId, array_keys($this->coverage->pricedSizes($storeId, [$after])), discountsChanged: true);
 
             return [null, [DiscountAudit::entry('pricing.category_discount.ended', $before, $after, $store->currencyExponent)]];
         });

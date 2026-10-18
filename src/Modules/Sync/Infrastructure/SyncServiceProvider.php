@@ -14,6 +14,7 @@ use Modules\Catalog\Public\Events\VariantCodeCorrected;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
+use Modules\Pricing\Public\Events\DiscountReachChecked;
 use Modules\Sync\Application\Report\SyncLog;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
@@ -29,6 +30,7 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseReads;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReportEntries;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
+use Modules\Sync\Infrastructure\Listener\CloseReachedDiscounts;
 use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
 use Modules\Sync\Infrastructure\Provider\ContainerProviderAdapters;
@@ -80,6 +82,7 @@ final class SyncServiceProvider extends ServiceProvider
         // An off or draft size the provider priced closes its entry once it is on and ready (§1.6).
         Event::listen(StoreListingChanged::class, [CloseSwitchedOnEntries::class, 'switchedOn']);
         Event::listen(ProductMadeReady::class, [CloseSwitchedOnEntries::class, 'madeReady']);
+        Event::listen(DiscountReachChecked::class, [CloseReachedDiscounts::class, 'handle']);
 
         // The hour's read catches a lost notice; the night's checks everything (§1.3). Scheduled work
         // is queued as a job (owner's decision, 2026-09-18).

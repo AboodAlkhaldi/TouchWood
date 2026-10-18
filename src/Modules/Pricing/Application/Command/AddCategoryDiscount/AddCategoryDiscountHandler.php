@@ -69,7 +69,7 @@ final readonly class AddCategoryDiscountHandler
         return $this->change->run($storeId, function () use ($storeId, $store, $discount, $now): array {
             $this->check->check($storeId, $discount);
             $this->discounts->save($discount);
-            $this->writer->refresh($storeId, array_keys($this->coverage->pricedSizes($storeId, [$discount])));
+            $this->writer->refresh($storeId, array_keys($this->coverage->pricedSizes($storeId, [$discount])), discountsChanged: true);
             $this->tasks->queue($storeId, $discount->id, $discount->momentsAfter($now));
 
             return [$discount->id, [DiscountAudit::entry('pricing.category_discount.added', null, $discount, $store->currencyExponent)]];

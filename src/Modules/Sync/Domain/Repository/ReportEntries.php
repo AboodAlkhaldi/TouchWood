@@ -61,6 +61,9 @@ interface ReportEntries
      */
     public function announce(StoreId $store, array $kinds): array;
 
+    /** Whether the store has an open entry of the kind - one look on the open entries' index. */
+    public function hasOpen(StoreId $store, ReportKind $kind): bool;
+
     /** Every open entry of the store closed, saying by what (sync.md §1.8: unwiring). */
     public function closeAll(StoreId $store, string $closedBy): int;
 }
