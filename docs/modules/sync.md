@@ -230,63 +230,126 @@ after its retries / a read succeeds) → (UnwireStore) → `NOT WIRED`.
 
 ### 4.1 The admin screens (stage 5's screens)
 
-**Written 2026-10-18**, with Pricing's and Inventory's, on the owner's answers of that day: **a Sync
-section** in the menu; **the Sync Report** - its problems and its reads on two tabs, each read its own
-page - **and the Provider page**, the Super Admin's; all specs first, approved once. **[PROPOSED Sn]**
-marks what is mine, listed in §9.4. Everything pricing.md §4.3 says every screen keeps holds here: the
-queries deciding the buttons, Geist on shadcn, digits 0-9, the store's zone, its own store filter,
-§7's refusals; the words in `src/Modules/Sync/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`.
+**Written 2026-10-18, detailed 2026-10-19**, with Pricing's and Inventory's, on the owner's answers (a Sync
+section in the menu; the Sync Report and the Provider page; every detail settled before building; S1-S8
+accepted). **(Qn)** marks a point waiting for the owner - one list in pricing.md §9.4 - written here as
+recommended. **Everything pricing.md §4.3.1 says holds here.**
 
-**Where they are.** `Presentation/admin-routes.php`, `sync.admin.*` (Ziggy's admin group gains it),
-through `AdminArea`, `Page` and `FormErrors`. **The menu**: Platform's `AdminMenu` gains a **Sync**
-group **[PROPOSED S6]** (platform.md amendment: its groups gain `sync`, between `pricing` and
-`orders`; its icon `sync`, Lucide's `RefreshCw`, added to the panel's short list):
+#### 4.1.1 What every Sync screen keeps
+
+- **Kinds' badges** (§1.6): **Unknown Code** gray · **Not at Provider** gray · **Archived** gray · **Off or
+  Draft** gray · **Sale Stopped** amber · **Bad Value** gray · **Read Failed** red · **Discount Skipped**
+  amber.
+- **Reads**: kinds **Notice**, **Hourly**, **Nightly**, **Now**, **One Code**; states **Waiting** gray,
+  **Running** blue, **Done** green, **Failed** red. A store: **Working** green, **Failing** red, **Not Wired**
+  gray.
+- **A failure's text (Q31)**: Sync's own reasons are kept as **a code** and written in the page's language -
+  "Stopped: the store was unwired or wired again." · "Stopped: its worker went away." · "The store was
+  unwired." · "Superseded: a read of the same kind is waiting." · "Failed: see the failed jobs screen." - and
+  **the provider's own reason** is shown as it came, under "The provider said:", in `dir="auto"`.
+- **Toasts**: "Read queued" · "Entry dismissed" · "Store wired" · "Connection changed" · "Store unwired".
+- **Words**: `src/Modules/Sync/Presentation/lang/{ar,en}/admin_report.php`, `admin_provider.php`,
+  `menu.php` (Q42). §1.6's and §3's "Leave it" becomes **Dismiss** (Q28).
+
+#### 4.1.2 Where they are
+
+`Presentation/admin-routes.php`, `sync.admin.*` (Ziggy, deptrac `AppHttp`); pages under
+`resources/js/pages/Sync/Admin/`. **The menu** (S6): Platform's `AdminMenu`, a **Sync** group after
+Pricing, icon `sync` (Lucide's `RefreshCw`):
 
 | # | Entry | Address | Offered for |
 |---|---|---|---|
-| 10 | Sync Report · تقرير المزامنة | `/admin/sync?store=` | `sync.report.view`, with **`CountSyncReport`**'s count beside it - the open entries over the stores the reader views (a `MenuCount`: one query) |
-| 20 | Provider · المزوّد | `/admin/sync/provider?store=` | `sync.connection.manage` (reserved: Super Admins - offered as Catalog's import is, catalog.md §4.4) |
+| 10 | Sync Report · تقرير المزامنة | `/admin/sync` | `sync.report.view`, with **`SyncReportCount`** (new `MenuCount`: the open entries over the stores the reader views, one query) |
+| 20 | Provider · المزوّد | `/admin/sync/provider` | `sync.connection.manage` (Super Admins) |
 
-The reads are §3's, all built (`ViewSyncReport`, `ListSyncReads`, `ViewSyncRead`, `ViewConnection`),
-with `SyncStatus` below; **`SyncActionsForReader`** (new) answers the buttons. Each is a fixed few queries: the report page about
-5, a read's page about 9 (step 6's review) - within 15, the page's own.
+#### 4.1.3 The reads
 
-#### Y1 · Sync Report - `/admin/sync?store=&tab=`
+| Query | Answers |
+|---|---|
+| `SyncStatus` (new, S8; `sync.report.view`) | the provider's name, the state with its reason, **Last Read** - the newest finished read of any kind - and **Last Full Read** (Q29), a read waiting or running (its kind and start) |
+| `ViewSyncReport` (extended) | each entry's size values; for a stopped sale or a skipped discount its description and whether it still exists (Pricing's `salesNamed`, `discountsNamed`) (Q37) |
+| `ListSyncReads` (extended) | who asked, by name (Platform's `StaffNames`) (Q36); a failed read's changes counted from its lines (Q30) |
+| `ViewSyncRead` (extended) | each section paged on its own (`?section=&page=`), the codes asked for as a section, 100 a page (Q32); the read's store code |
+| `ViewConnection` (extended, S7) | the last full read; the notice address and what the provider must send |
+| `SyncActionsForReader` (new) | per store: may view, may run, may wire; whether a Now read waits; `mayViewProducts`; the reasons |
 
-- **Above the tabs** (`SyncStatus`, new **[PROPOSED S8]**: what `ViewConnection` tells a Super Admin,
-  less the address, the settings and the key, for whoever views the report): the provider and its
-  state - **Working** (`OK`, green), **Failing** (red, with the provider's reason), **Not wired** (gray: the
-  page says so and, to a Super Admin, links to Y3) - the last read's time, the last full read's, and
-  **Sync Now** (`sync.read.run`; disabled with the reason
-  while a read of the store waits or runs).
-- **Problems** (the default tab; `ViewSyncReport`, 50 at a time, the latest seen first): **Kind** (§1.6's
-  words, as a badge: Failed read red; Sale stopped and Discount skipped amber; the rest gray) ·
-  **What** - the product and size (linked to the product's page), or the provider's code for one we do
-  not have · **Detail** (the value sent, the sale or discount named and linked, the error) · first seen ·
-  last seen. A kind filter (§1.6's eight). Each row's actions (`sync.read.run`): **Retry** · **Leave it**
-  (Dismiss; never on a failed read, §9.3 #23 - disabled with the reason) - the toast repeating the verb.
-- **Reads** (`ListSyncReads`, 50 at a time, newest first): kind (Notified, Hourly, Nightly, Sync now, One
-  code) · state (Waiting, Running, Done, Failed) · asked by (a staff name, or the system) · started ·
-  took · prices changed · stock changed · skipped. The row opens the read's page.
+#### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 
-#### Y2 · A read - `/admin/sync/reads/{id}`
+- **Subtitle**: "What the provider's reads found, and every read of this store."
+- **Main action**: **Sync Now** (`sync.read.run`, a wired store). Pressed while a read runs, it queues one
+  more to follow; disabled only while a Now read already waits: "A read is already waiting." (Q26) →
+  "Read queued".
+- **The status line** (`SyncStatus`), above the tabs: the provider ("Odoo"), the state badge, "Last read 12
+  minutes ago" and "Last full read last night at 02:00" (`Time`), and when one waits or runs: "A read is
+  running, started 2 minutes ago." **Failing**: a red `Note` - "The provider said: …" - and "Press Sync Now
+  once the provider is back."
+- **A store not wired** (Q35): the status line **Not Wired** - "This store is not wired to a provider." - with
+  **Wire Store** for a Super Admin (Y3); **no Problems tab**: the page shows Reads (kept 90 days),
+  read-only; `?tab=problems` shows Reads.
+- **Tabs** (in the address, nouns): **Problems** (its count in the trigger) · **Reads**.
+- **Problems** (`ViewSyncReport`, 50 at a time, latest seen first): a kind filter (`NativeSelect`: **All
+  Kinds**, then the eight, each with its count).
+  - **Columns**: **Kind** · **What** - the product and size with its code, the product a link to its page's
+    Stores tab (when the reader may view products); or the provider's code (mono) for one we don't have ·
+    **Detail** · **First Seen** · **Last Seen** · ⋯.
+  - **Detail per kind**: Unknown Code - the price and stock sent; Not at Provider - "The provider has no such
+    code."; Archived - "Archived here; the provider still sends it."; Off or Draft - the price sent, "Make
+    the product ready and switch the size on to sell it at this price."; Sale Stopped - the sale (a link to
+    P2 `?sale=`; "Sale removed" when it is gone, Q37) and what the provider's price did, taking the size past
+    the ceiling: **Left** "The size left the sale." / **Ended** "The sale ended." / **Removed** "The scheduled
+    sale was removed."; Bad Value - what came ("0", "12.5", "−3") and what was kept; Read Failed - the read
+    (a link to Y2) and its reason; Discount Skipped - the discount (linked) and "Past the ceiling at the
+    provider's price."
+  - **The ⋯ menu** (`sync.read.run`): **Retry Read** - reads that size's code again (a One Code read) →
+    "Read queued" - for every kind but **Sale Stopped** and **Off or Draft**, which a read never closes; those
+    offer **Open Sale** / **Open Product** instead (Q27); a **Read Failed** entry's Retry Read is a whole read
+    of the store, as Sync Now. A size deleted since: Retry Read disabled, "This size no longer exists.
+    Dismiss the entry instead." Separator; **Dismiss Entry…** (Q28) - every kind but Read Failed, where it is
+    disabled: "Closes by itself when a read works." It asks "Dismiss Entry" · "It leaves the report, and
+    comes back if a read finds it again." · **Dismiss Entry** → "Entry dismissed".
+- **Reads** (`ListSyncReads`, 50 at a time, newest first): **Kind** · **State** · **Asked By** (a name; "The
+  System"; a merged Notice or One Code read shows who asked first) · **Started** ("—" while waiting) ·
+  **Took** ("2 min 14 s"; "—" until done) · **Prices** · **Stock** · **Skipped** (Q30) · **Codes** ("3"; "—"
+  for a whole read). The row opens Y2.
+- **Empty**: Problems - "No problems" · "The provider's last reads found nothing to look at." Reads - "No
+  reads yet" · "Reads appear here once the store is wired."
 
-`ViewSyncRead`: the read's header (its kind, state, times, counts, the error of a failed one) and three
-sections, each 100 at a time: **Prices changed** (product, size, code, from → to), **Stock changed**
-(the same), **Reported** (what it reported, as it was that day - §9.3 #22). A read of a store the
-reader does not view is not found (§9.3 #29).
+#### Y2 · A read - `/admin/sync/reads/{id}?section=&page=`
+
+- **Breadcrumb**: Sync Report › the store's code › "Read of 18 Oct 2026, 02:00" (store time).
+- **Header** (`Description`): Kind · State · Asked By · Queued · Started · Finished · Took · the counts; a
+  failed read's reason as Y1 writes it.
+- **Sections as tabs** (Q32), each 100 a page with Show More: **Prices Changed** (Product · Size · Code ·
+  From → To, money as Pricing's) · **Stock Changed** (the same, whole numbers) · **Reported** (as it was that
+  day, §9.3 #22: Kind · What · Detail, as Y1's) · **Codes Asked** (a Notice or One Code read; mono).
+- **Not there** - pruned after 90 days, another store's, or never one (§9.3 #29): the not-found page, "This
+  read isn't available."
 
 #### Y3 · Provider - `/admin/sync/provider?store=` (Super Admins)
 
-`ViewConnection`: a store not wired shows **Wire Store** - the provider (Odoo), its address (HTTPS),
-its settings, the key and the secret - saved only once the test read passes (10 seconds at most,
-§9.3 #21; the failure's reason shown under the form). A wired store shows the provider, address and
-settings, "Key and secret set" with when they last changed (`keySet`, `changedAt`; never the values,
-§1.2), the state, the last read and its error - and, added to `ViewConnection` **[PROPOSED S7]**, the
-last full read and the address the provider calls for its notices (to copy) - and:
-- **Change** - the same form, the key and the secret left empty kept; tested again before saving;
-- **Unwire** (last, destructive) - a dialog that first shows how many sizes stop being orderable
-  (`stopsWhenUnwired`, §1.8) and that nothing the provider wrote is cleared; **Unwire Store** under it.
+- **Subtitle**: "Where this store's prices and stock come from."
+- **Until the Odoo connection is built** (Q38): a `Note` - "The Odoo connection is being built. Wiring a
+  store works once it is ready." The form is drawn; its test is refused with the adapter's reason.
+- **A store not wired** - a `Card` **Wire Store**: **Provider** (`NativeSelect`: Odoo) · **Address** ("https://
+  odoo.example.com"; as typed: "Address must start with https://." · "Address needs a host." · "Address
+  can't hold spaces, a name or a password." · 500 characters) · **the provider's settings** - its own fields
+  (none for Odoo yet), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
+  characters). **Test and Wire Store** (main): `loading` "Testing…" while the test read runs (up to 10
+  seconds); a failure under the form - "Failed to read the provider: <its reason>" - saves nothing; success
+  → "Store wired", the page shows the wired store, a Now read is queued.
+- **A wired store** - a `Description`: Provider · Address · its settings · **Key and Secret**: "Set" ·
+  **Last Changed** (any change of the connection, Q33) · State (badge; the reason when failing) · Last Read
+  · Last Full Read · **Notice Address** (S7): `https://…/sync/notify/<store id>` with a `CopyButton`, and
+  under it what the provider sends - the headers `X-TouchWood-Timestamp` (unix seconds) and
+  `X-TouchWood-Signature` (an HMAC-SHA256 of "timestamp.body" with the secret, hexadecimal) and the body
+  `{"codes": [...]}`, 1 to 1,000 codes.
+- **Change Connection** (main): the card turns into the form, filled, **Key** and **Secret** empty ("Leave
+  empty to keep the current key."); **Test and Save Connection** tests again → "Connection changed" and a
+  Now read is queued; **Cancel** returns.
+- ⋯ **Unwire Store…** (destructive, last): `DestructiveActionDialog` - "Unwire Store" · "12 sizes stop being
+  orderable: with no provider every size counts on its stock, and these have none free." (or "No size stops
+  being orderable.") · "Prices and stock the provider wrote stay. Staff set them here again from now on." ·
+  typing the store's code to confirm · **Unwire Store** → "Store unwired".
 
 ---
 

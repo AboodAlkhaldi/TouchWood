@@ -307,67 +307,125 @@ edit adds starts HELD (or NOTED).
 
 ### 4.3 The admin screens (stage 5's screens)
 
-**Written 2026-10-18**, with Pricing's and Sync's, on the owner's answers of that day (by module in the
-menu; a product's stock on its page as well as on the store-wide pages; all specs first, approved
-once). **[PROPOSED Sn]** marks what is mine, listed in §9.3. Everything pricing.md §4.3 says every
-screen keeps holds here too: the queries deciding the buttons, Geist on shadcn, checks as typed,
-digits 0-9, the store's zone, its own store filter, §7's refusals; the words in
-`src/Modules/Inventory/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`. Every page is one job:
-**Manage Stock** (`inventory.stock.manage`, §3), in that store.
+**Written 2026-10-18, detailed 2026-10-19**, with Pricing's and Sync's, on the owner's answers (by module
+in the menu; a product's stock on its page as well as on the store-wide pages; every detail settled
+before building; S1-S8 accepted). **(Qn)** marks a point waiting for the owner - one list in pricing.md
+§9.4 - written here as recommended. **Everything pricing.md §4.3.1 says holds here**: who may do what,
+off stores, the frame, the store filter, rows that hold boxes with the save bar, a batch's refusal
+marking its rows, numbers and moments, the words and plurals, 15 queries a page. Every Inventory page is
+**one job**: Manage Stock (`inventory.stock.manage`) in that store.
 
-**A store that is off**: read-only with the reason, to anyone who may not switch stores. **A wired
-store**: the numbers are the provider's - stocktakes, hand changes and "ending soon" are not offered,
-the stock-dependent switch is (§1.5, §4.2).
+#### 4.3.1 What every Inventory screen keeps
 
-**Where they are.** `Presentation/admin-routes.php`, `inventory.admin.*` (Ziggy's admin group gains
-it), through `AdminArea`, `Page` and `FormErrors` as Catalog's. **The menu**: Platform's `AdminMenu`,
-the **Catalog** group (Inventory's permission sits there, §3), its icon `catalog`:
+- **A number box** (a count, a quantity, a threshold): `TextField`, `inputMode="numeric"`, `dir="ltr"`,
+  `tw-figure`, `toLatinDigits`; whole numbers, checked as typed: "Count must be a whole number from 0 to
+  2,147,483,647." · "Quantity must be 1 or more." · "Threshold must be from 0 to 100,000." The server's
+  `quantity_invalid`, `threshold_invalid` and `stock_below_zero` now name their sizes (Q2).
+- **The figures** (§1.2-§1.3, `StockFigures`), each its own column, never computed on the page: **In
+  Stock**, **Held** (by orders not yet shipped; in a wired store, gifts and sizes that count on stock),
+  **Available** (what can be ordered or given now, never below 0), **Threshold** (its own, or "10 (Default)").
+- **One badge a row** (Q17, Q18), the first that applies:
+  1. **Short by 3** (red) - orders hold more than there is: held above in stock (in a wired store, above in
+     stock plus its returned extra);
+  2. **Out of Stock** (red) - available 0 on a size that counts on stock;
+  3. **Orderable** (gray) - a wired ordinary size at 0: it stays orderable (§1.3);
+  4. **Low** (amber) - available at or below the threshold.
+- **A wired store** (§1.5): the in-stock number is the provider's - never a box - with **From Provider** and
+  when the provider last **changed** it (the size's last `PROVIDER` ledger line: a number sent again
+  unchanged writes none) (Q23); a size the provider never sent shows "Not sent by the provider yet".
+  Counting, Add or Remove and Last Pieces are not offered ("The provider sets this store's stock."); the
+  threshold and **Counts on Stock** are. A `Note` at the top of each page: "This store's stock comes from its
+  provider. Thresholds and which sizes count on stock are set here."
+- **An archived size** (or a size of an archived product) - listed while it has stock, with **Archived**
+  (amber), read-only: "Archived in the catalog. Restore it to change its stock."
+- **Toasts**: "Counts saved" · "Stock added" · "Stock removed" · "Threshold saved" · "Thresholds saved" ·
+  "Last pieces shown" / "Last pieces hidden" · "Stock dependency turned on" / "Stock dependency turned off"
+  · and a second, amber toast when a save leaves orders short: "2 orders are short of 60 cm · Oak".
+- **Words**: `src/Modules/Inventory/Presentation/lang/{ar,en}/admin_stock.php`, `admin_low.php`, `menu.php`
+  (Q42 for the Arabic terms).
+
+#### 4.3.2 Where they are
+
+`Presentation/admin-routes.php`, `inventory.admin.*` (Ziggy's admin group; deptrac `AppHttp` for the
+Presentation); controllers and `spatie/laravel-data` resources; pages under
+`resources/js/pages/Inventory/Admin/`. **The menu**: Platform's `AdminMenu`, the **Catalog** group, icon
+`catalog`:
 
 | # | Entry | Address | Offered for |
 |---|---|---|---|
 | 110 | Stock · المخزون | `/admin/stock` | `inventory.stock.manage` |
-| 120 | Low Stock · المخزون المنخفض | `/admin/low-stock` | `inventory.stock.manage`, with **`LowStockCount`** beside it (step 5: the kept counts, one query) |
+| 120 | Low Stock · المخزون المنخفض | `/admin/low-stock` | `inventory.stock.manage`, with `LowStockCount` beside it (step 5) |
 
-**The reads the screens add** (one query or a fixed few each, 15 an admin page, the page's own):
+#### 4.3.3 The reads
 
-| Query | What it answers |
+| Query | Answers |
 |---|---|
-| `ListStock` (new) | the store's sizes - switched on, or with a stock row - 50 at a time by product then size: names and photo and code from Catalog (`searchVariants`, catalog.md amendment 23), and from Inventory's own rows in one query: in stock, held, available, threshold (its own or "Default: 10"), returned extra, stock-dependent (wired); filters: **Low**, **Out of stock**, **Held**; the search by name or code |
-| `ViewStock` (new) | one size: its figures, its threshold, the product's "ending soon", the stock-dependent switch (wired), its holds by order - the drawer and the product page |
-| `StockHistory` (new) | one size's ledger (§1.6), newest first, 50 at a time: when, the reason, before → after, the note, who (a staff name, the provider's read, a file, an order) |
-| `LowStock` | as built (step 4b) |
-| `InventoryActionsForReader` (new) | which buttons the reader may press in the store, and why not |
+| `ListStock` (new) | I1's rows, 50 at a time with the total. Names, photos, size values and the order (product name, then the size's place) from Catalog's `searchVariants`; a filter owned by Inventory - **Low**, **Out of Stock**, **Held**, **Short** - works out its sizes in one query of Inventory's own and hands them to `searchVariants(only:)`, so Catalog pages them by name; the figures in one query of Inventory's rows |
+| `ViewStock` (new) | one size: the figures and badge, its threshold (own or default), the product's Last Pieces (no provider) or the size's Counts on Stock (wired), the provider's last change (wired), its holds - **how many orders hold how many pieces, bought and gift apart** (Q21) |
+| `StockHistory` (new) | one size's ledger, newest first, 50 at a time: when, the reason, before → after, the change (+3 / −2), the note, **who** - a staff member by name (Platform's `StaffNames`), **The Provider**, **A Store File** (with the staff member who switched it on, the requester), **An Order** (its number once Sales has orders), **The System** (Q22). No link to Sync's read: Inventory does not read Sync |
+| `ViewProductStock` (new) | each of a product's sizes **in every store the reader manages stock in**, one read for the whole Stores tab |
+| `LowStock` (extended) | photo, size values, own-or-default threshold; paged 50 with the total; order: fewest available, then product name, then the size's place |
+| `InventoryActionsForReader` (new) | per store: manage stock, wired, off, `mayViewProducts`, the reasons |
 
-#### I1 · Stock - `/admin/stock?store=`
+#### I1 · Stock - `/admin/stock?store=&q=&filter=&size=`
 
-- **Columns**: photo · product · size · code (mono) · **In Stock** · **Held** · **Available** · Threshold
-  · a badge when low (amber) or out (red, "Out of Stock"). In a wired store a **Stock-dependent** column
-  (on or off).
-- **A stocktake in the row** (no provider): the in-stock box, typed and saved on Enter or leaving it;
-  several then **Save Changes** (`SetStock` takes several) **[PROPOSED S5]**.
-- **The ⋯ menu**: **Add or Remove** - the hand change dialog (`AdjustStock`): add or remove, the
-  quantity, the reason (Received only adds; Damaged or lost and Offline sale only remove; Correction
-  either way, its note required - §9.2 #15), Save under a line saying what the stock becomes ·
-  **Threshold** (`SetLowStockThreshold`: a number from 0 to 100,000, or empty for the store's
-  default) · in a wired store **Stock-dependent On / Off** (`SetStockDependent`).
-- **A removal below what orders hold** is not refused (§9.2 #19): the dialog says before saving which
-  orders' holds it leaves short (`HoldsShort`), and saving says so again.
-- **The row opens the size's drawer**: `ViewStock` and its **History** (`StockHistory`, 50 at a time).
-- **Selecting rows** (wired store): Stock-dependent On / Off for the selected sizes at once.
+- **Subtitle**: "What each size has in this store, and what orders hold."
+- **Main action**: **Add Size** (Q24) - stock a size the store does not sell (one only given as a gift,
+  §1.7): a picker of every ready product's sizes not listed here yet (`searchVariants`, any ready size; a size
+  already listed shows "Already listed" and opens its row), then **Count Size** - its count, saved as a
+  stocktake. Not offered in a wired store.
+- **Filters**: search (name or code, 300 ms); `ToggleGroup` **All** · **Low** · **Out of Stock** · **Held** ·
+  **Short**; **Clear Filters**.
+- **Rows**: the store's sizes switched on, and those with a stock row here.
+- **Columns**: a selection checkbox · photo · **Product** · **Size** ("One Size" for a product with one) ·
+  **Code** · **In Stock** (a box when the reader may count; wired: the number, "From Provider" and its
+  `Time`) · **Held** · **Available** with its badge · **Threshold** · wired: **Counts on Stock** (a `Switch`,
+  saving as it flips - `SetStockDependent`) · ⋯.
+- **Counting in the row** (S5; no provider): the save bar ("3 counts changed" · Cancel · **Save Counts**).
+  **Only the rows typed with a new number are sent** (Q19). A count leaving a size short says so under its
+  box before saving (Q20): "2 orders hold 5 of these. This count leaves them short." Not refused (§9.2
+  #19); after saving, the amber toast names them.
+- **Selecting rows** (shadcn's data-table pattern): the loaded rows only; a filter, search or store change
+  clears the selection; above the table "4 selected" with **Set Threshold for 4 Sizes…** and, wired, **Count
+  on Stock** / **Don't Count on Stock** (one `SetStockDependent` each).
+- **The ⋯ menu**: **View Stock** · **Add or Remove Stock…** · **Set Threshold…** · for the product (no
+  provider) **Show Last Pieces** / **Hide Last Pieces** (helper under the item: "Marks the product 'last
+  pieces' while its sizes are at or below their threshold.") · nothing destructive.
+- **Add or Remove Stock** (`PanelDialog`): `ToggleGroup` **Add** / **Remove** (no default); **Quantity** (1 or
+  more); **Reason** (`RadioGroup`, no default, filtered by the direction - Add: **Received**, **Correction**;
+  Remove: **Damaged or Lost**, **Offline Sale**, **Correction**); **Note** (`TextareaField`, up to 500
+  characters; "Note is required for a correction."). Above the button: "In stock becomes 12." - and, in red
+  when it would, "2 orders hold 5 of these. This leaves them short." Removing more than there is: "Quantity
+  can't be more than 4, what's in stock." **Add Stock** / **Remove Stock** → "Stock added" / "Stock removed".
+- **Set Threshold** (`PanelDialog`): one number box, empty for the store's default ("Empty uses the store's
+  default, 10."); several sizes at once from the selection. **Save Threshold** → "Threshold saved" /
+  "Thresholds saved".
+- **The drawer** (Q3; `?size=`): the size, code, figures and badge; **Holds** - "Held by 2 orders: 5 pieces
+  (3 bought, 2 gift)" (Q21); **History** - `StockHistory`, Show More; its own **Add or Remove Stock…** and
+  **Set Threshold…**.
+- **Empty**: "No sizes in this store" · "Sizes appear here once the store switches them on." Filtered:
+  "No sizes match these filters" · "Clear the filters to see every size."
 
 #### I2 · Low Stock - `/admin/low-stock?store=`
 
-The list as built (`LowStock`): product · size · code · available · threshold, the fewest left first;
-its count beside the menu entry and its Home card (both built). Each row's **Add or Remove** and
-**Threshold** as I1's; the row opens I1's drawer. A wired store: read-only figures, the provider's.
+- **Subtitle**: "Sizes at or below their threshold, the fewest left first."
+- The store filter as every store screen (the first store that is on); the subtitle adds "12 low in KSA".
+- **Columns**: photo · Product · Size · Code · **Available** with its badge · **Threshold**. The product's
+  name opens I1's drawer; ⋯: **Add or Remove Stock…**, **Set Threshold…** (as I1's). Archived sizes never
+  listed (§1.7). 50 at a time; order as `LowStock`.
+- **A wired store**: the figures read-only; the threshold settable.
+- **Empty**: "Nothing is low" · "Sizes at or below their threshold appear here."
+- The Home card and the menu's count are built (steps 4b, 5).
 
-#### The product page's store section (Catalog's S9, Stores tab)
+#### The product page's Inventory section (Catalog's S9, Stores tab)
 
-Each store's card gains **Inventory's section** through Catalog's registry (pricing.md §4.3, [PROPOSED
-S3]): each size's in stock, held, available and threshold, its **Add or Remove** and **Threshold**
-(I1's dialogs), a stocktake box per size (no provider), **Ending Soon** for the product (`SetEndingSoon`,
-no provider) and **Stock-dependent** per size (wired); each size opens I1's drawer. One read for the
-product's sizes in that store.
+**One `ViewProductStock` read for every store card on the tab** (amendment 23(b)). In each store's card,
+for whoever manages stock in that store (nothing for the rest):
+- **Last Pieces** for the product - a `Switch` (no provider), saving as it flips.
+- A table: **Size** · **In Stock** (a box, no provider; wired: the provider's number) · **Held** ·
+  **Available** with its badge · **Threshold** · wired: **Counts on Stock** (a `Switch`).
+- The save bar inside the card ("Save Counts"); each size's ⋯: **Add or Remove Stock…**, **Set Threshold…**,
+  **View Stock** (I1's drawer).
 
 ---
 
