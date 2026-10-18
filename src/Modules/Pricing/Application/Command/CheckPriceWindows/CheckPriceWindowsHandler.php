@@ -71,7 +71,8 @@ final readonly class CheckPriceWindowsHandler
             // every store was tried, so the run still shows as failed.
             try {
                 $this->change->run($store, function () use ($store, $variantIds): array {
-                    $this->writer->refresh($store, $variantIds);
+                    // A discount's end its task missed is the store's last, maybe: a wired store is told.
+                    $this->writer->refresh($store, $variantIds, discountsChanged: true);
 
                     return [null, []];
                 });

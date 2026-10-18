@@ -134,6 +134,11 @@ store's holders of `sync.report.view` who chose Access's `SYNC_PROBLEMS` topic (
 
 - Every lookup decrypts the key and the secret; if the app's key were lost without
   `APP_PREVIOUS_KEYS`, the Provider page, a change and unwiring would fail until it is restored.
+- A "discount skipped" entry a read opens just after staff raised the ceiling or ended the discount -
+  between Pricing's write of that batch and Sync's report of it, a fraction of a second - stays open
+  until staff dismiss it: Pricing works out a skip only for a price that changes, so a later read with
+  the same price cannot tell it is reached. An entry names the discount that skipped first; another
+  discount still skipping the size keeps it open under that name.
 - Pricing's `apply` reads the store and its switched-on sizes on every batch of 500 (about 200 times
   for a night's read of 100,000 sizes); cheap per call, measured with stage 5's costs.
 

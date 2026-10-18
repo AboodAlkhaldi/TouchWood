@@ -18,6 +18,8 @@ use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\ApplyPriceWindow\ApplyPriceWindow;
 use Modules\Pricing\Application\Command\ApplyPriceWindow\ApplyPriceWindowHandler;
+use Modules\Pricing\Application\Command\CheckPriceWindows\CheckPriceWindows;
+use Modules\Pricing\Application\Command\CheckPriceWindows\CheckPriceWindowsHandler;
 use Modules\Pricing\Application\Command\EndCategoryDiscount\EndCategoryDiscount;
 use Modules\Pricing\Application\Command\EndCategoryDiscount\EndCategoryDiscountHandler;
 use Modules\Pricing\Application\PricingSettings;
@@ -129,6 +131,26 @@ it('closes them when the discount reaches its end time - its timed task', functi
     expect(syncReachClosedBy($sizes))->toBe(['PRICING', 'PRICING']);
 });
 
+it('closes them at the daily check when the end\'s own task was lost', function () {
+    ['sizes' => $sizes] = syncReachSkipped('2026-10-18 12:00:00+00');
+    CarbonImmutable::setTestNow('2026-10-18 13:00:00+00');
+
+    Fx::asSystem(fn () => app(CheckPriceWindowsHandler::class)->handle(new CheckPriceWindows));
+
+    expect(syncReachClosedBy($sizes))->toBe(['PRICING', 'PRICING']);
+});
+
+it('keeps an entry open while another discount still skips the size', function () {
+    ['sizes' => $sizes] = syncReachSkipped();
+    $category = (string) DB::table('pricing.category_discounts')->value('category_id');
+    // 60 off 120 is 50%; 50 off is 42%.
+    Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Fx::storeId('sa'), $category, null, '60', 'BOTH', null, null)));
+
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(PricingSettings::MAX_DISCOUNT_PERCENT, 'sa', 45));
+
+    expect(syncReachClosedBy($sizes))->toBe([null, null]);
+});
+
 it('closes one when the provider lowers its price so the discount reaches it, the other left as it is', function () {
     ['sizes' => [$a, $b]] = syncReachSkipped();
     $code = (string) DB::table('catalog.variants')->where('id', $a)->value('code');
@@ -137,8 +159,7 @@ it('closes one when the provider lowers its price so the discount reaches it, th
 
     Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead((string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id'))));
 
-    expect(syncReachClosedBy([$a, $b])[1])->toBeNull()
-        ->and(syncReachClosedBy([$a, $b])[0])->not->toBeNull();
+    expect(syncReachClosedBy([$a, $b]))->toBe(['PRICING', null]);
 });
 
 it('is told by Pricing only for a wired store, naming the sizes priced again and those still skipped', function () {
