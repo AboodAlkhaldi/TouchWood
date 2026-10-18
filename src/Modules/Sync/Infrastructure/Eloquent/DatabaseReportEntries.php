@@ -66,13 +66,15 @@ final readonly class DatabaseReportEntries implements ReportEntries
     {
         $closed = 0;
 
-        foreach ([['code', $codes], ['variant_id', $variantIds]] as [$column, $values]) {
+        // Written as the open-entries index is (`report_entries_open`), so it is used past store and kind.
+        foreach ([["COALESCE(code, '')", "COALESCE(variant_id, '') = ''", $codes], ["COALESCE(variant_id, '')", "COALESCE(code, '') = ''", $variantIds]] as [$column, $other, $values]) {
             foreach (array_chunk(array_values(array_unique($values)), 1000) as $chunk) {
                 $closed += $this->db->table(self::TABLE)
                     ->where('store_id', $store->value)
                     ->where('kind', $kind->value)
                     ->whereNull('closed_at')
-                    ->whereIn($column, $chunk)
+                    ->whereRaw($other)
+                    ->whereRaw($column.' IN ('.implode(', ', array_fill(0, count($chunk), '?')).')', $chunk)
                     ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);
             }
         }

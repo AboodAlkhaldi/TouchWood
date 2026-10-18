@@ -27,13 +27,25 @@ final readonly class ReadCorrectedCode
 
     public function handle(VariantCodeCorrected $event): void
     {
-        $code = $this->catalog->variant($event->variantId)?->code;
+        $wired = $this->connections->wiredStores();
+
+        if ($wired === []) {
+            return;
+        }
+
+        try {
+            $code = $this->catalog->variant($event->variantId)?->code;
+        } catch (Throwable $error) {
+            report($error);
+
+            return;
+        }
 
         if ($code === null) {
             return;
         }
 
-        foreach ($this->connections->wiredStores() as $store) {
+        foreach ($wired as $store) {
             // The correction is saved already: a read that cannot be queued is reported, not shown to
             // staff as their correction failing. The nightly read matches the size all the same.
             try {

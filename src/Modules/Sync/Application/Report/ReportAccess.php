@@ -6,7 +6,9 @@ namespace Modules\Sync\Application\Report;
 
 use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Exception\SyncError;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -42,5 +44,27 @@ final readonly class ReportAccess
         }
 
         return $store;
+    }
+
+    /**
+     * As authorize, for an entry or a read looked up by its id: one of a store the person holds neither
+     * this permission nor View the Sync Report in is not found - nothing tells them it exists (owner,
+     * 2026-10-18).
+     *
+     * @throws Unauthorized|InvalidSyncInput|SyncError
+     */
+    public function authorizeFound(string $permission, string $storeId, SyncError $notFound): StoreId
+    {
+        $holds = function (string $held) use ($storeId): bool {
+            $stores = $this->authorizer->storesWith($held);
+
+            return $stores === null || in_array(strtolower($storeId), array_map(static fn (StoreId $store): string => $store->value, $stores), true);
+        };
+
+        if (! $holds($permission) && ! $holds(SyncPermissions::REPORT_VIEW)) {
+            throw $notFound;
+        }
+
+        return $this->authorize($permission, $storeId);
     }
 }

@@ -43,7 +43,7 @@ final readonly class DismissEntryHandler
     public function handle(DismissEntry $command): void
     {
         $entry = $this->entries->findOpen($command->entryId) ?? throw new EntryNotFound;
-        $store = $this->access->authorize(self::PERMISSION, $entry['storeId']);
+        $store = $this->access->authorizeFound(self::PERMISSION, $entry['storeId'], new EntryNotFound);
         $actor = $this->actors->current();
 
         // Closed by a person: staff dismiss, never the system.

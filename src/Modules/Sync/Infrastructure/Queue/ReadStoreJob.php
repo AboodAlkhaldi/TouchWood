@@ -43,7 +43,12 @@ final class ReadStoreJob implements ShouldQueue
 
     public function handle(RunReadHandler $handler): void
     {
-        $handler->handle(new RunRead($this->readId));
+        $wait = $handler->handle(new RunRead($this->readId));
+
+        // Its read runs elsewhere and is not yet taken as dead: back in the queue until it is.
+        if ($wait !== null) {
+            $this->release($wait);
+        }
     }
 
     public function failed(?Throwable $error): void

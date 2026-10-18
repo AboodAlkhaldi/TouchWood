@@ -45,7 +45,13 @@ final readonly class CloseSwitchedOnEntries
             return;
         }
 
-        $sizes = $this->catalog->variantIdsOf($event->productId);
+        try {
+            $sizes = $this->catalog->variantIdsOf($event->productId);
+        } catch (Throwable $error) {
+            report($error);
+
+            return;
+        }
 
         foreach ($wired as $store) {
             $this->close(StoreId::fromString($store), $sizes);

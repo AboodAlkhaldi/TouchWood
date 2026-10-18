@@ -132,7 +132,7 @@ describe('what the database refuses behind the code', function () {
         expect(DB::table('sync.reads')->count())->toBe(7);
     });
 
-    it('keeps each report entry about one thing, of the seven kinds, one open per store, kind, code and size, closed with who closed it', function () {
+    it('keeps each report entry about one thing, of the eight kinds, one open per store, kind, code and size, closed with who closed it', function () {
         $size = strtolower((string) Str::ulid());
         $row = [
             'store_id' => Fx::storeId('sa'), 'kind' => 'UNKNOWN_CODE', 'code' => 'TW-1', 'variant_id' => null, 'sale_id' => null, 'detail' => '{}',
@@ -207,5 +207,16 @@ describe('what the database refuses behind the code', function () {
             'reads_store' => 'r',
             'report_entries_store' => 'r',
         ]);
+    });
+
+    it('keeps the lines of a read for prices or stock only', function () {
+        DB::table('sync.reads')->insert(['id' => '01jbreadreadreadreadreadre', 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'QUEUED', 'queued_at' => now()]);
+        $line = static fn (string $kind) => fn () => DB::transaction(fn () => DB::table('sync.read_lines')->insert(['read_id' => '01jbreadreadreadreadreadre', 'kind' => $kind, 'variant_id' => '01jbsizesizesizesizesizesi', 'before' => '1', 'after' => '2']));
+
+        $line('PRICE')();
+        $line('STOCK')();
+
+        expect($line('COST'))->toThrow(QueryException::class, 'read_lines_kind')
+            ->and(DB::table('sync.read_lines')->count())->toBe(2);
     });
 });

@@ -28,6 +28,9 @@ final readonly class DatabaseReads implements Reads
 {
     private const string TABLE = 'sync.reads';
 
+    /** A waiting notice's or code's read holds this many codes at most (owner, 2026-10-18). */
+    public const int MOST_WAITING_CODES = 5000;
+
     public function __construct(
         private ConnectionInterface $db,
         private ActorContext $actors,
@@ -56,14 +59,20 @@ final readonly class DatabaseReads implements Reads
                     'queued_at' => CarbonImmutable::now(),
                 ]));
             } catch (UniqueConstraintViolationException) {
-                // One waiting read of each kind (§1.3): a notice's or a code's takes the new codes too.
+                // One waiting read of each kind (§1.3): a notice's or a code's takes the new codes too -
+                // up to 5,000; past them, one full read of the store instead (owner, 2026-10-18).
                 $waiting = $codes === null
                     ? $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->value('id')
                     : ($this->db->select(
-                        'UPDATE sync.reads SET codes = (SELECT jsonb_agg(DISTINCT code ORDER BY code) FROM jsonb_array_elements_text(codes || ?::jsonb) AS code)'
-                        ." WHERE store_id = ? AND kind = ? AND state = 'QUEUED' RETURNING id",
-                        [json_encode($codes, JSON_THROW_ON_ERROR), $store->value, $kind->value],
+                        'UPDATE sync.reads SET codes = merged.codes FROM (SELECT r.id, (SELECT jsonb_agg(DISTINCT code ORDER BY code) FROM jsonb_array_elements_text(r.codes || ?::jsonb) AS code) AS codes'
+                        ." FROM sync.reads r WHERE r.store_id = ? AND r.kind = ? AND r.state = 'QUEUED') AS merged"
+                        .' WHERE sync.reads.id = merged.id AND jsonb_array_length(merged.codes) <= ? RETURNING sync.reads.id',
+                        [json_encode($codes, JSON_THROW_ON_ERROR), $store->value, $kind->value, self::MOST_WAITING_CODES],
                     )[0]->id ?? null);
+
+                if ($waiting === null && $codes !== null && $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->where('state', 'QUEUED')->exists()) {
+                    return $this->queue($store, ReadKind::Now);
+                }
 
                 if ($waiting === null) {
                     continue;
@@ -154,6 +163,13 @@ final readonly class DatabaseReads implements Reads
             'skipped' => $skipped,
             'finished_at' => CarbonImmutable::now(),
         ]) === 1;
+    }
+
+    public function runningSince(string $readId): ?DateTimeImmutable
+    {
+        $started = $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->value('started_at');
+
+        return $started === null ? null : CarbonImmutable::parse((string) $started)->toDateTimeImmutable();
     }
 
     public function fail(string $readId, string $why): bool

@@ -47,23 +47,27 @@ final readonly class NotificationReceiver
         $secret = $this->connections->notificationSecret($store);
         // Worked out whether the store is wired or not, so the answer takes as long either way.
         $expected = hash_hmac('sha256', ($timestamp ?? '').'.'.$body, $secret ?? random_bytes(32));
+        // One way of writing it: another case or a space is not another notice (the replay guard below).
+        $signature = $signature === null ? null : strtolower(trim($signature));
 
         // Not wired, or not signed by its provider: refused the same way, saying nothing of which.
         if ($secret === null || $timestamp === null || $signature === null || preg_match('/\A\d{1,12}\z/', $timestamp) !== 1
+            || preg_match('/\A[0-9a-f]{64}\z/', $signature) !== 1
             || abs(CarbonImmutable::now()->getTimestamp() - (int) $timestamp) > self::MOST_SKEW_SECONDS
-            || ! hash_equals($expected, strtolower(trim($signature)))) {
+            || ! hash_equals($expected, $signature)) {
             return NotificationOutcome::Refused;
         }
 
-        // The same signed notice again, within its window: answered as before, queuing nothing more.
-        if (! $this->cache->add('sync-notify-seen:'.hash('sha256', $signature), true, 2 * self::MOST_SKEW_SECONDS + 60)) {
-            return NotificationOutcome::Queued;
-        }
-
+        // Checked before it counts as seen: a notice refused for its body is refused again, never taken.
         $codes = self::codes($body);
 
         if ($codes === null) {
             return NotificationOutcome::Invalid;
+        }
+
+        // The same signed notice again, within its window: answered as before, queuing nothing more.
+        if (! $this->cache->add('sync-notify-seen:'.hash('sha256', $store->value.'|'.$timestamp.'|'.$signature), true, 2 * self::MOST_SKEW_SECONDS + 60)) {
+            return NotificationOutcome::Queued;
         }
 
         $this->reads->queue($store, ReadKind::Notified, $codes);
@@ -93,7 +97,8 @@ final readonly class NotificationReceiver
         foreach ($given as $code) {
             $code = is_string($code) ? trim($code) : '';
 
-            if ($code === '' || mb_strlen($code) > self::MOST_CODE) {
+            // No control characters: no code of ours has one, and the database refuses some.
+            if ($code === '' || mb_strlen($code) > self::MOST_CODE || preg_match('/\p{Cc}/u', $code) === 1) {
                 return null;
             }
 

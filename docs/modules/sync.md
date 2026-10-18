@@ -75,7 +75,9 @@ shows only that they are set and when; a new value replaces the old one.
 codes, **signed with the store's notification secret** (an HMAC-SHA256 of the timestamp and the body,
 in headers) and refused if the signature is wrong or the timestamp more than 5 minutes off. A good
 call is answered `202` at once and queues a Notified read. Too many calls from one store are limited
-(60 a minute); the hourly read covers what is refused.
+(60 a minute), and from one address (600 a minute, whatever store it names); the hourly read covers
+what is refused. A notice's codes join the one Notified read waiting, up to 5,000 codes; past them, one
+full read of the store is queued instead (owner, 2026-10-18, §9.3 #27).
 
 **One read per store at a time.** A read asked for while one runs waits for it; asking twice queues
 one more read, never two.
@@ -87,9 +89,9 @@ For each code the provider sends with a price (owner, 2026-10-13):
 1. **A code we do not have** → reported (`UNKNOWN_CODE`), **never created** (handoff §12.2).
 2. **An archived size, or a size of an archived product** → **skipped, reported** (`ARCHIVED_SKIPPED`):
    it stays read-only until restored, as in Pricing (owner, 2026-10-13 #2).
-3. **A price that is not one** — 0 or below, more decimals than the store's currency has, another
-   currency than the store's — → skipped, reported (`BAD_VALUE`); the size keeps its price. *(VAT:
-   §9.1 #5.)*
+3. **A price that is not one** — 0 or below, more decimals than the store's currency has — →
+   skipped, reported (`BAD_VALUE`); the size keeps its price. The provider sends no currency: every
+   price is taken in the store's own (owner, 2026-10-18, §9.3 #26). *(VAT: §9.1 #5.)*
 4. Otherwise **the size's retail price becomes the provider's** (source `PROVIDER`), audited in the
    price history. A size **switched off in the store, or of a draft product**, takes it too and **stays
    as it is** — off, or a draft — and is **listed** (`OFF_OR_DRAFT_PRICED`) so staff switch it on with
@@ -176,8 +178,9 @@ prices and stock stay as they are, now editable by hand.
 
 - `test(Connection): void` — one small read; throws with the reason.
 - `read(Connection, ?list<string> $codes, ?DateTimeImmutable $changedSince): iterable<ProviderValue>`
-  — page by page; `ProviderValue(code, ?price as a decimal string with its currency, ?stock as a
-  number)`.
+  — page by page; `ProviderValue(code, ?price as a decimal string in the store's currency, ?stock as
+  a number)`. A `ConnectionFailed`'s reason is shown to staff: a short sentence (what failed, a status
+  code), never the provider's response or an address with a key in it.
 
 `OdooAdapter` waits for the provider's documentation (§9.1); `FakeProvider` serves the tests.
 
@@ -235,7 +238,7 @@ written so a NULL cannot slip through.
 | Table | Columns |
 |---|---|
 | `sync.connections` | `store_id` PK FK `platform.stores` RESTRICT · `provider` CHECK (`ODOO`) · `address` · `settings` jsonb (the adapter's fields) · `key_encrypted` · `secret_encrypted` · `state` CHECK (`OK`, `FAILING`) · `last_read_at` NULL · `last_full_read_at` NULL · `last_error` NULL · `created_by` · `created_at` · `updated_at` |
-| `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by` NULL · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
+| `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by_type`, `requested_by_id` NULL (staff only, and never for a notice's or the hour's read) · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
 | `sync.read_lines` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` CHECK (`PRICE`, `STOCK`) · `variant_id` (no key) · `code` NULL · `before` NULL · `after` — each price and stock number a read changed (§9.3 #19), deleted with its read |
 | `sync.read_reports` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` · `code` NULL · `variant_id` NULL · `sale_id` NULL · `detail` jsonb — what each read reported, as it was that day (§9.3 #22), deleted with its read |
 | `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `announced_at` NULL (when staff were told of it, §9.3 #18 - each entry once) · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
@@ -250,7 +253,7 @@ written so a NULL cannot slip through.
 
 | Published | When | For |
 |---|---|---|
-| `SyncNeedsAttention` (`eventId`, `storeId`, `readId`, `opened` - a count by kind, `occurredAt`) | A read ends - done, or failed after its retries - and the store has open entries of `SALE_STOPPED`, `DISCOUNT_SKIPPED` or `READ_FAILED` not yet told of, whichever read opened them; each entry told once (`announced_at`) - another sale stopped, or discount skipped, on the same size told again - one event a read, after the change commits | Ops: the store's holders of View the Sync Report who chose Sync problems (access.md amendment 71; §9.3 #18) |
+| `SyncNeedsAttention` (`eventId`, `storeId`, `readId`, `opened` - a count by kind, `occurredAt`) | A read ends - done, or failed after its retries - and the store has open entries of `SALE_STOPPED`, `DISCOUNT_SKIPPED` or `READ_FAILED` not yet told of, whichever read opened them; each entry told once (`announced_at`) - another sale stopped, or discount skipped, on the same size told again (§9.3 #25) - one event a read, after the change commits | Ops: the store's holders of View the Sync Report who chose Sync problems (access.md amendment 71; §9.3 #18) |
 
 Pricing and Inventory tell Catalog of every change themselves.
 
@@ -284,7 +287,7 @@ staff error.
 2. **Notifications**: a good signature queues one read of those codes; a wrong signature, an old
    timestamp or too many calls refused; the call itself never reaches the provider.
 3. **Prices**: a new price applied (source `PROVIDER`), unchanged changes nothing; unknown code,
-   archived, 0, too many decimals, wrong currency — each reported and skipped; off and draft sizes
+   archived, 0, too many decimals — each reported and skipped; off and draft sizes
    priced, left as they are, listed; a price past the ceiling stops the sale on that size (one-size
    sale ended or removed), reported.
 4. **Stock**: a new number a `PROVIDER` movement; the same number nothing; a retried read counted once;
@@ -360,3 +363,8 @@ things the owner asked for. They change §1.4 #5, §1.6, §3 and §5 as below.
 | 22 | A read's "reported" section: what that read saw, or the entries a later read took over | **Exact per read** (owner, 2026-10-18): each read keeps its own list of what it reported, as it was that day (`sync.read_reports`), deleted with the read after 90 days |
 | 23 | Dismissing a failed read's entry | **Refused** (owner, 2026-10-18): it closes only when a later read of the store succeeds (§1.6); staff press Retry or Sync now |
 | 24 | Retry on a failed read's entry, or on a size deleted since | **A failed read's: the whole store is read** (as Sync now); **a deleted size: refused**, "this size no longer exists", so staff dismiss it (owner, 2026-10-18) |
+| 25 | A size already told of, then another sale stopped or another discount skipped on it | **Told again** (owner, 2026-10-18, accepting the recommendation): a different sale or discount is a new thing undone; the same one seen again by a later read is not told twice |
+| 26 | A price in another currency than the store's | **The provider sends no currency** (owner, 2026-10-18): every price is the store's currency; §1.4 #3 and §2.1 say so |
+| 27 | A burst of notices piling codes into the one waiting read | **Past 5,000 codes, one full read of the store instead** (owner, 2026-10-18), and 600 calls a minute at most from one address |
+| 28 | A "discount skipped" entry once the ceiling is raised, or the discount changed or ended | **Closed at once** (owner, 2026-10-18): Pricing tells Sync when a discount reaches the size again |
+| 29 | An entry or a read of a store the person holds nothing of Sync's in | **Not found**, as one that does not exist (owner, 2026-10-18): nothing tells them it is there; their own store's viewer pressing an action is still refused |
