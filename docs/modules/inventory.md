@@ -127,7 +127,12 @@ provider's number for an ordinary product. Per store, the **Low Stock list** —
 the handoff's dashboard "low stock"), seen by holders of **Manage Stock** there (owner, 2026-10-09). In
 the panel only until Ops (stage 8) adds email and SMS (owner, 2026-10-07). *(Step 4b:)* the menu's count
 adds up the stores the reader holds Manage Stock in; its entry comes with the list's screen, as the menu
-links every entry to its route.
+links every entry to its route. *(Step 5; owner, 2026-10-18:)* each store's count is **kept**
+(`inventory.low_counts`) and the menu reads it in **one query**: counted again by a job with the list's
+own reader - so the list, the count and the Home card never disagree - after every change of stock,
+holds, thresholds, wiring or the store's default, when a size or a product is archived or restored, and
+each night for every store. One recount waits per store and runs 30 seconds after the change, so the
+count is about half a minute behind the list at most; a store not counted yet is counted live once.
 
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
 (accepted with #106): staff may set its stock like any other, and once it has a stock row it is on the Low
@@ -271,7 +276,7 @@ as given · `changes` (size, `before`, `after`, whole numbers — for Sync's pag
 | The store's default threshold | Platform's settings screen, the setting's own permission | That store |
 | The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`) | `inventory.stock.manage` | That store |
 | The store's file — Inventory's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
-| `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared | System (reserved): `inventory.holds.expire`, `inventory.orderable.rebuild` | — |
+| `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared · `CountLowStock` — a store's Low Stock count kept, or every store's (step 5) | System (reserved): `inventory.holds.expire`, `inventory.low_stock.count`, `inventory.orderable.rebuild` | — |
 
 **A store that is off**: every change refused to anyone who may not switch stores
 (`inventory.store_off`). **A wired store**: hand changes and "ending soon" refused
@@ -311,6 +316,7 @@ column is written so a NULL cannot slip through (lesson 162).
 |---|---|
 | `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` FK `catalog.products` CASCADE (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `orderable` boolean NULL — the same for orderability, null when never pushed (step 4: only a flip is pushed; sizes switched on, the default threshold's change and the repair tell Catalog too) · `updated_at` |
 | `inventory.store_products` | (`store_id` FK `platform.stores` RESTRICT, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) · `updated_at` |
+| `inventory.low_counts` | `store_id` PK FK `platform.stores` RESTRICT · `low` NULL CHECK ≥ 0 · `counted_at` NULL (both NULL until first counted) · `recount_queued` boolean — the menu's Low Stock count per store, kept (step 5); one recount waits per store |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`, `gift`) PK — a bought line and a gift line of the same size are two lines · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
 | `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` FK RESTRICT · `variant_id` — **no key**, so a deleted draft size keeps its history, as the audit log names its subjects (step 2) · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int ≥ 0 · `after` int ≥ 0 = `before` + `change` · `note` NULL, up to 500 characters (required, not blank, for `CORRECTION`) · `reference` unique · `actor_type` + `actor_id` NULL — the system's alone — and `requested_by_type` + `requested_by_id` NULL — whoever queued the job the system runs — as the audit log records its actor, with the same CHECKs (step 2; one `actor` column before) · each reason's direction CHECKed: Received and Returned in, Damaged / lost, Offline sale and Shipped out, a Correction either way and never 0, a stocktake, the file and the provider any number (owner, 2026-10-11) · `created_at` — never updated, never deleted (a trigger refuses UPDATE, DELETE and TRUNCATE) |
@@ -335,6 +341,7 @@ A low-stock event for Ops comes with Ops (stage 8).
 | `StoreListingChanged` | Catalog | The sizes switched on are told to Catalog at once - with no stock row as 0 (step 4); nothing stored |
 | `SettingChanged` (`inventory.low_stock.default`) | Platform | The store's sizes told again: "last pieces" may flip (step 4) |
 | `VariantArchived`, `ProductArchived` | Catalog | Nothing: stock is kept; an archived size is not on sale anyway, and read-only by hand until restored (owner, 2026-10-11) — read from `VariantDto::isArchived` and `ProductDto::stage` when a change names it |
+| `VariantArchived`, `VariantRestored`, `ProductArchived`, `ProductRestored` | Catalog | Every store's Low Stock count counted again: an archived size leaves the list, a restored one may come back (step 5) |
 
 ---
 
@@ -439,3 +446,4 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 18 | An archived size in an order already placed | **The order still goes through**: shipped, cancelled, returned as usual — the rule covers hand changes only (owner, 2026-10-11) (§1.5) |
 | 19 | Stock reduced by hand below what placed orders hold: which orders? | **None is blocked**; staff sort it out; **every** order still holding the size is marked for staff; a shopper before checkout sees how many are left (owner, 2026-10-11) (§1.5, §6.1) |
 | 20 | How often expired holds are freed | **Every minute** (owner, 2026-10-11) (§1.4) |
+| 21 | The menu's Low Stock count in one query | **A count kept per store**, counted again by a job after each change and each night - about half a minute behind the list at most (owner, 2026-10-18; §1.7) |

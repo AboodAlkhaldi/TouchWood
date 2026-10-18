@@ -31,6 +31,7 @@ final readonly class StockFacts
         private StockRows $stock,
         private StoreProducts $products,
         private ListingFacts $listing,
+        private LowStockRecounts $recounts,
     ) {}
 
     /**
@@ -53,6 +54,10 @@ final readonly class StockFacts
         foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
             $told += $this->chunk($store, $chunk, $all, $wired, $default);
         }
+
+        // Every change of stock, holds, thresholds, wiring or the default passes here: the menu's
+        // count of low sizes is counted again once it commits (step 5).
+        $this->recounts->queue($store);
 
         return $told;
     }

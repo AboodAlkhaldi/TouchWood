@@ -15,4 +15,7 @@ return [
     'orderable' => [
         'rebuild' => "Push Every Size's Orderability Again",
     ],
+    'low_stock' => [
+        'count' => 'Count Low Stock Again',
+    ],
 ];

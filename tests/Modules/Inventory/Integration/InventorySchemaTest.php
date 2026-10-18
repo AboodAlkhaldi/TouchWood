@@ -183,6 +183,7 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             'hold_lines_hold' => 'c',
             'hold_lines_variant' => 'r',
             'holds_store' => 'r',
+            'low_counts_store' => 'r',
             'return_lines_store' => 'r',
             'stock_movements_store' => 'r',
             'stock_product' => 'c',

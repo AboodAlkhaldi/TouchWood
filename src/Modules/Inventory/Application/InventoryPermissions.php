@@ -30,6 +30,9 @@ final class InventoryPermissions
     /** The repair job that pushes every size's orderability to Catalog again - the system's. */
     public const string ORDERABLE_REBUILD = 'inventory.orderable.rebuild';
 
+    /** The job that counts a store's low sizes again for the menu (step 5) - the system's. */
+    public const string LOW_STOCK_COUNT = 'inventory.low_stock.count';
+
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -65,6 +68,7 @@ final class InventoryPermissions
         return [
             self::HOLDS_EXPIRE,
             self::ORDERABLE_REBUILD,
+            self::LOW_STOCK_COUNT,
         ];
     }
 }
