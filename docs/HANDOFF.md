@@ -1716,8 +1716,15 @@ Decide these when the owning module is reached; do not design them now.
 - **CDN purge** of a deleted public image's sizes.
 - **Sync's reads' queue** (Sync step 4a): a store's read (`ReadStoreJob`) may run up to 20 minutes;
   like the import below, it needs a queue connection whose `retry_after` is longer than that, or a
-  second worker takes a long read as failed while it still works (the read itself stays safe: one
-  per store runs at a time, and one past 30 minutes is taken as dead and reported).
+  second worker picks a long read up again while it still works. The read stays safe (one per store
+  runs at a time; since Sync step 6a the second copy waits until the read is taken as dead, 30
+  minutes after it started, and takes it back), but the store's next read waits behind it.
+- **Sync's notifications** (Sync step 5b): when Ops listens to `SyncNeedsAttention`, its listener
+  must be queued - Sync marks the entries told before the event goes out, so a send that fails must be
+  retried by the queue, not lost.
+- **Stage 5's first deploy**: run `php artisan inventory:orderable:rebuild` once after the migrations,
+  so Catalog's listing is told, in every store, whether each size can be ordered and is ending soon -
+  the sizes switched on before Inventory existed were never told.
 - **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a

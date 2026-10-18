@@ -425,8 +425,12 @@ the sale or discount as it is when it runs.
 
 ### 6.1 Published
 
-**None yet** (owner, 2026-10-08): Catalog is told through `ListingFacts`, Sales asks when it prices.
-An event (`PricesChanged`) is added when a consumer appears.
+Catalog is told through `ListingFacts`, Sales asks when it prices (owner, 2026-10-08: an event is
+added when a consumer appears). The first consumer is Sync:
+
+| Event | When | For |
+|---|---|---|
+| `DiscountReachChecked` (`eventId`, `storeId`, `variantIds` - the sizes priced again, `skipped` - of them, each a fixed-amount discount still leaves out past the ceiling, `occurredAt`) | A **wired** store's sizes have their candidates written again while it has a category discount, or as a discount is added, changed, ended or removed, and at the daily check and the repair - so the last one ending is told too. After the change commits. No other price costs a look at the wiring | Sync closes a "discount skipped" entry the moment the discount reaches its size again (sync.md §9.3 #28; owner, 2026-10-18) |
 
 ### 6.2 Consumed
 

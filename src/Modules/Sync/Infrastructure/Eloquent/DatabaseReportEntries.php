@@ -149,6 +149,11 @@ final readonly class DatabaseReportEntries implements ReportEntries
         return $counts;
     }
 
+    public function hasOpen(StoreId $store, ReportKind $kind): bool
+    {
+        return $this->db->table(self::TABLE)->where('store_id', $store->value)->where('kind', $kind->value)->whereNull('closed_at')->exists();
+    }
+
     public function closeAll(StoreId $store, string $closedBy): int
     {
         return $this->db->table(self::TABLE)

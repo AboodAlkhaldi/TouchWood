@@ -134,7 +134,7 @@ and product (or the provider's code), what happened, and when:
 | `SALE_STOPPED` | The provider's price stopped a sale on a size (§1.4 #5) | Staff dismiss it (seen) |
 | `BAD_VALUE` | A value was skipped or kept as 0 | A good value arrives, or staff dismiss it |
 | `READ_FAILED` | A read of the store failed after its retries (§1.7) | A later read of the store succeeds |
-| `DISCOUNT_SKIPPED` | The provider's price made a category discount skip a size (§1.4 #6; §9.3 #17) | The discount reaches the size again, or staff dismiss it |
+| `DISCOUNT_SKIPPED` | The provider's price made a category discount skip a size (§1.4 #6; §9.3 #17) | The discount reaches the size again - at once, whatever brought it back: the ceiling raised, the discount changed or ended, the provider's price lowered (Pricing's `DiscountReachChecked`, closed by `PRICING`; §9.3 #28) - or staff dismiss it |
 
 `SALE_STOPPED`, `DISCOUNT_SKIPPED` and `READ_FAILED` also send a panel notification to staff with
 View the Sync Report in that store (§9.3 #18). **The page of the store's reads**, each opening on what
@@ -241,7 +241,7 @@ written so a NULL cannot slip through.
 | `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by_type`, `requested_by_id` NULL (staff only, and never for a notice's or the hour's read) · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
 | `sync.read_lines` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` CHECK (`PRICE`, `STOCK`) · `variant_id` (no key) · `code` NULL · `before` NULL · `after` — each price and stock number a read changed (§9.3 #19), deleted with its read |
 | `sync.read_reports` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` · `code` NULL · `variant_id` NULL · `sale_id` NULL · `detail` jsonb — what each read reported, as it was that day (§9.3 #22), deleted with its read |
-| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `announced_at` NULL (when staff were told of it, §9.3 #18 - each entry once) · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
+| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `announced_at` NULL (when staff were told of it, §9.3 #18 - each entry once) · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG`, `PRICING` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
 
 ---
 
@@ -250,6 +250,8 @@ written so a NULL cannot slip through.
 | Consumed | From | Sync |
 |---|---|---|
 | `VariantCodeCorrected` | Catalog | In a wired store, a One-code read of the size's new code |
+| `StoreListingChanged`, `ProductMadeReady` | Catalog | An off or draft size's entry closes once the size is switched on in a wired store and its product is ready (`CATALOG`) |
+| `DiscountReachChecked` | Pricing | A "discount skipped" entry of a size now reached closes at once (`PRICING`; §9.3 #28) |
 
 | Published | When | For |
 |---|---|---|

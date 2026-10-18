@@ -46,7 +46,7 @@ final readonly class RemoveCategoryDiscountHandler
 
             $sizes = array_keys($this->coverage->pricedSizes($storeId, [$before]));
             $this->discounts->remove($before->id);
-            $this->writer->refresh($storeId, $sizes);
+            $this->writer->refresh($storeId, $sizes, discountsChanged: true);
 
             return [null, [DiscountAudit::entry('pricing.category_discount.removed', $before, null, $store->currencyExponent)]];
         });

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Prices;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Dto\ListingPrice;
@@ -20,6 +22,7 @@ use Modules\Pricing\Domain\Service\PriceResolution;
 use Modules\Pricing\Domain\ValueObject\Candidate;
 use Modules\Pricing\Domain\ValueObject\Sale;
 use Modules\Pricing\Public\Enums\PriceKind;
+use Modules\Pricing\Public\Events\DiscountReachChecked;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -51,12 +54,15 @@ final readonly class CandidateWriter
         private DiscountCoverage $coverage,
         private CatalogApi $catalog,
         private CeilingCheck $ceilingCheck,
+        private Dispatcher $events,
     ) {}
 
     /**
      * @param  list<string>  $variantIds
+     * @param  bool  $discountsChanged  a category discount was added, changed, ended or removed: a wired
+     *                                  store is told what its discounts reach even when none is left
      */
-    public function refresh(StoreId $store, array $variantIds): void
+    public function refresh(StoreId $store, array $variantIds, bool $discountsChanged = false): void
     {
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         // The store's discounts not ended, each with the products it reaches now - read once.
@@ -64,7 +70,10 @@ final readonly class CandidateWriter
         $reaches = [];
         // In a wired store a fixed amount never goes deeper than the ceiling: where the provider's price
         // would let it, it skips the size (sync.md §9.3 #17). Elsewhere such a price is refused (§1.12).
-        $ceiling = $discounts !== [] && $this->ceilingCheck->skipsPastCeiling($store) ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
+        // Asked only when a discount is there or changed: any other price costs no more.
+        $wired = ($discounts !== [] || $discountsChanged) && $this->ceilingCheck->skipsPastCeiling($store);
+        $ceiling = $discounts !== [] && $wired ? $this->ceilingCheck->ceiling($store) * 100 : PHP_INT_MAX;
+        $skipped = [];
 
         foreach ($discounts as $discount) {
             $reaches[$discount->id] = $this->coverage->products($discount);
@@ -112,7 +121,13 @@ final readonly class CandidateWriter
                     foreach ($discounts as $discount) {
                         $amount = isset($reaches[$discount->id][$productOf[$variantId] ?? '']) ? $discount->priceOn($retail[$variantId]) : null;
 
-                        if ($amount === null || ($discount->percentBasisPoints === null && $discount->depthOn($retail[$variantId]) > $ceiling)) {
+                        if ($amount === null) {
+                            continue;
+                        }
+
+                        if ($discount->percentBasisPoints === null && $discount->depthOn($retail[$variantId]) > $ceiling) {
+                            $skipped[] = ['discountId' => $discount->id, 'variantId' => $variantId];
+
                             continue;
                         }
 
@@ -134,6 +149,11 @@ final readonly class CandidateWriter
 
             $this->candidates->replace($store, $written);
             $this->listing->prices($store, $prices);
+        }
+
+        // Sync closes a skipped discount's entry the moment it reaches the size again (sync.md §9.3 #28).
+        if ($wired && $variantIds !== []) {
+            $this->events->dispatch(new DiscountReachChecked((string) Str::uuid(), $store->value, $variantIds, $skipped, CarbonImmutable::now()));
         }
     }
 

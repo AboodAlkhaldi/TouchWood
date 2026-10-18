@@ -94,7 +94,7 @@ final readonly class ChangeCategoryDiscountHandler
             // The sizes it reached before, and those it reaches now.
             $sizes = array_keys($this->coverage->pricedSizes($storeId, [$before, $after]));
             $this->discounts->save($after);
-            $this->writer->refresh($storeId, $sizes);
+            $this->writer->refresh($storeId, $sizes, discountsChanged: true);
             $this->tasks->queue($storeId, $after->id, $after->momentsAfter($now));
 
             return [null, [DiscountAudit::entry('pricing.category_discount.changed', $before, $after, $store->currencyExponent)]];
