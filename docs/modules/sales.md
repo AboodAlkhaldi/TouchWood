@@ -43,7 +43,10 @@ the coupon and the gift, Loyalty for points — **and owns none of their rules**
 ### 1.1 The cart
 
 **Mutable, permissive, no invariants** — it must never stop a customer adding something (handoff
-§12.3). All checking happens at the quote.
+§12.3). All checking happens at the quote. **One exception, the account's own view** (owner,
+2026-10-19, answer 32): a signed-in individual never sees wholesale and cannot add a wholesale line
+(`NotForYourAccount` at adding); a guest may, and when the guest signs in or registers as an individual
+those lines leave the merged cart, each with why.
 
 - **One cart per buyer per store** — a customer's or a guest's. A guest's id lives in Access's cookie
   (access.md §1.7): **Sales writes it with the guest's first cart line** (handoff §7.7). Lines: a
@@ -88,7 +91,10 @@ Built in this fixed order (handoff §10.2, §11.3):
    (access.md §1.9; handoff §7.8: "an order needs an address").
 4. **Prices** — `PricingApi::prices`; a line Pricing cannot price (`unpriced`) is refused.
 5. **The coupon** — `PromotionsApi::applyCoupon`; it must fit the room left under the ceiling
-   (`customerDiscountRoom`) — or it is refused whole (promotions.md §1.3, §1.6).
+   (`customerDiscountRoom`) — or it is refused whole (promotions.md §1.3, §1.6). **A refused coupon,
+   or points refused, never fails the quote**: it is built without them and carries the reason
+   (owner, 2026-10-19, answer 31). The quote records whether points were asked (`use_points`) apart
+   from how many, so "no points" and "as many as allowed" stay distinct.
 6. **Points** — skipped, with a message, when the coupon does not allow points; otherwise
    `LoyaltyApi::quoteRedemption`, capped by Loyalty; then they must fit what the coupon left of the
    room, or **the whole redemption is refused and the points stay** (handoff §11.3).
@@ -112,7 +118,8 @@ Built in this fixed order (handoff §10.2, §11.3):
    as it is** — before the quote's expiry is checked, so a retry after 15 minutes still gets its order — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
    The order keeps its quote's id (unique), the backstop.
 2. **The order's public number** — the store's code in capitals and the store's own sequence,
-   **`SA-10428`** (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2) — taken first,
+   **`SA-10428`** (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2), **each store's
+   sequence starting at 1001** — four digits, `SA-1001` (owner, 2026-10-19, answer 35) — taken first,
    because Promotions and Loyalty record it. **A database sequence per store**, created by the
    migration for the stores that exist and by a `StoreCreated` listener for each store opened later: a
    placement that fails leaves a gap rather than making every placement in the store wait on a lock.
@@ -122,7 +129,9 @@ Built in this fixed order (handoff §10.2, §11.3):
    handoff §8.2); every line still orderable in its mode and within its minimum and maximum (Catalog —
    archived, "Not available now", or no longer chosen by the store); the categories still open to the
    account type; the address still there and accepted; the bank account still filled in when the way
-   to pay is a bank transfer.
+   to pay is a bank transfer; **the gift level still as quoted** (quote step 8 again — another gift, or
+   none, is `QuoteChanged`); **the coupon and points still within `customerDiscountRoom`** — a ceiling
+   lowered meanwhile is `QuoteChanged` (owner, 2026-10-19, answer 37).
 4. `PromotionsApi::useCoupon` (every check again; refused if the discount moved) and
    `LoyaltyApi::redeem` (refused if the points moved).
 5. `InventoryApi::hold` — **all or nothing**, **with no expiry** (`expiresAt` null): an unpaid order
@@ -229,7 +238,9 @@ points cap and the shipping rule — so changing only the address never trims a 
 
 **Added lines follow checkout's rules** (§1.2 step 2): orderable here in their mode, within their
 minimum and maximum, wholesale only for a company, their category open to the account type, priced;
-their stock is checked by the hold (step 7).
+their stock is checked by the hold (step 7). **Every changed line's new quantity is held to its
+minimum and maximum too**, and **staff may add a gift** when the edited order now reaches a level and
+had none (owner, 2026-10-19, answer 33).
 
 1. **Prices** — `PricingApi::pricesForEdit` (pricing.md §1.11, #107 merged as `89c07e9`): **the kept parts as
    they were sold** (`KeptPartDto` from the order's lines: variant, mode, quantity as edited, list unit,
@@ -268,7 +279,9 @@ An edit does not clear the "not enough stock" flag by itself (§1.11).
 ### 1.8 Returns, refunds and their shares
 
 - **The customer asks**, within **the store's return window — 14 days from delivery by default**,
-  admin-set per store (owner, 2026-10-09): which pieces and how many, **a reason from a list or
+  admin-set per store (owner, 2026-10-09) — **fixed when the order is delivered**: delivery time plus
+  the window's days to the minute; changing the setting later moves no delivered order's deadline
+  (owner, 2026-10-19, answer 34): which pieces and how many, **a reason from a list or
   "Other"** (damaged, wrong item, not as described, changed my mind, other), and **up to 3 photos**,
   kept private for staff (owner, 2026-10-10; Platform's `uploadMediaFor`, registered as a media use
   that blocks deleting, handoff §5.5). **The gift may be returned too, and refunds nothing** (owner,
@@ -323,8 +336,10 @@ The sum over every piece, plus the shipping and its VAT share, is `goods_total` 
 | Individual | **Online** (Payments, stage 7) **or "staff will contact you"** |
 | Company | **Bank transfer** (to the store's account, `B2BApi::bankAccount` — off while the store has not filled it in, b2b.md amendment 13(c)) **or "staff will contact you"** — never online |
 
-**No cash on delivery** in any store (handoff §12.4, §16). Tamara and Tabby are for individuals only
-(handoff §12.4) — Payments' (stage 7).
+**No cash on delivery** in any store (handoff §12.4, §16). **Every gateway is an adapter behind
+`PaymentsApi`** (owner, 2026-10-19, answer 38): MyFatoorah (KSA) first; Tamara and Tabby — individuals
+only (handoff §12.4) — and an Egypt gateway added later as adapters, with nothing in Sales changing.
+Payments' (stage 7).
 
 - **"Staff will contact you"**: the order is placed unpaid; staff arrange payment and record it.
 - **Bank transfer — and its document** (b2b.md §9 #2, amendment 12(c): the owner put it in Sales,
@@ -365,8 +380,10 @@ carriers and rates per store; the return window stays Sales's.
 
 Inventory may let staff remove stock that is held for orders, and then publishes `HoldsShort(storeId,
 variantId, orderIds)` (inventory.md §6.1). **Sales flags those orders "not enough stock"** for staff — who
-contact the customer and edit (§1.7), cancel, or wait for stock. A flagged order cannot be marked
-shipped. **Staff clear the flag by hand** once it is settled: Inventory's hold moves only the pieces an
+contact the customer and edit (§1.7), cancel, or wait for stock. **The flag only marks the order —
+it never blocks shipping** (owner, 2026-10-11, inventory.md §1.5: "no placed order is blocked";
+`HoldsShort` names every order still holding the size, short or not; answer 36). **Staff clear the flag
+by hand** once it is settled: Inventory's hold moves only the pieces an
 edit adds or frees (inventory.md §1.4), so a successful edit does not show that the shortage is gone.
 
 ### 1.12 A deleted customer, an off store, each store's rows
@@ -382,7 +399,8 @@ edit adds or frees (inventory.md §1.4), so a successful edit does not show that
   amendment 58(b); checked again at build). Unfinished: an order not
   yet completed, cancelled, rejected or undelivered, one with a return not yet completed, refused,
   withdrawn or closed, or one whose payment is `UNPAID`, `PARTLY_PAID` or `REFUND_DUE` — my reading,
-  stated for the owner to reject. Its shop and new orders are gone with it.
+  stated for the owner to reject. Its shop and new orders are gone with it; its customers may still
+  cancel, ask a return and upload a transfer document for orders already placed (answer 39).
 - Carts, quotes, orders and returns belong to a store; one repository per kind names the store in every
   call (loyalty.md §1.12); store-binding composite keys (§5). The nightly jobs are the passes across
   stores.
@@ -451,7 +469,8 @@ Declared in those modules' `Public/Contracts`, implemented in stage 7 — **with
   code — never Access's address); each option a carrier, its fee (free-shipping thresholds applied,
   handoff §12.5) and its tracking URL template. Until stage 7 Sales uses its flat fee (§1.10).
 - **`PaymentsApi::methods(StoreId, PaymentAudience, Money $amount)`** and **`start(orderId, method)`** —
-  `PaymentAudience` (`INDIVIDUAL`, `COMPANY`) is Payments' own enum; Tamara/Tabby for individuals only.
+  `PaymentAudience` (`INDIVIDUAL`, `COMPANY`) is Payments' own enum; each gateway an adapter
+  (MyFatoorah first; Tamara/Tabby, for individuals only, and an Egypt gateway later — answer 38).
   Payments publishes `PaymentSucceeded` / `PaymentFailed` (handoff §4.5). Until stage 7 no online method
   exists (§1.9).
 
@@ -607,7 +626,7 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
 | `NotCancellable` | CONFLICT | Shipped, or already cancelled, rejected or finished |
 | `NotEditable` | CONFLICT | Shipped; cancelled, rejected or finished; a line ticked "reduced in the provider" |
-| `NotShippable` | CONFLICT | Not approved; flagged "not enough stock"; holding less than is due without "may ship unpaid" |
+| `NotShippable` | CONFLICT | Not approved; holding less than is due without "may ship unpaid" |
 | `ReturnNotAllowed` | CONFLICT | Outside the window; more pieces than delivered and not already in a return; more than 3 photos |
 | `TooManyFiles` | CONFLICT | A fourth transfer document; a document while nothing is owed |
 | `RefundTooLarge` | CONFLICT | A refund above what the order holds |
@@ -645,7 +664,7 @@ unticked holds freed, only taken stock put back as staff choose, a lost one with
 nothing due, points back, the coupon still counted, Cancelled then Refunded; a `REFUND_DUE` or
 `NOTHING_DUE` order shipping without "may ship unpaid"; a staff cancellation and a rejection needing
 their reason;
-`HoldsShort` flags, a flagged order cannot ship, only staff clear the flag; an off store's unfinished
+`HoldsShort` flags, a flagged order still ships, only staff clear the flag; an off store's unfinished
 orders listed to its staff, and no longer once finished.
 
 **Cancelling** — until shipped; the reason list and "Other"; the paid note; stock freed, points back,
@@ -728,6 +747,28 @@ refusing anything but one void.
     pays once** (b2b.md §9 #7).
 30. **An edit keeps the rules the order was placed under** — the discount ceiling, the points cap, the
     shipping rule (2026-10-10).
+
+### 9.1b The owner's answers, 2026-10-19 (before the build)
+
+31. **A coupon or points refused at the quote**: the quote is built without them, with the reason
+    (§1.2 step 5).
+32. **A signed-in individual never sees wholesale**; a guest's wholesale lines leave the cart at
+    sign-in, each with why (§1.1).
+33. **Edits**: every changed line within its minimum and maximum; staff may add a gift a level now
+    reached (§1.7).
+34. **The return window is fixed at delivery** — delivery plus the days, to the minute (§1.8).
+35. **Order numbers start at 1001**: `SA-1001` (§1.3).
+36. **Stock reduced under placed orders only marks them** — following inventory.md §1.5 (2026-10-11),
+    newer than this spec (§1.11).
+37. **Placement asks the gift and the discount room again** — a change is `QuoteChanged` (§1.3).
+38. **Payments: every gateway an adapter** — MyFatoorah now; Tamara, Tabby and an Egypt gateway later,
+    not cancelled (§1.9, §2.4).
+39. **An off store's placed orders**: their customers may still cancel, ask a return and upload a
+    transfer document; only new orders stop (§1.12).
+40. With the spec's other picks: a payment record is voided only once no refund rests on it (the
+    refund voided first); the outbox relay runs every minute, backing off to at most an hour, never
+    dropping a message, logged after 10 tries; the stage 7 interfaces declared as §2.4 states, their
+    unstated types marked provisional for stage 7.
 
 ### 9.2 Still open
 
