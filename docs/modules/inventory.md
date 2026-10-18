@@ -305,6 +305,70 @@ edit adds starts HELD (or NOTED).
 
 `OFF` ⇄ `ON`, per size, by hand; off by default, a size added later too.
 
+### 4.3 The admin screens (stage 5's screens)
+
+**Written 2026-10-18**, with Pricing's and Sync's, on the owner's answers of that day (by module in the
+menu; a product's stock on its page as well as on the store-wide pages; all specs first, approved
+once). **[PROPOSED Sn]** marks what is mine, listed in §9.3. Everything pricing.md §4.3 says every
+screen keeps holds here too: the queries deciding the buttons, Geist on shadcn, checks as typed,
+digits 0-9, the store's zone, its own store filter, §7's refusals; the words in
+`src/Modules/Inventory/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`. Every page is one job:
+**Manage Stock** (`inventory.stock.manage`, §3), in that store.
+
+**A store that is off**: read-only with the reason, to anyone who may not switch stores. **A wired
+store**: the numbers are the provider's - stocktakes, hand changes and "ending soon" are not offered,
+the stock-dependent switch is (§1.5, §4.2).
+
+**Where they are.** `Presentation/admin-routes.php`, `inventory.admin.*` (Ziggy's admin group gains
+it), through `AdminArea`, `Page` and `FormErrors` as Catalog's. **The menu**: Platform's `AdminMenu`,
+the **Catalog** group (Inventory's permission sits there, §3), its icon `catalog`:
+
+| # | Entry | Address | Offered for |
+|---|---|---|---|
+| 110 | Stock · المخزون | `/admin/stock` | `inventory.stock.manage` |
+| 120 | Low Stock · المخزون المنخفض | `/admin/low-stock` | `inventory.stock.manage`, with **`LowStockCount`** beside it (step 5: the kept counts, one query) |
+
+**The reads the screens add** (one query or a fixed few each, 15 an admin page, the page's own):
+
+| Query | What it answers |
+|---|---|
+| `ListStock` (new) | the store's sizes - switched on, or with a stock row - 50 at a time by product then size: names and photo and code from Catalog (`searchVariants`, catalog.md amendment 23), and from Inventory's own rows in one query: in stock, held, available, threshold (its own or "Default: 10"), returned extra, stock-dependent (wired); filters: **Low**, **Out of stock**, **Held**; the search by name or code |
+| `ViewStock` (new) | one size: its figures, its threshold, the product's "ending soon", the stock-dependent switch (wired), its holds by order - the drawer and the product page |
+| `StockHistory` (new) | one size's ledger (§1.6), newest first, 50 at a time: when, the reason, before → after, the note, who (a staff name, the provider's read, a file, an order) |
+| `LowStock` | as built (step 4b) |
+| `InventoryActionsForReader` (new) | which buttons the reader may press in the store, and why not |
+
+#### I1 · Stock - `/admin/stock?store=`
+
+- **Columns**: photo · product · size · code (mono) · **In Stock** · **Held** · **Available** · Threshold
+  · a badge when low (amber) or out (red, "Out of Stock"). In a wired store a **Stock-dependent** column
+  (on or off).
+- **A stocktake in the row** (no provider): the in-stock box, typed and saved on Enter or leaving it;
+  several then **Save Changes** (`SetStock` takes several) **[PROPOSED S5]**.
+- **The ⋯ menu**: **Add or Remove** - the hand change dialog (`AdjustStock`): add or remove, the
+  quantity, the reason (Received only adds; Damaged or lost and Offline sale only remove; Correction
+  either way, its note required - §9.2 #15), Save under a line saying what the stock becomes ·
+  **Threshold** (`SetLowStockThreshold`: a number from 0 to 100,000, or empty for the store's
+  default) · in a wired store **Stock-dependent On / Off** (`SetStockDependent`).
+- **A removal below what orders hold** is not refused (§9.2 #19): the dialog says before saving which
+  orders' holds it leaves short (`HoldsShort`), and saving says so again.
+- **The row opens the size's drawer**: `ViewStock` and its **History** (`StockHistory`, 50 at a time).
+- **Selecting rows** (wired store): Stock-dependent On / Off for the selected sizes at once.
+
+#### I2 · Low Stock - `/admin/low-stock?store=`
+
+The list as built (`LowStock`): product · size · code · available · threshold, the fewest left first;
+its count beside the menu entry and its Home card (both built). Each row's **Add or Remove** and
+**Threshold** as I1's; the row opens I1's drawer. A wired store: read-only figures, the provider's.
+
+#### The product page's store section (Catalog's S9, Stores tab)
+
+Each store's card gains **Inventory's section** through Catalog's registry (pricing.md §4.3, [PROPOSED
+S3]): each size's in stock, held, available and threshold, its **Add or Remove** and **Threshold**
+(I1's dialogs), a stocktake box per size (no provider), **Ending Soon** for the product (`SetEndingSoon`,
+no provider) and **Stock-dependent** per size (wired); each size opens I1's drawer. One read for the
+product's sizes in that store.
+
 ---
 
 ## 5 · Tables
@@ -448,3 +512,9 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | 19 | Stock reduced by hand below what placed orders hold: which orders? | **None is blocked**; staff sort it out; **every** order still holding the size is marked for staff; a shopper before checkout sees how many are left (owner, 2026-10-11) (§1.5, §6.1) |
 | 20 | How often expired holds are freed | **Every minute** (owner, 2026-10-11) (§1.4) |
 | 21 | The menu's Low Stock count in one query | **A count kept per store**, counted again by a job after each change and each night - about half a minute behind the list at most (owner, 2026-10-18; §1.7) |
+
+### 9.3 Proposals for the screens (2026-10-18) - built as written unless the owner says otherwise
+
+| # | Proposal | Why |
+|---|---|---|
+| S5 | **A stocktake typed in the row**, several then **Save Changes** (one `SetStock`), as Pricing's prices are typed (pricing.md §9.3 S1-S4 hold here too) | A stocktake walks many sizes at once; a dialog per size would be slow |

@@ -1029,7 +1029,8 @@ Note while it is hidden with its category or its brand. Beside each tab's name, 
     each saving as it flips;
   - **Labels** — up to 10 of the active labels, shown as their badges (`catalog.listing.labels`);
   - **Prices and stock** — not in this stage: the card says once that they come with Pricing and
-    Inventory (§1.3).
+    Inventory (§1.3). *(Stage 5's screens, amendment 23(b):)* each module's section in the card,
+    pricing.md §4.3 and inventory.md §4.3.
 
   Each control is drawn for someone holding its job in that store; anyone else sees the state, read
   only. A product the store has never chosen shows only **Switch On** (`NotChosenInStore` otherwise).
@@ -1630,6 +1631,7 @@ are the owner's, its picks (P26–P34) wait for the owner's review of it.
 | 20 | §2.1 | **`brand(brandId): ?BrandDto`** for Promotions' coupon lists — the brand (id, names) and whether it is switched on, so a list naming one that does not exist or is off is refused; null for an unknown id. As `category()` for Pricing (amendment 17). (Amendment 21 is the stage 5 session's, for Sync.) | Owner, 2026-10-17 (the Promotions build plan: "You build them"); built by the stage 6 session with Promotions step 3b |
 | 21 | §2.1 | **`variantsByCodes(list<string> $codes): array<string, VariantDto>`** for Sync's reads (sync.md §1.3, §2.3): the variants carrying these codes in a few queries however many — Sync's nightly read names every code a store sells, thousands, and `variantByCode` would cost a query each (handoff §12.2: bulk work batched). Keyed by each code as given, read as `variantByCode` reads one (spaces around trimmed, Arabic-Indic digits as Latin); archived ones included; a code that is not one, or one no variant carries, left out. | Owner, 2026-10-17 (Sync step 4a); 20 is Stage 6's (`brand()`) |
 | 22 | §6.1 | **`StoreListingWithdrawn`** (`storeId`, variant ids) - a store switched variants off, by hand (`ChooseInStore`) or the import taking a product off sale; the opposite of `StoreListingChanged`, sent after the change commits. Inventory's Low Stock count leaves them out at once (inventory.md §1.7, step 5) rather than at the night's recount. | Owner, 2026-10-18 (Inventory step 5, the count kept per store) |
+| 23 | §2.1, §4.4 S9 | **For stage 5's screens** (owner, 2026-10-18; pricing.md §9.3 S1, S3) - (a) **`searchVariants(StoreId, ?string $text, ?string $after, int $limit)`**: the store's switched-on variants, and those with a price or stock row Pricing or Inventory names, found as the products list finds (a name in either language, or a code), keyset-paged, each with its product's names, photo and code - one read a page for Pricing's and Inventory's store-wide lists. (b) **`ProductStoreSections`**, a registry as `ImportSections`: a module registers the class that reads its part of a product's store card (S9, Stores tab) - its sizes' data, one read for the product in that store - and names the page component that draws it; Pricing (prices, sales, wholesale bands) and Inventory (stock, thresholds, the switches) register theirs, replacing the card's line "Prices and stock come with Pricing and Inventory". | **Proposed with the screens' specs, 2026-10-18** - waits for the owner's approval of the specs |
 
 ### 9.7 Proposed with the screens — built as recommended (amendment 13(j))
 

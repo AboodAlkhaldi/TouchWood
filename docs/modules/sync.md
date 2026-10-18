@@ -228,6 +228,66 @@ after its retries / a read succeeds) → (UnwireStore) → `NOT WIRED`.
 
 **A report entry:** `OPEN` → `CLOSED` (by a read, by staff, by unwiring).
 
+### 4.1 The admin screens (stage 5's screens)
+
+**Written 2026-10-18**, with Pricing's and Inventory's, on the owner's answers of that day: **a Sync
+section** in the menu; **the Sync Report** - its problems and its reads on two tabs, each read its own
+page - **and the Provider page**, the Super Admin's; all specs first, approved once. **[PROPOSED Sn]**
+marks what is mine, listed in §9.4. Everything pricing.md §4.3 says every screen keeps holds here: the
+queries deciding the buttons, Geist on shadcn, digits 0-9, the store's zone, its own store filter,
+§7's refusals; the words in `src/Modules/Sync/Presentation/lang/{ar,en}/admin_*.php` and `menu.php`.
+
+**Where they are.** `Presentation/admin-routes.php`, `sync.admin.*` (Ziggy's admin group gains it),
+through `AdminArea`, `Page` and `FormErrors`. **The menu**: Platform's `AdminMenu` gains a **Sync**
+group **[PROPOSED S6]** (platform.md amendment: its groups gain `sync`, between `pricing` and
+`orders`; its icon `sync`, Lucide's `RefreshCw`, added to the panel's short list):
+
+| # | Entry | Address | Offered for |
+|---|---|---|---|
+| 10 | Sync Report · تقرير المزامنة | `/admin/sync?store=` | `sync.report.view`, with **`CountSyncReport`**'s count beside it - the open entries over the stores the reader views (a `MenuCount`: one query) |
+| 20 | Provider · المزوّد | `/admin/sync/provider?store=` | `sync.connection.manage` (reserved: Super Admins - offered as Catalog's import is, catalog.md §4.4) |
+
+The reads are §3's, all built (`ViewSyncReport`, `ListSyncReads`, `ViewSyncRead`, `ViewConnection`),
+with `SyncStatus` below; **`SyncActionsForReader`** (new) answers the buttons. Each is a fixed few queries: the report page about
+5, a read's page about 9 (step 6's review) - within 15, the page's own.
+
+#### Y1 · Sync Report - `/admin/sync?store=&tab=`
+
+- **Above the tabs** (`SyncStatus`, new **[PROPOSED S8]**: what `ViewConnection` tells a Super Admin,
+  less the address, the settings and the key, for whoever views the report): the provider and its
+  state - **Working** (`OK`, green), **Failing** (red, with the provider's reason), **Not wired** (gray: the
+  page says so and, to a Super Admin, links to Y3) - the last read's time, the last full read's, and
+  **Sync Now** (`sync.read.run`; disabled with the reason
+  while a read of the store waits or runs).
+- **Problems** (the default tab; `ViewSyncReport`, 50 at a time, the latest seen first): **Kind** (§1.6's
+  words, as a badge: Failed read red; Sale stopped and Discount skipped amber; the rest gray) ·
+  **What** - the product and size (linked to the product's page), or the provider's code for one we do
+  not have · **Detail** (the value sent, the sale or discount named and linked, the error) · first seen ·
+  last seen. A kind filter (§1.6's eight). Each row's actions (`sync.read.run`): **Retry** · **Leave it**
+  (Dismiss; never on a failed read, §9.3 #23 - disabled with the reason) - the toast repeating the verb.
+- **Reads** (`ListSyncReads`, 50 at a time, newest first): kind (Notified, Hourly, Nightly, Sync now, One
+  code) · state (Waiting, Running, Done, Failed) · asked by (a staff name, or the system) · started ·
+  took · prices changed · stock changed · skipped. The row opens the read's page.
+
+#### Y2 · A read - `/admin/sync/reads/{id}`
+
+`ViewSyncRead`: the read's header (its kind, state, times, counts, the error of a failed one) and three
+sections, each 100 at a time: **Prices changed** (product, size, code, from → to), **Stock changed**
+(the same), **Reported** (what it reported, as it was that day - §9.3 #22). A read of a store the
+reader does not view is not found (§9.3 #29).
+
+#### Y3 · Provider - `/admin/sync/provider?store=` (Super Admins)
+
+`ViewConnection`: a store not wired shows **Wire Store** - the provider (Odoo), its address (HTTPS),
+its settings, the key and the secret - saved only once the test read passes (10 seconds at most,
+§9.3 #21; the failure's reason shown under the form). A wired store shows the provider, address and
+settings, "Key and secret set" with when they last changed (`keySet`, `changedAt`; never the values,
+§1.2), the state, the last read and its error - and, added to `ViewConnection` **[PROPOSED S7]**, the
+last full read and the address the provider calls for its notices (to copy) - and:
+- **Change** - the same form, the key and the secret left empty kept; tested again before saving;
+- **Unwire** (last, destructive) - a dialog that first shows how many sizes stop being orderable
+  (`stopsWhenUnwired`, §1.8) and that nothing the provider wrote is cleared; **Unwire Store** under it.
+
 ---
 
 ## 5 · Tables
@@ -370,3 +430,11 @@ things the owner asked for. They change §1.4 #5, §1.6, §3 and §5 as below.
 | 27 | A burst of notices piling codes into the one waiting read | **Past 5,000 codes, one full read of the store instead** (owner, 2026-10-18), and 600 calls a minute at most from one address |
 | 28 | A "discount skipped" entry once the ceiling is raised, or the discount changed or ended | **Closed at once** (owner, 2026-10-18): Pricing tells Sync when a discount reaches the size again |
 | 29 | An entry or a read of a store the person holds nothing of Sync's in | **Not found**, as one that does not exist (owner, 2026-10-18): nothing tells them it is there; their own store's viewer pressing an action is still refused |
+
+### 9.4 Proposals for the screens (2026-10-18) - built as written unless the owner says otherwise
+
+| # | Proposal | Why |
+|---|---|---|
+| S6 | **A Sync section in the admin menu** (platform.md §9.4: `sync` joins the menu's business areas, after Pricing; its icon `sync`, Lucide's `RefreshCw`) | The owner chose the screens by module (2026-10-18); the permissions already sit in their own Sync group (access.md amendment 68) |
+| S7 | **`ViewConnection` gains the last full read and the notice address** (to copy into the provider's settings) | The Super Admin wiring a store needs the address the provider calls; the last full read says when the night's read last worked |
+| S8 | **`SyncStatus`**, a read for the report's viewers: the provider and its state, the last reads, the failure's reason - never the address, settings or key | The report's header needs the state; `ViewConnection` is the Super Admin's alone |
