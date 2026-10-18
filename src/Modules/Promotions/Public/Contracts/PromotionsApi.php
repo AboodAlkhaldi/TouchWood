@@ -18,7 +18,7 @@ use Shared\Domain\ValueObject\StoreId;
  * reads have no permission of their own — they serve flows their callers have authorized. The three
  * writes are Sales's, made inside its checkout's or its edit's transaction, and name the Sales
  * permission that allowed them; Promotions builds the scope from the coupon's or the order's store.
- * `giftLevels` and `segmentMembers` come with their steps.
+ * `giftLevels` comes with its step.
  */
 interface PromotionsApi
 {
@@ -62,4 +62,12 @@ interface PromotionsApi
 
     /** After a staff edit: the use's new discount, never higher. Once per edit. */
     public function updateCouponUse(UpdateCouponUse $change): void;
+
+    /**
+     * Ops later — newsletters, notifications (§1.5: segments are reusable): a segment's customer ids,
+     * keyset-paged by id, at most `$limit` (1 to 1000) after `$after`. Reads only.
+     *
+     * @return list<string>
+     */
+    public function segmentMembers(string $segmentId, ?string $after, int $limit): array;
 }

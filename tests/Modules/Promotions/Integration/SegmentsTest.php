@@ -400,6 +400,11 @@ describe('creating, changing, deleting, refreshing', function () {
             {
                 return $this->real->pageAcrossStores($afterId, $limit);
             }
+
+            public function membersPage(string $segmentId, ?string $after, int $limit): array
+            {
+                return $this->real->membersPage($segmentId, $after, $limit);
+            }
         });
         app()->forgetInstance(RefreshSegmentsHandler::class);
         app()->forgetInstance(SegmentMembership::class);
