@@ -35,6 +35,7 @@ use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotos;
 use Modules\Catalog\Application\Command\SetVariantPhotos\SetVariantPhotosHandler;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariant;
 use Modules\Catalog\Application\Command\UpdateVariant\UpdateVariantHandler;
+use Modules\Catalog\Application\Events\ProductEvents;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Products\ProductReferences;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -97,6 +98,7 @@ final readonly class ImportBringer
         private StoreListingRepository $listings,
         private ListingRows $listingRows,
         private ProductReferences $references,
+        private ProductEvents $events,
     ) {}
 
     /**
@@ -194,12 +196,18 @@ final readonly class ImportBringer
     private function takeOffSale(string $productId): void
     {
         foreach ($this->listings->inEveryStore($productId) as $listing) {
+            $wasActive = $listing->activeVariantIds();
             $listing->switchOff();
             $entry = ListAudit::changed('listing', 'chosen', $productId, $listing->pullChanges(), $listing->snapshot(), $listing->storeId());
 
             if ($entry !== null) {
                 $this->listings->save($listing);
                 $this->platform->recordAudit($entry);
+            }
+
+            // Told after the import commits (amendment 22), as staff switching them off is.
+            if ($wasActive !== []) {
+                $this->events->storeListingWithdrawn($listing->storeId(), array_map('strval', $wasActive));
             }
         }
 

@@ -19,7 +19,7 @@ and their menu entries come with stage 5's screens; the notifications' sending w
 | 4b | The triggers: the provider's signed notice, the hourly and nightly reads, a corrected code read again | built (#154) |
 | 5a | What staff read and do: the report and its count, the page of reads, Sync now, Retry, Dismiss, the log kept 90 days | built (#155) |
 | 5b | What staff are told of: Access's `SYNC_PROBLEMS` topic (amendment 71) and `SyncNeedsAttention` | built (#157) |
-| 6 | The module's own pass: three independent reviews of the whole module (completeness, security, architecture and cost) and their fixes (6a); a skipped discount's entry closed the moment the discount reaches its size again, told by Pricing (6b) | 6a #158; 6b **this step** |
+| 6 | The module's own pass: three independent reviews of the whole module (completeness, security, architecture and cost) and their fixes (6a); a skipped discount's entry closed the moment the discount reaches its size again, told by Pricing (6b) | built (#158, #159) |
 
 ## What is inside
 

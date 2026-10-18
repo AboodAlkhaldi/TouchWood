@@ -93,6 +93,12 @@ final readonly class ChooseInStoreHandler
                 $this->events->storeListingChanged($store->value, $takenUp);
             }
 
+            $withdrawn = array_values(array_diff($wasActive, $listing->activeVariantIds()));
+
+            if ($withdrawn !== []) {
+                $this->events->storeListingWithdrawn($store->value, $withdrawn);
+            }
+
             return [null, [$entry]];
         });
     }
