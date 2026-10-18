@@ -22,6 +22,7 @@ final readonly class ProviderPricesResult
      * @param  list<string>  $archived
      * @param  list<string>  $notFound
      * @param  list<string>  $invalid
+     * @param  list<array{variantId: string, before: string|null, after: string}>  $changes  each price that changed, as decimals in the store's currency - Sync's log of the read (sync.md §9.3 #19)
      */
     public function __construct(
         public bool $wired,
@@ -32,5 +33,6 @@ final readonly class ProviderPricesResult
         public array $archived = [],
         public array $notFound = [],
         public array $invalid = [],
+        public array $changes = [],
     ) {}
 }

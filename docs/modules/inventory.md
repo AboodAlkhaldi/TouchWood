@@ -252,7 +252,7 @@ here is audited: Sync audits each read once, the detail being in the ledger (syn
 | `ProviderStock::unwired(StoreId): int` | Sync calls it once the store is unwired (`StoreWiring` answers false; refused otherwise): each size's returned extra — a stock-dependent size's or a gift's (§1.9) — is added into its in stock, a `CORRECTION` movement noted "unwired" (sync.md §9.2 #12); every size switched on or with a row is told to Catalog again for a store with no provider, a size with no row as 0. Nothing else is cleared. Answers how many sizes switched on there stopped being orderable. |
 
 `ProviderStockResult`: `wired` · `changed`, `archived`, `notFound`, `invalid` — lists of the variant ids
-as given.
+as given · `changes` (size, `before`, `after`, whole numbers — for Sync's page of reads, sync.md §9.3 #19).
 
 ---
 

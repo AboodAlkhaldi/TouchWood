@@ -83,20 +83,21 @@ final readonly class ProviderStockImpl implements ProviderStock
         }
 
         ksort($given, SORT_STRING);
-        $changed = [];
+        $changed = $changes = [];
 
         foreach (array_chunk($given, self::CHUNK, true) as $chunk) {
             $done = $this->change->run($store, fn (): array => [$this->applyChunk($store, $chunk, $numbers, $readRef), []]);
 
             // Unwired between two batches: what is left is staff's now (sync.md §1.8).
             if ($done === null) {
-                return new ProviderStockResult(false, $changed, $archived, $notFound, $invalid);
+                return new ProviderStockResult(false, $changed, $archived, $notFound, $invalid, $changes);
             }
 
-            array_push($changed, ...$done);
+            array_push($changed, ...$done[0]);
+            array_push($changes, ...$done[1]);
         }
 
-        return new ProviderStockResult(true, $changed, $archived, $notFound, $invalid);
+        return new ProviderStockResult(true, $changed, $archived, $notFound, $invalid, $changes);
     }
 
     public function wired(StoreId $store): void
@@ -180,7 +181,7 @@ final readonly class ProviderStockImpl implements ProviderStock
     /**
      * @param  array<string, array{string, string}>  $chunk  own id => [the id as given, its product's id]
      * @param  array<string, int>  $numbers  id as given => the provider's number
-     * @return list<string>|null the sizes changed, by the id as given; null when the store is no longer wired
+     * @return array{list<string>, list<array{variantId: string, before: int, after: int}>}|null the sizes changed by the id as given, and each change; null when the store is no longer wired
      */
     private function applyChunk(StoreId $store, array $chunk, array $numbers, string $readRef): ?array
     {
@@ -194,7 +195,7 @@ final readonly class ProviderStockImpl implements ProviderStock
         $existing = $this->stock->read($store, array_keys($chunk));
         $write = array_filter($chunk, static fn (array $size, string $variantId): bool => isset($existing[$variantId]) || $numbers[$size[0]] > 0, ARRAY_FILTER_USE_BOTH);
         $rows = $this->stock->lockFor($store, array_map(static fn (array $size): string => $size[1], $write));
-        $changed = $told = [];
+        $changed = $told = $changes = [];
 
         foreach ($write as $variantId => [$id]) {
             $row = $rows[$variantId];
@@ -215,12 +216,13 @@ final readonly class ProviderStockImpl implements ProviderStock
             }
 
             $changed[] = $id;
+            $changes[] = ['variantId' => $id, 'before' => $row->inStock, 'after' => $number];
             $told[] = $variantId;
         }
 
         $this->facts->refresh($store, $told);
 
-        return $changed;
+        return [$changed, $changes];
     }
 
     /** Whether a size orderable in the wired store stops once it is not: every product then counts on its stock. */

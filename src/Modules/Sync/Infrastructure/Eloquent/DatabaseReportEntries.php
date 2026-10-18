@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ReportKind;
@@ -23,6 +24,8 @@ final readonly class DatabaseReportEntries implements ReportEntries
 
     /** Rows a statement: 7 values each, well under PostgreSQL's bind limit. */
     private const int CHUNK = 500;
+
+    private const int PRUNE_BATCH = 5000;
 
     public function __construct(
         private ConnectionInterface $db,
@@ -51,7 +54,9 @@ final readonly class DatabaseReportEntries implements ReportEntries
             $this->db->statement(
                 'INSERT INTO sync.report_entries (store_id, kind, code, variant_id, sale_id, detail, opened_at, seen_at) VALUES '.implode(', ', $values)
                 ." ON CONFLICT (store_id, kind, COALESCE(code, ''), COALESCE(variant_id, '')) WHERE closed_at IS NULL"
-                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id',
+                .' DO UPDATE SET seen_at = EXCLUDED.seen_at, detail = EXCLUDED.detail, sale_id = EXCLUDED.sale_id,'
+                // Another sale stopped, or another discount skipped, on the size: told again (§9.3 #18).
+                ." announced_at = CASE WHEN sync.report_entries.sale_id IS DISTINCT FROM EXCLUDED.sale_id OR sync.report_entries.detail->'discount' IS DISTINCT FROM EXCLUDED.detail->'discount' THEN NULL ELSE sync.report_entries.announced_at END",
                 $bindings,
             );
         }
@@ -82,6 +87,64 @@ final readonly class DatabaseReportEntries implements ReportEntries
             ->where('kind', $kind->value)
             ->whereNull('closed_at')
             ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]);
+    }
+
+    public function findOpen(int $entryId): ?array
+    {
+        $row = $this->db->table(self::TABLE)->where('id', $entryId)->whereNull('closed_at')->first(['store_id', 'kind', 'code', 'variant_id']);
+
+        return $row === null ? null : [
+            'storeId' => (string) $row->store_id,
+            'kind' => ReportKind::from((string) $row->kind),
+            'code' => $row->code === null ? null : (string) $row->code,
+            'variantId' => $row->variant_id === null ? null : (string) $row->variant_id,
+        ];
+    }
+
+    public function closeOne(int $entryId, string $closedBy): bool
+    {
+        return $this->db->table(self::TABLE)->where('id', $entryId)->whereNull('closed_at')
+            ->update(['closed_at' => CarbonImmutable::now(), 'closed_by' => $closedBy]) === 1;
+    }
+
+    public function pruneClosedBefore(DateTimeImmutable $before): int
+    {
+        $deleted = 0;
+
+        // In batches: a long-closed backlog never holds the table in one statement.
+        do {
+            $batch = $this->db->delete(
+                'DELETE FROM sync.report_entries WHERE id IN (SELECT id FROM sync.report_entries WHERE closed_at IS NOT NULL AND closed_at < ? LIMIT ?)',
+                [$before, self::PRUNE_BATCH],
+            );
+            $deleted += $batch;
+        } while ($batch === self::PRUNE_BATCH);
+
+        return $deleted;
+    }
+
+    public function closeSwitchedOn(StoreId $store, array $variantIds): int
+    {
+        return $this->close($store, ReportKind::OffOrDraftPriced, [], $variantIds, 'CATALOG');
+    }
+
+    public function announce(StoreId $store, array $kinds): array
+    {
+        $kinds = array_map(static fn (ReportKind $kind): string => $kind->value, $kinds);
+        $rows = $this->db->select(
+            'UPDATE sync.report_entries SET announced_at = ? WHERE store_id = ? AND closed_at IS NULL AND announced_at IS NULL AND kind IN ('
+            .implode(', ', array_fill(0, count($kinds), '?')).') RETURNING kind',
+            [CarbonImmutable::now(), $store->value, ...$kinds],
+        );
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[(string) $row->kind] = ($counts[(string) $row->kind] ?? 0) + 1;
+        }
+
+        ksort($counts);
+
+        return $counts;
     }
 
     public function closeAll(StoreId $store, string $closedBy): int

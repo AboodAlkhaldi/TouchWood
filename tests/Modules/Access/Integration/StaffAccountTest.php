@@ -355,6 +355,7 @@ describe('a staff member\'s own account', function () {
             'COMPANY_APPLICATIONS' => [false, true],
             'LOW_STOCK' => [false, false],
             'CAMPAIGN_EXPIRY' => [false, true],
+            'SYNC_PROBLEMS' => [false, true],
         ])->and(fn () => app(UpdateOwnNotificationPreferencesHandler::class)->handle(new UpdateOwnNotificationPreferences(['GOSSIP' => ['email' => true, 'panel' => true]])))
             ->toThrow(InvalidAccessAttribute::class);
     });

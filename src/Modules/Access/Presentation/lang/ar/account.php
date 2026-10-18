@@ -95,6 +95,7 @@ return [
         'COMPANY_APPLICATIONS' => 'طلبات الشركات',
         'LOW_STOCK' => 'قرب نفاد المخزون',
         'CAMPAIGN_EXPIRY' => 'الحملات التي توشك على الانتهاء',
+        'SYNC_PROBLEMS' => 'مشاكل المزامنة',
     ],
 
     /*

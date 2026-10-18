@@ -36,6 +36,7 @@ use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\SuperAdminOnly;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Enums\AccessLevel;
+use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Events\StaffActivated;
 use Modules\Access\Public\Events\StaffDisabled;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
@@ -130,7 +131,7 @@ describe('inviting', function () {
         Fx::actAsAdmin(['sa'], INVITING_ADMIN);
         $staffId = invite();
 
-        expect(DB::table('access.staff_notification_preferences')->where('staff_user_id', $staffId)->count())->toBe(4)
+        expect(DB::table('access.staff_notification_preferences')->where('staff_user_id', $staffId)->count())->toBe(count(StaffNotificationTopic::cases()))
             ->and(DB::table('access.staff_notification_preferences')->where('staff_user_id', $staffId)->where('email', true)->exists())->toBeFalse()
             ->and(DB::table('access.staff_notification_preferences')->where('staff_user_id', $staffId)->where('panel', false)->exists())->toBeFalse();
     });

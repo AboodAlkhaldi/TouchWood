@@ -14,4 +14,6 @@ enum StaffNotificationTopic: string
     case CompanyApplications = 'COMPANY_APPLICATIONS';
     case LowStock = 'LOW_STOCK';
     case CampaignExpiry = 'CAMPAIGN_EXPIRY';
+    /** A store's reads need someone: a sale stopped, a discount skipped, a read failed (amendment 71). */
+    case SyncProblems = 'SYNC_PROBLEMS';
 }

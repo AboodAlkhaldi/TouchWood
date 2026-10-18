@@ -156,13 +156,13 @@ final readonly class DatabaseReads implements Reads
         ]) === 1;
     }
 
-    public function fail(string $readId, string $why): void
+    public function fail(string $readId, string $why): bool
     {
-        $this->db->table(self::TABLE)->where('id', $readId)->whereIn('state', ['QUEUED', 'RUNNING'])->update([
+        return $this->db->table(self::TABLE)->where('id', $readId)->whereIn('state', ['QUEUED', 'RUNNING'])->update([
             'state' => 'FAILED',
             'error' => mb_substr($why, 0, 1000),
             'finished_at' => CarbonImmutable::now(),
-        ]);
+        ]) > 0;
     }
 
     public function startNext(StoreId $store): void
@@ -172,6 +172,22 @@ final readonly class DatabaseReads implements Reads
         if ($next !== null) {
             ReadStoreJob::dispatch((string) $next)->afterCommit();
         }
+    }
+
+    public function pruneFinishedBefore(DateTimeImmutable $before): int
+    {
+        $deleted = 0;
+
+        // In batches, their lines and records going with each: a backlog never holds the tables at once.
+        do {
+            $batch = $this->db->delete(
+                "DELETE FROM sync.reads WHERE id IN (SELECT id FROM sync.reads WHERE state IN ('DONE', 'FAILED') AND finished_at < ? LIMIT ?)",
+                [$before, 1000],
+            );
+            $deleted += $batch;
+        } while ($batch === 1000);
+
+        return $deleted;
     }
 
     public function storeOf(string $readId): ?string
