@@ -21,6 +21,19 @@ interface ReportEntries
     public function open(StoreId $store, ReportKind $kind, array $entries): void;
 
     /**
+     * An open entry: its store, kind, the provider's code and the size - null when there is none open.
+     *
+     * @return array{storeId: string, kind: ReportKind, code: string|null, variantId: string|null}|null
+     */
+    public function findOpen(int $entryId): ?array;
+
+    /** One entry closed, saying by whom - false when it was not open any more. */
+    public function closeOne(int $entryId, string $closedBy): bool;
+
+    /** Entries closed before this time deleted (sync.md §1.6: kept 90 days); how many. */
+    public function pruneClosedBefore(\DateTimeImmutable $before): int;
+
+    /**
      * The open entries of a kind about these codes or sizes closed: what they said is right again.
      *
      * @param  list<string>  $codes
@@ -30,6 +43,14 @@ interface ReportEntries
 
     /** The store's open entries of a kind closed - all of them (a failed read, once a read succeeds). */
     public function closeKind(StoreId $store, ReportKind $kind, string $closedBy): int;
+
+    /**
+     * The open off-or-draft entries of these sizes closed: Catalog switched them on in the store and
+     * their product is ready (sync.md §1.6).
+     *
+     * @param  list<string>  $variantIds
+     */
+    public function closeSwitchedOn(StoreId $store, array $variantIds): int;
 
     /** Every open entry of the store closed, saying by what (sync.md §1.8: unwiring). */
     public function closeAll(StoreId $store, string $closedBy): int;

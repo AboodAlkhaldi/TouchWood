@@ -335,8 +335,9 @@ permission is checked here — Sync's read checks its own.
 | `ProviderPrices::apply(StoreId, array<variantId, mixed>, string $readRef): ProviderPricesResult` | Each size's retail price set to the provider's base price (§1.1 rule 9), **as the provider wrote it** — a decimal in the store's currency, checked by the store's own rules (§1.2: refused, never rounded) rather than handed over as `Money`, the provider giving no currency (sync.md §9.1). The same price changes nothing; a different one is saved with source `PROVIDER`, audited from and to with the read (`pricing.retail_price.provided`). A size switched off in the store, or of a draft product, takes it too and, when its price changed, is named. **The ceiling** (§1.12): a running or scheduled **sale** the new price takes past it **stops on that size** — the size leaves the sale; a sale left with none ends if running, or is removed if not started (or started this very moment, having no time to end at) — audited as the system's (`pricing.sale.changed` / `.ended` / `.removed`); a **fixed-amount category discount** the price takes past it **skips the size** (below), named. 500 sizes a transaction, under the store's lock, the wiring asked again in each. **Not written, and named**: archived sizes and sizes of archived products, sizes not found, prices that are not one (not text, not a number, 0 or below, too many decimals) — one bad value never fails the read — and a second id for the same size. Sync passes a read in calls of at most 10,000 sizes (PostgreSQL's bind limit on the size reads). A store not wired, or unwired while the read ran, gets nothing from then on (`wired` false). |
 
 `ProviderPricesResult`: `wired` · `changed`, `offOrDraft` · `salesStopped` (sale, size, `left` / `ended`
-/ `removed`) · `discountsSkipped` (discount, size) · `archived`, `notFound`, `invalid` — sizes by the
-variant id as given.
+/ `removed`) · `discountsSkipped` (discount, size) · `archived`, `notFound`, `invalid` · `changes` (size,
+`before` — a decimal in the store's currency, or null where it had no price — and `after`, for Sync's
+page of reads, sync.md §9.3 #19) — sizes by the variant id as given.
 
 **In a wired store, a fixed-amount category discount never goes deeper than the ceiling on a size**
 (owner, 2026-10-17; sync.md §9.3 #17, #20): where the provider's price would let it, the discount

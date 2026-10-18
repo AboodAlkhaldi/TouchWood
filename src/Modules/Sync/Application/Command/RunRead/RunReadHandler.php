@@ -17,6 +17,8 @@ use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Model\Read;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
+use Modules\Sync\Domain\Repository\ReadLines;
+use Modules\Sync\Domain\Repository\ReadReports;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
@@ -61,6 +63,8 @@ final readonly class RunReadHandler
         private ProviderAdapters $adapters,
         private ProviderPrices $prices,
         private ProviderStock $stock,
+        private ReadLines $lines,
+        private ReadReports $reports,
     ) {}
 
     /**
@@ -152,10 +156,22 @@ final readonly class RunReadHandler
 
         if ($this->connections->exists($store)) {
             $this->connections->markFailing($store, $why);
-            $this->entries->open($store, ReportKind::ReadFailed, [['code' => null, 'variantId' => null, 'saleId' => null, 'detail' => ['read' => $readId, 'error' => $why]]]);
+            $this->reported($store, $readId, ReportKind::ReadFailed, [['code' => null, 'variantId' => null, 'saleId' => null, 'detail' => ['read' => $readId, 'error' => $why]]]);
         }
 
         $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, AuditChanges::none()->changed('error', null, $why)));
+    }
+
+    /**
+     * Entries opened on the store's report, and the same written in the read's own record, as they
+     * are today (owner, 2026-10-18: exact per read).
+     *
+     * @param  list<array{code: string|null, variantId: string|null, saleId: string|null, detail: array<string, mixed>}>  $entries
+     */
+    private function reported(StoreId $store, string $readId, ReportKind $kind, array $entries): void
+    {
+        $this->entries->open($store, $kind, $entries);
+        $this->reports->add($readId, $kind, $entries);
     }
 
     /**
@@ -192,7 +208,7 @@ final readonly class RunReadHandler
                 return null;
             }
 
-            $this->entries->open($store, ReportKind::NotInProvider, array_map(
+            $this->reported($store, $read->id, ReportKind::NotInProvider, array_map(
                 static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => []],
                 array_values(array_diff($this->catalog->switchedOnVariantIds($store), array_keys($seen))),
             ));
@@ -274,13 +290,17 @@ final readonly class RunReadHandler
         ]));
         $sizes = array_keys($codeOf);
 
-        $this->entries->open($store, ReportKind::UnknownCode, array_values($unknown));
+        $this->reported($store, $read->id, ReportKind::UnknownCode, array_values($unknown));
         $this->entries->close($store, ReportKind::UnknownCode, array_values($codeOf), [], self::CLOSED_BY_READ);
-        $this->entries->open($store, ReportKind::ArchivedSkipped, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['code' => $codeOf[$variantId] ?? null]], $archived));
-        $this->entries->open($store, ReportKind::BadValue, array_map(static fn (string $variantId, array $detail): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => $detail], array_keys($bad), $bad));
-        $this->entries->open($store, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => $priceIn[$variantId] ?? null]], $prices->offOrDraft ?? []));
-        $this->entries->open($store, ReportKind::SaleStopped, array_map(static fn (array $stopped): array => ['code' => null, 'variantId' => $stopped['variantId'], 'saleId' => $stopped['saleId'], 'detail' => ['outcome' => $stopped['outcome']]], $prices->salesStopped ?? []));
-        $this->entries->open($store, ReportKind::DiscountSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['discount' => $skipped['discountId']]], $prices->discountsSkipped ?? []));
+        $this->reported($store, $read->id, ReportKind::ArchivedSkipped, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['code' => $codeOf[$variantId] ?? null]], $archived));
+        $this->reported($store, $read->id, ReportKind::BadValue, array_map(static fn (string $variantId, array $detail): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => $detail], array_keys($bad), $bad));
+        $this->reported($store, $read->id, ReportKind::OffOrDraftPriced, array_map(static fn (string $variantId): array => ['code' => null, 'variantId' => $variantId, 'saleId' => null, 'detail' => ['price' => $priceIn[$variantId] ?? null]], $prices->offOrDraft ?? []));
+        $this->reported($store, $read->id, ReportKind::SaleStopped, array_map(static fn (array $stopped): array => ['code' => null, 'variantId' => $stopped['variantId'], 'saleId' => $stopped['saleId'], 'detail' => ['outcome' => $stopped['outcome']]], $prices->salesStopped ?? []));
+        $this->reported($store, $read->id, ReportKind::DiscountSkipped, array_map(static fn (array $skipped): array => ['code' => null, 'variantId' => $skipped['variantId'], 'saleId' => null, 'detail' => ['discount' => $skipped['discountId']]], $prices->discountsSkipped ?? []));
+
+        // The read's lines (§9.3 #19): each price and stock number it changed, from and to.
+        $this->lines->add($read->id, 'PRICE', array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $prices->changes ?? []));
+        $this->lines->add($read->id, 'STOCK', array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $stock->changes ?? []));
 
         // Right again: a good value, a size checked and not archived, a discount reaching it, a size found.
         $skippedNow = array_column($prices->discountsSkipped ?? [], 'variantId');

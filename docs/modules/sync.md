@@ -206,8 +206,8 @@ Nothing new for Sales or Catalog. Sync **binds** the wiring question Pricing and
 |---|---|---|
 | `WireStore` / `ChangeConnection` — the provider, address, key, secret and adapter fields; tested first | **`sync.connection.manage`** — reserved, held by Super Admins only (as `platform.store.switch` is) | That store |
 | `UnwireStore` — §1.8, with the count first | `sync.connection.manage` | That store |
-| The Sync report and its count (`SyncReport`) | **`sync.report.view`** | That store |
-| `Retry` (one entry's code) · `SyncNow` (the store) · `DismissEntry` / **Leave it** | **`sync.read.run`** | That store |
+| The Sync report and its count (`ViewSyncReport`, `CountSyncReport`); the page of reads and each read's page (`ListSyncReads`, `ViewSyncRead`, §9.3 #19) | **`sync.report.view`** | That store |
+| `RetryEntry` (one entry's code; a failed read's, the store) · `SyncNow` (the store) · `DismissEntry` / **Leave it** (never a failed read's, §9.3 #23) | **`sync.read.run`** | That store |
 | `ReceiveNotification` — the provider's call (§1.3) | The signature, no staff | That store |
 | `ReadStore` (Notified, Hourly, Nightly, Now, One code) · `PruneSyncLog` | System (reserved): `sync.read.scheduled`, `sync.log.prune` | — |
 
@@ -236,7 +236,9 @@ written so a NULL cannot slip through.
 |---|---|
 | `sync.connections` | `store_id` PK FK `platform.stores` RESTRICT · `provider` CHECK (`ODOO`) · `address` · `settings` jsonb (the adapter's fields) · `key_encrypted` · `secret_encrypted` · `state` CHECK (`OK`, `FAILING`) · `last_read_at` NULL · `last_full_read_at` NULL · `last_error` NULL · `created_by` · `created_at` · `updated_at` |
 | `sync.reads` | `id` ULID PK · `store_id` · `kind` CHECK (`NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE`) · `requested_by` NULL · `state` CHECK (`QUEUED`, `RUNNING`, `DONE`, `FAILED`) · `prices_changed`, `stock_changed`, `skipped` int ≥ 0 · `error` NULL · `queued_at` · `started_at` NULL · `finished_at` NULL · `codes` jsonb NULL (a notified or one-code read's codes, a list; no other read has them) · **one running per store, one full read of each kind waiting** (unique partial indexes, so two workers never both win) — deleted 90 days after it finished |
-| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `closed_at` NULL · `closed_by` NULL · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
+| `sync.read_lines` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` CHECK (`PRICE`, `STOCK`) · `variant_id` (no key) · `code` NULL · `before` NULL · `after` — each price and stock number a read changed (§9.3 #19), deleted with its read |
+| `sync.read_reports` | `id` bigint PK · `read_id` FK `sync.reads` CASCADE · `kind` · `code` NULL · `variant_id` NULL · `sale_id` NULL · `detail` jsonb — what each read reported, as it was that day (§9.3 #22), deleted with its read |
+| `sync.report_entries` | `id` bigint PK · `store_id` · `kind` CHECK (the eight of §1.6, with `DISCOUNT_SKIPPED` (§9.3 #17)) · `code` NULL · `variant_id` NULL (no key: a deleted size keeps its entry) · `sale_id` NULL · `detail` jsonb · `opened_at` · `seen_at` · `closed_at` NULL · `closed_by` NULL (`READ`, `UNWIRED`, `CATALOG` or `STAFF:{id}`) · one open entry per (store, kind, code, size) — a unique partial index · deleted 90 days after closing |
 
 ---
 
@@ -261,6 +263,9 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `NotWired` | CONFLICT | Sync now, Retry or unwiring in a store with no connection |
 | `ReadRunning` | — | never thrown: a second read waits (§1.3) |
 | `EntryNotFound` | NOT_FOUND | Retrying or dismissing an entry that is not there |
+| `ReadNotFound` | NOT_FOUND | A read's page for a read that is not there (pruned after 90 days, or never one) |
+| `SizeNotFound` | NOT_FOUND | Retry on an entry whose size was deleted since (§9.3 #24) |
+| `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
 | `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a
@@ -348,3 +353,6 @@ things the owner asked for. They change §1.4 #5, §1.6, §3 and §5 as below.
 | 19 | Seeing each read | **A page of the store's reads** — when, which kind, who asked, how many prices and stock numbers changed, how many skipped — each opening on its sections: **prices changed** (before → after), **stock changed** (before → after), and **reported**; each line links to the product, the sale or the discount, to be changed there, as the bulk import's product page does. The provider's prices stay read-only. For staff with View the Sync Report. A read's lines are kept with the read: **90 days**, then deleted with it (a new table, `sync.read_lines`). |
 | 20 | In a wired store, a size a fixed-amount discount already skips (#17): does it still block lowering the ceiling, or saving or adding a fixed-amount discount? | **No: it is skipped and named, not a reason to refuse** (owner, 2026-10-17). In a wired store the ceiling may be lowered and such a discount saved or added; the sizes it cannot reach are named on its page and in the Sync report. A percentage is still held to the ceiling as before. Elsewhere nothing changes: staff are refused (pricing.md §1.12). |
 | 21 | Saving a connection tests it first (#10), but no call to the provider happens in a web request (§1.1 rule 4) | **One quick test read in the Super Admin's save, 10 seconds at most** — the one exception to rule 4; every real read stays a queued job. Saving (or changing the key) queues a full read at once (§1.2), and **Sync now** (§1.3) reads the store whenever staff know something changed, without waiting for the provider's notice. |
+| 22 | A read's "reported" section: what that read saw, or the entries a later read took over | **Exact per read** (owner, 2026-10-18): each read keeps its own list of what it reported, as it was that day (`sync.read_reports`), deleted with the read after 90 days |
+| 23 | Dismissing a failed read's entry | **Refused** (owner, 2026-10-18): it closes only when a later read of the store succeeds (§1.6); staff press Retry or Sync now |
+| 24 | Retry on a failed read's entry, or on a size deleted since | **A failed read's: the whole store is read** (as Sync now); **a deleted size: refused**, "this size no longer exists", so staff dismiss it (owner, 2026-10-18) |

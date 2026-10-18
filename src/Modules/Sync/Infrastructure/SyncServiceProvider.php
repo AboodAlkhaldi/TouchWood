@@ -8,21 +8,31 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Catalog\Public\Events\ProductMadeReady;
+use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
+use Modules\Sync\Application\Report\SyncLog;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
+use Modules\Sync\Domain\Repository\ReadLines;
+use Modules\Sync\Domain\Repository\ReadReports;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseConnections;
+use Modules\Sync\Infrastructure\Eloquent\DatabaseReadLines;
+use Modules\Sync\Infrastructure\Eloquent\DatabaseReadReports;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReads;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReportEntries;
+use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
+use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
 use Modules\Sync\Infrastructure\Provider\ContainerProviderAdapters;
+use Modules\Sync\Infrastructure\Queue\PruneSyncLogJob;
 use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
 use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
 
@@ -43,6 +53,9 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->bind(Connections::class, DatabaseConnections::class);
         $this->app->bind(Reads::class, DatabaseReads::class);
         $this->app->bind(ReportEntries::class, DatabaseReportEntries::class);
+        $this->app->bind(ReadLines::class, DatabaseReadLines::class);
+        $this->app->bind(ReadReports::class, DatabaseReadReports::class);
+        $this->app->bind(SyncLog::class, DatabaseSyncLog::class);
         $this->app->bind(ProviderAdapters::class, ContainerProviderAdapters::class);
         // In place of Pricing's and Inventory's "no store is wired" (sync.md §2.2): registered after
         // them, so these bindings win.
@@ -64,6 +77,9 @@ final class SyncServiceProvider extends ServiceProvider
 
         // A size whose code staff corrected is matched again at once, in every wired store (§6).
         Event::listen(VariantCodeCorrected::class, [ReadCorrectedCode::class, 'handle']);
+        // An off or draft size the provider priced closes its entry once it is on and ready (§1.6).
+        Event::listen(StoreListingChanged::class, [CloseSwitchedOnEntries::class, 'switchedOn']);
+        Event::listen(ProductMadeReady::class, [CloseSwitchedOnEntries::class, 'madeReady']);
 
         // The hour's read catches a lost notice; the night's checks everything (§1.3). Scheduled work
         // is queued as a job (owner's decision, 2026-09-18).
@@ -72,6 +88,8 @@ final class SyncServiceProvider extends ServiceProvider
             // class for both would let the hour's take the night's lock at 02:00.
             $schedule->job(QueueHourlyReadsJob::class)->hourly()->onOneServer();
             $schedule->job(QueueNightlyReadsJob::class)->timezone('Asia/Riyadh')->dailyAt('02:00')->onOneServer();
+            // Sync's log kept 90 days (§1.6), cleared after the night's read is queued.
+            $schedule->job(PruneSyncLogJob::class)->timezone('Asia/Riyadh')->dailyAt('03:00')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {
