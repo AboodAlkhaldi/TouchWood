@@ -7,9 +7,11 @@ namespace Modules\Promotions\Public\Contracts;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
+use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
+use Modules\Promotions\Public\Enums\Audience;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -18,7 +20,6 @@ use Shared\Domain\ValueObject\StoreId;
  * reads have no permission of their own — they serve flows their callers have authorized. The three
  * writes are Sales's, made inside its checkout's or its edit's transaction, and name the Sales
  * permission that allowed them; Promotions builds the scope from the coupon's or the order's store.
- * `giftLevels` comes with its step.
  */
 interface PromotionsApi
 {
@@ -70,4 +71,14 @@ interface PromotionsApi
      * @return list<string>
      */
     public function segmentMembers(string $segmentId, ?string $after, int $limit): array;
+
+    /**
+     * Sales's cart, quote and checkout (§1.7): the gift levels an order of `$goodsTotal` reaches now for
+     * this buyer — switched on, within their dates, their amount at most the goods total (after coupon
+     * and points) — highest first. Sales asks Inventory which gift is in stock and holds the first that
+     * is. The total must be in the store's currency. Reads only.
+     *
+     * @return list<GiftOfferDto>
+     */
+    public function giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): array;
 }

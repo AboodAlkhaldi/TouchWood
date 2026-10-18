@@ -236,6 +236,11 @@ My assumption, stated for the owner to reject: two active levels of one store wi
 for overlapping audiences and dates, are refused — one amount, one gift. Saving a level locks the
 store's levels first, so two saved at once cannot both pass that check.
 
+My assumption, stated for the owner to reject (built in step 5): **a change checks only a new gift**,
+as a change checks only a coupon's new list entries (answer 22) — a level whose variant was archived
+since keeps it, so changing its dates is never blocked; Sales finds it out of stock and goes a level
+down.
+
 Gift levels sit in the admin menu's **Marketing** section beside Coupons and Segments (handoff §14
 lists only those two; gifts are Promotions' too). My assumption, stated for the owner to reject.
 
@@ -312,7 +317,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | Pricing | The cart's prices: each line's variant, `mode`, `unit`, `listUnit` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
 | Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)`. Today `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories. Catalog's amendment, numbered when it lands |
 | Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exists (`CatalogApi::product`, `variant`); categories and brands by the same addition |
-| Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `CouponRulesUsage` (its gift levels with step 5) |
+| Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `PromotionsCatalogUsage` — its coupons' lists, and its gift levels' variants (step 5) |
 | Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **Built** (access.md amendment 70, Promotions step 4a): `AccessApi::customerIdsInStore` and `AccessApi::customers` — a fixed number of queries however many |
 | Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **Recorded in access.md amendment 70**: Promotions decides who ordered in a store (its order facts) and reads the name through `customers()`; its segment screens show the name only (step 6) |
 | Access | The permission catalog, and **a `Marketing` permission group** — the admin menu's "Marketing" section (handoff §14: Coupons · Segments) | Catalog exists; **the group is an Access addition** (and `marketing` in Platform's menu groups), built with Promotions — the same as Loyalty's Points section (loyalty.md §2.3). My assumption, following the owner's answer for Points |

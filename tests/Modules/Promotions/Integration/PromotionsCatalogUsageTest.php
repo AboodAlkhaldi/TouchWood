@@ -12,12 +12,14 @@ use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategory;
 use Modules\Catalog\Application\Command\DeleteCategory\DeleteCategoryHandler;
 use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
 use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariant;
+use Modules\Catalog\Application\Command\DeleteDraftVariant\DeleteDraftVariantHandler;
 use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedProducts;
 use Modules\Catalog\Application\Command\DeleteImportedProducts\DeleteImportedProductsHandler;
 use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
 use Modules\Catalog\Public\Enums\CatalogItem;
-use Modules\Promotions\Infrastructure\Eloquent\CouponRulesUsage;
+use Modules\Promotions\Infrastructure\Eloquent\PromotionsCatalogUsage;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogImports as Ix;
@@ -28,8 +30,9 @@ use function Pest\Laravel\seed;
 
 /*
 | Promotions' answer to Catalog's usage check (promotions.md §1.2; catalog.md amendment 19): a
-| category, brand or product a coupon's include or exclude list names is refused by Catalog with what
-| uses it — never a database error, never a rule dropped — and deleted once no coupon names it.
+| category, brand or product a coupon's include or exclude list names, and a variant a gift level
+| gives, is refused by Catalog with what uses it — never a database error, never a rule or a level
+| dropped — and deleted once nothing names it.
 */
 
 uses(RefreshDatabase::class);
@@ -109,12 +112,12 @@ it('turns a reference written after the check into the same refusal, and leaves 
         ->and(DB::table('catalog.categories')->where('id', $category)->exists())->toBeTrue();
 });
 
-it('answers every coupon naming any of the items, in one query, and nothing for a variant yet', function () {
+it('answers every coupon naming any of the items, in one query', function () {
     $doors = Px::category('Doors');
     $hinges = Px::category('Hinges');
     $first = Pr::coupon('FIRST-1', rules: [['INCLUDE', 'category', $doors]]);
     $second = Pr::coupon('SECOND-2', rules: [['EXCLUDE', 'category', $hinges], ['INCLUDE', 'category', $doors]]);
-    $usage = app(CouponRulesUsage::class);
+    $usage = app(PromotionsCatalogUsage::class);
 
     $queries = Cx::recordQueries();
     $uses = $usage->usesOf(CatalogItem::Category, [$doors, $hinges]);
@@ -128,4 +131,25 @@ it('answers every coupon naming any of the items, in one query, and nothing for 
         ->and($usage->usesOf(CatalogItem::Category, [Pr::orderId()]))->toBe([])
         ->and($usage->usesOf(CatalogItem::Variant, [$doors]))->toBe([])
         ->and($usage->usesOf(CatalogItem::Brand, []))->toBe([]);
+});
+
+it('makes Catalog refuse to delete a variant a gift level gives, alone or with its draft product', function () {
+    // Written straight in: staff can only choose a ready product's variant, whose draft is gone.
+    $product = Px::product('Pen');
+    $pen = Px::variant($product, '7002');
+    $level = Pr::giftLevel($pen, 1000_00);
+
+    $alone = Pr::thrown(fn () => app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($pen)), CatalogItemInUse::class);
+    $withProduct = Pr::thrown(fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($product)), CatalogItemInUse::class);
+
+    expect($alone->context())->toBe(['modules' => 'promotions', 'uses' => 1, 'item' => 'variant', 'item_id' => $pen])
+        ->and($withProduct->context()['item'])->toBe('variant')
+        ->and(DB::table('catalog.variants')->where('id', $pen)->exists())->toBeTrue()
+        ->and(app(PromotionsCatalogUsage::class)->usesOf(CatalogItem::Variant, [$pen])[0]->kind)->toBe('gift_level')
+        ->and(app(PromotionsCatalogUsage::class)->usesOf(CatalogItem::Variant, [$pen])[0]->id)->toBe($level);
+
+    DB::table('promotions.gift_levels')->where('id', $level)->delete();
+    app(DeleteDraftVariantHandler::class)->handle(new DeleteDraftVariant($pen));
+
+    expect(DB::table('catalog.variants')->where('id', $pen)->exists())->toBeFalse();
 });

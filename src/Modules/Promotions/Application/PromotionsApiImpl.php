@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Application;
 
+use Carbon\CarbonImmutable;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderCommand;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler;
@@ -16,7 +17,9 @@ use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Coupon\Quotes;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
+use Modules\Promotions\Domain\Model\GiftLevel;
 use Modules\Promotions\Domain\Repository\Coupons;
+use Modules\Promotions\Domain\Repository\GiftLevels;
 use Modules\Promotions\Domain\Repository\OrderFacts;
 use Modules\Promotions\Domain\Repository\Segments;
 use Modules\Promotions\Domain\Service\CouponRules;
@@ -25,9 +28,11 @@ use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
+use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
+use Modules\Promotions\Public\Enums\Audience;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -48,6 +53,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         private UpdateCouponUseHandler $update,
         private PlatformApi $platform,
         private Segments $segments,
+        private GiftLevels $levels,
     ) {}
 
     public function applyCoupon(CouponRequest $request): CouponResult
@@ -158,5 +164,19 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         }
 
         return $this->segments->membersPage($segmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
+    }
+
+    public function giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): array
+    {
+        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidPromotionAttribute('store', 'no such store');
+
+        if ($goodsTotal->currencyCode !== $currency) {
+            throw new InvalidPromotionAttribute('currency', "the goods total is not in the store's currency ({$currency})");
+        }
+
+        return array_map(
+            static fn (GiftLevel $level): GiftOfferDto => new GiftOfferDto($level->id, Money::of($level->amountMinor, $level->currencyCode), $level->variantId),
+            $this->levels->reached($store, $audience, $goodsTotal->minorUnits, CarbonImmutable::now()),
+        );
     }
 }
