@@ -191,6 +191,10 @@ describe('one amount, one gift', function () {
 
         expect(DB::table('promotions.gift_levels')->count())->toBe(6)
             ->and((bool) DB::table('promotions.gift_levels')->where('id', $off)->value('active'))->toBeFalse();
+        DB::table('promotions.gift_levels')->where('id', '<>', $off)->update(['active' => false]);
+
+        // A switched-off level never blocks an active one of its amount.
+        expect(giftCreate(giftFields($pen)))->toBeString();
 
         // Another store's level never clashes.
         Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::GIFT_MANAGE], ['eg']));
@@ -223,9 +227,13 @@ describe('changing and switching', function () {
         giftManager();
         [$pen, $mug] = gifts();
         $id = giftCreate(giftFields($pen));
+        $untouched = giftCreate(giftFields($pen, 3000_00));
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($id, giftFields($mug, 1500_00)));
+        expect(DB::table('promotions.gift_levels')->where('id', $untouched)->value('amount_minor'))->toBe(3000_00)
+            ->and(DB::table('promotions.gift_levels')->where('id', $untouched)->value('variant_id'))->toBe($pen);
+
         $audit = giftAudit('promotions.gift_level.updated');
 
         expect(DB::table('promotions.gift_levels')->where('id', $id)->value('variant_id'))->toBe($mug)
@@ -261,9 +269,14 @@ describe('changing and switching', function () {
         giftManager();
         [$pen] = gifts();
         $id = giftCreate(giftFields($pen));
+        $updatedAt = DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at');
+        // An hour on (the column keeps whole seconds): a needless write would show.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         app(SwitchGiftLevelHandler::class)->handle(new SwitchGiftLevel($id, true));
-        expect(DB::table('platform.audit_entries')->where('action', 'like', 'promotions.gift_level.%activated')->exists())->toBeFalse();
+        CarbonImmutable::setTestNow();
+        expect(DB::table('platform.audit_entries')->where('action', 'like', 'promotions.gift_level.%activated')->exists())->toBeFalse()
+            ->and(DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at'))->toBe($updatedAt);
 
         app(SwitchGiftLevelHandler::class)->handle(new SwitchGiftLevel($id, false));
         expect((bool) DB::table('promotions.gift_levels')->where('id', $id)->value('active'))->toBeFalse()
@@ -327,7 +340,9 @@ describe('who may', function () {
 describe('the levels an order reaches', function () {
     it('answers the levels reached now for the buyer, highest first, in the store\'s currency', function () {
         [$pen, $mug] = gifts();
-        $now = CarbonImmutable::now();
+        // A whole second, as the columns keep: the bounds are met exactly.
+        $now = CarbonImmutable::now()->startOfSecond();
+        CarbonImmutable::setTestNow($now);
         $thousand = Pr::giftLevel($pen, 1000_00);
         $twoThousand = Pr::giftLevel($mug, 2000_00);
         $companies = Pr::giftLevel($mug, 1500_00, with: ['for_public' => false]);
@@ -335,7 +350,7 @@ describe('the levels an order reaches', function () {
         Pr::giftLevel($mug, 600_00, with: ['starts_at' => $now->addMinute()]);
         Pr::giftLevel($mug, 700_00, with: ['ends_at' => $now]);
         Pr::giftLevel($mug, 800_00, 'eg');
-        $started = Pr::giftLevel($pen, 900_00, with: ['starts_at' => $now->subMinute(), 'ends_at' => $now->addMinute()]);
+        $started = Pr::giftLevel($pen, 900_00, with: ['starts_at' => $now, 'ends_at' => $now->addSecond()]);
 
         expect(reached(2000_00))->toBe([[$twoThousand, 2000_00, $mug], [$thousand, 1000_00, $pen], [$started, 900_00, $pen]])
             ->and(reached(1999_99))->toBe([[$thousand, 1000_00, $pen], [$started, 900_00, $pen]])
