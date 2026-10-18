@@ -313,8 +313,8 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)`. Today `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories. Catalog's amendment, numbered when it lands |
 | Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exists (`CatalogApi::product`, `variant`); categories and brands by the same addition |
 | Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `CouponRulesUsage` (its gift levels with step 5) |
-| Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **An Access addition, built with Promotions.** Today `AccessApi::customer` reads one customer by id and nothing lists customers; reading thousands one at a time is the N+1 handoff §5.4 forbids |
-| Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **An Access addition**, the name only, numbered when it lands |
+| Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **Built** (access.md amendment 70, Promotions step 4a): `AccessApi::customerIdsInStore` and `AccessApi::customers` — a fixed number of queries however many |
+| Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **Recorded in access.md amendment 70**: Promotions decides who ordered in a store (its order facts) and reads the name through `customers()`; its segment screens show the name only (step 6) |
 | Access | The permission catalog, and **a `Marketing` permission group** — the admin menu's "Marketing" section (handoff §14: Coupons · Segments) | Catalog exists; **the group is an Access addition** (and `marketing` in Platform's menu groups), built with Promotions — the same as Loyalty's Points section (loyalty.md §2.3). My assumption, following the owner's answer for Points |
 | Platform | A store setting (the ceiling), the audit log, the store's currency | Exists |
 
@@ -566,6 +566,14 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 
 22. A coupon's list entry whose product was archived (or whose category or brand was switched off)
     after it was added: **check new entries only** — an edit checks just what it adds (§1.2).
+
+**2026-10-18:**
+
+23. A segment's **type** (hand-picked or rule-based) and **audience** (individuals or companies) are
+    **fixed when it is made**; its name and its rule's numbers change. To change type or audience,
+    make a new segment (§1.5).
+24. **Only an `ASSIGNED` coupon is assigned to a segment** — a public coupon works for anyone who types
+    it (§1.4).
 
 ### 9.2 Still open
 

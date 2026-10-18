@@ -17,4 +17,26 @@ interface OrderFacts
      * same moment — and answers what is there afterwards.
      */
     public function record(string $orderId, string $storeId, string $customerId, DateTimeImmutable $placedAt, int $ceilingPercent): OrderFact;
+
+    /**
+     * Which of these customers ever placed an order in the store (§1.5: every placed order counts).
+     *
+     * @param  list<string>  $customerIds
+     * @return list<string>
+     */
+    public function whoOrdered(string $storeId, array $customerIds): array;
+
+    /**
+     * The customers whose last order in the store was placed before the cutoff — keyset by id.
+     *
+     * @return list<string>
+     */
+    public function lastOrderBefore(string $storeId, DateTimeImmutable $cutoff, ?string $after, int $limit): array;
+
+    /**
+     * The customers with at least `$orders` orders in the store placed since `$since` — keyset by id.
+     *
+     * @return list<string>
+     */
+    public function atLeastOrdersSince(string $storeId, DateTimeImmutable $since, int $orders, ?string $after, int $limit): array;
 }

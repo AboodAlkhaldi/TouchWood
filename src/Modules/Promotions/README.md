@@ -20,6 +20,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 2b — coupons: Sales's writes | `useCoupon` (every check again under the coupon's lock; `CouponRefused`, `CouponChanged`; once per order), `recordOrder` (the ceiling of the moment), `orderDiscountRoom`, `couponAfterEdit`, `updateCouponUse`; the caller's permission in the coupon's or the order's store | below |
 | 3a — what Catalog may not delete | Catalog's usage check before deletes (catalog.md amendment 19), and Promotions' answer: the products, categories and brands its coupons' lists name | below |
 | 3b — coupons for staff | Create, change, switch, delete if unused, with the include and exclude lists checked against Catalog (and its `brand()` read, catalog.md amendment 20); audited; in the staff member's own stores, an off store's for Super Admins alone | below |
+| 4a — segments | The segment tables; create, change (name and rule — type and audience fixed, answer 23), delete, pick by hand, refresh now; the nightly refresh job; Access's bulk customer reads (access.md amendment 70) | below |
 
 ## What is here
 
@@ -65,7 +66,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   rules; a customer's uses and assignment in one query; a use by its order; recording and lowering a
   use. **`DatabaseOrderFacts`** — an order's fact, written once (`ON CONFLICT DO NOTHING`).
 - **Staff's coupon commands** (`Application/Command/{Create,Change,Switch,Delete}Coupon`, all under
-  `promotions.coupon.manage`), through **`Coupon/CouponChange`** as Pricing's `PricingChange`: the
+  `promotions.coupon.manage`), through **`MarketingChange`** (shared with the segments' commands) as Pricing's `PricingChange`: the
   permission in the store first; an existing coupon's store must be one the staff member covers, or it
   is `CouponNotFound` as an unknown one is; a switched-off store is the Super Admins' alone
   (`Unauthorized`); its own transaction with a per-store advisory lock, and the audit entries
@@ -79,13 +80,25 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   the store (`CodeTaken`, the unique index the backstop); never changed. A change locks the coupon's row
   first, so an order being placed never reads it half changed; the total of uses below those made is
   `CouponInUse`. A used coupon is never deleted (`CouponInUse`).
+- **Segments** (`Application/Command/{Create,Change,Delete}Segment`, `SetSegmentMembers`,
+  `RefreshSegment`, all under `promotions.segment.manage`, audited `promotions.segment.created`,
+  `…updated`, `…deleted`, `…members_set`, `…refreshed`; `RefreshSegments` the system's, nightly at
+  01:00 through `Infrastructure/Queue/RefreshSegmentsJob`, one segment's failure logged and the rest
+  refreshed). The domain's **`SegmentTerms`** checks a segment as the database does; a segment's type
+  and audience never change (answer 23). **`Segment/SegmentMembership`** works out who a segment
+  holds: `NO_ORDERS_EVER` from Access's registered customers less those with an order fact there,
+  `NO_ORDER_FOR` and `AT_LEAST_ORDERS` from the store's order facts — every placed order counts — each
+  kept to live customers of the audience through `AccessApi::customers`, in pages of a thousand; a
+  hand-picked segment keeps its picks but loses the anonymized; a pick must be of the audience, not
+  anonymized, and registered in the store or have ordered there. `DatabaseSegments::replaceMembers`
+  rewrites the members as a set — staying members keep when they were added.
 - **`Infrastructure/Eloquent/CouponRulesUsage`** — registered with Catalog's `CatalogUsages`: every
   coupon whose include or exclude list names a product, category or brand Catalog is about to delete,
   in one query; Catalog then refuses the delete (`catalog.item_in_use`). Variants answer nothing until
   gift levels (step 5).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `CouponManageTest` (staff's commands), `CouponRulesUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+`tests/Modules/Promotions/Integration` — `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `CouponRulesUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

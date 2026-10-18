@@ -68,5 +68,11 @@ return [
         'product' => 'product',
         'category' => 'category',
         'brand' => 'brand',
+        'segment_type' => 'kind of segment',
+        'audience' => 'who it holds',
+        'rule' => 'rule',
+        'rule_months' => 'number of months',
+        'rule_orders' => 'number of orders',
+        'members' => 'customers picked',
     ],
 ];

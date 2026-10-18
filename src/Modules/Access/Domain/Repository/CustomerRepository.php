@@ -10,6 +10,7 @@ use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Model\Customer;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
+use Modules\Access\Public\Enums\AccountType;
 
 interface CustomerRepository
 {
@@ -24,6 +25,23 @@ interface CustomerRepository
      * A read with no lock, for answers to other modules.
      */
     public function find(string $id): ?Customer;
+
+    /**
+     * Many customers in one read, unlocked (amendment 70); an id that is not one, or names nobody, is
+     * left out.
+     *
+     * @param  list<string>  $ids
+     * @return list<Customer> by id
+     */
+    public function findMany(array $ids): array;
+
+    /**
+     * The customers registered in the store, of that account type, not anonymized — keyset by id
+     * (amendment 70).
+     *
+     * @return list<string>
+     */
+    public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array;
 
     /**
      * The customer with this email, ignoring case. Locks the row.

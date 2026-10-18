@@ -8,8 +8,10 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
- * The audit entries of staff changes to coupons (promotions.md §3): `promotions.coupon.created`,
- * `…updated`, `…deactivated`, `…activated`, `…deleted`, each with what changed, attribute by attribute.
+ * The audit entries of staff changes to coupons and segments (promotions.md §3):
+ * `promotions.coupon.created`, `…updated`, `…deactivated`, `…activated`, `…deleted`, `…assigned`,
+ * `…assignment_removed`; `promotions.segment.created`, `…updated`, `…deleted`, `…members_set`,
+ * `…refreshed` — each with what changed, attribute by attribute.
  */
 final class CouponAudit
 {
@@ -17,7 +19,7 @@ final class CouponAudit
      * @param  array<string, bool|int|string|list<string>|null>  $from
      * @param  array<string, bool|int|string|list<string>|null>  $to
      */
-    public static function entry(string $action, string $couponId, string $storeId, array $from, array $to): ?AuditEntryDto
+    public static function entry(string $action, string $couponId, string $storeId, array $from, array $to, string $subject = 'coupon'): ?AuditEntryDto
     {
         $changes = AuditChanges::none();
 
@@ -27,6 +29,6 @@ final class CouponAudit
             }
         }
 
-        return $changes->isEmpty() ? null : new AuditEntryDto("promotions.coupon.{$action}", 'promotions.coupon', $couponId, $storeId, $changes);
+        return $changes->isEmpty() ? null : new AuditEntryDto("promotions.{$subject}.{$action}", "promotions.{$subject}", $couponId, $storeId, $changes);
     }
 }

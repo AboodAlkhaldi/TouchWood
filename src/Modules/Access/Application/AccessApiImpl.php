@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application;
 
+use InvalidArgumentException;
 use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Address\OpenStores;
 use Modules\Access\Application\Customer\CustomerMapper;
@@ -18,7 +19,9 @@ use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
+use Shared\Domain\ValueObject\StoreId;
 
 final readonly class AccessApiImpl implements AccessApi
 {
@@ -43,6 +46,31 @@ final readonly class AccessApiImpl implements AccessApi
     public function customerMayOrder(string $customerId): bool
     {
         return $this->customers->find($customerId)?->mayOrder() ?? false;
+    }
+
+    public function customers(array $customerIds): array
+    {
+        if (count($customerIds) > 1000) {
+            throw new InvalidArgumentException('At most 1000 customers a read, not '.count($customerIds).'.');
+        }
+
+        $found = [];
+
+        foreach ($this->customers->findMany($customerIds) as $customer) {
+            $dto = $this->customerMapper->toDto($customer);
+            $found[$dto->id] = $dto;
+        }
+
+        return $found;
+    }
+
+    public function customerIdsInStore(StoreId $store, AccountType $accountType, ?string $after, int $limit): array
+    {
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidArgumentException("A page of customers is 1 to 1000, not {$limit}.");
+        }
+
+        return $this->customers->idsRegisteredIn($store->value, $accountType, $after, $limit);
     }
 
     public function staff(string $staffId): ?StaffDto
