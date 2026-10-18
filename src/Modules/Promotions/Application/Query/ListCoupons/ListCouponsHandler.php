@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Query\ListCoupons;
 
 use Carbon\CarbonImmutable;
+use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Query\CouponsPage;
 use Modules\Promotions\Application\Query\MarketingQueries;
 use Modules\Promotions\Application\Query\MarketingReader;
@@ -36,7 +37,15 @@ final readonly class ListCouponsHandler
         $this->reader->open($store);
         $perPage = min(max($query->perPage, 1), self::PER_PAGE);
 
-        $rows = $this->queries->coupons($store, $query->state, $query->codeStart, $query->beforeAt, $query->beforeId, $perPage + 1, CarbonImmutable::now());
+        // Read as a code is typed; a start no code can have finds nothing.
+        $typed = trim($query->codeStart ?? '');
+        $codeStart = $typed === '' ? null : Inputs::codeStart($typed);
+
+        if ($typed !== '' && $codeStart === null) {
+            return new CouponsPage([], null, null);
+        }
+
+        $rows = $this->queries->coupons($store, $query->state, $codeStart, $query->beforeAt, $query->beforeId, $perPage + 1, CarbonImmutable::now());
         $more = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
         $last = $more ? end($rows) : false;

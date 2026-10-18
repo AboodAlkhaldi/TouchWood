@@ -97,6 +97,11 @@ describe('a store\'s coupons', function () {
         Pr::coupon('USED-1', with: ['max_uses_total' => 1, 'uses_total' => 1]);
         Pr::coupon('NOT-YET', with: ['starts_at' => $now->addSecond(), 'active' => false]);
         couponReader();
+        // A coupon starting this very second is active, in the list's filter and on its row.
+        Pr::coupon('NOW-1', with: ['starts_at' => $now]);
+        expect(listedCodes(CouponState::Active))->toEqualCanonicalizing(['SUMMER-1', 'NOW-1'])
+            ->and(app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), codeStart: 'NOW'))->rows[0]->state)->toBe(CouponState::Active);
+        DB::table('promotions.coupons')->where('code', 'NOW-1')->delete();
 
         expect(listedCodes(CouponState::Active))->toBe(['SUMMER-1'])
             ->and(listedCodes(CouponState::Scheduled))->toBe(['SUMMER-2'])
@@ -105,7 +110,11 @@ describe('a store\'s coupons', function () {
             ->and(listedCodes(codeStart: 'summer'))->toEqualCanonicalizing(['SUMMER-1', 'SUMMER-2'])
             ->and(listedCodes(CouponState::Active, 'SUM'))->toBe(['SUMMER-1'])
             ->and(listedCodes(codeStart: '%'))->toBe([])
-            ->and(listedCodes(codeStart: 'S_MMER'))->toBe([]);
+            ->and(listedCodes(codeStart: 'S_MMER'))->toBe([])
+            // Read as a code is typed: spaces around it, Arabic digits as 0-9 (owner, 2026-10-06).
+            ->and(listedCodes(codeStart: '  summer-1 '))->toBe(['SUMMER-1'])
+            ->and(listedCodes(codeStart: 'SUMMER-١'))->toBe(['SUMMER-1'])
+            ->and(listedCodes(codeStart: '   '))->toHaveCount(7);
     });
 
     it('reads a page in one query', function () {
@@ -133,7 +142,7 @@ describe('who may read', function () {
             ->and(fn () => app(ViewCouponHandler::class)->handle(new ViewCoupon($egypt)))->toThrow(CouponNotFound::class);
     })->with([PromotionsPermissions::VIEW, PromotionsPermissions::COUPON_MANAGE, PromotionsPermissions::SEGMENT_MANAGE, PromotionsPermissions::GIFT_MANAGE]);
 
-    it('refuses anyone with none of them, and a store id that is not one', function (Closure $read) {
+    it('refuses anyone with none of them', function (Closure $read) {
         $coupon = Pr::coupon();
         Fx::actAsStaff(Fx::staffWith(['access.customer.view'], ['sa']));
 
@@ -166,7 +175,9 @@ describe('who may read', function () {
         couponReader(stores: ['*']);
 
         expect(fn () => app(ListCouponsHandler::class)->handle(new ListCoupons($eg)))->toThrow(Unauthorized::class)
-            ->and(fn () => app(ViewCouponHandler::class)->handle(new ViewCoupon($egypt)))->toThrow(Unauthorized::class);
+            ->and(fn () => app(ViewCouponHandler::class)->handle(new ViewCoupon($egypt)))->toThrow(Unauthorized::class)
+            ->and(fn () => app(ListCouponUsesHandler::class)->handle(new ListCouponUses($egypt)))->toThrow(Unauthorized::class)
+            ->and(fn () => app(ListCouponAssignmentsHandler::class)->handle(new ListCouponAssignments($egypt)))->toThrow(Unauthorized::class);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
         expect(app(ListCouponsHandler::class)->handle(new ListCoupons($eg))->rows)->toHaveCount(1)
@@ -192,7 +203,8 @@ describe('one coupon', function () {
 
         expect($view->coupon->code)->toBe('VIP-10')
             ->and($view->coupon->state)->toBe(CouponState::Active)
-            ->and([$view->capMinor, $view->minimumMinor, $view->maxUsesPerCustomer, $view->forPublic, $view->forCompany])->toBe([50_00, 100_00, 2, true, false])
+            ->and([$view->cap?->minorUnits, $view->minimum?->minorUnits, $view->maxUsesPerCustomer, $view->forPublic, $view->forCompany])->toBe([50_00, 100_00, 2, true, false])
+            ->and([$view->cap?->currencyCode, $view->coupon->currencyCode])->toBe([Pr::currency(), Pr::currency()])
             ->and($view->assignedCount)->toBe(2)
             ->and($named)->toContain(['INCLUDE', 'product', $product, true], ['INCLUDE', 'category', $category, true], ['EXCLUDE', 'brand', $brand, true])
             ->and(count($view->rules))->toBe(4);
@@ -220,7 +232,7 @@ describe('its uses and assignments', function () {
         expect(array_map(static fn ($row): array => [$row->customer->id, $row->discount->minorUnits], [...$first->rows, ...$second->rows]))
             ->toBe([[$sara, 3_00], [$omar, 2_00], [$sara, 1_00]])
             ->and($first->rows[0]->orderNumber)->toStartWith('SA-')
-            ->and($first->rows[0]->customer->firstName)->not->toBe('')
+            ->and([$first->rows[0]->customer->firstName, $first->rows[0]->customer->lastName])->toBe(['Sara', 'Ali'])
             ->and($first->rows[1]->customer->anonymized)->toBeTrue()
             ->and($second->nextId)->toBeNull();
     });
@@ -248,5 +260,67 @@ describe('its uses and assignments', function () {
         expect([$first->rows[0]->customer->id, $first->rows[0]->segmentId, $first->rows[0]->uses])->toBe([$omar, null, 0])
             ->and([$second->rows[0]->customer->id, $second->rows[0]->segmentNameEn, $second->rows[0]->uses])->toBe([$sara, 'Loyal', 1])
             ->and($second->nextCustomerId)->toBeNull();
+    });
+});
+
+describe('pages', function () {
+    it('walks coupons made in the same second by their id, never skipping or repeating one', function () {
+        $now = CarbonImmutable::now()->startOfSecond();
+        $made = array_map(static fn (int $n): string => Pr::coupon("SAME-{$n}", with: ['created_at' => $now]), range(1, 5));
+        couponReader();
+        $seen = [];
+        $page = app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), perPage: 2));
+
+        while (true) {
+            $seen = [...$seen, ...array_map(static fn ($row): string => $row->id, $page->rows)];
+
+            if ($page->nextId === null) {
+                break;
+            }
+
+            $page = app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), beforeAt: $page->nextAt, beforeId: $page->nextId, perPage: 2));
+        }
+
+        $expected = $made;
+        rsort($expected);
+
+        expect($seen)->toBe($expected);
+    });
+
+    it('keeps a page between 1 and 50 rows whatever is asked', function () {
+        foreach (range(1, 51) as $n) {
+            Pr::coupon("MANY-{$n}");
+        }
+        couponReader();
+
+        expect(app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), perPage: 0))->rows)->toHaveCount(1)
+            ->and(app(ListCouponsHandler::class)->handle(new ListCoupons(Fx::storeId('sa'), perPage: 500))->rows)->toHaveCount(50);
+    });
+
+    it('reads a page of uses or assignments in the same queries however many rows it holds', function () {
+        $few = Pr::coupon('FEW-1', with: ['eligibility' => 'ASSIGNED']);
+        $many = Pr::coupon('MANY-1', with: ['eligibility' => 'ASSIGNED']);
+        $customers = array_map(static fn (int $n): string => Fx::customer("c{$n}@example.test"), range(1, 6));
+        Pr::used($few, $customers[0]);
+        Pr::assign($few, $customers[0]);
+
+        foreach ($customers as $customer) {
+            Pr::used($many, $customer);
+            Pr::assign($many, $customer);
+        }
+        couponReader();
+
+        $count = static function (Closure $read): int {
+            $read();
+            $queries = Cx::recordQueries();
+            $read();
+
+            return count($queries);
+        };
+
+        expect($count(fn () => app(ListCouponUsesHandler::class)->handle(new ListCouponUses($many))))
+            ->toBe($count(fn () => app(ListCouponUsesHandler::class)->handle(new ListCouponUses($few))))
+            ->and($count(fn () => app(ListCouponAssignmentsHandler::class)->handle(new ListCouponAssignments($many))))
+            ->toBe($count(fn () => app(ListCouponAssignmentsHandler::class)->handle(new ListCouponAssignments($few))));
     });
 });

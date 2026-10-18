@@ -21,7 +21,7 @@ use Shared\Application\Unauthorized;
 /**
  * One coupon in full (promotions.md §3): its store covered by one of the four permissions, or it is
  * not found; its lists named through Catalog — the products in one call, a category or brand one at a
- * time as Catalog offers them (a list is a handful).
+ * time as Catalog offers them (a list is a handful: Catalog has no bulk read of categories or brands).
  */
 final readonly class ViewCouponHandler
 {
@@ -59,8 +59,8 @@ final readonly class ViewCouponHandler
 
         return new CouponView(
             $row,
-            $coupon->cap?->minorUnits,
-            $coupon->minimum?->minorUnits,
+            $coupon->cap,
+            $coupon->minimum,
             $coupon->maxUsesPerCustomer,
             $coupon->allowWithPoints,
             $coupon->onReducedLines,

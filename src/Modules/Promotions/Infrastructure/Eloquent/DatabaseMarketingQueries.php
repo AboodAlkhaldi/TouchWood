@@ -43,14 +43,14 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             null => null,
         };
 
-        if ($codeStart !== null && $codeStart !== '') {
+        if ($codeStart !== null) {
             // Codes are Latin letters, digits and hyphens, stored in capitals (§1.1): anything else can
-            // start none — and never reaches LIKE as a wildcard.
-            if (preg_match('/\A[A-Za-z0-9-]{1,30}\z/', $codeStart) !== 1) {
+            // start none — and never reaches LIKE as a wildcard (the handler reads it as typed first).
+            if (preg_match('/\A[A-Z0-9-]{1,30}\z/', $codeStart) !== 1) {
                 return [];
             }
 
-            $query->where('code', 'like', strtoupper($codeStart).'%');
+            $query->where('code', 'like', $codeStart.'%');
         }
 
         if ($beforeAt !== null && $beforeId !== null) {
@@ -131,6 +131,7 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             DiscountKind::from((string) $row->discount_kind),
             $row->percent === null ? null : (int) $row->percent,
             $row->amount_minor === null ? null : Money::of((int) $row->amount_minor, $currency),
+            $currency,
             $startsAt,
             $endsAt,
             (int) $row->uses_total,

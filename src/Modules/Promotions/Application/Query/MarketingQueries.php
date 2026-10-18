@@ -17,7 +17,7 @@ interface MarketingQueries
 {
     /**
      * The store's coupons, newest first, after the cursor; only those in `$state` now when one is given,
-     * only codes starting with `$codeStart` when one is given.
+     * only codes starting with `$codeStart` (as `Inputs::codeStart` reads it) when one is given.
      *
      * @return list<CouponRow>
      */

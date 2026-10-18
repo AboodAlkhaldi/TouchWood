@@ -22,6 +22,7 @@ final readonly class CouponRow
         public DiscountKind $discountKind,
         public ?int $percent,
         public ?Money $amount,
+        public string $currencyCode,
         public DateTimeImmutable $startsAt,
         public ?DateTimeImmutable $endsAt,
         public int $usesTotal,
