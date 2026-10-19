@@ -74,6 +74,8 @@ it('finds the customers the segment may hold, by name, marked when already in it
     Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['sa']));
     $segment = pickerSegment();
     app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$sara]));
+    // A member of another segment only is not marked here.
+    app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers(pickerSegment(), [$omar]));
 
     $page = app(SearchSegmentCandidatesHandler::class)->handle(new SearchSegmentCandidates($segment, 'Sara'));
 
