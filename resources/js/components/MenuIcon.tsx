@@ -3,6 +3,7 @@ import {
     Boxes,
     Building2,
     CircleDot,
+    Coins,
     Contact,
     FileText,
     Image,
@@ -17,6 +18,7 @@ import {
     SlidersHorizontal,
     Store,
     Tags,
+    TicketPercent,
     TriangleAlert,
     Users,
 } from 'lucide-react';
@@ -38,6 +40,7 @@ import {
 const ICONS = {
     // The business areas, by their keys (Platform's menu registry orders them).
     pricing: BadgePercent,
+    points: Coins,
     // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
     sync: RefreshCw,
     staff_and_permissions: ShieldCheck,
@@ -59,6 +62,7 @@ const ICONS = {
     companies: Building2,
     company_types: Tags,
     document_types: FileText,
+    redemptions: TicketPercent,
 } as const;
 
 type Props = {

@@ -204,9 +204,10 @@ deptrac:
     PromotionsPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, PricingPublic]
     Promotions: [+PromotionsPublic]
 
-    # Loyalty → Platform, Access
+    # Loyalty → Platform, Access. Its screens use the framework glue, as Catalog's and B2B's do
+    # (loyalty.md §4.1, 2026-10-19); AppHttpTest keeps that to its Presentation layer.
     LoyaltyPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
-    Loyalty: [+LoyaltyPublic]
+    Loyalty: [+LoyaltyPublic, AppHttp]
 
     # Shipping → Platform, Catalog
     ShippingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]

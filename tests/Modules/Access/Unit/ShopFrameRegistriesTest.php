@@ -39,7 +39,7 @@ final class ShopFrameRegistriesTestSilentLine implements ShopperLine
 
 describe('the pages other modules add to an account', function () {
     it('offers a page only to the account type it is for, and every page to every type when it names none, lowest position first', function () {
-        $pages = new InMemoryCustomerAccountPages;
+        $pages = new InMemoryCustomerAccountPages(new Container);
         $pages->register(
             new CustomerAccountPageDto('b2b', 'company', 'storefront.company', AccountType::Company, 20),
             new CustomerAccountPageDto('sales', 'orders', 'storefront.orders', null, 10),
@@ -56,7 +56,7 @@ describe('the pages other modules add to an account', function () {
     });
 
     it('refuses the same page twice, and two pages on one route', function (CustomerAccountPageDto $second) {
-        $pages = new InMemoryCustomerAccountPages;
+        $pages = new InMemoryCustomerAccountPages(new Container);
         $pages->register(new CustomerAccountPageDto('b2b', 'company', 'storefront.company'));
 
         expect(fn () => $pages->register($second))->toThrow(LogicException::class);

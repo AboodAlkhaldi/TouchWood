@@ -25,6 +25,8 @@ final class CustomerDetailsPage extends Data
      *                                       displayed language (owner, 2026-09-27).
      *                                       Each flag is what Access says this reader may do **next**: an account is blocked or
      *                                       unblocked, never both, and a closing is started or stopped, never started twice.
+     * @param  list<CustomerSection>  $sections  what other modules show under the addresses, for
+     *                                           this reader (amendment 72(a))
      */
     public function __construct(
         public CustomerRow $customer,
@@ -35,5 +37,6 @@ final class CustomerDetailsPage extends Data
         public bool $mayStartDeletion,
         public bool $mayCancelDeletion,
         public int $deletionDays,
+        public array $sections = [],
     ) {}
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ComponentType, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { AddressLines } from '@/components/AddressLines';
@@ -53,7 +53,20 @@ import type { AddressRow, CustomerAddressGroup, CustomerDetailsPage } from '@/ty
 
 type Props = CustomerDetailsPage;
 
-export default function Show({ customer, communicationLocale, addresses, mayBlock, mayUnblock, mayStartDeletion, mayCancelDeletion, deletionDays }: Props) {
+/*
+| The sections other modules add (access.md amendment 72(a)), found by their file's name,
+| `sections/customer/{module}-{key}.tsx`, each exporting its `Section`. Loaded with the page, never
+| lazily: the page is drawn on the server, which cannot wait for a chunk - so each section's code
+| counts toward this page's budget.
+*/
+const SECTIONS: Record<string, ComponentType<{ data: Record<string, unknown> }>> = Object.fromEntries(
+    Object.entries(import.meta.glob<{ Section: ComponentType<{ data: Record<string, unknown> }> }>('../../../../sections/customer/*.tsx', { eager: true })).map(([path, file]) => [
+        path.replace(/^.*\/([^/]+)\.tsx$/, '$1'),
+        file.Section,
+    ]),
+);
+
+export default function Show({ customer, communicationLocale, addresses, mayBlock, mayUnblock, mayStartDeletion, mayCancelDeletion, deletionDays, sections }: Props) {
     const t = useTranslator();
 
     return (
@@ -69,8 +82,10 @@ export default function Show({ customer, communicationLocale, addresses, mayBloc
                             <CardTitle className="text-heading-16 text-ink">
                                 <h2>{customer.name}</h2>
                             </CardTitle>
-                            <CardDescription>
-                                <bdi dir="ltr" className="text-copy-14 text-ink-muted">
+                            <CardDescription className="min-w-0">
+                                {/* A long address breaks rather than pushing the status off a phone's
+                                    screen (found by the Loyalty screens' phone check, 2026-10-19). */}
+                                <bdi dir="ltr" className="text-copy-14 break-all text-ink-muted">
                                     {customer.email}
                                 </bdi>
                             </CardDescription>
@@ -146,6 +161,14 @@ export default function Show({ customer, communicationLocale, addresses, mayBloc
                             addresses.map((group) => <Addresses key={group.storeId} group={group} />)
                         )}
                     </section>
+
+                    {/* What other modules show of this customer, each drawn by its own component
+                        (amendment 72(a)); a section with no component here is left out. */}
+                    {sections.map((section) => {
+                        const Section = SECTIONS[`${section.module}-${section.key}`];
+
+                        return Section === undefined ? null : <Section key={`${section.module}-${section.key}`} data={section.data} />;
+                    })}
                 </div>
 
                 <aside className="grid content-start gap-4">

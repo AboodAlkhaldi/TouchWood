@@ -7,6 +7,8 @@ namespace Modules\Loyalty\Infrastructure\Eloquent;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Modules\Loyalty\Application\Query\HolderRow;
+use Modules\Loyalty\Application\Query\LiveLotRow;
 use Modules\Loyalty\Application\Query\PointsHistoryRow;
 use Modules\Loyalty\Application\Query\PointsReader;
 use Modules\Loyalty\Application\Query\RedemptionRow;
@@ -66,6 +68,100 @@ final readonly class DatabasePointsReader implements PointsReader
             ),
             $this->page($query, $beforeAt, $beforeId, $limit),
         );
+    }
+
+    public function holders(string $storeId, DateTimeImmutable $now, ?array $customerIds, ?array $after, int $limit): array
+    {
+        if ($customerIds === []) {
+            return [];
+        }
+
+        // The live points of every account in the store: the lots still holding points whose date
+        // has not passed (§1.1), summed. An account with none is listed too, after the others.
+        $live = $this->db->table('loyalty.lots')
+            ->join('loyalty.accounts', 'loyalty.accounts.id', '=', 'loyalty.lots.account_id')
+            ->where('loyalty.accounts.store_id', strtolower($storeId))
+            ->where('loyalty.lots.points_left', '>', 0)
+            ->where('loyalty.lots.expires_at', '>', Moment::of($now))
+            ->groupBy('loyalty.lots.account_id')
+            ->select(['loyalty.lots.account_id'])
+            ->selectRaw('sum(loyalty.lots.points_left) as points');
+
+        $query = $this->db->table('loyalty.accounts')
+            ->leftJoinSub($live, 'live', 'live.account_id', '=', 'loyalty.accounts.id')
+            ->where('loyalty.accounts.store_id', strtolower($storeId))
+            ->select(['loyalty.accounts.id', 'loyalty.accounts.customer_id'])
+            ->selectRaw('coalesce(live.points, 0) as live_points')
+            // The newest entry, read through the history's own index, one account at a time.
+            ->selectRaw('(select max(e.occurred_at) from loyalty.entries e where e.account_id = loyalty.accounts.id) as last_at');
+
+        if ($customerIds !== null) {
+            $query->whereIn('loyalty.accounts.customer_id', array_map(strtolower(...), $customerIds));
+        }
+
+        if ($after !== null) {
+            $query->whereRaw('(coalesce(live.points, 0), loyalty.accounts.id) < (?, ?)', [$after[0], strtolower($after[1])]);
+        }
+
+        /** @var list<stdClass> $rows */
+        $rows = $query->orderByRaw('coalesce(live.points, 0) desc')->orderByDesc('loyalty.accounts.id')->limit($limit)->get()->all();
+
+        return array_map(
+            static fn (stdClass $row): HolderRow => new HolderRow(
+                (string) $row->id,
+                (string) $row->customer_id,
+                (int) $row->live_points,
+                $row->last_at === null ? null : new DateTimeImmutable((string) $row->last_at),
+            ),
+            $rows,
+        );
+    }
+
+    public function liveLotsOf(array $accountIds, DateTimeImmutable $now): array
+    {
+        if ($accountIds === []) {
+            return [];
+        }
+
+        /** @var list<stdClass> $rows */
+        $rows = $this->db->table('loyalty.lots')
+            ->join('loyalty.accounts', 'loyalty.accounts.id', '=', 'loyalty.lots.account_id')
+            ->whereIn('loyalty.lots.account_id', array_map(strtolower(...), $accountIds))
+            ->where('loyalty.lots.points_left', '>', 0)
+            ->where('loyalty.lots.expires_at', '>', Moment::of($now))
+            ->orderBy('loyalty.lots.expires_at')
+            ->orderBy('loyalty.lots.id')
+            ->get(['loyalty.lots.account_id', 'loyalty.accounts.store_id', 'loyalty.lots.points_left', 'loyalty.lots.expires_at'])
+            ->all();
+
+        return array_map(
+            static fn (stdClass $row): LiveLotRow => new LiveLotRow(
+                (string) $row->account_id,
+                (string) $row->store_id,
+                (int) $row->points_left,
+                new DateTimeImmutable((string) $row->expires_at),
+            ),
+            $rows,
+        );
+    }
+
+    public function accountsOf(string $customerId, array $storeIds): array
+    {
+        if ($storeIds === []) {
+            return [];
+        }
+
+        $accounts = [];
+
+        foreach ($this->db->table('loyalty.accounts')
+            ->where('customer_id', strtolower($customerId))
+            ->whereIn('store_id', array_map(strtolower(...), $storeIds))
+            ->get(['id', 'store_id']) as $row) {
+            /** @var stdClass $row */
+            $accounts[(string) $row->store_id] = (string) $row->id;
+        }
+
+        return $accounts;
     }
 
     /**

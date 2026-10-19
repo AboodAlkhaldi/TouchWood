@@ -127,7 +127,7 @@ final readonly class ShareStorefrontPage
     {
         $type = self::accountType($customer);
 
-        if ($type === null) {
+        if ($customer === null || $type === null) {
             return null;
         }
 
@@ -142,7 +142,8 @@ final readonly class ShareStorefrontPage
                     'label' => self::words($page->labelKey()),
                     'routeName' => $page->routeName,
                 ],
-                $this->accountPages->for($type),
+                // Less any page whose own condition says not now (amendment 72(d)).
+                $this->accountPages->offeredTo($type, (string) $customer['id']),
             ),
         ];
     }
