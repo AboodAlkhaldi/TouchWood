@@ -627,12 +627,11 @@ Owner, 2026-10-19 ("accept for all", after step 5's review):
    not read Promotions (§4.4). The owner's call when Content is specified: add Content → Promotions to
    the graph, or target pop-ups another way.
 5. **A guest trying a code in the cart** — Sales's spec asks it (their cart). Using one needs an account.
-6. **Finding customers to pick by hand for a segment** — a staff member must find a customer registered
-   in the store or who ordered there (§1.5; access.md amendment 70). `SetSegmentMembers` takes their
-   ids; the search itself waits on Access's text search among customers (`customerIdsMatching`, access.md
-   amendment 72, the screens session's PR #168, for the owner to merge). Then a Promotions read,
-   `SearchSegmentCandidates(segmentId, text)` — Access's matches kept to the segment's store or its order
-   facts, names only.
+6. ~~**Finding customers to pick by hand for a segment**~~ — **settled**: `SearchSegmentCandidates
+   (segmentId, text)` (2026-10-19, after access.md amendment 72): Access's `customerIdsMatching` — names
+   in any store, email and phone among the customers the staff member may view — kept to whom the
+   segment may hold (`SegmentMembership::eligible`, the rule a save enforces), by name only, at most 50,
+   each marked when already a member; `more` when there were more.
 7. ~~**A category's name and switch, read one at a time**~~ — **settled**: read in bulk through Stage 5's
    `categoriesWithPaths` (catalog.md amendment 23(c)) since step 7, with brands (amendment 27).
 8. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never

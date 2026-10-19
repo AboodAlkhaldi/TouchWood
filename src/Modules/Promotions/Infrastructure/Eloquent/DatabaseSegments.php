@@ -100,6 +100,15 @@ final readonly class DatabaseSegments implements Segments
         $this->segments(StoreId::fromString($segment->storeId))->where('id', $segment->id)->update(['refreshed_at' => Moment::of($at)]);
     }
 
+    public function membersAmong(string $segmentId, array $customerIds): array
+    {
+        if ($customerIds === []) {
+            return [];
+        }
+
+        return array_values(array_map(strval(...), $this->db->table('promotions.segment_members')->where('segment_id', $segmentId)->whereIn('customer_id', $customerIds)->pluck('customer_id')->all()));
+    }
+
     public function membersPage(string $segmentId, ?string $after, int $limit): array
     {
         return array_values(array_map(strval(...), $this->db->table('promotions.segment_members')

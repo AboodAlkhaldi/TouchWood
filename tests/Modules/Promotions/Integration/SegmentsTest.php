@@ -386,6 +386,11 @@ describe('creating, changing, deleting, refreshing', function () {
                 return $this->real->memberIds($segmentId);
             }
 
+            public function membersAmong(string $segmentId, array $customerIds): array
+            {
+                return $this->real->membersAmong($segmentId, $customerIds);
+            }
+
             public function replaceMembers(Segment $segment, array $customerIds, DateTimeImmutable $at): array
             {
                 return $segment->id === $this->failing ? throw new RuntimeException('Broken on purpose.') : $this->real->replaceMembers($segment, $customerIds, $at);
