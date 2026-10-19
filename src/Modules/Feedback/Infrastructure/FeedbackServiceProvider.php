@@ -10,7 +10,9 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
+use Modules\Feedback\Domain\Repository\Questions;
 use Modules\Feedback\Domain\Repository\Reviews;
+use Modules\Feedback\Infrastructure\Eloquent\DatabaseQuestions;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseReviews;
 use Modules\Feedback\Infrastructure\Eloquent\FeedbackCatalogUsage;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
@@ -30,6 +32,7 @@ final class FeedbackServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(Reviews::class, DatabaseReviews::class);
+        $this->app->bind(Questions::class, DatabaseQuestions::class);
     }
 
     public function boot(): void

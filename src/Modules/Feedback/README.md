@@ -15,6 +15,7 @@ Backend only in this stage's build; the screens are another session's.
 | F1 — foundation | The `feedback` schema; the eight permissions of spec §3 (every customer's four; reviews and questions under Access's new **Support** group, access.md amendment 73; wishlists under Customers; the admin-only ratings switch); Platform's `support` menu area (platform.md §9.4); the store setting `feedback.ratings.in_lists` (on by default); the errors of §7 in both languages | below |
 | F2 — reviews | The reviews and product ratings tables; writing a review (verified purchase through `SalesApi`, a store that sells the product — Catalog's `productsSoldIn`, catalog.md amendment 24 — once per product for ever); approving, rejecting, unpublishing (the writing store's staff, audited, the rating kept in the same transaction); `ReturnCompleted` flipping marks; Catalog's usage check for reviewed products and variants | below |
 | F3 — ratings in the shop's lists | Each approval and unpublishing pushes the product's rating into Catalog's listing (`ListingFacts::ratings`, catalog.md amendment 25), in the same transaction; the store's switch reaches Catalog on Platform's `SettingChanged` (`Review/RatingsSwitch`, read under the store's lock, a failure reported; `Infrastructure/Listener/TellCatalogOfRatingsSwitch`), and the repair `feedback:ratings:repush` (`Command/RepushRatings`, the system's reserved `feedback.ratings.repush`) tells it all again; Catalog shows the stars on cards and the weighted rating sort | below |
+| F4 — product questions | The questions table; `AskQuestion` (a signed-in customer, in an open store that sells the product, at most five waiting in all under a lock on the customer — answer 16); `AnswerQuestion`, `CorrectAnswer` (text only, who and when kept — answer 20), `RejectQuestion`, `UnpublishQuestion` (answer 18) by the staff of the store asked in, audited `feedback.question.answered` / `…answer_changed` / `…rejected` / `…unpublished`; Catalog's usage check counts questions | below |
 
 ## What is here
 
@@ -43,5 +44,5 @@ Backend only in this stage's build; the screens are another session's.
   FeedbackCatalogUsage`**: Catalog refuses to delete a product or variant a review names.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
-`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`);
+`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.

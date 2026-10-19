@@ -292,7 +292,7 @@ every kind column has a CHECK `IN (…)` (lessons 35, 162).
 (`store_id`, `status`, `created_at`, `id`) — a store's queue; the unique (`customer_id`, `product_id`)
 — "my reviews"; by `variant_id` — Catalog's check before deleting a variant;
 questions by (`product_id`, `status`, `answered_at` DESC, `id`), by (`store_id`,
-`status`, `created_at`, `id`) and by `customer_id` — "my questions"; wishlist items by (`store_id`,
+`status`, `created_at`, `id`) and by (`customer_id`, `status`) — "my questions" and the waiting count; wishlist items by (`store_id`,
 `product_id`) — the counts; by `customer_id`.
 
 ---
