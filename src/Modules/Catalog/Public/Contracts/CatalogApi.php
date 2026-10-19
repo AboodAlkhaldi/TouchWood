@@ -148,6 +148,14 @@ interface CatalogApi
     public function brands(array $brandIds): array;
 
     /**
+     * **Every brand switched on** (amendment 28, Promotions' screens): the choices of a coupon's rule
+     * picker, in the brands' own order (position, then name), one query.
+     *
+     * @return list<BrandDto>
+     */
+    public function activeBrands(): array;
+
+    /**
      * For Feedback — reviews, questions and the wishlist (amendment 24; feedback.md §9.1b, 19): **which of
      * these products the store sells now**, in one read — a ready product, not hidden with its category
      * or brand, not "Not available now" there, with at least one variant switched on there that is not

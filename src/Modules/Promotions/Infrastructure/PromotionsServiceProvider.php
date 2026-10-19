@@ -8,6 +8,8 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Platform\Public\Contracts\AdminMenu;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Promotions\Application\PromotionsApiImpl;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Application\Query\MarketingQueries;
@@ -24,6 +26,7 @@ use Modules\Promotions\Infrastructure\Eloquent\DatabaseOrderFacts;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseSegments;
 use Modules\Promotions\Infrastructure\Eloquent\PromotionsCatalogUsage;
 use Modules\Promotions\Infrastructure\Queue\RefreshSegmentsJob;
+use Modules\Promotions\Presentation\Http\Resource\CouponPages;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 
 /**
@@ -58,5 +61,20 @@ final class PromotionsServiceProvider extends ServiceProvider
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(RefreshSegmentsJob::class)->dailyAt('01:00')->onOneServer();
         });
+
+        /*
+        | The screens (§4.1). The Marketing menu offers each list to anyone holding any of the four
+        | Marketing jobs in some store - reading takes any of them (§3). What is offered is never what is
+        | allowed: every handler behind these asks again (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('promotions', 'coupons', 'marketing', 'promotions.admin.coupons', CouponPages::JOBS, 10, icon: 'coupons'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session,
+            // so it brings its own middleware rather than sharing the shop's group.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
     }
 }

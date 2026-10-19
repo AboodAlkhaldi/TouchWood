@@ -16,6 +16,7 @@ use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Shared\Infrastructure\Persistence\Ulids;
+use stdClass;
 
 /**
  * `ApiReads` in SQL: a variant list in two queries (its rows, then its values with their names), a
@@ -213,6 +214,21 @@ final readonly class DatabaseApiReads implements ApiReads
         }
 
         return $found;
+    }
+
+    public function activeBrands(): array
+    {
+        // In the brands' own order, as Catalog's brands screen shows them.
+        return array_values(array_map(
+            static fn (stdClass $row): BrandDto => new BrandDto((string) $row->id, (string) $row->name_ar, (string) $row->name_en, true),
+            $this->db->table('catalog.brands')
+                ->where('is_active', true)
+                ->orderBy('position')
+                ->orderBy('name_en')
+                ->orderBy('id')
+                ->get(['id', 'name_ar', 'name_en'])
+                ->all(),
+        ));
     }
 
     public function productsSoldIn(string $storeId, array $productIds): array

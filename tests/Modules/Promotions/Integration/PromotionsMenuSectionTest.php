@@ -14,7 +14,7 @@ use function Pest\Laravel\seed;
 
 /*
 | The admin menu's Marketing section (promotions.md §2, platform.md §9.4; handoff §14). Promotions
-| registers no entry yet — its screens come later — so the section is proved on a menu of the test's
+| registers its own entries now (§4.1), but the section's order is proved on a menu of the test's
 | own, leaving the application's untouched.
 */
 
