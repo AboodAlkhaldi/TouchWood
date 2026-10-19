@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\AddCartLine;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\QueryException;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
@@ -23,7 +24,9 @@ use Shared\Application\Unauthorized;
  * A size into the cart (sales.md §1.1): **permissive** — any size Catalog has, in either mode, any
  * quantity from 1 to 1,000,000; the quote checks the rest. Added to a line of the same size and mode
  * when there is one. **One exception, the account's own view** (owner, 2026-10-19, answer 32): a
- * signed-in individual never buys wholesale. A guest's first line creates the guest (`GuestIdentity`).
+ * signed-in individual never buys wholesale. A guest's first line makes the guest — only once it has
+ * passed every check (`CartBuyer::ensureGuest`). A size Catalog deletes between the check and the line
+ * is refused as no size, never a database error.
  */
 final readonly class AddCartLineHandler
 {
@@ -43,12 +46,11 @@ final readonly class AddCartLineHandler
      */
     public function handle(AddCartLine $command): void
     {
-        // Authorized in CartBuyer for this buyer before any input is read, and asked again here.
-        [$store, $customerId, $guestId, $accountType] = $this->buyer->of($command->storeId, true);
+        [$store, $customerId, $guestId, $accountType] = $this->buyer->of($command->storeId);
+        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
         $variantId = CartInputs::variant($command->variantId);
         $mode = CartInputs::mode($command->saleMode);
         $quantity = CartInputs::quantity($command->quantity);
-        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
 
         if ($mode === SaleMode::Wholesale && $accountType === AccountType::Individual) {
             throw new NotForYourAccount;
@@ -58,10 +60,20 @@ final readonly class AddCartLineHandler
             throw new InvalidSalesAttribute('variant', 'not a size');
         }
 
-        $this->db->transaction(function () use ($store, $customerId, $guestId, $variantId, $mode, $quantity): void {
-            $now = CarbonImmutable::now();
-            $cart = $this->carts->lockOrCreate($store, $customerId, $guestId, $now);
-            $this->carts->add($cart->id, $variantId, $mode, $quantity, $now);
-        });
+        $guestId = $customerId === null ? ($guestId ?? $this->buyer->ensureGuest()) : null;
+
+        try {
+            $this->db->transaction(function () use ($store, $customerId, $guestId, $variantId, $mode, $quantity): void {
+                $now = CarbonImmutable::now();
+                $cart = $this->carts->lockOrCreate($store, $customerId, $guestId, $now);
+                $this->carts->add($cart->id, $variantId, $mode, $quantity, $now);
+            });
+        } catch (QueryException $failed) {
+            if ($failed->getCode() === '23503' && str_contains($failed->getMessage(), 'cart_lines_variant')) {
+                throw new InvalidSalesAttribute('variant', 'removed from the catalog meanwhile');
+            }
+
+            throw $failed;
+        }
     }
 }

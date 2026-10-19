@@ -20,7 +20,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * A cart line's quantity (sales.md §1.1): from 1 to 1,000,000 — none is `RemoveCartLine` — of a line the
- * cart has; a signed-in individual never sets a wholesale one (answer 32).
+ * cart has, under the cart's lock; a signed-in individual never sets a wholesale one (answer 32). No
+ * cart is ever made here.
  */
 final readonly class ChangeCartLineHandler
 {
@@ -39,27 +40,20 @@ final readonly class ChangeCartLineHandler
      */
     public function handle(ChangeCartLine $command): void
     {
-        [$store, $customerId, $guestId, $accountType] = $this->buyer->of($command->storeId, false);
+        [$store, $customerId, $guestId, $accountType] = $this->buyer->of($command->storeId);
+        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
         $variantId = CartInputs::variant($command->variantId);
         $mode = CartInputs::mode($command->saleMode);
         $quantity = CartInputs::quantity($command->quantity);
-        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
 
         if ($mode === SaleMode::Wholesale && $accountType === AccountType::Individual) {
             throw new NotForYourAccount;
         }
 
-        $changed = $customerId === null && $guestId === null ? false : $this->db->transaction(function () use ($store, $customerId, $guestId, $variantId, $mode, $quantity): bool {
-            $cart = $this->carts->find($store, $customerId, $guestId);
+        $changed = ($customerId !== null || $guestId !== null) && $this->db->transaction(function () use ($store, $customerId, $guestId, $variantId, $mode, $quantity): bool {
+            $cart = $this->carts->lock($store, $customerId, $guestId);
 
-            if ($cart === null) {
-                return false;
-            }
-
-            $now = CarbonImmutable::now();
-            $this->carts->lockOrCreate($store, $customerId, $guestId, $now);
-
-            return $this->carts->change($cart->id, $variantId, $mode, $quantity, $now);
+            return $cart !== null && $this->carts->change($cart->id, $variantId, $mode, $quantity, CarbonImmutable::now());
         });
 
         if (! $changed) {

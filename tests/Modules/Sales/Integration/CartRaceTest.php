@@ -96,3 +96,48 @@ it('makes one cart of two first lines at once, the second waiting for the first'
     expect(DB::table('sales.carts')->count())->toBe(1)
         ->and(DB::table('sales.cart_lines')->count())->toBe(2);
 })->skip(fn (): bool => cartRaceInParallel(), 'Empties its database: run serially.');
+
+it('lets a change to a cart that exists wait for the one before it, and lose nothing', function () {
+    ['variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+    $sara = Fx::customer();
+    $store = StoreId::fromString(Fx::storeId('sa'));
+    $first = DB::connection();
+    $second = DB::connection('cart_race');
+    $mine = new DatabaseCarts($first);
+    $theirs = new DatabaseCarts($second);
+    $first->transaction(fn () => $mine->lockOrCreate($store, $sara, null, CarbonImmutable::now()));
+    $second->statement("SET lock_timeout = '500ms'");
+
+    $first->beginTransaction();
+
+    try {
+        $cart = $mine->lockOrCreate($store, $sara, null, CarbonImmutable::now());
+        $mine->add($cart->id, $sixty, SaleMode::Retail, 1, CarbonImmutable::now());
+
+        // The cart is there: the second gets past its insert at once and waits on the row's lock.
+        $waited = null;
+
+        try {
+            $second->transaction(fn () => $theirs->lockOrCreate($store, $sara, null, CarbonImmutable::now()));
+        } catch (QueryException $timedOut) {
+            $waited = $timedOut;
+        }
+
+        expect($waited?->getCode())->toBe('55P03')
+            ->and(strtolower((string) $waited?->getSql()))->toContain('for update');
+
+        $first->commit();
+    } catch (Throwable $failed) {
+        $first->rollBack();
+
+        throw $failed;
+    }
+
+    $second->transaction(function () use ($theirs, $store, $sara, $eighty): void {
+        $cart = $theirs->lockOrCreate($store, $sara, null, CarbonImmutable::now());
+        $theirs->add($cart->id, $eighty, SaleMode::Retail, 1, CarbonImmutable::now());
+    });
+
+    expect(DB::table('sales.carts')->count())->toBe(1)
+        ->and(DB::table('sales.cart_lines')->count())->toBe(2);
+})->skip(fn (): bool => cartRaceInParallel(), 'Empties its database: run serially.');

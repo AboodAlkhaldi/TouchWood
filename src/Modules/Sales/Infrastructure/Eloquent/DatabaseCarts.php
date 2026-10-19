@@ -32,8 +32,22 @@ final readonly class DatabaseCarts implements Carts
         return $row instanceof stdClass ? $this->toCart($row) : null;
     }
 
+    public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart
+    {
+        $row = $this->buyer($store, $customerId, $guestId)->lockForUpdate()->first();
+
+        return $row instanceof stdClass ? $this->toCart($row) : null;
+    }
+
     public function lockOrCreate(StoreId $store, ?string $customerId, ?string $guestId, DateTimeImmutable $at): Cart
     {
+        // The cart that is there, locked: no insert tried, which would wait on its row lock too.
+        $existing = $this->lock($store, $customerId, $guestId);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
         // Two first lines at once: one row, the other insert ignored on the buyer's key.
         $this->db->table('sales.carts')->insertOrIgnore([
             'id' => strtolower((string) Str::ulid()),
@@ -49,12 +63,12 @@ final readonly class DatabaseCarts implements Carts
         return $row instanceof stdClass ? $this->toCart($row) : throw new LogicException('A cart just written is not there.');
     }
 
-    public function add(string $cartId, string $variantId, SaleMode $mode, int $quantity, DateTimeImmutable $at): void
+    public function add(string $cartId, string $variantId, SaleMode $mode, int $quantity, DateTimeImmutable $at, ?DateTimeImmutable $addedAt = null): void
     {
         $this->db->statement(
             'INSERT INTO sales.cart_lines (cart_id, variant_id, sale_mode, quantity, added_at) VALUES (?, ?, ?, ?, ?)'
             .' ON CONFLICT (cart_id, variant_id, sale_mode) DO UPDATE SET quantity = LEAST(sales.cart_lines.quantity + EXCLUDED.quantity, ?)',
-            [$cartId, $variantId, $mode->value, min($quantity, CartLine::MOST), Moment::of($at), CartLine::MOST],
+            [$cartId, $variantId, $mode->value, min($quantity, CartLine::MOST), Moment::of($addedAt ?? $at), CartLine::MOST],
         );
         $this->touch($cartId, $at);
     }
@@ -79,7 +93,8 @@ final readonly class DatabaseCarts implements Carts
 
     public function setCoupon(string $cartId, ?string $code, DateTimeImmutable $at): void
     {
-        $this->db->table('sales.carts')->where('id', $cartId)->update(['coupon_code' => $code, 'updated_at' => Moment::of($at)]);
+        // A change ends the notice of what left at sign-in, as every change of the cart does.
+        $this->db->table('sales.carts')->where('id', $cartId)->update(['coupon_code' => $code, 'updated_at' => Moment::of($at), 'notice' => null]);
     }
 
     public function setNotice(string $cartId, array $notice, DateTimeImmutable $at): void
@@ -100,11 +115,6 @@ final readonly class DatabaseCarts implements Carts
         ));
     }
 
-    public function giveToCustomer(string $cartId, string $customerId, DateTimeImmutable $at): void
-    {
-        $this->db->table('sales.carts')->where('id', $cartId)->update(['customer_id' => $customerId, 'guest_id' => null, 'updated_at' => Moment::of($at)]);
-    }
-
     public function delete(string $cartId): void
     {
         $this->db->table('sales.carts')->where('id', $cartId)->delete();
@@ -112,7 +122,10 @@ final readonly class DatabaseCarts implements Carts
 
     public function deleteForCustomer(string $customerId): int
     {
-        return $this->db->table('sales.carts')->where('customer_id', $customerId)->delete();
+        // Locked first, as a change takes them: a line being added at that moment finishes, then goes too.
+        $ids = $this->db->table('sales.carts')->where('customer_id', $customerId)->lockForUpdate()->pluck('id')->all();
+
+        return $ids === [] ? 0 : $this->db->table('sales.carts')->whereIn('id', $ids)->delete();
     }
 
     public function deleteUntouchedSince(DateTimeImmutable $before): int

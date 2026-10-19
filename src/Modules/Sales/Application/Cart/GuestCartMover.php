@@ -18,11 +18,14 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A guest who signed in or registered (sales.md §1.1; access.md §1.7): each of the guest's carts, in
- * every store, **moves** to the customer — or, where the customer already has a cart there, **merges**
- * into it, the same size and mode adding their quantities (my assumption, accepted with the spec). Then
- * the lines the account may not buy **leave, each with why**: wholesale for an individual (answer 32),
- * and products in categories the store keeps from the account's kind (owner, 2026-10-10). A company
- * keeps its wholesale lines. Done once however often told: the guest's carts are gone after the first.
+ * every store, **merges** into the customer's cart there — made now when they have none, so a newly
+ * registered account's carts are the guest's moved — the same size and mode adding their quantities,
+ * each line keeping when it was added (my assumption, accepted with the spec). The customer's cart is
+ * locked or made under its own key, so a line the customer adds on another device at that moment is
+ * never lost and never makes a second cart. Then the lines the account may not buy **leave, each with
+ * why**: wholesale for an individual (answer 32), and products in categories the store keeps from the
+ * account's kind (owner, 2026-10-10). A company keeps its wholesale lines. Done once however often told:
+ * the guest's carts are gone after the first.
  */
 final readonly class GuestCartMover
 {
@@ -49,31 +52,26 @@ final readonly class GuestCartMover
 
             foreach ($this->carts->lockGuestCarts(strtolower($guestId)) as $guestCart) {
                 $store = StoreId::fromString($guestCart->storeId);
-                $existing = $this->carts->find($store, $customerId, null);
+                $target = $this->carts->lockOrCreate($store, $customerId, null, $now);
 
-                if ($existing === null) {
-                    $this->carts->giveToCustomer($guestCart->id, $customerId, $now);
-                    $target = $guestCart->id;
-                } else {
-                    $target = $this->carts->lockOrCreate($store, $customerId, null, $now)->id;
-
-                    foreach ($guestCart->lines as $line) {
-                        $this->carts->add($target, $line->variantId, $line->mode, $line->quantity, $now);
-                    }
-
-                    $this->carts->delete($guestCart->id);
+                foreach ($guestCart->lines as $line) {
+                    $this->carts->add($target->id, $line->variantId, $line->mode, $line->quantity, $now, $line->addedAt);
                 }
 
-                $merged = $this->carts->find($store, $customerId, null);
+                $this->carts->delete($guestCart->id);
+                $merged = $this->carts->lock($store, $customerId, null);
 
                 if ($merged !== null) {
-                    $this->removeWhatTheyMayNotBuy($merged, $store, $kind, $now);
+                    $this->removeWhatTheyMayNotBuy($merged, $target->notice, $store, $kind, $now);
                 }
             }
         });
     }
 
-    private function removeWhatTheyMayNotBuy(Cart $cart, StoreId $store, ShopperKind $kind, CarbonImmutable $now): void
+    /**
+     * @param  list<RemovedLine>  $earlier  what the customer's cart was still telling before the merge
+     */
+    private function removeWhatTheyMayNotBuy(Cart $cart, array $earlier, StoreId $store, ShopperKind $kind, CarbonImmutable $now): void
     {
         if ($cart->lines === []) {
             return;
@@ -89,9 +87,14 @@ final readonly class GuestCartMover
         $removed = [];
 
         foreach ($cart->lines as $line) {
+            // A size Catalog deleted this moment: its lines go with it (the key cascades), nothing to tell.
+            if (! isset($productOf[$line->variantId])) {
+                continue;
+            }
+
             $reason = match (true) {
                 $line->mode === SaleMode::Wholesale && $kind === ShopperKind::Individual => RemovedLine::WHOLESALE,
-                ! isset($open[$productOf[$line->variantId] ?? '']) => RemovedLine::NOT_FOR_YOUR_ACCOUNT,
+                ! isset($open[$productOf[$line->variantId]]) => RemovedLine::NOT_FOR_YOUR_ACCOUNT,
                 default => null,
             };
 
@@ -102,7 +105,7 @@ final readonly class GuestCartMover
         }
 
         if ($removed !== []) {
-            $this->carts->setNotice($cart->id, [...$cart->notice, ...$removed], $now);
+            $this->carts->setNotice($cart->id, [...$earlier, ...$removed], $now);
         }
     }
 }

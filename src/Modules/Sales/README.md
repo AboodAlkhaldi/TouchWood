@@ -29,6 +29,15 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   title and a message in Arabic and English at `sales::errors.{snake}`.
 - **`Public/Events`** — the critical events (handoff §4.5), ids only, after commit; published through the
   outbox once it exists (step S2).
+- **The cart** (S4): `Domain/Model/{Cart,CartLine,RemovedLine}`, `Domain/Repository/Carts` with SQL in
+  `Infrastructure/Eloquent/DatabaseCarts` (a change locks the cart's row first; the first line of a buyer
+  made under the buyer's own key, so two at once make one cart); `Application/Cart/CartBuyer` (who the
+  cart is — the customer, or the guest this browser is, made only once a first line passed every check),
+  `CartInputs`; the commands `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon`,
+  `EmptyOldCarts` (the system's, nightly through `Infrastructure/Queue/EmptyOldCartsJob`);
+  `Application/Cart/GuestCartMover` behind `Infrastructure/Listener/MoveGuestCart` (synchronous, never
+  failing a sign-in) and `ForgetCustomerCarts` (queued).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`.
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`; the outbox's in
+`tests/Shared/Integration/Outbox*Test`.

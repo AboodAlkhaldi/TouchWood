@@ -16,8 +16,8 @@ use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 
 /**
- * A line off the cart (sales.md §1.1): nothing when the cart has none — a guest with no cart yet
- * included.
+ * A line off the cart (sales.md §1.1), under the cart's lock: nothing when the cart has none — a guest
+ * with no cart yet included. No cart and no guest is ever made here.
  */
 final readonly class RemoveCartLineHandler
 {
@@ -36,23 +36,21 @@ final readonly class RemoveCartLineHandler
      */
     public function handle(RemoveCartLine $command): void
     {
-        [$store, $customerId, $guestId] = $this->buyer->of($command->storeId, false);
+        [$store, $customerId, $guestId] = $this->buyer->of($command->storeId);
+        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
         $variantId = CartInputs::variant($command->variantId);
         $mode = CartInputs::mode($command->saleMode);
-        $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
 
         if ($customerId === null && $guestId === null) {
             return;
         }
 
         $this->db->transaction(function () use ($store, $customerId, $guestId, $variantId, $mode): void {
-            if ($this->carts->find($store, $customerId, $guestId) === null) {
-                return;
-            }
+            $cart = $this->carts->lock($store, $customerId, $guestId);
 
-            $now = CarbonImmutable::now();
-            $cart = $this->carts->lockOrCreate($store, $customerId, $guestId, $now);
-            $this->carts->remove($cart->id, $variantId, $mode, $now);
+            if ($cart !== null) {
+                $this->carts->remove($cart->id, $variantId, $mode, CarbonImmutable::now());
+            }
         });
     }
 }

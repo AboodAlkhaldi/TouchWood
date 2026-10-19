@@ -20,9 +20,10 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Who a cart belongs to (sales.md §1.1): the signed-in customer, under `sales.cart.manage`; or the guest
- * this browser is, under `sales.guest_cart.manage` — the guest's id created with the first line (Access's
- * `GuestIdentity`, access.md amendment 74), never on a mere look. Anyone else has no cart. In an open
- * store only: an off store is as if it were never there (platform.md §1.6).
+ * this browser is, under `sales.guest_cart.manage` — the guest's id made only by `ensureGuest`, once a
+ * first line has passed every check (access.md amendment 74: a refused or idle visit makes no guest).
+ * Anyone else has no cart. In an open store only: an off store is as if it were never there
+ * (platform.md §1.6).
  */
 final readonly class CartBuyer
 {
@@ -35,13 +36,14 @@ final readonly class CartBuyer
     ) {}
 
     /**
-     * The store asked about, its permission checked for this buyer, and the buyer.
+     * The store asked about, its permission checked for this buyer, and the buyer — a guest's id only
+     * when the browser already has one.
      *
      * @return array{StoreId, ?string, ?string, ?AccountType} the store, the customer or the guest, and the customer's account type
      *
      * @throws Unauthorized|InvalidSalesAttribute
      */
-    public function of(string $storeId, bool $create): array
+    public function of(string $storeId): array
     {
         try {
             $store = StoreId::fromString($storeId);
@@ -57,6 +59,10 @@ final readonly class CartBuyer
         };
         $this->authorizer->authorize($permission, PermissionScope::store($store));
 
+        if ($actor->type === ActorType::Customer && $actor->id === null) {
+            throw new Unauthorized($permission);
+        }
+
         if (! ($this->platform->store($store)->isActive ?? false)) {
             throw new InvalidSalesAttribute('store', 'no such store open');
         }
@@ -67,6 +73,12 @@ final readonly class CartBuyer
             return [$store, $customerId, null, $this->access->customer($customerId)?->accountType];
         }
 
-        return [$store, null, $create ? $this->guests->ensure() : $this->guests->current(), null];
+        return [$store, null, $this->guests->current(), null];
+    }
+
+    /** The guest this browser is, made now — its cookie sent with the answer — when it has none. */
+    public function ensureGuest(): string
+    {
+        return $this->guests->ensure();
     }
 }

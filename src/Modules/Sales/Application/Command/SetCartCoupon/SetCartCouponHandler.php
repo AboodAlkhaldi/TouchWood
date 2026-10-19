@@ -37,7 +37,7 @@ final readonly class SetCartCouponHandler
      */
     public function handle(SetCartCoupon $command): void
     {
-        [$store, $customerId, $guestId] = $this->buyer->of($command->storeId, false);
+        [$store, $customerId, $guestId] = $this->buyer->of($command->storeId);
 
         if ($customerId === null) {
             throw new SignInToUseCoupon;

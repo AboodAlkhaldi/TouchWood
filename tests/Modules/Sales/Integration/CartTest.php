@@ -10,6 +10,7 @@ use Illuminate\Contracts\Cookie\QueueingFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\GuestIdentity;
@@ -327,4 +328,87 @@ it('empties the carts no one touched for 90 days each night, as the system only'
     expect($nightly?->onOneServer)->toBeTrue();
     $nightly?->run(app());
     Queue::assertPushed(EmptyOldCartsJob::class, 1);
+});
+
+describe('what the review asked for', function () {
+    it('makes no guest for an add it refuses', function () {
+        cartAsGuest();
+
+        expect(cartRefused(fn () => cartAdd('not-a-size'))->attribute)->toBe('variant')
+            ->and(cartRefused(fn () => cartAdd(strtolower((string) Str::ulid())))->attribute)->toBe('variant')
+            ->and(app(GuestIdentity::class)->current())->toBeNull()
+            ->and(app(QueueingFactory::class)->getQueuedCookies())->toBe([]);
+    });
+
+    it('never lets a signed-in individual set a wholesale line, and refuses staff every change', function () {
+        ['variants' => [$sixty]] = Px::ready();
+        Fx::actAsCustomer(Fx::customer());
+        expect(fn () => app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $sixty, 'WHOLESALE', 2)))->toThrow(NotForYourAccount::class);
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        expect(fn () => app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $sixty, 'RETAIL', 2)))->toThrow(Unauthorized::class)
+            ->and(fn () => app(RemoveCartLineHandler::class)->handle(new RemoveCartLine(Fx::storeId('sa'), $sixty, 'RETAIL')))->toThrow(Unauthorized::class)
+            ->and(fn () => app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15')))->toThrow(Unauthorized::class);
+    });
+
+    it('caps a merge at 1,000,000, keeps each line\'s time, and moves a cart of a store switched off since', function () {
+        ['variants' => [$sixty]] = Px::ready(['60 cm'], null);
+        $sara = Fx::customer();
+        Fx::actAsCustomer($sara);
+        cartAdd($sixty, quantity: 600_000);
+        cartAsGuest();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->subDay());
+        cartAdd($sixty, quantity: 600_000);
+        cartAdd($sixty, storeCode: 'eg');
+        CarbonImmutable::setTestNow();
+        $guest = (string) app(GuestIdentity::class)->current();
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        event(new GuestBecameCustomer((string) Str::uuid(), $guest, $sara, GuestBecameCustomer::SIGNED_IN, CarbonImmutable::now()));
+
+        expect(cartLines(cartOf($sara, null)))->toBe([[$sixty, 'RETAIL', 1_000_000]])
+            ->and(DB::table('sales.carts')->whereNull('guest_id')->count())->toBe(2)
+            ->and(DB::table('sales.carts')->whereNotNull('guest_id')->count())->toBe(0);
+    });
+
+    it('ends the notice with any change of the cart: a quantity, a removal, a coupon', function (Closure $change) {
+        $hidden = Px::category('Trade only');
+        ['variants' => [$open]] = Px::ready(['60 cm']);
+        ['variants' => [$closed]] = Px::ready(['60 cm'], $hidden);
+        DB::table('catalog.store_category_audiences')->insert(['store_id' => Fx::storeId('sa'), 'category_id' => $hidden, 'for_individuals' => false, 'for_companies' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $sara = Fx::customer();
+        cartAsGuest();
+        cartAdd($open);
+        cartAdd($closed);
+        event(new GuestBecameCustomer((string) Str::uuid(), (string) app(GuestIdentity::class)->current(), $sara, GuestBecameCustomer::REGISTERED, CarbonImmutable::now()));
+        expect(cartOf($sara, null)?->notice)->toHaveCount(1);
+
+        Fx::actAsCustomer($sara);
+        $change($open);
+
+        expect(cartOf($sara, null)?->notice)->toBe([]);
+    })->with([
+        'a quantity' => [fn (string $v) => app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $v, 'RETAIL', 3))],
+        'a removal' => [fn (string $v) => app(RemoveCartLineHandler::class)->handle(new RemoveCartLine(Fx::storeId('sa'), $v, 'RETAIL'))],
+        'a coupon' => [fn () => app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'))],
+    ]);
+
+    it('never fails a sign-in: a move that fails is reported and the guest\'s carts stay', function () {
+        Exceptions::fake();
+        ['variants' => [$sixty]] = Px::ready();
+        $sara = Fx::customer();
+        cartAsGuest();
+        cartAdd($sixty);
+        $guest = (string) app(GuestIdentity::class)->current();
+        $real = app(Carts::class);
+        $failing = Mockery::mock(Carts::class);
+        $failing->shouldReceive('lockGuestCarts')->andThrow(new RuntimeException('The cart is away.'));
+        app()->instance(Carts::class, $failing);
+
+        event(new GuestBecameCustomer((string) Str::uuid(), $guest, $sara, GuestBecameCustomer::SIGNED_IN, CarbonImmutable::now()));
+
+        Exceptions::assertReported(RuntimeException::class);
+        app()->instance(Carts::class, $real);
+        expect(cartLines(cartOf(null, $guest)))->toBe([[$sixty, 'RETAIL', 1]]);
+    });
 });
