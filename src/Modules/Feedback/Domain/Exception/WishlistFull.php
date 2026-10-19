@@ -13,7 +13,7 @@ final class WishlistFull extends FeedbackError
 {
     public function __construct()
     {
-        parent::__construct('Your wishlist already holds 500 products.');
+        parent::__construct('Your wishlist already holds 500 items.');
     }
 
     public function type(): string

@@ -23,7 +23,7 @@ it('names a product or variant key broken meanwhile as the product', function (s
     $named = RemovedMeanwhile::of(feedbackFailedWith('23503', "violates foreign key constraint \"{$constraint}\""));
 
     expect($named instanceof InvalidFeedbackAttribute ? $named->attribute : null)->toBe('product');
-})->with(['reviews_product', 'reviews_variant', 'questions_product']);
+})->with(['reviews_product', 'reviews_variant', 'questions_product', 'wishlist_items_product']);
 
 it('leaves any other database error as it is', function (string $sqlState, string $message) {
     $failed = feedbackFailedWith($sqlState, $message);
