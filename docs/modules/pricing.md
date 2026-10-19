@@ -448,7 +448,8 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
   **Stay**. Show More and the drawer keep the boxes.
 - **A batch** is one command (`SetRetailPrice`, `SetStock`): all saved or none. **A refusal marks its rows
   (Q2)**: the commands' errors carry the sizes they concern (`variants`), `App\Http\FormErrors` passes them
-  on as `errors.rows` (size id → message), each marked row shows its message under its box, focus moves to
+  on as one key a row - `errors["rows.<size id>"]`, the message (Inertia hands a page each key's first
+  message, so a nested map can't travel) - read with `lib/row-errors.ts`, each marked row shows its message under its box, focus moves to
   the first; nothing is saved; the other boxes keep what was typed. A refusal about no row (the store off,
   wired since) shows at the top and reloads the page's actions.
 - **After a save**: the toast; the rows reload (they show any change another person made meanwhile);
@@ -461,7 +462,8 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
 **Money and numbers**
 - Every amount reaches the page **already written** by the server (S4) - `Money::format` with the store's
   decimals, Latin digits, then the currency's sign where set, else its letters (ر.س / SAR; frontend.md
-  §1.8, HANDOFF §5.1) - as `MoneyData {text, minor}`. In `<bdi dir="ltr">`, Geist figures (`tw-figure`).
+  §1.8, HANDOFF §5.1) - as Platform's public `MoneyData {text, minor}` (`MoneyData::of(Money, StoreDto,
+  locale)`), drawn by `components/Money.tsx`. In `<bdi dir="ltr">`, Geist figures (`tw-figure`).
 - **A price box**: `TextField` + `input-group`, `inputMode="decimal"`, `dir="ltr"`, the currency's letters
   after it; `toLatinDigits` as typed; checked as typed with **the store's decimals** (`checks.ts` `number:
   {decimals, min}`): "Price must be a number like 149.50." (the example in the store's decimals), "Price
@@ -477,7 +479,8 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
 - Shown with `Time` in the store's zone ("in 3 days"; the full moment on hover; on a detail page the full
   moment).
 - **Typed (Q4)** with a date (shadcn `Calendar` in a `Popover`, as `DateRangeField` uses it) and a time box
-  (24-hour HH:MM), the store's zone named beside ("Riyadh time"); sent as ISO 8601 with the store's offset.
+  (24-hour HH:MM), the store's zone named beside it in the browser's own words for it ("Saudi Arabia
+  Time") - `components/DateTimeField.tsx`; sent as ISO 8601 with the store's offset.
   A start offers **Now** (the default; sends no start) and refuses a past moment as typed ("Start must be
   now or later."); a start that passes while the dialog is open is taken as now by the server, said under
   it: "Starts when saved if this time has passed." An end is optional (**No End**), after the start ("End
