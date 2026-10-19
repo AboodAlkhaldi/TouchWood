@@ -335,7 +335,7 @@ Pricing, icon `sync` (Lucide's `RefreshCw`):
 
 | Query | Answers |
 |---|---|
-| `SyncStatus` (new, S8; `sync.report.view`) | the provider's name, the state with its reason, **Last Read** - the newest finished read of any kind - and **Last Full Read** (Q29), a read waiting or running (its kind and start) |
+| `SyncStatus` (new, S8; `sync.report.view`) | the provider's name, the state with its reason, **Last Read** - the newest read that finished successfully, of any kind (owner, 2026-10-19: option A - a failed read shows as Failing with its reason, never as the last read) - and **Last Full Read** (Q29), a read waiting or running (its kind and start) |
 | `ViewSyncReport` (extended) | each entry's size values; for a stopped sale or a skipped discount its description and whether it still exists (Pricing's `salesNamed`, `discountsNamed`) (Q37) |
 | `ListSyncReads` (extended) | who asked, by name (Platform's `StaffNames`) (Q36); a failed read's changes counted from its lines (Q30) |
 | `ViewSyncRead` (extended) | each section paged on its own (`?section=&page=`), the codes asked for as a section, 100 a page (Q32); the read's store code |
@@ -369,8 +369,10 @@ controllers and page data, the menu's two entries and the words; the pages are p
   (`reason`) - the audit log shows a module's values as recorded, never phrased. **The budget, in its
   worst case** (an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several
   askers): the page's sizes are read once and handed to Pricing's `salesNamed` (pricing.md §2.1), and every
-  store's wiring and waiting Sync Now reads are one query - each page's own queries: Problems 12, Reads 5, a
-  read 8, its Stock 8, its Reported 13, Provider 8.
+  store's wiring and waiting Sync Now reads are one query - each page's own queries, for a reader of one store
+  and for a Super Admin alike: Problems 12, Reads 5, a read 8, its Stock 8, its Reported 13, Provider 5. (The
+  frame's Low Stock count, counted live until a store's count is kept, asks Sync's `StoreWiring` binding; it is
+  the frame's, not the page's, and is left out as Inventory's own test leaves it out.)
 
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 
@@ -379,8 +381,9 @@ controllers and page data, the menu's two entries and the words; the pages are p
   more to follow; disabled only while a Now read already waits: "A read is already waiting." (Q26) →
   "Read queued".
 - **The status line** (`SyncStatus`), above the tabs: the provider ("Odoo"), the state badge, "Last read 12
-  minutes ago" and "Last full read last night at 02:00" (`Time`), and when one waits or runs: "A read is
-  running, started 2 minutes ago." **Failing**: a red `Note` - "The provider said: …" - and "Press Sync Now
+  minutes ago" - the newest read that finished successfully, of any kind (owner, 2026-10-19: option A - a
+  failed read shows as Failing with its reason, never as the last read) - and "Last full read last night at
+  02:00" (`Time`), and when one waits or runs: "A read is running, started 2 minutes ago." **Failing**: a red `Note` - "The provider said: …" - and "Press Sync Now
   once the provider is back."
 - **A store not wired** (Q35): the status line **Not Wired** - "This store is not wired to a provider." - with
   **Wire Store** for a Super Admin (Y3); **no Problems tab**: the page shows Reads (kept 90 days),

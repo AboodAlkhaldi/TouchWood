@@ -531,8 +531,16 @@ describe('the budget\'s worst case (the review of step 6)', function () {
             'reads' => syncShownQueries(static fn () => [$status(), $actions(), app(ListSyncReadsHandler::class)->handle(new ListSyncReads($sa))]),
             'read reported' => syncShownQueries(static fn () => [$actions(), app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED))]),
         ];
+        // The same reads by a Super Admin: every store, every link.
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $superCounts = [
+            'problems' => syncShownQueries(static fn () => [$status(), $actions(), app(ViewSyncReportHandler::class)->handle(new ViewSyncReport($sa))]),
+            'reads' => syncShownQueries(static fn () => [$status(), $actions(), app(ListSyncReadsHandler::class)->handle(new ListSyncReads($sa))]),
+            'read reported' => syncShownQueries(static fn () => [$actions(), app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED))]),
+        ];
 
-        expect(DB::table('sync.report_entries')->whereNull('closed_at')->orderBy('kind')->pluck('kind')->all())->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
+        expect($superCounts)->toBe(['problems' => 12, 'reads' => 5, 'read reported' => 12])
+            ->and(DB::table('sync.report_entries')->whereNull('closed_at')->orderBy('kind')->pluck('kind')->all())->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
             ->and(DB::table('sync.reads')->whereNotNull('requested_by_id')->distinct()->count('requested_by_id'))->toBe(4)
             ->and(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a read that grows is seen.

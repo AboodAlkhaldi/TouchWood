@@ -1066,7 +1066,7 @@ product in a store with no provider, and only for stock-dependent sizes in a sto
 | Q26 | Sync Now while a read runs | **Allowed** - one more read follows it; disabled only while a Now read already waits | The first spec said disabled while one runs |
 | Q27 | Retry on "Offer Stopped" and "Off or Draft" | **Not offered** (a read never closes them); **Open Offer** / **Open Product** instead | Today Retry is accepted and changes nothing |
 | Q28 | The closing word | **"Dismiss Entry"** for every kind | "Leave it" was the off-or-draft word |
-| Q29 | "Last read" | **The newest finished read of any kind**, and **Last full read** beside it | Today's field is the last hourly or full read's start |
+| Q29 | "Last read" | **The newest read that finished successfully, of any kind (owner, 2026-10-19: option A - a failed read shows as Failing with its reason, never as the last read)**, and **Last full read** beside it | Today's field is the last hourly or full read's start |
 | Q30 | A failed read's counts | **Counted from what it wrote** | Today a failed read shows 0 |
 | Q31 | Failure text on an Arabic page | **Sync's own reasons kept as codes and written in both languages**; the provider's reason shown as it came, under "The provider said:" | Today English text is stored |
 | Q32 | A read's page | **Each section a tab with its own paging** (Prices, Stock, Reported, Codes Asked) | Today one page number pages all three |

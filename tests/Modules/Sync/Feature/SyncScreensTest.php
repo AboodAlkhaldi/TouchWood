@@ -17,6 +17,7 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Inventory\Application\Stock\LowStockCount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
@@ -174,8 +175,10 @@ function syncScreensErrors(TestResponse $response): array
 
 /**
  * How many queries the page asks for itself, opened a second time (warm): those made while Sync's own code
- * runs - the panel's frame counted apart, the report's count beside the menu entry with it - and never the
- * cache's rows.
+ * runs - the panel's frame counted apart, the report's count beside the menu entry with it, and Low Stock's
+ * beside its own (a Super Admin's menu): counted live while no count is kept yet (the queue is faked), it
+ * asks Sync's `StoreWiring` binding, so its queries pass through Sync's files without being the page's -
+ * as Inventory's own test leaves them out - and never the cache's rows.
  */
 function syncScreensOwnQueries(AdminBrowser $browser, string $uri): int
 {
@@ -191,7 +194,7 @@ function syncScreensOwnQueries(AdminBrowser $browser, string $uri): int
         $frames = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 
         foreach ($frames as $frame) {
-            if (($frame['class'] ?? '') === SyncReportCount::class) {
+            if (in_array($frame['class'] ?? '', [SyncReportCount::class, LowStockCount::class], true)) {
                 return;
             }
         }
@@ -409,7 +412,7 @@ describe('the menu and the budget', function () {
 
         expect(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a page that grows is seen.
-            ->and($counts)->toBe(['problems' => 4, 'reads' => 5, 'read' => 8, 'read reported' => 5, 'provider' => 8]);
+            ->and($counts)->toBe(['problems' => 4, 'reads' => 5, 'read' => 8, 'read reported' => 5, 'provider' => 5]);
     });
 
     it('reads each page\'s own queries within 15 in the worst case: an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several askers', function () {
@@ -424,10 +427,20 @@ describe('the menu and the budget', function () {
             'read reported' => syncScreensOwnQueries($browser, "/admin/sync/reads/{$read}?section=reported"),
         ];
         $counts['provider'] = syncScreensOwnQueries(syncScreensSuper(), '/admin/sync/provider');
+        // The same pages read by a Super Admin: every store offered, every link drawn.
+        $super = syncScreensSuper();
+        $superCounts = [
+            'problems' => syncScreensOwnQueries($super, '/admin/sync'),
+            'reads' => syncScreensOwnQueries($super, '/admin/sync?tab=reads'),
+            'read' => syncScreensOwnQueries($super, "/admin/sync/reads/{$read}"),
+            'read stock' => syncScreensOwnQueries($super, "/admin/sync/reads/{$read}?section=stock"),
+            'read reported' => syncScreensOwnQueries($super, "/admin/sync/reads/{$read}?section=reported"),
+        ];
 
         expect($kinds)->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
-            ->and(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
+            ->and(array_filter([...array_values($counts), ...array_values($superCounts)], static fn (int $count): bool => $count > 15))->toBe([])
+            ->and($superCounts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13])
             // Measured, so a page that grows is seen.
-            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13, 'provider' => 8]);
+            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13, 'provider' => 5]);
     });
 });
