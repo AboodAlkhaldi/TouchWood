@@ -11,14 +11,14 @@ use Modules\Feedback\Application\Command\ApproveReview\ApproveReview;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReviewHandler;
 use Modules\Feedback\Application\Command\RejectReview\RejectReview;
 use Modules\Feedback\Application\Command\RejectReview\RejectReviewHandler;
+use Modules\Feedback\Application\Command\RepushRatings\RepushRatings;
+use Modules\Feedback\Application\Command\RepushRatings\RepushRatingsHandler;
 use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReview;
 use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReviewHandler;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
-use Modules\Feedback\Application\Command\RepushRatings\RepushRatings;
-use Modules\Feedback\Application\Command\RepushRatings\RepushRatingsHandler;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
@@ -114,4 +114,3 @@ it('tells Catalog again every store\'s switch and every rating when the repair r
         ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('eg'))->value('shown'))->toBeFalse()
         ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('sa'))->value('shown'))->toBeTrue();
 });
-
