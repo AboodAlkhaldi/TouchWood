@@ -236,6 +236,17 @@ My assumption, stated for the owner to reject: two active levels of one store wi
 for overlapping audiences and dates, are refused — one amount, one gift. Saving a level locks the
 store's levels first, so two saved at once cannot both pass that check.
 
+A level already ended never clashes — it gives no gift again — so an ended level left switched on
+does not block a new one; extending its dates is checked again (owner, 2026-10-19, answer 26).
+
+**"Over 1,000" counts an order of exactly 1,000** — a level is reached when the goods total is at
+least its amount, `amount <= goods_total` (owner, 2026-10-19, answer 27).
+
+**A change checks only a new gift** (owner, 2026-10-19, answer 28),
+as a change checks only a coupon's new list entries (answer 22) — a level whose variant was archived
+since keeps it, so changing its dates is never blocked; Sales finds it out of stock and goes a level
+down.
+
 Gift levels sit in the admin menu's **Marketing** section beside Coupons and Segments (handoff §14
 lists only those two; gifts are Promotions' too). My assumption, stated for the owner to reject.
 
@@ -312,7 +323,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | Pricing | The cart's prices: each line's variant, `mode`, `unit`, `listUnit` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
 | Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)`. Today `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories. Catalog's amendment, numbered when it lands |
 | Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exists (`CatalogApi::product`, `variant`); categories and brands by the same addition |
-| Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `CouponRulesUsage` (its gift levels with step 5) |
+| Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `PromotionsCatalogUsage` — its coupons' lists, and its gift levels' variants (step 5) |
 | Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **Built** (access.md amendment 70, Promotions step 4a): `AccessApi::customerIdsInStore` and `AccessApi::customers` — a fixed number of queries however many |
 | Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **Recorded in access.md amendment 70**: Promotions decides who ordered in a store (its order facts) and reads the name through `customers()`; its segment screens show the name only (step 6) |
 | Access | The permission catalog, and **a `Marketing` permission group** — the admin menu's "Marketing" section (handoff §14: Coupons · Segments) | Catalog exists; **the group is an Access addition** (and `marketing` in Platform's menu groups), built with Promotions — the same as Loyalty's Points section (loyalty.md §2.3). My assumption, following the owner's answer for Points |
@@ -347,6 +358,20 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 |---|---|
 | A store's coupons (with their uses — each by the order's **public number**, never its id, handoff §5.3), segments (with their members' names, §1.5) and gift levels | `promotions.marketing.view` (per store) — or any of the three manage permissions |
 | **My coupons** in a store, in the account centre: those assigned to me and still usable | `promotions.coupon.view_own` — every customer, their own only |
+
+Built in step 6 (`Application/Query`): `ListCoupons` (newest first; by state now — §4 — and by the
+start of the code), `ViewCoupon` (its lists named through Catalog, how many customers have it),
+`ListCouponUses` (the order's public number, the customer's name), `ListCouponAssignments` (name,
+segment, uses) — a page at a time by keyset, 50 at most; names through `AccessApi::customers` in one
+call. A store switched off is read by Super Admins alone, as it is changed (§1.8). Then
+`ListSegments` (newest first, with how many each holds), `ListSegmentMembers` (the name only, by
+customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
+bulk reads, whether it gives its gift now) and, for the customer, `ViewMyCoupons` (the coupons given
+to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
+first; a store switched off has none). My assumption, stated for the owner to reject: **"usable" leaves
+out what depends on the cart or the buyer** — sale mode, the minimum (shown on the row), and whether
+the customer is now an individual or a company (Promotions never reads B2B; checkout says why a coupon
+takes nothing).
 
 **The permissions Promotions declares** — every name has three parts, as Access requires
 (`InMemoryPermissionCatalog::NAME`):
@@ -409,7 +434,10 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 **Indexes:** coupons by (`store_id`, `code`) (the UNIQUE); coupon uses by (`coupon_id`, `customer_id`)
 — uses per customer; order facts by (`store_id`, `customer_id`, `placed_at`) — the segment rules;
 assignments by `customer_id` — "my coupons"; segment members by `customer_id`; gift levels by
-(`store_id`, `amount_minor` DESC).
+(`store_id`, `amount_minor` DESC). For the staff screens' pages (step 6): coupons by (`store_id`,
+`created_at` DESC, `id` DESC); uses by (`coupon_id`, `used_at` DESC, `id` DESC); assignments by
+(`coupon_id`, `assigned_at` DESC, `customer_id` DESC); segments by (`store_id`, `created_at` DESC,
+`id` DESC).
 
 ---
 
@@ -577,6 +605,15 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 25. **An assigned coupon is not made public while customers have it** — staff remove the assignments
     first, or make a new public coupon; its customers never silently lose or regain it (§1.4).
 
+Owner, 2026-10-19 ("accept for all", after step 5's review):
+
+26. **A gift level already ended never clashes** with another — an ended level left switched on does
+    not block a new one; extending its dates is checked again (§1.7).
+27. **A level is reached at exactly its amount** — "over 1,000" counts an order of 1,000
+    (`amount <= goods_total`, §1.7).
+28. **A change of a gift level checks only a new gift** against Catalog, as answer 22 for a coupon's
+    lists (§1.7).
+
 ### 9.2 Still open
 
 1. **Bundles / kits** — their own spec after stage 6: what a bundle is (Catalog), its price (Pricing),
@@ -592,7 +629,8 @@ Each extends `PromotionsError`, which extends `Shared\Domain\Error\DomainError`.
 6. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
    deleted, an unused one deleted with its assignments; unused assignments removable; anonymized
    customers leaving segments; two levels with one amount refused; gift levels in the Marketing
-   section; an off store's promotions for Super Admins only.
+   section; an off store's promotions for Super Admins only. (The three gift-level picks of step 5 are
+   settled: §9.1, answers 26–28.)
 
 ### 9.3 The independent review of the draft (2026-10-08/09)
 

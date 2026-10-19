@@ -35,7 +35,49 @@ final class FormErrors
             throw $error;
         }
 
-        return redirect()->back()->withInput($request->only($keep))->withErrors(['form' => self::message($error)]);
+        $message = self::message($error);
+        $errors = ['form' => $message];
+
+        foreach (array_keys(self::rows($error, $message)) as $row) {
+            $errors["rows.{$row}"] = $message;
+        }
+
+        return redirect()->back()->withInput($request->only($keep))->withErrors($errors);
+    }
+
+    /**
+     * **The rows a batch refusal concerns** (pricing.md §4.3.1, Q2): a command that saves many sizes
+     * at once - prices, counts - refuses them all, and its error names the sizes it is about in its
+     * `variants` context, comma-separated. Each is passed to the page as `errors["rows.{id}"]`, beside
+     * `errors.form`, so the screen marks those rows - their message under their box - and keeps what
+     * was typed in the others. A refusal naming no size has none.
+     *
+     * Flat keys, not a nested `errors.rows`: Inertia hands a page the first message of each key, and a
+     * key holding a map of messages has no first one (`resources/js/lib/row-errors.ts` reads them back).
+     *
+     * @return array<string, string> size id => its message
+     */
+    public static function rows(DomainError $error, ?string $message = null): array
+    {
+        $named = $error->context()['variants'] ?? null;
+
+        if (! is_string($named) || trim($named) === '') {
+            return [];
+        }
+
+        $message ??= self::message($error);
+        $rows = [];
+
+        foreach (explode(',', $named) as $id) {
+            $id = trim($id);
+
+            // An id is a size's: letters and digits only, so it can never break the key it is put in.
+            if (preg_match('/\A[0-9A-Za-z]{1,64}\z/', $id) === 1) {
+                $rows[$id] = $message;
+            }
+        }
+
+        return $rows;
     }
 
     /**

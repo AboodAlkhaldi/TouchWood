@@ -20,6 +20,7 @@ final class StoreCardData extends Data
      * @param  bool  $chosen  whether the store ever chose the product: until then only Switch On is offered
      * @param  list<string>  $labelIds  the labels it carries there, in the labels' order
      * @param  list<StoreVariantData>  $variants  the variants the store has a row for
+     * @param  list<StoreSectionData>  $sections  the modules' parts of the card (amendment 23(e)), in the order registered
      */
     public function __construct(
         public string $storeId,
@@ -38,5 +39,6 @@ final class StoreCardData extends Data
         public bool $maySell,
         public bool $mayUnavailable,
         public bool $mayLabel,
+        public array $sections = [],
     ) {}
 }

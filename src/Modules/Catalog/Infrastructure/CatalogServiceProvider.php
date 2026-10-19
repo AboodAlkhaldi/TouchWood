@@ -12,6 +12,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Application\Api\ApiSearches;
 use Modules\Catalog\Application\CatalogApiImpl;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\ImportArchives;
@@ -20,6 +21,7 @@ use Modules\Catalog\Application\Import\Imports;
 use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Listing\ListingRows;
+use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
@@ -41,6 +43,7 @@ use Modules\Catalog\Domain\Repository\WarrantyRepository;
 use Modules\Catalog\Domain\Repository\WordPairRepository;
 use Modules\Catalog\Infrastructure\Cache\VersionedShopPagesCache;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiReads;
+use Modules\Catalog\Infrastructure\Eloquent\DatabaseApiSearches;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseAttributeRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseBrandRepository;
 use Modules\Catalog\Infrastructure\Eloquent\DatabaseCatalogListReads;
@@ -75,6 +78,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
+use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
@@ -122,10 +126,15 @@ final class CatalogServiceProvider extends ServiceProvider
         // its store files (§2.2, §2.3): bound for stage 5, the first to call them (amendment 16(i)).
         $this->app->bind(CatalogApi::class, CatalogApiImpl::class);
         $this->app->bind(ApiReads::class, DatabaseApiReads::class);
+        // Stage 5's store-wide screens: sizes and products paged in Catalog's order (amendment 23).
+        $this->app->bind(ApiSearches::class, DatabaseApiSearches::class);
         $this->app->bind(ListingFacts::class, DatabaseListingFacts::class);
         // One registry for the whole application: the modules above register from their providers.
         $this->app->singleton(InMemoryImportSections::class);
         $this->app->alias(InMemoryImportSections::class, ImportSections::class);
+        // The product page's store sections (amendment 23(e)): one registry, the modules above register.
+        $this->app->singleton(InMemoryProductStoreSections::class);
+        $this->app->alias(InMemoryProductStoreSections::class, ProductStoreSections::class);
         // The modules that hold on to Catalog's items, asked before a delete (amendment 19).
         $this->app->singleton(InMemoryCatalogUsages::class);
         $this->app->alias(InMemoryCatalogUsages::class, CatalogUsages::class);

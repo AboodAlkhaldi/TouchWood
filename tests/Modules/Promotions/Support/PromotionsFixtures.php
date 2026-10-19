@@ -169,6 +169,26 @@ final class PromotionsFixtures
         return $id;
     }
 
+    /**
+     * A gift level of the store, switched on, for everyone, no dates, unless told otherwise — written
+     * straight into its table, as a coupon is here.
+     *
+     * @param  array<string, mixed>  $with  columns of promotions.gift_levels
+     */
+    public static function giftLevel(string $variantId, int $amountMinor, string $storeCode = 'sa', array $with = []): string
+    {
+        $id = strtolower((string) Str::ulid());
+        $now = CarbonImmutable::now();
+
+        DB::table('promotions.gift_levels')->insert([
+            'id' => $id, 'store_id' => Fx::storeId($storeCode), 'amount_minor' => $amountMinor, 'currency_code' => self::currency($storeCode),
+            'variant_id' => $variantId, 'for_public' => true, 'for_company' => true, 'starts_at' => null, 'ends_at' => null,
+            'active' => true, 'created_at' => $now, 'updated_at' => $now, ...$with,
+        ]);
+
+        return $id;
+    }
+
     /** A placed order's fact, as `recordOrder` writes it, placed some time ago. */
     public static function ordered(string $customerId, CarbonImmutable $placedAt, string $storeCode = 'sa'): string
     {

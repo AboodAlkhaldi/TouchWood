@@ -8,10 +8,11 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
- * The audit entries of staff changes to coupons and segments (promotions.md §3):
+ * The audit entries of staff changes to coupons, segments and gift levels (promotions.md §3):
  * `promotions.coupon.created`, `…updated`, `…deactivated`, `…activated`, `…deleted`, `…assigned`,
  * `…assignment_removed`; `promotions.segment.created`, `…updated`, `…deleted`, `…members_set`,
- * `…refreshed` — each with what changed, attribute by attribute.
+ * `…refreshed`; `promotions.gift_level.created`, `…updated`, `…deactivated`, `…activated` — each with
+ * what changed, attribute by attribute.
  */
 final class CouponAudit
 {
