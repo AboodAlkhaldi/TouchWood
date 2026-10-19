@@ -49,8 +49,11 @@ export function CouponStateBadge({ state }: { state: string }) {
     );
 }
 
-/** What a coupon takes off, in words: "15%, up to 100.00 SAR", "25.00 SAR off". */
-export function useDiscountWords(): (kind: string, percent: number | null, amount: Money | null, cap: Money | null) => string {
+/**
+ * What a coupon takes off, in words: "15%, up to 100.00 SAR" on the panel's lists (§4.1 M1); for a
+ * shopper (`shopper`), "15% off, up to 100.00 SAR". A fixed amount says "25.00 SAR off" for both.
+ */
+export function useDiscountWords(shopper = false): (kind: string, percent: number | null, amount: Money | null, cap: Money | null) => string {
     const t = useTranslator();
     const locale = useLocale();
 
@@ -62,7 +65,7 @@ export function useDiscountWords(): (kind: string, percent: number | null, amoun
         const share = `${figure(locale, percent ?? 0)}%`;
 
         return cap === null
-            ? t('promotions::discounts.percent', { percent: isolate(share) })
-            : t('promotions::discounts.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
+            ? t(shopper ? 'promotions::discounts.percent_off' : 'promotions::discounts.percent', { percent: isolate(share) })
+            : t(shopper ? 'promotions::discounts.percent_cap_off' : 'promotions::discounts.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
     };
 }

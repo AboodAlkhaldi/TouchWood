@@ -7,4 +7,7 @@ return [
     'percent' => ':percent',
     'percent_cap' => ':percent, up to :cap',
     'fixed' => ':amount off',
+    // For a shopper (the account's Coupons tab).
+    'percent_off' => ':percent off',
+    'percent_cap_off' => ':percent off, up to :cap',
 ];

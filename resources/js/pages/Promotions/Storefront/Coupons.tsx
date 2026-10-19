@@ -49,7 +49,7 @@ export default function Coupons({ coupons }: MyCouponsPage) {
 function CouponCard({ coupon }: { coupon: MyCouponData }) {
     const t = useTranslator();
     const locale = useLocale();
-    const discount = useDiscountWords();
+    const discount = useDiscountWords(true);
     const moments = useMoments();
 
     return (
