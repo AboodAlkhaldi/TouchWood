@@ -25,7 +25,7 @@ use Shared\Application\StoreContext;
 final readonly class MyCouponsController
 {
     /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'promotions::shop_coupons', 'promotions::admin_coupons', 'promotions::errors'];
+    private const array WORDS = [...StorefrontArea::WORDS, 'promotions::shop_coupons', 'promotions::discounts', 'promotions::errors'];
 
     public function __construct(
         private Page $page,

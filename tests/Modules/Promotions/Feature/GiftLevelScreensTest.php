@@ -192,5 +192,5 @@ it('reads the page in a fixed few queries, the same for one level as for six', f
     }
 
     expect($count())->toBe($one)
-        ->and($one)->toBe(6);
+        ->and($one)->toBe(9);
 });

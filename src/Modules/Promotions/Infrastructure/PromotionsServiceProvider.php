@@ -72,7 +72,7 @@ final class PromotionsServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('promotions', 'coupons', 'marketing', 'promotions.admin.coupons', CouponPages::JOBS, 10, icon: 'coupons'),
             new MenuEntryDto('promotions', 'segments', 'marketing', 'promotions.admin.segments', CouponPages::JOBS, 20, icon: 'segments'),
-            new MenuEntryDto('promotions', 'gift_levels', 'marketing', 'promotions.admin.gift_levels', CouponPages::JOBS, 30, icon: 'gift_levels'),
+            new MenuEntryDto('promotions', 'gift_levels', 'marketing', 'promotions.admin.gift_levels', CouponPages::JOBS, 30, icon: 'gifts'),
         );
 
         // The account's Coupons tab in the shop, always offered (§4.1 M5, owner's Q12): no extra query on

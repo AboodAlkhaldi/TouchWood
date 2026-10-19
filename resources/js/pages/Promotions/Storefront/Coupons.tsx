@@ -1,11 +1,12 @@
 import { CopyButton } from '@/components/geist-only/CopyButton';
 import { useMoments } from '@/components/Time';
-import { Amount, useDiscountWords, useLocale } from '@/components/promotions/parts';
+import { useDiscountWords, useLocale } from '@/components/promotions/parts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { AccountLayout } from '@/layouts/AccountLayout';
 import { isolate } from '@/lib/bidi';
 import { figure } from '@/lib/digits';
+import { formatMoney } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
 import type { MyCouponData, MyCouponsPage } from '@/types/generated/Modules/Promotions/Presentation/Http/Resource';
 
@@ -65,9 +66,7 @@ function CouponCard({ coupon }: { coupon: MyCouponData }) {
             <CardContent className="grid gap-1 px-5 text-copy-14 text-ink-muted">
                 <p className="text-label-14 text-ink">{discount(coupon.discountKind, coupon.percent, coupon.amount, coupon.cap)}</p>
                 {coupon.minimum === null ? null : (
-                    <p>
-                        {t('promotions::shop_coupons.minimum')} <Amount value={coupon.minimum} />
-                    </p>
+                    <p>{t('promotions::shop_coupons.minimum', { amount: isolate(formatMoney(coupon.minimum, locale)) })}</p>
                 )}
                 <p>
                     {coupon.endsAt === null ? t('promotions::shop_coupons.no_end') : t('promotions::shop_coupons.ends', { date: isolate(moments.date(coupon.endsAt)) })}

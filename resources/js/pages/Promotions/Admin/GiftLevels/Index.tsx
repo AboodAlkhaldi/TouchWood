@@ -4,12 +4,13 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { StoreFilter } from '@/components/StoreFilter';
-import { Time } from '@/components/Time';
+import { Time, useMoments } from '@/components/Time';
 import { Amount, Unknown } from '@/components/promotions/parts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { isolate } from '@/lib/bidi';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { GiftLevelData, GiftLevelsPage } from '@/types/generated/Modules/Promotions/Presentation/Http/Resource';
@@ -29,6 +30,7 @@ export default function Index(page: GiftLevelsPage) {
     const t = useTranslator();
     const [editing, setEditing] = useState<GiftLevelData | 'new' | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
+    const moments = useMoments();
     const newButton = (test: string) =>
         page.mayManage ? (
             <Button type="button" onClick={() => setEditing('new')} data-test={test}>
@@ -101,9 +103,7 @@ export default function Index(page: GiftLevelsPage) {
                                                             {level.endsAt === null ? (
                                                                 t('promotions::admin_gifts.list.no_end')
                                                             ) : (
-                                                                <>
-                                                                    {t('promotions::admin_gifts.list.until')} <Time value={level.endsAt} />
-                                                                </>
+                                                                t('promotions::admin_gifts.list.until', { date: isolate(moments.date(level.endsAt)) })
                                                             )}
                                                         </span>
                                                     </>
@@ -117,7 +117,7 @@ export default function Index(page: GiftLevelsPage) {
                                             {page.mayManage ? (
                                                 <TableCell className="text-end">
                                                     <div className="flex justify-end gap-2">
-                                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(level)} data-test={`edit-${level.id}`}>
+                                                        <Button type="button" size="sm" variant="outline" aria-label={t('promotions::admin_gifts.list.edit_named', { amount: isolate(level.amountText) })} onClick={() => setEditing(level)} data-test={`edit-${level.id}`}>
                                                             {`${t('promotions::admin_gifts.list.edit')}…`}
                                                         </Button>
                                                         <ActionButton
@@ -125,6 +125,7 @@ export default function Index(page: GiftLevelsPage) {
                                                             size="sm"
                                                             variant="outline"
                                                             loading={busy === level.id}
+                                                            aria-label={t(level.active ? 'promotions::admin_gifts.list.turn_off_named' : 'promotions::admin_gifts.list.turn_on_named', { amount: isolate(level.amountText) })}
                                                             data-test={`switch-${level.id}`}
                                                             onClick={() =>
                                                                 router.post(`/admin/gift-levels/${level.id}/switch`, { active: !level.active }, { preserveScroll: true, onStart: () => setBusy(level.id), onFinish: () => setBusy(null) })

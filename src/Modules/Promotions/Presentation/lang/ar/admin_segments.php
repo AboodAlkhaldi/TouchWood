@@ -29,8 +29,13 @@ return [
     ],
     'rule' => [
         'NO_ORDERS_EVER' => 'لم يطلبوا قط',
-        'NO_ORDER_FOR' => 'لا طلب منذ :months شهرًا',
-        'AT_LEAST_ORDERS' => ':orders طلبات على الأقل خلال :months شهرًا',
+        'NO_ORDER_FOR' => 'لا طلب منذ :months',
+        'AT_LEAST_ORDERS' => 'على الأقل :orders خلال :months',
+    ],
+    // أعداد القاعدة بصيغة الجمع المناسبة.
+    'count' => [
+        'months' => ['zero' => ':count شهر', 'one' => 'شهر واحد', 'two' => 'شهرين', 'few' => ':count أشهر', 'many' => ':count شهرًا', 'other' => ':count شهر'],
+        'orders' => ['zero' => ':count طلب', 'one' => 'طلب واحد', 'two' => 'طلبين', 'few' => ':count طلبات', 'many' => ':count طلبًا', 'other' => ':count طلب'],
     ],
     'rule_choice' => [
         'NO_ORDERS_EVER' => 'لم يطلبوا قط من هذا المتجر',
@@ -69,6 +74,7 @@ return [
         'col_added' => 'تاريخ الإضافة',
         'col_actions' => 'الإجراءات',
         'remove' => 'إزالة',
+        'remove_named' => 'إزالة :name',
         'keep' => 'إبقاء',
     ],
     'pick' => [
@@ -91,6 +97,14 @@ return [
         'discard' => 'تجاهل التغييرات',
         'save' => 'حفظ الأعضاء',
         'nothing_changed' => 'لم يتغير شيء.',
+        'lost' => [
+            'zero' => 'لن يضيع أي تغيير.',
+            'one' => 'سيضيع تغيير واحد على الأعضاء.',
+            'two' => 'سيضيع تغييران على الأعضاء.',
+            'few' => 'ستضيع :count تغييرات على الأعضاء.',
+            'many' => 'سيضيع :count تغييرًا على الأعضاء.',
+            'other' => 'سيضيع :count تغيير على الأعضاء.',
+        ],
     ],
     'toast' => [
         'created' => 'أُنشئت الشريحة.',

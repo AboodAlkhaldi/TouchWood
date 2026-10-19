@@ -11,30 +11,30 @@ use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Promotions\Application\Command\ChangeSegment\ChangeSegment;
 use Modules\Promotions\Application\Command\ChangeSegment\ChangeSegmentHandler;
+use Modules\Promotions\Application\Command\ChangeSegmentMembers\ChangeSegmentMembers;
+use Modules\Promotions\Application\Command\ChangeSegmentMembers\ChangeSegmentMembersHandler;
 use Modules\Promotions\Application\Command\CreateSegment\CreateSegment;
 use Modules\Promotions\Application\Command\CreateSegment\CreateSegmentHandler;
 use Modules\Promotions\Application\Command\DeleteSegment\DeleteSegment;
 use Modules\Promotions\Application\Command\DeleteSegment\DeleteSegmentHandler;
 use Modules\Promotions\Application\Command\RefreshSegment\RefreshSegment;
 use Modules\Promotions\Application\Command\RefreshSegment\RefreshSegmentHandler;
-use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
-use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Application\Query\ListSegmentMembers\ListSegmentMembersHandler;
 use Modules\Promotions\Application\Query\ListSegments\ListSegmentsHandler;
 use Modules\Promotions\Application\Query\SearchSegmentCandidates\SearchSegmentCandidatesHandler;
 use Modules\Promotions\Application\Query\ViewSegment\ViewSegment;
 use Modules\Promotions\Application\Query\ViewSegment\ViewSegmentHandler;
-use Modules\Promotions\Application\Query\ViewSegmentMemberIds\ViewSegmentMemberIds;
-use Modules\Promotions\Application\Query\ViewSegmentMemberIds\ViewSegmentMemberIdsHandler;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Presentation\Http\Resource\SegmentPages;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Text\LatinDigits;
+use Shared\Domain\ValueObject\StoreId;
 
 /*
 | Promotions' segment screens (promotions.md §4.1 M3): the store's segments, one segment's page with
@@ -137,29 +137,31 @@ final readonly class SegmentsController
         return back()->with('status', __('promotions::admin_segments.toast.refreshed', ['count' => number_format($count)]));
     }
 
-    /** Delete Segment…; back to the list. */
-    public function destroy(Request $request, string $segment, DeleteSegmentHandler $handler): RedirectResponse
+    /** Delete Segment…; back to the list of the segment's own store. */
+    public function destroy(Request $request, string $segment, ViewSegmentHandler $view, PlatformApi $platform, DeleteSegmentHandler $handler): RedirectResponse
     {
         try {
+            $store = $platform->store(StoreId::fromString($view->handle(new ViewSegment($segment))->storeId));
             $handler->handle(new DeleteSegment($segment));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
 
-        return redirect(self::LIST)->with('status', __('promotions::admin_segments.toast.deleted'));
+        return redirect(self::LIST.($store === null ? '' : '?store='.rawurlencode($store->code)))->with('status', __('promotions::admin_segments.toast.deleted'));
     }
 
     /**
      * Save Members (a segment picked by hand, owner's Q8): the customers added and removed on the page,
-     * merged into the segment's whole list as it is now, which `SetSegmentMembers` then takes whole.
+     * merged by `ChangeSegmentMembers` under the segment's own lock - two managers saving at once each
+     * keep their changes, and a member no longer eligible never blocks a save.
      */
-    public function members(Request $request, string $segment, ViewSegmentMemberIdsHandler $ids, SetSegmentMembersHandler $handler): RedirectResponse
+    public function members(Request $request, string $segment, ChangeSegmentMembersHandler $handler): RedirectResponse
     {
-        return self::act($request, function () use ($request, $segment, $ids, $handler): void {
-            $removed = array_flip(self::ids($request, 'remove'));
-            $kept = array_filter($ids->handle(new ViewSegmentMemberIds($segment)), static fn (string $id): bool => ! isset($removed[$id]));
-            $handler->handle(new SetSegmentMembers($segment, array_values(array_unique([...$kept, ...self::ids($request, 'add')]))));
-        }, 'promotions::admin_segments.toast.members');
+        return self::act(
+            $request,
+            fn () => $handler->handle(new ChangeSegmentMembers($segment, self::ids($request, 'add'), self::ids($request, 'remove'))),
+            'promotions::admin_segments.toast.members',
+        );
     }
 
     /**

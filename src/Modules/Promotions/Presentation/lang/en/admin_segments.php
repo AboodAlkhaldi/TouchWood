@@ -29,8 +29,13 @@ return [
     ],
     'rule' => [
         'NO_ORDERS_EVER' => 'Never ordered',
-        'NO_ORDER_FOR' => 'No order in :months months',
-        'AT_LEAST_ORDERS' => 'At least :orders orders in :months months',
+        'NO_ORDER_FOR' => 'No order in :months',
+        'AT_LEAST_ORDERS' => 'At least :orders in :months',
+    ],
+    // A rule's counts, in the page's plural form.
+    'count' => [
+        'months' => ['zero' => ':count months', 'one' => ':count month', 'two' => ':count months', 'few' => ':count months', 'many' => ':count months', 'other' => ':count months'],
+        'orders' => ['zero' => ':count orders', 'one' => ':count order', 'two' => ':count orders', 'few' => ':count orders', 'many' => ':count orders', 'other' => ':count orders'],
     ],
     'rule_choice' => [
         'NO_ORDERS_EVER' => 'Never ordered in this store',
@@ -69,6 +74,7 @@ return [
         'col_added' => 'Added',
         'col_actions' => 'Actions',
         'remove' => 'Remove',
+        'remove_named' => 'Remove :name',
         'keep' => 'Keep',
     ],
     'pick' => [
@@ -91,6 +97,14 @@ return [
         'discard' => 'Discard Changes',
         'save' => 'Save Members',
         'nothing_changed' => 'Nothing has changed.',
+        'lost' => [
+            'zero' => 'No change will be lost.',
+            'one' => 'One change to the members will be lost.',
+            'two' => ':count changes to the members will be lost.',
+            'few' => ':count changes to the members will be lost.',
+            'many' => ':count changes to the members will be lost.',
+            'other' => ':count changes to the members will be lost.',
+        ],
     ],
     'toast' => [
         'created' => 'Segment created.',

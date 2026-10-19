@@ -9,7 +9,7 @@ return [
     'empty' => 'No coupons for you right now.',
     'how' => 'Type the code at checkout. Whether it applies to your cart is checked there.',
     'copy' => 'Copy coupon code',
-    'minimum' => 'Minimum order:',
+    'minimum' => 'Minimum order: :amount',
     'ends' => 'Ends on :date',
     'no_end' => 'No end date',
     'uses_left' => 'Uses left: :count',

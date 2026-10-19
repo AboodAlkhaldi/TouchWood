@@ -65,7 +65,12 @@ it('makes a rule segment from its dialog and opens its page', function () {
         ->click('[data-test="save-segment"]');
 
     expect(browserUntil($page, "location.pathname.startsWith('/admin/segments/')"))->toBeTrue();
-    $page->assertSee($name)->assertSee('No order in 6 months');
+    // The count is isolated inside the sentence (invisible marks around it), so read in parts.
+    $page->assertSee($name)->assertSee('No order in')->assertSee('6 months');
+
+    // The segment's page at a phone's width: nothing scrolls sideways.
+    $page->resize(375, 812);
+    expect((string) $page->script('document.documentElement.scrollWidth > document.documentElement.clientWidth ? "wide" : ""'))->toBe('');
 });
 
 it('draws Gift Levels and the shop\'s Coupons tab at a phone\'s width with nothing scrolling sideways', function () {

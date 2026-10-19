@@ -2,8 +2,7 @@ import { useForm } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { PanelDialog } from '@/components/PanelDialog';
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Choice } from '@/components/promotions/fields';
 import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
@@ -62,10 +61,9 @@ export function SegmentDialog({ open, onOpenChange, storeCode, segment }: Props)
             }));
             const done = {
                 preserveScroll: true,
-                onSuccess: () => {
-                    form.reset();
-                    onOpenChange(false);
-                },
+                // The saved values become the form's own (Inertia keeps the page's state): no reset here, or
+                // the next Edit… would open on the names from before (the review).
+                onSuccess: () => onOpenChange(false),
             };
 
             if (segment === undefined) {
@@ -125,7 +123,7 @@ export function SegmentDialog({ open, onOpenChange, storeCode, segment }: Props)
                                 { value: 'INDIVIDUAL', label: t('promotions::admin_segments.audience.INDIVIDUAL') },
                                 { value: 'COMPANY', label: t('promotions::admin_segments.audience.COMPANY') },
                             ]}
-                            hint={t('promotions::admin_segments.form.fixed')}
+                            reason={t('promotions::admin_segments.form.fixed')}
                             error={errors.audience}
                         />
                     </>
@@ -152,35 +150,5 @@ export function SegmentDialog({ open, onOpenChange, storeCode, segment }: Props)
                 ) : null}
             </div>
         </PanelDialog>
-    );
-}
-
-function Choice({ name, legend, value, onChange, options, hint, error }: { name: string; legend: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; hint?: string; error?: string }) {
-    const described = [hint === undefined ? null : `${name}-hint`, error === undefined ? null : `${name}-error`].filter(Boolean).join(' ') || undefined;
-
-    return (
-        <FieldSet>
-            <FieldLegend className="text-label-14 text-ink">{legend}</FieldLegend>
-            <RadioGroup name={name} value={value} onValueChange={onChange} className="gap-2" aria-describedby={described} aria-invalid={error === undefined ? undefined : true}>
-                {options.map((option) => (
-                    <Field key={option.value} orientation="horizontal" className="gap-2">
-                        <RadioGroupItem id={`${name}-${option.value}`} value={option.value} data-test={`${name}-${option.value}`} />
-                        <FieldLabel htmlFor={`${name}-${option.value}`} className="text-label-14 font-normal text-ink">
-                            {option.label}
-                        </FieldLabel>
-                    </Field>
-                ))}
-            </RadioGroup>
-            {hint === undefined ? null : (
-                <FieldDescription id={`${name}-hint`} className="text-copy-13 text-ink-muted">
-                    {hint}
-                </FieldDescription>
-            )}
-            {error === undefined ? null : (
-                <p id={`${name}-error`} role="alert" className="text-copy-13 text-bad">
-                    {error}
-                </p>
-            )}
-        </FieldSet>
     );
 }

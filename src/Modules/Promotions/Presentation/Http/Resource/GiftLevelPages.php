@@ -48,6 +48,7 @@ final readonly class GiftLevelPages
         $mayManage = $this->actions->forStore($store->storeId())->mayManageGifts;
         $exponent = $store->currencyExponent;
         $now = new DateTimeImmutable;
+        $photos = $this->thumbs(array_map(static fn (GiftLevelRow $row): ?string => $row->photoMediaId, $rows));
 
         return new GiftLevelsPage(
             array_map(fn (GiftLevelRow $row): GiftLevelData => new GiftLevelData(
@@ -69,6 +70,7 @@ final readonly class GiftLevelPages
                     $row->startsAt !== null && $row->startsAt > $now => 'NOT_STARTED',
                     default => 'ENDED',
                 },
+                $row->photoMediaId === null ? null : ($photos[strtolower($row->photoMediaId)] ?? null),
             ), $rows),
             $search === null || ! $mayManage ? [] : $this->sizes($store->storeId(), $search),
             $store->currencyCode,
@@ -88,12 +90,7 @@ final readonly class GiftLevelPages
     private function sizes(StoreId $store, string $search): array
     {
         $found = $this->catalog->searchVariants($store, $search, anyReady: true, limit: self::FOUND, notArchived: true, withTotal: false)->rows;
-        $ids = array_values(array_unique(array_filter(array_map(static fn (FoundVariantDto $row): ?string => $row->photoMediaId, $found))));
-        $thumbs = [];
-
-        foreach ($ids === [] ? [] : $this->platform->mediaUrlsOf($ids) as $id => $urls) {
-            $thumbs[strtolower((string) $id)] = self::thumb($urls);
-        }
+        $thumbs = $this->thumbs(array_map(static fn (FoundVariantDto $row): ?string => $row->photoMediaId, $found));
 
         return array_map(fn (FoundVariantDto $row): SizeChoiceData => new SizeChoiceData(
             $row->variantId,
@@ -101,6 +98,24 @@ final readonly class GiftLevelPages
             $row->code,
             $row->photoMediaId === null ? null : ($thumbs[strtolower($row->photoMediaId)] ?? null),
         ), $found);
+    }
+
+    /**
+     * Photos' thumbnails by media id, lower case, in one read.
+     *
+     * @param  list<?string>  $mediaIds
+     * @return array<string, ?string>
+     */
+    private function thumbs(array $mediaIds): array
+    {
+        $ids = array_values(array_unique(array_filter($mediaIds, static fn (?string $id): bool => $id !== null && $id !== '')));
+        $thumbs = [];
+
+        foreach ($ids === [] ? [] : $this->platform->mediaUrlsOf($ids) as $id => $urls) {
+            $thumbs[strtolower((string) $id)] = self::thumb($urls);
+        }
+
+        return $thumbs;
     }
 
     private static function thumb(MediaUrlsDto $urls): ?string

@@ -20,8 +20,11 @@ use Modules\Promotions\Application\Command\GiftLevelFields;
 use Modules\Promotions\Application\Command\SwitchGiftLevel\SwitchGiftLevel;
 use Modules\Promotions\Application\Command\SwitchGiftLevel\SwitchGiftLevelHandler;
 use Modules\Promotions\Application\PromotionsPermissions;
+use Modules\Promotions\Application\Query\GiftLevelRow;
+use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevels;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevelsHandler;
 use Modules\Promotions\Domain\Exception\GiftLevelClash;
+use Modules\Promotions\Domain\Exception\GiftLevelNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Presentation\Http\Resource\GiftLevelPages;
 use Shared\Application\Unauthorized;
@@ -69,11 +72,21 @@ final readonly class GiftLevelsController
         }, 'promotions::admin_gifts.toast.created');
     }
 
-    /** Edit…: the same boxes, in the level's store (the page's). */
-    public function update(Request $request, string $level, StoreChoices $choices, ChangeGiftLevelHandler $handler): RedirectResponse
+    /**
+     * Edit…: the same boxes. The amount is read in the level's own store: the store the dialog names must
+     * be the level's (found among its levels), else the level is not found there.
+     */
+    public function update(Request $request, string $level, StoreChoices $choices, ListGiftLevelsHandler $levels, ChangeGiftLevelHandler $handler): RedirectResponse
     {
-        return self::act($request, function () use ($request, $level, $choices, $handler): void {
-            $handler->handle(new ChangeGiftLevel($level, self::fields($request, self::storeOf($request, $choices))));
+        return self::act($request, function () use ($request, $level, $choices, $levels, $handler): void {
+            $store = self::storeOf($request, $choices);
+            $ours = array_filter($levels->handle(new ListGiftLevels($store->id)), static fn (GiftLevelRow $row): bool => $row->id === strtolower($level));
+
+            if ($ours === []) {
+                throw new GiftLevelNotFound;
+            }
+
+            $handler->handle(new ChangeGiftLevel($level, self::fields($request, $store)));
         }, 'promotions::admin_gifts.toast.saved');
     }
 

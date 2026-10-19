@@ -6,8 +6,9 @@ import { TextField } from '@/components/Fields';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { SearchField } from '@/components/SearchField';
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
-import { Switch } from '@/components/ui/switch';
+import { Toggle } from '@/components/promotions/fields';
+import { FieldLegend, FieldSet } from '@/components/ui/field';
+import { isolate } from '@/lib/bidi';
 import { toLatinDigits } from '@/lib/digits';
 import { isoOf, isSaved, momentBox, momentFrom, noMoment, type MomentInput } from '@/lib/moments';
 import { useTranslator } from '@/lib/t';
@@ -36,7 +37,7 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
     const zone = page.storeTimezone;
     const [starts, setStarts] = useState<MomentInput>(level?.startsAt ? momentFrom(level.startsAt, zone) : noMoment());
     const [ends, setEnds] = useState<MomentInput>(level?.endsAt ? momentFrom(level.endsAt, zone) : noMoment());
-    const [gift, setGift] = useState<Gift | null>(level === undefined ? null : { id: level.variantId, productName: level.productName, code: level.variantCode, photo: null });
+    const [gift, setGift] = useState<Gift | null>(level === undefined ? null : { id: level.variantId, productName: level.productName, code: level.variantCode, photo: level.photo });
     const [text, setText] = useState('');
     const [searching, setSearching] = useState(false);
     const first = useRef(true);
@@ -146,7 +147,7 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
                             </div>
                         </div>
                     )}
-                    <SearchField id="search-size" label={t('promotions::admin_gifts.form.search')} placeholder={t('promotions::admin_gifts.form.search')} value={text} onValueChange={setText} />
+                    <SearchField id="search-size" aria-describedby={errors.gift_variant ? 'gift-error' : undefined} aria-invalid={errors.gift_variant ? true : undefined} label={t('promotions::admin_gifts.form.search')} placeholder={t('promotions::admin_gifts.form.search')} value={text} onValueChange={setText} />
                     {text.trim().length < 2 ? (
                         <p className="text-copy-13 text-ink-muted">{t('promotions::admin_gifts.form.type_two')}</p>
                     ) : searching || page.sizes.length === 0 ? (
@@ -174,7 +175,7 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
                                             size="sm"
                                             variant="outline"
                                             disabledReason={chosen ? t('promotions::admin_gifts.form.is_chosen') : undefined}
-                                            aria-label={t('promotions::admin_gifts.form.choose_named', { name: `${size.productName} ${size.code}` })}
+                                            aria-label={t('promotions::admin_gifts.form.choose_named', { name: size.productName, code: isolate(size.code) })}
                                             onClick={() => pick(size)}
                                             data-test={`choose-${size.id}`}
                                         >
@@ -185,16 +186,24 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
                             })}
                         </div>
                     )}
-                    {errors.gift_variant ? <p className="text-copy-13 text-bad">{errors.gift_variant}</p> : null}
+                    {errors.gift_variant ? (
+                        <p id="gift-error" role="alert" className="text-copy-13 text-bad">
+                            {errors.gift_variant}
+                        </p>
+                    ) : null}
                 </FieldSet>
 
                 <FieldSet>
                     <FieldLegend className="text-label-14 text-ink">{t('promotions::admin_gifts.form.who')}</FieldLegend>
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <Toggle id="for_public" label={t('promotions::admin_gifts.who.individuals')} checked={form.data.for_public} onChange={(on) => form.setData('for_public', on)} />
-                        <Toggle id="for_company" label={t('promotions::admin_gifts.who.companies')} checked={form.data.for_company} onChange={(on) => form.setData('for_company', on)} />
+                        <Toggle id="for_public" label={t('promotions::admin_gifts.who.individuals')} checked={form.data.for_public} onChange={(on) => form.setData('for_public', on)} invalid={errors.buyers ? 'buyers-error' : undefined} />
+                        <Toggle id="for_company" label={t('promotions::admin_gifts.who.companies')} checked={form.data.for_company} onChange={(on) => form.setData('for_company', on)} invalid={errors.buyers ? 'buyers-error' : undefined} />
                     </div>
-                    {errors.buyers ? <p className="text-copy-13 text-bad">{errors.buyers}</p> : null}
+                    {errors.buyers ? (
+                        <p id="buyers-error" role="alert" className="text-copy-13 text-bad">
+                            {errors.buyers}
+                        </p>
+                    ) : null}
                 </FieldSet>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -208,18 +217,4 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
 
 function Photo({ src }: { src: string | null }) {
     return src === null ? <span className="size-10 shrink-0 rounded-[var(--tw-radius)] bg-surface-sunken" aria-hidden="true" /> : <img src={src} alt="" className="size-10 shrink-0 rounded-[var(--tw-radius)] object-cover" />;
-}
-
-function Toggle({ id, label, checked, onChange, hint }: { id: string; label: string; checked: boolean; onChange: (on: boolean) => void; hint?: string }) {
-    return (
-        <Field orientation="horizontal" className="items-start gap-3">
-            <Switch id={id} checked={checked} onCheckedChange={onChange} data-test={id} />
-            <div className="grid gap-0.5">
-                <FieldLabel htmlFor={id} className="text-label-14 font-normal text-ink">
-                    {label}
-                </FieldLabel>
-                {hint === undefined ? null : <FieldDescription className="text-copy-13 text-ink-muted">{hint}</FieldDescription>}
-            </div>
-        </Field>
-    );
 }

@@ -49,7 +49,7 @@ use Shared\Domain\ValueObject\StoreId;
 final readonly class CouponsController
 {
     /** @var list<string> */
-    private const array WORDS = ['promotions::admin_coupons', 'promotions::errors', 'admin'];
+    private const array WORDS = ['promotions::admin_coupons', 'promotions::discounts', 'promotions::errors', 'admin'];
 
     private const string LIST = '/'.AdminArea::PREFIX.'/coupons';
 

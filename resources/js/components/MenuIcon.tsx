@@ -70,7 +70,7 @@ const ICONS = {
     // weighs on every admin page (frontend.md §5).
     coupons: TicketPercent,
     segments: Users,
-    gift_levels: Gift,
+    gifts: Gift,
 } as const;
 
 type Props = {

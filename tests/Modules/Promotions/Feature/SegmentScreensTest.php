@@ -144,8 +144,8 @@ describe('M3 · the list', function () {
         $props = segmentScreensProps(segmentScreens([PromotionsPermissions::VIEW]), '/admin/segments', 'Promotions/Admin/Segments/Index');
 
         expect(array_column($props['segments'], 'name'))->toEqualCanonicalizing(['Never ordered', 'Picked'])
-            ->and(collect($props['segments'])->firstWhere('name', 'Never ordered')['rule'] ?? null)->toBe('NO_ORDERS_EVER')
-            ->and(collect($props['segments'])->firstWhere('name', 'Picked')['type'] ?? null)->toBe('STATIC')
+            ->and(array_column($props['segments'], 'rule', 'name'))->toEqual(['Never ordered' => 'NO_ORDERS_EVER', 'Picked' => null])
+            ->and(array_column($props['segments'], 'type', 'name'))->toEqual(['Never ordered' => 'DYNAMIC', 'Picked' => 'STATIC'])
             ->and([$props['mayManage'], $props['storeCode']])->toBe([false, 'sa']);
     });
 
@@ -188,7 +188,8 @@ describe('M3 · changes', function () {
 
         expect([DB::table('promotions.segments')->where('id', $segment)->value('name_en'), AdminBrowser::flashed($refreshed, 'status')])->toBe(['Renamed', 'Members updated: 1.']);
 
-        $browser->post("/admin/segments/{$segment}/delete")->assertRedirect('/admin/segments');
+        // Back to the list of the segment's own store.
+        $browser->post("/admin/segments/{$segment}/delete")->assertRedirect('/admin/segments?store=sa');
         expect(DB::table('promotions.segments')->where('id', $segment)->exists())->toBeFalse();
     });
 
@@ -213,9 +214,10 @@ describe('M3 · changes', function () {
         Fx::asSystem(fn () => app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$in])));
 
         $props = segmentScreensProps(segmentScreens(), "/admin/segments/{$segment}?search=Nad", 'Promotions/Admin/Segments/Show');
-        $found = collect($props['candidates'])->mapWithKeys(fn (array $row): array => [$row['customer']['name'] => $row['member']])->all();
+        $found = array_map(static fn (array $row): array => [$row['customer']['name'], $row['member']], $props['candidates']);
 
-        expect([$found, $props['search'], array_column(array_column($props['members'], 'customer'), 'id')])->toBe([['Nadia Screen' => true, 'Nader Screen' => false], 'Nad', [$in]]);
+        // By name (owner's Q9), each marked when already in.
+        expect([$found, $props['search'], array_column(array_column($props['members'], 'customer'), 'id')])->toBe([[['Nader Screen', false], ['Nadia Screen', true]], 'Nad', [$in]]);
     });
 
     it('searches nothing for a reader who may only view, and refuses their changes', function () {

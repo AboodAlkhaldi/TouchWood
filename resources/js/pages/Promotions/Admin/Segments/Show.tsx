@@ -7,10 +7,11 @@ import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { FormError, useFreshRefusal } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
+import { useLeaveGuard } from '@/components/SaveBar';
 import { SearchField } from '@/components/SearchField';
 import { StoreOffBadge } from '@/components/StoreOffBadge';
 import { Time } from '@/components/Time';
-import { Unknown, useLocale } from '@/components/promotions/parts';
+import { plural, Unknown, useLocale } from '@/components/promotions/parts';
 import { useRuleWords } from '@/components/promotions/segments';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -195,7 +196,15 @@ function MembersTable({ rows, removed, onToggle }: { rows: MemberData[]; removed
                                 <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">{row.addedAt === null ? <Unknown /> : <Time value={row.addedAt} />}</TableCell>
                                 {onToggle === undefined ? null : (
                                     <TableCell className="text-end">
-                                        <Button type="button" size="sm" variant="outline" onClick={() => onToggle(row)} data-test={`toggle-${row.customer.id}`}>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            aria-pressed={out}
+                                            aria-label={t('promotions::admin_segments.show.remove_named', { name: row.customer.name ?? t('promotions::admin_segments.show.deleted_customer') })}
+                                            onClick={() => onToggle(row)}
+                                            data-test={`toggle-${row.customer.id}`}
+                                        >
                                             {out ? t('promotions::admin_segments.show.keep') : t('promotions::admin_segments.show.remove')}
                                         </Button>
                                     </TableCell>
@@ -219,6 +228,8 @@ function PickedMembers({ page }: { page: SegmentPage }) {
     const [adding, setAdding] = useState(false);
     const save = useForm<{ add: string[]; remove: string[] }>({ add: [], remove: [] });
     const changed = added.length > 0 || removed.size > 0;
+    // Picks live on the page until Save Members: leaving asks first, as Pricing's and Inventory's boxes do.
+    const leave = useLeaveGuard(changed && !save.processing, { description: plural(t, locale, 'promotions::admin_segments.pick.lost', added.length + removed.size) });
     const toggle = (row: MemberData) =>
         setRemoved((before) => {
             const next = new Set(before);
@@ -255,7 +266,7 @@ function PickedMembers({ page }: { page: SegmentPage }) {
                                         type="button"
                                         variant="ghost"
                                         size="icon-xs"
-                                        aria-label={t('promotions::admin_segments.pick.unadd', { name: row.customer.name ?? '' })}
+                                        aria-label={t('promotions::admin_segments.pick.unadd', { name: row.customer.name ?? t('promotions::admin_segments.show.deleted_customer') })}
                                         onClick={() => setAdded((before) => before.filter((other) => other.customer.id !== row.customer.id))}
                                     >
                                         <X aria-hidden="true" />
@@ -298,6 +309,7 @@ function PickedMembers({ page }: { page: SegmentPage }) {
                 </ActionButton>
             </div>
 
+            {leave}
             <AddCustomers
                 open={adding}
                 onOpenChange={setAdding}
@@ -357,7 +369,10 @@ function AddCustomers({ open, onOpenChange, page, added, removed, onAdd }: { ope
     return (
         <PanelDialog
             open={open}
-            onOpenChange={onOpenChange}
+            onOpenChange={(next) => {
+                if (!next) setText('');
+                onOpenChange(next);
+            }}
             wide
             title={t('promotions::admin_segments.pick.title')}
             description={t('promotions::admin_segments.pick.description')}

@@ -112,6 +112,7 @@ startsAt: string | null,
 endsAt: string | null,
 active: boolean,
 state: string,
+photo: string | null,
 };
 export type GiftLevelsPage = {
 levels: GiftLevelData[],

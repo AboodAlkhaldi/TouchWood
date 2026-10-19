@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { Badge } from '@/components/ui/badge';
 import { isolate } from '@/lib/bidi';
-import { figure } from '@/lib/digits';
+import { figure, intlLocale } from '@/lib/digits';
 import { formatMoney, type Money } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
@@ -14,6 +14,11 @@ import type { SharedProps } from '@/types/page';
 
 export function useLocale(): string {
     return usePage<SharedProps>().props.locale;
+}
+
+/** A count's words in the page's plural form: a key holding zero, one, two, few, many, other (as Inventory's). */
+export function plural(t: ReturnType<typeof useTranslator>, locale: string, key: string, count: number, values: Record<string, string | number> = {}): string {
+    return t(`${key}.${new Intl.PluralRules(intlLocale(locale)).select(count)}`, { count: figure(locale, count), ...values });
 }
 
 /** A value that is not there: Geist's em dash. */
@@ -51,13 +56,13 @@ export function useDiscountWords(): (kind: string, percent: number | null, amoun
 
     return (kind, percent, amount, cap) => {
         if (kind === 'FIXED' && amount !== null) {
-            return t('promotions::admin_coupons.discount.fixed', { amount: isolate(formatMoney(amount, locale)) });
+            return t('promotions::discounts.fixed', { amount: isolate(formatMoney(amount, locale)) });
         }
 
         const share = `${figure(locale, percent ?? 0)}%`;
 
         return cap === null
-            ? t('promotions::admin_coupons.discount.percent', { percent: isolate(share) })
-            : t('promotions::admin_coupons.discount.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
+            ? t('promotions::discounts.percent', { percent: isolate(share) })
+            : t('promotions::discounts.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
     };
 }

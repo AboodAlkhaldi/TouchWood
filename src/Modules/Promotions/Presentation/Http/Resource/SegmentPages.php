@@ -82,12 +82,25 @@ final readonly class SegmentPages
             $this->row($segment),
             array_map(static fn (MemberRow $member): MemberData => new MemberData(CustomerNameData::of($member->customer), MarketingScreen::moment($member->addedAt), true), $page->rows),
             $page->nextCustomerId,
-            $found === null ? [] : array_map(static fn (CandidateRow $row): MemberData => new MemberData(CustomerNameData::of($row->customer), null, $row->member), $found->rows),
+            $found === null ? [] : self::byName(array_map(static fn (CandidateRow $row): MemberData => new MemberData(CustomerNameData::of($row->customer), null, $row->member), $found->rows)),
             $found === null ? null : $search,
             $found->more ?? false,
             $mayManage,
             ...$this->screen->shown($store),
         );
+    }
+
+    /**
+     * The hand-picker's results by name (owner's Q9: "the first 50 by name").
+     *
+     * @param  list<MemberData>  $rows
+     * @return list<MemberData>
+     */
+    private static function byName(array $rows): array
+    {
+        usort($rows, static fn (MemberData $a, MemberData $b): int => strcasecmp($a->customer->name ?? '', $b->customer->name ?? ''));
+
+        return $rows;
     }
 
     private function row(SegmentRow $row): SegmentRowData

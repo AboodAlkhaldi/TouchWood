@@ -111,6 +111,8 @@ describe('the admin menu', function () {
             'customers/customers',
             // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
             'marketing/coupons',
+            'marketing/segments',
+            'marketing/gift_levels',
             // Loyalty's screens (loyalty.md §4.1): the Points section's three.
             'points/customers',
             'points/redemptions',
