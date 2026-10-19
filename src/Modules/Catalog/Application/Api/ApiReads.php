@@ -66,6 +66,11 @@ interface ApiReads
     public function brands(array $brandIds): array;
 
     /**
+     * @return list<BrandDto> switched on, in the brands' own order
+     */
+    public function activeBrands(): array;
+
+    /**
      * @param  list<string>  $productIds
      * @return list<string> those the store sells now (amendment 24)
      */

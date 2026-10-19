@@ -9,6 +9,7 @@ import {
     Image,
     UserRound,
     LayoutDashboard,
+    Megaphone,
     Receipt,
     RefreshCw,
     ScrollText,
@@ -41,6 +42,7 @@ const ICONS = {
     // The business areas, by their keys (Platform's menu registry orders them).
     pricing: BadgePercent,
     points: Coins,
+    marketing: Megaphone,
     // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
     sync: RefreshCw,
     staff_and_permissions: ShieldCheck,
@@ -63,6 +65,10 @@ const ICONS = {
     company_types: Tags,
     document_types: FileText,
     redemptions: TicketPercent,
+    // Marketing's screens (promotions.md §4.1). Two icons the panel already draws, as every new icon
+    // weighs on every admin page (frontend.md §5).
+    coupons: TicketPercent,
+    segments: Users,
 } as const;
 
 type Props = {

@@ -136,6 +136,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->brands($brandIds);
     }
 
+    public function activeBrands(): array
+    {
+        return $this->reads->activeBrands();
+    }
+
     public function productsSoldIn(StoreId $store, array $productIds): array
     {
         return $this->reads->productsSoldIn($store->value, $productIds);

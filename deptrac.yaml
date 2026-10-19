@@ -202,9 +202,10 @@ deptrac:
     Inventory: [+InventoryPublic, AccessPublic, AppHttp]
 
     # Promotions → Platform, Access, Catalog, Pricing. Never Sales: Sales passes it the cart and
-    # the order facts it needs (owner, 2026-09-18).
+    # the order facts it needs (owner, 2026-09-18). Its screens use the framework glue, as Loyalty's do
+    # (promotions.md §4.1, 2026-10-19).
     PromotionsPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, PricingPublic]
-    Promotions: [+PromotionsPublic]
+    Promotions: [+PromotionsPublic, AppHttp]
 
     # Loyalty → Platform, Access. Its screens use the framework glue, as Catalog's and B2B's do
     # (loyalty.md §4.1, 2026-10-19); AppHttpTest keeps that to its Presentation layer.

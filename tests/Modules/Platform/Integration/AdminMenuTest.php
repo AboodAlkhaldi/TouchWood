@@ -106,6 +106,8 @@ describe('the admin menu', function () {
             'companies/company_types',
             'companies/document_types',
             'customers/customers',
+            // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
+            'marketing/coupons',
             // Loyalty's screens (loyalty.md §4.1): the Points section's three.
             'points/customers',
             'points/redemptions',
