@@ -43,14 +43,17 @@ final readonly class ListGiftLevelsHandler
         $variants = $levels === [] ? [] : $this->catalog->variants(array_values(array_unique(array_map(static fn (GiftLevel $level): string => $level->variantId, $levels))));
         $productIds = array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, $variants)));
         $products = $productIds === [] ? [] : $this->catalog->products($productIds);
+        // The gift's photo: its product's first (catalog.md amendment 26(a)).
+        $cards = $productIds === [] ? [] : $this->catalog->productCards($store, 'en', $productIds);
         $now = CarbonImmutable::now();
 
-        return array_map(static function (GiftLevel $level) use ($variants, $products, $now): GiftLevelRow {
+        return array_map(static function (GiftLevel $level) use ($store, $variants, $products, $cards, $now): GiftLevelRow {
             $variant = $variants[$level->variantId] ?? null;
             $product = $variant === null ? null : ($products[$variant->productId] ?? null);
 
             return new GiftLevelRow(
                 $level->id,
+                $store->value,
                 Money::of($level->amountMinor, $level->currencyCode),
                 $level->variantId,
                 $variant?->code,
@@ -63,6 +66,7 @@ final readonly class ListGiftLevelsHandler
                 $level->endsAt,
                 $level->active,
                 $level->active && ($level->startsAt === null || $level->startsAt <= $now) && ($level->endsAt === null || $level->endsAt > $now),
+                $variant === null ? null : ($cards[$variant->productId] ?? null)?->photoMediaId,
             );
         }, $levels);
     }

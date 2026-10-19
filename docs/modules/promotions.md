@@ -529,8 +529,10 @@ it again." (§1.4) [Q14].
 - **Picking by hand** (a static segment) [Q8]: **Add Customers…** — a search by name, email or phone
   (`SearchSegmentCandidates`: registered in the store or ordered in it; email and phone only among
   customers the reader may view, access.md amendment 72(b)), each result with **Add**; each member
-  with **Remove**; **Save Members** sends the whole list (`SetSegmentMembers`), out of reach until it
-  changed. At most 1,000 shown found [Q9].
+  with **Remove**; **Save Members** sends what was added and taken off (`ChangeSegmentMembers`, merged
+  under the segment's lock, so two managers saving at once each keep what they did; only the customers
+  added are checked, so a member no longer eligible — an account anonymized since — never blocks a save;
+  the backend's review with the screens, 2026-10-20), out of reach until it changed. At most 1,000 shown found [Q9].
 
 #### M4 · Marketing › Gift Levels — `/admin/gift-levels?store=`
 
