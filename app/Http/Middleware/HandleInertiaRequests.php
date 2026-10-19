@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 /**
@@ -85,9 +86,15 @@ final class HandleInertiaRequests extends Middleware
             // Each page adds the files it needs; a page that names none carries no words, which is
             // a mistake a test catches rather than a blank screen nobody explains.
             'translations' => [],
-            'flash' => [
-                'status' => fn (): ?string => $this->flashString($request, 'status'),
-            ],
+            // In every answer, a partial reload's too: one that left it out would keep the last page's
+            // words, and the toasts would say them again after Show More or a drawer opening (the review
+            // of stage 5's screens step 5).
+            'flash' => Inertia::always(fn (): array => [
+                'status' => $this->flashString($request, 'status'),
+                // A second word after a success that left something to see to - Inventory's "2 orders are
+                // short of 60 cm" (inventory.md §4.3.1): an amber toast.
+                'warning' => $this->flashString($request, 'warning'),
+            ]),
             /*
             | The proof that a request came from one of our own pages, carried in the page itself.
             |

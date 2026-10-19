@@ -19,10 +19,12 @@ type Props = {
     value: string | null;
     /** Offer All Stores first (Home's figures). */
     all?: boolean;
+    /** The address's other values that belong to the store left - an open drawer's size - dropped with it. */
+    drop?: string[];
     className?: string;
 };
 
-export function StoreFilter({ stores, value, all = false, className }: Props) {
+export function StoreFilter({ stores, value, all = false, drop = [], className }: Props) {
     const t = useTranslator();
 
     if (stores.length + (all ? 1 : 0) < 2) {
@@ -40,6 +42,10 @@ export function StoreFilter({ stores, value, all = false, className }: Props) {
 
         // Another store has its own pages: the list starts again at its first.
         params.delete('page');
+
+        for (const name of drop) {
+            params.delete(name);
+        }
         const query = params.toString();
 
         router.get(`${window.location.pathname}${query === '' ? '' : `?${query}`}`, {}, { preserveScroll: true });

@@ -15,6 +15,7 @@ use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Inventory\Domain\Repository\StoreProducts;
 use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Inventory\Domain\ValueObject\StockRow;
 use Modules\Inventory\Public\Contracts\StoreWiring;
@@ -49,6 +50,7 @@ final readonly class ListStockHandler
         private CatalogApi $catalog,
         private StoreWiring $wiring,
         private StockRows $stock,
+        private StoreProducts $products,
         private StockMovements $movements,
         private Holds $holds,
         private StockViews $views,
@@ -89,11 +91,14 @@ final readonly class ListStockHandler
         $ids = array_map(static fn (FoundVariantDto $row): string => $row->variantId, $found->rows);
         $provider = $wired && $ids !== [] ? ($this->movements->lastProviderChanges([$storeId], $ids)[$storeId->value] ?? []) : [];
         $holds = $ids === [] ? [] : ($this->holds->summaries([$storeId], $ids)[$storeId->value] ?? []);
+        // The page's products showing "last pieces": one query (no provider; a wired store has none).
+        $lastPieces = $wired || $ids === [] ? [] : array_fill_keys($this->products->endingSoonOf($storeId, array_values(array_unique(array_map(static fn (FoundVariantDto $row): string => $row->productId, $found->rows)))), true);
 
         return new StockList(
             array_map(fn (FoundVariantDto $row): StockListRow => new StockListRow(
                 $this->views->size($row),
                 $this->views->figures($rows[$row->variantId] ?? null, $wired, $default, $provider[$row->variantId] ?? null, $holds[$row->variantId] ?? null),
+                $wired ? null : isset($lastPieces[$row->productId]),
             ), $found->rows),
             $found->next,
             $found->total,

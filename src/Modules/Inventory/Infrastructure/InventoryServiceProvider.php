@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Events\ProductArchived;
@@ -20,6 +21,7 @@ use Modules\Inventory\Application\InventoryApiImpl;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\ProviderStockImpl;
+use Modules\Inventory\Application\Stock\LowStockCount;
 use Modules\Inventory\Application\Stock\LowStockRecounts;
 use Modules\Inventory\Application\Stock\Words;
 use Modules\Inventory\Domain\Repository\Holds;
@@ -47,9 +49,11 @@ use Modules\Inventory\Presentation\Home\LowStockCard;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Inventory\Public\Contracts\StoreWiring;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\HomeCardDto;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
 
 /**
@@ -98,9 +102,18 @@ final class InventoryServiceProvider extends ServiceProvider
         // Its part of a product's Stores tab (§4.3.3; Catalog's amendment 23(e)): one read for every card.
         $this->app->make(ProductStoreSections::class)->register('inventory', ProductStockSection::class);
 
-        // Its card on the admin home: the low sizes, the fewest left first (§1.7). The Low Stock menu
-        // entry, with LowStockCount beside it, comes with the list's screen: the menu links every
-        // entry to its route.
+        // The panel's menu, in the Catalog group (§4.3.2): Stock, and Low Stock with its count kept per store
+        // (owner, 2026-10-18) - stage 5's screens step 5.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('inventory', 'stock', PermissionGroup::Catalog->value, 'inventory.admin.stock', InventoryPermissions::STOCK_MANAGE, 110, icon: 'catalog'),
+            new MenuEntryDto('inventory', 'low_stock', PermissionGroup::Catalog->value, 'inventory.admin.low-stock', InventoryPermissions::STOCK_MANAGE, 120, icon: 'catalog', count: LowStockCount::class),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
+
+        // Its card on the admin home: the low sizes, the fewest left first (§1.7).
         $this->app->make(HomeCards::class)->register(
             new HomeCardDto('inventory', 'low_stock', InventoryPermissions::STOCK_MANAGE, LowStockCard::class, 30),
         );

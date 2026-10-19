@@ -19,6 +19,8 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\StaffStatus;
+use Modules\Inventory\Application\Command\CountLowStock\CountLowStock;
+use Modules\Inventory\Application\Command\CountLowStock\CountLowStockHandler;
 use Modules\Platform\Public\PlatformPermissions as Platform;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizes;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizesHandler;
@@ -54,6 +56,8 @@ beforeEach(function () {
     // Needs a Price's count kept per store, as production keeps it (pricing.md Q43): the menu reads it, never
     // counts it live (a store not counted yet is, once, while its count is queued).
     Fx::asSystem(fn () => app(CountUnpricedSizesHandler::class)->handle(new CountUnpricedSizes));
+    // Low Stock's count the same way (inventory.md §4.3.2): kept per store, read beside its menu entry.
+    Fx::asSystem(fn () => app(CountLowStockHandler::class)->handle(new CountLowStock));
 
     // A page behind the panel's door that asks for nothing of its own.
     Route::middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
@@ -117,6 +121,7 @@ function adminFrameParts(array $queries): array
             str_contains($query['sql'], 'access.staff_users') => 'person block',
             str_contains($query['sql'], 'failed_jobs') => 'failed jobs count',
             str_contains($query['sql'], '"pricing"."unpriced_counts"') => 'needs a price count',
+            str_contains($query['sql'], '"inventory"."low_counts"') => 'low stock count',
             str_contains($query['sql'], '"platform"."media"') => 'picture',
             default => 'other: '.$query['sql'],
         };
@@ -187,9 +192,10 @@ it('opens in its own recorded number of queries, whatever jobs the person holds'
     'one job' => ['one job in one store', 9, []],
     // Whoever may manage failed jobs is also shown how many wait (the System entry's number,
     // frontend.md E7): one count more; whoever edits prices, how many sizes need a price, kept per store
-    // (pricing.md §4.3.2, Q43): one more.
-    'every job' => ['an admin holding every job a role can hold', 11, ['failed jobs count' => 1, 'needs a price count' => 1]],
-    'a Super Admin' => ['a Super Admin', 11, ['failed jobs count' => 1, 'needs a price count' => 1]],
+    // (pricing.md §4.3.2, Q43): one more; whoever manages stock, how many sizes are low, kept per store
+    // (inventory.md §4.3.2): one more.
+    'every job' => ['an admin holding every job a role can hold', 12, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1]],
+    'a Super Admin' => ['a Super Admin', 12, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1]],
     // A picture is asked of Platform: one read of the media row.
     'a picture' => ['one job, with a picture', 10, ['picture' => 1]],
 ]);

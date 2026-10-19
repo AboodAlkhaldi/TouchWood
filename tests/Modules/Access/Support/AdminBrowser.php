@@ -43,11 +43,13 @@ final class AdminBrowser
     }
 
     /**
+     * @param  array<string, string>  $headers  more of what this one request sends, as the server reads it
+     *                                          (HTTP_X_INERTIA, for a partial reload)
      * @return TestResponse<Response>
      */
-    public function get(string $uri): TestResponse
+    public function get(string $uri, array $headers = []): TestResponse
     {
-        return $this->send('GET', $uri);
+        return $this->send('GET', $uri, [], $headers);
     }
 
     public function cookie(string $name): ?string
@@ -111,9 +113,10 @@ final class AdminBrowser
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  array<string, string>  $headers
      * @return TestResponse<Response>
      */
-    private function send(string $method, string $uri, array $data = []): TestResponse
+    private function send(string $method, string $uri, array $data = [], array $headers = []): TestResponse
     {
         // One process serves one request in production, so nothing scoped survives from the request
         // before: the permissions, the shell, the settings and the stores a request remembers are
@@ -149,7 +152,7 @@ final class AdminBrowser
             $cookies[$name] = $value;
         }
 
-        $response = call($method, $uri, $data, $cookies, [], [...$this->server, 'REMOTE_ADDR' => $this->ip]);
+        $response = call($method, $uri, $data, $cookies, [], [...$this->server, ...$headers, 'REMOTE_ADDR' => $this->ip]);
 
         /*
         | This jar has **one slot per name**, where a browser keys a cookie by its name *and* its

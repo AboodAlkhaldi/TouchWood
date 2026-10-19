@@ -112,6 +112,8 @@ export type Viewer = {
 export type Flash = {
     /** A success message, shown as a toast. */
     status: string | null;
+    /** What a success left to see to, shown as an amber toast after it (inventory.md §4.3.1). */
+    warning?: string | null;
 };
 
 export type PageErrors = Record<string, string>;

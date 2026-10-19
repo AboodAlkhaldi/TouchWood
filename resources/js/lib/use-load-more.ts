@@ -13,6 +13,9 @@ import { router } from '@inertiajs/react';
 
 export function useLoadMore<T>(items: T[], key: (item: T) => string) {
     const [rows, setRows] = useState(items);
+    // How many pages the list shows: a page that keeps its depth after a change asks for them again
+    // (lib/kept-depth.ts).
+    const [pages, setPages] = useState(1);
     const [loading, setLoading] = useState(false);
     const appending = useRef(false);
     // Which "more" visit is the latest, and whether one is out: a double click sends one.
@@ -22,11 +25,13 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
     useEffect(() => {
         if (!appending.current) {
             setRows(items);
+            setPages(1);
 
             return;
         }
 
         appending.current = false;
+        setPages((before) => before + 1);
         setRows((before) => {
             const seen = new Set(before.map(key));
 
@@ -77,5 +82,5 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string) {
         });
     }
 
-    return { rows, loading, more };
+    return { rows, pages, loading, more };
 }

@@ -93,12 +93,15 @@ function pricingBrowser(string $locale = 'en'): mixed
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
         ->type('#password', Fx::STAFF_PASSWORD)
-        ->click('button[type="submit"]')
-        ->assertPathIs('/admin/sign-in/code')
-        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]');
 
-    expect(signedInToPanel($page))->toBeTrue();
+    // A busy machine answers slowly: each step waits for the page it leads to (tests/Pest.php, browserSoon).
+    expect(browserSoon($page, "window.location.pathname === '/admin/sign-in/code' && document.querySelector('input[autocomplete=\"one-time-code\"]') !== null"))->toBeTrue();
+
+    $page->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(browserSoon($page, "window.location.pathname === '/admin'"))->toBeTrue();
 
     return $page;
 }
@@ -108,7 +111,7 @@ function pricingBrowserSoon(mixed $page, Closure $read, Closure $holds): mixed
 {
     $value = $read();
 
-    for ($tries = 0; $tries < 60 && ! $holds($value); $tries++) {
+    for ($tries = 0; $tries < 150 && ! $holds($value); $tries++) {
         $page->wait(0.1);
         $value = $read();
     }
@@ -179,72 +182,72 @@ it('types a price, saves it from the save bar, marks a refused row, and opens a 
     // An offer at a price of its own: a retail price of 300.00 would take it past the ceiling, refused naming the size.
     Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$priced], null, '100.00', null, null)));
     $page = pricingBrowser();
-    $page->navigate("/admin/prices?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/prices?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.getElementById('price-{$priced}') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('price-{$priced}') !== null"))->toBeTrue();
 
     $page->type("#price-{$priced}", '300')->click('[data-test="save-bar-save"]');
 
-    expect(browserUntil($page, "document.getElementById('price-{$priced}-error') !== null"))->toBeTrue()
+    expect(browserSoon($page, "document.getElementById('price-{$priced}-error') !== null"))->toBeTrue()
         ->and(pricingBrowserRetail('sa', $priced))->toBe(12000);
 
     $page->click('[data-test="save-bar-cancel"]');
-    $page->navigate("/admin/prices?q={$ready['name']}&filter=no_price", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/prices?q={$ready['name']}&filter=no_price", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.getElementById('price-{$unpriced}') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('price-{$unpriced}') !== null"))->toBeTrue();
 
     $page->type("#price-{$unpriced}", '149.50');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"save-bar\"]')?.textContent.includes('1 price changed')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"save-bar\"]')?.textContent.includes('1 price changed')"))->toBeTrue();
 
     $page->click('[data-test="save-bar-save"]');
 
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('sa', $unpriced), fn (?int $minor): bool => $minor === 14950))->toBe(14950)
-        ->and(browserUntil($page, "document.body.textContent.includes('Price saved')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Price saved')"))->toBeTrue();
 
-    $page->navigate("/admin/prices?q={$ready['codes'][0]}&size={$priced}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/prices?q={$ready['codes'][0]}&size={$priced}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue()
-        ->and(browserUntil($page, "document.querySelector('[data-test=\"size-drawer\"]')?.textContent.includes('What Reaches It')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"size-drawer\"]')?.textContent.includes('What Reaches It')"))->toBeTrue();
 });
 
 it('draws Prices right to left in Arabic', function () {
     $ready = pricingBrowserProduct();
     pricingBrowserPrice('sa', [$ready['sizes'][0] => '120.00']);
     $page = pricingBrowser('ar');
-    $page->navigate("/admin/prices?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/prices?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
-        ->and(browserUntil($page, "document.body.textContent.includes('سعر التجزئة') && document.body.textContent.includes('مُدخل هنا')"))->toBeTrue();
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+        ->and(browserSoon($page, "document.body.textContent.includes('سعر التجزئة') && document.body.textContent.includes('مُدخل هنا')"))->toBeTrue();
 });
 
 it('adds an offer through its dialog - product, sizes, date and time, the note - and ends it', function () {
     $ready = pricingBrowserProduct();
     pricingBrowserPrice('sa', [$ready['sizes'][0] => '120.00', $ready['sizes'][1] => '130.00']);
     $page = pricingBrowser();
-    $page->navigate('/admin/offers', BROWSER_PAGE_LOAD);
+    $page->navigate('/admin/offers', BROWSER_SLOW_PAGE_LOAD);
 
     $page->click('[data-test="add-offer"]')
         ->type('[data-test="offer-product-search"]', $ready['name']);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"offer-product-{$ready['product']}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"offer-product-{$ready['product']}\"]') !== null"))->toBeTrue();
 
     $page->click("[data-test=\"offer-product-{$ready['product']}\"]");
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"offer-all-sizes\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"offer-all-sizes\"]') !== null"))->toBeTrue();
 
     $page->click('[data-test="offer-kind-percent"]')
         ->type('#offer-amount', '10')
         ->click('[data-test="offer-ends-none"]')
         ->click('[data-test="offer-ends-date"]');
 
-    expect(browserUntil($page, "document.querySelectorAll('[data-slot=\"calendar\"] button[data-day]:not([disabled])').length > 0"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelectorAll('[data-slot=\"calendar\"] button[data-day]:not([disabled])').length > 0"))->toBeTrue();
 
     // The last day the calendar offers, then a time in the store's clock.
     $page->script("() => { const days = document.querySelectorAll('[data-slot=\"calendar\"] button[data-day]:not([disabled])'); days[days.length - 1].click(); }");
     $page->type('#offer-ends-time', '23:59');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"offer-note\"]')?.textContent.includes('Wins today')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"offer-note\"]')?.textContent.includes('Wins today')"))->toBeTrue();
 
     $page->click('[data-test="confirm-offer"]');
 
@@ -253,50 +256,50 @@ it('adds an offer through its dialog - product, sizes, date and time, the note -
     expect($sale)->not->toBeNull()
         ->and($sale->ends_at)->not->toBeNull()
         ->and((int) $sale->percent_bp)->toBe(1000)
-        ->and(browserUntil($page, "document.body.textContent.includes('Offer added')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Offer added')"))->toBeTrue();
 
     // Running from the second after it was added.
     $page->wait(1.5);
-    $page->navigate("/admin/offers?product={$ready['product']}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/offers?product={$ready['product']}", BROWSER_SLOW_PAGE_LOAD);
     $page->click("[data-test=\"offer-actions-{$sale->id}\"]")
         ->click('[data-test="end-offer"]')
         ->click('[data-test="confirm-end-offer"]');
 
     expect(pricingBrowserSoon($page, fn (): bool => DB::table('pricing.sales')->where('id', $sale->id)->where('ends_at', '<=', now())->exists(), fn (bool $ended): bool => $ended))->toBeTrue()
-        ->and(browserUntil($page, "document.body.textContent.includes('Offer ended')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Offer ended')"))->toBeTrue();
 });
 
 it('adds a category discount with its live preview, and opens the discount\'s page', function () {
     $ready = pricingBrowserProduct();
     pricingBrowserPrice('sa', [$ready['sizes'][0] => '120.00', $ready['sizes'][1] => '130.00']);
     $page = pricingBrowser();
-    $page->navigate('/admin/category-discounts', BROWSER_PAGE_LOAD);
+    $page->navigate('/admin/category-discounts', BROWSER_SLOW_PAGE_LOAD);
 
     $page->click('[data-test="add-discount"]')
         ->click('[data-test="discount-category"]');
 
-    expect(browserUntil($page, "document.querySelector('[cmdk-item][data-value=\"option-{$ready['category']}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[cmdk-item][data-value=\"option-{$ready['category']}\"]') !== null"))->toBeTrue();
 
     $page->click("[cmdk-item][data-value=\"option-{$ready['category']}\"]")
         ->click('[data-test="discount-kind-percent"]')
         ->type('#discount-amount', '10')
         ->click('[data-test="discount-lines-BOTH"]');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"preview-reaches\"]')?.textContent.includes('Reaches 2 sizes in 1 product')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"preview-reaches\"]')?.textContent.includes('Reaches 2 sizes in 1 product')"))->toBeTrue();
 
     $page->click('[data-test="confirm-discount"]');
 
     $discount = pricingBrowserSoon($page, fn (): mixed => DB::table('pricing.category_discounts')->where('category_id', $ready['category'])->value('id'), fn (mixed $id): bool => $id !== null);
 
     expect($discount)->not->toBeNull()
-        ->and(browserUntil($page, "document.body.textContent.includes('Discount added')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Discount added')"))->toBeTrue();
 
-    $page->navigate("/admin/category-discounts/{$discount}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/category-discounts/{$discount}", BROWSER_SLOW_PAGE_LOAD);
 
     $category = str_replace('Drawer ', 'Category ', $ready['name']);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"discount-fields\"]')?.textContent.includes('{$category}')"))->toBeTrue()
-        ->and(browserUntil($page, "document.querySelector('[data-test=\"discount-preview\"]')?.textContent.includes('Reaches 2 sizes in 1 product')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"discount-fields\"]')?.textContent.includes('{$category}')"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"discount-preview\"]')?.textContent.includes('Reaches 2 sizes in 1 product')"))->toBeTrue();
 });
 
 it('adds a band in the bands dialog, and removes it', function () {
@@ -307,11 +310,11 @@ it('adds a band in the bands dialog, and removes it', function () {
     Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices(Fx::storeId('sa'), $size, [5 => '100.00'])));
     $bands = fn (): int => DB::table('pricing.wholesale_bands')->where('store_id', Fx::storeId('sa'))->where('variant_id', $size)->count();
     $page = pricingBrowser();
-    $page->navigate("/admin/wholesale-prices?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/wholesale-prices?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
     $page->click("[data-test=\"wholesale-actions-{$size}\"]")->click('[data-test="edit-wholesale"]');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"band-0-from\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"band-0-from\"]') !== null"))->toBeTrue();
 
     $page->click('[data-test="add-band"]')
         ->type('[data-test="band-1-from"]', '10')
@@ -319,11 +322,11 @@ it('adds a band in the bands dialog, and removes it', function () {
         ->click('[data-test="confirm-bands"]');
 
     expect(pricingBrowserSoon($page, $bands, fn (int $count): bool => $count === 2))->toBe(2)
-        ->and(browserUntil($page, "document.body.textContent.includes('Wholesale prices saved')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Wholesale prices saved')"))->toBeTrue();
 
     $page->click("[data-test=\"wholesale-actions-{$size}\"]")->click('[data-test="edit-wholesale"]');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"band-1-remove\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"band-1-remove\"]') !== null"))->toBeTrue();
 
     $page->click('[data-test="band-1-remove"]')->click('[data-test="confirm-bands"]');
 
@@ -334,14 +337,14 @@ it('prices a size off Needs a Price, which then leaves the list', function () {
     $ready = pricingBrowserProduct();
     [$size] = $ready['sizes'];
     $page = pricingBrowser();
-    $page->navigate("/admin/needs-a-price?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/needs-a-price?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.getElementById('price-{$size}') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('price-{$size}') !== null"))->toBeTrue();
 
     $page->type("#price-{$size}", '99.00')->click('[data-test="save-bar-save"]');
 
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('sa', $size), fn (?int $minor): bool => $minor === 9900))->toBe(9900)
-        ->and(browserUntil($page, "document.querySelector('[data-test=\"needs-row-{$size}\"]') === null"))->toBeTrue();
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"needs-row-{$size}\"]') === null"))->toBeTrue();
 });
 
 it('draws the product page\'s Pricing section in two store cards, each with boxes of its own', function () {
@@ -350,15 +353,15 @@ it('draws the product page\'s Pricing section in two store cards, each with boxe
     pricingBrowserPrice('sa', [$size => '120.00']);
     pricingBrowserPrice('eg', [$size => '1500.00']);
     $page = pricingBrowser();
-    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"pricing-section-sa\"]') !== null && document.querySelector('[data-test=\"pricing-section-eg\"]') !== null"))->toBeTrue()
-        ->and(browserUntil($page, "document.getElementById('price-sa-{$size}')?.value === '120.00' && document.getElementById('price-eg-{$size}')?.value === '1500.00'"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"pricing-section-sa\"]') !== null && document.querySelector('[data-test=\"pricing-section-eg\"]') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.getElementById('price-sa-{$size}')?.value === '120.00' && document.getElementById('price-eg-{$size}')?.value === '1500.00'"))->toBeTrue();
 
     $page->type("#price-eg-{$size}", '1600.00');
 
     // Only the Egyptian card's bar: the Saudi card's boxes are untouched.
-    expect(browserUntil($page, "document.getElementById('price-eg-save-bar-message') !== null && document.getElementById('price-sa-save-bar-message') === null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('price-eg-save-bar-message') !== null && document.getElementById('price-sa-save-bar-message') === null"))->toBeTrue();
 
     $page->click('[data-test="pricing-section-eg"] [data-test="save-bar-save"]');
 
