@@ -53,11 +53,13 @@ final readonly class ViewMyReviewsHandler
 
         $cards = $this->reader->cardsByStore($locale, $byStore);
         $variants = $this->reader->variants($locale, array_map(static fn ($review): string => $review->variantId, $reviews));
+        $stores = $this->reader->stores();
 
         return new MyReviewsPage(
             array_map(static fn ($review): MyReviewRow => new MyReviewRow(
                 $review->id,
                 $review->storeId,
+                isset($stores[$review->storeId]) ? $stores[$review->storeId]->name->in($locale) : '',
                 FeedbackReader::card($cards[$review->storeId] ?? [], $review->productId),
                 $variants[$review->variantId] ?? [],
                 $review->rating,

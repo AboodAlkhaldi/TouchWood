@@ -20,13 +20,19 @@ use Shared\Infrastructure\Persistence\Ulids;
  * "Customers › Favourited products" (feedback.md §1.4; handoff §14): `feedback.wishlist.view` in the
  * store — each product saved there with how many customers saved it, most saved first (owner,
  * 2026-10-09), 50 a page. An archived product leaves the list (§1.4): Catalog is asked about each
- * batch, and a batch is read again past those left out until the page is full or the list ends.
+ * batch, and the next batch read past those left out until the page is full or the list ends — **at
+ * most five batches a page**, so a page may come back short with a `next` past what was skipped. The
+ * place is a count and a product: a count that changes between pages may show a product twice or not
+ * at all, as any list ranked by a live count.
  */
 final readonly class ListFavouritesHandler
 {
     public const string PERMISSION = FeedbackPermissions::WISHLIST_VIEW;
 
     public const int PAGE = 50;
+
+    /** Batches read for one page at most: the work a page may do past archived products. */
+    public const int BATCHES = 5;
 
     public function __construct(
         private Authorizer $authorizer,
@@ -48,38 +54,34 @@ final readonly class ListFavouritesHandler
 
         $rows = [];
         $more = false;
+        $batches = 0;
 
         do {
             $batch = $this->queries->favouritesIn($store, $after, self::PAGE + 1);
             $ended = count($batch) <= self::PAGE;
             $batch = array_slice($batch, 0, self::PAGE);
             $cards = $this->reader->cards($store, $locale, array_map(static fn (array $row): string => $row[0], $batch));
+            $batches++;
 
             foreach ($batch as [$productId, $savedBy]) {
-                $after = [$savedBy, $productId];
                 $card = FeedbackReader::card($cards, $productId);
 
-                if ($card->archived || $card->removed) {
-                    continue;
+                if (! $card->archived && ! $card->removed) {
+                    if (count($rows) === self::PAGE) {
+                        $more = true;
+
+                        break 2;
+                    }
+
+                    $rows[] = new FavouriteRow($card, $savedBy);
                 }
 
-                if (count($rows) === self::PAGE) {
-                    $more = true;
-
-                    break 2;
-                }
-
-                $rows[] = new FavouriteRow($card, $savedBy);
+                // The last row examined, shown or left out: the next page starts past it.
+                $after = [$savedBy, $productId];
             }
-        } while (! $ended);
+        } while (! $ended && $batches < self::BATCHES);
 
-        if (! $more) {
-            return new FavouritesPage($rows, null);
-        }
-
-        $last = $rows[count($rows) - 1];
-
-        return new FavouritesPage($rows, $last->savedBy.':'.$last->product->productId);
+        return new FavouritesPage($rows, ($more || ! $ended) && $after !== null ? $after[0].':'.$after[1] : null);
     }
 
     /**

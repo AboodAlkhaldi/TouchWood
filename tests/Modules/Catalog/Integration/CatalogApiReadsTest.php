@@ -210,6 +210,10 @@ describe('product cards, for Feedback (amendment 26(a))', function () {
         $choose($elsewhere, 'eg');
         DB::table('catalog.products')->where('id', $archived)->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
         DB::table('catalog.products')->where('id', $draft)->update(['name_en' => null]);
+        // A second photo placed before the one it had: the first by position is the card's.
+        DB::table('catalog.product_photos')->where('product_id', $sold)->update(['position' => 5]);
+        $front = Cx::media();
+        DB::table('catalog.product_photos')->insert(['product_id' => $sold, 'media_id' => $front, 'position' => 1]);
         $sa = StoreId::fromString(Fx::storeId('sa'));
 
         $queries = Cx::recordQueries();
@@ -217,7 +221,6 @@ describe('product cards, for Feedback (amendment 26(a))', function () {
         $read = count($queries);
         $arabic = catalogReads()->productCards($sa, 'ar', [$sold]);
         $slug = static fn (string $product, string $locale): string => (string) DB::table('catalog.product_slugs')->where('product_id', $product)->where('locale', $locale)->where('is_current', true)->value('slug');
-        $photo = (string) DB::table('catalog.product_photos')->where('product_id', $sold)->orderBy('position')->value('media_id');
 
         expect($read)->toBe(2)
             ->and(array_keys($cards))->toEqualCanonicalizing([$sold, $elsewhere, $archived, $draft])
@@ -225,7 +228,7 @@ describe('product cards, for Feedback (amendment 26(a))', function () {
             ->and([$cards[$sold]->stage, $cards[$archived]->stage, $cards[$draft]->stage])->toBe([ProductStage::Ready, ProductStage::Archived, ProductStage::Draft])
             ->and($cards[$sold]->name)->toBe((string) DB::table('catalog.products')->where('id', $sold)->value('name_en'))
             ->and($cards[$sold]->slug)->toBe($slug($sold, 'en'))
-            ->and($cards[$sold]->photoMediaId)->toBe($photo)
+            ->and($cards[$sold]->photoMediaId)->toBe($front)
             ->and($arabic[$sold]->name)->toBe((string) DB::table('catalog.products')->where('id', $sold)->value('name_ar'))
             ->and($arabic[$sold]->slug)->toBe($slug($sold, 'ar'))
             // A draft's English name may still be missing; it has no photo yet here.

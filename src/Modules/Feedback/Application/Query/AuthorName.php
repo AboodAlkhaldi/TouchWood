@@ -6,7 +6,7 @@ namespace Modules\Feedback\Application\Query;
 
 /**
  * Who wrote a review or asked a question, in its public form (feedback.md §1.1): the first name and
- * the first letter of the last — "Sara K." — and nothing else, for shoppers and staff alike; an
+ * the first letter of the last — "Sara A." — and nothing else, for shoppers and staff alike; an
  * anonymized account, or one Access no longer knows, reads as "Deleted customer" (`deleted`, names
  * empty).
  */

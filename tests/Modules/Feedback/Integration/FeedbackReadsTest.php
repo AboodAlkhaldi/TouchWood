@@ -40,6 +40,7 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 
 use function Pest\Laravel\seed;
@@ -188,9 +189,9 @@ describe('my wishlist', function () {
         expect($shape)->toBe(array_values(array_filter(array_map(static fn (string $id): ?array => $expected[$id] ?? null, $order))))
             ->and($groups[0]->storeName)->toBe(readsStoreName('sa'));
     });
-    it('reads the same number of queries for 2 items as for 6 (feedback.md §8)', function () {
+    it('reads the same number of queries for 2 items as for 6, in two stores (feedback.md §8)', function () {
         $sara = Fx::customer();
-        $products = array_map(static fn (): string => Fb::sold(['sa'])['product'], range(1, 6));
+        $products = array_map(static fn (): string => Fb::sold(['sa', 'ae'])['product'], range(1, 6));
         $count = function () use ($sara): int {
             Fx::actAsCustomer($sara);
             $queries = Cx::recordQueries();
@@ -199,14 +200,12 @@ describe('my wishlist', function () {
             return count($queries);
         };
 
-        foreach (array_slice($products, 0, 2) as $product) {
-            readsWishlist($sara, $product, 'sa', '2026-10-01 10:00:00+00');
-        }
-
+        readsWishlist($sara, $products[0], 'sa', '2026-10-01 10:00:00+00');
+        readsWishlist($sara, $products[1], 'ae', '2026-10-01 10:00:00+00');
         $few = $count();
 
-        foreach (array_slice($products, 2) as $product) {
-            readsWishlist($sara, $product, 'sa', '2026-10-01 10:00:00+00');
+        foreach (array_slice($products, 2) as $n => $product) {
+            readsWishlist($sara, $product, $n % 2 === 0 ? 'sa' : 'ae', '2026-10-01 10:00:00+00');
         }
 
         expect($count())->toBe($few);
@@ -225,7 +224,7 @@ describe('the staff queues', function () {
         $second = Fb::reviewRow($product, $sixty, $gone, ['created_at' => '2026-10-02 10:00:00+00']);
         Fb::reviewRow($product, $sixty, $layla, ['created_at' => '2026-10-03 10:00:00+00'], 'eg');
         $decided = ['status' => 'APPROVED', 'moderated_by' => $moderator, 'moderated_at' => '2026-10-05 10:00:00+00'];
-        $olderApproved = Fb::reviewRow(Fb::sold()['product'], $sixty, $sara, ['created_at' => '2026-10-01 09:00:00+00', ...$decided]);
+        $olderApproved = Fb::reviewRow(Fb::sold()['product'], $sixty, $sara, ['created_at' => '2026-10-01 09:00:00+00', ...$decided, 'moderated_by' => Fx::staff(superAdmin: true)]);
         $newerApproved = Fb::reviewRow(Fb::sold()['product'], $sixty, $sara, ['created_at' => '2026-10-04 09:00:00+00', ...$decided]);
         Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['sa']));
 
@@ -237,7 +236,10 @@ describe('the staff queues', function () {
             ->and([$waiting->rows[1]->author->firstName, $waiting->rows[1]->author->deleted])->toBe(['', true])
             ->and([$waiting->rows[0]->moderatedBy, $waiting->rows[0]->variant[0]->value])->toBe([null, '60 cm'])
             ->and(array_map(fn ($row) => $row->reviewId, $approved->rows))->toBe([$newerApproved, $olderApproved])
-            ->and($approved->rows[0]->moderatedBy?->name)->toStartWith('Mona');
+            ->and($approved->rows[0]->moderatedBy?->name)->toStartWith('Mona')
+            // A Super Admin who decided is withheld from anyone but another Super Admin.
+            ->and($approved->rows[1]->moderatedBy?->hidden)->toBeTrue()
+            ->and($approved->rows[1]->moderatedBy?->name)->not->toContain('Staff');
     });
 
     it('lists a store\'s questions 50 a page, and only for its staff', function () {
@@ -272,11 +274,15 @@ describe('the staff queues', function () {
         $egypt = Fx::storeId('eg');
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
 
-        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::QUESTION_ANSWER], ['*']));
-        expect(fn () => app(ListQuestionsHandler::class)->handle(new ListQuestions($egypt, 'PENDING', 'en')))->toThrow(Unauthorized::class);
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::QUESTION_ANSWER, FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::WISHLIST_VIEW], ['*']));
+        expect(fn () => app(ListQuestionsHandler::class)->handle(new ListQuestions($egypt, 'PENDING', 'en')))->toThrow(Unauthorized::class)
+            ->and(fn () => app(ListReviewsHandler::class)->handle(new ListReviews($egypt, 'PENDING', 'en')))->toThrow(Unauthorized::class)
+            ->and(fn () => app(ListFavouritesHandler::class)->handle(new ListFavourites($egypt, 'en')))->toThrow(Unauthorized::class);
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
-        expect(app(ListQuestionsHandler::class)->handle(new ListQuestions($egypt, 'PENDING', 'en'))->rows)->toBe([]);
+        expect(app(ListQuestionsHandler::class)->handle(new ListQuestions($egypt, 'PENDING', 'en'))->rows)->toBe([])
+            ->and(app(ListReviewsHandler::class)->handle(new ListReviews($egypt, 'PENDING', 'en'))->rows)->toBe([])
+            ->and(app(ListFavouritesHandler::class)->handle(new ListFavourites($egypt, 'en'))->rows)->toBe([]);
     });
 });
 
@@ -331,5 +337,68 @@ describe('wishlists for staff', function () {
             ->and(array_map(fn ($row) => $row->product->productId, $after->rows))->toBe([$twos[1]])
             ->and(Fb::thrown(fn () => app(ListFavouritesHandler::class)->handle(new ListFavourites(Fx::storeId('sa'), 'en', 'two')), InvalidFeedbackAttribute::class)->attribute)->toBe('after')
             ->and(fn () => app(ListFavouritesHandler::class)->handle(new ListFavourites(Fx::storeId('ae'), 'en')))->toThrow(Unauthorized::class);
+    });
+});
+
+describe('the pages\' cost', function () {
+    it('reads a queue and my reviews in the same number of queries for 2 rows as for 5', function () {
+        ['product' => $product, 'variants' => [$sixty]] = Fb::sold(['sa', 'ae']);
+        $sara = Fx::customer();
+        $customers = array_map(static fn (int $n): string => Fx::customer("buyer{$n}@example.test"), range(1, 5));
+        $products = array_map(static fn (): array => Fb::sold(['sa', 'ae']), range(1, 5));
+        $reader = Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['sa']);
+        // Warm, as the shop's own budget counts: once to fill the caches, then counted.
+        $counted = function (Closure $read): int {
+            $read();
+            $queries = Cx::recordQueries();
+            $read();
+
+            return count($queries);
+        };
+        $queue = function () use ($reader): void {
+            Fx::actAsStaff($reader);
+            app(ListReviewsHandler::class)->handle(new ListReviews(Fx::storeId('sa'), 'PENDING', 'en'));
+        };
+        $mine = function () use ($sara): void {
+            Fx::actAsCustomer($sara);
+            app(ViewMyReviewsHandler::class)->handle(new ViewMyReviews('en'));
+        };
+
+        foreach ([0, 1] as $n) {
+            Fb::reviewRow($product, $sixty, $customers[$n]);
+            Fb::reviewRow($products[$n]['product'], $products[$n]['variants'][0], $sara, [], $n === 0 ? 'sa' : 'ae');
+        }
+
+        [$fewQueue, $fewMine] = [$counted($queue), $counted($mine)];
+
+        foreach ([2, 3, 4] as $n) {
+            Fb::reviewRow($product, $sixty, $customers[$n]);
+            Fb::reviewRow($products[$n]['product'], $products[$n]['variants'][0], $sara, [], $n % 2 === 0 ? 'sa' : 'ae');
+        }
+
+        expect([$counted($queue), $counted($mine)])->toBe([$fewQueue, $fewMine]);
+    });
+
+    it('fills a page of favourites past archived products at its edge, and goes on after it', function () {
+        $sara = Fx::customer();
+        $products = array_map(static fn (int $n): string => Px::product("Saved {$n}"), range(1, 53));
+        sort($products);
+
+        foreach ($products as $product) {
+            readsWishlist($sara, $product, 'sa', '2026-10-01 10:00:00+00');
+        }
+
+        // The 50th and 51st, in the list's order: one at the first batch's end, one past it.
+        DB::table('catalog.products')->whereIn('id', [$products[49], $products[50]])->update(['stage' => 'ARCHIVED', 'archived_from' => 'DRAFT']);
+        $live = array_values(array_diff($products, [$products[49], $products[50]]));
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::WISHLIST_VIEW], ['sa']));
+
+        $first = app(ListFavouritesHandler::class)->handle(new ListFavourites(Fx::storeId('sa'), 'en'));
+        $second = app(ListFavouritesHandler::class)->handle(new ListFavourites(Fx::storeId('sa'), 'en', $first->next));
+
+        expect(array_map(fn ($row) => $row->product->productId, $first->rows))->toBe(array_slice($live, 0, 50))
+            ->and($first->next)->toBe('1:'.$live[49])
+            ->and(array_map(fn ($row) => $row->product->productId, $second->rows))->toBe([$live[50]])
+            ->and($second->next)->toBeNull();
     });
 });

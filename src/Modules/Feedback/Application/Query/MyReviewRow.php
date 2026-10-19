@@ -20,6 +20,7 @@ final readonly class MyReviewRow
     public function __construct(
         public string $reviewId,
         public string $storeId,
+        public string $storeName,
         public FeedbackCard $product,
         public array $variant,
         public int $rating,

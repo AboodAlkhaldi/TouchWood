@@ -240,7 +240,9 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 **The reads as built (step F6a).** My assumptions, stated for the owner to reject:
 - **Pages:** 20 rows for a customer's own lists, 50 for staff's, each after the last row shown (a
   keyset, never an offset); a wishlist (at most 500) comes whole, grouped by store in the stores'
-  own order. "Favourited products" pages after the last count and product shown.
+  own order. "Favourited products" pages after the last count and product read — at most five
+  batches a page past archived products, so a page may come back short with a `next`; a count that
+  changes between pages may show a product twice or not at all, as any list ranked by a live count.
 - **Order:** "my" lists newest first; a queue's waiting items **oldest first** — the next to decide on
   top — and its other states newest first.
 - **A customer's wishlist for staff:** a customer the reader may not see (access.md amendment 44(c)),

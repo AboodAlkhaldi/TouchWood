@@ -6,9 +6,11 @@ namespace Modules\Feedback\Application\Query;
 
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\StaffNameDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\ValueObject\StoreId;
@@ -27,7 +29,7 @@ final readonly class FeedbackReader
     ) {}
 
     /**
-     * These products as cards read in one store (Catalog's two reads, then their photos in one).
+     * These products as cards read in one store.
      *
      * @param  'ar'|'en'  $locale
      * @param  list<string>  $productIds
@@ -35,31 +37,12 @@ final readonly class FeedbackReader
      */
     public function cards(StoreId $store, string $locale, array $productIds): array
     {
-        if ($productIds === []) {
-            return [];
-        }
-
-        $found = $this->catalog->productCards($store, $locale, array_values(array_unique($productIds)));
-        $photos = $this->platform->mediaUrlsOf(array_values(array_filter(array_map(static fn ($card): ?string => $card->photoMediaId === null ? null : strtolower($card->photoMediaId), $found))));
-        $cards = [];
-
-        foreach ($found as $id => $card) {
-            $urls = $card->photoMediaId === null ? null : ($photos[strtolower($card->photoMediaId)] ?? null);
-            $cards[$id] = new FeedbackCard(
-                $id,
-                $card->name,
-                $card->slug,
-                $urls === null || $urls->variants === [] ? null : $urls->variants,
-                $card->sold,
-                $card->stage === ProductStage::Archived,
-            );
-        }
-
-        return $cards;
+        return $this->cardsByStore($locale, [$store->value => $productIds])[$store->value] ?? [];
     }
 
     /**
-     * Each store's cards, a store read once (a wishlist, "my reviews": each item in its own store).
+     * Each store's cards — a wishlist, "my reviews": each product in the store it belongs to —
+     * Catalog's two reads a store, then every photo in one read.
      *
      * @param  'ar'|'en'  $locale
      * @param  array<string, list<string>>  $productIdsByStore
@@ -67,10 +50,24 @@ final readonly class FeedbackReader
      */
     public function cardsByStore(string $locale, array $productIdsByStore): array
     {
-        $cards = [];
+        $found = [];
+        $mediaIds = [];
 
         foreach ($productIdsByStore as $storeId => $productIds) {
-            $cards[$storeId] = $this->cards(StoreId::fromString($storeId), $locale, $productIds);
+            $found[$storeId] = $productIds === [] ? [] : $this->catalog->productCards(StoreId::fromString($storeId), $locale, array_values(array_unique($productIds)));
+
+            foreach ($found[$storeId] as $card) {
+                if ($card->photoMediaId !== null) {
+                    $mediaIds[] = strtolower($card->photoMediaId);
+                }
+            }
+        }
+
+        $photos = $mediaIds === [] ? [] : $this->platform->mediaUrlsOf(array_values(array_unique($mediaIds)));
+        $cards = [];
+
+        foreach ($found as $storeId => $storeCards) {
+            $cards[$storeId] = array_map(static fn (ProductCardDto $card): FeedbackCard => self::toCard($card, $photos), $storeCards);
         }
 
         return $cards;
@@ -162,5 +159,22 @@ final readonly class FeedbackReader
         }
 
         return $stores;
+    }
+
+    /**
+     * @param  array<string, MediaUrlsDto>  $photos
+     */
+    private static function toCard(ProductCardDto $card, array $photos): FeedbackCard
+    {
+        $urls = $card->photoMediaId === null ? null : ($photos[strtolower($card->photoMediaId)] ?? null);
+
+        return new FeedbackCard(
+            $card->productId,
+            $card->name,
+            $card->slug,
+            $urls === null || $urls->variants === [] ? null : $urls->variants,
+            $card->sold,
+            $card->stage === ProductStage::Archived,
+        );
     }
 }
