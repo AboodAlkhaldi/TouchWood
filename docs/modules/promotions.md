@@ -368,7 +368,10 @@ call. A store switched off is read by Super Admins alone, as it is changed (§1.
 customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
 bulk reads, whether it gives its gift now) and, for the customer, `ViewMyCoupons` (the coupons given
 to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
-first; a store switched off has none).
+first; a store switched off has none). My assumption, stated for the owner to reject: **"usable" leaves
+out what depends on the cart or the buyer** — sale mode, the minimum (shown on the row), and whether
+the customer is now an individual or a company (Promotions never reads B2B; checkout says why a coupon
+takes nothing).
 
 **The permissions Promotions declares** — every name has three parts, as Access requires
 (`InMemoryPermissionCatalog::NAME`):

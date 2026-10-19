@@ -158,7 +158,10 @@ describe('gift levels', function () {
         ])
             ->and($rows[1]->variantCode)->not->toBeNull()
             ->and($rows[1]->productNameEn)->toStartWith('Drawer')
-            ->and([$rows[1]->variantArchived, $rows[3]->variantArchived])->toBe([false, true]);
+            ->and([$rows[1]->variantArchived, $rows[3]->variantArchived])->toBe([false, true])
+            // Archived, but still Catalog's: its code and product are still named.
+            ->and($rows[3]->variantCode)->not->toBeNull()
+            ->and($rows[3]->productNameAr)->not->toBeNull();
     });
 
     it('reads every level in the same queries however many there are', function () {
@@ -208,11 +211,18 @@ describe('my coupons', function () {
         $later = Pr::coupon('LATER-1', with: ['eligibility' => 'ASSIGNED', 'starts_at' => $now->addDay()]);
         $gone = Pr::coupon('GONE-1', with: ['eligibility' => 'ASSIGNED', 'max_uses_total' => 1]);
         $omars = Pr::coupon('OMARS-1', with: ['eligibility' => 'ASSIGNED']);
+        $past = Pr::coupon('PAST-1', with: ['eligibility' => 'ASSIGNED', 'ends_at' => $now]);
+        $shared = Pr::coupon('SHARED-1', with: ['eligibility' => 'ASSIGNED', 'max_uses_per_customer' => 1, 'ends_at' => $now->addDays(2)]);
+        $egypt = Pr::coupon('EGYPT-1', 'eg', ['eligibility' => 'ASSIGNED']);
+        Pr::assign($egypt, $sara, 'eg');
         Pr::coupon('PUBLIC-1');
-        foreach ([$soon, $open, $usedUp, $off, $later, $gone] as $coupon) {
+        foreach ([$soon, $open, $usedUp, $off, $later, $gone, $past, $shared] as $coupon) {
             Pr::assign($coupon, $sara);
         }
         Pr::assign($omars, $omar);
+        Pr::assign($shared, $omar);
+        // Another customer's use never counts against mine.
+        Pr::used($shared, $omar);
         Pr::used($soon, $sara);
         Pr::used($usedUp, $sara);
         Pr::used($gone, $omar);
@@ -220,7 +230,7 @@ describe('my coupons', function () {
 
         $mine = app(ViewMyCouponsHandler::class)->handle(new ViewMyCoupons(Fx::storeId('sa')));
 
-        expect(array_map(static fn ($row): array => [$row->code, $row->usesLeft], $mine))->toBe([['SOON-1', 1], ['OPEN-1', null]])
+        expect(array_map(static fn ($row): array => [$row->code, $row->usesLeft], $mine))->toBe([['SOON-1', 1], ['SHARED-1', 1], ['OPEN-1', null]])
             ->and([$mine[0]->cap?->minorUnits, $mine[0]->minimum?->minorUnits, $mine[0]->minimum?->currencyCode, $mine[0]->percent])->toBe([20_00, 100_00, Pr::currency(), 15]);
     });
 

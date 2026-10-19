@@ -130,9 +130,10 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   `AccessApi::customers` call. `ListCoupons` (filters: state now, start of the code), `ViewCoupon`,
   `ListCouponUses`, `ListCouponAssignments`, `ListSegments`, `ListSegmentMembers` (names only),
   `ListGiftLevels` (gifts named in two Catalog bulk reads); the customer's `ViewMyCoupons`
-  (`promotions.coupon.view_own`: assigned to me, usable now, my uses left). SQL in
-  `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page, keyset indexes in
-  `…_index_marketing_reads` and `…_index_segments_list`.
+  (`promotions.coupon.view_own`: assigned to me, usable now, my uses left — one query). SQL in
+  `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
+  `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and
+  `…_index_segments_list`.
 - **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
   every coupon whose include or exclude list names a product, category or brand Catalog is about to
   delete, and every gift level giving a variant it is about to delete, in one query; Catalog then
