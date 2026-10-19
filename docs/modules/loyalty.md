@@ -695,6 +695,10 @@ an owner's answer.
   Arabic sentence keeps "1.00 SAR" and an order number in their order; the points box takes digits
   typed in Arabic-Indic too.
 - **Accounts by store**: an index `accounts_by_store` (`store_id`, `id`), §5.
+- **Signed-in shop pages read one query more** while a store's programme is off (every store starts
+  off): the account menu asks whether to offer the Points tab (access.md amendment 72(d)) - Catalog's
+  recorded counts 13 → 14 (search 14 → 15). **Accepted by the owner "for now", 2026-10-19**; the
+  alternative, remembering the answer in the customer's session, stays open.
 
 ---
 
@@ -972,5 +976,5 @@ written, for the owner to review with the built screens. Each says what changing
 | P4 | **Remove Points is not red**: a correction, not a deletion; the dialog's main button names the action | A button variant |
 | P5 | **Give Points…** on the customer page's section, for a reader who may change points and open L2 in a store where the customer has none yet — otherwise only customers who already hold points could be given any | A link |
 | P6 | **The search matches email and phone only among customers the reader may already view** (names in every store), so an email or phone typed in never reveals who owns it — the review of 2026-10-19 found that matching them everywhere would show more than answer 7's "the name only" | The search's query, in Access |
-| P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; whether to close it too is the owner's call (2026-10-19) | One check in the handler |
+| P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; **the owner, 2026-10-19: left as is** | One check in the handler |
 | P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |
