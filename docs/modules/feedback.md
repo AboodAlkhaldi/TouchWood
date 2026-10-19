@@ -190,7 +190,7 @@ no purchase — so a review is refused as no verified purchase until then.
 ### 2.2 DTOs and enums
 
 - `ReviewStatus`: `PENDING`, `APPROVED`, `REJECTED`, `UNPUBLISHED`.
-- `QuestionStatus`: `PENDING`, `ANSWERED`, `REJECTED` (handoff §13.1).
+- `QuestionStatus`: `PENDING`, `ANSWERED`, `REJECTED` (handoff §13.1), `UNPUBLISHED` (answer 18).
 - `ReviewMark`: `VERIFIED_PURCHASE`, `RETURNED`.
 
 ### 2.3 What Feedback needs from other modules
@@ -205,7 +205,7 @@ no purchase — so a review is refused as no verified purchase until then.
 | Catalog | **Refusing to delete a product that has reviews or questions** — never a database error | The usage check Promotions adds to Catalog (promotions.md §1.2), which Feedback registers with too — **asked also by the import page's deletion of products made ready or put on sale** (`DeleteImportedProducts`, catalog.md amendment 11(c)), which a reviewed product can reach |
 | Access | The author's **first name and last name separately**, and whether anonymized, for many reviews at once | The batch read Promotions adds to Access (promotions.md §2.3) |
 | Access | `CustomerAnonymized` | Exists — its docblock already names Feedback |
-| Access | The permission catalog, and **a `Support` permission group** — the admin menu's "Support" section (handoff §14: Support › Product questions; reviews beside them) | **An Access addition** (and `support` in Platform's menu groups), built with Feedback — as Points and Marketing. My assumption, following the owner's answer for Points |
+| Access | The permission catalog, and **a `Support` permission group** — the admin menu's "Support" section (handoff §14: Support › Product questions; reviews beside them) | **Built** with step F1 (access.md amendment 73; `support` in Platform's menu, platform.md §9.4) — the owner's answer of 2026-10-18 |
 | Platform | A store setting, the audit log, staff names (`StaffNames::forReader` — who answered or moderated, a Super Admin reading as "System administrator") | Exists |
 
 ---
@@ -214,7 +214,7 @@ no purchase — so a review is refused as no verified purchase until then.
 
 Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`). Staff actions are
 audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.question.answered`,
-`…answer_changed`, `…rejected`).
+`…answer_changed`, `…rejected`, `…unpublished`).
 
 | Use case | Permission |
 |---|---|
@@ -263,6 +263,7 @@ Its mark: `VERIFIED_PURCHASE` ──(any of that product returned)──▶ `RET
 
 ```
 PENDING ──(answered)──▶ ANSWERED ──(answer corrected)──▶ ANSWERED
+ANSWERED ──(unpublished)──▶ UNPUBLISHED   (final — answer 18; the customer still sees it)
 PENDING ──(rejected)──▶ REJECTED   (final)
 ```
 
@@ -320,9 +321,9 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 | `AlreadyReviewed` | CONFLICT | A second review of a product — whatever became of the first, a rejected one included |
 | `TooManyWaitingQuestions` | CONFLICT | A sixth question waiting, in any store (§1.3) |
 | `WishlistFull` | CONFLICT | A 501st item (§1.4) |
-| `InvalidModeration` | CONFLICT | A change its state does not allow: approving a rejected review, answering a rejected question, unpublishing one not approved |
+| `InvalidModeration` | CONFLICT | A change its state does not allow: approving a rejected review, answering a rejected question, unpublishing a review not approved or a question not answered (answer 18), repeating an approval (answer 20) |
 | `ReviewNotFound`, `QuestionNotFound` | NOT_FOUND | Unknown, or of a store the staff member does not cover — the same answer for both |
-| `InvalidFeedbackAttribute` | INVALID | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready |
+| `InvalidFeedbackAttribute` | INVALID | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready, a store that does not sell the product (answer 19), a variant not of the product |
 
 ---
 
@@ -428,8 +429,8 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 2. **The Catalog additions** — bulk reads, ratings in the listing (and how the rating sort places
    products with few or no reviews), the product page's sections — agreed with the Catalog-screens
    session, who build the shop's lists and pages.
-3. **The `Support` permission group and menu section** — my assumption, following the owner's answer
-   for Points.
+3. ~~**The `Support` permission group and menu section**~~ — **settled**: the owner's answer of
+   2026-10-18; built with step F1 (access.md amendment 73, platform.md §9.4).
 4. **Feedback's screens** — the frontend session's, to confirm (as for Loyalty and Promotions).
 5. **Every assumption marked above** — the variant shown, the author's name (and what moderators see),
    answers signed by the store's team, unpublishing, correcting answers, 5 waiting questions, 500

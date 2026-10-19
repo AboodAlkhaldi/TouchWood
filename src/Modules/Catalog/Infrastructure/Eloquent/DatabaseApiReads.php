@@ -6,6 +6,7 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -136,6 +137,23 @@ final readonly class DatabaseApiReads implements ApiReads
                 $row->category_id === null ? null : (string) $row->category_id,
                 $row->warranty_id === null ? null : (string) $row->warranty_id,
             );
+        }
+
+        return $found;
+    }
+
+    public function brands(array $brandIds): array
+    {
+        $ids = self::ids($brandIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table('catalog.brands')->whereIn('id', $ids)->get(['id', 'name_ar', 'name_en', 'is_active']) as $row) {
+            $found[(string) $row->id] = new BrandDto((string) $row->id, (string) $row->name_ar, (string) $row->name_en, (bool) $row->is_active);
         }
 
         return $found;

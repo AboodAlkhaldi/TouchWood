@@ -11,7 +11,7 @@ under `pricing.ceiling.manage`): Promotions reads it and declares no setting of 
 
 ## Built
 
-The module is built in seven steps (the execution plan, approved 2026-10-17):
+The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**; one item waits on another session (spec §9.2 #6):
 
 | Step | What | Where |
 |---|---|---|
@@ -25,6 +25,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 5 — gift levels | The gift levels table; create, change, switch; one amount one gift for the same buyers and dates (`GiftLevelClash`); `PromotionsApi::giftLevels`; Catalog refuses to delete a gift's variant | below |
 | 6a — the coupon reads | `ListCoupons`, `ViewCoupon`, `ListCouponUses`, `ListCouponAssignments` for the staff screens, under the view permission or any manage one | below |
 | 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
+| 7 — the module's pass | One whole-module review; a coupon's brands read in bulk (catalog.md amendment 27); a list entry Catalog removed while a coupon is saved answered as `rules`, never a database error; every refusable attribute named in both languages; the spec's stale lines | below |
 
 ## What is here
 
@@ -35,9 +36,9 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   of segments, reserved to the system.
 - **`Infrastructure/Persistence/PromotionsSchema`** and its migration — the `promotions` schema, on
   the connection's search path so a fresh migration wipes it.
-- **`Domain/Exception`** — the errors of spec §7 built so far, each with its type
-  (`promotions.{snake}`), its status, and a title and a message in Arabic and English at
-  `promotions::errors.{snake}`. `CouponRefused` and its reasons come with the coupon checks (step 2).
+- **`Domain/Exception`** — the errors of spec §7, each with its type (`promotions.{snake}`), its
+  status, and a title and a message in Arabic and English at `promotions::errors.{snake}`; every
+  attribute `InvalidPromotionAttribute` can name has a word in both (the test reads them from the code).
 - **`Presentation/lang/{en,ar}`** — the permissions' names and the errors' words.
 - **`Infrastructure/Persistence/Migrations/…_create_coupon_tables`** — §5's coupon tables. Every CHECK
   of the spec, composite keys carrying the coupon's store, `UNIQUE (order_id)` on uses (one coupon per
