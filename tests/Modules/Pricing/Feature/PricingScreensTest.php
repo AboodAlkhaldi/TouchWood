@@ -520,7 +520,7 @@ describe('Category Discounts (P3) and a discount\'s page', function () {
         $browser = pricingScreens([P::CATEGORY_DISCOUNT_MANAGE]);
 
         expect(pricingScreensOwnQueries($browser, '/admin/category-discounts'))->toBe(5)
-            ->and(pricingScreensOwnQueries($browser, "/admin/category-discounts/{$discount}"))->toBe(15);
+            ->and(pricingScreensOwnQueries($browser, "/admin/category-discounts/{$discount}"))->toBe(14);
     });
 });
 
@@ -601,6 +601,118 @@ describe('a product\'s Stores tab', function () {
     });
 });
 
+describe('the guards (the review of step 3)', function () {
+    it('refuses another store\'s offer and discount, read or changed, and changes nothing', function () {
+        $category = Px::category('Kitchens');
+        $a = pricingScreensProduct('Alpha', ['60 cm'], $category);
+        Rx::set('sa', [$a['variants'][0] => '120.00']);
+        $running = pricingScreensSale($a['variants']);
+        $scheduled = pricingScreensSale($a['variants'], '5', pricingScreensIn(10));
+        $discount = pricingScreensDiscount($category, pricingScreensIn(10));
+        $other = pricingScreens([P::PRICE_EDIT, P::WHOLESALE_EDIT, P::CATEGORY_DISCOUNT_MANAGE], ['eg']);
+        pricingScreensLater();
+
+        $other->get("/admin/offers/{$running}")->assertForbidden();
+        $other->get("/admin/category-discounts/{$discount}")->assertForbidden();
+
+        $posts = [
+            "/admin/offers/{$scheduled}" => ['percent' => '6'],
+            "/admin/offers/{$running}/end-date" => ['ends_at' => pricingScreensIn(40)],
+            "/admin/offers/{$running}/end" => [],
+            "/admin/offers/{$scheduled}/remove" => [],
+            "/admin/category-discounts/{$discount}" => ['category' => $category, 'percent' => '12', 'lines' => 'BOTH'],
+            "/admin/category-discounts/{$discount}/end-date" => ['ends_at' => pricingScreensIn(40)],
+            "/admin/category-discounts/{$discount}/end" => [],
+            "/admin/category-discounts/{$discount}/remove" => [],
+        ];
+
+        foreach ($posts as $uri => $data) {
+            $response = $other->post($uri, $data);
+
+            expect(AdminBrowser::formError($response))->not->toBeEmpty("{$uri} was not refused")
+                ->and(pricingScreensToast($response))->toBeNull();
+        }
+
+        expect(DB::table('pricing.sales')->whereIn('id', [$running, $scheduled])->count())->toBe(2)
+            ->and(DB::table('pricing.sales')->where('id', $running)->value('ends_at'))->toBeNull()
+            ->and(DB::table('pricing.category_discounts')->where('id', $discount)->exists())->toBeTrue();
+    });
+
+    it('refuses a change that names no store', function () {
+        $a = pricingScreensProduct('Alpha', ['60 cm']);
+        $browser = pricingScreens([P::PRICE_EDIT, P::WHOLESALE_EDIT, P::CATEGORY_DISCOUNT_MANAGE]);
+
+        foreach ([
+            '/admin/prices' => ['prices' => [$a['variants'][0] => '120.00']],
+            '/admin/prices/remove' => ['sizes' => [$a['variants'][0]]],
+            '/admin/offers' => ['product' => $a['product'], 'percent' => '10'],
+            '/admin/category-discounts' => ['category' => Px::category('Kitchens'), 'percent' => '10', 'lines' => 'BOTH'],
+            '/admin/wholesale-prices' => ['size' => $a['variants'][0], 'bands' => []],
+        ] as $uri => $data) {
+            expect(AdminBrowser::formError($browser->post($uri, $data)))->not->toBeEmpty("{$uri} was not refused");
+        }
+
+        expect(Rx::retail('sa', $a['variants'][0]))->toBeNull();
+    });
+
+    it('refuses the dialogs\' reads in a store outside the reader\'s', function () {
+        $category = Px::category('Kitchens');
+        $a = pricingScreensProduct('Alpha', ['60 cm'], $category);
+        $browser = pricingScreens([P::PRICE_EDIT, P::WHOLESALE_EDIT, P::CATEGORY_DISCOUNT_MANAGE], ['sa']);
+
+        foreach ([
+            '/admin/prices/size?store=eg&size='.$a['variants'][0],
+            "/admin/offers/note?store=eg&product={$a['product']}&percent=10",
+            "/admin/category-discounts/preview?store=eg&category={$category}&percent=10&lines=both",
+            "/admin/category-discounts/left-out?store=eg&category={$category}",
+            '/admin/wholesale-prices/sizes?store=eg',
+        ] as $uri) {
+            $browser->get($uri)->assertForbidden();
+        }
+    });
+
+    it('refuses two bands from the same quantity, and Left Out of a category that is off', function () {
+        $category = Px::category('Kitchens');
+        $a = pricingScreensProduct('Alpha', ['60 cm'], $category);
+        Rx::set('sa', [$a['variants'][0] => '120.00']);
+        pricingScreensWholesale($a['product'], $a['variants'], 5);
+        $browser = pricingScreens([P::WHOLESALE_EDIT, P::CATEGORY_DISCOUNT_MANAGE]);
+
+        $repeated = $browser->post('/admin/wholesale-prices', ['store' => 'sa', 'size' => $a['variants'][0], 'bands' => [['from' => '5', 'price' => '110.00'], ['from' => '5', 'price' => '100.00']]]);
+        DB::table('catalog.categories')->where('id', $category)->update(['is_active' => false]);
+        $off = $browser->get("/admin/category-discounts/left-out?store=sa&category={$category}");
+
+        expect(pricingScreensErrors($repeated))->toHaveKey("rows.{$a['variants'][0]}")
+            ->and(DB::table('pricing.wholesale_bands')->where('variant_id', $a['variants'][0])->exists())->toBeFalse()
+            ->and($off->status())->toBeGreaterThanOrEqual(400);
+    });
+
+    it('previews a discount and opens its page within the budget with three other discounts running', function () {
+        $categories = [Px::category('Kitchens'), Px::category('Baths'), Px::category('Doors'), Px::category('Floors')];
+        $sizes = [];
+
+        foreach ($categories as $n => $category) {
+            $sizes[] = pricingScreensProduct("Product {$n}", ['60 cm'], $category)['variants'][0];
+        }
+
+        Rx::set('sa', array_fill_keys($sizes, '120.00'));
+        $discount = pricingScreensDiscount($categories[0]);
+
+        foreach (array_slice($categories, 1) as $category) {
+            pricingScreensDiscount($category);
+        }
+
+        $browser = pricingScreens([P::CATEGORY_DISCOUNT_MANAGE]);
+        $one = pricingScreensOwnQueries($browser, "/admin/category-discounts/preview?store=sa&category={$categories[0]}&percent=20&lines=both");
+        $page = pricingScreensOwnQueries($browser, "/admin/category-discounts/{$discount}");
+
+        // The other discounts' products in one read, however many (Catalog's productIdsInCategories).
+        expect($one)->toBeLessThanOrEqual(15)
+            ->and($page)->toBeLessThanOrEqual(15)
+            ->and([$one, $page])->toBe([12, 15]);
+    });
+});
+
 describe('the drawer\'s and the dialogs\' reads', function () {
     it('each reads its own queries within the budget', function () {
         $category = Px::category('Kitchens');
@@ -628,7 +740,7 @@ describe('the drawer\'s and the dialogs\' reads', function () {
         // discount dialog's preview at it.
         expect($counts)->toBe([
             'drawer' => 13, 'note' => 15, 'products' => 3, 'sizes' => 4, 'filter' => 4, 'offer' => 12,
-            'categories' => 2, 'left out' => 3, 'preview' => 15, 'wholesale sizes' => 3,
+            'categories' => 2, 'left out' => 4, 'preview' => 13, 'wholesale sizes' => 3,
         ]);
     });
 });

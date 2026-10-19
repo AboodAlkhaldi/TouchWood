@@ -21,7 +21,7 @@ import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { OverlapNoteData, PickedProductData, ProductResultsData, SaleRowData, SaleSizeChoiceData, SaleViewData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { percentProblem, priceProblem } from './boxes';
-import { Mark, nameIn, Off, OverlapLine, percentOf, RowPhoto, StateBadge, ToArrow, useDate, useDebounced, useLiveRead, useLocale, useT } from './parts';
+import { LoadFailed, Mark, nameIn, Off, OverlapLine, percentOf, RowPhoto, StateBadge, ToArrow, useDate, useDebounced, useLiveRead, useLocale, useT } from './parts';
 
 /*
 | The offer dialog (pricing.md §4.3.3 P2; "Offer" is the panel's word for a sale, §9.4) - on Offers, on a
@@ -210,7 +210,9 @@ export function OfferDialog({ mode, store, sale = null, product: preset = null, 
                 {adding && product !== null ? (
                     <FieldSet className="gap-3" data-test="offer-sizes">
                         <FieldLegend variant="label">{t('pricing::admin.offer.sizes')}</FieldLegend>
-                        {sizeChoices.loading && sizeChoices.data === null ? (
+                        {sizeChoices.failed ? (
+                            <LoadFailed what="sizes" onRetry={sizeChoices.retry} />
+                        ) : sizeChoices.loading && sizeChoices.data === null ? (
                             <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
                         ) : choices.length === 0 ? (
                             <p className="text-copy-14 text-ink-muted">{t('pricing::admin.offer.no_sizes')}</p>
@@ -270,7 +272,10 @@ export function OfferDialog({ mode, store, sale = null, product: preset = null, 
                 ) : null}
 
                 {readOnly && sale !== null ? (
-                    <ViewFields sale={sale} view={viewed.data} zone={store.zone} />
+                    <>
+                        {viewed.failed ? <LoadFailed what="offer" onRetry={viewed.retry} /> : null}
+                        <ViewFields sale={sale} view={viewed.data} failed={viewed.failed} zone={store.zone} />
+                    </>
                 ) : (
                     <>
                         <FieldSet className="gap-3">
@@ -343,7 +348,7 @@ export function OfferDialog({ mode, store, sale = null, product: preset = null, 
                             </FieldContent>
                         </Field>
 
-                        <OfferNote note={note.data} loading={note.loading} zone={store.zone} />
+                        {note.failed ? <LoadFailed what="note" onRetry={note.retry} /> : <OfferNote note={note.data} loading={note.loading} zone={store.zone} />}
                     </>
                 )}
             </div>
@@ -388,6 +393,7 @@ function ProductPicker({ store, product, onChoose, error }: { store: string; pro
             <Label htmlFor="offer-product">{t('pricing::admin.offer.product')}</Label>
             <SearchField id="offer-product" label={t('pricing::admin.offer.product')} placeholder={t('pricing::admin.offer.product_search')} value={query} onValueChange={setQuery} data-test="offer-product-search" />
             {error ? <FieldError>{error}</FieldError> : null}
+            {found.failed ? <LoadFailed what="search" onRetry={found.retry} /> : null}
             <ul className="grid max-h-60 gap-1 overflow-y-auto" aria-busy={found.loading || undefined} data-test="offer-products">
                 {rows.length === 0 && !found.loading && found.data !== null ? <li className="px-2 py-1 text-copy-14 text-ink-muted">{t('pricing::admin.offer.product_none', { query: typed })}</li> : null}
                 {rows.map((row) => (
@@ -494,7 +500,7 @@ function OfferNote({ note, loading, zone }: { note: OverlapNoteData | null; load
 
 
 /** View Offer: every field of an ended offer, and its sizes with their prices (`ViewSale`). */
-function ViewFields({ sale, view, zone }: { sale: SaleRowData; view: SaleViewData | null; zone: string }) {
+function ViewFields({ sale, view, failed, zone }: { sale: SaleRowData; view: SaleViewData | null; failed: boolean; zone: string }) {
     const t = useT();
     const date = useDate(zone);
 
@@ -517,7 +523,7 @@ function ViewFields({ sale, view, zone }: { sale: SaleRowData; view: SaleViewDat
                 <dd>{sale.alwaysWins ? <Mark tone="amber-subtle">{t('pricing::admin.badge.always_wins')}</Mark> : '—'}</dd>
             </dl>
             {view === null ? (
-                <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
+                failed ? null : <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
             ) : (
                 <Table>
                     <TableCaption className="sr-only">{t('pricing::admin.offer.sizes')}</TableCaption>

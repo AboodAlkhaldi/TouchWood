@@ -22,7 +22,7 @@ import type { CategoryChoiceData, DiscountPreviewData, DiscountRowData, PickedPr
 import type { SharedProps } from '@/types/page';
 import { percentProblem, priceProblem } from './boxes';
 import { DiscountPreview } from './DiscountPreview';
-import { nameIn, readJson, useLiveRead, useLocale, useT } from './parts';
+import { LoadFailed, nameIn, readJson, useLiveRead, useLocale, useT } from './parts';
 import { RemoteCombobox } from './picker';
 
 /*
@@ -326,7 +326,10 @@ export function DiscountDialog({ mode, store, discount = null, open, onOpenChang
                     </div>
                 )}
 
-                {preview.data !== null ? (
+                {categories.failed ? <LoadFailed what="categories" onRetry={categories.retry} /> : null}
+                {preview.failed ? (
+                    <LoadFailed what="preview" onRetry={preview.retry} />
+                ) : preview.data !== null ? (
                     <DiscountPreview
                         preview={preview.data}
                         loading={preview.loading}

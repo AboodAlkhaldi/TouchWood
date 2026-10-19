@@ -107,7 +107,7 @@ export default function NeedsAPrice(page: NeedsAPricePage) {
                                                 <TableCell className="align-top">
                                                     {editable ? (
                                                         <PriceBox
-                                                            id={`price-${id}`}
+                                                            id={boxes.idOf(id)}
                                                             label={t('pricing::admin.box.label', { size: `${product} · ${sizeName(t, row.values)}` })}
                                                             currency={frame.currency}
                                                             value={boxes.valueOf({ id, saved: '' })}

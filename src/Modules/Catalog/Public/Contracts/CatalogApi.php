@@ -211,6 +211,17 @@ interface CatalogApi
     public function activeCategories(): array;
 
     /**
+     * **Each category's products, and those of every category below it** (amendment 23, stage 5's screens
+     * step 3's review): `productIdsInCategory` for many categories at once - a discount preview's other
+     * discounts - in one query, keyed by category in the order asked, each list in id order; an unknown
+     * category holds none.
+     *
+     * @param  list<string>  $categoryIds
+     * @return array<string, list<string>>
+     */
+    public function productIdsInCategories(array $categoryIds): array;
+
+    /**
      * **A category's products, and those of every category below it** (amendment 23(c)), any stage, by
      * name in the page's language, found and paged as `searchProducts` - for a discount's "Left Out". An
      * unknown category holds none. A fixed two queries.

@@ -5,7 +5,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
-import { useDebounced, useLiveRead, useT } from './parts';
+import { LoadFailed, useDebounced, useLiveRead, useT } from './parts';
 
 /*
 | Picking one thing from a list the server searches (pricing.md §4.3.3: P2's Product filter, P3's Left Out,
@@ -74,7 +74,11 @@ export function RemoteCombobox<T>({ id, label, path, params, rows, keyOf, labelO
                     <Command shouldFilter={false}>
                         <CommandInput placeholder={words.search} value={query} onValueChange={setQuery} className="h-9" />
                         <CommandList aria-busy={found.loading || undefined}>
-                            {found.loading && found.data === null ? (
+                            {found.failed ? (
+                                <div className="p-2">
+                                    <LoadFailed what="search" onRetry={found.retry} />
+                                </div>
+                            ) : found.loading && found.data === null ? (
                                 <div className="flex justify-center p-3">
                                     <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
                                 </div>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Pricing\Presentation\Http\Resource;
 
 use Illuminate\Contracts\Foundation\Application;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\FoundProductDto;
 use Modules\Catalog\Public\Dto\FoundProductsDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -54,6 +55,8 @@ use Modules\Pricing\Application\Query\SaleSizeChoices\SaleSizeChoices;
 use Modules\Pricing\Application\Query\SaleSizeChoices\SaleSizeChoicesHandler;
 use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscount;
 use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscountHandler;
+use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewDiscountFields;
+use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewDiscountFieldsHandler;
 use Modules\Pricing\Application\Query\ViewSale\ViewSale;
 use Modules\Pricing\Application\Query\ViewSale\ViewSaleHandler;
 use Modules\Pricing\Application\Query\ViewSizePrices\ViewSizePrices;
@@ -94,6 +97,8 @@ final readonly class PricingPages
         private ListWholesaleHandler $wholesale,
         private FindWholesaleSizesHandler $wholesaleSizes,
         private NeedsAPriceHandler $needsAPrice,
+        private ViewDiscountFieldsHandler $discountFields,
+        private CatalogApi $catalog,
     ) {}
 
     /**
@@ -205,13 +210,16 @@ final readonly class PricingPages
         $store = $this->store($code);
         $list = $this->sales->handle(new ListSales($store->id, $state, $productId, $saleId, $sort, $after));
         $first = $list->sales[0] ?? null;
+        // The chosen product named even when no offer of it is shown (a state with none): its names read
+        // themselves, after ListSales has asked the reader's job in the store (the review of step 3).
+        $named = $productId !== null && $first === null ? ($this->catalog->products([strtolower(trim($productId))])[strtolower(trim($productId))] ?? null) : null;
 
         return new OffersPage(
             $this->frame($store),
             $store->timezone,
             $state ?? '',
             $sort,
-            $productId === null ? null : new PickedProductData($productId, $first->productNameAr ?? '', $first?->productNameEn, null, []),
+            $productId === null ? null : new PickedProductData($productId, $first->productNameAr ?? $named->nameAr ?? '', $first !== null ? $first->productNameEn : $named?->nameEn, null, []),
             $saleId,
             array_map(static fn (object $view): SaleRowData => self::same(SaleRowData::class, $view), $list->sales),
             $list->next,
@@ -387,7 +395,8 @@ final readonly class PricingPages
      */
     public function discountAsTyped(string $discountId): array
     {
-        $view = $this->discount->handle(new ViewCategoryDiscount($discountId));
+        // Its fields alone, never what it reaches: the end is all that changes (the review of step 3).
+        $view = $this->discountFields->handle(new ViewDiscountFields($discountId));
         $discount = $view->discount;
 
         return [

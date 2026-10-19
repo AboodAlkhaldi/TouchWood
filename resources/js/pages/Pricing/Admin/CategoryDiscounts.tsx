@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { cloneElement, lazy, Suspense, useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -113,7 +113,7 @@ export default function CategoryDiscounts(page: DiscountsPage) {
                             <EmptyTitle className="text-heading-16 text-ink">{t(filtered ? 'pricing::admin_discounts.empty.filtered_title' : 'pricing::admin_discounts.empty.title')}</EmptyTitle>
                             <EmptyDescription className="text-copy-14 text-ink-muted">{t(filtered ? 'pricing::admin_discounts.empty.filtered_body' : 'pricing::admin_discounts.empty.body')}</EmptyDescription>
                         </EmptyHeader>
-                        {!filtered && add !== undefined ? <EmptyContent>{add}</EmptyContent> : null}
+                        {!filtered && add !== undefined ? <EmptyContent>{cloneElement(add, { 'data-test': 'add-discount-empty' })}</EmptyContent> : null}
                     </Empty>
                 ) : (
                     <>
@@ -160,7 +160,7 @@ export default function CategoryDiscounts(page: DiscountsPage) {
                                                 ) : (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <span className="relative z-10 tw-figure underline decoration-dotted underline-offset-4">{plural(t, locale, 'pricing::admin_discounts.products', discount.leftOut.length)}</span>
+                                                            <span tabIndex={0} className="relative z-10 tw-figure underline decoration-dotted underline-offset-4">{plural(t, locale, 'pricing::admin_discounts.products', discount.leftOut.length)}</span>
                                                         </TooltipTrigger>
                                                         <TooltipContent>{discount.leftOutNames.join(t('pricing::admin.list_separator'))}</TooltipContent>
                                                     </Tooltip>

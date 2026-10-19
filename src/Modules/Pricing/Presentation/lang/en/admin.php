@@ -77,6 +77,7 @@ return [
     // A row's box and the save bar (§4.3.1, Q40).
     'box' => [
         'label' => 'Price for :size',
+        'label_store' => 'Price for :size in :store',
         'changed' => [
             'zero' => ':count prices changed',
             'one' => ':count price changed',
@@ -235,6 +236,17 @@ return [
         'offers' => 'Offers',
         'discounts' => 'Category Discounts',
         'no_offers' => 'No offers running or scheduled.',
+    ],
+
+    'failed' => [
+        'note' => 'Failed to load the note. Try again.',
+        'preview' => 'Failed to load the preview. Try again.',
+        'offer' => 'Failed to load the offer. Try again.',
+        'bands' => 'Failed to load the wholesale prices. Try again.',
+        'sizes' => 'Failed to load the sizes. Try again.',
+        'categories' => 'Failed to load the categories. Try again.',
+        'search' => 'Failed to load the results. Try again.',
+        'try_again' => 'Try Again',
     ],
 
     'toast' => [

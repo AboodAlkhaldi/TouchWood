@@ -31,6 +31,8 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
     const [fetching, setFetching] = useState(false);
     // A page of more products may arrive as the page's own preview (a partial visit): it is added, not a new answer.
     const adding = useRef(false);
+    // Which answer the list shows: a page asked for an older one is dropped, never added (the review of step 3).
+    const generation = useRef(0);
 
     // A new answer starts the list again.
     useEffect(() => {
@@ -40,8 +42,10 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
             return;
         }
 
+        generation.current += 1;
         setProducts(preview.reached);
         setCursor(preview.next);
+        setFetching(false);
     }, [preview]);
 
     const overlaps = [...preview.overlappingSales, ...preview.overlappingDiscounts];
@@ -117,9 +121,15 @@ export function DiscountPreview({ preview, loading = false, zone, more }: Props)
                         onClick={() => {
                             setFetching(true);
                             adding.current = true;
+                            const asked = generation.current;
                             more(cursor).then((page) => {
-                                setFetching(false);
                                 adding.current = false;
+
+                                if (asked !== generation.current) {
+                                    return;
+                                }
+
+                                setFetching(false);
 
                                 if (page !== null) {
                                     setProducts((before) => [...before, ...page.reached.filter((each) => !before.some((had) => had.productId === each.productId))]);

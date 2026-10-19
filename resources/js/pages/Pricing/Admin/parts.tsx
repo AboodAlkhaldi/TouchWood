@@ -1,4 +1,4 @@
-import { createContext, forwardRef, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { createContext, forwardRef, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowRight, MoreHorizontal } from 'lucide-react';
 import { Money } from '@/components/Money';
@@ -280,25 +280,59 @@ export function useLiveRead<T>(path: string, params: Record<string, string | str
     const settled = useDebounced(params === null ? null : JSON.stringify(params), delay);
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+    // Each read numbered: only the latest one's answer is taken, whatever order the answers arrive in.
+    const latest = useRef(0);
 
     useEffect(() => {
+        const mine = ++latest.current;
+
         if (settled === null) {
             setData(null);
+            setLoading(false);
+            setFailed(false);
 
             return;
         }
 
         const controller = new AbortController();
         setLoading(true);
+        setFailed(false);
         readJson<T>(path, JSON.parse(settled) as Record<string, string | string[] | boolean | null>, controller.signal).then((answer) => {
-            if (!controller.signal.aborted) {
-                setData(answer);
-                setLoading(false);
+            if (controller.signal.aborted || mine !== latest.current) {
+                return;
             }
+
+            setLoading(false);
+            // Refused (403, 404, an invalid input) or failed: said, never a spinner forever or nothing at all.
+            setFailed(answer === null);
+            setData(answer);
         });
 
         return () => controller.abort();
-    }, [path, settled]);
+    }, [path, settled, attempt]);
 
-    return { data, loading };
+    return { data, loading, failed, retry: () => setAttempt((count) => count + 1) };
+}
+
+/** A read that failed, said in words with its way to try again (the review of step 3). */
+export function LoadFailed({ what, onRetry }: { what: 'note' | 'preview' | 'offer' | 'bands' | 'sizes' | 'categories' | 'search'; onRetry: () => void }) {
+    const t = useT();
+
+    return (
+        <Note
+            variant="error"
+            size="small"
+            alert
+            action={
+                <Button type="button" variant="outline" size="sm" onClick={onRetry} data-test="load-retry">
+                    {t('pricing::admin.failed.try_again')}
+                </Button>
+            }
+            data-test={`load-failed-${what}`}
+        >
+            {t(`pricing::admin.failed.${what}`)}
+        </Note>
+    );
 }

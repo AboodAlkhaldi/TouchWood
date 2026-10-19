@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { toast } from 'sonner';
 import { ChangedMark, SaveBar, useLeaveGuard } from '@/components/SaveBar';
 import { FieldError } from '@/components/ui/field';
@@ -7,7 +7,6 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/
 import { toLatinDigits } from '@/lib/digits';
 import { firstMarked, rowErrors } from '@/lib/row-errors';
 import { keepsBoxes } from '@/lib/visits';
-import type { SharedProps } from '@/types/page';
 import { minorOf, priceProblem } from './checks';
 import { plural, useLocale, useT } from './parts';
 
@@ -60,6 +59,7 @@ export function PriceBox({ id, label, currency, value, onChange, onEscape, onEnt
                     aria-label={label}
                     aria-invalid={error ? true : undefined}
                     aria-describedby={described}
+                    data-changed={changed || undefined}
                     disabled={disabled}
                     value={value}
                     onChange={(event) => onChange(toLatinDigits(event.target.value))}
@@ -107,14 +107,20 @@ export type BoxRow = {
 /**
  * The boxes of a list's rows, their save bar and the question before leaving (§4.3.1).
  *
+ * Each set of boxes is its own: its elements' ids carry its `prefix` - a product page draws one set a store
+ * card, and a Prices row's box and the drawer's are two - and a refusal marks only the rows of the save
+ * that was refused, read from that save's own answer, never from another set's (the review of step 3).
+ *
  * @param store  the store's code, which the save names
+ * @param prefix  the boxes' ids: `${prefix}-${size id}`
  */
-export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; decimals: number }) {
+export function useBoxes(rows: BoxRow[], { store, decimals, prefix = 'price' }: { store: string; decimals: number; prefix?: string }) {
     const t = useT();
     const locale = useLocale();
-    const { errors } = usePage<SharedProps>().props;
     const [typed, setTyped] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
+    // The rows this set's last refused save named, with their messages.
+    const [marked, setMarked] = useState<Record<string, string>>({});
     const focusFirst = useRef(false);
     const saved = new Map(rows.map((row) => [row.id, row.saved]));
     const same = (id: string, value: string) => {
@@ -125,7 +131,7 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
         return a !== null && b !== null ? a === b : value.trim() === before.trim();
     };
     const changedIds = Object.keys(typed).filter((id) => saved.has(id) && !same(id, typed[id] ?? ''));
-    const marked = rowErrors(errors);
+    const idOf = (id: string) => `${prefix}-${id}`;
     const problem = (id: string): string | undefined => {
         if (!changedIds.includes(id)) {
             return undefined;
@@ -144,11 +150,11 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
         const first = firstMarked(rows, (row) => row.id, marked);
 
         if (first !== undefined) {
-            document.getElementById(`price-${first.id}`)?.focus();
+            document.getElementById(idOf(first.id))?.focus();
         }
         // Only a new answer moves the focus.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [errors]);
+    }, [marked]);
 
     const count = changedIds.length;
 
@@ -160,7 +166,7 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
         const wrong = changedIds.find((id) => problem(id) !== undefined);
 
         if (wrong !== undefined) {
-            document.getElementById(`price-${wrong}`)?.focus();
+            document.getElementById(idOf(wrong))?.focus();
 
             return;
         }
@@ -171,16 +177,17 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
             {
                 preserveScroll: true,
                 preserveState: true,
-                onStart: () => setSaving(true),
-                onFinish: () => setSaving(false),
-                onSuccess: (page) => {
-                    // Saved, or refused about no row: the boxes keep only what a refusal named.
-                    if (Object.keys(rowErrors((page.props as unknown as SharedProps).errors)).length === 0) {
-                        setTyped({});
-                    }
+                onStart: () => {
+                    setSaving(true);
+                    setMarked({});
                 },
-                onError: () => {
+                onFinish: () => setSaving(false),
+                // Saved: the boxes show the saved prices again.
+                onSuccess: () => setTyped({}),
+                // Refused: nothing saved, every box keeps what was typed, the rows it names marked.
+                onError: (errors) => {
                     focusFirst.current = true;
+                    setMarked(rowErrors(errors));
                 },
                 onNetworkError: () => {
                     toast.error(t('pricing::admin.box.failed'));
@@ -196,10 +203,12 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
     return {
         count,
         saving,
+        /** A box's element id. */
+        idOf,
         /** The box's value: as typed, else today's. */
         valueOf: (row: BoxRow) => typed[row.id] ?? row.saved,
         changed: (id: string) => changedIds.includes(id),
-        /** Its own check as typed, else the server's refusal of its row. */
+        /** Its own check as typed, else the refusal of its row by this set's last save. */
         error: (id: string) => problem(id) ?? (changedIds.includes(id) ? marked[id] : undefined),
         type: (id: string, value: string) => setTyped((before) => ({ ...before, [id]: value })),
         reset: (id: string) =>
@@ -216,7 +225,7 @@ export function useBoxes(rows: BoxRow[], { store, decimals }: { store: string; d
         /** The save bar and the question before leaving, drawn once under the rows. */
         bar: (saveLabel: string) => (
             <>
-                <SaveBar count={count} message={plural(t, locale, 'pricing::admin.box.changed', count)} saveLabel={saveLabel} saving={saving} onSave={save} onCancel={() => setTyped({})} />
+                <SaveBar id={`${prefix}-save-bar`} count={count} message={plural(t, locale, 'pricing::admin.box.changed', count)} saveLabel={saveLabel} saving={saving} onSave={save} onCancel={() => setTyped({})} />
                 {leave}
             </>
         ),

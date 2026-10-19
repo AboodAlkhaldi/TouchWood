@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Inertia\Response;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
+use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Presentation\Http\Resource\PricingPages;
 use Modules\Pricing\Presentation\Http\Resource\SizeResultsData;
 use Modules\Pricing\Presentation\Http\Resource\WholesalePage;
@@ -49,16 +50,28 @@ final readonly class WholesalePricesController
     public function save(Request $request, SetWholesalePricesHandler $handler, PricingPages $pages): RedirectResponse
     {
         $bands = [];
+        $repeated = false;
 
         foreach (is_array($request->input('bands')) ? $request->input('bands') : [] as $band) {
             if (is_array($band) && (is_string($band['from'] ?? null) || is_int($band['from'] ?? null)) && is_string($band['price'] ?? null)) {
-                $bands[trim((string) $band['from'])] = trim($band['price']);
+                $from = trim((string) $band['from']);
+                // Two bands from the same quantity are refused, never merged into one (the review of step 3).
+                $repeated = $repeated || array_key_exists($from, $bands);
+                $bands[$from] = trim($band['price']);
             }
         }
 
+        $size = (string) PricingForms::text($request, 'size');
+
         return PricingForms::act(
             $request,
-            fn () => $handler->handle(new SetWholesalePrices($pages->storeId(PricingForms::text($request, 'store')), (string) PricingForms::text($request, 'size'), $bands)),
+            function () use ($handler, $pages, $request, $size, $bands, $repeated): void {
+                if ($repeated) {
+                    throw new InvalidPricingInput('quantity', $size === '' ? [] : [$size]);
+                }
+
+                $handler->handle(new SetWholesalePrices($pages->storeId(PricingForms::text($request, 'store')), $size, $bands));
+            },
             $bands === [] ? 'pricing::admin.toast.wholesale_removed' : 'pricing::admin.toast.wholesale_saved',
         );
     }

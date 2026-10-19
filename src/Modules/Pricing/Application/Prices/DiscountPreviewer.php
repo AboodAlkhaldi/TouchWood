@@ -199,10 +199,15 @@ final readonly class DiscountPreviewer
     private function overlappingDiscounts(StoreId $store, CategoryDiscount $discount, array $mine): array
     {
         $found = [];
+        $others = array_values(array_filter(
+            $this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()),
+            static fn (CategoryDiscount $other): bool => $other->id !== $discount->id && $other->overlaps($discount->startsAt, $discount->endsAt),
+        ));
+        // Every other discount's products in one read, however many there are (the preview within 15).
+        $reach = $this->coverage->productsOfEach($others);
 
-        foreach ($this->discounts->notEnded($store, CarbonImmutable::now()->toDateTimeImmutable()) as $other) {
-            if ($other->id !== $discount->id && $other->overlaps($discount->startsAt, $discount->endsAt)
-                && array_intersect_key($mine, $this->coverage->products($other)) !== []) {
+        foreach ($others as $other) {
+            if (array_intersect_key($mine, $reach[$other->id] ?? []) !== []) {
                 $found[] = new OverlappingDiscount(
                     $other->id,
                     $other->categoryId,

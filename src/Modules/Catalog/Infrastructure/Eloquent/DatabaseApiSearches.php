@@ -223,6 +223,32 @@ final readonly class DatabaseApiSearches implements ApiSearches
         return $paths;
     }
 
+    public function productIdsInCategories(array $categoryIds): array
+    {
+        $asked = self::ids($categoryIds);
+        $found = array_fill_keys($asked, []);
+
+        if ($asked === []) {
+            return [];
+        }
+
+        // Each category asked, with every one below it, joined to their products: one query for all.
+        $rows = $this->db->select(
+            'WITH RECURSIVE tree AS ('
+            .' SELECT c.id AS root, c.id FROM catalog.categories c WHERE c.id = ANY(?::text[])'
+            .' UNION'
+            .' SELECT t.root, c.id FROM catalog.categories c JOIN tree t ON c.parent_id = t.id'
+            .') SELECT DISTINCT tree.root, p.id FROM tree JOIN catalog.products p ON p.category_id = tree.id ORDER BY tree.root, p.id',
+            [self::array($asked)],
+        );
+
+        foreach ($rows as $row) {
+            $found[(string) $row->root][] = (string) $row->id;
+        }
+
+        return $found;
+    }
+
     public function activeCategoryIds(): array
     {
         return array_values(array_map(static fn (mixed $id): string => (string) $id, $this->db->table('catalog.categories')->where('is_active', true)->orderBy('id')->pluck('id')->all()));

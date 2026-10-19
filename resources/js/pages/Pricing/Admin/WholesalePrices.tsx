@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type RefObject } from 'react';
+import { cloneElement, lazy, Suspense, useEffect, useRef, useState, type RefObject } from 'react';
 import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -95,7 +95,7 @@ export default function WholesalePrices(page: WholesalePage) {
                             <EmptyTitle className="text-heading-16 text-ink">{t(search !== '' ? 'pricing::admin_wholesale.empty.filtered_title' : 'pricing::admin_wholesale.empty.title')}</EmptyTitle>
                             <EmptyDescription className="text-copy-14 text-ink-muted">{t(search !== '' ? 'pricing::admin_wholesale.empty.filtered_body' : 'pricing::admin_wholesale.empty.body')}</EmptyDescription>
                         </EmptyHeader>
-                        {search === '' && add !== undefined ? <EmptyContent>{add}</EmptyContent> : null}
+                        {search === '' && add !== undefined ? <EmptyContent>{cloneElement(add, { 'data-test': 'add-wholesale-empty' })}</EmptyContent> : null}
                     </Empty>
                 ) : (
                     <>

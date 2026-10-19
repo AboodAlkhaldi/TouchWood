@@ -1,3 +1,4 @@
+import { cloneElement } from 'react';
 import { router } from '@inertiajs/react';
 import { Link } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -144,7 +145,7 @@ export default function Offers(page: OffersPage) {
                             <EmptyTitle className="text-heading-16 text-ink">{t(filtered ? 'pricing::admin_offers.empty.filtered_title' : 'pricing::admin_offers.empty.title')}</EmptyTitle>
                             <EmptyDescription className="text-copy-14 text-ink-muted">{t(filtered ? 'pricing::admin_offers.empty.filtered_body' : 'pricing::admin_offers.empty.body')}</EmptyDescription>
                         </EmptyHeader>
-                        {!filtered && add !== undefined ? <EmptyContent>{add}</EmptyContent> : null}
+                        {!filtered && add !== undefined ? <EmptyContent>{cloneElement(add, { 'data-test': 'add-offer-empty' })}</EmptyContent> : null}
                     </Empty>
                 ) : (
                     <>

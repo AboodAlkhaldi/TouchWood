@@ -640,11 +640,21 @@ these shapes:
   decimals, currency letters and zone; `CategoryDiscountView` its store; `PricingActionsForReader::forStore` reads
   one store's ceiling.
 - **Budgets, recorded** (the page's own, `tests/Modules/Pricing/Feature/PricingScreensTest`): Prices 10, Offers 10,
-  Category Discounts 5, a discount's page 15, Wholesale Prices 8, Needs a Price 5; the drawer 13, the offer note 15,
-  the preview 15, the pickers 2-4, View Offer 12. To fit: `ViewCategoryDiscount` reads the discount and then asks
-  (one read, not two); the preview checks its category through `categoriesWithPaths` (one read, not two);
-  Catalog's `productIdsInCategory` no longer loads the category. *Not covered*: the note and the preview still
-  read about two queries for each other discount not ended (the known cost, README) - with several, past 15.
+  Category Discounts 5, a discount's page 14, Wholesale Prices 8, Needs a Price 5; the drawer 13, the offer note 15,
+  the preview 13, the pickers 2-4, View Offer 12; with three other discounts running, the preview 12 and the page 15.
+  To fit: `ViewCategoryDiscount` reads the discount and then asks (one read, not two); the preview checks its
+  category through `categoriesWithPaths` (one read, not two); a discount's coverage reads Catalog's
+  `productIdsInCategories` (one query), and a preview's other discounts all in that one read (the review of step
+  3), so their number no longer counts. **Change End** of a discount reads its fields alone (`ViewDiscountFields`),
+  never its preview.
+- **The review of step 3** (2026-10-19): a product page's store cards each keep their own boxes - ids carry the
+  store's code, a refusal marks only the rows of the card whose save it refused, each box's label names the store;
+  the drawer's box has ids of its own; Escape in a changed box inside the drawer puts the box back and keeps the
+  drawer open, and closing the drawer over a typed price asks first; the live reads (the note, the preview, View
+  Offer, the bands, the pickers) say a failure in words with **Try Again**, and an older answer never replaces a
+  newer one (nor a page of products asked for an older preview); the bands dialog's rows keep their keys; two
+  bands from one quantity are refused; Left Out only for a category switched on; the Offers product filter names
+  its product when no offer of it is shown. Browser tests: `tests/Browser/PricingScreensTest`.
 - **Words**: `pricing::admin` (the frame, the rows' marks, the save bar, the offer and bands dialogs, Remove
   Price, the toasts), `admin_prices`, `admin_offers`, `admin_discounts`, `admin_wholesale`, `admin_needs_a_price`,
   `menu`. The panel says **Offer** throughout (§9.4): P1's filter **On Offer Now**, the badge **Offer**, **Add

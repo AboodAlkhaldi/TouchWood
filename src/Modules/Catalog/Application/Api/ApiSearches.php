@@ -48,6 +48,12 @@ interface ApiSearches
     public function activeCategoryIds(): array;
 
     /**
+     * @param  list<string>  $categoryIds
+     * @return array<string, list<string>>
+     */
+    public function productIdsInCategories(array $categoryIds): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, WholesaleTermsDto>
      */

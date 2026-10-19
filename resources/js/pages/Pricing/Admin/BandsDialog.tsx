@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { router } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -14,7 +14,7 @@ import { figure, toLatinDigits } from '@/lib/digits';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { BandData, SizePricesData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
 import { bandProblems, typedOf, type BandsFacts, type Row } from './checks';
-import { readJson, useLocale, useT } from './parts';
+import { LoadFailed, readJson, useLocale, useT } from './parts';
 
 export type { BandsFacts } from './checks';
 
@@ -48,9 +48,14 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
     const t = useT();
     const locale = useLocale();
     const [facts, setFacts] = useState<BandsFacts | null>(given);
-    const [rows, setRows] = useState<Row[]>([]);
+    // Each row keeps its own key from first to last, so a message stays on its row when one above is removed.
+    const [rows, setRows] = useState<(Row & { key: string })[]>([]);
+    const keys = useRef(0);
+    const keyed = (row: Row) => ({ ...row, key: `b${++keys.current}` });
     const [touched, setTouched] = useState<Set<string>>(new Set());
     const [busy, setBusy] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const [attempt, setAttempt] = useState(0);
 
     // The size's bands and terms, read once when the page does not have them.
     useEffect(() => {
@@ -59,14 +64,21 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
         }
 
         const controller = new AbortController();
+        setFailed(false);
         readJson<SizePricesData>('/admin/prices/size', { store: store.code, size: size.variantId }, controller.signal).then((read) => {
+            if (controller.signal.aborted) {
+                return;
+            }
+
+            setFailed(read === null);
+
             if (read !== null) {
                 setFacts({ retail: read.retail?.price ?? null, minimum: read.wholesaleMinimum, maximum: read.wholesaleMaximum, bands: read.bands, minimumChanged: read.minimumChanged });
             }
         });
 
         return () => controller.abort();
-    }, [facts, store.code, size.variantId]);
+    }, [facts, store.code, size.variantId, attempt]);
 
     // The rows start as the size's bands - or one row at the wholesale minimum for new ones - and a moved
     // minimum's message shows at once.
@@ -75,8 +87,9 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
             return;
         }
 
-        setRows(facts.bands.length > 0 ? facts.bands.map((band) => ({ from: String(band.fromQuantity), price: typedOf(band.price.minor, store.decimals) })) : [{ from: facts.minimum === null ? '' : String(facts.minimum), price: '' }]);
-        setTouched(facts.minimumChanged ? new Set(['0-from']) : new Set());
+        const first = facts.bands.length > 0 ? facts.bands.map((band) => keyed({ from: String(band.fromQuantity), price: typedOf(band.price.minor, store.decimals) })) : [keyed({ from: facts.minimum === null ? '' : String(facts.minimum), price: '' })];
+        setRows(first);
+        setTouched(facts.minimumChanged && first[0] !== undefined ? new Set([`${first[0].key}-from`]) : new Set());
     }, [facts, store.decimals]);
 
     const problems = facts === null ? [] : bandProblems(rows, facts, store.decimals, t, locale);
@@ -85,14 +98,14 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
     const title = adding ? t('pricing::admin.bands_dialog.add_title') : t('pricing::admin.bands_dialog.title');
     const change = (index: number, field: keyof Row, value: string) => {
         setRows((before) => before.map((row, at) => (at === index ? { ...row, [field]: toLatinDigits(value) } : row)));
-        setTouched((before) => new Set(before).add(`${index}-${field}`));
+        setTouched((before) => new Set(before).add(`${rows[index]?.key ?? ''}-${field}`));
     };
 
     function save() {
         if (wrong !== -1) {
-            setTouched(new Set(rows.flatMap((_, index) => [`${index}-from`, `${index}-price`])));
+            setTouched(new Set(rows.flatMap((row) => [`${row.key}-from`, `${row.key}-price`])));
             const field = problems[wrong]?.from !== undefined ? 'from' : 'price';
-            document.getElementById(`band-${wrong}-${field}`)?.focus();
+            document.getElementById(`band-${rows[wrong]?.key ?? ''}-${field}`)?.focus();
 
             return;
         }
@@ -119,7 +132,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
             }
         >
             {facts === null ? (
-                <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
+                failed ? <LoadFailed what="bands" onRetry={() => setAttempt((count) => count + 1)} /> : <Spinner aria-label={t('ui.loading')} className="text-ink-muted" />
             ) : (
                 <div className="grid gap-4" data-test="bands-dialog">
                     <ul className="flex flex-wrap gap-x-6 gap-y-1 text-copy-13 text-ink-muted">
@@ -150,27 +163,27 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                             <TableBody>
                                 {rows.map((row, index) => {
                                     const band = t('pricing::admin.bands_dialog.band', { number: figure(locale, index + 1) });
-                                    const fromError = touched.has(`${index}-from`) ? problems[index]?.from : undefined;
-                                    const priceError = touched.has(`${index}-price`) ? problems[index]?.price : undefined;
+                                    const fromError = touched.has(`${row.key}-from`) ? problems[index]?.from : undefined;
+                                    const priceError = touched.has(`${row.key}-price`) ? problems[index]?.price : undefined;
 
                                     return (
-                                        <TableRow key={index} data-test={`band-${index}`}>
+                                        <TableRow key={row.key} data-test={`band-${index}`}>
                                             <TableCell className="align-top">
                                                 <Input
-                                                    id={`band-${index}-from`}
+                                                    id={`band-${row.key}-from`}
                                                     dir="ltr"
                                                     inputMode="numeric"
                                                     autoComplete="off"
                                                     className="tw-figure w-24"
                                                     aria-label={`${band}: ${t('pricing::admin.bands_dialog.from')}`}
                                                     aria-invalid={fromError ? true : undefined}
-                                                    aria-describedby={fromError ? `band-${index}-from-error` : undefined}
+                                                    aria-describedby={fromError ? `band-${row.key}-from-error` : undefined}
                                                     value={row.from}
                                                     onChange={(event) => change(index, 'from', event.target.value)}
                                                     data-test={`band-${index}-from`}
                                                 />
                                                 {fromError ? (
-                                                    <FieldError id={`band-${index}-from-error`} className="mt-1 max-w-56 text-copy-12">
+                                                    <FieldError id={`band-${row.key}-from-error`} className="mt-1 max-w-56 text-copy-12">
                                                         {fromError}
                                                     </FieldError>
                                                 ) : null}
@@ -178,14 +191,14 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                                             <TableCell className="align-top">
                                                 <InputGroup className="w-32">
                                                     <InputGroupInput
-                                                        id={`band-${index}-price`}
+                                                        id={`band-${row.key}-price`}
                                                         dir="ltr"
                                                         inputMode="decimal"
                                                         autoComplete="off"
                                                         className="tw-figure"
                                                         aria-label={`${band}: ${t('pricing::admin.bands_dialog.price')}`}
                                                         aria-invalid={priceError ? true : undefined}
-                                                        aria-describedby={priceError ? `band-${index}-price-error` : undefined}
+                                                        aria-describedby={priceError ? `band-${row.key}-price-error` : undefined}
                                                         value={row.price}
                                                         onChange={(event) => change(index, 'price', event.target.value)}
                                                         data-test={`band-${index}-price`}
@@ -195,7 +208,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                                                     </InputGroupAddon>
                                                 </InputGroup>
                                                 {priceError ? (
-                                                    <FieldError id={`band-${index}-price-error`} className="mt-1 max-w-56 text-copy-12">
+                                                    <FieldError id={`band-${row.key}-price-error`} className="mt-1 max-w-56 text-copy-12">
                                                         {priceError}
                                                     </FieldError>
                                                 ) : null}
@@ -207,7 +220,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                                                     size="icon-sm"
                                                     aria-label={t('pricing::admin.bands_dialog.remove_band', { number: figure(locale, index + 1) })}
                                                     title={t('pricing::admin.bands_dialog.remove_band', { number: figure(locale, index + 1) })}
-                                                    onClick={() => setRows((before) => before.filter((_, at) => at !== index))}
+                                                    onClick={() => setRows((before) => before.filter((each) => each.key !== row.key))}
                                                     data-test={`band-${index}-remove`}
                                                 >
                                                     <Trash2 aria-hidden="true" />
@@ -224,7 +237,7 @@ export function BandsDialog({ store, size, facts: given = null, adding = false, 
                         variant="outline"
                         className="w-fit"
                         disabledReason={rows.length >= MOST ? t('pricing::admin.bands_dialog.most', { most: figure(locale, MOST) }) : undefined}
-                        onClick={() => setRows((before) => [...before, { from: '', price: '' }])}
+                        onClick={() => setRows((before) => [...before, keyed({ from: '', price: '' })])}
                         data-test="add-band"
                     >
                         {t('pricing::admin.bands_dialog.add_band')}

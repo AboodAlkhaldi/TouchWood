@@ -42,6 +42,13 @@ export function SizeDrawer({ open, onClose, title, description, loading, childre
                 side="right"
                 showCloseButton={false}
                 onCloseAutoFocus={returnFocus}
+                // Escape in a changed box puts the box back (the box's own key), never closes the drawer over it
+                // (stage 5's screens step 3's review): a box says it is changed with data-changed.
+                onEscapeKeyDown={(event) => {
+                    if (event.target instanceof HTMLElement && event.target.closest('[data-changed]') !== null) {
+                        event.preventDefault();
+                    }
+                }}
                 // The end side in both directions: shadcn's "right" sits at the end, and in Arabic slides in from the left.
                 className="material-menu w-full gap-0 border-0 p-0 sm:max-w-[480px] rtl:data-[state=closed]:slide-out-to-left rtl:data-[state=open]:slide-in-from-left"
                 data-test="size-drawer"

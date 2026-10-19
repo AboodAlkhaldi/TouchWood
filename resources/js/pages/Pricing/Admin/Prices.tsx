@@ -47,6 +47,9 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
     const locale = useLocale();
     const [query, setQuery] = useState(search);
     const [dialog, setDialog] = useState<Dialog>(null);
+    // The drawer's box typed and not saved: closing it asks first, as leaving the page does.
+    const [drawerDirty, setDrawerDirty] = useState(false);
+    const [askClose, setAskClose] = useState(false);
     const opener = useRef<HTMLElement | null>(null);
     const list = useLoadMore<PriceRowData>(rows, (row) => row.size.variantId);
     const drawer = useAddressDrawer('size', ['drawer']);
@@ -199,7 +202,7 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
                                                 <TableCell className="align-top" data-test="retail">
                                                     {editable && !row.size.archived ? (
                                                         <PriceBox
-                                                            id={`price-${id}`}
+                                                            id={boxes.idOf(id)}
                                                             label={t('pricing::admin.box.label', { size: nameOf(row) })}
                                                             currency={frame.currency}
                                                             value={boxes.valueOf({ id, saved: row.retail === null ? '' : typedOf(row.retail.price.minor, frame.decimals) })}
@@ -268,7 +271,7 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
 
             <SizeDrawer
                 open={drawer.value !== null}
-                onClose={drawer.close}
+                onClose={() => (drawerDirty ? setAskClose(true) : drawer.close())}
                 title={page.drawer === null ? '' : nameIn(locale, page.drawer.size.productNameAr, page.drawer.size.productNameEn)}
                 description={page.drawer === null ? '' : `${sizeName(t, page.drawer.size.values)} · ${page.drawer.size.code}`}
                 loading={drawer.loading || page.drawer === null || page.drawer.size.variantId !== drawer.value}
@@ -279,6 +282,7 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
                         view={page.drawer}
                         frame={frame}
                         zone={page.storeTimezone}
+                        onDirty={setDrawerDirty}
                         onBands={(trigger) => {
                             opener.current = trigger;
                             setDialog({ kind: 'bands', row: { variantId: page.drawer?.size.variantId ?? '', name: sizeName(t, page.drawer?.size.values ?? []) } });
@@ -286,6 +290,32 @@ export default function Prices(page: PricesPage & { drawer: SizePricesData | nul
                     />
                 ) : null}
             </SizeDrawer>
+
+            <PanelDialog
+                destructive
+                open={askClose}
+                onOpenChange={(open) => (open ? undefined : setAskClose(false))}
+                title={t('ui.leave.title')}
+                description={plural(t, locale, 'pricing::admin.box.lost', 1)}
+                busy={false}
+                cancelLabel={t('ui.leave.stay')}
+                confirm={
+                    <ActionButton
+                        type="button"
+                        variant="destructive"
+                        onClick={() => {
+                            setAskClose(false);
+                            setDrawerDirty(false);
+                            drawer.close();
+                        }}
+                        data-test="drawer-leave"
+                    >
+                        {t('ui.leave.confirm')}
+                    </ActionButton>
+                }
+            >
+                {null}
+            </PanelDialog>
 
             {offers.dialogs}
             {dialog !== null && dialog.kind === 'remove' ? <RemovePriceDialog frame={frame} size={dialog.row} onOpenChange={(next) => (next ? undefined : setDialog(null))} returnFocusTo={opener} /> : null}
@@ -398,13 +428,22 @@ function RowMenu({
 }
 
 /** The drawer's body (Q3): the retail price - its box for whoever may type it -, today's prices and why, and what reaches the size. */
-function DrawerBody({ view, frame, zone, onBands }: { view: SizePricesData; frame: PricingFrameData; zone: string; onBands: (trigger: HTMLElement | null) => void }) {
+function DrawerBody({ view, frame, zone, onBands, onDirty }: { view: SizePricesData; frame: PricingFrameData; zone: string; onBands: (trigger: HTMLElement | null) => void; onDirty: (dirty: boolean) => void }) {
     const t = useT();
     const locale = useLocale();
     const date = useDate(zone);
     const id = view.size.variantId;
-    const boxes = useBoxes(view.size.archived ? [] : [{ id, saved: view.retail === null ? '' : typedOf(view.retail.price.minor, frame.decimals) }], { store: frame.storeCode, decimals: frame.decimals });
+    // Its own ids, apart from the row's box behind it (the review of step 3).
+    const boxes = useBoxes(view.size.archived ? [] : [{ id, saved: view.retail === null ? '' : typedOf(view.retail.price.minor, frame.decimals) }], { store: frame.storeCode, decimals: frame.decimals, prefix: 'drawer-price' });
     const editable = frame.mayEditPrices && !frame.wired && !view.size.archived;
+
+    // The page asks before the drawer closes over a typed price; gone with the drawer, nothing is typed.
+    useEffect(() => {
+        onDirty(boxes.count > 0);
+
+        return () => onDirty(false);
+    }, [boxes.count, onDirty]);
+
     const offOf = (percent: number | null, money: { text: string } | null) => ltr(percent !== null ? `−${percentOf(locale, percent)}%` : (money?.text ?? ''));
 
     return (
@@ -416,7 +455,7 @@ function DrawerBody({ view, frame, zone, onBands }: { view: SizePricesData; fram
                 {editable ? (
                     <div className="grid gap-2">
                         <PriceBox
-                            id={`price-${id}`}
+                            id={boxes.idOf(id)}
                             label={t('pricing::admin.box.label', { size: sizeName(t, view.size.values) })}
                             currency={frame.currency}
                             value={boxes.valueOf({ id, saved: view.retail === null ? '' : typedOf(view.retail.price.minor, frame.decimals) })}

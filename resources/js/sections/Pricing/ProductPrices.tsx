@@ -78,7 +78,8 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
     const editable = card.mayEditPrices && !card.wired;
     const boxes = useBoxes(
         editable ? card.sizes.map((size) => ({ id: size.variantId, saved: size.retail === null ? '' : typedOf(size.retail.price.minor, card.decimals) })) : [],
-        { store: store.code, decimals: card.decimals },
+        // Each store card's boxes their own: ids, refusals and save bar (the review of step 3).
+        { store: store.code, decimals: card.decimals, prefix: `price-${store.code}` },
     );
     const productName = host.product === undefined ? '' : nameIn(locale, host.product.nameAr, host.product.nameEn);
     const product: PickedProductData | null = host.product === undefined ? null : { productId: host.product.id, nameAr: host.product.nameAr, nameEn: host.product.nameEn, photo: null, codes: [] };
@@ -145,8 +146,8 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                     <TableCell className="align-top">
                                         {editable ? (
                                             <PriceBox
-                                                id={`price-${id}`}
-                                                label={t('pricing::admin.box.label', { size: name })}
+                                                id={boxes.idOf(id)}
+                                                label={t('pricing::admin.box.label_store', { size: name, store: store.name })}
                                                 currency={card.currency}
                                                 value={boxes.valueOf({ id, saved: size.retail === null ? '' : typedOf(size.retail.price.minor, card.decimals) })}
                                                 onChange={(value) => boxes.type(id, value)}
