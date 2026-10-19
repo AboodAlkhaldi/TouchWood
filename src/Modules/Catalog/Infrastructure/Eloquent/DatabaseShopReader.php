@@ -594,14 +594,17 @@ final readonly class DatabaseShopReader implements ShopReader
     }
 
     /**
-     * The store's average, `C` (answer 15): every approved review of the products listed in the store
-     * — any language, any viewer — or none when none has a review, so every product comes last alike.
+     * The store's average, `C` (answer 15): every approved review of the products the store sells —
+     * its orderable listing rows, any language, any viewer — or none when none has a review, so every
+     * product comes last alike. From the store's listing rows (their key's first column), each product
+     * once.
      */
     private function storeAverage(string $storeId): ?string
     {
         $average = $this->db->selectOne(
-            'SELECT SUM(pr.rating_sum)::numeric / NULLIF(SUM(pr.rating_count), 0) AS average FROM catalog.product_ratings pr'
-            .' WHERE EXISTS (SELECT 1 FROM '.self::LISTING.' l WHERE l.store_id = ? AND l.product_id = pr.product_id)',
+            'SELECT SUM(pr.rating_sum)::numeric / NULLIF(SUM(pr.rating_count), 0) AS average'
+            .' FROM (SELECT DISTINCT product_id FROM '.self::LISTING.' WHERE store_id = ? AND orderable) sold'
+            .' JOIN catalog.product_ratings pr ON pr.product_id = sold.product_id',
             [$storeId],
         );
 
@@ -685,21 +688,24 @@ final readonly class DatabaseShopReader implements ShopReader
 
     /**
      * Best-rated first (amendment 25): the weighted key, highest first, products without reviews last,
-     * ties and the unrated newest first; keyset on (key, id), the store's average read once.
+     * ties and the unrated newest first; keyset on (key, id), the store's average read once a page. A
+     * review approved between two pages moves the keys, so a product may show twice or not at all
+     * across them — as it does when Sales' ranks change (accepted: lists are browsed, not audited).
      */
     private function ratedPage(string $storeId, Builder $query, ShopperKind $viewer, ?Cursor $after, int $limit): CardPage
     {
-        $average = $this->storeAverage($storeId);
-        $key = self::ratingKey();
-        $query->selectRaw("{$key} AS rating_key", [$average]);
+        // The key worked out once per row, in a derived table the page then walks.
+        $rated = $this->db->table($query->selectRaw(self::ratingKey().' AS rating_key', [$this->storeAverage($storeId)]), 'rated');
 
         if ($after !== null && $after->salesRank === null) {
-            $query->whereRaw("{$key} IS NULL", [$average])->where('product_id', '<', $after->productId);
+            $rated->whereNull('rating_key')->where('product_id', '<', $after->productId);
         } elseif ($after !== null) {
-            $query->whereRaw("({$key} < ? OR ({$key} = ? AND product_id < ?) OR {$key} IS NULL)", [$average, $after->salesRank, $average, $after->salesRank, $after->productId, $average]);
+            $rated->where(static fn (Builder $where): Builder => $where->where('rating_key', '<', $after->salesRank)
+                ->orWhere(static fn (Builder $tie): Builder => $tie->where('rating_key', $after->salesRank)->where('product_id', '<', $after->productId))
+                ->orWhereNull('rating_key'));
         }
 
-        $rows = $query->orderByRaw("{$key} DESC NULLS LAST", [$average])->orderByDesc('product_id')->limit($limit + 1)->get()->all();
+        $rows = $rated->orderByRaw('rating_key DESC NULLS LAST')->orderByDesc('product_id')->limit($limit + 1)->get()->all();
         $more = count($rows) > $limit;
         $rows = array_slice($rows, 0, $limit);
         $last = $rows === [] ? null : $rows[count($rows) - 1];

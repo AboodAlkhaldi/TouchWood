@@ -17,6 +17,9 @@ use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Feedback\Application\Command\RepushRatings\RepushRatings;
+use Modules\Feedback\Application\Command\RepushRatings\RepushRatingsHandler;
+use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 
@@ -87,3 +90,28 @@ it('pushes a store\'s ratings switch when an admin changes it, and nothing for a
     app(UpdateSettingHandler::class)->handle(new UpdateSetting('loyalty.points.enabled', 'eg', true));
     expect(DB::table('catalog.store_rating_display')->count())->toBe(1);
 });
+
+it('tells Catalog again every store\'s switch and every rating when the repair runs, and only the system may run it', function () {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    $sara = Fx::customer();
+    Fb::delivered($sara, $product, $sixty);
+    $review = Fb::write($sara, $product, 4);
+    Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['sa']));
+    app(ApproveReviewHandler::class)->handle(new ApproveReview($review));
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    app(UpdateSettingHandler::class)->handle(new UpdateSetting(FeedbackSettings::RATINGS_IN_LISTS, 'eg', false));
+    // Catalog's copies lost — a push that failed after the setting was saved.
+    DB::table('catalog.product_ratings')->delete();
+    DB::table('catalog.store_rating_display')->delete();
+
+    Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin));
+    expect(fn () => app(RepushRatingsHandler::class)->handle(new RepushRatings))->toThrow(Unauthorized::class);
+
+    $told = Fx::asSystem(fn () => app(RepushRatingsHandler::class)->handle(new RepushRatings));
+
+    expect($told)->toBe(['stores' => DB::table('platform.stores')->count(), 'products' => 1])
+        ->and(catalogRating($product))->toBe([4, 1])
+        ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('eg'))->value('shown'))->toBeFalse()
+        ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('sa'))->value('shown'))->toBeTrue();
+});
+

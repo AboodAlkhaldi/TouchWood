@@ -84,13 +84,13 @@ final readonly class ShopFilters
         return new self($brands, $values, $side, $sort ?? self::BEST_SELLING);
     }
 
-    /** An individual buys retail only (amendment 14(e)): Retail or Wholesale is not theirs to pick. */
     /** The same choices in another sort: the rating sort where the store's lists show no ratings. */
     public function withSort(string $sort): self
     {
         return new self($this->brands, $this->values, $this->side, $sort);
     }
 
+    /** An individual buys retail only (amendment 14(e)): Retail or Wholesale is not theirs to pick. */
     public function forViewer(ShopperKind $viewer): self
     {
         return $viewer === ShopperKind::Individual ? new self($this->brands, $this->values, null, $this->sort) : $this;

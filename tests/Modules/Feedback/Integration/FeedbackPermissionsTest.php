@@ -59,11 +59,12 @@ function feedbackOffered(string $name, RoleLevel $level): ?EditorPermission
     return null;
 }
 
-it('declares the eight permissions of the spec', function () {
+it('declares the eight permissions of the spec, and the system\'s repair', function () {
     expect(feedbackDeclaredPermissions())->toBe([
         'feedback.own.view',
         'feedback.question.answer',
         'feedback.question.ask',
+        'feedback.ratings.repush',
         'feedback.review.moderate',
         'feedback.review.write',
         'feedback.settings.update',
@@ -114,4 +115,12 @@ it('keeps the ratings switch to admin roles, under Support (owner, 2026-10-09)',
     Fx::actAsStaff(Fx::staff(superAdmin: true));
     expect(feedbackOffered(FeedbackPermissions::SETTINGS_UPDATE, RoleLevel::Staff))->toBeNull()
         ->and(feedbackOffered(FeedbackPermissions::SETTINGS_UPDATE, RoleLevel::Admin)?->adminOnly)->toBeTrue();
+});
+
+it('reserves the ratings repair to the system, store-free and never offered', function () {
+    $permission = app(InMemoryPermissionCatalog::class)->definition(FeedbackPermissions::RATINGS_REPUSH);
+
+    expect($permission?->reserved)->toBeTrue()
+        ->and($permission?->kind)->toBe(PermissionKind::Global)
+        ->and(array_map(static fn (PermissionDefinitionDto $offered): string => $offered->name, app(InMemoryPermissionCatalog::class)->assignable()))->not->toContain(FeedbackPermissions::RATINGS_REPUSH);
 });

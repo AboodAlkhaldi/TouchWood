@@ -101,7 +101,7 @@ describe('stars on cards', function () {
         expect(CardRating::of($sum, $count)->average)->toBe($average);
     })->with([
         'a quarter up' => [17, 4, 4.3],
-        'just below a half' => [37, 9, 4.1],
+        'a ninth, rounded down' => [37, 9, 4.1],
         'exactly' => [10, 2, 5.0],
         'one star' => [1, 1, 1.0],
         'a third' => [13, 3, 4.3],
@@ -195,4 +195,34 @@ describe('the rating sort', function () {
         expect($page->chosen?->sort)->toBe(ShopFilters::BEST_SELLING)
             ->and(ratedIds($page))->toBe(ratedIds(categoryOf($category)));
     });
+});
+
+it('treats a product whose last review was unpublished as one without reviews', function () {
+    $category = Px::category('Doors');
+    $emptied = ratedProduct($category);
+    $rated = ratedProduct($category);
+    $newest = ratedProduct($category);
+    rate($emptied, 0, 0);
+    rate($rated, 3, 1);
+    $cards = [];
+
+    foreach (categoryOf($category)->products->cards as $card) {
+        $cards[$card->productId] = $card;
+    }
+
+    expect($cards[$emptied]->rating)->toBeNull()
+        ->and(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$rated, $newest, $emptied]);
+});
+
+it('counts only what the store sells in its average', function () {
+    $category = Px::category('Doors');
+    $low = ratedProduct($category);
+    $high = ratedProduct($category);
+    $elsewhere = ratedProduct($category, ['ae']);
+    rate($low, 4, 1);
+    rate($high, 20, 5);
+    // Sold only in the UAE: a store average of 1 would put the single 4★ review above the five 4★s.
+    rate($elsewhere, 200, 200);
+
+    expect(ratedIds(categoryOf($category, sort: ShopFilters::RATING)))->toBe([$high, $low]);
 });
