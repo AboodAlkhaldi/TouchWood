@@ -10,7 +10,7 @@ import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { FailureData, ReportedData, SyncFrameData } from '@/types/generated/Modules/Sync/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import { badValueOf } from './checks';
+import { badValuesOf, sentText } from './checks';
 
 /*
 | What Sync's screens share (sync.md §4.1.1; pricing.md §4.3.1): their words, the frame above the rows (the
@@ -187,7 +187,7 @@ export function sent(t: Translate, value: unknown): string {
         return t(`${R}.problems.details.nothing_sent`);
     }
 
-    const text = typeof value === 'number' ? String(value).replace(/^-/, '−') : typeof value === 'string' ? value : String(value);
+    const text = typeof value === 'number' || typeof value === 'string' ? sentText(value) : String(value);
 
     return isolate(text);
 }
@@ -282,11 +282,15 @@ export function Detail({ about, links }: { about: ReportedData; links: Links }) 
                 </span>
             );
         }
-        case 'BAD_VALUE': {
-            const refused = badValueOf(detail);
-
-            return <span>{refused === 'twice' ? t(`${D}.twice`) : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}</span>;
-        }
+        case 'BAD_VALUE':
+            // What the server says was refused - the price, the stock or both, each in its own sentence.
+            return (
+                <span className="grid gap-0.5">
+                    {badValuesOf(detail).map((refused) => (
+                        <span key={refused}>{refused === 'twice' ? t(`${D}.twice`) : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}</span>
+                    ))}
+                </span>
+            );
         case 'READ_FAILED':
             return (
                 <span className="grid gap-0.5">

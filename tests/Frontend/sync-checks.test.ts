@@ -1,13 +1,13 @@
 /*
 | Sync's own rules on its screens (resources/js/pages/Sync/Admin/checks.ts; sync.md §4.1): the Provider form's
-| address as typed (Y3), copied from the server's ConnectionInput::address and never stricter; and which of a
-| Bad Value's values the Sync Report says was refused (Y1). Run by tests/Frontend/run.mjs, inside the PHP
+| address as typed (Y3), copied from the server's ConnectionInput::address and never stricter; what a Bad
+| Value's entry says was refused (Y1); and a sent value's minus. Run by tests/Frontend/run.mjs, inside the PHP
 | suite (tests/Architecture/FrontendUnitTest.php).
 */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { addressProblem, badValueOf, wholeStock } from '@/pages/Sync/Admin/checks';
+import { addressProblem, badValuesOf, sentText, wholeStock } from '@/pages/Sync/Admin/checks';
 
 const P = 'sync::admin_provider.checks';
 
@@ -35,11 +35,27 @@ describe('a Bad Value\'s refused value', () => {
         assert.deepEqual([wholeStock(5), wholeStock('5'), wholeStock(' -3 '), wholeStock(5.5), wholeStock('5.0'), wholeStock('five')], [5, 5, -3, null, null, null]);
     });
 
-    it('is the code sent twice, the stock that is not whole, the stock below 0, else the price', () => {
-        assert.equal(badValueOf({ twice: [{ price: '1', stock: 1 }], count: 2 }), 'twice');
-        assert.equal(badValueOf({ price: '120', stock: 2.5 }), 'bad_stock');
-        assert.equal(badValueOf({ price: '120', stock: -3 }), 'below_zero');
-        assert.equal(badValueOf({ price: '0', stock: 2 }), 'bad_price');
-        assert.equal(badValueOf({ price: '12.555', stock: null }), 'bad_price');
+    it('is what the server says was refused - the price, the stock, or both - never a guess', () => {
+        assert.deepEqual(badValuesOf({ twice: [{ price: '1', stock: 1 }], count: 2 }), ['twice']);
+        assert.deepEqual(badValuesOf({ price: '0', stock: 2, refused: 'price' }), ['bad_price']);
+        assert.deepEqual(badValuesOf({ price: '120', stock: 2.5, refused: 'stock' }), ['bad_stock']);
+        assert.deepEqual(badValuesOf({ price: '120', stock: -3, refused: 'stock' }), ['below_zero']);
+        // A whole number past what a size can hold - the review of step 7: never blamed on the price.
+        assert.deepEqual(badValuesOf({ price: '120', stock: 2147483648, refused: 'stock' }), ['too_large']);
+        assert.deepEqual(badValuesOf({ price: '120', stock: 1e20, refused: 'stock' }), ['too_large']);
+        assert.deepEqual(badValuesOf({ price: '0', stock: 2.5, refused: 'both' }), ['bad_price', 'bad_stock']);
+    });
+
+    it('reads an entry kept from before the server named it as before: the stock not whole or below 0, else the price', () => {
+        assert.deepEqual(badValuesOf({ price: '120', stock: 2.5 }), ['bad_stock']);
+        assert.deepEqual(badValuesOf({ price: '120', stock: -3 }), ['below_zero']);
+        assert.deepEqual(badValuesOf({ price: '0', stock: 2 }), ['bad_price']);
+        assert.deepEqual(badValuesOf({ price: '12.555', stock: null }), ['bad_price']);
+    });
+});
+
+describe('a value the provider sent', () => {
+    it('writes a leading minus as the panel does, a number or a text alike', () => {
+        assert.deepEqual([sentText(-3), sentText('-3'), sentText(' -3'), sentText('3-4'), sentText('-x'), sentText(12.5)], ['−3', '−3', ' −3', '3-4', '-x', '12.5']);
     });
 });

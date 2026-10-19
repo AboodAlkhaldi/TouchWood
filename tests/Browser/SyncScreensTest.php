@@ -210,7 +210,23 @@ it('shows the status line and Problems, dismisses an entry, and queues Sync Now'
     $page->click('[data-test="confirm-dismiss"]');
 
     expect(browserSoon($page, "document.body.textContent.includes('Entry dismissed') && document.querySelector('[data-test=\"entry-{$entry}\"]') === null"))->toBeTrue()
-        ->and(DB::table('sync.report_entries')->where('id', $entry)->value('closed_by'))->toStartWith('STAFF:');
+        ->and(DB::table('sync.report_entries')->where('id', $entry)->value('closed_by'))->toStartWith('STAFF:')
+        // Its row gone, the focus goes to the next row's ⋯ (the review of step 7), never to the page's start.
+        ->and(browserSoon($page, "document.activeElement?.getAttribute('data-test') === 'entry-actions-{$bad}'"))->toBeTrue();
+
+    // Closed meanwhile (a read found it right): the refusal is said inside the dialog, which stays open.
+    $page->click("[data-test=\"entry-actions-{$bad}\"]")->click('[data-test="dismiss-entry"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-dismiss\"]') !== null"))->toBeTrue();
+
+    DB::table('sync.report_entries')->where('id', $bad)->update(['closed_at' => now(), 'closed_by' => 'READ']);
+    $page->click('[data-test="confirm-dismiss"]');
+
+    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"] [data-test=\"form-error\"]')?.textContent.includes('There is no such entry')"))->toBeTrue();
+
+    $page->click('[data-test="modal-cancel"]');
+
+    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"]') === null"))->toBeTrue();
 
     // One more Now read: the tests' queue is synchronous, so it has run by the time the toast says so.
     $now = fn (): int => DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->where('kind', 'NOW')->count();
@@ -229,9 +245,9 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"read-{$read}\"]')?.textContent.includes('Now')"))->toBeTrue();
 
-    $page->click("[data-test=\"read-{$read}\"] [data-test=\"open-read\"]");
-
-    expect(browserSoon($page, "window.location.pathname === '/admin/sync/reads/{$read}' && document.querySelector('[data-test=\"read-header\"]') !== null"))->toBeTrue()
+    // The row's link, pressed again until its page is there - as Low Stock's test presses Show More - so a press
+    // lost while the list settles fails nothing.
+    expect(browserSoon($page, "(window.location.pathname === '/admin/sync/reads/{$read}' && document.querySelector('[data-test=\"read-header\"]') !== null) || (document.querySelector('[data-test=\"read-{$read}\"] [data-test=\"open-read\"]')?.click(), false)"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"read-state\"]')?.textContent.includes('Done') && document.querySelector('h1')?.textContent.startsWith('Read of')"))->toBeTrue()
         // Prices Changed first: the provider's price, from nothing to 150.00.
         ->and(browserSoon($page, "document.querySelector('[data-test=\"line-{$wired['size']}\"] [data-test=\"from-to\"]')?.textContent.includes('150.00')"))->toBeTrue();
@@ -286,6 +302,24 @@ it('refuses the Provider form as typed, says the failed test under the form and 
     expect(browserSoon($page, "document.body.textContent.includes('Store wired') && document.querySelector('[data-test=\"wired\"]') !== null"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"notice-address\"]')?.textContent.endsWith('/sync/notify/".Fx::storeId('ae')."')"))->toBeTrue()
         ->and(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->exists())->toBeTrue();
+
+    // Change Connection refused, then Cancel: the old refusal never comes back (the review of step 7).
+    FakeProvider::bound()->failure = 'The provider answered 503.';
+    $page->click('[data-test="change-connection"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-cancel\"]') !== null"))->toBeTrue();
+
+    $page->click('[data-test="connection-submit"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"] [data-test=\"form-error\"]')?.textContent.includes('The provider answered 503.')"))->toBeTrue();
+
+    $page->click('[data-test="connection-cancel"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"wired\"]') !== null && document.querySelector('[data-test=\"form-error\"]') === null"))->toBeTrue();
+
+    $page->click('[data-test="change-connection"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.querySelector('[data-test=\"form-error\"]') === null"))->toBeTrue();
 });
 
 it('draws the Sync Report right to left in Arabic, its digits Latin', function () {

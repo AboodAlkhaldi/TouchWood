@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Command\RunRead;
 
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
@@ -95,9 +96,10 @@ final readonly class RunReadHandler
         $store = StoreId::fromString($storeId);
         $deadBefore = CarbonImmutable::now()->subMinutes(self::STALE_MINUTES)->toDateTimeImmutable();
 
-        // Others of the store whose worker went away: failed the way a failed read is, so staff see it.
-        foreach ($this->reads->failStale($store, $deadBefore, ReadFailure::WorkerGone->value, $command->readId) as $stale) {
-            $this->report($store, $stale, ReadFailure::WorkerGone->value);
+        // Others of the store whose worker went away: failed the way a failed read is, so staff see it -
+        // each failed with its report and audit entry, so one that cannot be is found again next time.
+        foreach ($this->reads->stale($store, $deadBefore, $command->readId) as $stale) {
+            $this->failAndReport($store, $stale, ReadFailure::WorkerGone->value, fn (): bool => $this->reads->failIfStale($stale, $deadBefore, ReadFailure::WorkerGone->value));
         }
 
         // Its own run, killed past its time, is taken back here and run again.
@@ -143,10 +145,7 @@ final readonly class RunReadHandler
         $store = StoreId::fromString($storeId);
 
         // Failed already (superseded, or stopped): its failure is not the store's to report again.
-        if ($this->reads->fail($readId, $why)) {
-            $this->report($store, $readId, $why);
-        }
-
+        $this->failAndReport($store, $readId, $why, fn (): bool => $this->reads->fail($readId, $why));
         $this->reads->startNext($store);
     }
 
@@ -171,7 +170,9 @@ final readonly class RunReadHandler
         // The read's end and its audit entry in one transaction, as every audited change is (platform.md
         // §1.5): a queued job runs in none of its own (found by stage 5's screens step 7's browser test).
         $finished = $ran && $this->db->transaction(function () use ($store, $read, $counts): bool {
-            if (! $this->reads->finish($read->id, ...$counts)) {
+            // The connection first, then the read - Unwire Store's order (UnwireStoreHandler), so the two
+            // never wait on each other. Unwired meanwhile: not finished here.
+            if ($this->connections->lockFor($store) === null || ! $this->reads->finish($read->id, ...$counts)) {
                 return false;
             }
 
@@ -187,11 +188,13 @@ final readonly class RunReadHandler
             return true;
         });
 
-        // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its.
+        // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its. One
+        // that Unwire Store failed already (UNWIRED) is not failed, nor audited, a second time.
         if (! $finished) {
             $this->db->transaction(function () use ($store, $read): void {
-                $this->reads->fail($read->id, ReadFailure::StoppedRewired->value);
-                $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, $this->failure(ReadFailure::StoppedRewired->value)));
+                if ($this->reads->fail($read->id, ReadFailure::StoppedRewired->value)) {
+                    $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, $this->failure(ReadFailure::StoppedRewired->value)));
+                }
             });
 
             return;
@@ -200,14 +203,24 @@ final readonly class RunReadHandler
         $this->announce($store, $read->id);
     }
 
-    /** A read failed: the store failing and reported - while still wired - and the failure audited. */
-    private function report(StoreId $store, string $readId, string $why): void
+    /**
+     * A read failed (§1.7): failed by `$fail` - false when it is failed already, and so not the store's to
+     * report again -, the store failing and reported while still wired, and the failure audited, all in one
+     * transaction: none of it is committed without the rest. The connection is locked before the read, in
+     * Unwire Store's order (UnwireStoreHandler). Staff are told once it is committed.
+     *
+     * @param  Closure(): bool  $fail
+     */
+    private function failAndReport(StoreId $store, string $readId, string $why, Closure $fail): void
     {
         $why = mb_substr($why, 0, 1000);
 
-        // The failure and its audit entry in one transaction; staff told once it is committed.
-        $wired = $this->db->transaction(function () use ($store, $readId, $why): bool {
-            $wired = $this->connections->exists($store);
+        $told = $this->db->transaction(function () use ($store, $readId, $why, $fail): bool {
+            $wired = $this->connections->lockFor($store) !== null;
+
+            if (! $fail()) {
+                return false;
+            }
 
             if ($wired) {
                 $this->connections->markFailing($store, $why);
@@ -219,7 +232,7 @@ final readonly class RunReadHandler
             return $wired;
         });
 
-        if ($wired) {
+        if ($told) {
             $this->announce($store, $readId);
         }
     }
@@ -332,7 +345,7 @@ final readonly class RunReadHandler
 
                 // Not a whole number: skipped; below 0: kept as 0. Both reported (§1.5 #2, §9.2 #11).
                 if ($number === null || $number < 0) {
-                    $bad[$variant->id] = self::detail($value);
+                    $bad[$variant->id] = [...self::detail($value), 'refused' => 'stock'];
                 }
 
                 if ($number !== null) {
@@ -365,8 +378,16 @@ final readonly class RunReadHandler
 
         $archived = array_values(array_unique([...($prices->archived ?? []), ...($stock->archived ?? [])]));
 
-        foreach ([...($prices->invalid ?? []), ...($stock->invalid ?? [])] as $variantId) {
-            $bad[$variantId] ??= ['price' => self::cut($priceIn[$variantId] ?? null), 'stock' => $stockIn[$variantId] ?? null];
+        // Which value was refused, said in the entry (`refused`: price, stock or both), so the report never guesses.
+        foreach (['price' => $prices->invalid ?? [], 'stock' => $stock->invalid ?? []] as $what => $invalid) {
+            foreach ($invalid as $variantId) {
+                $bad[$variantId] ??= ['price' => self::cut($priceIn[$variantId] ?? null), 'stock' => $stockIn[$variantId] ?? null];
+
+                if (! isset($bad[$variantId]['twice'])) {
+                    $was = $bad[$variantId]['refused'] ?? null;
+                    $bad[$variantId]['refused'] = $was === null || $was === $what ? $what : 'both';
+                }
+            }
         }
 
         // Sizes a contract took and checked: archived or not is known only for them.

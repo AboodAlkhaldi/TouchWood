@@ -188,6 +188,7 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
     // Retry and Dismiss send the page back: the rows Show More had shown are asked for again.
     const restoring = useKeptDepth(list, problems.next, more);
     const [dismissing, setDismissing] = useState<ReportEntryData | null>(null);
+    const [dismissOpen, setDismissOpen] = useState(false);
     const [busy, setBusy] = useState<number | null>(null);
     const opener = useRef<HTMLElement | null>(null);
 
@@ -263,6 +264,7 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
                                                     onDismiss={(trigger) => {
                                                         opener.current = trigger;
                                                         setDismissing(entry);
+                                                        setDismissOpen(true);
                                                     }}
                                                 />
                                             </TableCell>
@@ -277,7 +279,22 @@ function ProblemsList({ problems, kind, frame, links }: { problems: ProblemsData
 
             {problems.next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(problems.next ?? '')} /> : null}
 
-            {dismissing === null ? null : <DismissDialog entry={dismissing} onOpenChange={(next) => (next ? undefined : setDismissing(null))} returnFocusTo={opener} />}
+            {/* Kept mounted while it closes, so focus is given back (useReturnFocus). */}
+            {dismissing === null ? null : (
+                <DismissDialog
+                    entry={dismissing}
+                    open={dismissOpen}
+                    onOpenChange={setDismissOpen}
+                    onDismissed={() => {
+                        // Its row is gone: the focus goes to the next row's ⋯, else the one before, else the kind filter.
+                        const at = list.rows.findIndex((row) => row.id === dismissing.id);
+                        const near = [list.rows[at + 1], list.rows[at - 1]].find((row) => row !== undefined && row.id !== dismissing.id);
+                        opener.current = (near === undefined ? null : document.querySelector<HTMLElement>(`[data-test="entry-actions-${near.id}"]`)) ?? document.getElementById('kind-filter');
+                        setDismissOpen(false);
+                    }}
+                    returnFocusTo={opener}
+                />
+            )}
         </>
     );
 }
@@ -314,14 +331,27 @@ function EntryMenu({ entry, frame, busy, onRetry, onDismiss }: { entry: ReportEn
 }
 
 /** Dismiss Entry: asked first; it leaves the report, and comes back if a read finds it again. */
-function DismissDialog({ entry, onOpenChange, returnFocusTo }: { entry: ReportEntryData; onOpenChange: (open: boolean) => void; returnFocusTo: RefObject<HTMLElement | null> }) {
+function DismissDialog({
+    entry,
+    open,
+    onOpenChange,
+    onDismissed,
+    returnFocusTo,
+}: {
+    entry: ReportEntryData;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDismissed: () => void;
+    returnFocusTo: RefObject<HTMLElement | null>;
+}) {
     const t = useT();
     const [busy, setBusy] = useState(false);
     const D = `${R}.problems.dismiss`;
 
     return (
+        // A refusal (the entry closed meanwhile) is said inside it, and it stays open (PanelDialog).
         <PanelDialog
-            open
+            open={open}
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
             title={t(`${D}.title`)}
@@ -331,7 +361,7 @@ function DismissDialog({ entry, onOpenChange, returnFocusTo }: { entry: ReportEn
                 <ActionButton
                     loading={busy}
                     onClick={() =>
-                        router.post(`/admin/sync/entries/${entry.id}/dismiss`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })
+                        router.post(`/admin/sync/entries/${entry.id}/dismiss`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: onDismissed })
                     }
                     data-test="confirm-dismiss"
                 >

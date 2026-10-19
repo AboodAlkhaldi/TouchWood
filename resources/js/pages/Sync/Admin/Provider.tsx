@@ -67,7 +67,8 @@ export default function Provider(page: ProviderPage) {
     return (
         <AdminLayout title={t(`${P}.title`)} subtitle={t(`${P}.subtitle`)} action={actions} breadcrumbs={[]}>
             <div className="grid gap-4">
-                {/* With the form drawn, a refusal is said under it, where the person is looking. */}
+                {/* With the form drawn, a refusal is said under it, where the person is looking. Cancel takes the
+                    form's refusal away with it (ConnectionForm), so it never comes back here. */}
                 {formShown ? null : <FormError />}
                 <StoreFrame frame={frame} />
 
@@ -95,7 +96,9 @@ const settingId = (name: string) => `provider-setting-${name}`;
  */
 function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameData; connection: ConnectionData; mode: 'wire' | 'change'; onDone: () => void }) {
     const t = useT();
-    const { errors } = usePage<SharedProps>().props;
+    const { errors: all } = usePage<SharedProps>().props;
+    // Only what was refused since this form was opened: a form opened again after Cancel starts clean.
+    const errors: Partial<Record<string, string>> = useFreshRefusal(true) === undefined ? {} : all;
     const [provider, setProvider] = useState(connection.provider ?? connection.providers[0] ?? '');
     const [address, setAddress] = useState(connection.address ?? '');
     const [settings, setSettings] = useState<Record<string, string>>(() => Object.fromEntries(connection.fields.map((name) => [name, connection.settings[name] ?? ''])));
@@ -220,7 +223,17 @@ function ConnectionForm({ frame, connection, mode, onDone }: { frame: SyncFrameD
                             {busy ? t(`${P}.wire.testing`) : changing ? t(`${P}.change.submit`) : t(`${P}.wire.submit`)}
                         </ActionButton>
                         {changing ? (
-                            <Button type="button" variant="outline" disabled={busy} onClick={onDone} data-test="connection-cancel">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() => {
+                                    // The refusal belonged to what was typed here: it goes with the form.
+                                    router.replaceProp('errors', {});
+                                    onDone();
+                                }}
+                                data-test="connection-cancel"
+                            >
                                 {t(`${P}.change.cancel`)}
                             </Button>
                         ) : null}

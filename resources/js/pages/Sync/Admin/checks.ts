@@ -1,7 +1,7 @@
 /*
 | Sync's own rules on its screens (sync.md §4.1), kept apart from the pages so they are tested on their own
-| (tests/Frontend/sync-checks.test.ts): the Provider form's address as typed (Y3), and which of a Bad Value's
-| values was refused (Y1 "Detail per kind"). The server decides; these copy its rules, never stricter.
+| (tests/Frontend/sync-checks.test.ts): the Provider form's address as typed (Y3), and what a Bad Value's
+| entry says was refused (Y1 "Detail per kind"); the minus a sent value is written with. The server decides; these copy its rules, never stricter.
 */
 
 const P = 'sync::admin_provider';
@@ -38,28 +38,42 @@ export function wholeStock(value: unknown): number | null {
     return typeof value === 'string' && /^\s*-?\d{1,18}\s*$/.test(value) ? Number(value.trim()) : null;
 }
 
+export type BadValue = 'twice' | 'bad_price' | 'bad_stock' | 'below_zero' | 'too_large';
+
+/** Why a stock number the server refused was refused: not a whole number (skipped), below 0 (kept as 0), or too large. */
+function stockRefusal(stock: unknown): BadValue {
+    const number = wholeStock(stock);
+
+    return number === null ? 'bad_stock' : number < 0 ? 'below_zero' : 'too_large';
+}
+
 /**
- * Which of a Bad Value's values was refused (sync.md §1.5 #2, §2.4), from what the entry keeps: a code sent
- * twice; a stock number that is not a whole one (skipped) or is below 0 (kept as 0); else the price.
+ * What a Bad Value's entry says was refused (sync.md §1.5 #2, §2.4): a code sent twice; else the value the
+ * server names in `refused` - the price, the stock, or both, each with its own sentence. An entry kept from
+ * before the server named it (screens step 7's review) is read as before: the stock when it is not a whole
+ * number or is below 0, else the price.
  */
-export function badValueOf(detail: Record<string, unknown>): 'twice' | 'bad_stock' | 'below_zero' | 'bad_price' {
+export function badValuesOf(detail: Record<string, unknown>): BadValue[] {
     if (Array.isArray(detail.twice)) {
-        return 'twice';
+        return ['twice'];
     }
 
-    const stock = detail.stock;
+    switch (detail.refused) {
+        case 'price':
+            return ['bad_price'];
+        case 'stock':
+            return [stockRefusal(detail.stock)];
+        case 'both':
+            return ['bad_price', stockRefusal(detail.stock)];
+        default: {
+            const number = detail.stock === null || detail.stock === undefined ? 0 : wholeStock(detail.stock);
 
-    if (stock !== null && stock !== undefined) {
-        const number = wholeStock(stock);
-
-        if (number === null) {
-            return 'bad_stock';
-        }
-
-        if (number < 0) {
-            return 'below_zero';
+            return [number === null ? 'bad_stock' : number < 0 ? 'below_zero' : 'bad_price'];
         }
     }
+}
 
-    return 'bad_price';
+/** A value the provider sent, as text: a leading minus written as the panel writes one, "−3" (pricing.md §4.3.1). */
+export function sentText(value: string | number): string {
+    return String(value).replace(/^(\s*)-(?=\d)/, '$1−');
 }

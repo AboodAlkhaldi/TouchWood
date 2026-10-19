@@ -90,6 +90,7 @@ return [
             'bad_price' => 'Price sent: :value. The size keeps its price.',
             'bad_stock' => 'Stock sent: :value. Not a whole number: skipped.',
             'below_zero' => 'Stock sent: :value. Kept as 0.',
+            'too_large' => 'Stock sent: :value. More than a size can hold: skipped.',
             'twice' => 'The code came twice in one read: both skipped.',
             'read_failed' => 'The read failed.',
             'discount_skipped' => 'Past the ceiling at the provider\'s price.',
