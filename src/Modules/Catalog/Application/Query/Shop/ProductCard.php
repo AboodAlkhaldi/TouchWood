@@ -26,5 +26,6 @@ final readonly class ProductCard
         public array $labels,
         public string $variantId,
         public bool $lastPieces = false,
+        public ?CardRating $rating = null,
     ) {}
 }

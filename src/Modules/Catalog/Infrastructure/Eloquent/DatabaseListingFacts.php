@@ -58,6 +58,48 @@ final readonly class DatabaseListingFacts implements ListingFacts
         throw new LogicException("Sales' ranks are kept from stage 6, in a table of their own (catalog.md §5.2): nothing receives them yet.");
     }
 
+    public function ratings(array $ratings): void
+    {
+        $rows = [];
+        $now = CarbonImmutable::now();
+
+        foreach ($ratings as $productId => $rating) {
+            $id = strtolower(trim((string) $productId));
+
+            if (Ulids::valid($id)) {
+                $rows[$id] = ['product_id' => $id, 'rating_sum' => $rating['sum'], 'rating_count' => $rating['count'], 'updated_at' => $now];
+            }
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        // Inside the caller's transaction: the products' lock first, as every change the shop's lists
+        // read takes it — which also replaces the cached pages' version (DatabaseListLocks).
+        $this->db->transaction(function () use ($rows): void {
+            $this->locks->lock(ListLocks::PRODUCTS);
+            $known = $this->db->table('catalog.products')->whereIn('id', array_keys($rows))->pluck('id')->map(strval(...))->all();
+            $kept = array_values(array_intersect_key($rows, array_flip($known)));
+
+            if ($kept !== []) {
+                $this->db->table('catalog.product_ratings')->upsert($kept, ['product_id'], ['rating_sum', 'rating_count', 'updated_at']);
+            }
+        });
+    }
+
+    public function ratingsShown(StoreId $store, bool $shown): void
+    {
+        $this->db->transaction(function () use ($store, $shown): void {
+            $this->locks->lock(ListLocks::PRODUCTS);
+            $this->db->table('catalog.store_rating_display')->upsert(
+                [['store_id' => $store->value, 'shown' => $shown, 'updated_at' => CarbonImmutable::now()]],
+                ['store_id'],
+                ['shown', 'updated_at'],
+            );
+        });
+    }
+
     /**
      * @param  array<array-key, array<string, bool|int|string|null>>  $facts  variant id => its columns
      */

@@ -98,7 +98,8 @@ reviews are approved or unpublished.
   the plain average. **Products with no reviews come last**; best-rated first only; ties, and the
   no-review group, newest product first. A store whose switch is off offers no rating sort, and a
   request for it gets best-selling. The score is worked out when the list is read, from the sum and
-  count Feedback pushes; the stars show the average **to one decimal, half up**.
+  count Feedback pushes; the stars show the average **to one decimal, half up**. **Built with step
+  F3** (catalog.md amendment 25).
 
 | Key | Scope | Type | Default | Changed under |
 |---|---|---|---|---|

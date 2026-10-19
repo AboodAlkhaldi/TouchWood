@@ -24,5 +24,6 @@ final class ShopFiltersData extends Data
         public array $attributes,
         public array $sides,
         public string $sort,
+        public bool $ratingSort = false,
     ) {}
 }

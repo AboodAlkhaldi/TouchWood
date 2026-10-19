@@ -25,5 +25,7 @@ final class ShopCardData extends Data
         public ?array $photo,
         public array $labels,
         public bool $lastPieces,
+        public ?float $rating = null,
+        public int $ratingCount = 0,
     ) {}
 }

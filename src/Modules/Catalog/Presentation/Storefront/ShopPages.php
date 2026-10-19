@@ -79,7 +79,7 @@ final readonly class ShopPages
             $around['children'],
             self::cards($page->products->cards),
             $page->products->next,
-            self::filters($page->filters ?? new CategoryFilters([], [], []), $filters),
+            self::filters($page->filters ?? new CategoryFilters([], [], []), $filters, $page->ratingSort),
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
         );
     }
@@ -215,13 +215,14 @@ final readonly class ShopPages
         );
     }
 
-    private static function filters(CategoryFilters $filters, ShopFilters $chosen): ShopFiltersData
+    private static function filters(CategoryFilters $filters, ShopFilters $chosen, bool $ratingSort): ShopFiltersData
     {
         return new ShopFiltersData(
             self::choices($filters->brands, $chosen->brands),
             array_map(static fn (FilterGroup $group): ShopFilterGroupData => new ShopFilterGroupData($group->attributeId, $group->name, self::choices($group->choices, $chosen->values)), $filters->attributes),
             self::choices($filters->sides, $chosen->side === null ? [] : [$chosen->side]),
             $chosen->sort,
+            $ratingSort,
         );
     }
 
@@ -267,7 +268,7 @@ final readonly class ShopPages
      */
     private static function cards(array $cards): array
     {
-        return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData($card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces), $cards);
+        return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData($card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0), $cards);
     }
 
     /**

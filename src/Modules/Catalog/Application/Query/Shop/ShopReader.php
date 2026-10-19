@@ -54,6 +54,9 @@ interface ShopReader
      */
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
 
+    /** Whether the store's lists show ratings — stars and the rating sort (amendment 25); never told, they do. */
+    public function ratingsShown(string $storeId): bool;
+
     /**
      * A brand's page head, in one read: who holds the slug — now or before — their slug now in this
      * language and in the other, and the brand as its page shows it.
