@@ -6,6 +6,7 @@ namespace Shared\Infrastructure\Outbox;
 
 use DateTimeInterface;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use LogicException;
 use ReflectionClass;
 use ReflectionProperty;
@@ -18,7 +19,8 @@ use ReflectionProperty;
  * (`ProcessedEvents`).
  *
  * An event goes in as it is: its class, and its public properties — ids only, and the moment, kept as
- * an ISO 8601 string. Its `eventId` (a UUID) is the row's key, so the same event written twice is one.
+ * an ISO 8601 string to the microsecond. Its `eventId` (a UUID) is the row's key, so the same event
+ * written twice is one.
  */
 final readonly class Outbox
 {
@@ -36,13 +38,14 @@ final readonly class Outbox
 
         foreach ((new ReflectionClass($event))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             $value = $property->getValue($event);
-            $payload[$property->getName()] = $value instanceof DateTimeInterface ? $value->format(DateTimeInterface::RFC3339_EXTENDED) : $value;
+            $payload[$property->getName()] = $value instanceof DateTimeInterface ? $value->format('Y-m-d\TH:i:s.uP') : $value;
         }
 
         $eventId = $payload['eventId'] ?? null;
 
-        if (! is_string($eventId) || $eventId === '') {
-            throw new LogicException($event::class.' has no eventId: an event goes into the outbox with its own id.');
+        // Checked here, not by the database: a refused insert would end the caller's whole transaction.
+        if (! is_string($eventId) || ! Str::isUuid($eventId)) {
+            throw new LogicException($event::class.' has no eventId that is a UUID: an event goes into the outbox with its own id.');
         }
 
         $this->db->table('public.outbox_messages')->insertOrIgnore([

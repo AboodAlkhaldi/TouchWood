@@ -34,6 +34,8 @@ return new class extends Migration
         DB::statement('ALTER TABLE public.outbox_messages ADD CONSTRAINT outbox_messages_attempts CHECK (attempts >= 0)');
         // The relay's walk: what is waiting, in the order written.
         DB::statement('CREATE INDEX outbox_messages_waiting ON public.outbox_messages (available_at, id) WHERE dispatched_at IS NULL');
+        // The pruning of what was sent 30 days ago, run with every relay.
+        DB::statement('CREATE INDEX outbox_messages_sent ON public.outbox_messages (dispatched_at) WHERE dispatched_at IS NOT NULL');
 
         Schema::create('public.processed_events', function (Blueprint $table) {
             $table->uuid('event_id');

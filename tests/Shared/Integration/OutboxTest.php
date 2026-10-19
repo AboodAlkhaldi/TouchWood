@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Modules\Sales\Public\Events\OrderCancelled;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Infrastructure\Outbox\Outbox;
 use Shared\Infrastructure\Outbox\OutboxRelay;
@@ -21,6 +24,16 @@ use Shared\Infrastructure\Outbox\ProcessedEvents;
 */
 
 uses(RefreshDatabase::class);
+
+final readonly class OutboxTestEvent
+{
+    public function __construct(
+        public string $eventId,
+        public string $orderId,
+        public CarbonImmutable $at,
+        public string $note = 'none',
+    ) {}
+}
 
 function outboxEvent(?string $eventId = null): OrderPlaced
 {
@@ -58,7 +71,7 @@ it('loses an event with a change that rolls back, and keeps it with one that com
     expect(DB::table('public.outbox_messages')->pluck('event_id')->all())->toBe([$kept->eventId])
         ->and(json_decode((string) outboxRow($kept->eventId)['payload'], true))->toBe([
             'eventId' => $kept->eventId, 'orderId' => $kept->orderId, 'storeId' => $kept->storeId, 'customerId' => $kept->customerId,
-            'occurredAt' => '2026-10-20T09:30:15.123+00:00',
+            'occurredAt' => '2026-10-20T09:30:15.123000+00:00',
         ]);
 });
 
@@ -176,10 +189,80 @@ it('forgets the mark when the work fails, so a later arrival does it', function 
         ->and(app(ProcessedEvents::class)->once($eventId, 'Sales.Flag', static function (): void {}))->toBeTrue();
 });
 
-it('relays every minute from one server, as a queued job', function () {
+it('relays every minute from one server, as a queued job never run twice at once', function () {
+    Queue::fake();
     $relay = collect(app(Schedule::class)->events())->first(static fn ($event): bool => $event->description === OutboxRelay::class);
 
     expect($relay)->not->toBeNull()
         ->and($relay?->expression)->toBe('* * * * *')
-        ->and($relay?->onOneServer)->toBeTrue();
+        ->and($relay?->onOneServer)->toBeTrue()
+        ->and(new OutboxRelay)->toBeInstanceOf(ShouldBeUnique::class)
+        ->and((new OutboxRelay)->timeout)->toBeLessThan(OutboxRelay::LEASE);
+
+    $relay?->run(app());
+
+    Queue::assertPushed(OutboxRelay::class, 1);
+});
+
+it('holds back the later events of an order behind its failed one, and those of no other order', function () {
+    $failing = outboxEvent();
+    $sameOrder = new OrderCancelled((string) Str::uuid(), $failing->orderId, $failing->storeId, $failing->customerId, CarbonImmutable::now());
+    $otherOrder = outboxEvent();
+    DB::transaction(function () use ($failing, $sameOrder, $otherOrder): void {
+        app(Outbox::class)->record($failing);
+        app(Outbox::class)->record($sameOrder);
+        app(Outbox::class)->record($otherOrder);
+    });
+    $seen = [];
+    Event::listen(OrderPlaced::class, static function (OrderPlaced $event) use ($failing, &$seen): void {
+        if ($event->eventId === $failing->eventId) {
+            throw new RuntimeException('Not now.');
+        }
+
+        $seen[] = $event->eventId;
+    });
+    Event::listen(OrderCancelled::class, static function (OrderCancelled $event) use (&$seen): void {
+        $seen[] = $event->eventId;
+    });
+
+    outboxRelay();
+    DB::table('public.outbox_messages')->where('event_id', $failing->eventId)->update(['available_at' => CarbonImmutable::now()->subSecond()]);
+    outboxRelay();
+
+    expect($seen)->toBe([$otherOrder->eventId])
+        ->and(DB::table('public.outbox_messages')->whereNull('dispatched_at')->pluck('event_id')->sort()->values()->all())->toEqualCanonicalizing([$failing->eventId, $sameOrder->eventId])
+        ->and(outboxRow($failing->eventId)['attempts'])->toBe(2);
+});
+
+it('counts the attempt when it claims, so a relay killed mid-dispatch still counts it', function () {
+    $event = outboxEvent();
+    DB::transaction(fn () => app(Outbox::class)->record($event));
+
+    $claimed = (new OutboxRelay)->claim(DB::connection(), CarbonImmutable::now());
+
+    expect($claimed)->toHaveCount(1)
+        ->and(outboxRow($event->eventId)['attempts'])->toBe(1);
+});
+
+it('refuses an event id that is not a UUID before the database could end the transaction', function () {
+    $event = new OrderPlaced('not-a-uuid', 'o', 's', 'c', CarbonImmutable::now());
+
+    DB::transaction(function () use ($event): void {
+        expect(fn () => app(Outbox::class)->record($event))->toThrow(LogicException::class, 'UUID');
+        // The transaction is still good.
+        expect(DB::table('public.outbox_messages')->count())->toBe(0);
+    });
+});
+
+it('rebuilds an event as it was: a parameter with a default kept, a Carbon moment back into Carbon', function () {
+    Event::fake([OutboxTestEvent::class]);
+    DB::transaction(fn () => app(Outbox::class)->record(new OutboxTestEvent((string) Str::uuid(), 'o1', CarbonImmutable::parse('2026-10-20 08:00:00.654321+03:00'))));
+    // Written by an older shape of the event, before its note existed.
+    DB::table('public.outbox_messages')->update(['payload' => DB::raw("payload - 'note'")]);
+
+    outboxRelay();
+
+    Event::assertDispatched(OutboxTestEvent::class, static fn (OutboxTestEvent $event): bool => $event->note === 'none'
+        && $event->at::class === CarbonImmutable::class
+        && $event->at->format('Y-m-d H:i:s.u P') === '2026-10-20 08:00:00.654321 +03:00');
 });
