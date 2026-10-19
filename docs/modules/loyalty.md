@@ -500,7 +500,6 @@ holds. **The menu** — Platform's `AdminMenu`, the **Points** group (it exists,
 |---|---|---|---|---|
 | 10 | Customers · العملاء | `/admin/points/customers` | `customers` (exists) | `loyalty.points.view` |
 | 20 | Redemptions · الاستبدالات | `/admin/points/redemptions` | `redemptions` (Lucide's `TicketPercent`, new) | `loyalty.points.view` |
-| 30 | Settings · الإعدادات | `/admin/points/settings` → Platform's settings screen at the Points card | `store_settings` (exists) | `loyalty.settings.update` |
 
 **The reads the screens add** — Application queries, each **one query or a fixed few, never one per
 row** (frontend.md §5: 15 queries an admin page, the page's own; 8 a shop page):
@@ -631,12 +630,12 @@ in their home store), as access.md amendment 44(c) answers a customer who is not
   **[PROPOSED P5]**. That reader may view the customer (they are on G2), so L2 answers them.
 - One query for every block (`CustomerPointsInStores`), plus the reader's stores already read.
 
-#### L6 · Settings — `/admin/points/settings?store=`
+#### L6 · Settings — on Store Settings only
 
-Not a screen of its own (answer 5): the address answers with a redirect to Platform's settings screen
-for the same store, opened at the **Points** card (`/admin/settings?store=<code>#settings-loyalty`).
-Platform's settings cards gain an `id` of `settings-{module}` (platform.md §9.4, 2026-10-19), and the
-page scrolls to the card named in the address once it has drawn. The settings themselves are as built
+Not a screen of its own (answer 5), and **not in the Points menu** (answer 16): the programme's settings
+are the **Points** card of Platform's settings screen (Store Settings › Settings), reached from there
+only. Platform's settings cards keep their `id` of `settings-{module}` (platform.md §9.4, 2026-10-19),
+and the page still scrolls to a card named in the address. The settings themselves are as built
 (§1.5); each row stays the admin-only `loyalty.settings.update`'s.
 
 #### L7 · The shop: the account's Points tab — `/{store}/{locale}/account/points`
@@ -958,6 +957,7 @@ Asked by the stage 6 screens session; every one as recommended. Written into §4
 | 13 | Paging | **Show More** under each list, no page numbers — as Geist and shadcn do |
 | 14 | Points elsewhere in the shop (the header, product pages) | **Not now**; the cart's and checkout's preview come with Sales's screens |
 | 15 | The customer page's Points section | **One block per store** the reader covers where the customer has points, as its addresses are grouped |
+| 16 | Points › Settings in the menu (owner, 2026-10-19, after seeing the screens) | **Removed**: the settings are reached from Store Settings only; `/admin/points/settings` is gone. Reverses answer 5's menu entry |
 
 **For Ops (owner, 2026-10-19)**: staff sending customers a message — all, some, or one by name; in the
 account's notifications, by email or by SMS, as the staff member chooses — for example to explain a

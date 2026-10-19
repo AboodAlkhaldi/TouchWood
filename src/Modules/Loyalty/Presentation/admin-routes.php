@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Route;
 use Modules\Loyalty\Presentation\Http\Controller\PointsAdminController;
 
 /*
-| Loyalty's screens in the admin panel (loyalty.md §4.1): the Points menu's Customers, Redemptions and
-| Settings, and one customer's points with its change by hand.
+| Loyalty's screens in the admin panel (loyalty.md §4.1): the Points menu's Customers and Redemptions,
+| and one customer's points with its change by hand. Its settings live on Store Settings only.
 |
 | Mounted into the area App\Http\AdminArea names, as the other modules' screens are. Who may open any
 | of these is Loyalty's answer, never the routing's. Named loyalty.admin.*, which the panel's route
@@ -21,5 +21,4 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('points/customers/{customer}', [PointsAdminController::class, 'customer'])->name('loyalty.admin.customer');
         Route::post('points/customers/{customer}/change', [PointsAdminController::class, 'change'])->name('loyalty.admin.customer.change');
         Route::get('points/redemptions', [PointsAdminController::class, 'redemptions'])->name('loyalty.admin.redemptions');
-        Route::get('points/settings', [PointsAdminController::class, 'settings'])->name('loyalty.admin.settings');
     });
