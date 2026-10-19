@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CardPage;
+use Modules\Catalog\Application\Query\Shop\CardRating;
 use Modules\Catalog\Application\Query\Shop\CategoryFilters;
 use Modules\Catalog\Application\Query\Shop\Cursor;
 use Modules\Catalog\Application\Query\Shop\FilterChoice;
@@ -125,7 +126,10 @@ final readonly class DatabaseShopReader implements ShopReader
             ." CASE (SELECT side FROM side) WHEN 'retail' THEN listed.sells_retail WHEN 'wholesale' THEN listed.sells_wholesale ELSE true END AS by_side"
             .' FROM listed)'
             ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, NULL::text AS group_name,"
-            .' (EXISTS (SELECT 1 FROM listed))::int AS found, 0 AS group_position, 0 AS position FROM head'
+            // The head's spare column carries whether the store's lists show ratings (amendment 25), so
+            // the page reads it in this same query (P21).
+            .' (EXISTS (SELECT 1 FROM listed))::int AS found,'
+            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position, 0 AS position FROM head'
             ." UNION ALL SELECT 'brand', b.id::text, b.{$name}, NULL, NULL, NULL,"
             .' count(*) FILTER (WHERE base.by_side AND cardinality(base.missed) = 0), b.position, b.position'
             .' FROM base JOIN catalog.brands b ON b.id = base.brand_id GROUP BY b.id'
@@ -143,7 +147,7 @@ final readonly class DatabaseShopReader implements ShopReader
             [
                 self::other($locale), $locale, $slug, $storeId, $locale,
                 self::array(self::ulids($filters->brands)), self::array(self::ulids($filters->values)),
-                $filters->side, $filters->side, $filters->side,
+                $filters->side, $filters->side, $filters->side, $storeId,
             ],
         );
 
@@ -174,6 +178,7 @@ final readonly class DatabaseShopReader implements ShopReader
             'other_slug' => $head->swatch === null ? null : (string) $head->swatch,
             'name' => (string) $head->name,
             'lists' => (int) $head->found === 1,
+            'ratings_shown' => (int) $head->group_position === 1,
             'filters' => new CategoryFilters(
                 $brandChoices,
                 array_map(static fn (string $id, string $name): FilterGroup => new FilterGroup($id, $name, $values[$id]), array_keys($names), $names),
@@ -231,12 +236,12 @@ final readonly class DatabaseShopReader implements ShopReader
             $query->where($filters->side === ShopFilters::WHOLESALE ? 'sells_wholesale' : 'sells_retail', true);
         }
 
-        return $this->page($query, $locale, $viewer, $after, $limit, $filters->sort);
+        return $this->page($storeId, $query, $locale, $viewer, $after, $limit, $filters->sort);
     }
 
     public function brandCards(string $storeId, string $locale, ShopperKind $viewer, string $brandId, ?Cursor $after, int $limit): CardPage
     {
-        return $this->page($this->listed($storeId, $locale, $viewer)->where('brand_id', $brandId), $locale, $viewer, $after, $limit, ShopFilters::BEST_SELLING);
+        return $this->page($storeId, $this->listed($storeId, $locale, $viewer)->where('brand_id', $brandId), $locale, $viewer, $after, $limit, ShopFilters::BEST_SELLING);
     }
 
     public function cardsOf(string $storeId, string $locale, ShopperKind $viewer, array $productIds): array
@@ -515,7 +520,7 @@ final readonly class DatabaseShopReader implements ShopReader
         $rows = $this->db->select(
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
-            .' l.ending_soon_companies, l.ending_soon_individuals, '.self::labelsOf($locale, 'l').' AS labels,'
+            .' l.ending_soon_companies, l.ending_soon_individuals, '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
             .' WHEN ?::text <% l.search_text THEN 3'
@@ -556,7 +561,53 @@ final readonly class DatabaseShopReader implements ShopReader
         return $this->db->table(self::LISTING)
             ->select(self::LISTING.'.*')
             ->selectRaw(self::labelsOf($locale, self::LISTING).' AS labels')
+            ->selectRaw(self::ratingOf(self::LISTING))
             ->where('store_id', $storeId)->where('locale', $locale)->where('orderable', true)->whereRaw(self::seenBy($viewer));
+    }
+
+    /**
+     * A row's rating (amendment 25): the product's pushed sum and count — global — and whether the
+     * row's store shows ratings, read in the row's own query, never kept in the listing.
+     *
+     * @param  'l'|'catalog.listing'  $table
+     * @return literal-string
+     */
+    private static function ratingOf(string $table): string
+    {
+        return "(SELECT pr.rating_sum FROM catalog.product_ratings pr WHERE pr.product_id = {$table}.product_id) AS rating_sum,"
+            ." (SELECT pr.rating_count FROM catalog.product_ratings pr WHERE pr.product_id = {$table}.product_id) AS rating_count,"
+            ." COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = {$table}.store_id), true) AS ratings_shown";
+    }
+
+    /**
+     * A row's place in the rating sort (amendment 25; feedback.md §1.2, answer 15): its average pulled
+     * toward the store's — `(5 × C + sum) / (5 + count)` — in millionths, so a page's cursor carries it
+     * as a whole number; none for a product without reviews, which comes last. `C` is bound.
+     *
+     * @return literal-string
+     */
+    private static function ratingKey(): string
+    {
+        return '(SELECT round(((5 * ?::numeric) + pr.rating_sum) / (5 + pr.rating_count) * 1000000)::bigint'
+            .' FROM catalog.product_ratings pr WHERE pr.product_id = '.self::LISTING.'.product_id AND pr.rating_count > 0)';
+    }
+
+    /**
+     * The store's average, `C` (answer 15): every approved review of the products the store sells —
+     * its orderable listing rows, any language, any viewer — or none when none has a review, so every
+     * product comes last alike. From the store's listing rows (their key's first column), each product
+     * once.
+     */
+    private function storeAverage(string $storeId): ?string
+    {
+        $average = $this->db->selectOne(
+            'SELECT SUM(pr.rating_sum)::numeric / NULLIF(SUM(pr.rating_count), 0) AS average'
+            .' FROM (SELECT DISTINCT product_id FROM '.self::LISTING.' WHERE store_id = ? AND orderable) sold'
+            .' JOIN catalog.product_ratings pr ON pr.product_id = sold.product_id',
+            [$storeId],
+        );
+
+        return $average instanceof stdClass && $average->average !== null ? (string) $average->average : null;
     }
 
     /**
@@ -598,8 +649,12 @@ final readonly class DatabaseShopReader implements ShopReader
         return $query->orderByRaw('sales_rank ASC NULLS LAST')->orderByDesc('product_id');
     }
 
-    private function page(Builder $query, string $locale, ShopperKind $viewer, ?Cursor $after, int $limit, string $sort): CardPage
+    private function page(string $storeId, Builder $query, string $locale, ShopperKind $viewer, ?Cursor $after, int $limit, string $sort): CardPage
     {
+        if ($sort === ShopFilters::RATING) {
+            return $this->ratedPage($storeId, $query, $viewer, $after, $limit);
+        }
+
         // Newest: by id alone, a ULID being in the order it was made (P15).
         $newest = $sort === ShopFilters::NEWEST;
 
@@ -631,6 +686,36 @@ final readonly class DatabaseShopReader implements ShopReader
     }
 
     /**
+     * Best-rated first (amendment 25): the weighted key, highest first, products without reviews last,
+     * ties and the unrated newest first; keyset on (key, id), the store's average read once a page. A
+     * review approved between two pages moves the keys, so a product may show twice or not at all
+     * across them — as it does when Sales' ranks change (accepted: lists are browsed, not audited).
+     */
+    private function ratedPage(string $storeId, Builder $query, ShopperKind $viewer, ?Cursor $after, int $limit): CardPage
+    {
+        // The key worked out once per row, in a derived table the page then walks.
+        $rated = $this->db->table($query->selectRaw(self::ratingKey().' AS rating_key', [$this->storeAverage($storeId)]), 'rated');
+
+        if ($after !== null && $after->salesRank === null) {
+            $rated->whereNull('rating_key')->where('product_id', '<', $after->productId);
+        } elseif ($after !== null) {
+            $rated->where(static fn (Builder $where): Builder => $where->where('rating_key', '<', $after->salesRank)
+                ->orWhere(static fn (Builder $tie): Builder => $tie->where('rating_key', $after->salesRank)->where('product_id', '<', $after->productId))
+                ->orWhereNull('rating_key'));
+        }
+
+        $rows = $rated->orderByRaw('rating_key DESC NULLS LAST')->orderByDesc('product_id')->limit($limit + 1)->get()->all();
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        $last = $rows === [] ? null : $rows[count($rows) - 1];
+
+        return new CardPage(
+            $this->cards($rows, $viewer),
+            $more && $last instanceof stdClass ? Cursor::after($last->rating_key === null ? null : (int) $last->rating_key, (string) $last->product_id)->text() : null,
+        );
+    }
+
+    /**
      * Each card with the variant it shows to this viewer (amendment 14(f)): the first an individual can
      * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
      * guests share a card); its labels, read with it; and its side's "Last pieces" (amendment 16(h)).
@@ -657,6 +742,8 @@ final readonly class DatabaseShopReader implements ShopReader
                 array_map(static fn (array $label): CardLabel => new CardLabel((string) $label['name'], (string) $label['tone']), $labels),
                 (string) ($individual ? $row->retail_card_variant_id : $row->card_variant_id),
                 (bool) ($individual ? $row->ending_soon_individuals : $row->ending_soon_companies),
+                // Stars only where the store shows ratings, and once there is a review (amendment 25).
+                (bool) ($row->ratings_shown ?? true) && (int) ($row->rating_count ?? 0) > 0 ? CardRating::of((int) $row->rating_sum, (int) $row->rating_count) : null,
             );
         }, $rows);
     }

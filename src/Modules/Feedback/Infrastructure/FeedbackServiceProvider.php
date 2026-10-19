@@ -14,7 +14,10 @@ use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseReviews;
 use Modules\Feedback\Infrastructure\Eloquent\FeedbackCatalogUsage;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
+use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
+use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Sales\Public\Events\ReturnCompleted;
 
 /**
@@ -42,5 +45,11 @@ final class FeedbackServiceProvider extends ServiceProvider
 
         // A return completed: the reviews of what came back read "Returned" (§6).
         Event::listen(ReturnCompleted::class, [FlipReturnedReviews::class, 'handle']);
+        // The ratings switch reaches Catalog's lists (§1.2).
+        Event::listen(SettingChanged::class, [TellCatalogOfRatingsSwitch::class, 'handle']);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RepushRatingsCommand::class]);
+        }
     }
 }

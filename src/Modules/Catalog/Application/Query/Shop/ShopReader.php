@@ -50,7 +50,7 @@ interface ShopReader
      * its own kind's left out. A choice the page no longer offers (a brand not listed here, a value
      * switched off or held by nothing here, a side nothing here is sold on) counts as not made.
      *
-     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, filters: CategoryFilters}|null
+     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, filters: CategoryFilters}|null
      */
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
 

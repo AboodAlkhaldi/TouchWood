@@ -372,6 +372,8 @@ slug: string,
 photo: Record<string, Record<string, string>> | null,
 labels: ShopLabelData[],
 lastPieces: boolean,
+rating: number | null,
+ratingCount: number,
 };
 export type ShopCategoryPage = {
 name: string,
@@ -416,6 +418,7 @@ brands: ShopFilterChoiceData[],
 attributes: ShopFilterGroupData[],
 sides: ShopFilterChoiceData[],
 sort: string,
+ratingSort: boolean,
 };
 export type ShopFrameData = {
 menu: ShopMenuItemData[],

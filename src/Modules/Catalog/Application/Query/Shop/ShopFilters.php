@@ -20,7 +20,13 @@ final readonly class ShopFilters
 
     public const string NEWEST = 'newest';
 
-    public const array SORTS = [self::BEST_SELLING, self::NEWEST];
+    /**
+     * Best-rated first, by a weighted average (amendment 25; feedback.md §1.2, answer 15): offered only
+     * where the store's lists show ratings; asked for elsewhere, best-selling instead.
+     */
+    public const string RATING = 'rating';
+
+    public const array SORTS = [self::BEST_SELLING, self::NEWEST, self::RATING];
 
     public const string RETAIL = 'retail';
 
@@ -76,6 +82,12 @@ final readonly class ShopFilters
         }
 
         return new self($brands, $values, $side, $sort ?? self::BEST_SELLING);
+    }
+
+    /** The same choices in another sort: the rating sort where the store's lists show no ratings. */
+    public function withSort(string $sort): self
+    {
+        return new self($this->brands, $this->values, $this->side, $sort);
     }
 
     /** An individual buys retail only (amendment 14(e)): Retail or Wholesale is not theirs to pick. */

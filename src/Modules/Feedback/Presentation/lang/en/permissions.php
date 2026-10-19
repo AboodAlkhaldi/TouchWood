@@ -20,6 +20,9 @@ return [
     'own' => [
         'view' => 'View my reviews, questions and wishlist',
     ],
+    'ratings' => [
+        'repush' => 'Tell the shop\'s lists every rating again',
+    ],
     'settings' => [
         'update' => 'Switch ratings in the store\'s product lists',
     ],

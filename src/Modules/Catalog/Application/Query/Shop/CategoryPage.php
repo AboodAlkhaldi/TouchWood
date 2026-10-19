@@ -19,5 +19,6 @@ final readonly class CategoryPage
         public ?string $otherSlug = null,
         public ?CategoryFilters $filters = null,
         public ?ShopFilters $chosen = null,
+        public bool $ratingSort = false,
     ) {}
 }

@@ -46,4 +46,19 @@ interface ListingFacts
      * @param  array<string, int>  $ranks  product id => its rank there, 1 the best-selling
      */
     public function salesRanks(StoreId $store, array $ranks): void;
+
+    /**
+     * Feedback's ratings (amendment 25; feedback.md §1.2): each product's approved reviews — their sum
+     * and count — **one for every store**, as reviews are global. Pushed with every approval and
+     * unpublishing, inside Feedback's transaction; a product that is not Catalog's is left out.
+     *
+     * @param  array<string, array{sum: int, count: int}>  $ratings  product id => its rating
+     */
+    public function ratings(array $ratings): void;
+
+    /**
+     * Whether a store's lists show ratings — stars on cards and the rating sort — as Feedback's
+     * admin-only switch says (amendment 25). A store never told shows them, as the switch's default.
+     */
+    public function ratingsShown(StoreId $store, bool $shown): void;
 }

@@ -38,6 +38,9 @@ final class FeedbackPermissions
     /** A customer's wishlist items of a store, and the store's "Favourited products". */
     public const string WISHLIST_VIEW = 'feedback.wishlist.view';
 
+    /** Tell Catalog again every product's rating and every store's switch: the system only (the repair). */
+    public const string RATINGS_REPUSH = 'feedback.ratings.repush';
+
     /** Switch ratings in a store's lists — admin-only (owner, 2026-10-09). */
     public const string SETTINGS_UPDATE = 'feedback.settings.update';
 
@@ -57,6 +60,7 @@ final class FeedbackPermissions
             new PermissionDefinitionDto(self::QUESTION_ANSWER, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Support),
             new PermissionDefinitionDto(self::WISHLIST_VIEW, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Customers),
             new PermissionDefinitionDto(self::SETTINGS_UPDATE, PermissionAudience::Role, adminOnly: true, kind: PermissionKind::PerStore, group: PermissionGroup::Support),
+            new PermissionDefinitionDto(self::RATINGS_REPUSH, PermissionAudience::Role, reserved: true, kind: PermissionKind::Global),
         ];
     }
 }

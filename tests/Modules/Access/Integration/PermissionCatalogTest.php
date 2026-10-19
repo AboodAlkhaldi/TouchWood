@@ -88,6 +88,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'catalog.import.run',
         'catalog.listing.rebuild',
         'catalog.search_log.prune',
+        // Reserved: telling Catalog's lists every rating again, the repair (feedback.md §3).
+        'feedback.ratings.repush',
         // Reserved: the system's jobs belong to no store (inventory.md §3).
         'inventory.holds.expire',
         'inventory.low_stock.count',

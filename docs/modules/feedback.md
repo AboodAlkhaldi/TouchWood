@@ -88,9 +88,11 @@ reviews are approved or unpublished.
   (pricing.md §2.3), and tells Catalog whether a store shows ratings. Catalog never reads Feedback
   (handoff §4.4) — a Catalog addition (§2.3).
 - **The switch reaches Catalog through Platform's `SettingChanged`** (published after a setting
-  changes): Feedback listens for its own key and pushes that store's flag — and, when it turns on, the
-  store's ratings. Catalog's own default is "shown", matching the setting's, so a store opened later
-  shows ratings without any event.
+  changes): Feedback listens for its own key and pushes that store's flag — the ratings themselves
+  are global and pushed with every approval and unpublishing, so nothing more is needed when it turns
+  on. Catalog's own default is "shown", matching the setting's, so a store opened later shows ratings
+  without any event. A push that fails is reported; `feedback:ratings:repush` (the system's reserved
+  `feedback.ratings.repush`, step F3) tells Catalog again every store's flag and every rating.
 - **Sorting by rating — a weighted average** (owner, 2026-10-18; numbers 2026-10-19, answer 15): each
   product scores `(5 × C + sum of its ratings) / (5 + its count)`, where **C** is the average of every
   approved review of the products the store sells — as if each product had 5 more reviews at the
@@ -98,7 +100,8 @@ reviews are approved or unpublished.
   the plain average. **Products with no reviews come last**; best-rated first only; ties, and the
   no-review group, newest product first. A store whose switch is off offers no rating sort, and a
   request for it gets best-selling. The score is worked out when the list is read, from the sum and
-  count Feedback pushes; the stars show the average **to one decimal, half up**.
+  count Feedback pushes; the stars show the average **to one decimal, half up**. **Built with step
+  F3** (catalog.md amendment 25).
 
 | Key | Scope | Type | Default | Changed under |
 |---|---|---|---|---|
@@ -245,6 +248,7 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 | `feedback.question.answer` | Role | per store | `Support` | no |
 | `feedback.wishlist.view` | Role | per store | `Customers` | no |
 | `feedback.settings.update` | Role | per store | `Support` | **yes** |
+| `feedback.ratings.repush` | Role, reserved | global | — | — |
 
 ---
 
@@ -304,7 +308,7 @@ published, because …" (only with a reason, §1.1) when it writes to customers.
 |---|---|---|
 | `ReturnCompleted` | Sales | Reads the return's customer and products; flips those reviews to "Returned" |
 | `CustomerAnonymized` | Access | Deletes the account's wishlist; its reviews and questions now read "Deleted customer" (from Access, at read time) |
-| `SettingChanged` | Platform | For `feedback.ratings.in_lists`: pushes that store's flag to Catalog, and its ratings when turned on (§1.2) |
+| `SettingChanged` | Platform | For `feedback.ratings.in_lists`: pushes that store's flag to Catalog (§1.2) |
 
 Every listener does its work once however often it runs — setting a mark already set, deleting a list
 already empty, pushing the same flag — so they need no `processed_events` row (as Catalog's and B2B's

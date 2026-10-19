@@ -95,8 +95,14 @@ final readonly class ShopCatalog
             return new Moved($head['slug']);
         }
 
-        // The cards by the choices the page still offers, as its counts were (P14).
+        // The cards by the choices the page still offers, as its counts were (P14) — the rating sort
+        // only where the store's lists show ratings, best-selling otherwise (amendment 25).
         $chosen = $filters->narrowedTo($head['filters']);
+        $ratingSort = $head['ratings_shown'];
+
+        if (! $ratingSort && $chosen->sort === ShopFilters::RATING) {
+            $chosen = $chosen->withSort(ShopFilters::BEST_SELLING);
+        }
 
         return new CategoryPage(
             $head['id'],
@@ -106,6 +112,7 @@ final readonly class ShopCatalog
             $head['other_slug'],
             $head['filters'],
             $chosen,
+            $ratingSort,
         );
     }
 
