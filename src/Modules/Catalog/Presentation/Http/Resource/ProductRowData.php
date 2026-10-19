@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\MoneyData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * A product as the products list shows it (catalog.md §4.4 S8): never a price or stock (stage 5).
+ * A product as the products list shows it (catalog.md §4.4 S8). With a store chosen, its Price and Can't
+ * Order (pricing.md §9.4 Q5), from Catalog's own facts: never read from Pricing or Inventory.
  */
 #[TypeScript]
 final class ProductRowData extends Data
@@ -20,6 +22,8 @@ final class ProductRowData extends Data
      * @param  list<string>  $onIn  the codes of the stores the reader covers where it is on
      * @param  string|null  $storeState  with a store chosen: ON, OFF, NOT_CHOSEN or NOT_AVAILABLE
      * @param  int  $storeVariantsOn  with a store chosen: how many of its variants are on there
+     * @param  MoneyData|null  $priceFrom  with a store chosen: the lowest one-piece price now of its sizes switched on there ("From 120.00 SAR")
+     * @param  string|null  $cantOrder  with a store chosen and a size switched on there: how many of them can't be ordered now ("2 of 5 sizes")
      */
     public function __construct(
         public string $id,
@@ -36,5 +40,7 @@ final class ProductRowData extends Data
         public array $onIn,
         public ?string $storeState,
         public int $storeVariantsOn,
+        public ?MoneyData $priceFrom = null,
+        public ?string $cantOrder = null,
     ) {}
 }

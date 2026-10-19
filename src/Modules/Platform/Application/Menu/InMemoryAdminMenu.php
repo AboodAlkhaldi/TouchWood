@@ -32,6 +32,9 @@ final class InMemoryAdminMenu implements AdminMenu
     private const array GROUPS = [
         'catalog',
         'pricing',
+        // Sync's section follows Pricing's (platform.md §9.4; sync.md §4.1.2, S6): its report and its
+        // provider, stage 5's screens.
+        'sync',
         'orders',
         'companies',
         'customers',

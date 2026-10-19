@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { Money } from '@/components/Money';
 import { PanelDialog } from '@/components/PanelDialog';
 import { SearchCombobox } from '@/components/SearchCombobox';
 import { StoreFilter } from '@/components/StoreFilter';
@@ -24,8 +25,10 @@ import { StageBadge } from './parts';
 
 /*
 | The products list (catalog.md §4.4 S8, P4): every product, newest first, 50 at a time with Show More
-| - never a price, stock or tax (stage 5). The store filter offers All Stores first; one store chosen,
-| the stores column becomes that store's state, and a filter by it. **The whole row opens the
+| - no stock or tax. The store filter offers All Stores first; one store chosen, the stores column
+| becomes that store's state, and a filter by it, and the list gains **Price** ("From 120.00 SAR", the
+| lowest one-piece price of its sizes switched on there) and **Can't Order** ("2 of 5 sizes") - both
+| written by the server from Catalog's own facts (pricing.md §9.4 Q5). **The whole row opens the
 | product.** Add Product asks no store (amendment 13(f)): a draft, and its page opens.
 */
 
@@ -187,6 +190,12 @@ export default function Index(page: ProductsPage) {
                                     <TableHead>{t('catalog::admin_products.column.category')}</TableHead>
                                     <TableHead>{t('catalog::admin_products.column.stage')}</TableHead>
                                     <TableHead>{storeCode === null ? t('catalog::admin_products.column.in_stores') : t('catalog::admin_products.column.in_store')}</TableHead>
+                                    {storeCode !== null ? (
+                                        <>
+                                            <TableHead>{t('catalog::admin_products.column.price')}</TableHead>
+                                            <TableHead>{t('catalog::admin_products.column.cant_order')}</TableHead>
+                                        </>
+                                    ) : null}
                                     <TableHead className="text-end">{t('catalog::admin_products.column.variants')}</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -252,6 +261,22 @@ function Row({ row, storeChosen }: { row: ProductRowData; storeChosen: boolean }
                     </span>
                 )}
             </TableCell>
+            {storeChosen ? (
+                <>
+                    <TableCell data-test="product-price">
+                        {row.priceFrom === null ? (
+                            '—'
+                        ) : (
+                            <span className="whitespace-nowrap">
+                                {t('catalog::admin_products.price_from')} <Money value={row.priceFrom} />
+                            </span>
+                        )}
+                    </TableCell>
+                    <TableCell className="tw-figure whitespace-nowrap" data-test="product-cant-order">
+                        {row.cantOrder ?? '—'}
+                    </TableCell>
+                </>
+            ) : null}
             <TableCell className="tw-figure text-end">{figure(locale, row.variants)}</TableCell>
         </TableRow>
     );

@@ -20,6 +20,7 @@ import type { LabelChoiceData, ProductPage, StoreCardData, VariantData } from '@
 import type { SharedProps } from '@/types/page';
 import { nameIn, useLocale } from '../parts';
 import { ProductShell } from './shell';
+import { StoreSections } from './store-sections';
 
 /*
 | A product's Stores (catalog.md §4.4 S9 "Stores", P6): one card per store the reader covers - a Super
@@ -29,7 +30,8 @@ import { ProductShell } from './shell';
 | Every switch saves as it flips (Geist's Switch). A control works for whoever holds its job in that
 | store; anyone else sees its state, out of reach, and is told why. A store that never chose the
 | product offers Switch On only. A label deactivated since it was attached stays, marked Off. Prices
-| and stock come with their modules.
+| and stock are the modules' own parts of each card (amendment 23(e), store-sections.tsx); until one is
+| registered, the card says they come with Pricing and Inventory.
 */
 
 const LABELS_MAX = 10;
@@ -294,10 +296,13 @@ function StoreCard({ page, store }: { page: ProductPage; store: StoreCardData })
                         </div>
                     </>
                 )}
+                <StoreSections store={store} />
             </CardContent>
-            <CardFooter>
-                <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.stores.prices_note')}</p>
-            </CardFooter>
+            {store.sections.length === 0 ? (
+                <CardFooter>
+                    <p className="text-copy-13 text-ink-muted">{t('catalog::admin_products.stores.prices_note')}</p>
+                </CardFooter>
+            ) : null}
 
             {labelling ? <LabelsDialog store={store} url={url} labels={(page.labels ?? []).filter((label) => label.active || store.labelIds.includes(label.id))} onOpenChange={(open) => (open ? undefined : setLabelling(false))} returnFocusTo={opener} /> : null}
         </Card>

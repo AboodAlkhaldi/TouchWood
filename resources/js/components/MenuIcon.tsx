@@ -9,6 +9,7 @@ import {
     UserRound,
     LayoutDashboard,
     Receipt,
+    RefreshCw,
     ScrollText,
     Server,
     ShieldCheck,
@@ -37,6 +38,8 @@ import {
 const ICONS = {
     // The business areas, by their keys (Platform's menu registry orders them).
     pricing: BadgePercent,
+    // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
+    sync: RefreshCw,
     staff_and_permissions: ShieldCheck,
     store_settings: SlidersHorizontal,
     system: Server,
