@@ -140,3 +140,37 @@ describe('the visits that keep typed boxes', () => {
         assert.equal(keepsBoxes({ method: 'get', only: ['rows'], preserveState: false }), false);
     });
 });
+
+describe('a saved moment and a clock that jumps', () => {
+    const now = Date.parse('2026-10-20T11:30:20Z'); // 14:30:20 in Riyadh
+
+    it('does not refuse a saved start that has passed while it is left as it was - a running offer\'s', () => {
+        const running = momentFrom('2026-10-18T06:00:00+00:00', RIYADH);
+
+        assert.equal(running.saved, '2026-10-18 09:00');
+        assert.equal(momentProblem(running, 'start', RIYADH, null, now), null);
+        assert.equal(hasPassed(running, RIYADH, now), false);
+        // Moved, it is a typed start again, and a past one is refused.
+        assert.equal(momentProblem({ ...running, time: '10:00', typedAt: now }, 'start', RIYADH, null, now), MOMENT_WORDS.notPast);
+    });
+
+    it('sends a time the clocks skip as the instant it checked, with the offset in force then', () => {
+        // Cairo moves its clocks from 00:00 to 01:00 on 24 April 2026: 00:30 does not exist.
+        const skipped = typed('2026-04-24', '00:30');
+        const at = instantOf('2026-04-24', '00:30', 'Africa/Cairo');
+        const iso = isoOf(skipped, 'Africa/Cairo');
+
+        assert.equal(iso, '2026-04-24T01:30:00+03:00');
+        assert.equal(Date.parse(iso ?? ''), at);
+        // Either side of the change, the wall time as typed.
+        assert.equal(isoOf(typed('2026-04-23', '23:30'), 'Africa/Cairo'), '2026-04-23T23:30:00+02:00');
+        assert.equal(isoOf(typed('2026-04-24', '01:30'), 'Africa/Cairo'), '2026-04-24T01:30:00+03:00');
+    });
+
+    it('puts Save\'s focus on the date button while there is no day, else on the time box', () => {
+        const field = { id: 'sale-start', label: 'Start', kind: 'start' as const, zone: RIYADH };
+
+        assert.equal(momentBox(typed('', '10:00'), field).focus, 'sale-start-date');
+        assert.equal(momentBox(typed('2026-10-21', '25:00'), field).focus, 'sale-start-time');
+    });
+});

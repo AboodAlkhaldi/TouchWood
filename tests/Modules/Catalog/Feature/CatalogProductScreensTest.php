@@ -336,6 +336,41 @@ describe('the products list', function () {
         expect($cantOrder())->toBeIn(['2 of 2 sizes', '2 من صنفين']);
     });
 
+    it('counts a size Can\'t Order while it has no price, or while its product is hidden with its category or brand, and shows no price in an old currency', function () {
+        ['product' => $product, 'variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+        catalogProductScreensOn('sa', $product);
+        $sa = Fx::storeId('sa');
+        catalogProductScreensFacts([
+            ['store_id' => $sa, 'variant_id' => $sixty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => 5_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+            // Inventory says it can be ordered; it has no price.
+            ['store_id' => $sa, 'variant_id' => $eighty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => null, 'price_before_minor' => null, 'currency' => null],
+        ]);
+        $browser = catalogProductScreens([P::PRODUCT_VIEW]);
+        $row = function () use ($browser): array {
+            $found = [];
+            $browser->get('/admin/products?store=sa')->assertInertia(function (AssertableInertia $page) use (&$found): void {
+                $found = (array) ($page->toArray()['props']['products'][0] ?? []);
+            });
+
+            return $found;
+        };
+
+        expect($row()['cantOrder'] ?? null)->toBeIn(['1 of 2 sizes', '1 من صنفين']);
+
+        foreach (['hidden_by_category', 'hidden_by_brand'] as $hidden) {
+            DB::table('catalog.products')->where('id', $product)->update([$hidden => true]);
+            expect($row()['cantOrder'] ?? null)->toBeIn(['2 of 2 sizes', '2 من صنفين']);
+            DB::table('catalog.products')->where('id', $product)->update([$hidden => false]);
+        }
+
+        // A price kept from before the store's currency changed is never the store's lowest.
+        expect($row()['priceFrom']['minor'] ?? null)->toBe(5_000);
+        DB::table('catalog.store_variant_facts')->where('store_id', $sa)->where('variant_id', $eighty)->update(['price_minor' => 100, 'currency' => 'EGP']);
+        expect($row()['priceFrom']['minor'] ?? null)->toBe(5_000);
+        DB::table('catalog.store_variant_facts')->where('store_id', $sa)->where('variant_id', $sixty)->update(['currency' => 'EGP']);
+        expect($row())->toHaveKey('priceFrom', null);
+    });
+
     it('finds by a name or a code, and shows the next page after the last row', function () {
         ['product' => $drawer, 'variants' => [$variant]] = Px::ready();
         $code = (string) DB::table('catalog.variants')->where('id', $variant)->value('code');

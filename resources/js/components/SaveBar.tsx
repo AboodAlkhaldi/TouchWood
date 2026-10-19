@@ -4,8 +4,8 @@ import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Button } from '@/components/ui/button';
+import { type HeldVisit, type LeaveGuard, leaveGuard } from '@/lib/leave-guard';
 import { useTranslator } from '@/lib/t';
-import { keepsBoxes } from '@/lib/visits';
 
 /*
 | Rows that hold boxes (pricing.md §4.3.1; Q40): while any box is changed, a bar at the bottom of the
@@ -16,9 +16,11 @@ import { keepsBoxes } from '@/lib/visits';
 |
 | It sits at the end of the page's content and sticks to the bottom of the window while the rows scroll
 | under it, so it is as wide as the content, never across the sidebar. Its count is a polite live region:
-| a screen reader hears "3 prices changed" as boxes change, not at every keystroke of one box.
+| a screen reader hears "3 prices changed" as the count changes, not at every keystroke of one box.
 |
-| `useLeaveGuard` asks before a visit would lose the boxes (§4.3.1, "Leaving with changed boxes").
+| `useLeaveGuard` asks before a visit would lose the boxes (§4.3.1, "Leaving with changed boxes"). The
+| bar's count is also said from a polite live region that is always there - empty while nothing is
+| changed - so the first "1 price changed" is announced, not only the ones after it.
 */
 
 type SaveBarProps = {
@@ -35,30 +37,35 @@ type SaveBarProps = {
 
 export function SaveBar({ count, message, saveLabel, saving, onSave, onCancel }: SaveBarProps) {
     const t = useTranslator();
-
-    if (count <= 0) {
-        return null;
-    }
+    const shown = count > 0;
 
     return (
-        <div
-            role="region"
-            aria-labelledby="save-bar-message"
-            className="material-menu sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            data-test="save-bar"
-        >
-            <p id="save-bar-message" className="tw-figure text-label-14 text-ink" aria-live="polite">
-                {message}
+        <>
+            {/* Always there, empty while nothing is changed, so its first message is announced too. */}
+            <p className="sr-only" aria-live="polite" data-test="save-bar-live">
+                {shown ? message : ''}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" disabled={saving} onClick={onCancel} data-test="save-bar-cancel">
-                    {t('ui.cancel')}
-                </Button>
-                <ActionButton type="button" loading={saving} onClick={onSave} data-test="save-bar-save">
-                    {saveLabel}
-                </ActionButton>
-            </div>
-        </div>
+            {shown ? (
+                <div
+                    role="region"
+                    aria-labelledby="save-bar-message"
+                    className="material-menu sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    data-test="save-bar"
+                >
+                    <p id="save-bar-message" className="tw-figure text-label-14 text-ink">
+                        {message}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="outline" disabled={saving} onClick={onCancel} data-test="save-bar-cancel">
+                            {t('ui.cancel')}
+                        </Button>
+                        <ActionButton type="button" loading={saving} onClick={onSave} data-test="save-bar-save">
+                            {saveLabel}
+                        </ActionButton>
+                    </div>
+                </div>
+            ) : null}
+        </>
     );
 }
 
@@ -85,7 +92,8 @@ type LeaveWords = {
 /**
  * Asks before leaving with changed boxes (pricing.md §4.3.1): a link, a filter, the search or the store
  * filter - any Inertia visit that would replace the page - is held, and `PanelDialog` asks "Leave
- * Without Saving" with **Leave Page** and **Stay**; leaving makes the same visit again. Closing or
+ * Without Saving" with **Leave Page** and **Stay**; leaving makes the same visit again, its options and
+ * callbacks kept. A prefetch is never held: it replaces nothing. Closing or
  * reloading the window asks through the browser's own question, the only one it allows.
  *
  * *Not covered:* the browser's Back button. Inertia restores the page before any event a page could
@@ -94,26 +102,22 @@ type LeaveWords = {
  * @param keeps  a visit that keeps the boxes, beside `keepsBoxes` - the page's own judgement
  */
 export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: PendingVisit) => boolean = () => false) {
-    const [held, setHeld] = useState<PendingVisit | null>(null);
-    const leaving = useRef(false);
+    const [held, setHeld] = useState<HeldVisit | null>(null);
     const latest = useRef({ dirty, keeps });
     latest.current = { dirty, keeps };
+    // Its decisions (lib/leave-guard.ts, tested there): made once, reading the latest state.
+    const guard = useRef<LeaveGuard | null>(null);
+    guard.current ??= leaveGuard({
+        dirty: () => latest.current.dirty,
+        keeps: (visit) => latest.current.keeps(visit),
+        hold: setHeld,
+        visit: (url, options) => router.visit(url, options),
+    });
 
     useEffect(() => {
-        const stop = router.on('before', (event) => {
-            const visit = event.detail.visit;
-            const { dirty: changed, keeps: kept } = latest.current;
-
-            if (!changed || leaving.current || keepsBoxes(visit) || kept(visit)) {
-                return;
-            }
-
-            setHeld(visit);
-
-            return false;
-        });
+        const stop = router.on('before', (event) => (guard.current?.before(event.detail.visit as HeldVisit) === false ? false : undefined));
         const unload = (event: BeforeUnloadEvent) => {
-            if (latest.current.dirty && !leaving.current) {
+            if (latest.current.dirty && guard.current?.leaving() !== true) {
                 event.preventDefault();
                 // Older browsers ask only when a value is set; its words are the browser's own.
                 event.returnValue = '';
@@ -135,26 +139,13 @@ export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: 
             onStay={() => setHeld(null)}
             onLeave={(visit) => {
                 setHeld(null);
-                leaving.current = true;
-                router.visit(visit.url, {
-                    method: visit.method,
-                    data: visit.data,
-                    replace: visit.replace,
-                    preserveScroll: visit.preserveScroll,
-                    preserveState: visit.preserveState,
-                    only: visit.only,
-                    except: visit.except,
-                    headers: visit.headers,
-                    onFinish: () => {
-                        leaving.current = false;
-                    },
-                });
+                guard.current?.leave(visit);
             }}
         />
     );
 }
 
-function LeaveDialog({ visit, description, onStay, onLeave }: { visit: PendingVisit | null; description: string; onStay: () => void; onLeave: (visit: PendingVisit) => void }) {
+function LeaveDialog({ visit, description, onStay, onLeave }: { visit: HeldVisit | null; description: string; onStay: () => void; onLeave: (visit: HeldVisit) => void }) {
     const t = useTranslator();
 
     return (

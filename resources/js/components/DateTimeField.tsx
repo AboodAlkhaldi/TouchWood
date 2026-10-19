@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import { intlLocale, toLatinDigits } from '@/lib/digits';
-import { hasPassed, type MomentInput, type MomentKind, wallClock, zoneName } from '@/lib/moments';
+import { dateWrong, hasPassed, type MomentInput, type MomentKind, wallClock, zoneName } from '@/lib/moments';
 import { useTranslator } from '@/lib/t';
 import type { BoxCheck } from '@/lib/use-checks';
 import type { SharedProps } from '@/types/page';
@@ -90,6 +90,10 @@ export function DateTimeField({ id, label, kind, value, onChange, zone, after = 
     const timeId = `${id}-time`;
     const zoneId = `${id}-zone`;
     const passed = kind === 'start' && !value.none && !shown && hasPassed(value, zone, now);
+    // The control at fault is marked: the date button while no day is chosen, else the time box. Both
+    // are described by the message, which is about the moment as a whole.
+    const onDate = dateWrong(value);
+    const errorIds = describedBy(timeId, undefined, shown);
     const change = (next: Partial<MomentInput>) => {
         onChange({ ...value, ...next, typedAt: Date.now() });
         check?.onType();
@@ -128,6 +132,8 @@ export function DateTimeField({ id, label, kind, value, onChange, zone, after = 
                                     disabled={disabled}
                                     // The field's name and then the day chosen: the label alone would hide it.
                                     aria-labelledby={`${id}-date-label ${id}-date-value`}
+                                    aria-invalid={shown && onDate ? true : undefined}
+                                    aria-describedby={errorIds}
                                     className="min-w-40 justify-start font-normal"
                                     data-test={`${id}-date`}
                                 >
@@ -178,8 +184,8 @@ export function DateTimeField({ id, label, kind, value, onChange, zone, after = 
                             onChange={(event) => change({ time: toLatinDigits(event.target.value) })}
                             onBlur={() => check?.onLeave()}
                             aria-required={check?.required ? true : undefined}
-                            aria-invalid={shown ? true : undefined}
-                            aria-describedby={[zoneId, describedBy(timeId, undefined, shown)].filter(Boolean).join(' ')}
+                            aria-invalid={shown && !onDate ? true : undefined}
+                            aria-describedby={[zoneId, errorIds].filter(Boolean).join(' ')}
                             data-test={timeId}
                         />
                     </Field>

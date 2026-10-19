@@ -15,6 +15,8 @@ use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -37,6 +39,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
 
     public function __construct(
         private ConnectionInterface $db,
+        private PlatformApi $platform,
     ) {}
 
     public function products(ProductFilter $filter, int $perPage): array
@@ -65,13 +68,16 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             // above pushed into Catalog's own table, over the sizes switched on in the store. The price is
             // the lowest one-piece price now; a size can't be ordered while Inventory says so, while it
             // has no price, while it or its product is "Not available now" there, or while the product is
-            // hidden with its category or brand (as `storeVariant()` answers whether it is orderable).
+            // hidden with its category or brand (as `storeVariant()` answers whether it is orderable). Only a
+            // price in the store's own currency is the store's: one kept from before its currency changed
+            // is never picked (the store directory is read once a request, platform.md §9.11).
+            $currency = Ulids::valid($store) ? $this->platform->store(StoreId::fromString($store))?->currencyCode : null;
             $query->selectRaw(
                 "(SELECT json_build_object('minor', f.price_minor, 'currency', f.currency) FROM catalog.store_variants sv"
                 .' JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
-                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active AND f.price_minor IS NOT NULL'
+                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active AND f.price_minor IS NOT NULL AND f.currency = ?'
                 .' ORDER BY f.price_minor LIMIT 1) as lowest_price',
-                [$store],
+                [$store, $currency ?? ''],
             )->selectRaw(
                 '(SELECT count(*) FROM catalog.store_variants sv'
                 .' LEFT JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
@@ -519,7 +525,6 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         return $lowest;
     }
 
-    /** With a store chosen: the product's state there (S8). */
     /**
      * The lowest price as the query wrote it, or none.
      *
@@ -534,6 +539,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             : null;
     }
 
+    /** With a store chosen: the product's state there (S8). */
     private static function state(stdClass $row): string
     {
         return match (true) {

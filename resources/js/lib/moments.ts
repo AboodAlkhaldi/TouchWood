@@ -26,6 +26,11 @@ export type MomentInput = {
     time: string;
     /** When the date or the time was last changed (milliseconds): a past moment is judged against it. */
     typedAt: number;
+    /**
+     * The moment as it was saved, "YYYY-MM-DD HH:MM", when the form opened on one (`momentFrom`): a
+     * running offer's start has passed, and is not refused while it is left as it was.
+     */
+    saved?: string;
 };
 
 export type MomentKind = 'start' | 'end';
@@ -87,17 +92,21 @@ export function isoOf(input: MomentInput, zone: string): string | null {
         return null;
     }
 
-    const at = instantOf(input.date, input.time, zone);
+    const at = instantOf(input.date, input.time.trim(), zone);
 
     if (at === null) {
         return null;
     }
 
+    // Written from the instant itself, as the zone's clock reads it then: a time the clocks skip
+    // (Cairo's 00:30 on the night they jump forward) is sent as the instant checked, never as a wall
+    // time beside an offset that does not belong to it.
+    const wall = wallClock(zone, at);
     const offset = offsetMinutes(zone, at);
     const sign = offset < 0 ? '-' : '+';
     const pad = (n: number) => String(n).padStart(2, '0');
 
-    return `${input.date}T${input.time}:00${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
+    return `${wall.date}T${wall.time}:00${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
 }
 
 /** A moment the server sent, as the field shows it in the store's zone; none for no moment. */
@@ -108,7 +117,14 @@ export function momentFrom(iso: string | null, zone: string): MomentInput {
         return noMoment();
     }
 
-    return { none: false, ...wallClock(zone, at), typedAt: 0 };
+    const wall = wallClock(zone, at);
+
+    return { none: false, ...wall, typedAt: 0, saved: `${wall.date} ${wall.time}` };
+}
+
+/** Whether the moment is still the one the form opened on, as it was saved. */
+export function isSaved(input: MomentInput): boolean {
+    return !input.none && input.saved !== undefined && input.saved === `${input.date} ${input.time.trim()}`;
 }
 
 /**
@@ -134,6 +150,11 @@ export function momentProblem(input: MomentInput, kind: MomentKind, zone: string
     }
 
     if (kind === 'start') {
+        // A saved start left as it was - a running offer's - is not the person's to move into the future.
+        if (isSaved(input)) {
+            return null;
+        }
+
         // Judged against the minute it was typed in: one that passes afterwards is the server's "now".
         const typed = Math.floor((input.typedAt > 0 ? Math.min(input.typedAt, now) : now) / MINUTE) * MINUTE;
 
@@ -145,9 +166,14 @@ export function momentProblem(input: MomentInput, kind: MomentKind, zone: string
     return start !== null && at <= start ? MOMENT_WORDS.afterStart : null;
 }
 
+/** Whether the fault, if any, is the date: a moment typed (not Now, not No End) with no day chosen. */
+export function dateWrong(input: MomentInput): boolean {
+    return !input.none && !isDay(input.date);
+}
+
 /** Whether a typed start, accepted when typed, has passed since: the server will take it as now. */
 export function hasPassed(input: MomentInput, zone: string, now: number = Date.now()): boolean {
-    const at = input.none ? null : instantOf(input.date, input.time.trim(), zone);
+    const at = input.none || isSaved(input) ? null : instantOf(input.date, input.time.trim(), zone);
 
     return at !== null && at <= now;
 }
@@ -159,6 +185,8 @@ export function hasPassed(input: MomentInput, zone: string, now: number = Date.n
 export function momentBox(input: MomentInput, field: { id: string; label: string; kind: MomentKind; zone: string; after?: MomentInput | null }): Box {
     return {
         id: `${field.id}-time`,
+        // Save finding it wrong puts the focus on the control at fault: the date button while there is no day.
+        focus: dateWrong(input) ? `${field.id}-date` : `${field.id}-time`,
         label: field.label,
         value: input.none ? '' : `${input.date} ${input.time}`.trim(),
         off: input.none,

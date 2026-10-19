@@ -113,6 +113,40 @@ describe('searchVariants', function () {
             ->toBe([$beta['variants'][1], $beta['variants'][0], $gamma['variants'][0], $alpha['variants'][0]]);
     });
 
+    it('pages on without a gap or a repeat when two products share a name and a page ends inside a product\'s sizes', function () {
+        $first = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm', '90 cm']);
+        $second = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm']);
+        catalogSearchesProduct('Alpha', 'أ');
+        // The products' own order, after the name: by id, byte by byte.
+        $byId = [$first, $second];
+        usort($byId, static fn (array $a, array $b): int => strcmp($a['product'], $b['product']));
+        $expected = [...$byId[0]['variants'], ...$byId[1]['variants']];
+
+        foreach (['en', 'ar'] as $locale) {
+            app()->setLocale($locale);
+            $seen = [];
+            $after = null;
+            $pages = 0;
+
+            // Two at a time: the first page ends inside the first Drawer, the second crosses into the next.
+            do {
+                $page = catalogSearches()->searchVariants(catalogSearchesStore(), 'drawer', after: $after, limit: 2);
+                $seen = [...$seen, ...catalogSearchesIds($page->rows)];
+                $after = $page->next;
+                $pages++;
+                expect($page->total)->toBe(5);
+            } while ($after !== null && $pages < 10);
+
+            expect($seen)->toBe($expected)->and($pages)->toBe(3);
+
+            // The products alike, one a page.
+            $one = catalogSearches()->searchProducts(catalogSearchesStore(), 'drawer', true, limit: 1);
+            $two = catalogSearches()->searchProducts(catalogSearchesStore(), 'drawer', true, after: $one->next, limit: 1);
+            expect(array_map(static fn (FoundProductDto $row): string => $row->productId, [...$one->rows, ...$two->rows]))->toBe([$byId[0]['product'], $byId[1]['product']])
+                ->and($two->next)->toBeNull();
+        }
+    });
+
     it('answers each size\'s product names, photo, values, code and marks', function () {
         $ready = catalogSearchesProduct('Drawer', 'درج', ['60 cm']);
         [$sixty] = $ready['variants'];

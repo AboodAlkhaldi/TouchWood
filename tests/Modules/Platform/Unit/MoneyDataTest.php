@@ -56,3 +56,9 @@ it('reads any other language as Arabic, the default language', function () {
 it('refuses an amount in another currency than the store\'s', function () {
     MoneyData::of(Money::of(100, 'EGP'), moneyDataStore(), 'en');
 })->throws(InvalidArgumentException::class);
+
+it('writes a negative amount with its minus in front, in minor units too', function () {
+    expect(MoneyData::of(Money::of(-1_250, 'SAR'), moneyDataStore(), 'en'))->toEqual(new MoneyData('-12.50 SAR', -1_250))
+        ->and(MoneyData::of(Money::of(-123_456_789, 'SAR'), moneyDataStore(), 'ar')->text)->toBe('-1,234,567.89 ر.س')
+        ->and(MoneyData::of(Money::of(-5, 'KWD'), moneyDataStore('KWD', 3, null, 'د.ك', 'KWD'), 'en')->text)->toBe('-0.005 KWD');
+});

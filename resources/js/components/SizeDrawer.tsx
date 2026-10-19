@@ -56,10 +56,14 @@ export function SizeDrawer({ open, onClose, title, description, loading, childre
                     </Button>
                 </SheetHeader>
                 <div className="grid flex-1 content-start gap-6 overflow-y-auto p-4">
+                    {/* Always there, empty once the data is in, so "Loading" is announced the first time too. */}
+                    <p role="status" className="sr-only" data-test="size-drawer-status">
+                        {loading ? t('ui.loading') : ''}
+                    </p>
                     {loading ? (
-                        <div className="flex items-center gap-2 text-copy-14 text-ink-muted" data-test="size-drawer-loading">
+                        <div className="flex items-center gap-2 text-copy-14 text-ink-muted" aria-hidden="true" data-test="size-drawer-loading">
                             <Spinner aria-hidden="true" />
-                            <span role="status">{t('ui.loading')}</span>
+                            <span>{t('ui.loading')}</span>
                         </div>
                     ) : (
                         children
