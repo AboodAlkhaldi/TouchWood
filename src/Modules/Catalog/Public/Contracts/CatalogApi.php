@@ -183,7 +183,7 @@ interface CatalogApi
 
     /**
      * For Sales — a cart, a checkout, an edit (amendment 29(a); sales.md §2.3): **many sizes in a store
-     * in two reads**, each answered exactly as `storeVariant` answers it. Keyed by lower-case id; an
+     * in one query**, each answered exactly as `storeVariant` answers it. Keyed by lower-case id; an
      * unknown id left out.
      *
      * @param  list<string>  $variantIds
@@ -196,7 +196,9 @@ interface CatalogApi
      * category switches leave open to this shopper** — an individual, the categories switched on for
      * individuals; a company, those for companies; a guest, either (amendment 14(a), P25). A product's
      * own category decides; one with no category, or a category with no switches set in the store, is
-     * open to all. In one read; lower-case ids in no particular order, an unknown id left out.
+     * open to all. **The category switches only**: an individual buys retail only, which each line's
+     * `saleModes` (from `storeVariants`) tells. In one query; lower-case ids in no particular order, an
+     * unknown id left out.
      *
      * @param  list<string>  $productIds
      * @return list<string>

@@ -49,7 +49,9 @@ the coupon and the gift, Loyalty for points — **and owns none of their rules**
 those lines leave the merged cart, each with why.
 
 - **One cart per buyer per store** — a customer's or a guest's. A guest's id lives in Access's cookie
-  (access.md §1.7): **Sales writes it with the guest's first cart line** (handoff §7.7). Lines: a
+  (access.md §1.7): **Sales has it written with the guest's first cart line** (handoff §7.7), through
+  Access's `GuestIdentity` (amendment 74). Two first lines at once from one browser may make two guests;
+  the browser keeps one, and the other cart is left to the 90-day emptying. Lines: a
   variant, its sale mode (`RETAIL` / `WHOLESALE`), a quantity; the same variant and mode once.
 - **Guests see what either kind of account sees** (catalog.md §1.13) **and may add wholesale lines**
   (owner, 2026-10-09). **On signing in or registering**, lines the account may not buy **leave the

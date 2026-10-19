@@ -15,6 +15,10 @@ interface GuestIdentity
     /** The guest id this request carries, or null when the browser has none yet. */
     public function current(): ?string;
 
-    /** The guest id, created now — its cookie sent with the answer — when the browser has none. */
+    /**
+     * The guest id, created now — its cookie sent with the answer — when the browser has none. On a route
+     * of the `web` group, which sends queued cookies. Two first asks at once from one browser (a double
+     * click, two tabs) each make an id; the browser keeps the cookie of the answer that came last.
+     */
     public function ensure(): string;
 }

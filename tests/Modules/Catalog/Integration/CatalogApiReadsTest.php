@@ -319,12 +319,26 @@ describe('a cart\'s line facts, for Promotions (amendment 18)', function () {
 });
 
 describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', function () {
-    it('answers many sizes in two reads, each exactly as storeVariant answers it', function () {
+    it('answers many sizes in one query, each exactly as storeVariant answers it', function () {
         $choose = fn (string $product, string $code) => Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($code), $product, true)));
         $two = Px::ready(['60 cm', '80 cm']);
         $paused = Px::ready(['60 cm']);
         $archived = Px::ready(['60 cm']);
         $unchosen = Px::ready(['60 cm']);
+        $byCategory = Px::ready(['60 cm']);
+        $byBrand = Px::ready(['60 cm']);
+        $sizePaused = Px::ready(['60 cm']);
+        $sizeOff = Px::ready(['60 cm']);
+        $archivedProduct = Px::ready(['60 cm']);
+        $draft = Px::product('A draft');
+        $draftSize = Px::variant($draft, (string) random_int(70_000_000, 79_999_999));
+        $elsewhere = Px::ready(['60 cm']);
+
+        foreach ([$byCategory, $byBrand, $sizePaused, $sizeOff, $archivedProduct] as $p) {
+            $choose($p['product'], 'sa');
+        }
+
+        $choose($elsewhere['product'], 'ae');
         $choose($two['product'], 'sa');
         $choose($paused['product'], 'sa');
         $choose($archived['product'], 'sa');
@@ -333,7 +347,15 @@ describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', func
         DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $two['product'])->update(['retail_minimum' => 2, 'retail_maximum' => 9]);
         DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $paused['product'])->update(['not_available_now' => true]);
         DB::table('catalog.variants')->where('id', $archived['variants'][0])->update(['is_archived' => true]);
-        $ids = [...$two['variants'], $paused['variants'][0], $archived['variants'][0], $unchosen['variants'][0]];
+        DB::table('catalog.products')->where('id', $byCategory['product'])->update(['hidden_by_category' => true]);
+        DB::table('catalog.products')->where('id', $byBrand['product'])->update(['hidden_by_brand' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $sizePaused['variants'][0])->update(['not_available_now' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $sizeOff['variants'][0])->update(['is_active' => false]);
+        DB::table('catalog.products')->where('id', $archivedProduct['product'])->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
+        // Chosen in the UAE only: its rows there say nothing of it here.
+        DB::table('catalog.store_products')->where('store_id', Fx::storeId('ae'))->where('product_id', $elsewhere['product'])->update(['retail_minimum' => 4]);
+        $ids = [...$two['variants'], $paused['variants'][0], $archived['variants'][0], $unchosen['variants'][0], $byCategory['variants'][0], $byBrand['variants'][0],
+            $sizePaused['variants'][0], $sizeOff['variants'][0], $archivedProduct['variants'][0], $draftSize, $elsewhere['variants'][0]];
         $store = StoreId::fromString($sa);
 
         $queries = Cx::recordQueries();
@@ -349,11 +371,14 @@ describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', func
         }
 
         expect([$many[$two['variants'][0]]->orderable, $many[$paused['variants'][0]]->orderable, $many[$archived['variants'][0]]->orderable, $many[$unchosen['variants'][0]]->orderable])->toBe([true, false, false, false])
-            ->and([$many[$two['variants'][0]]->retailMinimum, $many[$two['variants'][0]]->retailMaximum])->toBe([2, 9]);
+            ->and([$many[$two['variants'][0]]->retailMinimum, $many[$two['variants'][0]]->retailMaximum])->toBe([2, 9])
+            ->and([$many[$elsewhere['variants'][0]]->isActive, $many[$elsewhere['variants'][0]]->saleModes, $many[$elsewhere['variants'][0]]->retailMinimum])->toBe([false, [], 1]);
     });
 
     it('answers which products the category switches leave open to each kind of shopper', function () {
         $forBoth = Px::category('Both');
+        // A sub-category switched apart from its parent: the product's own category decides.
+        $openChild = Px::category('Open child', Px::category('Closed parent'));
         $individualsOnly = Px::category('Homes');
         $companiesOnly = Px::category('Trade');
         $closed = Px::category('Closed');
@@ -363,11 +388,14 @@ describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', func
             'companies' => Px::ready(['60 cm'], $companiesOnly)['product'],
             'closed' => Px::ready(['60 cm'], $closed)['product'],
             'no category' => Px::product('A draft'),
+            'open child' => Px::ready(['60 cm'], $openChild)['product'],
         ];
         $sa = Fx::storeId('sa');
         $now = now();
 
-        foreach ([[$individualsOnly, true, false], [$companiesOnly, false, true], [$closed, false, false]] as [$category, $individuals, $companies]) {
+        $parent = (string) DB::table('catalog.categories')->where('id', $openChild)->value('parent_id');
+
+        foreach ([[$individualsOnly, true, false], [$companiesOnly, false, true], [$closed, false, false], [$parent, false, false]] as [$category, $individuals, $companies]) {
             DB::table('catalog.store_category_audiences')->insert(['store_id' => $sa, 'category_id' => $category, 'for_individuals' => $individuals, 'for_companies' => $companies, 'created_at' => $now, 'updated_at' => $now]);
         }
 
@@ -386,9 +414,14 @@ describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', func
             return $ids;
         };
 
-        expect($open(ShopperKind::Individual))->toBe($expect(['both', 'individuals', 'no category']))
-            ->and($open(ShopperKind::Company))->toBe($expect(['both', 'companies', 'no category']))
-            ->and($open(ShopperKind::Guest))->toBe($expect(['both', 'individuals', 'companies', 'no category']))
+        $queries = Cx::recordQueries();
+        $individual = $open(ShopperKind::Individual);
+        $read = count($queries);
+
+        expect($read)->toBe(1)
+            ->and($individual)->toBe($expect(['both', 'individuals', 'no category', 'open child']))
+            ->and($open(ShopperKind::Company))->toBe($expect(['both', 'companies', 'no category', 'open child']))
+            ->and($open(ShopperKind::Guest))->toBe($expect(['both', 'individuals', 'companies', 'no category', 'open child']))
             ->and(catalogReads()->productsOpenTo(StoreId::fromString($sa), ShopperKind::Guest, []))->toBe([]);
     });
 });

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Contracts\Cookie\QueueingFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\GuestIdentity;
 
@@ -13,6 +14,10 @@ use Modules\Access\Public\Contracts\GuestIdentity;
 | only when something asks for it — Sales, with a guest's first cart line — its cookie sent with the
 | answer for a year, and the same id for the rest of the request.
 */
+
+use function Pest\Laravel\get;
+use function Pest\Laravel\withCookie;
+use function Pest\Laravel\withUnencryptedCookie;
 
 uses(RefreshDatabase::class);
 
@@ -64,4 +69,37 @@ it('treats a forged cookie as no guest at all', function () {
 
     expect($guests->current())->toBeNull()
         ->and($guests->ensure())->not->toBe('not-an-id');
+});
+
+it('sends the guest cookie encrypted through the web stack, and reads it back on the next request', function () {
+    Route::middleware('web')->get('/_test/guest-identity', static fn () => response()->json(['guest' => app(GuestIdentity::class)->ensure()]));
+    Route::middleware('web')->get('/_test/guest-identity/read', static fn () => response()->json(['guest' => app(GuestIdentity::class)->current()]));
+    $name = (string) config('access.storefront.guest_cookie');
+
+    $first = get('/_test/guest-identity');
+    $id = (string) $first->json('guest');
+    $cookie = $first->getCookie($name, false);
+
+    expect($cookie)->not->toBeNull()
+        ->and($cookie?->getValue())->not->toBe($id)
+        ->and($cookie?->isHttpOnly())->toBeTrue()
+        ->and($cookie?->getSameSite())->toBe('lax')
+        ->and($cookie?->getPath())->toBe('/')
+        ->and(abs(($cookie?->getExpiresTime() ?? 0) - now()->addDays(365)->getTimestamp()))->toBeLessThan(5);
+
+    app()->forgetScopedInstances();
+    withCookie($name, $id)->get('/_test/guest-identity/read')->assertJson(['guest' => $id]);
+
+    app()->forgetScopedInstances();
+    withUnencryptedCookie($name, $id)->get('/_test/guest-identity/read')->assertJson(['guest' => null]);
+});
+
+it('keeps an id made for one request from the next one', function () {
+    $guests = guestIdentityRequest();
+    $made = $guests->ensure();
+
+    app()->instance('request', Request::create('/sa/en', 'GET'));
+
+    expect($guests->current())->toBeNull()
+        ->and($guests->ensure())->not->toBe($made);
 });
