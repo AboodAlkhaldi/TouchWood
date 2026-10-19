@@ -116,7 +116,8 @@ final readonly class DatabaseReviews implements Reviews
         return $row instanceof stdClass ? ['sum' => (int) $row->rating_sum, 'count' => (int) $row->rating_count] : ['sum' => 0, 'count' => 0];
     }
 
-    private static function toReview(stdClass $row): Review
+    /** Shared with Feedback's reads (`DatabaseFeedbackQueries`). */
+    public static function toReview(stdClass $row): Review
     {
         return new Review(
             (string) $row->id,

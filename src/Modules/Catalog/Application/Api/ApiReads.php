@@ -6,6 +6,7 @@ namespace Modules\Catalog\Application\Api;
 
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
+use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 
@@ -62,6 +63,13 @@ interface ApiReads
      * @return list<string> those the store sells now (amendment 24)
      */
     public function productsSoldIn(string $storeId, array $productIds): array;
+
+    /**
+     * @param  'ar'|'en'  $locale
+     * @param  list<string>  $productIds
+     * @return array<string, ProductCardDto> keyed by id (amendment 26(a))
+     */
+    public function productCards(string $storeId, string $locale, array $productIds): array;
 
     /**
      * @param  list<string>  $variantIds

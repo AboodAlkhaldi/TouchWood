@@ -22,5 +22,6 @@ final readonly class Question
         public ?string $answeredBy,
         public ?DateTimeImmutable $answeredAt,
         public ?string $reason,
+        public DateTimeImmutable $createdAt,
     ) {}
 }

@@ -87,7 +87,8 @@ final readonly class DatabaseQuestions implements Questions
         $this->db->table('feedback.questions')->where('id', $question->id)->update([...$columns, 'updated_at' => Moment::of($at)]);
     }
 
-    private static function toQuestion(stdClass $row): Question
+    /** Shared with Feedback's reads (`DatabaseFeedbackQueries`). */
+    public static function toQuestion(stdClass $row): Question
     {
         return new Question(
             (string) $row->id,
@@ -101,6 +102,7 @@ final readonly class DatabaseQuestions implements Questions
             $row->answered_by === null ? null : (string) $row->answered_by,
             $row->answered_at === null ? null : CarbonImmutable::parse((string) $row->answered_at),
             $row->reason === null ? null : (string) $row->reason,
+            CarbonImmutable::parse((string) $row->created_at),
         );
     }
 }

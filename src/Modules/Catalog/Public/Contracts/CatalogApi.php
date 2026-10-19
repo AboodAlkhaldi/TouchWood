@@ -10,6 +10,7 @@ use Modules\Catalog\Public\Dto\CategoryPathDto;
 use Modules\Catalog\Public\Dto\FoundProductsDto;
 use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
+use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -145,6 +146,19 @@ interface CatalogApi
      * @return list<string>
      */
     public function productsSoldIn(StoreId $store, array $productIds): array;
+
+    /**
+     * For Feedback's pages — a wishlist, "My reviews", the staff queues (amendment 26(a)): **these
+     * products as cards, whatever became of them**, in two reads however many: each one's name in the
+     * language (the other one where it has none in it), its current address in it where it has one,
+     * its first photo, its stage, and whether the store sells it now (`productsSoldIn`'s rule). Keyed
+     * by lower-case id; an unknown id left out.
+     *
+     * @param  'ar'|'en'  $locale
+     * @param  list<string>  $productIds
+     * @return array<string, ProductCardDto>
+     */
+    public function productCards(StoreId $store, string $locale, array $productIds): array;
 
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;
