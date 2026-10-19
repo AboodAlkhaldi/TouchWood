@@ -19,6 +19,9 @@ interface CategoryDiscounts
 {
     public function find(string $discountId): ?CategoryDiscount;
 
+    /** The store a discount is in, read alone - to ask the reader's permission there before reading it. */
+    public function storeOf(string $discountId): ?string;
+
     /**
      * @param  list<string>  $discountIds
      * @return array<string, CategoryDiscount> by id; one that does not exist is left out

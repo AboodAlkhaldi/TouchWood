@@ -37,6 +37,13 @@ final readonly class DatabaseCategoryDiscounts implements CategoryDiscounts
         return $row instanceof stdClass ? $this->discounts([$row])[0] : null;
     }
 
+    public function storeOf(string $discountId): ?string
+    {
+        $store = $this->db->table(self::TABLE)->where('id', strtolower(trim($discountId)))->value('store_id');
+
+        return $store === null ? null : (string) $store;
+    }
+
     public function findMany(array $discountIds): array
     {
         $ids = array_values(array_filter(

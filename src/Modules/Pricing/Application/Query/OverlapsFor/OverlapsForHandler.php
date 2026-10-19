@@ -23,6 +23,7 @@ use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\NoRetailPrice;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
+use Modules\Pricing\Domain\Exception\SaleNotFound;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\RetailPrices;
@@ -38,8 +39,8 @@ use Shared\Domain\ValueObject\Money;
 /**
  * **The note before saving** (`OverlapsFor`, pricing.md §1.3, §3, §4.3.3 P2), for whoever holds any of
  * Pricing's three jobs in that store (owner, 2026-10-08). The sizes are read as adding the sale reads them
- * (`SaleSizes`: ready and switched on, Q13; "All Sizes" the priced ones, Q39), its start now when empty or
- * past; every sale not ended on those sizes whose dates meet it is named, the sale itself left out when it
+ * (`SaleSizes`: ready and switched on, Q13; "All Sizes" the priced ones, Q39) - a sale being changed by its
+ * own product and sizes, as they are - its start now when empty or past; every sale not ended on those sizes whose dates meet it is named, the sale itself left out when it
  * is being changed - and every category discount reaching the product in those dates.
  *
  * With its price or percentage typed (Q11), each size says the price it would get, whether that wins -
@@ -66,18 +67,32 @@ final readonly class OverlapsForHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidPricingInput|NoRetailPrice|PriceTooPrecise|PriceNotPositive
+     * @throws Unauthorized|InvalidPricingInput|NoRetailPrice|PriceTooPrecise|PriceNotPositive|SaleNotFound
      */
     public function handle(OverlapsFor $query): OverlapNote
     {
         $store = $this->access->authorize($query->storeId);
         $storeId = $store->storeId();
-        [$productId, $variantIds] = $this->sizes->of($storeId, $query->productId, $query->variantIds);
+        // Ids are kept in lower case, as the sale's own handlers read them.
+        $itself = $query->saleId === null ? null : strtolower(trim($query->saleId));
+
+        if ($itself === null) {
+            [$productId, $variantIds] = $this->sizes->of($storeId, $query->productId, $query->variantIds);
+        } else {
+            // A sale being changed keeps its product and sizes (§1.3): they are its own, never checked again -
+            // its product made a draft since, or a size switched off, still has its note (Q13, Q39 are adding's).
+            $sale = $this->sales->find($itself);
+
+            if ($sale === null || $sale->storeId !== $store->id) {
+                throw new SaleNotFound;
+            }
+
+            [$productId, $variantIds] = [$sale->productId, $sale->variantIds];
+        }
+
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $startsAt = SaleInput::start($query->startsAt, $now);
         $endsAt = SaleInput::end($query->endsAt);
-        // Ids are kept in lower case, as the sale's own handlers read them.
-        $itself = $query->saleId === null ? null : strtolower(trim($query->saleId));
         $variants = $this->catalog->variants($variantIds);
         $overlapping = [];
 

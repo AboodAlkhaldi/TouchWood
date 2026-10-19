@@ -81,7 +81,7 @@ it('names each size a batch refusal concerns, with the refusal\'s message', func
     expect(FormErrors::rows($error))->toBe([
         '01K7AAAAAAAAAAAAAAAAAAAAAA' => FormErrors::message($error),
         '01K7BBBBBBBBBBBBBBBBBBBBBB' => FormErrors::message($error),
-    ])->and(FormErrors::message($error))->toBe('This size has no retail price in the store. Give it a price before putting it on any sale or giving it wholesale prices.');
+    ])->and(FormErrors::message($error))->toBe('This size has no retail price in the store. Give it a price before putting it on any offer or giving it wholesale prices.');
 });
 
 /*

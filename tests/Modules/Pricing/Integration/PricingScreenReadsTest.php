@@ -42,6 +42,8 @@ use Modules\Pricing\Application\Query\ListSales\ListSalesHandler;
 use Modules\Pricing\Application\Query\ListSales\SaleRow;
 use Modules\Pricing\Application\Query\ListWholesale\ListWholesale;
 use Modules\Pricing\Application\Query\ListWholesale\ListWholesaleHandler;
+use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPrice;
+use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPriceHandler;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsFor;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsForHandler;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapSize;
@@ -50,6 +52,8 @@ use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewCategoryDis
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewProduct;
 use Modules\Pricing\Application\Query\PricingActions\PricingActionsForReader;
 use Modules\Pricing\Application\Query\PricingActions\StorePricingActions;
+use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscount;
+use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscountHandler;
 use Modules\Pricing\Application\Query\ViewProductPrices\ProductStorePrices;
 use Modules\Pricing\Application\Query\ViewProductPrices\ViewProductPrices;
 use Modules\Pricing\Application\Query\ViewProductPrices\ViewProductPricesHandler;
@@ -59,6 +63,9 @@ use Modules\Pricing\Application\Query\ViewSizePrices\ReachingDiscount;
 use Modules\Pricing\Application\Query\ViewSizePrices\ReachingSale;
 use Modules\Pricing\Application\Query\ViewSizePrices\ViewSizePrices;
 use Modules\Pricing\Application\Query\ViewSizePrices\ViewSizePricesHandler;
+use Modules\Pricing\Domain\Exception\CategoryDiscountNotFound;
+use Modules\Pricing\Domain\Exception\SaleNotFound;
+use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Infrastructure\Catalog\ProductPricesSection;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\StoreWiring;
@@ -539,6 +546,87 @@ describe('the note before saving a sale', function () {
         expect($later->atStart)->toBeTrue()
             ->and(array_map(static fn (OverlapSize $size): ?string => $size->notWinning, $later->sizes))->toBe(['always_wins', 'always_wins'])
             ->and($note()->sizes)->toBe([]);
+    });
+});
+
+describe('the note for an offer being changed', function () {
+    it('reads the offer\'s own product and sizes, even once a size is switched off, and never another store\'s offer', function () {
+        $ready = screenProduct('Drawer', ['60 cm', '80 cm']);
+        [$a, $b] = $ready['variants'];
+        Rx::set('sa', [$a => '100', $b => '100']);
+        $sale = screenSale([$a, $b], percent: '10', startsAt: '2026-10-20 00:00:00+00');
+        Rx::set('eg', [$a => '100']);
+        Rx::switchOn('eg', [$a]);
+        $elsewhere = screenSale([$a], percent: '10', store: 'eg');
+        // Switched off since it was added: adding would refuse it (Q13), changing it keeps it.
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Rx::storeId('sa'), $ready['product'], false, [$b])));
+        Cx::actAsStaffWith([PricingPermissions::PRICE_EDIT], ['sa']);
+        $note = static fn (?string $saleId, ?string $one = null, ?string $two = null) => app(OverlapsForHandler::class)->handle(new OverlapsFor(Rx::storeId('sa'), null, array_values(array_filter([$one, $two], static fn (?string $id): bool => $id !== null)), '2026-10-20 00:00:00+00', null, $saleId, '20'));
+
+        $changing = $note($sale);
+
+        expect($changing->variantIds)->toEqualCanonicalizing([$a, $b])
+            ->and($changing->productId)->toBe($ready['product'])
+            ->and(count($changing->sizes))->toBe(2)
+            ->and(Rx::invalid(fn () => $note(null, $a, $b))?->variants)->toBe([$b])
+            ->and(fn () => $note($elsewhere))->toThrow(SaleNotFound::class)
+            ->and(fn () => $note(strtolower((string) Str::ulid())))->toThrow(SaleNotFound::class);
+    });
+});
+
+describe('who may read them (§4.3.1, Q1)', function () {
+    it('refuses a reader without the job in that store, and a store that is off to whoever may not switch stores', function () {
+        $category = screenCategory('Kitchens');
+        $ready = screenProduct('Drawer', ['60 cm'], $category);
+        [$size] = $ready['variants'];
+        Rx::set('sa', [$size => '100']);
+        $sale = screenSale([$size], percent: '10');
+        $discount = screenDiscount($category, percent: '5');
+        // The same in Egypt, which goes off at the end.
+        Rx::set('eg', [$size => '100']);
+        Rx::switchOn('eg', [$size]);
+        $egSale = screenSale([$size], percent: '10', store: 'eg');
+        $egDiscount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('eg'), $category, '5', null, 'BOTH', null, null)));
+        $egId = Rx::storeId('eg');
+        $readsIn = static fn (string $store, string $saleId, string $discountId): array => [
+            fn () => app(ViewSizePricesHandler::class)->handle(new ViewSizePrices($store, $size)),
+            fn () => app(ViewSaleHandler::class)->handle(new ViewSale($saleId)),
+            fn () => app(ViewCategoryDiscountHandler::class)->handle(new ViewCategoryDiscount($discountId)),
+            fn () => app(ListWholesaleHandler::class)->handle(new ListWholesale($store)),
+            fn () => app(ListCategoryDiscountsHandler::class)->handle(new ListCategoryDiscounts($store)),
+            fn () => app(ListSaleProductsHandler::class)->handle(new ListSaleProducts($store)),
+            fn () => app(ListPricesHandler::class)->handle(new ListPrices($store)),
+            fn () => app(NeedsAPriceHandler::class)->handle(new NeedsAPrice($store)),
+            fn () => app(PreviewCategoryDiscountHandler::class)->handle(new PreviewCategoryDiscount($store, $category, '5', null, 'BOTH')),
+        ];
+        $reads = $readsIn(Rx::storeId('sa'), $sale, $discount);
+
+        // Pricing's jobs in another store only: refused here - an offer of this store too (403, not 404).
+        Cx::actAsStaffWith([...PricingPermissions::jobs()], ['ae']);
+
+        foreach ($reads as $read) {
+            expect($read)->toThrow(Unauthorized::class);
+        }
+
+        expect(fn () => app(ViewSaleHandler::class)->handle(new ViewSale(strtolower((string) Str::ulid()))))->toThrow(SaleNotFound::class)
+            ->and(fn () => app(ViewCategoryDiscountHandler::class)->handle(new ViewCategoryDiscount(strtolower((string) Str::ulid()))))->toThrow(CategoryDiscountNotFound::class);
+
+        // A job here, but not the one the read takes: Needs a Price is Edit Prices and Sales', the preview
+        // Manage Category Discounts'.
+        Cx::actAsStaffWith([PricingPermissions::WHOLESALE_EDIT], ['sa']);
+
+        expect($reads[7])->toThrow(Unauthorized::class)
+            ->and($reads[8])->toThrow(Unauthorized::class)
+            ->and($reads[0]()->size->variantId)->toBe($size);
+
+        // Every job in Egypt, and Egypt off: refused to whoever may not switch stores.
+        $staff = Fx::staffWith([...PricingPermissions::jobs()], ['eg']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsStaff($staff);
+
+        foreach ($readsIn($egId, $egSale, $egDiscount) as $read) {
+            expect($read)->toThrow(StoreOff::class);
+        }
     });
 });
 

@@ -32,6 +32,13 @@ final readonly class DatabaseSales implements Sales
         return $row instanceof stdClass ? $this->sales([$row])[0] : null;
     }
 
+    public function storeOf(string $saleId): ?string
+    {
+        $store = $this->db->table('pricing.sales')->where('id', strtolower(trim($saleId)))->value('store_id');
+
+        return $store === null ? null : (string) $store;
+    }
+
     public function findMany(array $saleIds): array
     {
         $ids = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $saleIds)));

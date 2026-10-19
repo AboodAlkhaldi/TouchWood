@@ -18,6 +18,9 @@ interface Sales
 {
     public function find(string $saleId): ?Sale;
 
+    /** The store a sale is in, read alone - to ask the reader's permission there before reading the sale. */
+    public function storeOf(string $saleId): ?string;
+
     /**
      * @param  list<string>  $saleIds
      * @return array<string, Sale> by id; one that does not exist is left out

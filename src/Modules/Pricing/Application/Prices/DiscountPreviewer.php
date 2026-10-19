@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingDiscount;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlappingSale;
@@ -55,7 +56,16 @@ final readonly class DiscountPreviewer
     {
         $storeId = $store->storeId();
         $products = $this->coverage->products($discount);
-        $sizesOf = $this->catalog->variantIdsOfProducts(array_keys($products));
+        $named = [];
+
+        // Named, and an archived product's sizes left out: none of them is on sale (Catalog). A read a
+        // thousand products, under PostgreSQL's bind-parameter limit.
+        foreach (array_chunk(array_values(array_unique([...array_map('strval', array_keys($products)), ...$discount->excludedProductIds])), self::CHUNK) as $chunk) {
+            $named += $this->catalog->products($chunk);
+        }
+
+        $live = array_values(array_filter(array_map('strval', array_keys($products)), static fn (string $id): bool => isset($named[$id]) && $named[$id]->stage !== ProductStage::Archived));
+        $sizesOf = $this->catalog->variantIdsOfProducts($live);
         $productOf = [];
 
         foreach ($sizesOf as $productId => $sizes) {
@@ -97,7 +107,6 @@ final readonly class DiscountPreviewer
             }
         }
 
-        $named = $this->catalog->products(array_values(array_unique([...array_keys($byProduct), ...$discount->excludedProductIds])));
         $english = $this->words->locale() === 'en';
         $ordered = array_values(array_filter(array_keys($byProduct), static fn (string $id): bool => isset($named[$id])));
         usort($ordered, static fn (string $a, string $b): int => [mb_strtolower(DiscountRows::name($named[$a], $english)), $a] <=> [mb_strtolower(DiscountRows::name($named[$b], $english)), $b]);

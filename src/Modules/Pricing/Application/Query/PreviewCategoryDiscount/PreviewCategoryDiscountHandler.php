@@ -67,7 +67,7 @@ final readonly class PreviewCategoryDiscountHandler
             SaleInput::start($query->startsAt, $now),
             SaleInput::end($query->endsAt),
             false,
-            $this->input->leftOut($query->leftOut, $categoryId, $before !== null && $before->storeId === $store->id ? $before->excludedProductIds : []),
+            $this->input->leftOut($query->leftOut, $categoryId, $before !== null && $before->storeId === $store->id && $before->categoryId === $categoryId ? $before->excludedProductIds : []),
         ), $query->after);
     }
 }

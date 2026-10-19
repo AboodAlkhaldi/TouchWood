@@ -32,8 +32,9 @@ final readonly class ViewCategoryDiscountHandler
      */
     public function handle(ViewCategoryDiscount $query): CategoryDiscountView
     {
+        // Its store first, then the reader's permission there, then the discount (as `ViewSale`).
+        $store = $this->access->authorize($this->discounts->storeOf($query->discountId) ?? throw new CategoryDiscountNotFound);
         $discount = $this->discounts->find($query->discountId) ?? throw new CategoryDiscountNotFound;
-        $store = $this->access->authorize($discount->storeId);
 
         return new CategoryDiscountView(
             $this->rows->rows([$discount], $store, CarbonImmutable::now()->toDateTimeImmutable())[0],

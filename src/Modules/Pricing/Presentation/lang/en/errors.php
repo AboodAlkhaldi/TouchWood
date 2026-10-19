@@ -21,16 +21,16 @@ return [
         'detail' => 'A percentage off must be above 0 and below 100.',
     ],
     'sale_not_below_retail' => [
-        'title' => 'Not a sale',
-        'detail' => 'A sale price must be below the retail price.',
+        'title' => 'Not an offer',
+        'detail' => 'An offer price must be below the retail price.',
     ],
     'window_invalid' => [
         'title' => 'Check the dates',
-        'detail' => "The end must be after the start, and a running sale's or discount's end cannot be set before now.",
+        'detail' => "The end must be after the start, and a running offer's or discount's end cannot be set before now.",
     ],
     'sale_not_found' => [
-        'title' => 'Sale not found',
-        'detail' => 'That sale does not exist.',
+        'title' => 'Offer not found',
+        'detail' => 'That offer does not exist.',
     ],
     'category_discount_not_found' => [
         'title' => 'Discount not found',
@@ -42,7 +42,7 @@ return [
     ],
     'always_wins_overlap' => [
         'title' => 'Two would always win',
-        'detail' => 'Another sale or discount that always wins already covers some of these sizes in these dates. Change the dates, or untick "always wins".',
+        'detail' => 'Another offer or discount that always wins already covers some of these sizes in these dates. Change the dates, or switch off "Always Wins".',
     ],
     'bands_invalid' => [
         'title' => 'Check the quantity prices',
@@ -67,7 +67,7 @@ return [
     ],
     'no_retail_price' => [
         'title' => 'No retail price',
-        'detail' => 'This size has no retail price in the store. Give it a price before putting it on any sale or giving it wholesale prices.',
+        'detail' => 'This size has no retail price in the store. Give it a price before putting it on any offer or giving it wholesale prices.',
     ],
     'provider_owns_price' => [
         'title' => 'Set by the provider',
@@ -92,11 +92,11 @@ return [
 
     'over_ceiling' => [
         'title' => 'Deeper than the ceiling',
-        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price, the sale or the discount so it stays within it.",
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price, the offer or the discount so it stays within it.",
     ],
     'ceiling_below_sales' => [
-        'title' => 'Sales and discounts go deeper',
-        'detail' => ':count running or scheduled sales and discounts go deeper than this ceiling, on :products. Change or end them first.',
+        'title' => 'Offers and discounts go deeper',
+        'detail' => ':count running or scheduled offers and discounts go deeper than this ceiling, on :products. Change or end them first.',
     ],
 
     'fields' => [
@@ -107,7 +107,7 @@ return [
         'lines' => 'lines',
         'order' => 'order',
         'percent' => 'percentage',
-        'price' => 'sale price',
+        'price' => 'offer price',
         'product' => 'product',
         'quantity' => 'quantity',
         'starts_at' => 'start',

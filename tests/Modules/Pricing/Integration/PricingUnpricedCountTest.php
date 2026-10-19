@@ -15,6 +15,9 @@ use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
+use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizes;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizesHandler;
 use Modules\Pricing\Application\Prices\NeedsAPriceCount;
@@ -23,8 +26,12 @@ use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPrice;
 use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPriceHandler;
 use Modules\Pricing\Application\Query\PriceViews\SizeView;
 use Modules\Pricing\Domain\Repository\UnpricedCounts;
+use Modules\Pricing\Infrastructure\External\NoStoreWired;
+use Modules\Pricing\Infrastructure\Import\PriceImportSection;
 use Modules\Pricing\Infrastructure\Queue\CountUnpricedSizesJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedUnpricedRecounts;
+use Modules\Pricing\Public\Contracts\ProviderPrices;
+use Modules\Pricing\Public\Contracts\StoreWiring;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -101,6 +108,40 @@ it('keeps the count in step with the list after each change - priced, removed, s
 
     expect(unpricedKept())->toBe(1)
         ->and(unpricedListed())->toBe([$a]);
+});
+
+it('follows a price from the provider, a price from a store file, and a size restored', function () {
+    [$a, $b, $c] = unpricedSizes()['variants'];
+    app()->instance(StoreWiring::class, new class implements StoreWiring
+    {
+        public function isWired(StoreId $store): bool
+        {
+            return true;
+        }
+
+        public function wiredStores(): array
+        {
+            return array_map(static fn ($store): string => $store->id, app(PlatformApi::class)->allStores());
+        }
+    });
+
+    app(ProviderPrices::class)->apply(StoreId::fromString(Rx::storeId('sa')), [$a => '100'], 'read-1');
+
+    expect(unpricedKept())->toBe(2);
+
+    // The store's file, in a store not wired: the price is the file's.
+    app()->forgetInstance(StoreWiring::class);
+    app()->bind(StoreWiring::class, NoStoreWired::class);
+    Fx::asSystem(fn () => app(PriceImportSection::class)->accepted(StoreId::fromString(Rx::storeId('sa')), [$b], '100', null));
+
+    expect(unpricedKept())->toBe(1);
+
+    Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($c)));
+    Queue::fake();
+    Fx::asSystem(fn () => app(RestoreVariantHandler::class)->handle(new RestoreVariant($c)));
+
+    // Restored: every store's count is counted again.
+    Queue::assertPushed(CountUnpricedSizesJob::class, fn (CountUnpricedSizesJob $job): bool => $job->storeId === Rx::storeId('sa'));
 });
 
 it('lists 50 at a time with the total, found by name or code, and asks Catalog for its order', function () {

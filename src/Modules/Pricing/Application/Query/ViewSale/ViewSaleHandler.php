@@ -39,8 +39,10 @@ final readonly class ViewSaleHandler
      */
     public function handle(ViewSale $query): SaleView
     {
+        // Its store first, then the reader's permission there, then the sale: an id that exists in a store the
+        // reader may not read is refused (403), one that does not exist is not found.
+        $store = $this->access->authorize($this->sales->storeOf($query->saleId) ?? throw new SaleNotFound);
         $sale = $this->sales->find($query->saleId) ?? throw new SaleNotFound;
-        $store = $this->access->authorize($sale->storeId);
         [$rows, $variants, $retail] = $this->rows->rows([$sale], $store, CarbonImmutable::now()->toDateTimeImmutable());
         $row = $rows[0];
         $switchedOn = array_fill_keys($this->catalog->switchedOnVariantIds($store->storeId()), true);

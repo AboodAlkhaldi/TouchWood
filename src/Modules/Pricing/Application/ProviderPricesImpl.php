@@ -117,16 +117,17 @@ final readonly class ProviderPricesImpl implements ProviderPrices
                 break;
             }
 
+            // A size given its first price leaves Needs a Price: the store's kept count is counted again
+            // once this batch has committed (Q43) - a later batch failing leaves it right.
+            if ($done['changed'] !== []) {
+                $this->recounts->queue($store);
+            }
+
             array_push($changed, ...$done['changed']);
             array_push($offOrDraft, ...$done['offOrDraft']);
             array_push($salesStopped, ...$done['salesStopped']);
             array_push($discountsSkipped, ...$done['discountsSkipped']);
             array_push($changes, ...$done['changes']);
-        }
-
-        // A size given its first price leaves Needs a Price: the store's kept count is counted again (Q43).
-        if ($changed !== []) {
-            $this->recounts->queue($store);
         }
 
         return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid, $changes);

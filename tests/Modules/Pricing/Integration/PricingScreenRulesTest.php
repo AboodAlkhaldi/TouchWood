@@ -15,8 +15,12 @@ use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
 use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
+use Modules\Pricing\Application\Command\ChangeCategoryDiscount\ChangeCategoryDiscount;
+use Modules\Pricing\Application\Command\ChangeCategoryDiscount\ChangeCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\ChangeSale\ChangeSale;
 use Modules\Pricing\Application\Command\ChangeSale\ChangeSaleHandler;
 use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPrice;
@@ -128,7 +132,7 @@ describe('a batch refusal names its sizes (Q2)', function () {
 
         expect($over)->toBeInstanceOf(OverCeiling::class)
             ->and(array_keys(FormErrors::rows($over ?? throw new LogicException)))->toBe([$a])
-            ->and(FormErrors::message($over))->toContain('Change the price, the sale or the discount');
+            ->and(FormErrors::message($over))->toContain('Change the price, the offer or the discount');
     });
 });
 
@@ -192,7 +196,7 @@ describe('which sizes a sale may take (Q13, Q39)', function () {
         $none = rulesRefusal(fn () => rulesSale([], $ready['product']));
 
         expect($none)->toBeInstanceOf(NoRetailPrice::class)
-            ->and(FormErrors::message($none ?? throw new LogicException))->toBe('This size has no retail price in the store. Give it a price before putting it on any sale or giving it wholesale prices.');
+            ->and(FormErrors::message($none ?? throw new LogicException))->toBe('This size has no retail price in the store. Give it a price before putting it on any offer or giving it wholesale prices.');
 
         Fx::asSystem(fn () => rulesPrices([$a => '100', $c => '100']));
         $sale = Fx::asSystem(fn (): string => rulesSale([], $ready['product']));
@@ -215,13 +219,33 @@ describe('which sizes a sale may take (Q13, Q39)', function () {
     });
 });
 
+describe('the products a discount leaves out (Q10)', function () {
+    it('takes a product of a child category, keeps one left out already while the category stays, and refuses it in another', function () {
+        $kitchens = Px::category('Kitchens');
+        $cabinets = Px::category('Cabinets', $kitchens);
+        $doors = Px::category('Doors');
+        $child = Px::ready(['60 cm'], $cabinets);
+        $moved = Px::ready(['60 cm'], Px::category('Shelves', $kitchens));
+        $discount = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $kitchens, '10', null, 'BOTH', '2026-10-20 00:00:00+00', null, false, [$child['product'], $moved['product']])));
+        $change = static fn (string $category): ?DomainError => rulesRefusal(fn () => app(ChangeCategoryDiscountHandler::class)->handle(new ChangeCategoryDiscount($discount, $category, '10', null, 'BOTH', '2026-10-20 00:00:00+00', null, false, [$moved['product']])));
+
+        // The product left out moves out of the category since.
+        DB::table('catalog.products')->where('id', $moved['product'])->update(['category_id' => $doors]);
+
+        expect(DB::table('pricing.category_discount_exclusions')->where('discount_id', $discount)->count())->toBe(2)
+            ->and($change($kitchens))->toBeNull()
+            // A new category leaves out only its own products.
+            ->and($change($cabinets)?->context())->toBe(['attribute' => 'left_out']);
+    });
+});
+
 describe('the wordings (Q15)', function () {
-    it('names "sales and discounts" on a lower ceiling, and calls a category قسم in the Arabic audit log', function () {
+    it('names "offers and discounts" on a lower ceiling, and calls a category قسم in the Arabic audit log', function () {
         $en = require dirname(__DIR__, 4).'/src/Modules/Pricing/Presentation/lang/en/errors.php';
         $audit = require dirname(__DIR__, 4).'/src/Modules/Pricing/Presentation/lang/ar/audit.php';
 
-        expect($en['ceiling_below_sales']['detail'])->toContain('sales and discounts')
-            ->and($en['over_ceiling']['detail'])->toContain('the price, the sale or the discount')
+        expect($en['ceiling_below_sales']['detail'])->toContain('offers and discounts')
+            ->and($en['over_ceiling']['detail'])->toContain('the price, the offer or the discount')
             ->and(array_filter($audit, static fn (string $words): bool => str_contains($words, 'فئة')))->toBe([])
             ->and($audit['category_discount.added'])->toContain('قسم');
     });

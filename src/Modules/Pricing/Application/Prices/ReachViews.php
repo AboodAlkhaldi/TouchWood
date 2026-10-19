@@ -71,18 +71,20 @@ final readonly class ReachViews
      * @param  list<string>  $categoryIds  the product's category and every one above it
      * @param  list<Candidate>  $candidates  the size's candidates
      * @param  array<string, CategoryPathDto>  $paths  the discounts' categories
+     * @param  int|null  $skipCeiling  in a wired store, the ceiling (basis points) a fixed amount skips a size past; null elsewhere
      * @return list<ReachingDiscount>
      */
-    public function discounts(array $discounts, string $productId, array $categoryIds, ?Money $retail, array $candidates, array $paths, DateTimeImmutable $now, StoreDto $store): array
+    public function discounts(array $discounts, string $productId, array $categoryIds, ?Money $retail, array $candidates, array $paths, DateTimeImmutable $now, StoreDto $store, ?int $skipCeiling = null): array
     {
         $winner = PriceResolution::resolve($candidates, SaleMode::Retail, 1, $now);
         $reaching = [];
 
         foreach (self::reaching($discounts, $productId, $categoryIds) as $discount) {
             $price = self::priceOf($candidates, $discount->id);
-            // Skipped where it has no candidate on a priced size (§1.5; Q9): a fixed amount at or above the
-            // price, or - in a wired store - deeper than the ceiling.
-            $skipped = $price !== null || $retail === null ? null : ($discount->priceOn($retail) === null ? 'zero_or_below' : 'past_ceiling');
+            // Skipped where it has no candidate on a priced size, and why (§1.5; Q9): a fixed amount at or
+            // above the price; in a wired store, a fixed amount deeper than the ceiling. No other reason is
+            // guessed: none is said.
+            $skipped = $price !== null || $retail === null ? null : self::skipReason($discount, $retail, $skipCeiling);
             $reaching[] = new ReachingDiscount(
                 $discount->id,
                 $discount->categoryId,
@@ -143,6 +145,15 @@ final readonly class ReachViews
         }
 
         return null;
+    }
+
+    private static function skipReason(CategoryDiscount $discount, Money $retail, ?int $skipCeiling): ?string
+    {
+        if ($discount->priceOn($retail) === null) {
+            return 'zero_or_below';
+        }
+
+        return $discount->amount !== null && $skipCeiling !== null && $discount->depthOn($retail) > $skipCeiling ? 'past_ceiling' : null;
     }
 
     /** A sale's price on a size it has no candidate on: its own price, or its percentage off - none at 0. */

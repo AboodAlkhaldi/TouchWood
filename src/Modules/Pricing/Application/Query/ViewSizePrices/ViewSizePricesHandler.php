@@ -7,6 +7,7 @@ namespace Modules\Pricing\Application\Query\ViewSizePrices;
 use Carbon\CarbonImmutable;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Pricing\Application\Prices\CeilingCheck;
 use Modules\Pricing\Application\Prices\PriceViews;
 use Modules\Pricing\Application\Prices\ReachViews;
 use Modules\Pricing\Application\Prices\ReadAccess;
@@ -19,6 +20,7 @@ use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Repository\WholesaleBands;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **A size's drawer** (`ViewSizePrices`, pricing.md §4.3.3, Q3), for whoever holds any of Pricing's three
@@ -39,7 +41,25 @@ final readonly class ViewSizePricesHandler
         private CategoryDiscounts $discounts,
         private PriceViews $views,
         private ReachViews $reach,
+        private CeilingCheck $ceiling,
     ) {}
+
+    /**
+     * In a wired store, the ceiling a fixed amount skips a size past (sync.md §9.3 #17) - asked only when a
+     * fixed-amount discount reaches the size.
+     *
+     * @param  list<CategoryDiscount>  $reaching
+     */
+    private function skipCeiling(array $reaching, StoreId $store): ?int
+    {
+        foreach ($reaching as $discount) {
+            if ($discount->amount !== null) {
+                return $this->ceiling->skipsPastCeiling($store) ? $this->ceiling->ceiling($store) * 100 : null;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * @throws Unauthorized|InvalidPricingInput|StoreOff
@@ -71,7 +91,7 @@ final readonly class ViewSizePricesHandler
             $terms->soldRetail ?? false,
             $soldWholesale,
             $this->reach->sales($this->sales->notEndedOn($storeId, [$id], $now), $id, $retail?->amount, $candidates, $now, $store),
-            $this->reach->discounts($reaching, $found->productId, $categoryIds, $retail?->amount, $candidates, $paths, $now, $store),
+            $this->reach->discounts($reaching, $found->productId, $categoryIds, $retail?->amount, $candidates, $paths, $now, $store, $this->skipCeiling($reaching, $storeId)),
             $this->views->bands($bands, $store),
             $terms?->minimum,
             $terms?->maximum,

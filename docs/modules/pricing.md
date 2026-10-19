@@ -574,7 +574,8 @@ feature test counting them:
   the sale's or discount's id, its end), `BandView`.
 - **Keyset**: Catalog's cursor for the size lists (`ListPrices`, `ListWholesale`, `NeedsAPrice`); Pricing's
   own for sales and discounts - the state's rank, a number from the dates, the id - one ascending key for
-  both orders (`WindowListing`). The preview pages its products 20 at a time after the last product's id.
+  both orders (`WindowListing`). By state, an offer whose state changes between two **Show More** clicks
+  can be skipped or shown twice (accepted, 2026-10-19). The preview pages its products 20 at a time after the last product's id.
 - `ListPrices` filters `ALL` · `NO_PRICE` · `ON_SALE_NOW` (one piece costs less than retail now, resolved
   from the candidates of the sizes a sale or discount reaches) · `HAS_WHOLESALE`; **Wholesale Only** is
   the store selling the size wholesale and not one piece at a time (Catalog's `wholesaleOf`, which gains
@@ -594,12 +595,16 @@ feature test counting them:
 - `ListCategoryDiscounts` (`state`, `order`, `after`): `categoryPath`, `leftOutNames`.
 - `PreviewCategoryDiscount` / `ViewCategoryDiscount` (`after`): `reachedProducts`, `reachedSizes`,
   `skippedSizes`, `unpricedSizes` (the category's sizes switched on with no price), `deepestBasisPoints`,
-  each size's `skipped` reason; it reads the category's own products' sizes (`variantIdsOfProducts`), no
-  longer the store's whole price list; an archived size is not reached.
+  each size's `skipped` reason (`past_ceiling` only in a wired store); it reads the category's own products'
+  sizes (`variantIdsOfProducts`), no longer the store's whole price list; an archived size, or a size of an
+  archived product, is not reached.
 - `OverlapsFor` gains `percent`, `price`, `alwaysWins`: per size `OverlapSize` (new price, `wins`,
   `notWinning` - `lower_price`, `always_wins`, `not_below_retail`, `zero`, `no_price` -, depth, over the
   ceiling), judged at the start of a scheduled sale (`atStart`); the overlapping sales and discounts gain
-  a `description`.
+  a `description`. With `saleId` (Change Offer) it reads that sale's own product and sizes, unchecked - a
+  product made a draft or a size switched off since still has its note; another store's sale is not found.
+- `ViewSale` and `ViewCategoryDiscount` read the record's store first, ask the reader's permission there,
+  then read it: an existing id of a store the reader may not read is refused (403), an unknown one not found.
 - `PricingActionsForReader`: `stores()` / `forStore()` - per store the three jobs, `maySetCeiling`,
   `mayViewProducts`, `wired`, `off`, `ceilingPercent`, `retailPriceRefusal` - and `reasons()` (no price,
   not sold wholesale, archived, wired), words in `lang/{ar,en}/admin_reasons.php`.
@@ -824,6 +829,9 @@ added when a consumer appears). The first consumer is Sync:
 
 Every error extends `PricingError` → `DomainError` ("pricing.*"), with both languages.
 
+Every refusal's **words** say **Offer** where this spec says sale (in Arabic عرض; "Always Wins" «يتقدّم دائمًا»,
+§9.4 Q42) - the panel's word (§4.3.1, owner 2026-10-19); the error types and the code keep "sale".
+
 | Error | Category | When |
 |---|---|---|
 | `PriceNotPositive` | INVALID | a price, band or fixed amount of 0 or less |
@@ -837,12 +845,12 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `BandsInvalid` | INVALID | the first band not at the wholesale minimum, or not below the retail price (owner, 2026-10-10); a band not higher, or not cheaper, than the one before; more than 10 bands, or one above the wholesale maximum (Q12). **Names the rule** in its context (`rule`: `first_band` the first band not at the minimum, `minimum` a band below it, `maximum`, `order` not cheaper than the band before, `below_retail`, `too_many`), with `minimum`, `maximum`, `retail`, `most` and the size (`variants`); each rule has its own words (`errors.bands_invalid.rules.<rule>`), which `App\Http\FormErrors` and `ProblemDetails` say in place of the detail |
 | `NotSoldWholesale` | CONFLICT | wholesale bands for a size the store does not sell wholesale |
 | `CategoryNotUsable` | INVALID | a category that does not exist or is off |
-| `NoRetailPrice` | CONFLICT | any sale for a size with no retail price (stage 5's screens: its words say "any sale", not "a percentage sale"); wholesale bands for one (the first band is measured against it, step 5); "All Sizes" of a product with none priced |
+| `NoRetailPrice` | CONFLICT | any sale for a size with no retail price (stage 5's screens: its words say "any offer", not "a percentage sale"); wholesale bands for one (the first band is measured against it, step 5); "All Sizes" of a product with none priced |
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
-| `OverCeiling` | INVALID | deeper than the store's discount ceiling: a sale saved, or a retail price taking a sale past it - naming the ceiling and the sales or sizes (§1.12); a retail price refused names the sizes whose new price does it (`variants`, Q2). Its words name "the price, the sale or the discount" (Q15) |
-| `CeilingBelowSales` | CONFLICT | a lower ceiling while sales and discounts go deeper, naming them (§1.12); its words say "sales and discounts" (Q15) |
+| `OverCeiling` | INVALID | deeper than the store's discount ceiling: a sale saved, or a retail price taking a sale past it - naming the ceiling and the sales or sizes (§1.12); a retail price refused names the sizes whose new price does it (`variants`, Q2). Its words name "the price, the offer or the discount" (Q15; the panel's word, §4.3.1) |
+| `CeilingBelowSales` | CONFLICT | a lower ceiling while sales and discounts go deeper, naming them (§1.12); its words say "offers and discounts" (Q15) |
 | `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number; a line's quantity below 1 (§2.1) — named by its field (`store`, `variant`, `amount`, `quantity`; for the screens also `filter`, `state`, `order`, `left_out`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive`. **Errors about sizes name them** (owner Q2): `InvalidPricingInput`, `PriceTooPrecise` and `PriceNotPositive` carry `variants` (comma-separated, as the caller named them) when they concern sizes, so `App\Http\FormErrors` marks those rows |
 
 ---
