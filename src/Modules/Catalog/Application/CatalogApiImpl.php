@@ -24,6 +24,7 @@ use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\Text\LatinDigits;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -149,6 +150,16 @@ final readonly class CatalogApiImpl implements CatalogApi
     public function productCards(StoreId $store, string $locale, array $productIds): array
     {
         return $this->reads->productCards($store->value, $locale, $productIds);
+    }
+
+    public function storeVariants(StoreId $store, array $variantIds): array
+    {
+        return $this->reads->storeVariants($store->value, $variantIds);
+    }
+
+    public function productsOpenTo(StoreId $store, ShopperKind $viewer, array $productIds): array
+    {
+        return $this->reads->productsOpenTo($store->value, $viewer, $productIds);
     }
 
     public function switchedOnVariantIds(StoreId $store): array

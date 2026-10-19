@@ -112,6 +112,7 @@ use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\CustomerPageSections;
+use Modules\Access\Public\Contracts\GuestIdentity;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Contracts\ShopperLines;
@@ -163,7 +164,10 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
         $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
         $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
-        $this->app->bind(GuestVisitors::class, CookieGuestVisitors::class);
+        // One a request: a guest id created for it is the one the rest of it reads (amendment 74).
+        $this->app->scoped(CookieGuestVisitors::class);
+        $this->app->alias(CookieGuestVisitors::class, GuestVisitors::class);
+        $this->app->alias(CookieGuestVisitors::class, GuestIdentity::class);
         $this->app->scoped(CustomerSessions::class, LaravelCustomerSessions::class);
         $this->app->bind(AddressRepository::class, DatabaseAddressRepository::class);
         $this->app->bind(StoreAddressFormatRepository::class, CachedStoreAddressFormatRepository::class);

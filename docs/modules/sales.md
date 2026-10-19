@@ -803,8 +803,9 @@ refusing anything but one void.
    interfaces are written here (§2.4).
 2. **Pricing's `pricesForEdit`** and **Inventory's `adjustHold` / `returned`** — on `main` since #107
    and #106 (2026-10-10), the stage 5 session's.
-3. **Catalog's additions** — the store's variants in bulk, and whether a product's category is open to
-   an account type, in bulk — to agree with the Catalog-screens session.
+3. ~~**Catalog's additions**~~ — **settled**: built with step S3 as catalog.md amendment 29 —
+   `storeVariants` and `productsOpenTo` (by Platform's `ShopperKind`, as deptrac allows Catalog's public
+   contract) — and the guest's id as access.md amendment 74 (`GuestIdentity`).
 4. **Promotions' and Loyalty's corrections** that this spec needs — the edited coupon's whole room, its
    cap at the discount now, `orderDiscountRoom` with the order's recorded ceiling and the shares by
    price line (promotions.md); `pointsAfterEdit` by the recorded cap, `orderEdited`'s answer and an edit

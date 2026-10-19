@@ -18,6 +18,7 @@ use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Catalog\Public\Events\CategoryMoved;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
@@ -314,5 +315,80 @@ describe('a cart\'s line facts, for Promotions (amendment 18)', function () {
         catalogReads()->lineFacts([...$few['variants'], ...$many['variants']]);
 
         expect($one)->toBe(1)->and(count($queries))->toBe(1);
+    });
+});
+
+describe('a store\'s sizes and who may buy them, for Sales (amendment 29)', function () {
+    it('answers many sizes in two reads, each exactly as storeVariant answers it', function () {
+        $choose = fn (string $product, string $code) => Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($code), $product, true)));
+        $two = Px::ready(['60 cm', '80 cm']);
+        $paused = Px::ready(['60 cm']);
+        $archived = Px::ready(['60 cm']);
+        $unchosen = Px::ready(['60 cm']);
+        $choose($two['product'], 'sa');
+        $choose($paused['product'], 'sa');
+        $choose($archived['product'], 'sa');
+        $sa = Fx::storeId('sa');
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $two['variants'][1])->update(['sells_wholesale' => true]);
+        DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $two['product'])->update(['retail_minimum' => 2, 'retail_maximum' => 9]);
+        DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $paused['product'])->update(['not_available_now' => true]);
+        DB::table('catalog.variants')->where('id', $archived['variants'][0])->update(['is_archived' => true]);
+        $ids = [...$two['variants'], $paused['variants'][0], $archived['variants'][0], $unchosen['variants'][0]];
+        $store = StoreId::fromString($sa);
+
+        $queries = Cx::recordQueries();
+        $many = catalogReads()->storeVariants($store, [...array_map(strtoupper(...), $ids), '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id']);
+        $read = count($queries);
+
+        expect($read)->toBe(1)
+            ->and(array_keys($many))->toEqualCanonicalizing($ids)
+            ->and(catalogReads()->storeVariants($store, []))->toBe([]);
+
+        foreach ($ids as $id) {
+            expect($many[$id])->toEqual(catalogReads()->storeVariant($store, $id));
+        }
+
+        expect([$many[$two['variants'][0]]->orderable, $many[$paused['variants'][0]]->orderable, $many[$archived['variants'][0]]->orderable, $many[$unchosen['variants'][0]]->orderable])->toBe([true, false, false, false])
+            ->and([$many[$two['variants'][0]]->retailMinimum, $many[$two['variants'][0]]->retailMaximum])->toBe([2, 9]);
+    });
+
+    it('answers which products the category switches leave open to each kind of shopper', function () {
+        $forBoth = Px::category('Both');
+        $individualsOnly = Px::category('Homes');
+        $companiesOnly = Px::category('Trade');
+        $closed = Px::category('Closed');
+        $products = [
+            'both' => Px::ready(['60 cm'], $forBoth)['product'],
+            'individuals' => Px::ready(['60 cm'], $individualsOnly)['product'],
+            'companies' => Px::ready(['60 cm'], $companiesOnly)['product'],
+            'closed' => Px::ready(['60 cm'], $closed)['product'],
+            'no category' => Px::product('A draft'),
+        ];
+        $sa = Fx::storeId('sa');
+        $now = now();
+
+        foreach ([[$individualsOnly, true, false], [$companiesOnly, false, true], [$closed, false, false]] as [$category, $individuals, $companies]) {
+            DB::table('catalog.store_category_audiences')->insert(['store_id' => $sa, 'category_id' => $category, 'for_individuals' => $individuals, 'for_companies' => $companies, 'created_at' => $now, 'updated_at' => $now]);
+        }
+
+        // Another store's switches change nothing here.
+        DB::table('catalog.store_category_audiences')->insert(['store_id' => Fx::storeId('ae'), 'category_id' => $forBoth, 'for_individuals' => false, 'for_companies' => false, 'created_at' => $now, 'updated_at' => $now]);
+        $open = static function (ShopperKind $viewer) use ($products, $sa): array {
+            $found = catalogReads()->productsOpenTo(StoreId::fromString($sa), $viewer, [...array_values($products), 'not-an-id']);
+            sort($found);
+
+            return $found;
+        };
+        $expect = static function (array $names) use ($products): array {
+            $ids = array_values(array_map(static fn (string $name): string => $products[$name], $names));
+            sort($ids);
+
+            return $ids;
+        };
+
+        expect($open(ShopperKind::Individual))->toBe($expect(['both', 'individuals', 'no category']))
+            ->and($open(ShopperKind::Company))->toBe($expect(['both', 'companies', 'no category']))
+            ->and($open(ShopperKind::Guest))->toBe($expect(['both', 'individuals', 'companies', 'no category']))
+            ->and(catalogReads()->productsOpenTo(StoreId::fromString($sa), ShopperKind::Guest, []))->toBe([]);
     });
 });

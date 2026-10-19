@@ -8,8 +8,10 @@ use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 
 /**
  * The reads behind `CatalogApi` that answer many rows at once (catalog.md §2.1, amendment 16(e),
@@ -82,6 +84,18 @@ interface ApiReads
      * @return array<string, ProductCardDto> keyed by id (amendment 26(a))
      */
     public function productCards(string $storeId, string $locale, array $productIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, StoreVariantDto> keyed by id (amendment 29(a))
+     */
+    public function storeVariants(string $storeId, array $variantIds): array;
+
+    /**
+     * @param  list<string>  $productIds
+     * @return list<string> those open to the viewer in the store (amendment 29(b))
+     */
+    public function productsOpenTo(string $storeId, ShopperKind $viewer, array $productIds): array;
 
     /**
      * @param  list<string>  $variantIds

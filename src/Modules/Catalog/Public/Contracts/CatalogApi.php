@@ -16,6 +16,7 @@ use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\WholesaleTermsDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -179,6 +180,28 @@ interface CatalogApi
      * @return array<string, ProductCardDto>
      */
     public function productCards(StoreId $store, string $locale, array $productIds): array;
+
+    /**
+     * For Sales — a cart, a checkout, an edit (amendment 29(a); sales.md §2.3): **many sizes in a store
+     * in two reads**, each answered exactly as `storeVariant` answers it. Keyed by lower-case id; an
+     * unknown id left out.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, StoreVariantDto>
+     */
+    public function storeVariants(StoreId $store, array $variantIds): array;
+
+    /**
+     * For Sales (amendment 29(b); sales.md §1.1, answer 22): **which of these products the store's
+     * category switches leave open to this shopper** — an individual, the categories switched on for
+     * individuals; a company, those for companies; a guest, either (amendment 14(a), P25). A product's
+     * own category decides; one with no category, or a category with no switches set in the store, is
+     * open to all. In one read; lower-case ids in no particular order, an unknown id left out.
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public function productsOpenTo(StoreId $store, ShopperKind $viewer, array $productIds): array;
 
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;

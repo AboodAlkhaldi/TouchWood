@@ -6,15 +6,19 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Domain\ValueObject\SellingLimits;
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -291,6 +295,85 @@ final readonly class DatabaseApiReads implements ApiReads
         }
 
         return $cards;
+    }
+
+    public function storeVariants(string $storeId, array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $initial = SellingLimits::initial();
+        $found = [];
+        $rows = $this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->leftJoin('catalog.store_products as sp', static fn ($join) => $join->on('sp.product_id', '=', 'p.id')->where('sp.store_id', '=', strtolower($storeId)))
+            ->leftJoin('catalog.store_variants as sv', static fn ($join) => $join->on('sv.variant_id', '=', 'v.id')->where('sv.store_id', '=', strtolower($storeId)))
+            ->whereIn('v.id', $ids)
+            ->get([
+                'v.id', 'v.product_id', 'v.is_archived', 'p.stage', 'p.hidden_by_category', 'p.hidden_by_brand',
+                'sp.product_id as chosen', 'sp.not_available_now as product_unavailable', 'sp.retail_minimum', 'sp.retail_maximum', 'sp.wholesale_minimum', 'sp.wholesale_maximum',
+                'sv.is_active', 'sv.not_available_now as variant_unavailable', 'sv.sells_retail', 'sv.sells_wholesale',
+            ]);
+
+        // As `storeVariant` answers one (CatalogApiImpl), a store that never chose the product keeping
+        // the starting limits.
+        foreach ($rows as $row) {
+            $chosen = $row->chosen !== null;
+            $active = (bool) ($row->is_active ?? false);
+            $unavailable = (bool) ($row->product_unavailable ?? false) || (bool) ($row->variant_unavailable ?? false);
+            $modes = [];
+
+            if ((bool) ($row->sells_retail ?? false)) {
+                $modes[] = SaleMode::Retail;
+            }
+
+            if ((bool) ($row->sells_wholesale ?? false)) {
+                $modes[] = SaleMode::Wholesale;
+            }
+
+            $found[(string) $row->id] = new StoreVariantDto(
+                strtolower($storeId),
+                (string) $row->id,
+                (string) $row->product_id,
+                $active,
+                (string) $row->stage === ProductStage::Ready->value && $active && ! (bool) $row->is_archived && ! $unavailable
+                    && ! (bool) $row->hidden_by_category && ! (bool) $row->hidden_by_brand,
+                $unavailable,
+                $modes,
+                $chosen ? (int) $row->retail_minimum : $initial->retailMinimum,
+                $chosen ? ($row->retail_maximum === null ? null : (int) $row->retail_maximum) : $initial->retailMaximum,
+                $chosen ? ($row->wholesale_minimum === null ? null : (int) $row->wholesale_minimum) : $initial->wholesaleMinimum,
+                $chosen ? ($row->wholesale_maximum === null ? null : (int) $row->wholesale_maximum) : $initial->wholesaleMaximum,
+            );
+        }
+
+        return $found;
+    }
+
+    public function productsOpenTo(string $storeId, ShopperKind $viewer, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // A category with no switches set in the store is open to both (amendment 14).
+        $open = match ($viewer) {
+            ShopperKind::Individual => 'coalesce(a.for_individuals, true)',
+            ShopperKind::Company => 'coalesce(a.for_companies, true)',
+            ShopperKind::Guest => '(coalesce(a.for_individuals, true) OR coalesce(a.for_companies, true))',
+        };
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.products as p')
+            ->leftJoin('catalog.store_category_audiences as a', static fn ($join) => $join->on('a.category_id', '=', 'p.category_id')->where('a.store_id', '=', strtolower($storeId)))
+            ->whereIn('p.id', $ids)
+            ->whereRaw($open)
+            ->pluck('p.id')
+            ->all()));
     }
 
     public function lineFacts(array $variantIds): array
