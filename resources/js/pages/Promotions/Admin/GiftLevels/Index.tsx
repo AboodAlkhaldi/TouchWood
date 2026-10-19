@@ -29,14 +29,15 @@ export default function Index(page: GiftLevelsPage) {
     const t = useTranslator();
     const [editing, setEditing] = useState<GiftLevelData | 'new' | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
-    const newButton = page.mayManage ? (
-        <Button type="button" onClick={() => setEditing('new')} data-test="new-level">
-            {`${t('promotions::admin_gifts.list.new')}…`}
-        </Button>
-    ) : null;
+    const newButton = (test: string) =>
+        page.mayManage ? (
+            <Button type="button" onClick={() => setEditing('new')} data-test={test}>
+                {`${t('promotions::admin_gifts.list.new')}…`}
+            </Button>
+        ) : null;
 
     return (
-        <AdminLayout title={t('promotions::admin_gifts.list.title')} subtitle={t('promotions::admin_gifts.list.subtitle')} action={newButton ?? undefined}>
+        <AdminLayout title={t('promotions::admin_gifts.list.title')} subtitle={t('promotions::admin_gifts.list.subtitle')} action={newButton(`new-level`) ?? undefined}>
             <div className="grid gap-4">
                 <FormError />
                 <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
@@ -51,7 +52,7 @@ export default function Index(page: GiftLevelsPage) {
                             <EmptyTitle className="text-heading-16 text-ink">{t('promotions::admin_gifts.list.empty_title')}</EmptyTitle>
                             <EmptyDescription className="text-copy-14 text-ink-muted">{t('promotions::admin_gifts.list.empty_body')}</EmptyDescription>
                         </EmptyHeader>
-                        {newButton === null ? null : <EmptyContent>{newButton}</EmptyContent>}
+                        {page.mayManage ? <EmptyContent>{newButton(`empty-new-level`)}</EmptyContent> : null}
                     </Empty>
                 ) : (
                     <>

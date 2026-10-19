@@ -29,14 +29,15 @@ export default function Index({ segments, nextAt, nextId, mayManage, storeCode, 
     const rule = useRuleWords();
     const list = useLoadMore(segments, (row) => row.id);
     const [creating, setCreating] = useState(false);
-    const newButton = mayManage ? (
-        <Button type="button" onClick={() => setCreating(true)} data-test="new-segment">
-            {`${t('promotions::admin_segments.list.new')}…`}
-        </Button>
-    ) : null;
+    const newButton = (test: string) =>
+        mayManage ? (
+            <Button type="button" onClick={() => setCreating(true)} data-test={test}>
+                {`${t('promotions::admin_segments.list.new')}…`}
+            </Button>
+        ) : null;
 
     return (
-        <AdminLayout title={t('promotions::admin_segments.list.title')} subtitle={t('promotions::admin_segments.list.subtitle')} action={newButton ?? undefined}>
+        <AdminLayout title={t('promotions::admin_segments.list.title')} subtitle={t('promotions::admin_segments.list.subtitle')} action={newButton(`new-segment`) ?? undefined}>
             <div className="grid gap-4">
                 <FormError />
                 <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
@@ -51,7 +52,7 @@ export default function Index({ segments, nextAt, nextId, mayManage, storeCode, 
                             <EmptyTitle className="text-heading-16 text-ink">{t('promotions::admin_segments.list.empty_title')}</EmptyTitle>
                             <EmptyDescription className="text-copy-14 text-ink-muted">{t('promotions::admin_segments.list.empty_body')}</EmptyDescription>
                         </EmptyHeader>
-                        {newButton === null ? null : <EmptyContent>{newButton}</EmptyContent>}
+                        {mayManage ? <EmptyContent>{newButton(`empty-new-segment`)}</EmptyContent> : null}
                     </Empty>
                 ) : (
                     <div className="material-base max-w-full overflow-x-auto">
