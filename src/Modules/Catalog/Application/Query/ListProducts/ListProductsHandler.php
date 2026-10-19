@@ -62,6 +62,7 @@ final readonly class ListProductsHandler
                 $row->id, $row->nameAr, $row->nameEn, $row->codes, $row->stage, $row->brandId, $row->brandNameAr,
                 $row->brandNameEn, $row->categoryId, $row->categoryNameAr, $row->categoryNameEn, $row->photoMediaId,
                 $row->variants, array_values(array_intersect($row->onIn, $covered)), $row->storeState, $row->storeVariantsOn,
+                $row->lowestPrice, $row->cantOrder,
             ), $rows);
         }
 

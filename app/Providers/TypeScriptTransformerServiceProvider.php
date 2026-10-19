@@ -8,7 +8,6 @@ use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceP
 use Spatie\TypeScriptTransformer\Transformers\AttributedClassTransformer;
 use Spatie\TypeScriptTransformer\Transformers\EnumTransformer;
 use Spatie\TypeScriptTransformer\TypeScriptTransformerConfigFactory;
-use Spatie\TypeScriptTransformer\Writers\ModuleWriter;
 
 /**
  * TypeScript types generated from the PHP that produces a page's data (frontend.md §1.6).
@@ -33,6 +32,7 @@ final class TypeScriptTransformerServiceProvider extends BaseTypeScriptTransform
             ->transformer(EnumTransformer::class)
             ->transformDirectories(base_path('src'))
             ->outputDirectory(base_path('resources/js/types'))
-            ->writer(new ModuleWriter('generated', 'index.ts'));
+            // Each file's imports of another's types written as type imports (TypeOnlyModuleWriter).
+            ->writer(new TypeOnlyModuleWriter('generated', 'index.ts'));
     }
 }

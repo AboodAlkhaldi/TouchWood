@@ -60,6 +60,28 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->orderByRaw('p.id COLLATE "C" DESC')
             ->limit($perPage + 1);
 
+        if ($filter->storeId !== null) {
+            // Price and Can't Order (pricing.md §9.4 Q5), in the same query: from the facts the modules
+            // above pushed into Catalog's own table, over the sizes switched on in the store. The price is
+            // the lowest one-piece price now; a size can't be ordered while Inventory says so, while it
+            // has no price, while it or its product is "Not available now" there, or while the product is
+            // hidden with its category or brand (as `storeVariant()` answers whether it is orderable).
+            $query->selectRaw(
+                "(SELECT json_build_object('minor', f.price_minor, 'currency', f.currency) FROM catalog.store_variants sv"
+                .' JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
+                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active AND f.price_minor IS NOT NULL'
+                .' ORDER BY f.price_minor LIMIT 1) as lowest_price',
+                [$store],
+            )->selectRaw(
+                '(SELECT count(*) FROM catalog.store_variants sv'
+                .' LEFT JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
+                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active'
+                .' AND (f.orderable IS FALSE OR f.price_minor IS NULL OR sv.not_available_now OR coalesce(sp.not_available_now, false)'
+                .' OR p.hidden_by_category OR p.hidden_by_brand)) as cant_order',
+                [$store],
+            );
+        }
+
         if ($filter->search !== null) {
             $like = '%'.addcslashes($filter->search, '\\%_').'%';
             $query->where(function ($where) use ($filter, $like): void {
@@ -118,6 +140,8 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::strings($row->on_in),
             $filter->storeId === null ? null : self::state($row),
             (int) $row->on_here,
+            $filter->storeId === null ? null : self::price($row->lowest_price ?? null),
+            $filter->storeId === null ? 0 : (int) ($row->cant_order ?? 0),
         ), array_slice($rows, 0, $perPage)), $more];
     }
 
@@ -496,6 +520,20 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
     }
 
     /** With a store chosen: the product's state there (S8). */
+    /**
+     * The lowest price as the query wrote it, or none.
+     *
+     * @return array{minor: int, currency: string}|null
+     */
+    private static function price(mixed $value): ?array
+    {
+        $price = self::json($value);
+
+        return is_array($price) && is_numeric($price['minor'] ?? null) && is_string($price['currency'] ?? null)
+            ? ['minor' => (int) $price['minor'], 'currency' => $price['currency']]
+            : null;
+    }
+
     private static function state(stdClass $row): string
     {
         return match (true) {
