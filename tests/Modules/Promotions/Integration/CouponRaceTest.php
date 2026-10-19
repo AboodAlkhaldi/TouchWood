@@ -54,7 +54,6 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
     config(['database.connections.promotions_race' => config('database.connections.'.config('database.default'))]);
-    Pr::standInForSales();
 });
 
 afterEach(function () {

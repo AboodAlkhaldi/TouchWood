@@ -50,7 +50,6 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
-    Pr::standInForSales();
 });
 
 /**

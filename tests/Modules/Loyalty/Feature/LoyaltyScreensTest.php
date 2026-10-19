@@ -44,7 +44,6 @@ beforeEach(function () {
     FakeBreachList::install();
     RecordingSecurityMessages::install();
     Queue::fake();
-    Lx::standInForSales();
     Lx::programme();
     Lx::programme('eg');
     // The real clock: the panel's sign-in code is checked against it.

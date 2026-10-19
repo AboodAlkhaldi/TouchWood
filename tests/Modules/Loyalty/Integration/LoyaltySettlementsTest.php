@@ -29,7 +29,6 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
-    Lx::standInForSales();
     Lx::programme();
     CarbonImmutable::setTestNow('2026-01-01 12:00:00 UTC');
 });

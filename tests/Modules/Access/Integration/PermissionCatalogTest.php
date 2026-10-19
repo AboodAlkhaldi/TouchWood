@@ -118,6 +118,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'pricing.windows.check',
         // Reserved: the system's nightly refresh of segments (promotions.md §3).
         'promotions.segment.refresh',
+        // Reserved: the system's scheduled order work (sales.md §3).
+        'sales.system.run',
         // Reserved: wiring a store is a Super Admin's, the reads and the pruning the system's (sync.md §3).
         'sync.connection.manage',
         'sync.log.prune',
@@ -268,7 +270,7 @@ it('gives every action a role can hold a business area, and names every area in 
     // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68), Promotions' jobs Marketing
     // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'orders', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
