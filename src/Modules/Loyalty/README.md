@@ -32,8 +32,9 @@ stage 6 screens session (below).
   sum, never the stored balance — keyset on (live points, account id), a search through Access's
   `customerIdsMatching`); L2 a customer's points (`ViewCustomerPoints`, which now answers "not found"
   for a customer with no points in the store unless the reader may view the customer — P7) with L3,
-  the change-by-hand dialog posting to `AddPoints`/`DeductPoints`; L4 Redemptions; L6 Settings, a
-  redirect to Platform's settings screen at `#settings-loyalty`. What a reader may do comes from
+  the change-by-hand dialog posting to `AddPoints`/`DeductPoints`; L4 Redemptions. The settings (L6)
+  are Platform's settings screen, reached from Store Settings only - no Points entry (owner,
+  2026-10-19). What a reader may do comes from
   `Application/Query/LoyaltyActions/LoyaltyActionsForReader`, never from the authorizer in a screen.
 - **The customer page's section** (L5): `Presentation/Http/Resource/PointsCustomerSection`, registered
   with Access's `CustomerPageSections`, reading `CustomerPointsInStores` (one query for every store's

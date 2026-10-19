@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Loyalty\Presentation\Http\Controller;
 
-use App\Http\AdminArea;
 use App\Http\FormErrors;
 use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Loyalty\Application\Command\AddPoints\AddPoints;
 use Modules\Loyalty\Application\Command\AddPoints\AddPointsHandler;
@@ -24,12 +22,11 @@ use Modules\Loyalty\Presentation\Http\Resource\PointsPages;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /*
 | Loyalty's staff screens (loyalty.md §4.1): Points › Customers (L1), one customer's points (L2) and
-| the change made by hand from its dialog (L3), Points › Redemptions (L4), and Points › Settings (L6),
-| which is Platform's settings screen opened at the Points card.
+| the change made by hand from its dialog (L3) and Points › Redemptions (L4). The programme's settings
+| are Platform's settings screen, reached from Store Settings only (L6, owner 2026-10-19).
 |
 | Who may open any of these is Loyalty's answer, never the routing's: each read asks for the points
 | job in the store shown, and each change by hand for its own, admin-only job (§3).
@@ -125,18 +122,6 @@ final readonly class PointsAdminController
             self::number($request, 'before_id'),
             $list,
         )->toArray(), self::WORDS);
-    }
-
-    /**
-     * L6: Platform's settings screen, at the Points card, for the same store. A full page load, not
-     * Inertia's own visit: a visit's redirect drops the address's "#", so the screen would open at
-     * its top instead of at the card (the review of 2026-10-19).
-     */
-    public function settings(Request $request): SymfonyResponse
-    {
-        $store = self::text($request, 'store');
-
-        return Inertia::location('/'.AdminArea::PREFIX.'/settings'.($store === null ? '' : '?store='.rawurlencode($store)).'#settings-loyalty');
     }
 
     /**

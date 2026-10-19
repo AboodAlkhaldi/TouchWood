@@ -343,9 +343,8 @@ describe('L5 the customer page\'s section and L6 Settings', function () {
         expect(loyaltyScreensProps(loyaltyScreens([AccessPermissions::CUSTOMER_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show')['sections'])->toBe([]);
     });
 
-    it('opens Platform\'s settings screen at the Points card, for the same store', function () {
-        loyaltyScreens([LoyaltyPermissions::SETTINGS_UPDATE], level: RoleLevel::Admin)->get('/admin/points/settings?store=sa')
-            ->assertRedirect('/admin/settings?store=sa#settings-loyalty');
+    it('has no Points › Settings: the settings are reached from Store Settings only (owner, 2026-10-19)', function () {
+        loyaltyScreens([LoyaltyPermissions::SETTINGS_UPDATE], level: RoleLevel::Admin)->get('/admin/points/settings?store=sa')->assertNotFound();
     });
 });
 
@@ -399,12 +398,6 @@ describe('what the reviews of 2026-10-19 asked', function () {
 
         expect(AdminBrowser::formError($refused))->toBe('Open the customer\'s points in a store first.')
             ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(10);
-    });
-
-    it('opens Settings with a full page load, so the address keeps its #', function () {
-        $response = loyaltyScreens([LoyaltyPermissions::SETTINGS_UPDATE], level: RoleLevel::Admin)->get('/admin/points/settings?store=sa');
-
-        expect($response->headers->get('Location'))->toEndWith('/admin/settings?store=sa#settings-loyalty');
     });
 
     it('reads the shop\'s Points tab in a fixed few queries of its own, the programme on or off', function () {

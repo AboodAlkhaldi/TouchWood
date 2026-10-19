@@ -64,13 +64,12 @@ final class LoyaltyServiceProvider extends ServiceProvider
 
         /*
         | The screens (§4.1). The Points menu: its holders and redemptions for anyone who may read a
-        | store's points, its settings for the admins who may change them. What is offered is never
-        | what is allowed: every handler behind these asks again (handoff §19).
+        | store's points. Its settings are reached only from Store Settings (owner, 2026-10-19). What is
+        | offered is never what is allowed: every handler behind these asks again (handoff §19).
         */
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('loyalty', 'customers', 'points', 'loyalty.admin.customers', LoyaltyPermissions::VIEW, 10, icon: 'customers'),
             new MenuEntryDto('loyalty', 'redemptions', 'points', 'loyalty.admin.redemptions', LoyaltyPermissions::VIEW, 20, icon: 'redemptions'),
-            new MenuEntryDto('loyalty', 'settings', 'points', 'loyalty.admin.settings', LoyaltyPermissions::SETTINGS_UPDATE, 30, icon: 'store_settings'),
         );
 
         // A customer's points on the staff customer page, under the addresses (access.md amendment

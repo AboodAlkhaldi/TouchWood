@@ -112,7 +112,6 @@ describe('the admin menu', function () {
             // Loyalty's screens (loyalty.md §4.1): the Points section's three.
             'points/customers',
             'points/redemptions',
-            'points/settings',
             'staff_and_permissions/staff',
             'staff_and_permissions/roles',
             'staff_and_permissions/saved-roles',
