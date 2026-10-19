@@ -135,19 +135,22 @@ it('shows answered questions of every store, newest answer first, each signed by
 });
 
 it('ends a page of exactly ten with no next, and a place it does not hold with nothing', function () {
-    ['product' => $product] = Fb::sold();
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
     $sara = Fx::customer();
 
     foreach (range(1, 10) as $n) {
         shopSectionsQuestion($product, $sara, sprintf('2026-10-01 10:%02d:00+00', $n));
+        Fb::reviewRow($product, $sixty, Fx::customer("buyer{$n}@example.test"), ['status' => 'APPROVED', 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()]);
     }
 
-    $full = shopSections(get(shopSectionsUrl($product)))['feedback.questions'];
+    $page = shopSections(get(shopSectionsUrl($product)));
+    $full = $page['feedback.questions'];
     $unknown = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions]='.strtolower((string) Str::ulid()))))['feedback.questions'];
     $notOne = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions]=nowhere')))['feedback.questions'];
     $nested = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions][]=x&after[0]=y')))['feedback.questions'];
 
     expect([count($full['questions']), $full['next']])->toBe([10, null])
+        ->and([count($page['feedback.reviews']['reviews']), $page['feedback.reviews']['next']])->toBe([10, null])
         ->and($unknown['questions'])->toBe([])
         // Not an id: from the top, as anything the address cannot mean.
         ->and([count($notOne['questions']), count($nested['questions'])])->toBe([10, 10]);
