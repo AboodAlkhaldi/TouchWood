@@ -161,19 +161,17 @@ out** — and each return once (its id makes it safe to repeat).
 |---|---|
 | A store with no provider | **In stock rises** — a movement, reason **Returned** |
 | A wired store, an ordinary product | **Nothing**: the provider's number rules ("otherwise it depends on odoo") |
-| A wired store, a **stock-dependent** size, or a **gift** (a gift counts on stock in every store) | **PROVISIONAL** (owner, 2026-10-10) — see below |
+| A wired store, a **stock-dependent** size, or a **gift** (a gift counts on stock in every store) | **The returned extra** (owner, 2026-10-10; final 2026-10-19) — see below |
 
-**The provisional rule** — to be discussed again when the provider's team says whether we may write
-to it (owner, 2026-10-10: "keep it in mind that we're gonna rediscuss this again"). Until then we
-assume we may not: the returned pieces are **added on our side at once** — the size's **returned
+**The rule** — final (owner, 2026-10-19: nothing is written to the provider; it was provisional until
+that answer, 2026-10-10): the returned pieces are **added on our side at once** — the size's **returned
 extra** — so the size's figure is **the provider's number + returned extra − held**. **The next time
 the provider's number changes, we follow the provider**: the returned extra goes back to 0. A reading
 with the same number changes nothing. If staff add the piece in the provider, its number changes and
 nothing is counted twice; if the number changes for another reason first, the piece is undercounted
 until staff add it there. **The one way to overcount**: the piece is added in the provider and another
 taken there between two of our readings, so the number comes back the same — then one piece too many
-shows until the provider's number next changes. A known limit of the provisional rule, for the
-discussion.
+shows until the provider's number next changes. A known limit of the rule.
 
 ---
 
@@ -639,9 +637,9 @@ their one detail stands.
 
 | # | Question | Waits for |
 |---|---|---|
-| 1 | Which warehouse / location counts for the online store, and "On hand" or "Available"? | The provider's team (asked 2026-10-09) |
+| 1 | ~~Which warehouse / location counts, "On hand" or "Available"?~~ **Answered** (owner, 2026-10-19): **available to order, per size**; warehouses are not ours to see (sync.md §9.1 #6) | — |
 | 2 | ~~Does the provider call us when stock changes?~~ **Answered** (owner, 2026-10-13): it notifies us of price and stock changes; we also read hourly, nightly and on Sync now (sync.md §1.3) | — |
-| 3 | **Returns in a wired store** (§1.9): the provisional rule stands until the provider's team says whether we may write to it — then the owner and I discuss it again | The provider's team (owner, 2026-10-10) |
+| 3 | ~~Returns in a wired store~~ **Answered** (owner, 2026-10-19): nothing is ever written to the provider, so **§1.9's rule is final** (no longer provisional) | — |
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
 

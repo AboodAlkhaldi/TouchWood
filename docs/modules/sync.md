@@ -182,7 +182,7 @@ prices and stock stay as they are, now editable by hand.
   a number)`. A `ConnectionFailed`'s reason is shown to staff: a short sentence (what failed, a status
   code), never the provider's response or an address with a key in it.
 
-`OdooAdapter` waits for the provider's documentation (§9.1); `FakeProvider` serves the tests.
+`OdooAdapter` waits for the custom API's spec (§2.4, the owner's answers of 2026-10-19: §9.1); `FakeProvider` serves the tests.
 
 ### 2.2 What Sync gives other modules
 
@@ -200,6 +200,73 @@ Nothing new for Sales or Catalog. Sync **binds** the wiring question Pricing and
 | Catalog | `variantByCode(string)` (archived ones too), **`variantsByCodes(list)`** (many at once - catalog.md amendment 21, for the reads' batches), `variants()`, `products()`, `switchedOnVariantIds(StoreId)`; the `VariantCodeCorrected` event | On `main` |
 | Platform | Stores; encryption with the app's key; the audit log; `MenuCount`; the scheduler | On `main` |
 | Access | Declaring Sync's permissions (handoff §4.4; `deptrac.yaml`) | Allowed |
+
+### 2.4 The Odoo API built for us (accepted by the owner, 2026-10-19)
+
+The provider's team builds this inside each store's Odoo account, to this text (owner, 2026-10-19:
+"a custom API built for us … they follow it"; §9.1). **It only reads**: every call is a `GET`, so it can
+change nothing in Odoo. Each store is its own account, with its own address and token (§9.1 #2).
+
+**Calls - ours to theirs**
+
+| | |
+|---|---|
+| Address | The store's base address, typed by a Super Admin on the Provider page (§1.2), ending in `/touchwood/v1` - `https://<the account's address>/touchwood/v1`. HTTPS only |
+| Sign-in | Header `Authorization: Bearer <token>` - the store's token, typed with the address. One token per account, never shared (§9.1 #2) |
+| Pace | **One call at a time per store, at least 1 second apart** - within Odoo's policy of about 1 call a second, none in parallel (§9.1 #8). Each call waits **30 seconds** at most |
+
+1. **Every item** - `GET /items?limit=1000&after=<next>`: the account's items, **ordered by code**,
+   `limit` at most 1,000 (about 700 today: one call). The nightly read, Sync now, a store just wired.
+2. **What changed** - `GET /items?changed_since=<time>&limit=1000&after=<next>`: the items whose price or
+   available stock changed at or after `<time>` (UTC, `2026-10-19T12:00:00Z`). The hourly read. We pass
+   the start of our last read **less 5 minutes** - the most their clock may be off (the notice's rule) -
+   so a change at the edge is read twice, never missed (a value read twice changes nothing, §1.4, §1.5).
+3. **Named codes** - `GET /items?codes=123,1234,…`: up to **500 codes** a call (a longer list is asked
+   in several calls). The notified read, a corrected code (§1.3). Codes not in the account are listed in
+   `missing`.
+4. **The test** - `GET /items?limit=1`: when a Super Admin saves the connection (§1.2, §9.2 #10).
+
+**The answer** - `200`, JSON:
+
+```json
+{
+  "items": [
+    { "code": "123",  "price": "120.00", "available": 7 },
+    { "code": "1234", "price": "85.50",  "available": 0 }
+  ],
+  "missing": [],
+  "next": null
+}
+```
+
+| Field | Rule |
+|---|---|
+| `code` | **Text**, exactly as kept in Odoo (`"123"`, never the number `123`); **one code per variant, never two variants with one code** in an account (§9.1 #4) |
+| `price` | **Text**, the variant's **base selling price** in the store's currency, with the currency's decimals (`"120.00"`), **without VAT and without any discount** (§9.1 #5) |
+| `available` | A **whole number**: the variant's stock **available to order** (§9.1 #6) |
+| `missing` | Call 3 only: the asked codes the account does not have; `[]` otherwise |
+| `next` | Text to pass as `after` for the next page; `null` on the last page |
+
+Other fields are ignored. **A code twice in one read**: both skipped and reported (`BAD_VALUE`) (owner, 2026-10-19). Archived variants are left out of calls 1 and 2, and listed in `missing` by
+call 3 - so our nightly read reports them as not known to the provider (§1.6).
+
+**Errors** - `401` a wrong or missing token · `400` a bad parameter (`{"error": "<short reason>"}`) ·
+`429` too many calls, with `Retry-After` in seconds · `5xx` their fault. Our side: a `429` waits `Retry-After`
+(at most 60 seconds) and asks once more; anything else - or a second `429`, or a timeout - fails the
+read, which is **retried after 1, 5 and 15 minutes**, then reported as failed until a later read
+succeeds (§1.7); the reason shown is a short sentence with the status code (§2.1).
+
+**Their notice - theirs to ours** (§1.3, accepted 2026-10-19, §9.1 #9): when a variant's price or
+available stock changes, `POST https://<our address>/sync/notify/<store id>`, body `{"codes": ["123"]}`
+(1–1,000 codes, as text), headers `X-TouchWood-Timestamp` (Unix seconds - the same number in every time
+zone) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `<timestamp>.<body>` with the store's notice
+secret). Their server's **clock must be right** (synced): a notice more than 5 minutes off is refused.
+Answers: `202` taken · `401` a bad signature or time · `422` not a list of codes · `429` too many (at
+most 60 a minute per store), wait `Retry-After` and send again, or drop it - the hourly read covers it.
+
+**What we ask of their team**: build the four calls and the notice to this text, in each account;
+per store, the address and the token (to the Super Admin), and the notice secret agreed with us; a
+clock kept right; codes unique per account; a contact for the go-live and for a read that fails.
 
 ---
 
@@ -433,23 +500,23 @@ staff error.
 
 ## 9 · Questions
 
-### 9.1 Open
+### 9.1 The provider's team - answered (owner, 2026-10-19)
 
-**Waiting for the provider's team** (the request the owner sends, 2026-10-13):
+The owner answered the questions sent to the provider's team (2026-10-13); several had been settled
+already (§9.2 #9: the base price only, nothing written back).
 
-| # | Question |
-|---|---|
-| 1 | The API's address, a test copy, and whether it is Odoo's standard API or one built for us |
-| 2 | How we sign in, per store (key, user and key, database or company) — the adapter's fields (§1.2) |
-| 3 | The calls for price and stock, their field names, one example answer each |
-| 4 | Which field is the product code; one code per size (variant)? |
-| 5 | The price field, its currency, **with or without VAT** (ours are kept without VAT; with it, the adapter takes it out at the store's rate — the rounding then asked of the owner) |
-| 6 | Which stock quantity (on hand / available), per product or per warehouse, and which warehouse is which store (inventory.md §9.1 #1) |
-| 7 | Can we ask for what changed since a time (the hourly read, §1.3)? About how many products? |
-| 8 | Call limits, page size, hours to avoid |
-| 9 | Their notification (§1.3): our shape, or theirs? A technical contact — **built in our shape** (the Odoo request's Format B, which the owner found fine on 2026-10-13): `POST /sync/notify/{store id}` (a store id that is not one has no route: 404), body `{"codes": [...]}` of 1–1,000 codes, each text of 1–255 characters, spaces around trimmed, at most 300 KB (else 413); headers `X-TouchWood-Timestamp` (unix seconds, within 5 minutes either way) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `timestamp.body` with the store's secret). 202 queued — the same signed notice again within its window answered 202, queuing nothing more; 401 with no body for a wrong or missing signature, a time off, a store not wired or unknown; 422 not a list of codes; 429 over 60 calls a minute for the store, with `Retry-After`. A notice's codes join the one notice read waiting for the store. Changed if their team asks for theirs |
-
-Points A–G, asked with this spec, were accepted (owner, 2026-10-13): §9.2 #10–16.
+| # | Question | Answer |
+|---|---|---|
+| 1 | Standard API or one built for us; a test copy | **A custom API built for us**: our code runs in their Odoo, shaped as we write it (§2.4, to be written and accepted). **No test copy** (owner, 2026-10-19): we only read, and a read changes nothing in Odoo - the adapter is tested against the live account before the store opens |
+| 2 | How we sign in, per store | **Each store is its own Odoo account** - its own address, database, token and prices; **no two stores share a token**. A **token per store**, typed on the Provider page by a Super Admin (§1.2); how it reaches the Super Admin is outside the system |
+| 3 | The calls, fields, examples | **Ours to write** (§2.4); they follow it |
+| 4 | The code; one per size? | **One code per size (variant)**; Odoo keeps only the name, code, price and stock - **we read price and stock by code, nothing else**. Their codes are **3 or 4 digits** (`123`, `1234`); **sent as text** exactly as kept, compared as written (§9.2 #15) |
+| 5 | Currency, VAT | **No currency** (one account = one store and region, its price in the store's currency); **no VAT, no discount: the base price only** (§9.2 #9). VAT, offers, discounts and shipping are ours |
+| 6 | Which stock | **Available to order, per size**; warehouses are not ours to see (inventory.md §9.1 #1) |
+| 7 | Changed since a time; how many | **Yes**, besides the hourly read; **about 700 products**, growing |
+| 8 | Limits, hours to avoid | **No hours to avoid**; calls within Odoo's own policy: *"throttled calls are typically acceptable for unsustained usage at a rate of 1 call/second, with no parallel calls"* (Odoo Cloud Acceptable Use Policy, odoo.com/acceptable-use) - the adapter makes **one call at a time per store, at least 1 second apart**. The limit counts calls, not products: **one call answers many products** (a page of up to 1,000 - about 700 today, so a full read is one call) |
+| 9 | Their notice | **Our format accepted** (§1.3, as written in the 2026-10-13 request): `POST /sync/notify/{store id}`, `{"codes": [...]}`, signed with the store's secret. **Their server's clock must be right**: the timestamp is universal seconds (the same number in every time zone), refused when more than 5 minutes off; the times staff see stay in each store's own zone (KSA: Riyadh time) |
+| 10 | Writing to Odoo | **Never** - nothing is written to the provider (§9.2 #9; inventory.md §1.9) |
 
 ### 9.2 Answered (owner, 2026-10-13)
 
