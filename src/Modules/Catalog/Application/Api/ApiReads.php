@@ -52,6 +52,12 @@ interface ApiReads
     public function brands(array $brandIds): array;
 
     /**
+     * @param  list<string>  $productIds
+     * @return list<string> those the store sells now (amendment 24)
+     */
+    public function productsSoldIn(string $storeId, array $productIds): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, LineFactsDto> keyed by variant id (amendment 18)
      */

@@ -154,6 +154,50 @@ describe('many at once', function () {
     });
 });
 
+describe('what a store sells, for Feedback (amendment 24)', function () {
+    it('answers in one read which products the store sells now, and leaves out every other', function () {
+        $choose = static fn (string $product, string $store) => Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $product, true)));
+        $sold = Px::ready(['60 cm'])['product'];
+        $elsewhere = Px::ready(['60 cm'])['product'];
+        $unavailable = Px::ready(['60 cm'])['product'];
+        $sizeUnavailable = Px::ready(['60 cm'])['product'];
+        $hidden = Px::ready(['60 cm'])['product'];
+        $archivedSizes = Px::ready(['60 cm']);
+        $draft = Px::product('Hinge');
+        $outOfStock = Px::ready(['60 cm'])['product'];
+        $hiddenWithCategory = Px::ready(['60 cm'])['product'];
+        $switchedOff = Px::ready(['60 cm'])['product'];
+        $oneSizeLeft = Px::ready(['60 cm', '80 cm']);
+        $archived = Px::ready(['60 cm'])['product'];
+
+        foreach ([$sold, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $outOfStock, $hiddenWithCategory, $switchedOff, $oneSizeLeft['product'], $archived] as $product) {
+            $choose($product, 'sa');
+        }
+
+        $choose($elsewhere, 'eg');
+        $sa = Fx::storeId('sa');
+        DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $unavailable)->update(['not_available_now' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('product_id', $sizeUnavailable)->update(['not_available_now' => true]);
+        DB::table('catalog.products')->where('id', $hidden)->update(['hidden_by_brand' => true]);
+        DB::table('catalog.variants')->whereIn('id', $archivedSizes['variants'])->update(['is_archived' => true]);
+        DB::table('catalog.products')->where('id', $hiddenWithCategory)->update(['hidden_by_category' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('product_id', $switchedOff)->update(['is_active' => false]);
+        DB::table('catalog.variants')->where('id', $oneSizeLeft['variants'][0])->update(['is_archived' => true]);
+        DB::table('catalog.products')->where('id', $archived)->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
+
+        $queries = Cx::recordQueries();
+        $found = catalogReads()->productsSoldIn(StoreId::fromString($sa), [
+            strtoupper($sold), $elsewhere, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $draft, $outOfStock,
+            $hiddenWithCategory, $switchedOff, $oneSizeLeft['product'], $archived, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id',
+        ]);
+
+        // Stock never counts: a product out of stock can still be saved and asked about (answer 19).
+        expect($found)->toEqualCanonicalizing([$sold, $outOfStock, $oneSizeLeft['product']])
+            ->and(count($queries))->toBe(1)
+            ->and(catalogReads()->productsSoldIn(StoreId::fromString($sa), []))->toBe([]);
+    });
+});
+
 describe('a brand, for Promotions (amendment 20)', function () {
     it('answers a brand with its names and whether it is switched on; nothing for an unknown id', function () {
         $brand = Px::brand('Hafele');

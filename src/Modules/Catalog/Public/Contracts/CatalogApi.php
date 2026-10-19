@@ -124,6 +124,18 @@ interface CatalogApi
      */
     public function brands(array $brandIds): array;
 
+    /**
+     * For Feedback — reviews, questions and the wishlist (amendment 24; feedback.md §9.1b, 19): **which of
+     * these products the store sells now**, in one read — a ready product, not hidden with its category
+     * or brand, not "Not available now" there, with at least one variant switched on there that is not
+     * archived nor itself "Not available now". Stock does not count. Answered as lower-case ids, in no
+     * particular order; an unknown id, or one the store does not sell, left out.
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public function productsSoldIn(StoreId $store, array $productIds): array;
+
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;
 

@@ -159,6 +159,33 @@ final readonly class DatabaseApiReads implements ApiReads
         return $found;
     }
 
+    public function productsSoldIn(string $storeId, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.products as p')
+            ->join('catalog.store_products as sp', fn ($join) => $join->on('sp.product_id', '=', 'p.id')->where('sp.store_id', '=', strtolower($storeId)))
+            ->whereIn('p.id', $ids)
+            ->where('p.stage', 'READY')
+            ->where('p.hidden_by_category', false)
+            ->where('p.hidden_by_brand', false)
+            ->where('sp.not_available_now', false)
+            ->whereExists(fn ($variants) => $variants->selectRaw('1')
+                ->from('catalog.store_variants as sv')
+                ->join('catalog.variants as v', 'v.id', '=', 'sv.variant_id')
+                ->whereColumn('sv.store_id', 'sp.store_id')
+                ->whereColumn('sv.product_id', 'p.id')
+                ->where('sv.is_active', true)
+                ->where('sv.not_available_now', false)
+                ->where('v.is_archived', false))
+            ->pluck('p.id')
+            ->all()));
+    }
+
     public function lineFacts(array $variantIds): array
     {
         $ids = self::ids($variantIds);
