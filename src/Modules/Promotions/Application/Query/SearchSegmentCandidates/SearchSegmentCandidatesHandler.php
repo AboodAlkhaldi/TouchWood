@@ -14,6 +14,7 @@ use Modules\Promotions\Application\Segment\SegmentMembership;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Repository\Segments;
 use Shared\Application\Unauthorized;
+use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
