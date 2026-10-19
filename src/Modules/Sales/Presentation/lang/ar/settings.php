@@ -6,7 +6,7 @@ declare(strict_types=1);
 return [
     'module' => 'الطلبات',
 
-    'shipping.flat_fee' => 'رسوم الشحن',
-    'shipping.free_above' => 'شحن مجاني ابتداءً من',
+    'shipping.flat_fee' => 'رسوم الشحن (بأصغر وحدة للعملة)',
+    'shipping.free_above' => 'شحن مجاني ابتداءً من (بأصغر وحدة للعملة، 0 يعني أبدًا)',
     'returns.window_days' => 'مدة الإرجاع (أيام بعد الاستلام)',
 ];

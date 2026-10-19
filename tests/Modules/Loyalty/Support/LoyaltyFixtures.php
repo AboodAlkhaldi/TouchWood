@@ -7,11 +7,6 @@ namespace Tests\Modules\Loyalty\Support;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Modules\Access\Public\Contracts\PermissionCatalog;
-use Modules\Access\Public\Dto\PermissionDefinitionDto;
-use Modules\Access\Public\Enums\PermissionAudience;
-use Modules\Access\Public\Enums\PermissionGroup;
-use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Domain\Model\OrderPoints;
 use Modules\Loyalty\Domain\Model\PointsAccount;
@@ -27,35 +22,25 @@ use Modules\Loyalty\Public\Enums\Audience;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Sales\Application\SalesPermissions;
 use RuntimeException;
 use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 /**
- * Loyalty's tests calling it as Sales will (loyalty.md §2.1). **Sales does not exist yet**, so its two
- * permissions are declared here, in each test's own app, exactly as sales.md §3 names them — a
- * stand-in: nothing of Sales ships with Loyalty (plan, step 3).
+ * Loyalty's tests calling it as Sales will (loyalty.md §2.1), with Sales's own permissions — declared by
+ * Sales since its step S1 (sales.md §3); until then these tests declared stand-ins of them.
  */
 final class LoyaltyFixtures
 {
     /** Sales's placing an order: every customer, per store (sales.md §3). */
-    public const string PLACE = 'sales.order.place';
+    public const string PLACE = SalesPermissions::ORDER_PLACE;
 
     /** Sales's delivery: a role's job, per store (sales.md §3). */
-    public const string FULFIL = 'sales.order.fulfil';
+    public const string FULFIL = SalesPermissions::ORDER_FULFIL;
 
     /** Sales's system work: reserved and store-free (sales.md §3) — never a caller's permission. */
-    public const string SYSTEM = 'sales.system.run';
-
-    public static function standInForSales(): void
-    {
-        app(PermissionCatalog::class)->declare(
-            'sales',
-            new PermissionDefinitionDto(self::PLACE, PermissionAudience::EveryCustomer, kind: PermissionKind::PerStore),
-            new PermissionDefinitionDto(self::FULFIL, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Orders),
-            new PermissionDefinitionDto(self::SYSTEM, PermissionAudience::Role, reserved: true, kind: PermissionKind::Global),
-        );
-    }
+    public const string SYSTEM = SalesPermissions::SYSTEM_RUN;
 
     /**
      * The store's programme switched on, with any other settings given, as an admin would save them.

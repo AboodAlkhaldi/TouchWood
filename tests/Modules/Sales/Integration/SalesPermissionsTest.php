@@ -107,3 +107,15 @@ it('reserves the scheduled work to the system, store-free and never offered', fu
     expect([$permission?->reserved, $permission?->kind])->toBe([true, PermissionKind::Global])
         ->and(array_map(static fn (PermissionDefinitionDto $offered): string => $offered->name, app(InMemoryPermissionCatalog::class)->assignable()))->not->toContain(SalesPermissions::SYSTEM_RUN);
 });
+
+it('keeps the audiences apart: staff hold no customer cart, a customer no staff job', function () {
+    // A staff member with every order job (a Super Admin passes every check by design).
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_EDIT, SalesPermissions::ORDER_FULFIL], ['*']));
+    expect(Fx::allows(SalesPermissions::CART_MANAGE, salesStore('sa')))->toBeFalse()
+        ->and(Fx::allows(SalesPermissions::ORDER_PLACE, salesStore('sa')))->toBeFalse();
+
+    Fx::actAsCustomer(Fx::customer());
+    expect(Fx::allows(SalesPermissions::ORDER_VIEW, salesStore('sa')))->toBeFalse()
+        ->and(Fx::allows(SalesPermissions::SETTINGS_UPDATE, salesStore('sa')))->toBeFalse()
+        ->and(Fx::allows(SalesPermissions::GUEST_CART_MANAGE, salesStore('sa')))->toBeFalse();
+});

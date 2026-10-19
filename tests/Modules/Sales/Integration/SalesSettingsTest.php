@@ -66,9 +66,11 @@ it('takes each value within its range and refuses one outside it', function (str
     'the window' => [SalesSettings::RETURN_WINDOW_DAYS, 1, 365],
 ]);
 
-it('refuses them to staff without the admin-only job', function () {
-    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));
+it('refuses them to staff who run the store\'s orders, and to an admin of another store', function () {
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_FULFIL, SalesPermissions::PAYMENT_RECORD], ['sa']));
+    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::FLAT_FEE, 'sa', 25_00)))->toThrow(Unauthorized::class);
 
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::SETTINGS_UPDATE], ['ae'], RoleLevel::Admin));
     expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::FLAT_FEE, 'sa', 25_00)))->toThrow(Unauthorized::class);
 });
 

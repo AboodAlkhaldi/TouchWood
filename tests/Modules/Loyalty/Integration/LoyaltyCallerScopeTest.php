@@ -30,7 +30,6 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
-    Lx::standInForSales();
     Lx::programme();
     Lx::programme('eg');
 });

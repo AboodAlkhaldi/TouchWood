@@ -7,7 +7,7 @@ declare(strict_types=1);
 return [
     'may_not_order' => [
         'title' => 'You Can\'t Order Yet',
-        'detail' => 'Your account can\'t place orders in this store yet. Check your account page for what\'s missing.',
+        'detail' => 'Your account can\'t place orders in this store now. Check your account page for what\'s missing.',
     ],
     'not_for_your_account' => [
         'title' => 'Not Sold to Your Account',
@@ -55,7 +55,7 @@ return [
     ],
     'return_not_allowed' => [
         'title' => 'Return Not Allowed',
-        'detail' => 'This return can\'t be asked for: the window has passed, or the pieces or photos are more than allowed.',
+        'detail' => 'You can\'t return this: the return window has passed, or there are more pieces or photos than allowed.',
     ],
     'too_many_files' => [
         'title' => 'Can\'t Add More Files',
@@ -63,7 +63,7 @@ return [
     ],
     'refund_too_large' => [
         'title' => 'Refund Too Large',
-        'detail' => 'The refund is more than this order holds.',
+        'detail' => 'The refund is more than what was paid on this order and not yet refunded.',
     ],
     'invalid_order_change' => [
         'title' => 'Can\'t Do That Now',

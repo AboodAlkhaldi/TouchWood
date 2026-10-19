@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Public\Contracts;
 
+use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Dto\PaymentMethodDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Enums\PaymentAudience;
@@ -26,6 +27,9 @@ interface PaymentsApi
      */
     public function methods(StoreId $store, PaymentAudience $audience, Money $amount): array;
 
-    /** Starts paying an order online by a method `methods` offered: where to send the buyer. */
-    public function start(string $orderId, string $method): PaymentStartDto;
+    /** Starts paying this amount of an order online, by a method `methods` offered: where to send the buyer. */
+    public function start(string $orderId, string $method, Money $amount): PaymentStartDto;
+
+    /** A payment as Payments recorded it — read by Sales when `PaymentSucceeded` arrives with ids only. */
+    public function payment(string $paymentId): ?PaymentDto;
 }

@@ -6,7 +6,7 @@ declare(strict_types=1);
 return [
     'module' => 'Orders',
 
-    'shipping.flat_fee' => 'Shipping Fee',
-    'shipping.free_above' => 'Free Shipping From',
+    'shipping.flat_fee' => 'Shipping Fee (in the Currency\'s Smallest Unit)',
+    'shipping.free_above' => 'Free Shipping From (in the Currency\'s Smallest Unit; 0 Means Never)',
     'returns.window_days' => 'Return Window (Days After Delivery)',
 ];

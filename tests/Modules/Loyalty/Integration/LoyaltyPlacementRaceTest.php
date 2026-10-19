@@ -50,7 +50,6 @@ beforeEach(function () {
     Artisan::call('migrate:fresh');
     seed(PlatformSeeder::class);
     config(['database.connections.loyalty_race' => config('database.connections.'.config('database.default'))]);
-    Lx::standInForSales();
 });
 
 afterEach(function () {
