@@ -8,14 +8,20 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Public\Events\ProductMadeReady;
 use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Catalog\Public\Events\VariantCodeCorrected;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Pricing\Public\Events\DiscountReachChecked;
+use Modules\Sync\Application\Connections\NoticeAddresses;
 use Modules\Sync\Application\Report\SyncLog;
+use Modules\Sync\Application\Report\SyncReportCount;
+use Modules\Sync\Application\Report\SyncWords;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
@@ -30,6 +36,7 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseReads;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReportEntries;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
+use Modules\Sync\Infrastructure\External\UrlNoticeAddresses;
 use Modules\Sync\Infrastructure\Listener\CloseReachedDiscounts;
 use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
@@ -47,6 +54,7 @@ use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
  * Step 1: the schema, the permissions, the errors and their words. Step 3: wiring a store - the
  * connections, the provider's adapters, and Sync's answer to "is this store wired". Step 4: the reads -
  * the engine, the provider's notices, the hourly and nightly schedules, a corrected code read again.
+ * Stage 5's screens step 6: its screens' reads and routes, their words, and its menu entries.
  */
 final class SyncServiceProvider extends ServiceProvider
 {
@@ -59,6 +67,8 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->bind(ReadReports::class, DatabaseReadReports::class);
         $this->app->bind(SyncLog::class, DatabaseSyncLog::class);
         $this->app->bind(ProviderAdapters::class, ContainerProviderAdapters::class);
+        $this->app->bind(SyncWords::class, LangSyncWords::class);
+        $this->app->bind(NoticeAddresses::class, UrlNoticeAddresses::class);
         // In place of Pricing's and Inventory's "no store is wired" (sync.md §2.2): registered after
         // them, so these bindings win.
         $this->app->bind(PricingWiring::class, ConnectionWiring::class);
@@ -95,8 +105,16 @@ final class SyncServiceProvider extends ServiceProvider
             $schedule->job(PruneSyncLogJob::class)->timezone('Asia/Riyadh')->dailyAt('03:00')->onOneServer();
         });
 
+        // The panel's menu, its own Sync group after Pricing (§4.1.2, S6): the Sync Report with its open
+        // entries beside it, and the Provider page for Super Admins - stage 5's screens step 6.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('sync', 'report', PermissionGroup::Sync->value, 'sync.admin.report', SyncPermissions::REPORT_VIEW, 10, icon: 'sync', count: SyncReportCount::class),
+            new MenuEntryDto('sync', 'provider', PermissionGroup::Sync->value, 'sync.admin.provider', SyncPermissions::CONNECTION_MANAGE, 20, icon: 'sync'),
+        );
+
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/notify-routes.php');
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }
     }
 }

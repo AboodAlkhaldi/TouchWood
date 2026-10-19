@@ -8,27 +8,31 @@ use Modules\Sync\Application\Query\ListSyncReads\ReadView;
 use Modules\Sync\Application\Report\ReportedView;
 
 /**
- * One read and its sections (sync.md §9.3 #19): prices changed, stock changed, reported - each a page of
- * at most `perPage`, with its total - and the codes a notice's or a code's read asked for.
+ * **One read's page** (sync.md §4.1 Y2): its store (the breadcrumb's code, its zone for the moments), the
+ * header as the page of reads writes it, how many lines each section holds (the tabs), and the section
+ * asked for - one page of 100 of it, and whether more follow (Show More). Only the asked section's rows
+ * are read: `lines` for Prices or Stock, `reported` for Reported, `codes` for Codes Asked.
  */
 final readonly class ReadDetailView
 {
     /**
-     * @param  list<string>|null  $codes
-     * @param  list<ReadLineView>  $prices
-     * @param  list<ReadLineView>  $stock
+     * @param  array{prices: int, stock: int, reported: int, codes: int}  $sections
+     * @param  list<ReadLineView>  $lines
      * @param  list<ReportedView>  $reported
+     * @param  list<string>  $codes
      */
     public function __construct(
         public ReadView $read,
-        public ?array $codes,
-        public array $prices,
-        public int $pricesTotal,
-        public array $stock,
-        public int $stockTotal,
-        public array $reported,
-        public int $reportedTotal,
+        public string $storeId,
+        public string $storeCode,
+        public string $storeTimezone,
+        public array $sections,
+        public string $section,
         public int $page,
         public int $perPage,
+        public bool $more,
+        public array $lines,
+        public array $reported,
+        public array $codes,
     ) {}
 }

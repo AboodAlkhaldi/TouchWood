@@ -6,8 +6,10 @@ namespace Modules\Sync\Application\Report;
 
 use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\PlatformPermissions;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Exception\SyncError;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -16,7 +18,8 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * What every report read and action shares (sync.md §3): the permission in that store - a malformed
- * store id is no store the person holds anything in - and a store that exists. An action on an entry or
+ * store id is no store the person holds anything in - a store that exists, and, off, one only whoever
+ * may switch stores works in (`StoreOff`). An action on an entry or
  * a read looks that up first, to know its store (as Pricing finds a sale first).
  */
 final readonly class ReportAccess
@@ -31,7 +34,7 @@ final readonly class ReportAccess
      *                                    person holds neither this permission nor View the Sync Report in
      *                                    is not found - nothing tells them it exists (owner, 2026-10-18)
      *
-     * @throws Unauthorized|InvalidSyncInput|SyncError
+     * @throws Unauthorized|InvalidSyncInput|StoreOff|SyncError
      */
     public function authorize(string $permission, string $storeId, ?SyncError $notFound = null): StoreId
     {
@@ -47,8 +50,12 @@ final readonly class ReportAccess
 
         $this->authorizer->authorize($permission, PermissionScope::store($store));
 
-        if ($this->platform->store($store) === null) {
-            throw new InvalidSyncInput('store');
+        $found = $this->platform->store($store) ?? throw new InvalidSyncInput('store');
+
+        // An off store is offered only to whoever may switch stores; the reads and actions refuse
+        // everyone else (pricing.md §4.3.1 Q1, shared by every stage 5 screen).
+        if (! $found->isActive && $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) === []) {
+            throw new StoreOff;
         }
 
         return $store;

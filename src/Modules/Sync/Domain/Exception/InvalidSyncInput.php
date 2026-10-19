@@ -8,13 +8,19 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * A value that is not one (sync.md §7): a store that does not exist, an address that is not HTTPS, an
- * empty key or secret, a provider we do not have. Named by its field, as Catalog's invalid attribute is.
+ * empty key or secret, a provider we do not have. Named by its field, as Catalog's invalid attribute is -
+ * and one of the provider's own settings by its own name (`settings`, the setting named; Q34).
  */
 final class InvalidSyncInput extends SyncError
 {
-    public function __construct(public readonly string $attribute)
-    {
-        parent::__construct("Invalid {$attribute}.");
+    /** The field of a provider's own setting refused; the setting is named beside it. */
+    public const string SETTINGS = 'settings';
+
+    public function __construct(
+        public readonly string $attribute,
+        public readonly ?string $setting = null,
+    ) {
+        parent::__construct($setting === null ? "Invalid {$attribute}." : "Invalid provider setting {$setting}.");
     }
 
     public function type(): string
@@ -29,6 +35,7 @@ final class InvalidSyncInput extends SyncError
 
     public function context(): array
     {
-        return ['attribute' => $this->attribute];
+        // A setting's own message names it (`rules.setting`), as the provider's adapter names it.
+        return $this->setting === null ? ['attribute' => $this->attribute] : ['attribute' => $this->attribute, 'setting' => $this->setting, 'rule' => 'setting'];
     }
 }

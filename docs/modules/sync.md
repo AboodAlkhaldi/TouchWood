@@ -154,6 +154,9 @@ good, as always. **One audit entry per read**, the detail being in those histori
 - **One code fails** (§1.4, §1.5): that code is skipped and reported; the read goes on.
 - A read is never left half-recorded: each batch of sizes is written in its own transaction, so a
   crash keeps what was written and the next read finishes the rest.
+- **A read's values are gathered from the provider first, then written in batches of 500**, each in its
+  own transaction (so a code that comes twice is known before anything is written, §2.4): a failure while
+  fetching writes nothing from that attempt, and the retry reads again (screens step 6's review, 2026-10-19).
 - Bulk work is batched — never one job per size (handoff §12.2).
 
 ### 1.8 Unwiring a store
@@ -182,7 +185,7 @@ prices and stock stay as they are, now editable by hand.
   a number)`. A `ConnectionFailed`'s reason is shown to staff: a short sentence (what failed, a status
   code), never the provider's response or an address with a key in it.
 
-`OdooAdapter` waits for the provider's documentation (§9.1); `FakeProvider` serves the tests.
+`OdooAdapter` waits for the custom API's spec (§2.4, the owner's answers of 2026-10-19: §9.1); `FakeProvider` serves the tests.
 
 ### 2.2 What Sync gives other modules
 
@@ -200,6 +203,73 @@ Nothing new for Sales or Catalog. Sync **binds** the wiring question Pricing and
 | Catalog | `variantByCode(string)` (archived ones too), **`variantsByCodes(list)`** (many at once - catalog.md amendment 21, for the reads' batches), `variants()`, `products()`, `switchedOnVariantIds(StoreId)`; the `VariantCodeCorrected` event | On `main` |
 | Platform | Stores; encryption with the app's key; the audit log; `MenuCount`; the scheduler | On `main` |
 | Access | Declaring Sync's permissions (handoff §4.4; `deptrac.yaml`) | Allowed |
+
+### 2.4 The Odoo API built for us (accepted by the owner, 2026-10-19)
+
+The provider's team builds this inside each store's Odoo account, to this text (owner, 2026-10-19:
+"a custom API built for us … they follow it"; §9.1). **It only reads**: every call is a `GET`, so it can
+change nothing in Odoo. Each store is its own account, with its own address and token (§9.1 #2).
+
+**Calls - ours to theirs**
+
+| | |
+|---|---|
+| Address | The store's base address, typed by a Super Admin on the Provider page (§1.2), ending in `/touchwood/v1` - `https://<the account's address>/touchwood/v1`. HTTPS only |
+| Sign-in | Header `Authorization: Bearer <token>` - the store's token, typed with the address. One token per account, never shared (§9.1 #2) |
+| Pace | **One call at a time per store, at least 1 second apart** - within Odoo's policy of about 1 call a second, none in parallel (§9.1 #8). Each call waits **30 seconds** at most |
+
+1. **Every item** - `GET /items?limit=1000&after=<next>`: the account's items, **ordered by code**,
+   `limit` at most 1,000 (about 700 today: one call). The nightly read, Sync now, a store just wired.
+2. **What changed** - `GET /items?changed_since=<time>&limit=1000&after=<next>`: the items whose price or
+   available stock changed at or after `<time>` (UTC, `2026-10-19T12:00:00Z`). The hourly read. We pass
+   the start of our last read **less 5 minutes** - the most their clock may be off (the notice's rule) -
+   so a change at the edge is read twice, never missed (a value read twice changes nothing, §1.4, §1.5).
+3. **Named codes** - `GET /items?codes=123,1234,…`: up to **500 codes** a call (a longer list is asked
+   in several calls). The notified read, a corrected code (§1.3). Codes not in the account are listed in
+   `missing`.
+4. **The test** - `GET /items?limit=1`: when a Super Admin saves the connection (§1.2, §9.2 #10).
+
+**The answer** - `200`, JSON:
+
+```json
+{
+  "items": [
+    { "code": "123",  "price": "120.00", "available": 7 },
+    { "code": "1234", "price": "85.50",  "available": 0 }
+  ],
+  "missing": [],
+  "next": null
+}
+```
+
+| Field | Rule |
+|---|---|
+| `code` | **Text**, exactly as kept in Odoo (`"123"`, never the number `123`); **one code per variant, never two variants with one code** in an account (§9.1 #4) |
+| `price` | **Text**, the variant's **base selling price** in the store's currency, with the currency's decimals (`"120.00"`), **without VAT and without any discount** (§9.1 #5) |
+| `available` | A **whole number**: the variant's stock **available to order** (§9.1 #6) |
+| `missing` | Call 3 only: the asked codes the account does not have; `[]` otherwise |
+| `next` | Text to pass as `after` for the next page; `null` on the last page |
+
+Other fields are ignored. **A code twice in one read**: both skipped and reported (`BAD_VALUE`) (owner, 2026-10-19). Archived variants are left out of calls 1 and 2, and listed in `missing` by
+call 3 - so our nightly read reports them as not known to the provider (§1.6).
+
+**Errors** - `401` a wrong or missing token · `400` a bad parameter (`{"error": "<short reason>"}`) ·
+`429` too many calls, with `Retry-After` in seconds · `5xx` their fault. Our side: a `429` waits `Retry-After`
+(at most 60 seconds) and asks once more; anything else - or a second `429`, or a timeout - fails the
+read, which is **retried after 1, 5 and 15 minutes**, then reported as failed until a later read
+succeeds (§1.7); the reason shown is a short sentence with the status code (§2.1).
+
+**Their notice - theirs to ours** (§1.3, accepted 2026-10-19, §9.1 #9): when a variant's price or
+available stock changes, `POST https://<our address>/sync/notify/<store id>`, body `{"codes": ["123"]}`
+(1–1,000 codes, as text), headers `X-TouchWood-Timestamp` (Unix seconds - the same number in every time
+zone) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `<timestamp>.<body>` with the store's notice
+secret). Their server's **clock must be right** (synced): a notice more than 5 minutes off is refused.
+Answers: `202` taken · `401` a bad signature or time · `422` not a list of codes · `429` too many (at
+most 60 a minute per store), wait `Retry-After` and send again, or drop it - the hourly read covers it.
+
+**What we ask of their team**: build the four calls and the notice to this text, in each account;
+per store, the address and the token (to the Super Admin), and the notice secret agreed with us; a
+clock kept right; codes unique per account; a contact for the go-live and for a read that fails.
 
 ---
 
@@ -265,12 +335,44 @@ Pricing, icon `sync` (Lucide's `RefreshCw`):
 
 | Query | Answers |
 |---|---|
-| `SyncStatus` (new, S8; `sync.report.view`) | the provider's name, the state with its reason, **Last Read** - the newest finished read of any kind - and **Last Full Read** (Q29), a read waiting or running (its kind and start) |
+| `SyncStatus` (new, S8; `sync.report.view`) | the provider's name, the state with its reason, **Last Read** - the newest read that finished successfully, of any kind (owner, 2026-10-19: option A - a failed read shows as Failing with its reason, never as the last read) - and **Last Full Read** (Q29), a read waiting or running (its kind and start) |
 | `ViewSyncReport` (extended) | each entry's size values; for a stopped sale or a skipped discount its description and whether it still exists (Pricing's `salesNamed`, `discountsNamed`) (Q37) |
 | `ListSyncReads` (extended) | who asked, by name (Platform's `StaffNames`) (Q36); a failed read's changes counted from its lines (Q30) |
 | `ViewSyncRead` (extended) | each section paged on its own (`?section=&page=`), the codes asked for as a section, 100 a page (Q32); the read's store code |
 | `ViewConnection` (extended, S7) | the last full read; the notice address and what the provider must send |
 | `SyncActionsForReader` (new) | per store: may view, may run, may wire; whether a Now read waits; `mayViewProducts`; the reasons |
+
+**Built (stage 5's screens step 6, 2026-10-19)** - the reads as Application queries answering page-facing
+views, every moment ISO 8601, a price written as Pricing writes money; the routes (`sync.admin.*`), their
+controllers and page data, the menu's two entries and the words; the pages are placeholders until step 7:
+
+- `SyncStatus`: `WORKING`, `FAILING` (its reason) or `NOT_WIRED`; Last Read is the newest read **done**, by
+  its end; Last Full Read the start of the last full read that worked (`connections.last_full_read_at`); the
+  read running, else the first waiting.
+- **Show More** pages by a cursor (the last row's time and id): Problems by when last seen, Reads by when
+  asked. A cursor that is not one is refused (`after`). A read's sections page by number (`?page=`).
+- **Q31**: Sync's own reasons are stored as codes - `STOPPED_REWIRED`, `WORKER_GONE`, `UNWIRED`, `SUPERSEDED`,
+  `JOB_FAILED` - in the same columns as before (a migration turned the sentences into codes); anything
+  else is the provider's words. **Q34**: a setting is refused as `settings` naming it (`rules.setting`), and
+  the Provider form puts it under its own box (`errors["settings.<name>"]`).
+- `SyncActionsForReader` also answers `mayViewOffers` (any of Pricing's three jobs), so a link to an offer
+  or a discount is drawn only for whoever may open it (pricing.md §4.3.1).
+- The provider's adapter answers `ready()` (Q38): Odoo's is false until §2.4's adapter is written.
+- **A code twice in one read** (§2.4): the read's values are gathered by code before anything is written, so
+  both are skipped however far apart they come; the size's `BAD_VALUE` keeps both (`detail.twice`). A code we
+  do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5). The entry keeps the first five
+  values sent and how many came (`count`).
+- **The review's points (2026-10-19)**: an off store is refused (`StoreOff`, §7) in every read and action to
+  whoever may not switch stores; Retry is refused on Offer Stopped and Off or Draft (`EntryNotRetryable`,
+  §7; Q27); an entry about no size of ours (Unknown Code, Read Failed) says nothing of its size
+  (`sizeExists` null); a failed read's audit entry keeps its code and, beside it, the English sentence
+  (`reason`) - the audit log shows a module's values as recorded, never phrased. **The budget, in its
+  worst case** (an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several
+  askers): the page's sizes are read once and handed to Pricing's `salesNamed` (pricing.md §2.1), and every
+  store's wiring and waiting Sync Now reads are one query - each page's own queries, for a reader of one store
+  and for a Super Admin alike: Problems 12, Reads 5, a read 8, its Stock 8, its Reported 13, Provider 5. (The
+  frame's Low Stock count, counted live until a store's count is kept, asks Sync's `StoreWiring` binding; it is
+  the frame's, not the page's, and is left out as Inventory's own test leaves it out.)
 
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 
@@ -279,8 +381,9 @@ Pricing, icon `sync` (Lucide's `RefreshCw`):
   more to follow; disabled only while a Now read already waits: "A read is already waiting." (Q26) →
   "Read queued".
 - **The status line** (`SyncStatus`), above the tabs: the provider ("Odoo"), the state badge, "Last read 12
-  minutes ago" and "Last full read last night at 02:00" (`Time`), and when one waits or runs: "A read is
-  running, started 2 minutes ago." **Failing**: a red `Note` - "The provider said: …" - and "Press Sync Now
+  minutes ago" - the newest read that finished successfully, of any kind (owner, 2026-10-19: option A - a
+  failed read shows as Failing with its reason, never as the last read) - and "Last full read last night at
+  02:00" (`Time`), and when one waits or runs: "A read is running, started 2 minutes ago." **Failing**: a red `Note` - "The provider said: …" - and "Press Sync Now
   once the provider is back."
 - **A store not wired** (Q35): the status line **Not Wired** - "This store is not wired to a provider." - with
   **Wire Store** for a Super Admin (Y3); **no Problems tab**: the page shows Reads (kept 90 days),
@@ -397,6 +500,8 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `ReadNotFound` | NOT_FOUND | A read's page for a read that is not there (pruned after 90 days, or never one) |
 | `SizeNotFound` | NOT_FOUND | Retry on an entry whose size was deleted since (§9.3 #24) |
 | `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
+| `EntryNotRetryable` | CONFLICT | Retry on an Offer Stopped or an Off or Draft entry, which a read never closes (Q27): staff open the offer or the product instead (screens step 6's review, 2026-10-19) |
+| `StoreOff` | FORBIDDEN | A Sync read or action - the report, a read, Sync now, Retry, Dismiss, the Provider page and its changes - in a store that is off, by someone who may not switch stores (pricing.md §4.3.1 Q1, shared by every stage 5 screen; screens step 6's review, 2026-10-19). The system's own reads of an off store go on (§1.1 rule 8) |
 | `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a
@@ -433,23 +538,23 @@ staff error.
 
 ## 9 · Questions
 
-### 9.1 Open
+### 9.1 The provider's team - answered (owner, 2026-10-19)
 
-**Waiting for the provider's team** (the request the owner sends, 2026-10-13):
+The owner answered the questions sent to the provider's team (2026-10-13); several had been settled
+already (§9.2 #9: the base price only, nothing written back).
 
-| # | Question |
-|---|---|
-| 1 | The API's address, a test copy, and whether it is Odoo's standard API or one built for us |
-| 2 | How we sign in, per store (key, user and key, database or company) — the adapter's fields (§1.2) |
-| 3 | The calls for price and stock, their field names, one example answer each |
-| 4 | Which field is the product code; one code per size (variant)? |
-| 5 | The price field, its currency, **with or without VAT** (ours are kept without VAT; with it, the adapter takes it out at the store's rate — the rounding then asked of the owner) |
-| 6 | Which stock quantity (on hand / available), per product or per warehouse, and which warehouse is which store (inventory.md §9.1 #1) |
-| 7 | Can we ask for what changed since a time (the hourly read, §1.3)? About how many products? |
-| 8 | Call limits, page size, hours to avoid |
-| 9 | Their notification (§1.3): our shape, or theirs? A technical contact — **built in our shape** (the Odoo request's Format B, which the owner found fine on 2026-10-13): `POST /sync/notify/{store id}` (a store id that is not one has no route: 404), body `{"codes": [...]}` of 1–1,000 codes, each text of 1–255 characters, spaces around trimmed, at most 300 KB (else 413); headers `X-TouchWood-Timestamp` (unix seconds, within 5 minutes either way) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `timestamp.body` with the store's secret). 202 queued — the same signed notice again within its window answered 202, queuing nothing more; 401 with no body for a wrong or missing signature, a time off, a store not wired or unknown; 422 not a list of codes; 429 over 60 calls a minute for the store, with `Retry-After`. A notice's codes join the one notice read waiting for the store. Changed if their team asks for theirs |
-
-Points A–G, asked with this spec, were accepted (owner, 2026-10-13): §9.2 #10–16.
+| # | Question | Answer |
+|---|---|---|
+| 1 | Standard API or one built for us; a test copy | **A custom API built for us**: our code runs in their Odoo, shaped as we write it (§2.4, to be written and accepted). **No test copy** (owner, 2026-10-19): we only read, and a read changes nothing in Odoo - the adapter is tested against the live account before the store opens |
+| 2 | How we sign in, per store | **Each store is its own Odoo account** - its own address, database, token and prices; **no two stores share a token**. A **token per store**, typed on the Provider page by a Super Admin (§1.2); how it reaches the Super Admin is outside the system |
+| 3 | The calls, fields, examples | **Ours to write** (§2.4); they follow it |
+| 4 | The code; one per size? | **One code per size (variant)**; Odoo keeps only the name, code, price and stock - **we read price and stock by code, nothing else**. Their codes are **3 or 4 digits** (`123`, `1234`); **sent as text** exactly as kept, compared as written (§9.2 #15) |
+| 5 | Currency, VAT | **No currency** (one account = one store and region, its price in the store's currency); **no VAT, no discount: the base price only** (§9.2 #9). VAT, offers, discounts and shipping are ours |
+| 6 | Which stock | **Available to order, per size**; warehouses are not ours to see (inventory.md §9.1 #1) |
+| 7 | Changed since a time; how many | **Yes**, besides the hourly read; **about 700 products**, growing |
+| 8 | Limits, hours to avoid | **No hours to avoid**; calls within Odoo's own policy: *"throttled calls are typically acceptable for unsustained usage at a rate of 1 call/second, with no parallel calls"* (Odoo Cloud Acceptable Use Policy, odoo.com/acceptable-use) - the adapter makes **one call at a time per store, at least 1 second apart**. The limit counts calls, not products: **one call answers many products** (a page of up to 1,000 - about 700 today, so a full read is one call) |
+| 9 | Their notice | **Our format accepted** (§1.3, as written in the 2026-10-13 request): `POST /sync/notify/{store id}`, `{"codes": [...]}`, signed with the store's secret. **Their server's clock must be right**: the timestamp is universal seconds (the same number in every time zone), refused when more than 5 minutes off; the times staff see stay in each store's own zone (KSA: Riyadh time) |
+| 10 | Writing to Odoo | **Never** - nothing is written to the provider (§9.2 #9; inventory.md §1.9) |
 
 ### 9.2 Answered (owner, 2026-10-13)
 

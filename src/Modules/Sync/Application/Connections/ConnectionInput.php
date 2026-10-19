@@ -64,16 +64,19 @@ final readonly class ConnectionInput
         $asked = $this->adapters->for($provider)->fields();
         $kept = [];
 
+        // Each refused by its own name (Q34): one not asked for, empty or not text, or one left out.
         foreach ($settings as $field => $value) {
             if (! in_array($field, $asked, true) || ! is_string($value) || trim($value) === '') {
-                throw new InvalidSyncInput('provider');
+                throw new InvalidSyncInput(InvalidSyncInput::SETTINGS, mb_substr((string) $field, 0, 100));
             }
 
             $kept[$field] = $value;
         }
 
-        if (count($kept) !== count($asked)) {
-            throw new InvalidSyncInput('provider');
+        foreach ($asked as $field) {
+            if (! array_key_exists($field, $kept)) {
+                throw new InvalidSyncInput(InvalidSyncInput::SETTINGS, $field);
+            }
         }
 
         return $kept;

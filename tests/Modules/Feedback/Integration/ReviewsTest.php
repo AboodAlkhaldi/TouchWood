@@ -7,6 +7,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Str;
 use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
 use Modules\Catalog\Domain\Exception\CatalogItemInUse;
@@ -106,6 +107,8 @@ describe('writing a review', function () {
         $sara = Fx::customer();
         Fb::delivered($sara, $product, $sixty);
         $id = Fb::write($sara, $product);
+        // The code's own check, not the key behind it (CONVENTIONS, tests): the key dropped here.
+        DB::statement('ALTER TABLE feedback.reviews DROP CONSTRAINT reviews_one_per_product');
 
         expect(fn () => Fb::write($sara, $product, storeCode: 'ae'))->toThrow(AlreadyReviewed::class);
 
@@ -325,10 +328,12 @@ describe('a return', function () {
             ->and(reviewRow($omarsHinge)['mark'])->toBe('VERIFIED_PURCHASE');
     });
 
-    it('does nothing for a return Sales does not know', function () {
+    it('changes nothing for a return Sales does not know, and reports it', function () {
+        Exceptions::fake();
         event(new ReturnCompleted((string) Str::uuid(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), Fx::customer(), CarbonImmutable::now()));
 
         expect(DB::table('feedback.reviews')->count())->toBe(0);
+        Exceptions::assertReported(fn (LogicException $reported): bool => str_contains($reported->getMessage(), 'no completed return'));
     });
 });
 

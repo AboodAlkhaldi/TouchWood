@@ -122,6 +122,7 @@ function adminFrameParts(array $queries): array
             str_contains($query['sql'], 'failed_jobs') => 'failed jobs count',
             str_contains($query['sql'], '"pricing"."unpriced_counts"') => 'needs a price count',
             str_contains($query['sql'], '"inventory"."low_counts"') => 'low stock count',
+            str_contains($query['sql'], '"sync"."report_entries"') => 'sync report count',
             str_contains($query['sql'], '"platform"."media"') => 'picture',
             default => 'other: '.$query['sql'],
         };
@@ -193,9 +194,10 @@ it('opens in its own recorded number of queries, whatever jobs the person holds'
     // Whoever may manage failed jobs is also shown how many wait (the System entry's number,
     // frontend.md E7): one count more; whoever edits prices, how many sizes need a price, kept per store
     // (pricing.md §4.3.2, Q43): one more; whoever manages stock, how many sizes are low, kept per store
-    // (inventory.md §4.3.2): one more.
-    'every job' => ['an admin holding every job a role can hold', 12, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1]],
-    'a Super Admin' => ['a Super Admin', 12, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1]],
+    // (inventory.md §4.3.2): one more; whoever views the Sync Report, its open entries over their stores
+    // (sync.md §4.1.2, one query): one more.
+    'every job' => ['an admin holding every job a role can hold', 13, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1]],
+    'a Super Admin' => ['a Super Admin', 13, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1]],
     // A picture is asked of Platform: one read of the media row.
     'a picture' => ['one job, with a picture', 10, ['picture' => 1]],
 ]);

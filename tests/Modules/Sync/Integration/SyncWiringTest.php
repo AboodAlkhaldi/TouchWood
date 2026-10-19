@@ -159,7 +159,7 @@ describe('wiring', function () {
             syncWire(...['settings' => ['database' => 'tw'], ...$given]);
             $refused = null;
         } catch (InvalidSyncInput $error) {
-            $refused = $error->attribute;
+            $refused = $error->attribute.($error->setting === null ? '' : '.'.$error->setting);
         }
 
         expect($refused)->toBe($field)->and($fake->tested)->toBe([]);
@@ -174,10 +174,11 @@ describe('wiring', function () {
         'an empty key' => [['key' => '  '], 'key'],
         'an empty secret' => [['secret' => ''], 'secret'],
         'a key too long' => [['key' => str_repeat('k', 1001)], 'key'],
-        'a field the provider does not ask for' => [['settings' => ['company' => '1']], 'provider'],
-        'an empty field it asks for' => [['settings' => ['database' => ' ']], 'provider'],
-        'a field it asks for left out' => [['settings' => []], 'provider'],
-        'a field that is not text' => [['settings' => ['database' => 7]], 'provider'],
+        // Each of the provider's settings refused by its own name (Q34).
+        'a field the provider does not ask for' => [['settings' => ['company' => '1']], 'settings.company'],
+        'an empty field it asks for' => [['settings' => ['database' => ' ']], 'settings.database'],
+        'a field it asks for left out' => [['settings' => []], 'settings.database'],
+        'a field that is not text' => [['settings' => ['database' => 7]], 'settings.database'],
     ]);
 
     it('takes the fields the provider asks for', function () {
@@ -305,7 +306,7 @@ describe('unwiring (sync.md §1.8)', function () {
             ->and(app(InventoryWiring::class)->isWired(StoreId::fromString(syncSa())))->toBeFalse()
             ->and(DB::table('sync.report_entries')->value('closed_by'))->toBe('UNWIRED')
             ->and(DB::table('sync.reads')->value('state'))->toBe('FAILED')
-            ->and(DB::table('sync.reads')->value('error'))->toBe('The store was unwired.')
+            ->and(DB::table('sync.reads')->value('error'))->toBe('UNWIRED')
             ->and(Fx::audits('sync.connection.unwired', syncSa()))->toBe(1)
             ->and((string) DB::table('platform.audit_entries')->where('action', 'sync.connection.unwired')->value('changes'))->toContain('stopped_orderable');
     });
@@ -354,7 +355,7 @@ describe('the Provider page', function () {
             ->and($view->address)->toBe('https://odoo.test/api')
             ->and($view->keySet)->toBeTrue()
             ->and($view->changedAt)->not->toBeNull()
-            ->and($view->state)->toBe('OK')
+            ->and($view->state)->toBe('WORKING')
             ->and(str_contains((string) json_encode($view), 'key-1') || str_contains((string) json_encode($view), 'secret-1'))->toBeFalse();
     });
 

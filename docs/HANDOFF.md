@@ -137,6 +137,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-13 | §12.2 | **Sync's rules** ([sync.md](modules/sync.md)): the provider gives **the base price and stock only** (its discounts are not read); it **notifies us** of price and stock changes, with **Sync now**, a **nightly** full read and a light **hourly** one; a provider price that takes a sale past the ceiling is taken and **stops the sale on that size**, reported; off and draft sizes take the values and are listed, archived ones skipped; **unwiring keeps the last values** and hands them to staff at once; a **Sync report** per store with a menu count, kept **90 days**; the key and the notification secret **encrypted in our database** (CONVENTIONS.md's exception). "Our invoice shows the base price and the price after discount" means our order page, email and receipt — no invoices are issued here | Owner, 2026-10-13 |
 | 2026-10-19 | §14 | **The Points menu** (owner, 2026-10-19, Loyalty's screens; loyalty.md §4.1): Points › Customers (the store's points holders, each opening their points), Redemptions and Settings (opening the settings screen at the Points card); "Customers › Loyalty" leaves the Customers menu (proposed, loyalty.md §9.5 P8) — a customer's points also show as a section of the customer's own page | Owner decision; P8 proposed |
 | 2026-10-19 | §13.3 | **Staff messages to customers, for Ops** (owner, 2026-10-19, from Loyalty's screens): staff may send a message to all customers, to some, or to one found by name, in the account's notifications, by email or by SMS as they choose — for example to explain a change of points. Ops specifies and builds it; nothing before Ops | Owner decision |
+| 2026-10-19 | §2, §13.1 | **Product questions are global** (feedback.md answer 16): asked in a store, answered by its staff, shown once answered in every store that sells the product; an answered question may be unpublished (answer 18) — replaces "questions per store" of 2026-10-09 | Owner, Feedback's answers before the build |
 
 ---
 
@@ -263,8 +264,8 @@ identity, wishlists.
 
 **Store-scoped:** availability, visibility, prices, stock, tax, payment
 configuration, carriers, coupons, promotions, homepage content, loyalty configuration and
-balances, carts, orders, payments, questions. Reviews are global per product (owner, 2026-10-02),
-recording the store they were written in.
+balances, carts, orders, payments. Reviews and product questions are global per product (owner,
+2026-10-02; questions 2026-10-19), recording the store they were written or asked in.
 
 Every store-scoped Eloquent model declares a global scope binding it to the current store
 context. An architecture test enforces this — a forgotten `where store_id` is the highest-
@@ -1527,13 +1528,15 @@ shop's lists switchable per store by admins (owner, 2026-10-09, `docs/modules/fe
 appears only when the review's language differs from the interface language, and after
 translating it becomes "show original" — **later, when a translation service is chosen** (owner, 2026-10-09).
 
-**Product questions and answers.** Public, product-attached, staff-answered — **per store**: asked by
-a signed-in customer in a store, answered by its staff, shown there (owner, 2026-10-09).
+**Product questions and answers.** Public, product-attached, staff-answered — **global** (owner,
+2026-10-19, replacing "per store" of 2026-10-09): asked by a signed-in customer in a store, answered
+by that store's staff, and once answered shown in every store that sells the product; an answered
+one may be unpublished (owner, 2026-10-19).
 
 ```
 product_questions
 ├── product_id, store_id, customer_id, body, locale
-├── status      PENDING | ANSWERED | REJECTED
+├── status      PENDING | ANSWERED | REJECTED | UNPUBLISHED
 ├── answer, answered_by, answered_at, reason
 └── created_at
 ```

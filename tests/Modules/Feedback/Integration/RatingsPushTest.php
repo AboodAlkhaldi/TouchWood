@@ -6,7 +6,9 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReview;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReviewHandler;
 use Modules\Feedback\Application\Command\RejectReview\RejectReview;
@@ -17,6 +19,7 @@ use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReview;
 use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReviewHandler;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
+use Modules\Feedback\Application\Review\RatingsSwitch;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Shared\Application\Unauthorized;
@@ -113,4 +116,17 @@ it('tells Catalog again every store\'s switch and every rating when the repair r
         ->and(catalogRating($product))->toBe([4, 1])
         ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('eg'))->value('shown'))->toBeFalse()
         ->and(DB::table('catalog.store_rating_display')->where('store_id', Fx::storeId('sa'))->value('shown'))->toBeTrue();
+});
+
+it('reports a switch push that fails, or a store that is not one, and never fails the save', function () {
+    Exceptions::fake();
+    $listing = Mockery::mock(ListingFacts::class);
+    $listing->shouldReceive('ratingsShown')->andThrow(new RuntimeException('Catalog is away.'));
+    app()->instance(ListingFacts::class, $listing);
+
+    app(RatingsSwitch::class)->changed(FeedbackSettings::RATINGS_IN_LISTS, Fx::storeId('sa'));
+    app(RatingsSwitch::class)->changed(FeedbackSettings::RATINGS_IN_LISTS, 'not-a-store');
+
+    Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported->getMessage() === 'Catalog is away.');
+    Exceptions::assertReported(InvalidArgumentException::class);
 });

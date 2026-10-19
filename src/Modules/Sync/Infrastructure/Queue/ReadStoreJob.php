@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Throwable;
 
 /**
@@ -53,7 +54,8 @@ final class ReadStoreJob implements ShouldQueue
 
     public function failed(?Throwable $error): void
     {
-        // The provider's reason is shown to staff; anything else stays on the failed jobs screen.
-        app(RunReadHandler::class)->failed($this->readId, $error instanceof ConnectionFailed ? $error->getMessage() : 'The read failed: see the failed jobs screen.');
+        // The provider's reason is shown to staff as it came; anything else is Sync's own code (Q31),
+        // its detail left on the failed jobs screen.
+        app(RunReadHandler::class)->failed($this->readId, $error instanceof ConnectionFailed ? $error->getMessage() : ReadFailure::JobFailed->value);
     }
 }

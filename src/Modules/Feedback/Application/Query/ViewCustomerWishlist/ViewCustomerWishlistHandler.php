@@ -22,8 +22,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  * A customer's wishlist as staff read it (feedback.md §1.4, §3): `feedback.wishlist.view`, **only its
  * items of the stores where the reader holds it** — a reader of one store never sees another's — and
  * only for a customer the reader may see at all (access.md amendment 44(c)). An off store's items stay
- * listed, marked, as Loyalty's points do. **My assumption:** a customer the reader may not see, or no
- * such customer, reads as an empty list — the same answer for both, no new error.
+ * listed, marked, as Loyalty's points do. A customer the reader may not see, or no such customer,
+ * reads as an empty list — the same answer for both, no new error (accepted, 2026-10-19).
  */
 final readonly class ViewCustomerWishlistHandler
 {
@@ -47,7 +47,7 @@ final readonly class ViewCustomerWishlistHandler
         $held = $this->authorizer->storesWith(self::PERMISSION);
         $actor = $this->actors->current();
 
-        if ($held === [] || $actor->type !== ActorType::Staff) {
+        if ($held === [] || $actor->type !== ActorType::Staff || $actor->id === null) {
             throw new Unauthorized(self::PERMISSION);
         }
 

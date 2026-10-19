@@ -8,6 +8,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Sync\Application\Report\ReportAccess;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\EntryNotFound;
+use Modules\Sync\Domain\Exception\EntryNotRetryable;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
 use Modules\Sync\Domain\Exception\SizeNotFound;
@@ -37,7 +38,7 @@ final readonly class RetryEntryHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|EntryNotFound|NotWired|SizeNotFound
+     * @throws Unauthorized|InvalidSyncInput|EntryNotFound|NotWired|SizeNotFound|EntryNotRetryable
      */
     public function handle(RetryEntry $command): void
     {
@@ -46,6 +47,11 @@ final readonly class RetryEntryHandler
 
         if (! $this->connections->exists($store)) {
             throw new NotWired;
+        }
+
+        // A stopped offer or an off or draft size's price: a read never closes them, so none is queued (Q27).
+        if ($entry['kind'] === ReportKind::SaleStopped || $entry['kind'] === ReportKind::OffOrDraftPriced) {
+            throw new EntryNotRetryable;
         }
 
         // A failed read's entry has no code: the whole store is read (owner, 2026-10-18).
