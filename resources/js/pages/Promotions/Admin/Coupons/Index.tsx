@@ -185,18 +185,24 @@ function Row({ coupon }: { coupon: CouponRowData }) {
             <TableCell className="min-w-40">{coupon.name}</TableCell>
             <TableCell className="whitespace-nowrap">{discount(coupon.discountKind, coupon.percent, coupon.amount, coupon.cap)}</TableCell>
             <TableCell className="text-ink-muted">{t(`promotions::admin_coupons.who.${coupon.eligibility}`)}</TableCell>
-            <TableCell className="text-copy-13 whitespace-nowrap text-ink-muted">
-                <span className="relative z-10">
+            {/* Start over end, one under the other: on one line the column alone pushed the table past a
+                1280 px screen in English (the owner's look at the screens, 2026-10-20). */}
+            <TableCell className="text-copy-13 text-ink-muted">
+                <span className="relative z-10 block whitespace-nowrap">
                     <Time value={coupon.startsAt} />
                 </span>
-                {' – '}
-                {coupon.endsAt === null ? (
-                    t('promotions::admin_coupons.list.no_end')
-                ) : (
-                    <span className="relative z-10">
-                        <Time value={coupon.endsAt} />
-                    </span>
-                )}
+                <span className="block whitespace-nowrap">
+                    {coupon.endsAt === null ? (
+                        t('promotions::admin_coupons.list.no_end')
+                    ) : (
+                        <>
+                            {t('promotions::admin_coupons.list.until')}{' '}
+                            <span className="relative z-10">
+                                <Time value={coupon.endsAt} />
+                            </span>
+                        </>
+                    )}
+                </span>
             </TableCell>
             <TableCell className="text-end">
                 <bdi dir="ltr" className="tw-figure">
