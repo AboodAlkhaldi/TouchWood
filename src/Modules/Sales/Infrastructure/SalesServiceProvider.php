@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Infrastructure;
 
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
+use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
+use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
+use Modules\Sales\Infrastructure\Listener\ForgetCustomerCarts;
+use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
+use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
@@ -22,6 +31,7 @@ final class SalesServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SalesApi::class, NothingSoldYet::class);
+        $this->app->bind(Carts::class, DatabaseCarts::class);
     }
 
     public function boot(): void
@@ -32,5 +42,16 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(PermissionCatalog::class)->declare('sales', ...SalesPermissions::definitions());
         // The flat shipping fee, free shipping from and the return window (§1.10), on Platform's settings page.
         $this->app->make(SettingsRegistry::class)->define('sales', ...SalesSettings::definitions());
+
+        // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
+        Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
+        // An anonymized account's carts deleted (§1.12).
+        Event::listen(CustomerAnonymized::class, [ForgetCustomerCarts::class, 'handle']);
+
+        // Carts no one touched for 90 days, emptied each night (§1.1). Scheduled work is queued as a
+        // job, never command() or call() (owner's decision, 2026-09-18).
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->job(EmptyOldCartsJob::class)->timezone('Asia/Riyadh')->dailyAt('03:15')->onOneServer();
+        });
     }
 }

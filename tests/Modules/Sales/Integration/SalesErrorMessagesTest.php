@@ -118,7 +118,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("sales::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['store', 'quantity', 'variant', 'coupon', 'address', 'way_to_pay', 'reason', 'amount', 'locale']);
+})->with(['store', 'quantity', 'variant', 'sale_mode', 'coupon', 'address', 'way_to_pay', 'reason', 'amount', 'locale']);
 
 it('never shows the English written for the log', function (SalesError $error) {
     App::setLocale('ar');

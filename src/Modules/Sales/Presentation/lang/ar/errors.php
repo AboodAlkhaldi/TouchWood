@@ -85,6 +85,7 @@ return [
         'store' => 'المتجر',
         'quantity' => 'الكمية',
         'variant' => 'المقاس',
+        'sale_mode' => 'التجزئة أو الجملة',
         'coupon' => 'الكوبون',
         'address' => 'العنوان',
         'way_to_pay' => 'طريقة الدفع',
