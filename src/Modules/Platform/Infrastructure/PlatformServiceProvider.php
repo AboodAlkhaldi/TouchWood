@@ -61,6 +61,7 @@ use Modules\Platform\Infrastructure\Queue\JobActorState;
 use Modules\Platform\Infrastructure\Queue\JobAwareActorContext;
 use Modules\Platform\Infrastructure\Queue\LaravelMediaVariantsQueue;
 use Modules\Platform\Infrastructure\Queue\QueuedActor;
+use Modules\Platform\Infrastructure\Queue\RelayOutboxJob;
 use Modules\Platform\Infrastructure\Queue\RequeueStuckMediaVariantsJob;
 use Modules\Platform\Presentation\Console\CreateCurrencyCommand;
 use Modules\Platform\Presentation\Console\CreateStoreCommand;
@@ -259,6 +260,8 @@ final class PlatformServiceProvider extends ServiceProvider
         // work runs as a queued job, so its audit source is JOB (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(RequeueStuckMediaVariantsJob::class)->everyTenMinutes()->onOneServer();
+            // The outbox's relay, Shared's (platform.md §5.6; sales.md answer 43): every minute, from one server.
+            $schedule->job(RelayOutboxJob::class)->everyMinute()->onOneServer();
         });
 
         $this->carryActorIntoQueuedJobs();

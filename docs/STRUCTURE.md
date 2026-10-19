@@ -181,7 +181,8 @@ a caller is a ULID, before it reaches a query — moved here when Loyalty became
 need it; Access, B2B and Catalog had each kept a copy (owner, 2026-10-10), and Platform's media
 repository its own looser one (2026-10-11). **20 classes: the
 ceiling.** **One recorded exception** (owner, 2026-10-19, sales.md answer 43): the transactional
-outbox — `Outbox` (written in a change's transaction), `OutboxRelay` (the scheduled relay) and
+outbox — `Outbox` (written in a change's transaction), `OutboxRelay` (the relay, run every minute by Platform's queued `RelayOutboxJob` so the failed jobs
+screen can name it) and
 `ProcessedEvents` (the idempotent consumer) — which platform.md §5.6 placed in `Shared/Infrastructure`
 from the start, every module publishing or consuming a critical event (handoff §4.5) through it; with
 it, 23.

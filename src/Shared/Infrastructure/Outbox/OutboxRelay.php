@@ -7,13 +7,8 @@ namespace Shared\Infrastructure\Outbox;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeInterface;
-use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use LogicException;
 use ReflectionClass;
@@ -22,7 +17,8 @@ use stdClass;
 use Throwable;
 
 /**
- * The outbox's relay (sales.md §5; owner, answer 40): every minute, from one server, the messages whose
+ * The outbox's relay (sales.md §5; owner, answer 40): run every minute, from one server, by Platform's
+ * queued `RelayOutboxJob` — the messages whose
  * time has come, in the order they were inserted. Each is **claimed** first — its attempt counted and
  * its `available_at` moved a lease ahead under `FOR UPDATE SKIP LOCKED`, and that committed — so two
  * relays never take one row, and a relay killed in the middle of a dispatch leaves the attempt counted
@@ -40,12 +36,8 @@ use Throwable;
  * (`ProcessedEvents`). A queued listener counts as delivered once its job is on the queue: a failure
  * there lands in `failed_jobs`, as any queued work does.
  */
-final class OutboxRelay implements ShouldBeUnique, ShouldQueue
+final readonly class OutboxRelay
 {
-    use Dispatchable;
-    use InteractsWithQueue;
-    use Queueable;
-
     /** Messages one run takes. */
     public const int BATCH = 100;
 
@@ -61,22 +53,19 @@ final class OutboxRelay implements ShouldBeUnique, ShouldQueue
     /** Dispatched rows kept this many days. */
     public const int KEEP_DAYS = 30;
 
-    /** One try: the next minute's run takes whatever this one left (platform.md §3). */
-    public int $tries = 1;
+    public function __construct(
+        private ConnectionInterface $db,
+        private Dispatcher $events,
+    ) {}
 
-    /** Never two runs at once on the queue, the lease covering the rest. */
-    public int $uniqueFor = 120;
-
-    /** Well inside the lease, so a run never outlives its claim. */
-    public int $timeout = 240;
-
-    public function handle(ConnectionInterface $db, Dispatcher $events): void
+    public function run(): void
     {
+        $db = $this->db;
         $now = CarbonImmutable::now();
 
         foreach ($this->claim($db, $now) as $row) {
             try {
-                $events->dispatch(self::rebuild((string) $row->type, (string) $row->payload));
+                $this->events->dispatch(self::rebuild((string) $row->type, (string) $row->payload));
                 $db->table('public.outbox_messages')->where('id', $row->id)->whereNull('dispatched_at')->update(['dispatched_at' => CarbonImmutable::now(), 'last_error' => null]);
             } catch (Throwable $failed) {
                 // The attempt was counted at the claim.

@@ -6,4 +6,5 @@ declare(strict_types=1);
 return [
     'generate_media_variants' => 'تجهيز مقاسات صورة',
     'requeue_stuck_media_variants' => 'إعادة جدولة صور عالقة',
+    'relay_outbox' => 'إرسال أحداث الطلبات والمدفوعات المنتظرة',
 ];

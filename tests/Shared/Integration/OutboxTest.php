@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Modules\Platform\Infrastructure\Queue\RelayOutboxJob;
 use Modules\Sales\Public\Events\OrderCancelled;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Infrastructure\Outbox\Outbox;
@@ -42,7 +43,7 @@ function outboxEvent(?string $eventId = null): OrderPlaced
 
 function outboxRelay(): void
 {
-    app()->call([new OutboxRelay, 'handle']);
+    app(OutboxRelay::class)->run();
 }
 
 /**
@@ -191,17 +192,17 @@ it('forgets the mark when the work fails, so a later arrival does it', function 
 
 it('relays every minute from one server, as a queued job never run twice at once', function () {
     Queue::fake();
-    $relay = collect(app(Schedule::class)->events())->first(static fn ($event): bool => $event->description === OutboxRelay::class);
+    $relay = collect(app(Schedule::class)->events())->first(static fn ($event): bool => $event->description === RelayOutboxJob::class);
 
     expect($relay)->not->toBeNull()
         ->and($relay?->expression)->toBe('* * * * *')
         ->and($relay?->onOneServer)->toBeTrue()
-        ->and(new OutboxRelay)->toBeInstanceOf(ShouldBeUnique::class)
-        ->and((new OutboxRelay)->timeout)->toBeLessThan(OutboxRelay::LEASE);
+        ->and(new RelayOutboxJob)->toBeInstanceOf(ShouldBeUnique::class)
+        ->and((new RelayOutboxJob)->timeout)->toBeLessThan(OutboxRelay::LEASE);
 
     $relay?->run(app());
 
-    Queue::assertPushed(OutboxRelay::class, 1);
+    Queue::assertPushed(RelayOutboxJob::class, 1);
 });
 
 it('holds back the later events of an order behind its failed one, and those of no other order', function () {
@@ -238,7 +239,7 @@ it('counts the attempt when it claims, so a relay killed mid-dispatch still coun
     $event = outboxEvent();
     DB::transaction(fn () => app(Outbox::class)->record($event));
 
-    $claimed = (new OutboxRelay)->claim(DB::connection(), CarbonImmutable::now());
+    $claimed = app(OutboxRelay::class)->claim(DB::connection(), CarbonImmutable::now());
 
     expect($claimed)->toHaveCount(1)
         ->and(outboxRow($event->eventId)['attempts'])->toBe(1);

@@ -59,9 +59,9 @@ it('never lets two relays take one message', function () {
 
     try {
         // The first relay claims, its rows locked until its claim is committed.
-        $mine = $ids((new OutboxRelay)->claim($first, CarbonImmutable::now()));
+        $mine = $ids(app(OutboxRelay::class)->claim($first, CarbonImmutable::now()));
         // The second relay, meanwhile, skips them rather than waiting: nothing is left for it.
-        $theirs = $ids((new OutboxRelay)->claim($second, CarbonImmutable::now()));
+        $theirs = $ids(app(OutboxRelay::class)->claim($second, CarbonImmutable::now()));
 
         expect($mine)->toHaveCount(3)
             ->and($theirs)->toBe([]);
@@ -74,8 +74,8 @@ it('never lets two relays take one message', function () {
     }
 
     // Committed, the claim is a lease: the rows stay the first relay's until it runs out.
-    expect($ids((new OutboxRelay)->claim($second, CarbonImmutable::now())))->toBe([])
-        ->and($ids((new OutboxRelay)->claim($second, CarbonImmutable::now()->addSeconds(OutboxRelay::LEASE + 1))))->toBe($mine);
+    expect($ids(app(OutboxRelay::class)->claim($second, CarbonImmutable::now())))->toBe([])
+        ->and($ids(app(OutboxRelay::class)->claim($second, CarbonImmutable::now()->addSeconds(OutboxRelay::LEASE + 1))))->toBe($mine);
 })->skip(fn (): bool => outboxRaceInParallel(), 'Empties its database: run serially.');
 
 it('refuses an event written outside any transaction: it would tell of a change that may not stay', function () {
