@@ -15,6 +15,13 @@ interface GiftLevels
 {
     public function storeOf(string $levelId): ?StoreId;
 
+    /**
+     * Every level of the store, highest amount first (a store has few).
+     *
+     * @return list<GiftLevel>
+     */
+    public function ofStore(StoreId $store): array;
+
     /** The level, its row locked until the transaction ends. */
     public function lock(StoreId $store, string $levelId): ?GiftLevel;
 

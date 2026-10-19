@@ -24,6 +24,7 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 4b — assignments | Assigning an `ASSIGNED` coupon to a segment's members of that moment (answer 24); removing an unused assignment; a coupon assigned from a segment may not leave its audience out; `PromotionsApi::segmentMembers` | below |
 | 5 — gift levels | The gift levels table; create, change, switch; one amount one gift for the same buyers and dates (`GiftLevelClash`); `PromotionsApi::giftLevels`; Catalog refuses to delete a gift's variant | below |
 | 6a — the coupon reads | `ListCoupons`, `ViewCoupon`, `ListCouponUses`, `ListCouponAssignments` for the staff screens, under the view permission or any manage one | below |
+| 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
 
 ## What is here
 
@@ -127,15 +128,19 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   uncovered store's coupon not found, an off store for Super Admins alone; **`CouponStates`** — the
   state now (§4), as `CouponRules::refusalNow` reads it; **`CustomerNames`** — a page's names in one
   `AccessApi::customers` call. `ListCoupons` (filters: state now, start of the code), `ViewCoupon`,
-  `ListCouponUses`, `ListCouponAssignments`; SQL in `Infrastructure/Eloquent/DatabaseMarketingQueries`,
-  one query per page, keyset indexes in `…_index_marketing_reads`.
+  `ListCouponUses`, `ListCouponAssignments`, `ListSegments`, `ListSegmentMembers` (names only),
+  `ListGiftLevels` (gifts named in two Catalog bulk reads); the customer's `ViewMyCoupons`
+  (`promotions.coupon.view_own`: assigned to me, usable now, my uses left — one query). SQL in
+  `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
+  `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and
+  `…_index_segments_list`.
 - **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
   every coupon whose include or exclude list names a product, category or brand Catalog is about to
   delete, and every gift level giving a variant it is about to delete, in one query; Catalog then
   refuses the delete (`catalog.item_in_use`).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `GiftLevelRaceTest`, `CouponReadsTest`, `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `GiftLevelRaceTest`, `CouponReadsTest`, `MarketingReadsTest`, `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

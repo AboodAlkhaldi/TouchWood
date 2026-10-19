@@ -363,7 +363,15 @@ Built in step 6 (`Application/Query`): `ListCoupons` (newest first; by state now
 start of the code), `ViewCoupon` (its lists named through Catalog, how many customers have it),
 `ListCouponUses` (the order's public number, the customer's name), `ListCouponAssignments` (name,
 segment, uses) — a page at a time by keyset, 50 at most; names through `AccessApi::customers` in one
-call. A store switched off is read by Super Admins alone, as it is changed (§1.8).
+call. A store switched off is read by Super Admins alone, as it is changed (§1.8). Then
+`ListSegments` (newest first, with how many each holds), `ListSegmentMembers` (the name only, by
+customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
+bulk reads, whether it gives its gift now) and, for the customer, `ViewMyCoupons` (the coupons given
+to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
+first; a store switched off has none). My assumption, stated for the owner to reject: **"usable" leaves
+out what depends on the cart or the buyer** — sale mode, the minimum (shown on the row), and whether
+the customer is now an individual or a company (Promotions never reads B2B; checkout says why a coupon
+takes nothing).
 
 **The permissions Promotions declares** — every name has three parts, as Access requires
 (`InMemoryPermissionCatalog::NAME`):
@@ -428,7 +436,8 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 assignments by `customer_id` — "my coupons"; segment members by `customer_id`; gift levels by
 (`store_id`, `amount_minor` DESC). For the staff screens' pages (step 6): coupons by (`store_id`,
 `created_at` DESC, `id` DESC); uses by (`coupon_id`, `used_at` DESC, `id` DESC); assignments by
-(`coupon_id`, `assigned_at` DESC, `customer_id` DESC).
+(`coupon_id`, `assigned_at` DESC, `customer_id` DESC); segments by (`store_id`, `created_at` DESC,
+`id` DESC).
 
 ---
 
