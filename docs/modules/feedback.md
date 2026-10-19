@@ -184,7 +184,8 @@ permission of their own. Ops adds what it needs when it writes to customers.
 Sales exists; the owner's order puts it before (2026-10-07). So **Sales's read and its
 `ReturnCompleted` event are declared first** — on `main`, as stage 5's interfaces were (#97) — and
 faked in Feedback's tests; the real answers come when Sales is built. Handoff §17 is amended with this
-spec.
+spec. **Declared 2026-10-19** (sales.md §2.1), answered until Sales's build by a placeholder that knows
+no purchase — so a review is refused as no verified purchase until then.
 
 ### 2.2 DTOs and enums
 
@@ -196,7 +197,7 @@ spec.
 
 | From | What | State |
 |---|---|---|
-| Sales | **Whether a customer had a product delivered** — across every store; "delivered" per order line, by **the shipment holding that line reaching delivered**, not the order's derived status; **which variant**, the latest by delivery time; and **whether any of that product was returned** — by a completed return only | **Sales's** — `SalesApi::deliveredPurchase(customerId, productId)`, defined in Sales's spec (stage 6, next) |
+| Sales | **Whether a customer had a product delivered** — across every store; "delivered" per order line, by **the shipment holding that line reaching delivered**, not the order's derived status; **which variant**, the latest by delivery time; and **whether any of that product was returned** — by a completed return only | **Sales's** — `SalesApi::deliveredPurchase(customerId, productId)`, declared on `main` 2026-10-19 (sales.md §2.1), a placeholder answering until Sales's build |
 | Sales | **A return completed**: its customer and the products returned, so their reviews flip to "Returned" | Sales's `ReturnCompleted` event (ids only, handoff §4.5's critical events) and `SalesApi::returnedProducts(returnId)` → the customer and the product ids — Sales's spec |
 | Catalog | **Reads in bulk, never one id at a time** (handoff §5.4): which of a list of products a store sells now; product cards (name, slug, card photo) for a list of products in a store and language; the values of a list of variants. For asking a question, saving to the wishlist and its "unavailable", the wishlist page, "Favourited products", "My reviews" and the variant a review shows | **A Catalog addition, built with Feedback.** Today `CatalogApi` reads one product (`product`, which lists no variants) or one variant in a store (`storeVariant`) at a time |
 | Catalog | **Each product's rating in the listing, and whether a store shows ratings** — for stars on cards and the rating sort (§1.2) | **A Catalog addition, built with Feedback** — beside Pricing's `ListingFacts::prices` (catalog.md amendment 15); the shop's lists are built by the Catalog-screens session, to be agreed with it |
