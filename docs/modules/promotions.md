@@ -409,6 +409,145 @@ while unused.
 
 **A gift level:** active within its dates while switched on.
 
+### 4.1 The screens (stage 6's screens) — DRAFT, round 1 of the owner's questions open
+
+**Written 2026-10-19** by the stage 6 screens session, after the backend's seven steps (#143–#173), as
+Loyalty's screens were (loyalty.md §4.1). Every **[Qn]** is a question for the owner, listed in §9.4
+with the options and the one I recommend; the text says what is built **if the recommendation is
+taken**. Nothing here is built before the owner answers. The use cases behind every button are §3's;
+a screen offers only what the reader may do next — asked of an Application query
+(`PromotionsActionsForReader`, new), never of the authorizer from the screen
+(`tests/Architecture/AccessDecisionsTest`) — and every handler asks again.
+
+**What every screen keeps** — as Loyalty's (loyalty.md §4.1), unchanged: Geist's rules on shadcn's
+code (frontend.md §1.11), every box checking itself as it is typed (the server's own rules, from
+`Coupon/Inputs` and `GiftLevelFields`), every number in 0-9 (Arabic-Indic typed is read as Latin),
+every moment through `Time` in the store's zone, names in the page's language first, money through
+`resources/js/lib/money.ts` (an amount typed as the store writes it, "149.50", checked against the
+currency's decimals), dates, amounts and typed text isolated inside sentences. Lists page with **Show
+More** (keyset, 50). **Its own store filter** (`?store=`), a Super Admin's off stores marked Off — an
+off store's promotions are set by Super Admins only (§1.8). Words in
+`src/Modules/Promotions/Presentation/lang/{ar,en}/admin_coupons.php`, `admin_segments.php`,
+`admin_gifts.php`, `shop_coupons.php`, `menu.php`, `account_pages.php`; refusals are §7's.
+
+**Who sees what.** `promotions.marketing.view` — or any of the three manage jobs — reads every list
+and page of a store (§3). Each button needs its own job: coupons and their assignments
+`promotions.coupon.manage`, segments `promotions.segment.manage`, gift levels
+`promotions.gift.manage`. A reader without it sees no button at all **[Q16]**.
+
+**The menu** — Platform's `AdminMenu`, the **Marketing** group (it exists, access.md amendment 69):
+
+| # | Entry | Address | Icon | Offered for |
+|---|---|---|---|---|
+| 10 | Coupons · الكوبونات | `/admin/coupons` | `coupons` (Lucide `TicketPercent`'s sibling `Ticket`, new) | any of the four jobs |
+| 20 | Segments · الشرائح | `/admin/segments` | `segments` (Lucide `UsersRound`, new) | any of the four |
+| 30 | Gift Levels · مستويات الهدايا | `/admin/gift-levels` | `gifts` (Lucide `Gift`, new) | any of the four |
+
+**The reads the screens add** to step 6's (§3): `PromotionsActionsForReader` (which buttons, per
+store), `SearchSegmentCandidates` (the backend session's, §9.2 #6, on Access's `customerIdsMatching`),
+and for the coupon rules' pickers **brands and categories to choose from** — Catalog's public surface
+reads them only by id today **[Q4]**. `ViewMyCoupons` needs nothing new.
+
+#### M1 · Marketing › Coupons — `/admin/coupons?store=&state=&code=`
+
+- **Header**: "Coupons", subtitle "Codes customers type at checkout"; the store filter; **New Coupon**
+  (a link to M2's new form) for `promotions.coupon.manage`.
+- **Filters** [Q2]: Geist Tabs **All · Active · Scheduled · Ended · Off** (`CouponState`), kept in the
+  address; a search box "Search by code" — the start of a code, read as typed (§3), from the first
+  character.
+- **Columns**: **Code** (mono, the row's link to M2) · **Name** (the page's language) · **Discount**
+  ("15%, up to 100.00 SAR", "25.00 SAR off") · **Who** (Anyone with the code / Assigned customers) ·
+  **Dates** (start – end, or "No end") · **Uses** ("12 / 100", or "12") · **State** (one Geist Badge:
+  Active green, Scheduled blue, Ended gray, Off gray).
+- **Empty**: "No coupons yet" / "Make a code customers can type at checkout." with New Coupon for a
+  reader who may; a filter or a search that finds none: "No coupons match." with Clear Filters.
+
+#### M2 · A coupon — `/admin/coupons/{coupon}` and `/admin/coupons/new?store=`
+
+**One page, three tabs** [Q3]: **Details · Uses · Customers** (Customers only for an `ASSIGNED`
+coupon). A new coupon has Details only.
+
+**Details** — a form for a reader who may manage, the same fields read-only for one who may not
+[Q1: a full page, not a dialog — too many fields for one]. Sections (shadcn Card each, Geist's
+Fieldset, one **Save Coupon** at the foot, out of reach until something changed):
+
+1. **Code and name**: the code — typed only when new, "Letters, digits and hyphens, 3 to 30"; upper
+   case shown as typed; **never changed** afterwards (shown, not a box) — and the name in Arabic and in
+   English.
+2. **Who may use it**: Anyone with the code / Only customers it is given to — fixed while customers
+   have it (answer 25): the choice is out of reach, saying "Remove its customers first".
+3. **What it takes off**: Percentage (1–100, an optional cap) or Fixed amount; the minimum order,
+   optional; the line under it says the store's ceiling ("Coupons and points together may take at most
+   30% off an order in this store.") [Q15].
+4. **When and how often** [Q7]: starts (date and time, the store's zone; now by default), ends (optional),
+   uses per customer, uses in all (both optional, "No limit" when empty); lowering uses in all below
+   the uses made is refused (§1.1).
+5. **Where it applies**: retail and/or wholesale lines; individuals and/or companies; on lines already
+   reduced (off by default); with points (on by default) — each a Geist Switch with its one-line
+   meaning.
+6. **What it covers** [Q4, Q5]: two lists, **Includes** and **Excludes**, each a list of products,
+   categories and brands with a remove button per entry and **Add…** opening a picker (a product found
+   by name or code; a category from the tree; a brand from the list). Empty Includes reads "Every
+   product". At most 500 entries (§1.2). An entry added since that is no longer ready, active or
+   switched on is marked "Not sold now" (answer 22: it stays, matching nothing).
+
+**The switch**: **Turn Off** / **Turn On** in the page's header for a manager (`SwitchCoupon`), saved at
+once with a toast. **Delete Coupon…** (an AlertDialog naming the code) only while it was never used; a used coupon shows the button out of reach, "Used once or more:
+turn it off instead" [Q6].
+
+**Uses** — the coupon's uses, newest first: **Date** · **Order** (public number, plain text until Sales's
+screens — as loyalty.md answer 12) · **Customer** (the name; "Deleted customer") · **Discount**. Empty:
+"Not used yet."
+
+**Customers** (an `ASSIGNED` coupon): who has it, newest first — **Customer** · **Given** (date) ·
+**From segment** (its name, or "—" once the segment is gone) · **Uses** · and, for a manager, **Remove**
+while unused (a confirm; used: out of reach, "Used: it stays"). At the top, **Give to a Segment…**
+(`AssignCoupon`): a dialog choosing one of the store's segments whose audience the coupon allows,
+saying "Gives the coupon to its {n} members now; members who join later do not get it unless you give
+it again." (§1.4) [Q14].
+
+#### M3 · Marketing › Segments — `/admin/segments?store=` and `/admin/segments/{segment}`
+
+- **List**: **Name** · **Type** (Picked by hand / By rule) · **Who** (Individuals / Companies) · **Rule**
+  in words ("No order in 6 months", "At least 3 orders in 3 months", "Never ordered") · **Members** ·
+  **Updated** (`refreshedAt`, relative). **New Segment…** for `promotions.segment.manage`: a dialog —
+  name in both languages, type and audience (fixed once made, answer 23 — said under the choices), and
+  for a rule its numbers.
+- **A segment's page**: its facts; for a manager **Edit…** (names, the rule's numbers), **Refresh Now**
+  (a rule segment; a toast "Members updated: 120."), **Delete Segment…** (AlertDialog; its assignments
+  keep their customers, §5's SET NULL — said in the dialog).
+- **Members**: the names, a page at a time (Show More); "Deleted customer" never shows — they leave at
+  the next refresh (§1.5).
+- **Picking by hand** (a static segment) [Q8]: **Add Customers…** — a search by name, email or phone
+  (`SearchSegmentCandidates`: registered in the store or ordered in it; email and phone only among
+  customers the reader may view, access.md amendment 72(b)), each result with **Add**; each member
+  with **Remove**; **Save Members** sends the whole list (`SetSegmentMembers`), out of reach until it
+  changed. At most 1,000 shown found [Q9].
+
+#### M4 · Marketing › Gift Levels — `/admin/gift-levels?store=`
+
+- **One list, highest first** [Q10]: **From** (the amount) · **Gift** (the product's name, the size's
+  code; "Archived" marked) · **Who** · **Dates** · **State** (Giving now / Not started / Ended / Off —
+  `inEffect`, `active`). Under the list, one line: "An order gets one gift — the highest level it
+  reaches; out of stock, the next one down." (§1.7)
+- **New Level…** / **Edit…** (a dialog for `promotions.gift.manage`): the amount; the gift — a size
+  found by product name or code in this store (`searchVariants`) [Q11]; individuals and/or companies;
+  dates, optional. A clash (§7 `GiftLevelClash`) said in the dialog. **Turn Off** / **Turn On** per row.
+  No delete — a level is switched off (§3).
+
+#### M5 · The shop: the account's Coupons tab — `/{store}/{locale}/account/coupons`
+
+- **Offered** in the account's side list (Access's `CustomerAccountPages`, `promotions.coupons`) **[Q12]**.
+- **One card per coupon** (`ViewMyCoupons`, soonest to end first): the code, large, with Geist's
+  **Copy** button [Q13]; the name; what it takes off; the minimum order; "Ends on {date}" or "No end
+  date"; "Uses left: 2" when limited. Under the list: "Type the code at checkout. Whether it applies to
+  your cart is checked there." (answer to §3's "usable" assumption).
+- **Empty**: "No coupons for you right now."
+
+**Every screen above** is checked at phone width (375 px, nothing scrolling sideways — wide tables
+scroll in their own box), in Arabic and English, light and dark; its own query count recorded by a
+feature test; its page under 60 KB gzipped.
+
 ---
 
 ## 5 · Tables
@@ -621,8 +760,8 @@ Owner, 2026-10-19 ("accept for all", after step 5's review):
    its pieces' stock (Inventory), a line of several items (Sales).
 2. ~~**The `Marketing` permission group and menu section**~~ — **settled**: the owner approved the
    build plan that adds them (2026-10-17); built with step 1 (access.md amendment 69, platform.md §9.4).
-3. **Promotions' screens** — coupons, segments, gift levels, the account centre's coupons — the
-   frontend session's, to confirm (as for Loyalty).
+3. ~~**Promotions' screens**~~ — **the stage 6 screens session builds them** (owner, 2026-10-18/19,
+   as for Loyalty); the draft is §4.1, its questions §9.4.
 4. **Content and segments** — the handoff wants segments for pop-up targeting (§11.2), but Content may
    not read Promotions (§4.4). The owner's call when Content is specified: add Content → Promotions to
    the graph, or target pop-ups another way.
@@ -655,3 +794,36 @@ full; NULL-safe CHECKs and `IN` checks on every kind; codes never changed; lower
 deleting a coupon with assignments; `COMPANY` defined and useless combinations refused; the gift-level
 race; `RecordOrder` renamed from `OrderPlaced`; `NO_ORDER_FOR` and customers who never ordered; the
 handoff's §4.4 and §11.2 amended; gift levels' menu place; off stores; order numbers on uses.
+
+### 9.4 The screens — the owner's questions, round 1 (2026-10-19, open)
+
+Asked by the stage 6 screens session for §4.1. The first option of each is the recommendation, which
+§4.1 is written to; nothing is built before the owner answers. A later round asks only what these
+answers open.
+
+| # | Question | Options (recommended first) |
+|---|---|---|
+| Q1 | Making and changing a coupon: where? | (a) **A page of its own** — about twenty fields in six groups, room for the rule lists and the Uses and Customers tabs. (b) A dialog over the list — quicker for small changes, cramped for the rule lists |
+| Q2 | The coupons list's filters | (a) **Tabs by state — All, Active, Scheduled, Ended, Off — and a search by the start of the code.** (b) Only the search. (c) A state drop-down and the search |
+| Q3 | A coupon's page | (a) **Three tabs: Details · Uses · Customers** (Customers only for an assigned coupon). (b) Everything on one long page |
+| Q4 | Choosing the categories and brands a coupon covers needs them listed, and Catalog's public reads give them only by id | (a) **A Catalog addition**: `CatalogApi::categoryTree()` (the active categories with their paths, both languages) and `CatalogApi::brandsList(?text)` (active brands, by name) — a small amendment, built with the screens, one read each. (b) Products only on the screens for now; categories and brands chosen later. (c) Type a category's or brand's exact name |
+| Q5 | How the rule lists look | (a) **Two lists, Includes and Excludes, each entry a chip with its kind ("Category: Kitchens") and a remove button; Add… opens one picker with three tabs (Product, Category, Brand).** (b) Three separate lists per side |
+| Q6 | Deleting a coupon used before (§1.1 refuses it) | (a) **The button stays, out of reach, saying "Used once or more: turn it off instead".** (b) No Delete button at all on a used coupon |
+| Q7 | A coupon's start and end | (a) **Date and time, in the store's time zone** — starts now by default, ends optional. (b) Dates only (from 00:00 to 23:59 of the store's zone) |
+| Q8 | Picking a hand-picked segment's customers | (a) **A search (name, email or phone) with Add per result, the members with Remove, and one Save Members** — nothing changes until saved. (b) Each Add and Remove saved at once |
+| Q9 | A search that finds too many customers | (a) **Show the first 50 by name and say "Type more to narrow it"** — picking needs exactness, not a complete list. (b) As Loyalty's: "Too many match", none shown, past 1,000 |
+| Q10 | Gift levels' screen | (a) **One short list (highest first) with New Level… and Edit… as dialogs** — a store has a handful. (b) A page per level |
+| Q11 | Choosing a level's gift | (a) **A size found by product name or code among the store's sizes** (Catalog's `searchVariants`), its photo shown. (b) The size's code typed |
+| Q12 | When the shop's account shows **My Coupons** | (a) **Always, for every signed-in customer** — no extra query on every shop page; "No coupons for you right now" when empty. (b) Only while the customer has a usable coupon — one more query on every signed-in shop page, as Loyalty's Points tab costs while off (accepted for Points "for now", 2026-10-19). (c) Not in the menu at all; reached from checkout only |
+| Q13 | Copying a code | (a) **A Copy button beside each code** (Geist's Copy). (b) None |
+| Q14 | Giving a coupon to a segment | (a) **From the coupon's Customers tab: Give to a Segment…, choosing among the store's segments of an audience the coupon allows.** (b) From the segment's page: Give a Coupon… (c) Both |
+| Q15 | Showing the store's discount ceiling on the coupon form | (a) **One line under "What it takes off"**: "Coupons and points together may take at most 30% off an order in this store." (b) Not shown |
+| Q16 | A reader who may read but not change | (a) **No buttons at all**, the form read-only — as Loyalty's Change Points. (b) Buttons shown out of reach, saying which job they need |
+| Q17 | Menu entries and their order | (a) **Coupons, Segments, Gift Levels — in that order, under Marketing**, gift levels there as §1.7 already assumes. (b) Gift levels elsewhere |
+| Q18 | A deleted customer on Uses, Customers and Members | (a) **"Deleted customer", no other detail** — as Loyalty's screens. (b) Leave such rows out |
+
+**What the screens need from other modules** (in the answers' terms, if (a) is taken): Catalog
+`categoryTree` and `brandsList` (Q4, a Catalog amendment — the next free number, agreed with the
+other sessions first); Promotions `SearchSegmentCandidates` (the backend session's, on Access's
+`customerIdsMatching`, which ships with Loyalty's screens, PR #168) and `PromotionsActionsForReader`;
+Platform's menu icons `coupons`, `segments`, `gifts`.
