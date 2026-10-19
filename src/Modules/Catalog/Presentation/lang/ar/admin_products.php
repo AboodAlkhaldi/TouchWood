@@ -42,7 +42,12 @@ return [
         'in_stores' => 'في المتاجر',
         'in_store' => 'في هذا المتجر',
         'variants' => 'الأصناف',
+        'price' => 'السعر',
+        'cant_order' => 'لا يمكن طلبه',
     ],
+    'price_from' => 'من',
+    // Arabic's six forms, by the number of sizes switched on: zero, one, two, 3-10, 11-99, 100 and more.
+    'cant_order_count' => ':count من :total صنف|:count من صنف واحد|:count من صنفين|:count من :total أصناف|:count من :total صنفًا|:count من :total صنف',
     'state' => [
         'ON' => 'مفعّل (:on من :all)',
         'OFF' => 'معطّل',

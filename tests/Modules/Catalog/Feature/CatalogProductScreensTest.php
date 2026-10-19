@@ -6,6 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -105,6 +106,19 @@ function catalogProductScreensToast(TestResponse $response): mixed
 function catalogProductScreensNotYours(): string
 {
     return trans('errors.unauthorized.detail', [], 'en');
+}
+
+/**
+ * Facts as Pricing and Inventory push them into Catalog's table (ListingFacts) - over what they pushed
+ * when the product was switched on.
+ *
+ * @param  list<array<string, mixed>>  $rows
+ */
+function catalogProductScreensFacts(array $rows): void
+{
+    foreach ($rows as $row) {
+        DB::table('catalog.store_variant_facts')->updateOrInsert(['store_id' => $row['store_id'], 'variant_id' => $row['variant_id']], $row);
+    }
 }
 
 function catalogProductScreensOn(string $store, string $productId): void
@@ -253,6 +267,108 @@ describe('the products list', function () {
         $browser->get('/admin/products?store=eg&state=NOT_CHOSEN')->assertInertia(fn (AssertableInertia $page) => $page->has('products', 0));
         $browser->get('/admin/products?store=sa')->assertForbidden();
         $browser->get('/admin/products?store=zz')->assertForbidden();
+    });
+
+    it('shows one store\'s Price and Can\'t Order from Catalog\'s own facts, and neither for All Stores', function () {
+        ['product' => $product, 'variants' => [$sixty, $eighty, $ninety]] = Px::ready(['60 cm', '80 cm', '90 cm']);
+        ['product' => $unpriced] = Px::ready(['60 cm']);
+        ['product' => $elsewhere] = Px::ready(['60 cm']);
+        catalogProductScreensOn('sa', $product);
+        catalogProductScreensOn('sa', $unpriced);
+        catalogProductScreensOn('eg', $elsewhere);
+        $sa = Fx::storeId('sa');
+        // As Pricing and Inventory push them (ListingFacts): 90 cm the lowest, 80 cm out of stock. 60 cm
+        // is switched off, so its lower price is not this store's to show; 90 cm has no fact of
+        // Inventory's yet, and is orderable.
+        catalogProductScreensFacts([
+            ['store_id' => $sa, 'variant_id' => $sixty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => 5_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+            ['store_id' => $sa, 'variant_id' => $eighty, 'orderable' => false, 'ending_soon' => false, 'price_minor' => 15_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+            ['store_id' => $sa, 'variant_id' => $ninety, 'orderable' => null, 'ending_soon' => false, 'price_minor' => 12_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+        ]);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($sa, $product, false, [$sixty])));
+        $browser = catalogProductScreens([P::PRODUCT_VIEW]);
+        $row = static fn (Collection $products, string $id): array => (array) $products->firstWhere('id', $id);
+
+        $browser->get('/admin/products?store=sa')->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('products', function (Collection $products) use ($row, $product, $unpriced, $elsewhere): bool {
+                $priced = $row($products, $product);
+                $none = $row($products, $unpriced);
+                $other = $row($products, $elsewhere);
+
+                return ($priced['priceFrom']['minor'] ?? null) === 12_000
+                    && preg_match('/^120\.00 \S/u', (string) ($priced['priceFrom']['text'] ?? '')) === 1
+                    // 2 sizes on: 80 cm out of stock; 90 cm orderable.
+                    && in_array($priced['cantOrder'] ?? null, ['1 of 2 sizes', '1 من صنفين'], true)
+                    // On, with no price: it can't be ordered.
+                    && $none['priceFrom'] === null && in_array($none['cantOrder'] ?? null, ['1 of 1 size', '1 من صنف واحد'], true)
+                    // Not chosen here: nothing to count.
+                    && $other['priceFrom'] === null && $other['cantOrder'] === null;
+            }));
+
+        $browser->get('/admin/products')->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('products', fn (Collection $products): bool => $products->every(fn (array $each): bool => $each['priceFrom'] === null && $each['cantOrder'] === null)));
+    });
+
+    it('counts a size Can\'t Order while it, or its product, is not available now there', function () {
+        ['product' => $product, 'variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+        catalogProductScreensOn('sa', $product);
+        $sa = Fx::storeId('sa');
+        catalogProductScreensFacts([
+            ['store_id' => $sa, 'variant_id' => $sixty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => 5_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+            ['store_id' => $sa, 'variant_id' => $eighty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => 6_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+        ]);
+        $browser = catalogProductScreens([P::PRODUCT_VIEW]);
+        $cantOrder = function () use ($browser): ?string {
+            $said = null;
+            $browser->get('/admin/products?store=sa')->assertInertia(function (AssertableInertia $page) use (&$said): void {
+                $said = $page->toArray()['props']['products'][0]['cantOrder'] ?? null;
+            });
+
+            return is_string($said) ? $said : null;
+        };
+
+        expect($cantOrder())->toBeIn(['0 of 2 sizes', '0 من صنفين']);
+
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('variant_id', $eighty)->update(['not_available_now' => true]);
+        expect($cantOrder())->toBeIn(['1 of 2 sizes', '1 من صنفين']);
+
+        DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $product)->update(['not_available_now' => true]);
+        expect($cantOrder())->toBeIn(['2 of 2 sizes', '2 من صنفين']);
+    });
+
+    it('counts a size Can\'t Order while it has no price, or while its product is hidden with its category or brand, and shows no price in an old currency', function () {
+        ['product' => $product, 'variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+        catalogProductScreensOn('sa', $product);
+        $sa = Fx::storeId('sa');
+        catalogProductScreensFacts([
+            ['store_id' => $sa, 'variant_id' => $sixty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => 5_000, 'price_before_minor' => null, 'currency' => 'SAR'],
+            // Inventory says it can be ordered; it has no price.
+            ['store_id' => $sa, 'variant_id' => $eighty, 'orderable' => true, 'ending_soon' => false, 'price_minor' => null, 'price_before_minor' => null, 'currency' => null],
+        ]);
+        $browser = catalogProductScreens([P::PRODUCT_VIEW]);
+        $row = function () use ($browser): array {
+            $found = [];
+            $browser->get('/admin/products?store=sa')->assertInertia(function (AssertableInertia $page) use (&$found): void {
+                $found = (array) ($page->toArray()['props']['products'][0] ?? []);
+            });
+
+            return $found;
+        };
+
+        expect($row()['cantOrder'] ?? null)->toBeIn(['1 of 2 sizes', '1 من صنفين']);
+
+        foreach (['hidden_by_category', 'hidden_by_brand'] as $hidden) {
+            DB::table('catalog.products')->where('id', $product)->update([$hidden => true]);
+            expect($row()['cantOrder'] ?? null)->toBeIn(['2 of 2 sizes', '2 من صنفين']);
+            DB::table('catalog.products')->where('id', $product)->update([$hidden => false]);
+        }
+
+        // A price kept from before the store's currency changed is never the store's lowest.
+        expect($row()['priceFrom']['minor'] ?? null)->toBe(5_000);
+        DB::table('catalog.store_variant_facts')->where('store_id', $sa)->where('variant_id', $eighty)->update(['price_minor' => 100, 'currency' => 'EGP']);
+        expect($row()['priceFrom']['minor'] ?? null)->toBe(5_000);
+        DB::table('catalog.store_variant_facts')->where('store_id', $sa)->where('variant_id', $sixty)->update(['currency' => 'EGP']);
+        expect($row())->toHaveKey('priceFrom', null);
     });
 
     it('finds by a name or a code, and shows the next page after the last row', function () {

@@ -34,6 +34,7 @@ export function PanelDialog({
     confirm,
     children,
     returnFocusTo,
+    cancelLabel,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -46,6 +47,8 @@ export function PanelDialog({
     children: ReactNode;
     /** Where focus goes back when the opener is gone: the ⋯ button of the menu that opened it. */
     returnFocusTo?: RefObject<HTMLElement | null>;
+    /** The dismissal's words where "Cancel" would mislead: "Stay", when leaving a page asks first. */
+    cancelLabel?: string;
 }) {
     const t = useTranslator();
     const returnFocus = useReturnFocus(open, returnFocusTo);
@@ -80,7 +83,7 @@ export function PanelDialog({
                 {body}
                 <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
                     <AlertDialogCancel disabled={busy} data-test="modal-cancel">
-                        {t('ui.cancel')}
+                        {cancelLabel ?? t('ui.cancel')}
                     </AlertDialogCancel>
                     {confirm}
                 </AlertDialogFooter>
@@ -92,7 +95,7 @@ export function PanelDialog({
                 {body}
                 <DialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
                     <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)} data-test="modal-cancel">
-                        {t('ui.cancel')}
+                        {cancelLabel ?? t('ui.cancel')}
                     </Button>
                     {confirm}
                 </DialogFooter>

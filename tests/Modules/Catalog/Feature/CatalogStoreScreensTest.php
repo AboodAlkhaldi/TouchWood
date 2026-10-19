@@ -19,6 +19,8 @@ use Modules\Catalog\Application\Command\AddLabel\AddLabel;
 use Modules\Catalog\Application\Command\AddLabel\AddLabelHandler;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
+use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\AttachLabels\AttachLabels;
 use Modules\Catalog\Application\Command\AttachLabels\AttachLabelsHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
@@ -27,6 +29,8 @@ use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabel;
 use Modules\Catalog\Application\Command\DeactivateLabel\DeactivateLabelHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
+use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Symfony\Component\HttpFoundation\Response;
@@ -36,6 +40,8 @@ use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Catalog\Support\CountingStoreSection;
+use Tests\Modules\Catalog\Support\WronglyNamedStoreSection;
 
 use function Pest\Laravel\seed;
 
@@ -504,5 +510,75 @@ describe('the query budget (frontend.md §5, P21)', function () {
         catalogStoreScreensOn('ae', $product);
 
         expect(catalogStoreScreensOwnQueries($browser, $uri))->toBe($own);
+    });
+});
+
+/*
+| The product page's store sections (catalog.md amendment 23(e); pricing.md §9.3 S3): a module above
+| Catalog registers the class that reads its part of the Stores tab, read once for every card, and its
+| component draws it in each card. With none registered, the cards are as they were.
+*/
+describe('the store sections of a product\'s Stores tab', function () {
+    beforeEach(function () {
+        CountingStoreSection::$asked = [];
+        CountingStoreSection::$leaveOut = null;
+    });
+
+    it('carries no section in a card while no module registers one', function () {
+        ['product' => $product] = Px::ready();
+        $browser = catalogStoreScreens([P::PRODUCT_VIEW]);
+
+        $browser->get("/admin/products/{$product}?tab=stores")->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('stores', fn (Collection $stores): bool => $stores->isNotEmpty() && $stores->every(fn (array $store): bool => $store['sections'] === [])));
+    });
+
+    it('reads a registered section once for every card, and puts its part in each store\'s card', function () {
+        ['product' => $product, 'variants' => [$sixty, $eighty]] = Px::ready(['60 cm', '80 cm']);
+        catalogStoreScreensOn('eg', $product);
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($eighty)));
+        app(ProductStoreSections::class)->register('testing', CountingStoreSection::class);
+        CountingStoreSection::$leaveOut = 'sa';
+        $browser = catalogStoreScreens([P::PRODUCT_VIEW], ['eg', 'sa']);
+
+        $eg = catalogStoreScreensCard($browser->get("/admin/products/{$product}?tab=stores"), 'eg');
+        $sa = catalogStoreScreensCard($browser->get("/admin/products/{$product}?tab=stores"), 'sa');
+
+        expect($eg['sections'] ?? null)->toBe([['module' => 'testing', 'component' => 'Testing/StoreRows', 'data' => ['rows' => 2, 'line' => 'Rows in eg']]])
+            // A store the section leaves out draws nothing of it.
+            ->and($sa['sections'] ?? null)->toBe([])
+            // Once a page, for the reader's stores in the cards' order, with the sizes not archived.
+            ->and(CountingStoreSection::$asked)->toHaveCount(2)
+            ->and(CountingStoreSection::$asked[0])->toBe(['product' => $product, 'variants' => [$sixty], 'stores' => ['sa', 'eg']]);
+    });
+
+    it('adds a registered section\'s own reads to the tab once, however many stores', function () {
+        ['product' => $product] = Px::ready(['60 cm', '80 cm']);
+        catalogStoreScreensOn('eg', $product);
+        app(ProductStoreSections::class)->register('testing', CountingStoreSection::class);
+        $browser = catalogStoreScreens([P::PRODUCT_VIEW, P::LISTING_CHOOSE, P::LISTING_SELLING, P::LISTING_UNAVAILABLE, P::LISTING_LABELS]);
+        $uri = "/admin/products/{$product}?tab=stores";
+
+        // The tab's 8 (the query budget, below) and the section's one.
+        expect(catalogStoreScreensOwnQueries($browser, $uri))->toBe(9);
+
+        catalogStoreScreensOn('sa', $product);
+        catalogStoreScreensOn('ae', $product);
+
+        expect(catalogStoreScreensOwnQueries($browser, $uri))->toBe(9);
+    });
+
+    it('refuses a class that is not a section, one registered twice, and a component that is not a path', function () {
+        $sections = new InMemoryProductStoreSections(app());
+
+        expect(fn () => $sections->register('testing', stdClass::class))->toThrow(LogicException::class, 'does not implement')
+            ->and(function () use ($sections): void {
+                $sections->register('testing', CountingStoreSection::class);
+                $sections->register('other', CountingStoreSection::class);
+            })->toThrow(LogicException::class, 'already registered');
+
+        $wrong = new InMemoryProductStoreSections(app());
+        $wrong->register('testing', WronglyNamedStoreSection::class);
+
+        expect(fn () => $wrong->all())->toThrow(LogicException::class, 'not a path under resources/js/sections/');
     });
 });

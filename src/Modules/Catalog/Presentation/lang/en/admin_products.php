@@ -42,7 +42,14 @@ return [
         'in_stores' => 'In Stores',
         'in_store' => 'In This Store',
         'variants' => 'Variants',
+        // With a store chosen (pricing.md §9.4 Q5), from Catalog's own facts.
+        'price' => 'Price',
+        'cant_order' => "Can't Order",
     ],
+    // The lowest one-piece price of its sizes switched on in the store, the amount after it.
+    'price_from' => 'From',
+    // How many of its sizes switched on in the store can't be ordered now, counted by those switched on.
+    'cant_order_count' => ':count of :total size|:count of :total sizes',
     'state' => [
         'ON' => 'On (:on of :all)',
         'OFF' => 'Off',
