@@ -19,4 +19,5 @@ return [
     'points' => 'النقاط',
     'sync' => 'المزامنة',
     'marketing' => 'التسويق',
+    'support' => 'الدعم',
 ];

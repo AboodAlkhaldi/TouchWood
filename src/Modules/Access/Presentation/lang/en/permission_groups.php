@@ -19,4 +19,5 @@ return [
     'points' => 'Points',
     'sync' => 'Sync',
     'marketing' => 'Marketing',
+    'support' => 'Support',
 ];
