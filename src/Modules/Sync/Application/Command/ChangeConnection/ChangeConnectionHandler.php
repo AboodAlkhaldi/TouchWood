@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Command\ChangeConnection;
 
 use Illuminate\Database\ConnectionInterface;
-use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Sync\Application\Connections\ConnectionInput;
+use Modules\Sync\Application\Connections\ConnectionStore;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
@@ -23,7 +24,6 @@ use Modules\Sync\Domain\ValueObject\ReadKind;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Changing a store's connection** (sync.md §1.2): the same form, tested the same way before anything
@@ -37,6 +37,7 @@ final readonly class ChangeConnectionHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private ConnectionStore $stores,
         private PlatformApi $platform,
         private ConnectionInput $input,
         private ProviderAdapters $adapters,
@@ -46,21 +47,14 @@ final readonly class ChangeConnectionHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|NotWired|ConnectionFailed
+     * @throws Unauthorized|InvalidSyncInput|StoreOff|NotWired|ConnectionFailed
      */
     public function handle(ChangeConnection $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
-        try {
-            $store = StoreId::fromString($command->storeId);
-        } catch (InvalidArgumentException) {
-            throw new InvalidSyncInput('store');
-        }
-
-        if ($this->platform->store($store) === null) {
-            throw new InvalidSyncInput('store');
-        }
+        // A store that exists; off, only for whoever may switch stores (Q1).
+        $store = $this->stores->of($command->storeId);
 
         $provider = $this->input->provider($command->provider);
         $address = $this->input->address($command->address);

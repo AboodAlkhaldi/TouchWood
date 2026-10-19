@@ -57,6 +57,14 @@ final class FakeProvider implements ProviderAdapter
         return $this->fields;
     }
 
+    /** Whether it answers as a connection that is built (Q38): yes, unless a test says otherwise. */
+    public bool $ready = true;
+
+    public function ready(): bool
+    {
+        return $this->ready;
+    }
+
     /** @var (callable(): mixed)|null run once, during the next test - what happens while the provider answers */
     public $whileTesting = null;
 

@@ -378,12 +378,12 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
     it('never marks done a read taken over while it ran', function () {
         $read = (string) DB::table('sync.reads')->value('id');
         // Nothing to read, so no batch checks it: the end must.
-        syncReadsFake()->whileReading = fn () => DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'Stopped: its worker went away.', 'finished_at' => now()]);
+        syncReadsFake()->whileReading = fn () => DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'WORKER_GONE', 'finished_at' => now()]);
 
         Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
 
         expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
-            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Stopped: its worker went away.')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('WORKER_GONE')
             ->and(Fx::audits('sync.read.done', $read))->toBe(0);
     });
 
@@ -423,7 +423,7 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
         $waiting = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
 
         expect(DB::table('sync.reads')->where('id', $running)->value('state'))->toBe('FAILED')
-            ->and(DB::table('sync.reads')->where('id', $running)->value('error'))->toStartWith('Superseded')
+            ->and(DB::table('sync.reads')->where('id', $running)->value('error'))->toBe('SUPERSEDED')
             ->and($waiting)->not->toBe('');
 
         Queue::assertPushed(ReadStoreJob::class, fn (ReadStoreJob $job): bool => $job->readId === $waiting);
@@ -443,7 +443,7 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
 
         (new ReadStoreJob($read))->failed(new RuntimeException('SQLSTATE[...] select * from secrets'));
 
-        expect(DB::table('sync.connections')->value('last_error'))->toBe('The read failed: see the failed jobs screen.')
+        expect(DB::table('sync.connections')->value('last_error'))->toBe('JOB_FAILED')
             ->and((string) DB::table('sync.report_entries')->value('detail'))->not->toContain('SQLSTATE');
     });
 
@@ -453,7 +453,7 @@ describe('one read at a time, and failures (§1.3, §1.7)', function () {
         $read = syncReadsRun();
 
         expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('FAILED')
-            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Stopped: the store was unwired, or wired again, while it ran.')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('STOPPED_REWIRED')
             ->and(syncReadsFake()->reads)->toBe([]);
     });
 

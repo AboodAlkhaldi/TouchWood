@@ -152,13 +152,13 @@ it('tells again of another sale stopped, or another discount skipped, on a size 
 
 it('never reports a read failed already - superseded or stopped - as the store failing', function () {
     $read = syncAttentionWaiting();
-    DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'Superseded: a read of the same kind waits.', 'finished_at' => now()]);
+    DB::table('sync.reads')->where('id', $read)->update(['state' => 'FAILED', 'error' => 'SUPERSEDED', 'finished_at' => now()]);
 
     Fx::asSystem(fn () => app(RunReadHandler::class)->failed($read, 'Timed out'));
 
     Event::assertNotDispatched(SyncNeedsAttention::class);
     expect(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->count())->toBe(0)
-        ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('Superseded: a read of the same kind waits.');
+        ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('SUPERSEDED');
 });
 
 it('is a topic staff choose, in the panel by default (access.md amendment 71)', function () {

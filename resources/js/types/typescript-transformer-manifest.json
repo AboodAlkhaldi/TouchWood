@@ -25,7 +25,8 @@
     "generated\\Modules\\Pricing\\Public\\Enums\\index.ts": "06df20fe8d7764b35be867cc31109bfb",
     "generated\\Modules\\Promotions\\Domain\\Model\\index.ts": "845ffa427bb7780cd12004e84016a031",
     "generated\\Modules\\Promotions\\Public\\Enums\\index.ts": "c6893b572bb04e872c6c63ff8b242057",
-    "generated\\Modules\\Sync\\Domain\\ValueObject\\index.ts": "88c591e92d3cf7b0c5430c75abadee1f",
+    "generated\\Modules\\Sync\\Domain\\ValueObject\\index.ts": "4c202f059a066a89a12ecf5a9d107069",
+    "generated\\Modules\\Sync\\Presentation\\Http\\Resource\\index.ts": "933bd58eb21c9efc03b630e66bc77229",
     "generated\\Shared\\Application\\index.ts": "98233a3c81f7fda28a0e0e1e91802372",
     "generated\\Shared\\Domain\\Error\\index.ts": "30f1ec768e42620cd0674bc9195db687"
 }

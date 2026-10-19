@@ -226,7 +226,7 @@ deptrac:
     # Sync → Platform, Catalog, Pricing, Inventory; Access only to declare its permissions (owner,
     # 2026-10-07).
     SyncPublic: [Shared, Vendor, PlatformPublic, CatalogPublic, PricingPublic, InventoryPublic]
-    Sync: [+SyncPublic, AccessPublic]
+    Sync: [+SyncPublic, AccessPublic, AppHttp]
 
     # Sales → the transaction. The widest surface in the system, by design.
     SalesPublic:

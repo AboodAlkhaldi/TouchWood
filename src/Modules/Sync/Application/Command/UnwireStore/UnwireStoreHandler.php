@@ -5,21 +5,22 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Command\UnwireStore;
 
 use Illuminate\Database\ConnectionInterface;
-use InvalidArgumentException;
 use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
+use Modules\Sync\Application\Connections\ConnectionStore;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\NotWired;
+use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
+use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Unwiring a store** (sync.md §1.8), together: the connection gone with its key and secret, so the
@@ -35,6 +36,7 @@ final readonly class UnwireStoreHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private ConnectionStore $stores,
         private PlatformApi $platform,
         private Connections $connections,
         private Reads $reads,
@@ -44,27 +46,20 @@ final readonly class UnwireStoreHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|NotWired
+     * @throws Unauthorized|InvalidSyncInput|StoreOff|NotWired
      */
     public function handle(UnwireStore $command): int
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
-        try {
-            $store = StoreId::fromString($command->storeId);
-        } catch (InvalidArgumentException) {
-            throw new InvalidSyncInput('store');
-        }
-
-        if ($this->platform->store($store) === null) {
-            throw new InvalidSyncInput('store');
-        }
+        // A store that exists; off, only for whoever may switch stores (Q1).
+        $store = $this->stores->of($command->storeId);
 
         return $this->db->transaction(function () use ($store): int {
             $connection = $this->connections->lockFor($store) ?? throw new NotWired;
             $this->connections->delete($store);
             $closed = $this->entries->closeAll($store, 'UNWIRED');
-            $this->reads->dropUnfinished($store, 'The store was unwired.');
+            $this->reads->dropUnfinished($store, ReadFailure::Unwired->value);
             $stopped = $this->stock->unwired($store);
 
             $this->platform->recordAudit(new AuditEntryDto(

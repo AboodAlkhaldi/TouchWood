@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Command\WireStore;
 
 use Illuminate\Database\ConnectionInterface;
-use InvalidArgumentException;
 use Modules\Inventory\Public\Contracts\ProviderStock;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Sync\Application\Connections\ConnectionInput;
+use Modules\Sync\Application\Connections\ConnectionStore;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\AlreadyWired;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
@@ -26,7 +27,6 @@ use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **Wiring a store** (sync.md §1.2): a Super Admin's alone (`sync.connection.manage`, reserved). The
@@ -41,6 +41,7 @@ final readonly class WireStoreHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private ConnectionStore $stores,
         private ActorContext $actors,
         private PlatformApi $platform,
         private ConnectionInput $input,
@@ -52,21 +53,14 @@ final readonly class WireStoreHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput|AlreadyWired|ConnectionFailed
+     * @throws Unauthorized|InvalidSyncInput|StoreOff|AlreadyWired|ConnectionFailed
      */
     public function handle(WireStore $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
-        try {
-            $store = StoreId::fromString($command->storeId);
-        } catch (InvalidArgumentException) {
-            throw new InvalidSyncInput('store');
-        }
-
-        if ($this->platform->store($store) === null) {
-            throw new InvalidSyncInput('store');
-        }
+        // A store that exists; off, only for whoever may switch stores (Q1).
+        $store = $this->stores->of($command->storeId);
 
         $provider = $this->input->provider($command->provider);
         $connection = new Connection(
