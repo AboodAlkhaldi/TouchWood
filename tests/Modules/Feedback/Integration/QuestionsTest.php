@@ -8,6 +8,8 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Feedback\Application\Command\AnswerQuestion\AnswerQuestion;
 use Modules\Feedback\Application\Command\AnswerQuestion\AnswerQuestionHandler;
@@ -170,13 +172,15 @@ describe('answering', function () {
         app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($id, 'Yes.'));
         $answeredAt = questionRow($id)['answered_at'];
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
-        answerer();
+        $corrector = answerer();
 
         app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'Yes, from 60 cm.'));
         $row = questionRow($id);
 
         expect([$row['answer'], $row['answered_by'], $row['answered_at']])->toBe(['Yes, from 60 cm.', $first, $answeredAt])
-            ->and(questionAudit('feedback.question.answer_changed'))->toBe(['answer' => ['Yes.', 'Yes, from 60 cm.']]);
+            ->and(questionAudit('feedback.question.answer_changed'))->toBe(['answer' => ['Yes.', 'Yes, from 60 cm.']])
+            // The corrector is in the audit, the first who answered on the question (answer 20).
+            ->and(DB::table('platform.audit_entries')->where('action', 'feedback.question.answer_changed')->value('actor_id'))->toBe($corrector);
 
         // The same text again changes and records nothing.
         app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'Yes, from 60 cm.'));
@@ -194,7 +198,9 @@ describe('answering', function () {
 
         expect([questionRow($withReason)['status'], questionRow($withReason)['reason']])->toBe(['REJECTED', 'Not about the product.'])
             ->and([questionRow($without)['status'], questionRow($without)['reason']])->toBe(['REJECTED', null])
-            ->and(questionAudit('feedback.question.rejected'))->toEqual(['status' => ['PENDING', 'REJECTED']]);
+            ->and(questionAudit('feedback.question.rejected'))->toEqual(['status' => ['PENDING', 'REJECTED']])
+            ->and(json_decode((string) DB::table('platform.audit_entries')->where('action', 'feedback.question.rejected')->where('subject_id', $withReason)->value('changes'), true))
+            ->toEqual(['status' => ['PENDING', 'REJECTED'], 'reason' => [null, 'Not about the product.']]);
     });
 
     it('unpublishes an answered question: its answer kept for the customer, audited', function () {
@@ -280,4 +286,20 @@ it('lets Catalog refuse to delete a product a question is about', function () {
 
     expect(array_map(static fn ($use): array => [$use->kind, $use->id], app(FeedbackCatalogUsage::class)->usesOf(CatalogItem::Product, [$product])))->toBe([['question', $id]])
         ->and(app(FeedbackCatalogUsage::class)->usesOf(CatalogItem::Variant, [$product]))->toBe([]);
+});
+
+it('still decides an archived product\'s waiting questions, and takes no new one about it', function () {
+    ['product' => $product] = Fb::sold();
+    $sara = Fx::customer();
+    $toAnswer = ask($sara, $product);
+    $toReject = ask($sara, $product, 'Another');
+    Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($product)));
+    answerer();
+
+    app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($toAnswer, 'Yes.'));
+    app(UnpublishQuestionHandler::class)->handle(new UnpublishQuestion($toAnswer));
+    app(RejectQuestionHandler::class)->handle(new RejectQuestion($toReject));
+
+    expect([questionRow($toAnswer)['status'], questionRow($toReject)['status']])->toBe(['UNPUBLISHED', 'REJECTED'])
+        ->and(Fb::thrown(fn () => ask($sara, $product, 'A new one'), InvalidFeedbackAttribute::class)->attribute)->toBe('product');
 });

@@ -6,10 +6,12 @@ namespace Modules\Feedback\Application\Command\AskQuestion;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Feedback\Application\FeedbackPermissions;
+use Modules\Feedback\Application\RemovedMeanwhile;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Domain\Exception\TooManyWaitingQuestions;
 use Modules\Feedback\Domain\Model\FeedbackText;
@@ -77,17 +79,21 @@ final readonly class AskQuestionHandler
             throw new InvalidFeedbackAttribute('product', 'not sold in this store');
         }
 
-        return $this->db->transaction(function () use ($customerId, $productId, $store, $body, $locale): string {
-            $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ["feedback:questions:{$customerId}"], false);
+        try {
+            return $this->db->transaction(function () use ($customerId, $productId, $store, $body, $locale): string {
+                $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ["feedback:questions:{$customerId}"], false);
 
-            if ($this->questions->waiting($customerId) >= self::WAITING) {
-                throw new TooManyWaitingQuestions;
-            }
+                if ($this->questions->waiting($customerId) >= self::WAITING) {
+                    throw new TooManyWaitingQuestions;
+                }
 
-            $questionId = strtolower((string) Str::ulid());
-            $this->questions->create($questionId, $productId, $store, $customerId, $body, $locale, CarbonImmutable::now());
+                $questionId = strtolower((string) Str::ulid());
+                $this->questions->create($questionId, $productId, $store, $customerId, $body, $locale, CarbonImmutable::now());
 
-            return $questionId;
-        });
+                return $questionId;
+            });
+        } catch (QueryException $failed) {
+            throw RemovedMeanwhile::of($failed);
+        }
     }
 }

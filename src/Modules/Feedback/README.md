@@ -27,6 +27,16 @@ Backend only in this stage's build; the screens are another session's.
 - **`Domain/Exception`** — the errors of spec §7, each with its type (`feedback.{snake}`), its status,
   and a title and a message in Arabic and English at `feedback::errors.{snake}`.
 - **`Presentation/lang/{en,ar}`** — the permissions' names, the setting's name, the errors' words.
+- **Questions**: **`Command/AskQuestion`** (`feedback.question.ask`, a signed-in customer): the text
+  read by `FeedbackText` (1 to 1,000), the product sold in the open store, then under an advisory lock
+  on the customer at most five waiting in all (`TooManyWaitingQuestions`, answer 16).
+  **`Command/{AnswerQuestion,CorrectAnswer,RejectQuestion,UnpublishQuestion}`**
+  (`feedback.question.answer`) through `StaffChange` (the store asked in — another store's question is
+  `QuestionNotFound`): the row locked, the move its state allows or `InvalidModeration`; a correction
+  changes the text only — who answered and when kept, the corrector in the audit (answer 20); audited
+  `feedback.question.answered` / `…answer_changed` / `…rejected` / `…unpublished`. SQL in
+  `Infrastructure/Eloquent/DatabaseQuestions`. A product Catalog deletes between the check and the
+  write is answered as `product` (`Application/RemovedMeanwhile`), never a database error.
 - **Reviews**: **`Command/WriteReview`** (`feedback.review.write`, a signed-in customer): the text read
   by the domain's **`FeedbackText`** (trimmed, line breaks kept, Arabic digits as 0-9, length in
   characters); the product sold in the open store (Catalog's `productsSoldIn`); then under
@@ -41,7 +51,7 @@ Backend only in this stage's build; the screens are another session's.
   `feedback.review.approved` / `…rejected` / `…unpublished`. **`Review/ReturnedReviews`**, on Sales's
   `ReturnCompleted` (`Infrastructure/Listener/FlipReturnedReviews`, queued): each product the return
   took back, under the same lock, its review flipped to "Returned". **`Infrastructure/Eloquent/
-  FeedbackCatalogUsage`**: Catalog refuses to delete a product or variant a review names.
+  FeedbackCatalogUsage`**: Catalog refuses to delete a product or variant a review names, or a product a question is about.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
 `FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`;

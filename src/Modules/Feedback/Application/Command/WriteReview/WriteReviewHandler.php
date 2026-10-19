@@ -6,11 +6,13 @@ namespace Modules\Feedback\Application\Command\WriteReview;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Feedback\Application\FeedbackPermissions;
+use Modules\Feedback\Application\RemovedMeanwhile;
 use Modules\Feedback\Application\Review\ReviewLock;
 use Modules\Feedback\Domain\Exception\AlreadyReviewed;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
@@ -105,6 +107,8 @@ final readonly class WriteReviewHandler
         } catch (UniqueConstraintViolationException) {
             // The lock makes this a backstop: a review written by a path that skipped it.
             throw new AlreadyReviewed;
+        } catch (QueryException $failed) {
+            throw RemovedMeanwhile::of($failed);
         }
     }
 

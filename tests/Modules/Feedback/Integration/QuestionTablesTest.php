@@ -73,6 +73,8 @@ it('refuses what the code would never write', function (Closure $with, string $c
     'an answer without who' => [fn () => [...answered(), 'answered_by' => null], 'questions_answered'],
     'answered without an answer' => [fn () => ['status' => 'ANSWERED'], 'questions_answer_status'],
     'an answer while waiting' => [fn () => [...answered(), 'status' => 'PENDING'], 'questions_answer_status'],
+    'unpublished without its answer' => [fn () => ['status' => 'UNPUBLISHED'], 'questions_answer_status'],
+    'rejected with an answer' => [fn () => [...answered(), 'status' => 'REJECTED'], 'questions_answer_status'],
     'an empty answer' => [fn () => [...answered(), 'answer' => ''], 'questions_answer'],
     'an answer too long' => [fn () => [...answered(), 'answer' => str_repeat('a', 2001)], 'questions_answer'],
     'a reason while waiting' => [fn () => ['reason' => 'Why'], 'questions_reason'],

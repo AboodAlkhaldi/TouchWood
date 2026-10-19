@@ -151,8 +151,9 @@ keeps a cart, with no favourites").
   - **"Favourited products"** for a store: each product saved there with **how many customers saved
     it**, sortable from most saved (owner, 2026-10-09) — **the handoff's ban on a favourites ranking
     (§16) is lifted**, amended with this spec. Ops' "Favourites" report (§13.3) stays Ops' (stage 8).
-- **Caps under load:** saving to the list and asking a question lock the customer's row first, so two
-  requests at once cannot both pass 500 items or 5 waiting questions.
+- **Caps under load:** saving to the list and asking a question take a lock on the customer first —
+  an advisory lock, Feedback having no customer row of its own (answer 20) — so two requests at once
+  cannot both pass 500 items or 5 waiting questions.
 - **An archived product** stays in lists, shown as unavailable; it leaves "Favourited products".
 
 ### 1.5 A deleted customer
