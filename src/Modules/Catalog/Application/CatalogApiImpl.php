@@ -117,6 +117,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $brand === null ? null : new BrandDto($brand->id(), $brand->name()->ar, $brand->name()->en, $brand->isActive());
     }
 
+    public function brands(array $brandIds): array
+    {
+        return $this->reads->brands($brandIds);
+    }
+
     public function switchedOnVariantIds(StoreId $store): array
     {
         return $this->reads->switchedOnVariantIds($store->value);

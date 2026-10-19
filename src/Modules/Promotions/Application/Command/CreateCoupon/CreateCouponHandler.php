@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Command\CreateCoupon;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use Modules\Promotions\Application\Coupon\CouponAudit;
@@ -57,6 +58,8 @@ final readonly class CreateCouponHandler
         } catch (UniqueConstraintViolationException) {
             // The store's lock makes this a backstop: the code taken by a write that skipped it.
             throw new CodeTaken($code);
+        } catch (QueryException $failed) {
+            throw RuleTargets::removedMeanwhile($failed);
         }
     }
 }

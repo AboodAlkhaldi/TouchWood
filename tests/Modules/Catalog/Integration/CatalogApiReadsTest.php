@@ -170,6 +170,22 @@ describe('a brand, for Promotions (amendment 20)', function () {
         DB::table('catalog.brands')->where('id', $brand)->update(['is_active' => true]);
         expect(catalogReads()->brand($brand)?->isActive)->toBeTrue();
     });
+
+    it('answers many brands in one read, keyed by id, an unknown one left out (amendment 27)', function () {
+        $hafele = Px::brand('Hafele');
+        $blum = Px::brand('Blum');
+        DB::table('catalog.brands')->where('id', $blum)->update(['is_active' => false]);
+
+        $queries = Cx::recordQueries();
+        $found = catalogReads()->brands([strtoupper($hafele), $blum, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id', $hafele]);
+
+        expect(count($queries))->toBe(1)
+            ->and(array_keys($found))->toEqualCanonicalizing([$hafele, $blum])
+            ->and($found[$hafele]->nameEn)->toStartWith('Hafele')
+            ->and([$found[$hafele]->isActive, $found[$blum]->isActive])->toBe([true, false])
+            ->and(catalogReads()->brands([]))->toBe([])
+            ->and(catalogReads()->brands(['not-an-id']))->toBe([]);
+    });
 });
 
 describe('a cart\'s line facts, for Promotions (amendment 18)', function () {

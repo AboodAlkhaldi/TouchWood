@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Command\ChangeCoupon;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Modules\Promotions\Application\Coupon\CouponAudit;
 use Modules\Promotions\Application\Coupon\RuleTargets;
 use Modules\Promotions\Application\MarketingChange;
@@ -50,38 +51,42 @@ final readonly class ChangeCouponHandler
         $terms = $command->fields->terms($store->currencyCode);
         $storeId = StoreId::fromString($store->id);
 
-        $this->change->run($store, function () use ($storeId, $terms, $command): array {
-            $coupon = $this->coupons->lock($storeId, $command->couponId) ?? throw new CouponNotFound;
-            $kept = array_map(static fn (CouponRule $rule): string => "{$rule->kind->value} {$rule->target->value} {$rule->targetId}", $coupon->rules);
-            $this->targets->check(array_values(array_filter(
-                $terms->rules,
-                static fn (CouponRule $rule): bool => ! in_array("{$rule->kind->value} {$rule->target->value} {$rule->targetId}", $kept, true),
-            )));
+        try {
+            $this->change->run($store, function () use ($storeId, $terms, $command): array {
+                $coupon = $this->coupons->lock($storeId, $command->couponId) ?? throw new CouponNotFound;
+                $kept = array_map(static fn (CouponRule $rule): string => "{$rule->kind->value} {$rule->target->value} {$rule->targetId}", $coupon->rules);
+                $this->targets->check(array_values(array_filter(
+                    $terms->rules,
+                    static fn (CouponRule $rule): bool => ! in_array("{$rule->kind->value} {$rule->target->value} {$rule->targetId}", $kept, true),
+                )));
 
-            if ($terms->maxUsesTotal !== null && $terms->maxUsesTotal < $coupon->usesTotal) {
-                throw new CouponInUse;
-            }
-
-            // Given to customers, it stays for assigned customers only: no silent loss or return of the
-            // coupon for them (owner, 2026-10-18, answer 25) — they are removed first, or a new coupon made.
-            if ($coupon->eligibility === CouponEligibility::Assigned && $terms->eligibility !== CouponEligibility::Assigned && $this->assignments->any($coupon)) {
-                throw new InvalidPromotionAttribute('eligibility', 'assigned customers have it; remove them first');
-            }
-
-            // Assigned from an individuals' (or companies') segment, it may not then leave them out (§1.1).
-            foreach ($this->assignments->segmentAudiences($coupon) as $audience) {
-                if ($audience === SegmentAudience::Individual ? ! $terms->forPublic : ! $terms->forCompany) {
-                    throw new InvalidPromotionAttribute('audience', "it was assigned from a segment of {$audience->value} customers");
+                if ($terms->maxUsesTotal !== null && $terms->maxUsesTotal < $coupon->usesTotal) {
+                    throw new CouponInUse;
                 }
-            }
 
-            $entry = CouponAudit::entry('updated', $coupon->id, $storeId->value, $coupon->terms()->snapshot(), $terms->snapshot());
+                // Given to customers, it stays for assigned customers only: no silent loss or return of the
+                // coupon for them (owner, 2026-10-18, answer 25) — they are removed first, or a new coupon made.
+                if ($coupon->eligibility === CouponEligibility::Assigned && $terms->eligibility !== CouponEligibility::Assigned && $this->assignments->any($coupon)) {
+                    throw new InvalidPromotionAttribute('eligibility', 'assigned customers have it; remove them first');
+                }
 
-            if ($entry !== null) {
-                $this->coupons->change($coupon, $terms, CarbonImmutable::now());
-            }
+                // Assigned from an individuals' (or companies') segment, it may not then leave them out (§1.1).
+                foreach ($this->assignments->segmentAudiences($coupon) as $audience) {
+                    if ($audience === SegmentAudience::Individual ? ! $terms->forPublic : ! $terms->forCompany) {
+                        throw new InvalidPromotionAttribute('audience', "it was assigned from a segment of {$audience->value} customers");
+                    }
+                }
 
-            return [null, array_filter([$entry])];
-        });
+                $entry = CouponAudit::entry('updated', $coupon->id, $storeId->value, $coupon->terms()->snapshot(), $terms->snapshot());
+
+                if ($entry !== null) {
+                    $this->coupons->change($coupon, $terms, CarbonImmutable::now());
+                }
+
+                return [null, array_filter([$entry])];
+            });
+        } catch (QueryException $failed) {
+            throw RuleTargets::removedMeanwhile($failed);
+        }
     }
 }

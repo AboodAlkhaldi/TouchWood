@@ -44,6 +44,7 @@ return [
 
     'fields' => [
         'code' => 'الرمز',
+        'gift_variant' => 'الهدية',
         'percent' => 'النسبة',
         'amount' => 'المبلغ',
         'dates' => 'التواريخ',
