@@ -16,6 +16,7 @@ use Modules\Sync\Domain\Exception\NotWired;
 use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
+use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -64,7 +65,7 @@ final readonly class UnwireStoreHandler
             $connection = $this->connections->lockFor($store) ?? throw new NotWired;
             $this->connections->delete($store);
             $closed = $this->entries->closeAll($store, 'UNWIRED');
-            $this->reads->dropUnfinished($store, 'The store was unwired.');
+            $this->reads->dropUnfinished($store, ReadFailure::Unwired->value);
             $stopped = $this->stock->unwired($store);
 
             $this->platform->recordAudit(new AuditEntryDto(

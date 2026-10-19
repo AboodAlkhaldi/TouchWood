@@ -101,6 +101,9 @@ describe('the admin menu', function () {
             'pricing/category_discounts',
             'pricing/wholesale_prices',
             'pricing/needs_a_price',
+            // Sync's screens (sync.md §4.1.2, stage 5's screens step 6), its own group after Pricing's.
+            'sync/report',
+            'sync/provider',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

@@ -11,6 +11,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use Modules\Sync\Domain\Model\Read;
 use Modules\Sync\Domain\Repository\Reads;
+use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Shared\Application\ActorContext;
@@ -145,7 +146,7 @@ final readonly class DatabaseReads implements Reads
             $this->db->transaction(fn () => $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->update(['state' => 'QUEUED', 'started_at' => null]));
         } catch (UniqueConstraintViolationException) {
             // A read of the same kind waits already: it covers this one, which is superseded.
-            $this->fail($readId, 'Superseded: a read of the same kind waits.');
+            $this->fail($readId, ReadFailure::Superseded->value);
             $store = $this->storeOf($readId);
 
             if ($store !== null) {

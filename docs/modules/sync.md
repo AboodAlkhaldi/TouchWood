@@ -339,6 +339,26 @@ Pricing, icon `sync` (Lucide's `RefreshCw`):
 | `ViewConnection` (extended, S7) | the last full read; the notice address and what the provider must send |
 | `SyncActionsForReader` (new) | per store: may view, may run, may wire; whether a Now read waits; `mayViewProducts`; the reasons |
 
+**Built (stage 5's screens step 6, 2026-10-19)** - the reads as Application queries answering page-facing
+views, every moment ISO 8601, a price written as Pricing writes money; the routes (`sync.admin.*`), their
+controllers and page data, the menu's two entries and the words; the pages are placeholders until step 7:
+
+- `SyncStatus`: `WORKING`, `FAILING` (its reason) or `NOT_WIRED`; Last Read is the newest read **done**, by
+  its end; Last Full Read the start of the last full read that worked (`connections.last_full_read_at`); the
+  read running, else the first waiting.
+- **Show More** pages by a cursor (the last row's time and id): Problems by when last seen, Reads by when
+  asked. A cursor that is not one is refused (`after`). A read's sections page by number (`?page=`).
+- **Q31**: Sync's own reasons are stored as codes - `STOPPED_REWIRED`, `WORKER_GONE`, `UNWIRED`, `SUPERSEDED`,
+  `JOB_FAILED` - in the same columns as before (a migration turned the sentences into codes); anything
+  else is the provider's words. **Q34**: a setting is refused as `settings` naming it (`rules.setting`), and
+  the Provider form puts it under its own box (`errors["settings.<name>"]`).
+- `SyncActionsForReader` also answers `mayViewOffers` (any of Pricing's three jobs), so a link to an offer
+  or a discount is drawn only for whoever may open it (pricing.md §4.3.1).
+- The provider's adapter answers `ready()` (Q38): Odoo's is false until §2.4's adapter is written.
+- **A code twice in one read** (§2.4): the read's values are gathered by code before anything is written, so
+  both are skipped however far apart they come; the size's `BAD_VALUE` keeps both (`detail.twice`). A code we
+  do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5).
+
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 
 - **Subtitle**: "What the provider's reads found, and every read of this store."

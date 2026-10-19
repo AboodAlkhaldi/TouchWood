@@ -116,15 +116,21 @@ describe('the page of reads (§9.3 #19)', function () {
         ['product' => $product, 'sizes' => [$first, $second], 'read' => $read] = syncReportRead();
         Fx::actAsStaff(syncReportViewer());
 
-        $view = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read));
+        app()->setLocale('en');
+        $prices = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read));
+        $stock = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::STOCK));
+        $reported = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED));
 
         $code = (string) DB::table('catalog.variants')->where('id', $first)->value('code');
 
-        expect(array_map(static fn ($line): array => [$line->variantId, $line->code, $line->productId, $line->before, $line->after], $view->prices))->toBe([[$first, $code, $product, null, '120.50']])
-            ->and([$view->pricesTotal, $view->stockTotal, $view->reportedTotal])->toBe([1, 1, 2])
-            ->and(array_map(static fn ($line): array => [$line->variantId, $line->before, $line->after], $view->stock))->toBe([[$first, '0', '7']])
-            ->and($view->prices[0]->productNameEn)->not->toBeNull()
-            ->and(array_map(static fn ($entry): string => $entry->kind.' '.($entry->productId ?? $entry->code), $view->reported))->toEqualCanonicalizing(["BAD_VALUE {$product}", 'UNKNOWN_CODE 987654']);
+        // A price written as Pricing writes money (the store's decimals and sign), a stock number as it is.
+        expect(array_map(static fn ($line): array => [$line->variantId, $line->code, $line->productId, $line->before, $line->after], $prices->lines))->toBe([[$first, $code, $product, null, "120.50 \u{20C1}"]])
+            ->and($prices->sections)->toBe(['prices' => 1, 'stock' => 1, 'reported' => 2, 'codes' => 0])
+            ->and(array_map(static fn ($line): array => [$line->variantId, $line->before, $line->after], $stock->lines))->toBe([[$first, '0', '7']])
+            ->and($prices->lines[0]->productNameEn)->not->toBeNull()
+            ->and($prices->lines[0]->values)->toBe(['60 cm'])
+            ->and([$prices->reported, $stock->reported, $reported->lines])->toBe([[], [], []])
+            ->and(array_map(static fn ($entry): string => $entry->kind.' '.($entry->productId ?? $entry->code), $reported->reported))->toEqualCanonicalizing(["BAD_VALUE {$product}", 'UNKNOWN_CODE 987654']);
     });
 
     it('shows a read to whoever may see its store\'s report; to anyone else it is not there (owner, 2026-10-18)', function () {
@@ -145,7 +151,7 @@ describe('what a read reported, as it was that day (owner, 2026-10-18)', functio
         Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($second)));
         Fx::actAsStaff(syncReportViewer());
 
-        $kinds = static fn (string $read): array => array_map(static fn ($entry): string => $entry->kind, app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read))->reported);
+        $kinds = static fn (string $read): array => array_map(static fn ($entry): string => $entry->kind, app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED))->reported);
 
         expect($kinds($first))->toEqualCanonicalizing(['BAD_VALUE', 'UNKNOWN_CODE'])
             ->and($kinds($second))->toEqualCanonicalizing(['BAD_VALUE', 'UNKNOWN_CODE']);
@@ -156,10 +162,10 @@ describe('what a read reported, as it was that day (owner, 2026-10-18)', functio
         DB::table('sync.read_lines')->insert(array_map(static fn (int $n): array => ['read_id' => $read, 'kind' => 'STOCK', 'variant_id' => strtolower((string) Str::ulid()), 'before' => '0', 'after' => (string) $n], range(1, 150)));
         Fx::actAsStaff(syncReportViewer());
 
-        $first = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read));
-        $second = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, 2));
+        $first = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::STOCK));
+        $second = app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::STOCK, 2));
 
-        expect([$first->stockTotal, count($first->stock), count($second->stock), $first->perPage])->toBe([151, 100, 51, 100]);
+        expect([$first->sections['stock'], count($first->lines), count($second->lines), $first->perPage, $first->more, $second->more])->toBe([151, 100, 51, 100, true, false]);
     });
 });
 
@@ -180,8 +186,8 @@ describe('the report (§1.6)', function () {
         $all = app(ViewSyncReportHandler::class)->handle(new ViewSyncReport(Fx::storeId('sa')));
 
         expect($all->total)->toBe(2)
-            ->and(array_map(static fn ($entry): string => $entry->kind.' '.($entry->productId ?? $entry->code), $all->entries))->toBe(['UNKNOWN_CODE 987654', "BAD_VALUE {$product}"])
-            ->and(array_map(static fn ($entry): string => (string) $entry->code, $unknown->entries))->toBe(['987654'])
+            ->and(array_map(static fn ($entry): string => $entry->about->kind.' '.($entry->about->productId ?? $entry->about->code), $all->entries))->toBe(['UNKNOWN_CODE 987654', "BAD_VALUE {$product}"])
+            ->and(array_map(static fn ($entry): string => (string) $entry->about->code, $unknown->entries))->toBe(['987654'])
             ->and(app(CountSyncReportHandler::class)->handle(new CountSyncReport(Fx::storeId('sa'))))->toBe(2);
     });
 

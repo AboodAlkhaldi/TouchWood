@@ -101,13 +101,16 @@ it('has an Arabic and an English title and detail for every error, none empty, w
     }
 
     // Every field an invalid input names has its name in both languages (§7: store, address, key,
-    // secret, provider).
+    // secret, provider; the screens' list place and read section; a provider's setting, by its own name, Q34).
     expect($placeholders($en['invalid_sync_input']['detail']))->toBe([':attribute'])
-        ->and(array_keys($en['fields']))->toBe(['address', 'key', 'kind', 'provider', 'secret', 'store'])
+        ->and($placeholders($en['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
+        ->and($placeholders($ar['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
+        ->and(array_keys($en['fields']))->toBe(['address', 'after', 'key', 'kind', 'provider', 'secret', 'section', 'settings', 'store'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 
 it('carries the field an invalid input names, and the reason a test read failed, for the message', function () {
     expect((new InvalidSyncInput('address'))->context())->toBe(['attribute' => 'address'])
+        ->and((new InvalidSyncInput('settings', 'database'))->context())->toBe(['attribute' => 'settings', 'setting' => 'database', 'rule' => 'setting'])
         ->and((new ConnectionFailed('Timed out'))->context())->toBe(['reason' => 'Timed out']);
 });

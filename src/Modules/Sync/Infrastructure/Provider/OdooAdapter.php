@@ -20,6 +20,12 @@ final readonly class OdooAdapter implements ProviderAdapter
         return [];
     }
 
+    /** Not until the API of §2.4 is built and its adapter written (Q38). */
+    public function ready(): bool
+    {
+        return false;
+    }
+
     public function test(Connection $connection): void
     {
         throw new ConnectionFailed('The Odoo adapter waits for the provider team\'s documentation.');

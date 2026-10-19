@@ -24,6 +24,7 @@ use Modules\Sync\Domain\Repository\ReadReports;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
+use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Modules\Sync\Domain\ValueObject\ReportKind;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
@@ -53,8 +54,6 @@ final readonly class RunReadHandler
     private const int STALE_MINUTES = 30;
 
     private const string CLOSED_BY_READ = 'READ';
-
-    private const string STOPPED = 'Stopped: the store was unwired, or wired again, while it ran.';
 
     public function __construct(
         private Authorizer $authorizer,
@@ -90,8 +89,8 @@ final readonly class RunReadHandler
         $deadBefore = CarbonImmutable::now()->subMinutes(self::STALE_MINUTES)->toDateTimeImmutable();
 
         // Others of the store whose worker went away: failed the way a failed read is, so staff see it.
-        foreach ($this->reads->failStale($store, $deadBefore, 'Stopped: its worker went away.', $command->readId) as $stale) {
-            $this->report($store, $stale, 'Stopped: its worker went away.');
+        foreach ($this->reads->failStale($store, $deadBefore, ReadFailure::WorkerGone->value, $command->readId) as $stale) {
+            $this->report($store, $stale, ReadFailure::WorkerGone->value);
         }
 
         // Its own run, killed past its time, is taken back here and run again.
@@ -164,8 +163,8 @@ final readonly class RunReadHandler
 
         // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its.
         if (! $ran || ! $this->reads->finish($read->id, ...$counts)) {
-            $this->reads->fail($read->id, self::STOPPED);
-            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, AuditChanges::none()->changed('error', null, self::STOPPED)));
+            $this->reads->fail($read->id, ReadFailure::StoppedRewired->value);
+            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, AuditChanges::none()->changed('error', null, ReadFailure::StoppedRewired->value)));
 
             return;
         }
@@ -225,24 +224,15 @@ final readonly class RunReadHandler
     {
         $wiring = $this->connections->wiredAt($store);
         $changedSince = $read->kind === ReadKind::Hourly ? $connection->lastReadAt : null;
-        $values = $this->adapters->for($connection->provider)->read($connection, $read->codes, $changedSince);
         $seen = [];
-        $batch = [];
 
-        foreach ($values as $value) {
-            $batch[] = $value;
-
-            if (count($batch) === self::BATCH) {
-                if (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen)) {
-                    return false;
-                }
-
-                $batch = [];
+        // The whole read first, its values grouped by code: a code that comes twice - however far apart,
+        // a page or a batch apart too - is known before anything is written, so both of its values are
+        // skipped (§2.4; owner, 2026-10-19). Then written 500 codes a batch, as before.
+        foreach (array_chunk(self::byCode($this->adapters->for($connection->provider)->read($connection, $read->codes, $changedSince)), self::BATCH) as $batch) {
+            if (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen)) {
+                return false;
             }
-        }
-
-        if ($batch !== [] && (! $this->current($store, $read, $wiring) || ! $this->batch($store, $read, $wiring, $batch, $seen))) {
-            return false;
         }
 
         // Only the night's full read finds our sizes the provider does not know (§1.3, §1.6).
@@ -271,19 +261,20 @@ final readonly class RunReadHandler
      * written reported - only once they confirm the store is still wired - and what is right again
      * closed.
      *
-     * @param  list<ProviderValue>  $values
+     * @param  list<list<ProviderValue>>  $sent  what came for each code - two or more for a code sent twice
      * @param  array<string, true>  $seen  sizes the provider sent
      */
-    private function batch(StoreId $store, Read $read, ?string $wiring, array $values, array &$seen): bool
+    private function batch(StoreId $store, Read $read, ?string $wiring, array $sent, array &$seen): bool
     {
-        $variants = $this->catalog->variantsByCodes(array_map(static fn (ProviderValue $value): string => self::code($value->code), $values));
+        $variants = $this->catalog->variantsByCodes(array_map(static fn (array $values): string => self::code($values[0]->code), $sent));
         $codeOf = $priceIn = $stockIn = $bad = $unknown = [];
 
-        foreach ($values as $value) {
+        foreach ($sent as $values) {
+            $value = $values[0];
             $code = self::code($value->code);
             $variant = $variants[$code] ?? null;
 
-            // A code we do not have: reported, never created (§1.4 #1).
+            // A code we do not have: reported, never created (§1.4 #1) - once, though it came twice.
             if ($variant === null) {
                 $unknown[$code] = ['code' => $code, 'variantId' => null, 'saleId' => null, 'detail' => self::detail($value)];
 
@@ -292,6 +283,13 @@ final readonly class RunReadHandler
 
             $codeOf[$variant->id] = $code;
             $seen[$variant->id] = true;
+
+            // A code twice in one read: both values skipped, the size reported with what came (§2.4).
+            if (count($values) > 1) {
+                $bad[$variant->id] = ['twice' => array_map(self::detail(...), $values)];
+
+                continue;
+            }
 
             if ($value->price !== null) {
                 // The provider's text as it came; a number written as one (sync.md §1.4).
@@ -372,6 +370,23 @@ final readonly class RunReadHandler
     private static function code(string $code): string
     {
         return trim((string) preg_replace('/\p{Cc}/u', '?', mb_scrub($code, 'UTF-8')));
+    }
+
+    /**
+     * What the provider sent, grouped by code as matched (trimmed), in the order each code first came.
+     *
+     * @param  iterable<ProviderValue>  $values
+     * @return list<list<ProviderValue>>
+     */
+    private static function byCode(iterable $values): array
+    {
+        $byCode = [];
+
+        foreach ($values as $value) {
+            $byCode[self::code($value->code)][] = $value;
+        }
+
+        return array_values($byCode);
     }
 
     /**

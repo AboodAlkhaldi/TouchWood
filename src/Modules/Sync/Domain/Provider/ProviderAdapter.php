@@ -22,6 +22,12 @@ interface ProviderAdapter
     public function fields(): array;
 
     /**
+     * Whether this provider's connection is built - false until it can read: the Provider page says so
+     * above its form, and its test refuses with its reason (sync.md §4.1 Y3, Q38).
+     */
+    public function ready(): bool;
+
+    /**
      * One small read, to know the connection works.
      *
      * @throws ConnectionFailed naming the reason - never the key or the secret
