@@ -16,7 +16,7 @@ final class RemovedMeanwhile
 {
     public static function of(QueryException $failed): InvalidFeedbackAttribute|QueryException
     {
-        return $failed->getCode() === '23503' && preg_match('/\b(reviews_product|reviews_variant|questions_product)\b/', $failed->getPrevious()?->getMessage() ?? $failed->getMessage()) === 1
+        return $failed->getCode() === '23503' && preg_match('/\b(reviews_product|reviews_variant|questions_product|wishlist_items_product)\b/', $failed->getPrevious()?->getMessage() ?? $failed->getMessage()) === 1
             ? new InvalidFeedbackAttribute('product', 'removed from the catalog meanwhile')
             : $failed;
     }

@@ -7,14 +7,18 @@ namespace Modules\Feedback\Infrastructure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
 use Modules\Feedback\Domain\Repository\Questions;
 use Modules\Feedback\Domain\Repository\Reviews;
+use Modules\Feedback\Domain\Repository\Wishlist;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseQuestions;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseReviews;
+use Modules\Feedback\Infrastructure\Eloquent\DatabaseWishlist;
 use Modules\Feedback\Infrastructure\Eloquent\FeedbackCatalogUsage;
+use Modules\Feedback\Infrastructure\Listener\ClearAnonymizedWishlist;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
 use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
 use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
@@ -33,6 +37,7 @@ final class FeedbackServiceProvider extends ServiceProvider
     {
         $this->app->bind(Reviews::class, DatabaseReviews::class);
         $this->app->bind(Questions::class, DatabaseQuestions::class);
+        $this->app->bind(Wishlist::class, DatabaseWishlist::class);
     }
 
     public function boot(): void
@@ -48,6 +53,8 @@ final class FeedbackServiceProvider extends ServiceProvider
 
         // A return completed: the reviews of what came back read "Returned" (§6).
         Event::listen(ReturnCompleted::class, [FlipReturnedReviews::class, 'handle']);
+        // An anonymized account's wishlist is deleted (§1.5).
+        Event::listen(CustomerAnonymized::class, [ClearAnonymizedWishlist::class, 'handle']);
         // The ratings switch reaches Catalog's lists (§1.2).
         Event::listen(SettingChanged::class, [TellCatalogOfRatingsSwitch::class, 'handle']);
 
