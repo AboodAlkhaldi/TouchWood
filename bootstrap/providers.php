@@ -7,6 +7,7 @@ use App\Providers\TypeScriptTransformerServiceProvider;
 use Modules\Access\Infrastructure\AccessServiceProvider;
 use Modules\B2B\Infrastructure\B2BServiceProvider;
 use Modules\Catalog\Infrastructure\CatalogServiceProvider;
+use Modules\Feedback\Infrastructure\FeedbackServiceProvider;
 use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
@@ -42,4 +43,7 @@ return [
     // Sales's public contract only, for now: Feedback is built against it before Sales (feedback.md
     // §2.1). Sales's build fills this provider in.
     SalesServiceProvider::class,
+    // After Access, Catalog and Sales: Feedback declares its permissions through Access, reads Catalog
+    // and asks Sales for the verified purchase (handoff §4.4, feedback.md §2.3).
+    FeedbackServiceProvider::class,
 ];

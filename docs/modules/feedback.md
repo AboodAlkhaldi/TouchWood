@@ -190,7 +190,7 @@ no purchase — so a review is refused as no verified purchase until then.
 ### 2.2 DTOs and enums
 
 - `ReviewStatus`: `PENDING`, `APPROVED`, `REJECTED`, `UNPUBLISHED`.
-- `QuestionStatus`: `PENDING`, `ANSWERED`, `REJECTED` (handoff §13.1).
+- `QuestionStatus`: `PENDING`, `ANSWERED`, `REJECTED` (handoff §13.1), `UNPUBLISHED` (answer 18).
 - `ReviewMark`: `VERIFIED_PURCHASE`, `RETURNED`.
 
 ### 2.3 What Feedback needs from other modules
@@ -214,7 +214,7 @@ no purchase — so a review is refused as no verified purchase until then.
 
 Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`). Staff actions are
 audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.question.answered`,
-`…answer_changed`, `…rejected`).
+`…answer_changed`, `…rejected`, `…unpublished`).
 
 | Use case | Permission |
 |---|---|
@@ -263,6 +263,7 @@ Its mark: `VERIFIED_PURCHASE` ──(any of that product returned)──▶ `RET
 
 ```
 PENDING ──(answered)──▶ ANSWERED ──(answer corrected)──▶ ANSWERED
+ANSWERED ──(unpublished)──▶ UNPUBLISHED   (final — answer 18; the customer still sees it)
 PENDING ──(rejected)──▶ REJECTED   (final)
 ```
 
@@ -322,7 +323,7 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 | `WishlistFull` | CONFLICT | A 501st item (§1.4) |
 | `InvalidModeration` | CONFLICT | A change its state does not allow: approving a rejected review, answering a rejected question, unpublishing one not approved |
 | `ReviewNotFound`, `QuestionNotFound` | NOT_FOUND | Unknown, or of a store the staff member does not cover — the same answer for both |
-| `InvalidFeedbackAttribute` | INVALID | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready |
+| `InvalidFeedbackAttribute` | INVALID | A value refused: a rating outside 1–5, text empty or too long, a product that is not ready, a store that does not sell the product (answer 19), a variant not of the product |
 
 ---
 

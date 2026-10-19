@@ -24,7 +24,7 @@ foreach (['Shared\Domain', 'Shared\Application'] as $layer) {
 
 it('finds modules with errors to check', function () {
     // Named one by one: a renamed module must fail here, not quietly stop generating checks.
-    expect(modulesWithCode())->toContain('Platform')->toContain('Access')->toContain('B2B')->toContain('Catalog')->toContain('Pricing')->toContain('Inventory')->toContain('Loyalty')->toContain('Sync')->toContain('Promotions');
+    expect(modulesWithCode())->toContain('Platform')->toContain('Access')->toContain('B2B')->toContain('Catalog')->toContain('Pricing')->toContain('Inventory')->toContain('Loyalty')->toContain('Sync')->toContain('Promotions')->toContain('Feedback');
 });
 
 foreach (modulesWithCode() as $module) {
