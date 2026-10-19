@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Public\Contracts;
 
+use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Pricing\Public\Dto\KeptPartDto;
@@ -74,12 +75,14 @@ interface PricingApi
      * **Sales named for a line of text** (pricing.md §2.1, §4.3.3; for Sync's report): each id asked, in the
      * order asked - whether the sale still exists and, while it does, its short description in the reader's
      * language ("−10% · 60 cm, 80 cm"). An id that is not a sale's answers `exists` false. A fixed few
-     * queries however many.
+     * queries however many. The sizes the caller has read already (`$knownVariants`, Catalog's own, by id) are
+     * not read again - Sync's report names its sizes first (stage 5's screens step 6, its budget).
      *
      * @param  list<string>  $saleIds
+     * @param  array<string, VariantDto>  $knownVariants
      * @return list<OfferNameDto>
      */
-    public function salesNamed(array $saleIds): array;
+    public function salesNamed(array $saleIds, array $knownVariants = []): array;
 
     /**
      * **Category discounts named for a line of text**, as `salesNamed` ("Kitchens: 50.00 off", with the currency's sign).

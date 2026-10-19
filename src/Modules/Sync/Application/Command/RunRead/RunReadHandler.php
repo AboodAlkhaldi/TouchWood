@@ -13,6 +13,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
+use Modules\Sync\Application\Report\SyncWords;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Model\Connection;
@@ -55,6 +56,9 @@ final readonly class RunReadHandler
 
     private const string CLOSED_BY_READ = 'READ';
 
+    /** The values of a code sent more than once kept in its report (the count says how many came). */
+    private const int TWICE_KEPT = 5;
+
     public function __construct(
         private Authorizer $authorizer,
         private PlatformApi $platform,
@@ -68,6 +72,7 @@ final readonly class RunReadHandler
         private ReadLines $lines,
         private ReadReports $reports,
         private Dispatcher $events,
+        private SyncWords $words,
     ) {}
 
     /**
@@ -164,7 +169,7 @@ final readonly class RunReadHandler
         // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its.
         if (! $ran || ! $this->reads->finish($read->id, ...$counts)) {
             $this->reads->fail($read->id, ReadFailure::StoppedRewired->value);
-            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, AuditChanges::none()->changed('error', null, ReadFailure::StoppedRewired->value)));
+            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, $this->failure(ReadFailure::StoppedRewired->value)));
 
             return;
         }
@@ -191,7 +196,7 @@ final readonly class RunReadHandler
             $this->announce($store, $readId);
         }
 
-        $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, AuditChanges::none()->changed('error', null, $why)));
+        $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, $this->failure($why)));
     }
 
     /**
@@ -284,9 +289,10 @@ final readonly class RunReadHandler
             $codeOf[$variant->id] = $code;
             $seen[$variant->id] = true;
 
-            // A code twice in one read: both values skipped, the size reported with what came (§2.4).
+            // A code twice in one read: both values skipped, the size reported with what came (§2.4) -
+            // the first few values and how many came, so a provider repeating a code keeps the entry small.
             if (count($values) > 1) {
-                $bad[$variant->id] = ['twice' => array_map(self::detail(...), $values)];
+                $bad[$variant->id] = ['twice' => array_map(self::detail(...), array_slice($values, 0, self::TWICE_KEPT)), 'count' => count($values)];
 
                 continue;
             }
@@ -370,6 +376,19 @@ final readonly class RunReadHandler
     private static function code(string $code): string
     {
         return trim((string) preg_replace('/\p{Cc}/u', '?', mb_scrub($code, 'UTF-8')));
+    }
+
+    /**
+     * A failed read as the audit log keeps it: the reason as stored - Sync's own code, or the provider's
+     * words - and, for a code, its English sentence beside it (`reason`): the log shows a module's values
+     * as they are recorded, never phrased in the reader's language, and it is kept for good (Q31).
+     */
+    private function failure(string $why): AuditChanges
+    {
+        $changes = AuditChanges::none()->changed('error', null, $why);
+        $own = ReadFailure::tryFrom($why);
+
+        return $own === null ? $changes : $changes->changed('reason', null, $this->words->line("admin_report.failures.{$own->value}", [], 'en'));
     }
 
     /**

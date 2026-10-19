@@ -174,9 +174,18 @@ final readonly class DatabaseSyncLog implements SyncLog
         ];
     }
 
-    public function nowWaiting(): array
+    public function glance(): array
     {
-        return array_values(array_map('strval', $this->db->table('sync.reads')->where('state', 'QUEUED')->where('kind', 'NOW')->distinct()->pluck('store_id')->all()));
+        $glance = ['wired' => [], 'nowWaiting' => []];
+
+        foreach ($this->db->select(
+            "SELECT 'wired' AS what, store_id FROM sync.connections"
+            ." UNION SELECT 'nowWaiting' AS what, store_id FROM sync.reads WHERE state = 'QUEUED' AND kind = 'NOW'"
+        ) as $row) {
+            $glance[$row->what === 'wired' ? 'wired' : 'nowWaiting'][] = (string) $row->store_id;
+        }
+
+        return $glance;
     }
 
     /**

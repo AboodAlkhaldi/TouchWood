@@ -21,9 +21,9 @@ final readonly class LangSyncWords implements SyncWords
         return $this->app->getLocale() === 'en' ? 'en' : 'ar';
     }
 
-    public function line(string $key, array $replace = []): string
+    public function line(string $key, array $replace = [], ?string $locale = null): string
     {
-        $line = trans("sync::{$key}", array_map('strval', $replace));
+        $line = trans("sync::{$key}", array_map('strval', $replace), $locale);
 
         return is_string($line) ? $line : $key;
     }

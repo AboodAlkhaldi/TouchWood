@@ -9,7 +9,6 @@ use Modules\Platform\Public\PlatformPermissions;
 use Modules\Sync\Application\Report\SyncLog;
 use Modules\Sync\Application\Report\SyncWords;
 use Modules\Sync\Application\SyncPermissions;
-use Modules\Sync\Domain\Repository\Connections;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -40,7 +39,6 @@ final readonly class SyncActionsForReader
     public function __construct(
         private Authorizer $authorizer,
         private PlatformApi $platform,
-        private Connections $connections,
         private SyncLog $log,
         private SyncWords $words,
     ) {}
@@ -80,8 +78,10 @@ final readonly class SyncActionsForReader
 
         $holds = static fn (string $permission, string $store): bool => $held[$permission] === null || in_array($store, $held[$permission], true);
         $mayOff = $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== [];
-        $wired = array_fill_keys(array_map('strtolower', $this->connections->wiredStores()), true);
-        $waiting = array_fill_keys(array_map('strtolower', $this->log->nowWaiting()), true);
+        // The wiring and the waiting Sync Now reads of every store, in one query.
+        $glance = $this->log->glance();
+        $wired = array_fill_keys(array_map('strtolower', $glance['wired']), true);
+        $waiting = array_fill_keys(array_map('strtolower', $glance['nowWaiting']), true);
         $refusal = $this->words->line('admin_report.reasons.now_waiting');
         $actions = [];
 

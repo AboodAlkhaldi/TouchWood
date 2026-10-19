@@ -82,7 +82,7 @@ it('skips both values of a code sent twice, and reports the size as a bad value 
         ->and(Rx::retail('sa', $once)?->amount_minor)->toBe(8000)
         ->and(DB::table('sync.read_lines')->where('read_id', $read)->where('variant_id', $twice)->count())->toBe(0)
         ->and(DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->whereNull('closed_at')->pluck('variant_id')->all())->toBe([$twice])
-        ->and(json_decode((string) DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->value('detail'), true))->toBe(['twice' => [['price' => '120.00', 'stock' => 7], ['price' => '85.50', 'stock' => 0]]])
+        ->and(json_decode((string) DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->value('detail'), true))->toEqual(['twice' => [['price' => '120.00', 'stock' => 7], ['price' => '85.50', 'stock' => 0]], 'count' => 2])
         ->and(DB::table('sync.read_reports')->where('read_id', $read)->where('kind', 'BAD_VALUE')->pluck('variant_id')->all())->toBe([$twice])
         ->and(DB::table('sync.reads')->where('id', $read)->first(['state', 'prices_changed', 'stock_changed', 'skipped']))->toMatchObject(['state' => 'DONE', 'prices_changed' => 1, 'stock_changed' => 1, 'skipped' => 1]);
 });
@@ -123,4 +123,16 @@ it('takes a code once again in the next read, closing its bad value', function (
 
     expect(Rx::retail('sa', $size)?->amount_minor)->toBe(12000)
         ->and(DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->whereNull('closed_at')->count())->toBe(0);
+});
+
+it('keeps the first five values of a code sent many times, and how many came (the review of step 6)', function () {
+    ['codes' => [$a]] = syncTwiceProduct(['60 cm']);
+    FakeProvider::bound()->values = array_map(static fn (int $n): ProviderValue => new ProviderValue($a, (string) (100 + $n), $n), range(1, 7));
+
+    syncTwiceRun();
+
+    $detail = json_decode((string) DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->value('detail'), true);
+
+    expect($detail['count'])->toBe(7)
+        ->and(array_column($detail['twice'], 'price'))->toBe(['101', '102', '103', '104', '105']);
 });

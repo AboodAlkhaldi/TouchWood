@@ -32,6 +32,14 @@ return [
         'title' => 'Closes by itself',
         'detail' => 'A failed read closes when a read of the store works again. Press Retry or Sync now.',
     ],
+    'entry_not_retryable' => [
+        'title' => 'Not read again',
+        'detail' => 'A read never closes this entry. Open the offer or the product instead, or dismiss the entry.',
+    ],
+    'store_off' => [
+        'title' => 'This store is off',
+        'detail' => 'Only someone who may switch stores on and off works in the Sync screens of a store that is off.',
+    ],
     'invalid_sync_input' => [
         'title' => 'Check the details',
         'detail' => 'The :attribute is not valid.',

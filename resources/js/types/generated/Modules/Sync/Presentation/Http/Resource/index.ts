@@ -89,7 +89,7 @@ export type ReportedData = {
 kind: string,
 code: string | null,
 variantId: string | null,
-sizeExists: boolean,
+sizeExists: boolean | null,
 productId: string | null,
 productNameAr: string | null,
 productNameEn: string | null,

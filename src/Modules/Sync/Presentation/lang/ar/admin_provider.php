@@ -39,7 +39,8 @@ return [
         'address_long' => 'لا يتجاوز العنوان 500 حرف.',
         'key_required' => 'المفتاح مطلوب.',
         'secret_required' => 'السرّ مطلوب.',
-        'secret_long' => 'لا يتجاوز 1,000 حرف.',
+        'key_long' => 'لا يتجاوز المفتاح 1,000 حرف.',
+        'secret_long' => 'لا يتجاوز السرّ 1,000 حرف.',
         'setting_required' => ':setting مطلوب.',
     ],
 

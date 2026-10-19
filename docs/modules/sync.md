@@ -154,6 +154,9 @@ good, as always. **One audit entry per read**, the detail being in those histori
 - **One code fails** (§1.4, §1.5): that code is skipped and reported; the read goes on.
 - A read is never left half-recorded: each batch of sizes is written in its own transaction, so a
   crash keeps what was written and the next read finishes the rest.
+- **A read's values are gathered from the provider first, then written in batches of 500**, each in its
+  own transaction (so a code that comes twice is known before anything is written, §2.4): a failure while
+  fetching writes nothing from that attempt, and the retry reads again (screens step 6's review, 2026-10-19).
 - Bulk work is batched — never one job per size (handoff §12.2).
 
 ### 1.8 Unwiring a store
@@ -357,7 +360,17 @@ controllers and page data, the menu's two entries and the words; the pages are p
 - The provider's adapter answers `ready()` (Q38): Odoo's is false until §2.4's adapter is written.
 - **A code twice in one read** (§2.4): the read's values are gathered by code before anything is written, so
   both are skipped however far apart they come; the size's `BAD_VALUE` keeps both (`detail.twice`). A code we
-  do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5).
+  do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5). The entry keeps the first five
+  values sent and how many came (`count`).
+- **The review's points (2026-10-19)**: an off store is refused (`StoreOff`, §7) in every read and action to
+  whoever may not switch stores; Retry is refused on Offer Stopped and Off or Draft (`EntryNotRetryable`,
+  §7; Q27); an entry about no size of ours (Unknown Code, Read Failed) says nothing of its size
+  (`sizeExists` null); a failed read's audit entry keeps its code and, beside it, the English sentence
+  (`reason`) - the audit log shows a module's values as recorded, never phrased. **The budget, in its
+  worst case** (an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several
+  askers): the page's sizes are read once and handed to Pricing's `salesNamed` (pricing.md §2.1), and every
+  store's wiring and waiting Sync Now reads are one query - each page's own queries: Problems 12, Reads 5, a
+  read 8, its Stock 8, its Reported 13, Provider 8.
 
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 
@@ -484,6 +497,8 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `ReadNotFound` | NOT_FOUND | A read's page for a read that is not there (pruned after 90 days, or never one) |
 | `SizeNotFound` | NOT_FOUND | Retry on an entry whose size was deleted since (§9.3 #24) |
 | `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
+| `EntryNotRetryable` | CONFLICT | Retry on an Offer Stopped or an Off or Draft entry, which a read never closes (Q27): staff open the offer or the product instead (screens step 6's review, 2026-10-19) |
+| `StoreOff` | FORBIDDEN | A Sync read or action - the report, a read, Sync now, Retry, Dismiss, the Provider page and its changes - in a store that is off, by someone who may not switch stores (pricing.md §4.3.1 Q1, shared by every stage 5 screen; screens step 6's review, 2026-10-19). The system's own reads of an off store go on (§1.1 rule 8) |
 | `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a

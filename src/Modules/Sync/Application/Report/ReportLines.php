@@ -28,8 +28,10 @@ final readonly class ReportLines
      */
     public function describe(array $rows): array
     {
-        $names = $this->names->of(array_column($rows, 'variantId'));
-        $sales = $this->named(array_values(array_filter(array_column($rows, 'saleId'))), $this->pricing->salesNamed(...));
+        // The page's sizes read once: named here, and handed to Pricing to name the offers that stopped on them.
+        $variants = $this->names->read(array_column($rows, 'variantId'));
+        $names = $this->names->named($variants);
+        $sales = $this->named(array_values(array_filter(array_column($rows, 'saleId'))), fn (array $ids): array => $this->pricing->salesNamed($ids, $variants));
         $discounts = $this->named(array_values(array_filter(array_map(static fn (array $row): ?string => $row['kind'] === ReportKind::DiscountSkipped->value && is_string($row['detail']['discount'] ?? null) ? $row['detail']['discount'] : null, $rows))), $this->pricing->discountsNamed(...));
 
         return array_map(function (array $row) use ($names, $sales, $discounts): ReportedView {
@@ -41,7 +43,7 @@ final readonly class ReportLines
                 $row['kind'],
                 $row['code'] ?? $size['code'] ?? (is_string($row['detail']['code'] ?? null) ? $row['detail']['code'] : null),
                 $row['variantId'],
-                $size !== null,
+                $row['variantId'] === null ? null : $size !== null,
                 $size['productId'] ?? null,
                 $size['nameAr'] ?? null,
                 $size['nameEn'] ?? null,

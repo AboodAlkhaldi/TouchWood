@@ -23,7 +23,7 @@ final class ReportedData extends Data
         public string $kind,
         public ?string $code,
         public ?string $variantId,
-        public bool $sizeExists,
+        public ?bool $sizeExists,
         public ?string $productId,
         public ?string $productNameAr,
         public ?string $productNameEn,

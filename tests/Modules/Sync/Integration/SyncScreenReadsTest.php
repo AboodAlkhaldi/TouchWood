@@ -497,7 +497,45 @@ describe('the budget (pricing.md §4.3.1: 15 queries at most a page, its own)', 
 
         expect(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a read that grows is seen.
-            ->and($counts)->toBe(['problems' => 8, 'reads' => 6, 'read prices' => 9, 'read stock' => 9, 'read reported' => 9, 'read codes' => 5, 'provider' => 6])
+            ->and($counts)->toBe(['problems' => 7, 'reads' => 5, 'read prices' => 8, 'read stock' => 8, 'read reported' => 8, 'read codes' => 4, 'provider' => 5])
             ->and(syncShownQueries(static fn () => [$status(), $actions(), app(ViewSyncReportHandler::class)->handle(new ViewSyncReport($sa))]))->toBe($many);
+    });
+});
+
+describe('the budget\'s worst case (the review of step 6)', function () {
+    it('reads Problems, Reads and a read\'s Reported within 15 with an offer stopped, a discount skipped, a bad value, an unknown code, a failed read and several askers', function () {
+        $category = Px::category('Kitchens');
+        ['variants' => [$onSale, $discounted, $bad]] = syncShownProduct(['60 cm', '80 cm', '100 cm'], $category);
+        syncShownRun();
+        DB::table('pricing.retail_prices')->insert(array_map(static fn (string $size): array => ['store_id' => syncShownSa(), 'variant_id' => $size, 'amount_minor' => 20000, 'currency_code' => 'SAR', 'source' => 'PROVIDER', 'updated_at' => now()], [$onSale, $discounted]));
+        Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(syncShownSa(), null, [$onSale], null, '160', null, null)));
+        Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(syncShownSa(), $category, null, '50', 'BOTH', null, null)));
+        CarbonImmutable::setTestNow('2026-10-19 11:00:00+00');
+        FakeProvider::bound()->values = [new ProviderValue(syncShownCode($onSale), '400', null), new ProviderValue(syncShownCode($discounted), '120', null), new ProviderValue(syncShownCode($bad), '0', 2), new ProviderValue('987654', '5', 1)];
+        foreach ([Fx::staff(firstName: 'Huda'), Fx::staff(firstName: 'Omar'), Fx::staff(firstName: 'Lina')] as $asker) {
+            // Asked by each of them, as Retry Read asks it.
+            Fx::actAsStaff($asker);
+            app(Reads::class)->queue(StoreId::fromString(syncShownSa()), ReadKind::Code, ['987654']);
+            syncShownRun();
+        }
+        $read = syncShownQueue(ReadKind::Now);
+        syncShownRun();
+        DB::table('sync.report_entries')->insert(['store_id' => syncShownSa(), 'kind' => 'READ_FAILED', 'code' => null, 'variant_id' => null, 'sale_id' => null, 'detail' => json_encode(['read' => $read, 'error' => 'WORKER_GONE']), 'opened_at' => now(), 'seen_at' => now()]);
+        syncShownReader([SyncPermissions::REPORT_VIEW, SyncPermissions::READ_RUN, CatalogPermissions::PRODUCT_VIEW]);
+        $sa = syncShownSa();
+        $actions = static fn () => app(SyncActionsForReader::class)->stores();
+        $status = static fn () => app(SyncStatusHandler::class)->handle(new SyncStatus($sa));
+
+        $counts = [
+            'problems' => syncShownQueries(static fn () => [$status(), $actions(), app(ViewSyncReportHandler::class)->handle(new ViewSyncReport($sa))]),
+            'reads' => syncShownQueries(static fn () => [$status(), $actions(), app(ListSyncReadsHandler::class)->handle(new ListSyncReads($sa))]),
+            'read reported' => syncShownQueries(static fn () => [$actions(), app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED))]),
+        ];
+
+        expect(DB::table('sync.report_entries')->whereNull('closed_at')->orderBy('kind')->pluck('kind')->all())->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
+            ->and(DB::table('sync.reads')->whereNotNull('requested_by_id')->distinct()->count('requested_by_id'))->toBe(4)
+            ->and(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
+            // Measured, so a read that grows is seen.
+            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read reported' => 12]);
     });
 });

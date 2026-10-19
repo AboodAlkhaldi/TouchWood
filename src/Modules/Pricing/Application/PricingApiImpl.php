@@ -50,10 +50,10 @@ final readonly class PricingApiImpl implements PricingApi
         private OfferNames $names,
     ) {}
 
-    public function salesNamed(array $saleIds): array
+    public function salesNamed(array $saleIds, array $knownVariants = []): array
     {
         $found = $this->sales->findMany($saleIds);
-        $names = $this->names->sales(array_values($found));
+        $names = $this->names->sales(array_values($found), $knownVariants);
 
         return array_map(static function (string $id) use ($found, $names): OfferNameDto {
             $own = strtolower(trim($id));

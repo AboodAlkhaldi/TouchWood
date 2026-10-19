@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Query\ViewConnection;
 
 use DateTimeInterface;
-use InvalidArgumentException;
 use Modules\Inventory\Public\Contracts\ProviderStock;
-use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Sync\Application\Connections\ConnectionStore;
 use Modules\Sync\Application\Connections\NoticeAddresses;
 use Modules\Sync\Application\Notifications\NotificationReceiver;
 use Modules\Sync\Application\Query\SyncStatus\SyncStatusView;
@@ -17,13 +16,13 @@ use Modules\Sync\Application\Report\SyncLog;
 use Modules\Sync\Application\Report\SyncWords;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
+use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
 use Modules\Sync\Domain\ValueObject\ProviderKind;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A store's Provider page (sync.md §1.2, §1.8, §4.1 Y3), for whoever may wire it: never the key or the
@@ -35,7 +34,7 @@ final readonly class ViewConnectionHandler
 {
     public function __construct(
         private Authorizer $authorizer,
-        private PlatformApi $platform,
+        private ConnectionStore $stores,
         private Connections $connections,
         private ProviderAdapters $adapters,
         private ProviderStock $stock,
@@ -45,21 +44,14 @@ final readonly class ViewConnectionHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSyncInput
+     * @throws Unauthorized|InvalidSyncInput|StoreOff
      */
     public function handle(ViewConnection $query): ConnectionView
     {
         $this->authorizer->authorize(SyncPermissions::CONNECTION_MANAGE, PermissionScope::global());
 
-        try {
-            $store = StoreId::fromString($query->storeId);
-        } catch (InvalidArgumentException) {
-            throw new InvalidSyncInput('store');
-        }
-
-        if ($this->platform->store($store) === null) {
-            throw new InvalidSyncInput('store');
-        }
+        // A store that exists; off, only for whoever may switch stores (Q1).
+        $store = $this->stores->of($query->storeId);
 
         $connection = $this->connections->find($store);
         $providers = array_map(static fn (ProviderKind $kind): string => $kind->value, ProviderKind::cases());

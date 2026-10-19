@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sync\Application\Report;
 
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
 
 /**
@@ -25,12 +26,34 @@ final readonly class SizeNames
      */
     public function of(array $variantIds): array
     {
-        if (array_filter($variantIds, static fn (?string $id): bool => $id !== null) === []) {
+        return $this->named($this->read($variantIds));
+    }
+
+    /**
+     * The sizes themselves, Catalog's, by id - for a caller that hands them on (Pricing's `salesNamed`), so
+     * they are read once a page.
+     *
+     * @param  list<string|null>  $variantIds
+     * @return array<string, VariantDto>
+     */
+    public function read(array $variantIds): array
+    {
+        $ids = array_values(array_unique(array_filter($variantIds, static fn (?string $id): bool => $id !== null)));
+
+        return $ids === [] ? [] : $this->catalog->variants($ids);
+    }
+
+    /**
+     * @param  array<string, VariantDto>  $variants  as `read` answers them
+     * @return array<string, array{productId: string, code: string, nameAr: string, nameEn: string|null, values: list<string>}>
+     */
+    public function named(array $variants): array
+    {
+        if ($variants === []) {
             return [];
         }
 
         $locale = $this->words->locale();
-        $variants = $this->catalog->variants(array_values(array_unique(array_filter($variantIds, static fn (?string $id): bool => $id !== null))));
         $products = $this->catalog->products(array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, array_values($variants)))));
         $named = [];
 

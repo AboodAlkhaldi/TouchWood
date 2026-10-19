@@ -9,6 +9,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
@@ -16,6 +17,10 @@ use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
+use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
+use Modules\Pricing\Application\Command\AddSale\AddSale;
+use Modules\Pricing\Application\Command\AddSale\AddSaleHandler;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Report\SyncReportCount;
@@ -60,10 +65,10 @@ afterEach(function () {
     CarbonImmutable::setTestNow();
 });
 
-/** Signed in through the panel's door as this staff member, the panel in English. */
-function syncScreensAs(string $staffId): AdminBrowser
+/** Signed in through the panel's door as this staff member, the panel in English - or the language given. */
+function syncScreensAs(string $staffId, string $locale = 'en'): AdminBrowser
 {
-    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'en']);
+    DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => $locale]);
     $browser = new AdminBrowser('10.9.7.'.random_int(20, 250));
 
     $browser->post('/admin/sign-in', [
@@ -100,6 +105,38 @@ function syncScreensWired(): string
     syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']]);
     $read = (string) DB::table('sync.reads')->value('id');
     Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+    return $read;
+}
+
+/**
+ * The worst case a page shows (the review of step 6): KSA wired, and one read that stopped an offer, made a
+ * category discount skip a size, met a bad value and an unknown code; a failed read's entry; reads asked
+ * by several people. The read's id.
+ */
+function syncScreensWorst(): string
+{
+    $category = Px::category('Kitchens');
+    $ready = Px::ready(['60 cm', '80 cm', '100 cm'], $category);
+    [$onSale, $discounted, $bad] = $ready['variants'];
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
+    syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']]);
+    Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead((string) DB::table('sync.reads')->value('id'))));
+    DB::table('pricing.retail_prices')->insert(array_map(static fn (string $size): array => ['store_id' => Fx::storeId('sa'), 'variant_id' => $size, 'amount_minor' => 20000, 'currency_code' => 'SAR', 'source' => 'PROVIDER', 'updated_at' => now()], [$onSale, $discounted]));
+    Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$onSale], null, '160', null, null)));
+    Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Fx::storeId('sa'), $category, null, '50', 'BOTH', null, null)));
+    CarbonImmutable::setTestNow('2026-10-19 11:00:00+00');
+    $code = static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code');
+    FakeProvider::bound()->values = [new ProviderValue($code($onSale), '400', null), new ProviderValue($code($discounted), '120', null), new ProviderValue($code($bad), '0', 2), new ProviderValue('987654', '5', 1)];
+    $staff = [Fx::staff(firstName: 'Huda'), Fx::staff(firstName: 'Omar'), Fx::staff(firstName: 'Lina')];
+    DB::table('sync.reads')->insert(array_map(static fn (string $asker, int $n): array => [
+        'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'DONE', 'requested_by_type' => 'STAFF', 'requested_by_id' => $asker,
+        'queued_at' => now()->subMinutes(10 - $n), 'started_at' => now()->subMinutes(10 - $n), 'finished_at' => now()->subMinutes(9 - $n),
+    ], $staff, array_keys($staff)));
+    $read = strtolower((string) Str::ulid());
+    DB::table('sync.reads')->insert(['id' => $read, 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'STAFF', 'requested_by_id' => $staff[0], 'queued_at' => now()]);
+    Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+    DB::table('sync.report_entries')->insert(['store_id' => Fx::storeId('sa'), 'kind' => 'READ_FAILED', 'code' => null, 'variant_id' => null, 'sale_id' => null, 'detail' => json_encode(['read' => $read, 'error' => 'WORKER_GONE']), 'opened_at' => now(), 'seen_at' => now()]);
 
     return $read;
 }
@@ -305,6 +342,51 @@ describe('the Provider page (Y3)', function () {
     });
 });
 
+describe('what a form names (the review of step 6)', function () {
+    it('refuses an action that names no store, or a store the reader does not hold, queuing nothing', function () {
+        syncScreensWired();
+        DB::table('sync.reads')->delete();
+        $browser = syncScreens();
+
+        $none = $browser->post('/admin/sync/now', []);
+        $other = $browser->post('/admin/sync/now', ['store' => 'ae']);
+
+        expect(syncScreensErrors($none))->toHaveKey('form')
+            ->and(syncScreensErrors($other))->toHaveKey('form')
+            ->and(AdminBrowser::flashed($none, 'status'))->toBeNull()
+            ->and(DB::table('sync.reads')->count())->toBe(0);
+    });
+
+    it('refuses wiring, changing and unwiring to someone who is not a Super Admin, changing nothing', function () {
+        syncScreensWired();
+        $browser = syncScreens([P::REPORT_VIEW, P::READ_RUN]);
+        $form = ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/other', 'key' => 'k2', 'secret' => 's2', 'settings' => ['database' => 'tw']];
+
+        $refused = [
+            $browser->post('/admin/sync/provider/wire', $form),
+            $browser->post('/admin/sync/provider/change', $form),
+            $browser->post('/admin/sync/provider/unwire', ['store' => 'sa']),
+        ];
+
+        expect(array_map(static fn ($response): bool => array_key_exists('form', syncScreensErrors($response)), $refused))->toBe([true, true, true])
+            ->and(DB::table('sync.connections')->pluck('address')->all())->toBe(['https://odoo.test/api']);
+    });
+});
+
+describe('a read\'s lines on an Arabic page', function () {
+    it('writes a price as Pricing writes money, in Latin digits with the currency\'s sign, and a stock number as it is', function () {
+        $read = syncScreensWired();
+        $browser = syncScreensAs(Fx::staffWith([P::REPORT_VIEW], ['sa']), 'ar');
+
+        $prices = syncScreensProps($browser->get("/admin/sync/reads/{$read}"), 'Sync/Admin/Read');
+        $stock = syncScreensProps($browser->get("/admin/sync/reads/{$read}?section=stock"), 'Sync/Admin/Read');
+
+        expect([$prices['lines'][0]['before'], $prices['lines'][0]['after']])->toBe([null, "120.50 \u{20C1}"])
+            ->and([$stock['lines'][0]['before'], $stock['lines'][0]['after']])->toBe(['0', '7'])
+            ->and($prices['translations']['sync::admin_report.read.sections.PRICES'])->toBe('الأسعار المتغيّرة');
+    });
+});
+
 describe('the menu and the budget', function () {
     it('offers the Sync Report with its open entries, and the Provider page to a Super Admin only', function () {
         syncScreensWired();
@@ -327,6 +409,25 @@ describe('the menu and the budget', function () {
 
         expect(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a page that grows is seen.
-            ->and($counts)->toBe(['problems' => 5, 'reads' => 6, 'read' => 9, 'read reported' => 6, 'provider' => 9]);
+            ->and($counts)->toBe(['problems' => 4, 'reads' => 5, 'read' => 8, 'read reported' => 5, 'provider' => 8]);
+    });
+
+    it('reads each page\'s own queries within 15 in the worst case: an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several askers', function () {
+        $read = syncScreensWorst();
+        $kinds = DB::table('sync.report_entries')->whereNull('closed_at')->orderBy('kind')->pluck('kind')->all();
+        $browser = syncScreens([P::REPORT_VIEW, P::READ_RUN, CatalogPermissions::PRODUCT_VIEW]);
+        $counts = [
+            'problems' => syncScreensOwnQueries($browser, '/admin/sync'),
+            'reads' => syncScreensOwnQueries($browser, '/admin/sync?tab=reads'),
+            'read' => syncScreensOwnQueries($browser, "/admin/sync/reads/{$read}"),
+            'read stock' => syncScreensOwnQueries($browser, "/admin/sync/reads/{$read}?section=stock"),
+            'read reported' => syncScreensOwnQueries($browser, "/admin/sync/reads/{$read}?section=reported"),
+        ];
+        $counts['provider'] = syncScreensOwnQueries(syncScreensSuper(), '/admin/sync/provider');
+
+        expect($kinds)->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
+            ->and(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
+            // Measured, so a page that grows is seen.
+            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13, 'provider' => 8]);
     });
 });

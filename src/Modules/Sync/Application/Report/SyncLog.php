@@ -105,9 +105,10 @@ interface SyncLog
     public function status(StoreId $store): array;
 
     /**
-     * The stores where a Sync Now read waits (Q26) - one query.
+     * Every store at a glance, for what the screens may offer - one query: the stores wired, and those
+     * where a Sync Now read waits (Q26).
      *
-     * @return list<string>
+     * @return array{wired: list<string>, nowWaiting: list<string>}
      */
-    public function nowWaiting(): array;
+    public function glance(): array;
 }

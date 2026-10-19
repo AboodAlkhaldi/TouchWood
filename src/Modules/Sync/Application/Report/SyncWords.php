@@ -20,6 +20,7 @@ interface SyncWords
      * A line of Sync's lang files - "admin_report.failures.UNWIRED" is `sync::admin_report.failures.UNWIRED`.
      *
      * @param  array<string, string|int>  $replace
+     * @param  'ar'|'en'|null  $locale  another language than the reader's - English for the audit log's sentence
      */
-    public function line(string $key, array $replace = []): string;
+    public function line(string $key, array $replace = [], ?string $locale = null): string;
 }
