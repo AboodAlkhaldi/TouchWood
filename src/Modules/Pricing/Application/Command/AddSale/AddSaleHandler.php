@@ -52,7 +52,7 @@ final readonly class AddSaleHandler
             throw new InvalidPricingInput($command->percent === null ? 'price' : 'percent');
         }
 
-        [$productId, $variantIds] = $this->sizes->of($command->productId, $command->variantIds);
+        [$productId, $variantIds] = $this->sizes->of($storeId, $command->productId, $command->variantIds);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $sale = new Sale(
             strtolower((string) Str::ulid()),

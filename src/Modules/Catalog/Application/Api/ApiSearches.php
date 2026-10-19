@@ -23,7 +23,7 @@ interface ApiSearches
      * @param  list<string>|null  $except
      * @param  'ar'|'en'  $locale
      */
-    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale): FoundVariantsDto;
+    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale, bool $notArchived = false): FoundVariantsDto;
 
     /**
      * @param  list<string>|null  $only

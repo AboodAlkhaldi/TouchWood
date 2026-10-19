@@ -10,10 +10,13 @@ use DateTimeImmutable;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Pricing\Application\Prices\OfferNames;
 use Modules\Pricing\Domain\Exception\AmountsInvalid;
 use Modules\Pricing\Domain\Exception\DuplicateLines;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
+use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\Service\OrderTotals;
 use Modules\Pricing\Domain\Service\PriceResolution;
 use Modules\Pricing\Public\Contracts\PricingApi;
@@ -21,6 +24,7 @@ use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Pricing\Public\Dto\KeptPartDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
+use Modules\Pricing\Public\Dto\OfferNameDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\MoneyException;
@@ -41,7 +45,34 @@ final readonly class PricingApiImpl implements PricingApi
     public function __construct(
         private PlatformApi $platform,
         private PriceCandidates $candidates,
+        private Sales $sales,
+        private CategoryDiscounts $discounts,
+        private OfferNames $names,
     ) {}
+
+    public function salesNamed(array $saleIds): array
+    {
+        $found = $this->sales->findMany($saleIds);
+        $names = $this->names->sales(array_values($found));
+
+        return array_map(static function (string $id) use ($found, $names): OfferNameDto {
+            $own = strtolower(trim($id));
+
+            return new OfferNameDto($id, isset($found[$own]), $names[$own] ?? null);
+        }, $saleIds);
+    }
+
+    public function discountsNamed(array $discountIds): array
+    {
+        $found = $this->discounts->findMany($discountIds);
+        $names = $this->names->discounts(array_values($found));
+
+        return array_map(static function (string $id) use ($found, $names): OfferNameDto {
+            $own = strtolower(trim($id));
+
+            return new OfferNameDto($id, isset($found[$own]), $names[$own] ?? null);
+        }, $discountIds);
+    }
 
     public function prices(StoreId $store, array $lines): CartPricesDto
     {

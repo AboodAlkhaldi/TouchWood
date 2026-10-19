@@ -5,56 +5,42 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Query\ListSales;
 
 use Carbon\CarbonImmutable;
-use DateTimeImmutable;
-use DateTimeInterface;
-use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Pricing\Application\Prices\ListCursor;
 use Modules\Pricing\Application\Prices\ReadAccess;
+use Modules\Pricing\Application\Prices\SaleRows;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
+use Modules\Pricing\Domain\Exception\StoreOff;
 use Modules\Pricing\Domain\Repository\Sales;
-use Modules\Pricing\Domain\ValueObject\Sale;
+use Modules\Pricing\Domain\ValueObject\WindowOrder;
+use Modules\Pricing\Domain\ValueObject\WindowState;
 use Shared\Application\Unauthorized;
 
 /**
- * **The store's sales** (`ListSales`, pricing.md §3), for whoever holds any of Pricing's three jobs there
- * (owner, 2026-10-08): a page at a time, the latest start first, each named by its product in one read of
- * Catalog. A read: no lock, nothing written.
+ * **The store's sales** (`ListSales`, pricing.md §3, §4.3.3 P2), for whoever holds any of Pricing's three
+ * jobs there (owner, 2026-10-08): filtered by state, product or one sale; by state or newest added (Q7);
+ * keyset-paged with the total; each row named and counted for the page (`SaleRows`). A fixed few queries
+ * however many rows. A read: no lock, nothing written.
  */
 final readonly class ListSalesHandler
 {
     public function __construct(
         private ReadAccess $access,
         private Sales $sales,
-        private CatalogApi $catalog,
+        private SaleRows $rows,
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidPricingInput
+     * @throws Unauthorized|InvalidPricingInput|StoreOff
      */
     public function handle(ListSales $query): SaleList
     {
-        $store = $this->access->authorize($query->storeId)->storeId();
-        [$sales, $total] = $this->sales->page($store, $query->page, ListSales::PER_PAGE);
-        $products = $this->catalog->products(array_values(array_unique(array_map(static fn (Sale $sale): string => $sale->productId, $sales))));
+        $store = $this->access->authorize($query->storeId);
+        $state = $query->state === null ? null : (WindowState::tryFrom($query->state) ?? throw new InvalidPricingInput('state'));
+        $order = WindowOrder::tryFrom($query->order) ?? throw new InvalidPricingInput('order');
         $now = CarbonImmutable::now()->toDateTimeImmutable();
 
-        return new SaleList(array_map(static fn (Sale $sale): SaleRow => new SaleRow(
-            $sale->id,
-            $sale->productId,
-            $products[$sale->productId]->nameAr ?? '',
-            $products[$sale->productId]->nameEn ?? null,
-            $sale->percentBasisPoints,
-            $sale->price?->minorUnits,
-            $sale->price?->currencyCode,
-            $sale->startsAt->format(DateTimeInterface::ATOM),
-            $sale->endsAt?->format(DateTimeInterface::ATOM),
-            $sale->alwaysWins,
-            self::state($sale, $now),
-            $sale->variantIds,
-        ), $sales), $total);
-    }
+        [$sales, $total, $next] = $this->sales->list($store->storeId(), $now, $state, $query->productId, $query->saleId, $order, ListCursor::decode($query->after), ListSales::PER_PAGE);
 
-    private static function state(Sale $sale, DateTimeImmutable $now): string
-    {
-        return $sale->scheduled($now) ? 'SCHEDULED' : ($sale->ended($now) ? 'ENDED' : 'RUNNING');
+        return new SaleList($this->rows->rows($sales, $store, $now)[0], ListCursor::encode($next), $total);
     }
 }

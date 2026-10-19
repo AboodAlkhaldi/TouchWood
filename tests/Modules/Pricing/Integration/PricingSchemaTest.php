@@ -145,6 +145,7 @@ describe('what the database refuses behind the code (§8 #15)', function () {
             'sale_variants_variant' => 'c',
             'sales_product' => 'c',
             'sales_store' => 'r',
+            'unpriced_counts_store' => 'r',
             'wholesale_bands_store' => 'r',
             'wholesale_bands_variant' => 'c',
         ]);

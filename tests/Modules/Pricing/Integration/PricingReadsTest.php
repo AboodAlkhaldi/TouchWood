@@ -23,11 +23,12 @@ use Modules\Pricing\Application\Query\ListSales\ListSales;
 use Modules\Pricing\Application\Query\ListSales\ListSalesHandler;
 use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPrice;
 use Modules\Pricing\Application\Query\NeedsAPrice\NeedsAPriceHandler;
-use Modules\Pricing\Application\Query\NeedsAPrice\UnpricedSize;
+use Modules\Pricing\Application\Query\NeedsAPrice\UnpricedList;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsFor;
 use Modules\Pricing\Application\Query\OverlapsFor\OverlapsForHandler;
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewCategoryDiscount;
 use Modules\Pricing\Application\Query\PreviewCategoryDiscount\PreviewCategoryDiscountHandler;
+use Modules\Pricing\Application\Query\PriceViews\SizeView;
 use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscount;
 use Modules\Pricing\Application\Query\ViewCategoryDiscount\ViewCategoryDiscountHandler;
 use Modules\Pricing\Application\Query\ViewPrices\PriceLine;
@@ -80,7 +81,7 @@ describe('Needs a Price (§1.9)', function () {
     it('lists every size switched on with no retail price, and counts them, for Edit Prices and Sales', function () {
         [$priced, $unpriced] = readsOn()['variants'];
         Rx::set('sa', [$priced => '100']);
-        $list = static fn (): array => array_map(static fn (UnpricedSize $size): string => $size->variantId, Fx::asSystem(fn (): array => app(NeedsAPriceHandler::class)->handle(new NeedsAPrice(Rx::storeId('sa')))));
+        $list = static fn (): array => array_map(static fn (SizeView $size): string => $size->variantId, Fx::asSystem(fn (): UnpricedList => app(NeedsAPriceHandler::class)->handle(new NeedsAPrice(Rx::storeId('sa'))))->rows);
 
         expect($list())->toBe([$unpriced]);
 
@@ -108,9 +109,10 @@ describe('a discount\'s preview (§1.5)', function () {
 
         expect($preview->reached)->toHaveCount(1)
             ->and($preview->reached[0]->productId)->toBe($reached['product'])
-            ->and([$sizes[0]->retailMinor, $sizes[0]->newMinor, $sizes[0]->differenceMinor])->toBe([10000, 8000, 2000])
-            // 20 off 15 would leave below 0: skipped.
-            ->and([$sizes[1]->retailMinor, $sizes[1]->newMinor])->toBe([1500, null])
+            ->and([$sizes[0]->retail->minor, $sizes[0]->newPrice?->minor, $sizes[0]->difference?->minor])->toBe([10000, 8000, 2000])
+            // 20 off 15 would leave below 0: skipped, and why (Q9).
+            ->and([$sizes[1]->retail->minor, $sizes[1]->newPrice, $sizes[1]->skipped])->toBe([1500, null, 'zero_or_below'])
+            ->and([$preview->reachedProducts, $preview->reachedSizes, $preview->skippedSizes, $preview->deepestBasisPoints])->toBe([1, 1, 1, 2000])
             ->and(array_map(static fn ($product): string => $product->productId, $preview->leftOut))->toBe([$out['product']]);
 
         $saved = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, '10', null, 'BOTH', null, null)));

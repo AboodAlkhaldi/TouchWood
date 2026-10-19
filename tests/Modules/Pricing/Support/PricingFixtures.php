@@ -10,6 +10,8 @@ use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -48,6 +50,23 @@ final class PricingFixtures
         });
 
         return self::storeId('kw');
+    }
+
+    /**
+     * The products of these sizes - or this product - switched on in the store: a sale is put only on a
+     * product the store has switched on (owner Q13).
+     *
+     * @param  list<string>  $variantIds
+     */
+    public static function switchOn(string $storeCode, array $variantIds = [], ?string $productId = null): void
+    {
+        $products = $productId === null ? DB::table('catalog.variants')->whereIn('id', $variantIds)->distinct()->pluck('product_id')->all() : [$productId];
+        // Only a ready product can be switched on: a draft's or an archived one's sale is refused as it is.
+        $products = DB::table('catalog.products')->whereIn('id', $products)->where('stage', 'READY')->pluck('id')->all();
+
+        foreach ($products as $product) {
+            Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(self::storeId($storeCode), (string) $product, true)));
+        }
     }
 
     /**

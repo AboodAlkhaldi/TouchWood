@@ -66,6 +66,8 @@ afterEach(function () {
  */
 function salesAdd(array $variantIds, ?string $percent = null, ?string $price = null, ?string $startsAt = null, ?string $endsAt = null, bool $alwaysWins = false, ?string $productId = null): string
 {
+    Rx::switchOn('sa', $variantIds, $variantIds === [] ? $productId : null);
+
     return Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), $productId, $variantIds, $percent, $price, $startsAt, $endsAt, $alwaysWins)));
 }
 
@@ -112,12 +114,19 @@ describe('adding a sale', function () {
         Rx::set('sa', [$a => '100']);
 
         try {
-            salesAdd([], percent: '10', productId: $ready['product']);
+            salesAdd([$a, $b], percent: '10');
             $named = null;
         } catch (NoRetailPrice $error) {
             $named = $error->variants;
         }
 
+        // "All Sizes" (owner Q39): every size switched on with a price - the one with none is not refused,
+        // it is left out.
+        $all = salesAdd([], percent: '10', productId: $ready['product']);
+
+        expect(DB::table('pricing.sale_variants')->where('sale_id', $all)->pluck('variant_id')->all())->toBe([$a]);
+
+        DB::table('pricing.sales')->delete();
         Rx::set('sa', [$b => '50']);
 
         try {

@@ -97,6 +97,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->variantIdsOf($productId, $includeArchived);
     }
 
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived = false): array
+    {
+        return $this->reads->variantIdsOfProducts($productIds, $includeArchived);
+    }
+
     public function productIdsInCategory(string $categoryId): array
     {
         $category = $this->categories->find($categoryId);
@@ -212,9 +217,9 @@ final readonly class CatalogApiImpl implements CatalogApi
         );
     }
 
-    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50): FoundVariantsDto
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false): FoundVariantsDto
     {
-        return $this->searches->variants($store->value, self::text($text), $only, $except, $soldWholesale, $anyReady, $after, $limit, $this->locale());
+        return $this->searches->variants($store->value, self::text($text), $only, $except, $soldWholesale, $anyReady, $after, $limit, $this->locale(), $notArchived);
     }
 
     public function searchProducts(StoreId $store, ?string $text, bool $readySwitchedOn, ?array $only = null, ?string $after = null, int $limit = 50): FoundProductsDto

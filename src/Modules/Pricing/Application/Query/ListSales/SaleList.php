@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Query\ListSales;
 
 /**
- * A page of sales, and how many the store has.
+ * A page of sales: its rows, the cursor of the next page (none on the last), and how many the filters find.
  */
 final readonly class SaleList
 {
@@ -14,6 +14,7 @@ final readonly class SaleList
      */
     public function __construct(
         public array $sales,
+        public ?string $next,
         public int $total,
     ) {}
 }

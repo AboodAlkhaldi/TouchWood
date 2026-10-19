@@ -63,6 +63,8 @@ afterEach(function () {
  */
 function windowsSale(array $variantIds, ?string $percent = null, ?string $price = null, ?string $startsAt = null, ?string $endsAt = null, ?string $productId = null): string
 {
+    Rx::switchOn('sa', $variantIds, $variantIds === [] ? $productId : null);
+
     return Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), $productId, $variantIds, $percent, $price, $startsAt, $endsAt, false)));
 }
 
@@ -190,6 +192,7 @@ describe('the daily check (§1.10)', function () {
         Rx::set('sa', [$size => '100']);
         Rx::set('eg', [$size => '100']);
         windowsSale([$size], price: '80', startsAt: '2026-10-20 00:00:00+00');
+        Rx::switchOn('eg', [$size]);
         Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('eg'), null, [$size], null, '80', '2026-10-20 00:00:00+00', null, false)));
         // The store the check reaches first fails, so the other is reached only if the check goes on.
         [$failing, $other] = strcmp(Rx::storeId('sa'), Rx::storeId('eg')) < 0 ? [Rx::storeId('sa'), Rx::storeId('eg')] : [Rx::storeId('eg'), Rx::storeId('sa')];
@@ -211,6 +214,16 @@ describe('the daily check (§1.10)', function () {
             public function variantsWithCandidates(StoreId $store): array
             {
                 return $this->real->variantsWithCandidates($store);
+            }
+
+            public function inStores(array $stores, array $variantIds): array
+            {
+                return $this->real->inStores($stores, $variantIds);
+            }
+
+            public function reducedAt(StoreId $store, DateTimeImmutable $at): array
+            {
+                return $this->real->reducedAt($store, $at);
             }
         });
         CarbonImmutable::setTestNow('2026-10-20 03:30:00+00');
@@ -248,6 +261,7 @@ describe('the note before saving (§1.3)', function () {
 
     it('is read by any of the three Pricing jobs in that store, and no one else', function () {
         $size = Px::ready()['variants'][0];
+        Rx::switchOn('sa', [$size]);
         $read = fn () => app(OverlapsForHandler::class)->handle(new OverlapsFor(Rx::storeId('sa'), null, [$size], null, null));
 
         Cx::actAsStaffWith([PricingPermissions::WHOLESALE_EDIT], ['sa']);

@@ -21,16 +21,16 @@ return [
         'detail' => 'A percentage off must be above 0 and below 100.',
     ],
     'sale_not_below_retail' => [
-        'title' => 'Not a sale',
-        'detail' => 'A sale price must be below the retail price.',
+        'title' => 'Not an offer',
+        'detail' => 'An offer price must be below the retail price.',
     ],
     'window_invalid' => [
         'title' => 'Check the dates',
-        'detail' => "The end must be after the start, and a running sale's or discount's end cannot be set before now.",
+        'detail' => "The end must be after the start, and a running offer's or discount's end cannot be set before now.",
     ],
     'sale_not_found' => [
-        'title' => 'Sale not found',
-        'detail' => 'That sale does not exist.',
+        'title' => 'Offer not found',
+        'detail' => 'That offer does not exist.',
     ],
     'category_discount_not_found' => [
         'title' => 'Discount not found',
@@ -42,11 +42,20 @@ return [
     ],
     'always_wins_overlap' => [
         'title' => 'Two would always win',
-        'detail' => 'Another sale or discount that always wins already covers some of these sizes in these dates. Change the dates, or untick "always wins".',
+        'detail' => 'Another offer or discount that always wins already covers some of these sizes in these dates. Change the dates, or switch off "Always Wins".',
     ],
     'bands_invalid' => [
         'title' => 'Check the quantity prices',
         'detail' => 'The first band starts at the wholesale minimum and costs less than the retail price; each next band starts at a higher quantity and costs less.',
+        // The rule a refusal names (owner Q12): the dialog says which.
+        'rules' => [
+            'first_band' => 'The first band must start at :minimum, the wholesale minimum.',
+            'minimum' => "A band can't start below :minimum, the wholesale minimum.",
+            'maximum' => "A band can't start above :maximum, the wholesale maximum.",
+            'order' => 'Each band must cost less than the band before.',
+            'below_retail' => 'The first band must cost less than :retail, the retail price.',
+            'too_many' => 'A size can have at most :most bands.',
+        ],
     ],
     'not_sold_wholesale' => [
         'title' => 'Not sold wholesale',
@@ -58,7 +67,7 @@ return [
     ],
     'no_retail_price' => [
         'title' => 'No retail price',
-        'detail' => 'This size has no retail price in the store, so there is nothing to take a percentage off.',
+        'detail' => 'This size has no retail price in the store. Give it a price before putting it on any offer or giving it wholesale prices.',
     ],
     'provider_owns_price' => [
         'title' => 'Set by the provider',
@@ -83,22 +92,26 @@ return [
 
     'over_ceiling' => [
         'title' => 'Deeper than the ceiling',
-        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price or the sale so it stays within it.",
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price, the offer or the discount so it stays within it.",
     ],
     'ceiling_below_sales' => [
-        'title' => 'Sales go deeper',
-        'detail' => ':count running or scheduled sales go deeper than this ceiling, on :products. Change or end them first.',
+        'title' => 'Offers and discounts go deeper',
+        'detail' => ':count running or scheduled offers and discounts go deeper than this ceiling, on :products. Change or end them first.',
     ],
 
     'fields' => [
         'amount' => 'price',
         'ends_at' => 'end',
+        'filter' => 'filter',
+        'left_out' => 'left-out product',
         'lines' => 'lines',
+        'order' => 'order',
         'percent' => 'percentage',
-        'price' => 'sale price',
+        'price' => 'offer price',
         'product' => 'product',
         'quantity' => 'quantity',
         'starts_at' => 'start',
+        'state' => 'state',
         'store' => 'store',
         'variant' => 'size',
     ],

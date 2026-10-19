@@ -20,6 +20,18 @@ interface WholesaleBands
     public function forVariants(StoreId $store, array $variantIds): array;
 
     /**
+     * @param  list<StoreId>  $stores
+     * @param  list<string>  $variantIds
+     * @return array<string, array<string, list<Band>>> store id => variant id => its bands, lowest start first
+     */
+    public function inStores(array $stores, array $variantIds): array;
+
+    /**
+     * @return list<string> every size with bands in the store, in size-id order
+     */
+    public function variantsWithBands(StoreId $store): array;
+
+    /**
      * A size's bands, all at once (§3 `SetWholesalePrices`): none removes them.
      *
      * @param  list<Band>  $bands

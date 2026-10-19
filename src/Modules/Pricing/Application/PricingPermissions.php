@@ -41,6 +41,9 @@ final class PricingPermissions
     /** The daily safety check over the windows that opened or closed - the system's. */
     public const string WINDOWS_CHECK = 'pricing.windows.check';
 
+    /** Needs a Price's count kept per store, counted again (owner Q43) - the system's. */
+    public const string NEEDS_A_PRICE_COUNT = 'pricing.needs_a_price.count';
+
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -84,6 +87,7 @@ final class PricingPermissions
             self::CANDIDATES_REBUILD,
             self::WINDOWS_APPLY,
             self::WINDOWS_CHECK,
+            self::NEEDS_A_PRICE_COUNT,
         ];
     }
 }

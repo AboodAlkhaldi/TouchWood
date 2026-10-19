@@ -31,8 +31,10 @@ use Shared\Application\Unauthorized;
  * Prices** in that store - a wired store's too: wholesale prices are ours, never the provider's
  * (handoff §12.2). The size must sell wholesale there (Catalog); the first band starts at the product's
  * wholesale minimum and costs less than the retail price (owner, 2026-10-08/10); each next band starts
- * higher and costs less; every price above 0 with no more decimals than the currency. None removes
- * them. Saved under the store's lock, audited from and to, the size's candidates written again.
+ * higher - never above the size's wholesale maximum, when it has one - and costs less; at most ten bands
+ * (owner Q12, 2026-10-19); every price above 0 with no more decimals than the currency. None removes
+ * them. A refusal names the rule it broke (`BandsInvalid`). Saved under the store's lock, audited from
+ * and to, the size's candidates written again.
  */
 final readonly class SetWholesalePricesHandler
 {
@@ -69,6 +71,10 @@ final readonly class SetWholesalePricesHandler
 
         usort($bands, static fn (Band $a, Band $b): int => $a->fromQuantity <=> $b->fromQuantity);
 
+        if (count($bands) > BandsInvalid::MOST) {
+            throw new BandsInvalid(BandsInvalid::TOO_MANY, variants: [$variantId]);
+        }
+
         if ($bands !== []) {
             $listing = $this->catalog->storeVariant($storeId, $variantId);
 
@@ -76,13 +82,25 @@ final readonly class SetWholesalePricesHandler
                 throw new NotSoldWholesale;
             }
 
-            if ($bands[0]->fromQuantity !== $listing->wholesaleMinimum) {
-                throw new BandsInvalid;
+            $minimum = $listing->wholesaleMinimum;
+            $maximum = $listing->wholesaleMaximum;
+            $refuse = static fn (string $rule): BandsInvalid => new BandsInvalid($rule, $minimum, $maximum, variants: [$variantId]);
+
+            if ($minimum !== null && $bands[0]->fromQuantity < $minimum) {
+                throw $refuse(BandsInvalid::MINIMUM);
+            }
+
+            if ($bands[0]->fromQuantity !== $minimum) {
+                throw $refuse(BandsInvalid::FIRST_BAND);
+            }
+
+            if ($maximum !== null && $bands[count($bands) - 1]->fromQuantity > $maximum) {
+                throw $refuse(BandsInvalid::MAXIMUM);
             }
 
             for ($i = 1, $n = count($bands); $i < $n; $i++) {
                 if ($bands[$i]->amount->compareTo($bands[$i - 1]->amount) >= 0) {
-                    throw new BandsInvalid;
+                    throw $refuse(BandsInvalid::ORDER);
                 }
             }
         }
@@ -93,7 +111,7 @@ final readonly class SetWholesalePricesHandler
                 $retail = $this->retailPrices->forVariants($storeId, [$variantId])[$variantId] ?? throw new NoRetailPrice([$variantId]);
 
                 if ($bands[0]->amount->compareTo($retail) >= 0) {
-                    throw new BandsInvalid;
+                    throw new BandsInvalid(BandsInvalid::BELOW_RETAIL, retail: $retail->toDecimal($store->currencyExponent), variants: [$variantId]);
                 }
             }
 
