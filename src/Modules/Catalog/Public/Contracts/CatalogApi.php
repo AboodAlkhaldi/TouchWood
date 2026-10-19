@@ -202,6 +202,15 @@ interface CatalogApi
     public function categoriesWithPaths(array $ids): array;
 
     /**
+     * **Every category switched on, with the path to each** (amendment 23(f), stage 5's screens step 3):
+     * the choices of Pricing's category discount dialog - a discount on a category that is off is refused.
+     * Two queries.
+     *
+     * @return list<CategoryPathDto>
+     */
+    public function activeCategories(): array;
+
+    /**
      * **A category's products, and those of every category below it** (amendment 23(c)), any stage, by
      * name in the page's language, found and paged as `searchProducts` - for a discount's "Left Out". An
      * unknown category holds none. A fixed two queries.

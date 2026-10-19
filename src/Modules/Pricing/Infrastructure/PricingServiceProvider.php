@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Events\CategoryMoved;
@@ -19,10 +20,14 @@ use Modules\Catalog\Public\Events\StoreListingChanged;
 use Modules\Catalog\Public\Events\StoreListingWithdrawn;
 use Modules\Catalog\Public\Events\VariantArchived;
 use Modules\Catalog\Public\Events\VariantRestored;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
+use Modules\Pricing\Application\Prices\NeedsAPriceCount;
 use Modules\Pricing\Application\Prices\PriceWindowTasks;
+use Modules\Pricing\Application\Prices\ReadAccess;
 use Modules\Pricing\Application\Prices\UnpricedRecounts;
 use Modules\Pricing\Application\Prices\Words;
 use Modules\Pricing\Application\PricingApiImpl;
@@ -65,7 +70,8 @@ use Modules\Pricing\Public\Contracts\StoreWiring;
  * Steps 1-4: the schema, the permissions, the errors and their words; retail prices, the
  * materialized candidates and the push into Catalog; `PricingApi`; sales, the ceiling, and the timed
  * tasks at a sale's start and end with the daily check behind them. Stage 5's screens step 2: the
- * product page's section, Needs a Price's kept count and what moves it.
+ * product page's section, Needs a Price's kept count and what moves it. Step 3: the screens - their
+ * routes and their menu entries.
  */
 final class PricingServiceProvider extends ServiceProvider
 {
@@ -130,6 +136,20 @@ final class PricingServiceProvider extends ServiceProvider
             // Every store's Needs a Price count counted again each night: a change missed is mended by morning.
             $schedule->job(new CountUnpricedSizesJob)->timezone('Asia/Riyadh')->dailyAt('03:40')->onOneServer();
         });
+
+        // The panel's menu: the Pricing group (pricing.md §4.3.2) - each screen offered for any of the three
+        // jobs in any store, Needs a Price for Edit Prices and Sales with its count kept per store (Q43).
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('pricing', 'prices', PermissionGroup::Pricing->value, 'pricing.admin.prices', ReadAccess::ANY_OF_THE_THREE, 10, icon: 'pricing'),
+            new MenuEntryDto('pricing', 'offers', PermissionGroup::Pricing->value, 'pricing.admin.offers', ReadAccess::ANY_OF_THE_THREE, 20, icon: 'pricing'),
+            new MenuEntryDto('pricing', 'category_discounts', PermissionGroup::Pricing->value, 'pricing.admin.category-discounts', ReadAccess::ANY_OF_THE_THREE, 30, icon: 'pricing'),
+            new MenuEntryDto('pricing', 'wholesale_prices', PermissionGroup::Pricing->value, 'pricing.admin.wholesale-prices', ReadAccess::ANY_OF_THE_THREE, 40, icon: 'pricing'),
+            new MenuEntryDto('pricing', 'needs_a_price', PermissionGroup::Pricing->value, 'pricing.admin.needs-a-price', PricingPermissions::PRICE_EDIT, 50, icon: 'pricing', count: NeedsAPriceCount::class),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
 
         if ($this->app->runningInConsole()) {
             $this->commands([RebuildPriceCandidatesCommand::class]);

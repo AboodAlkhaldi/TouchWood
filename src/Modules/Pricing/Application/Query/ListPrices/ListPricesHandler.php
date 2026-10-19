@@ -89,6 +89,8 @@ final readonly class ListPricesHandler
                 $term !== null && $term->soldWholesale && ! $term->soldRetail,
                 count($bands[$id] ?? []),
                 ($bands[$id] ?? []) !== [] && ! ($term->soldWholesale ?? false),
+                $this->views->bands(array_slice($bands[$id] ?? [], 0, 1), $store)[0] ?? null,
+                $term->soldWholesale ?? false,
             );
         }
 

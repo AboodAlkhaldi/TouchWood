@@ -43,6 +43,11 @@ interface ApiSearches
     public function categoriesWithPaths(array $ids): array;
 
     /**
+     * @return list<string> the ids of the categories switched on
+     */
+    public function activeCategoryIds(): array;
+
+    /**
      * @param  list<string>  $variantIds
      * @return array<string, WholesaleTermsDto>
      */

@@ -104,9 +104,11 @@ final readonly class CatalogApiImpl implements CatalogApi
 
     public function productIdsInCategory(string $categoryId): array
     {
-        $category = $this->categories->find($categoryId);
+        // Two queries, never the category itself (stage 5's screens step 3, a discount's page within its
+        // budget): an unknown category has nothing below it and no product in it, so it holds none.
+        $id = strtolower(trim($categoryId));
 
-        return $category === null ? [] : $this->products->idsInCategories([$category->id(), ...$this->categories->idsBelow($category->id())]);
+        return $this->products->idsInCategories([$id, ...$this->categories->idsBelow($id)]);
     }
 
     public function category(string $categoryId): ?CategoryDto
@@ -230,6 +232,11 @@ final readonly class CatalogApiImpl implements CatalogApi
     public function categoriesWithPaths(array $ids): array
     {
         return $this->searches->categoriesWithPaths($ids);
+    }
+
+    public function activeCategories(): array
+    {
+        return array_values($this->searches->categoriesWithPaths($this->searches->activeCategoryIds()));
     }
 
     public function productsInCategory(string $categoryId, ?string $text, ?string $after = null, int $limit = 50): FoundProductsDto

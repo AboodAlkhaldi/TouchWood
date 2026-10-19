@@ -32,13 +32,16 @@ final readonly class ViewCategoryDiscountHandler
      */
     public function handle(ViewCategoryDiscount $query): CategoryDiscountView
     {
-        // Its store first, then the reader's permission there, then the discount (as `ViewSale`).
-        $store = $this->access->authorize($this->discounts->storeOf($query->discountId) ?? throw new CategoryDiscountNotFound);
+        // The discount, then the reader's permission in its store - nothing of it answered before that: an
+        // existing id of a store the reader may not read is refused, an unknown one not found. One read, not
+        // two (stage 5's screens step 3: its page within the budget of 15).
         $discount = $this->discounts->find($query->discountId) ?? throw new CategoryDiscountNotFound;
+        $store = $this->access->authorize($discount->storeId);
 
         return new CategoryDiscountView(
             $this->rows->rows([$discount], $store, CarbonImmutable::now()->toDateTimeImmutable())[0],
             $this->previewer->preview($store, $discount, $query->after),
+            $store->id,
         );
     }
 }

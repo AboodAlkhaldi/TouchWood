@@ -223,6 +223,11 @@ final readonly class DatabaseApiSearches implements ApiSearches
         return $paths;
     }
 
+    public function activeCategoryIds(): array
+    {
+        return array_values(array_map(static fn (mixed $id): string => (string) $id, $this->db->table('catalog.categories')->where('is_active', true)->orderBy('id')->pluck('id')->all()));
+    }
+
     public function wholesaleOf(string $storeId, array $variantIds): array
     {
         $ids = self::ids($variantIds);

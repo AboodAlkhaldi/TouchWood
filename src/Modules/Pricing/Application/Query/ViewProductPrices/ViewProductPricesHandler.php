@@ -126,6 +126,9 @@ final readonly class ViewProductPricesHandler
                     $discount->endsAt?->format(DateTimeInterface::ATOM),
                     $discount->alwaysWins,
                 ), array_filter($reaching, static fn (CategoryDiscount $discount): bool => $discount->storeId === $id))),
+                $store->currencyExponent,
+                $this->views->letters($store),
+                $store->timezone,
             );
         }
 

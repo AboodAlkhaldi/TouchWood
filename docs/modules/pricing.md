@@ -618,6 +618,48 @@ sales here" for P2's filter); `categoriesWithPaths(ids)`; a category's products 
 `wholesaleOf(store, sizes)` (minimum, maximum, sold wholesale). A sold-wholesale filter on
 `searchVariants` serves P4's picker.
 
+**Built (stage 5's screens step 3, 2026-10-19)** - the pages, as §4.3.1-§4.3.3 and P1-P5 write them, with
+these shapes:
+
+- **Routes** (`pricing.admin.*`, `Presentation/admin-routes.php`): each page; every change a POST that answers with
+  its toast or its refusal (`PricingForms::act`, `App\Http\FormErrors` - rows a batch names as `rows.{size}`); the
+  dialogs' reads as they are typed are GETs answering JSON, the page data classes: `prices/size` (a size's prices,
+  the bands dialog's facts), `offers/note`, `offers/products`, `offers/sizes`, `offers/filter-products`,
+  `offers/{sale}` (View Offer), `category-discounts/preview`, `category-discounts/categories`,
+  `category-discounts/left-out`, `wholesale-prices/sizes`. **Change End** posts the end alone (`…/end-date`); the
+  server sends the running offer's or discount's own values back with it (§4.1). Remove on a discount's own page
+  goes to its store's list.
+- **Page data** (`Presentation/Http/Resource`, `PricingPages`): every page carries `storeFrame` (the store, the
+  filter's stores, Off, wired, the ceiling and whether the reader may change it, the jobs, the currency's
+  decimals and letters, the reasons) and `storeTimezone`; its props are read only when asked, so Show More and the
+  drawer (`?size=`, a partial visit) read their own alone.
+- **Reads added** (Application, each asking its job): `FindSaleProducts` (the offer dialog's Product, Q13),
+  `SaleSizeChoices` (its Sizes with their prices, Q39), `FindLeftOutProducts` (Q10), `FindWholesaleSizes` (Add
+  Wholesale Prices), `CategoryChoices` (Catalog's `activeCategories`, amendment 23(f)). `PriceRow` gains the first
+  band (Q8's warning) and `soldWholesale` (Edit Wholesale Prices' reason); `ProductStorePrices` the store's
+  decimals, currency letters and zone; `CategoryDiscountView` its store; `PricingActionsForReader::forStore` reads
+  one store's ceiling.
+- **Budgets, recorded** (the page's own, `tests/Modules/Pricing/Feature/PricingScreensTest`): Prices 10, Offers 10,
+  Category Discounts 5, a discount's page 15, Wholesale Prices 8, Needs a Price 5; the drawer 13, the offer note 15,
+  the preview 15, the pickers 2-4, View Offer 12. To fit: `ViewCategoryDiscount` reads the discount and then asks
+  (one read, not two); the preview checks its category through `categoriesWithPaths` (one read, not two);
+  Catalog's `productIdsInCategory` no longer loads the category. *Not covered*: the note and the preview still
+  read about two queries for each other discount not ended (the known cost, README) - with several, past 15.
+- **Words**: `pricing::admin` (the frame, the rows' marks, the save bar, the offer and bands dialogs, Remove
+  Price, the toasts), `admin_prices`, `admin_offers`, `admin_discounts`, `admin_wholesale`, `admin_needs_a_price`,
+  `menu`. The panel says **Offer** throughout (§9.4): P1's filter **On Offer Now**, the badge **Offer**, **Add
+  Offer…**. A count's forms (zero to other) are chosen on the page by the language's plural rules (`plural`, as
+  Catalog's warranties) - the save bar's count changes as boxes are typed, so one rule serves every count.
+- **The product page's section** (`resources/js/sections/Pricing/ProductPrices.tsx`): its words travel in its data
+  (`words`, `ProductPricesSection`) - Catalog's page carries none of Pricing's; the sizes' names are the product
+  page's own; its offers' ⋯ and Add Offer… are Offers' (`OfferActions`), its bands Wholesale Prices' dialog.
+- **The menu**: the Pricing group's five entries (`PricingServiceProvider`); Needs a Price's kept count is one more
+  query in the panel's frame for whoever edits prices (`AdminFrameQueryBudgetTest`, frontend.md §5) - a store not
+  counted yet is counted live once, through Catalog's reads, while its count is queued.
+- **Pickers** that search the server - P2's Product filter, P3's Left Out, P4's size - are shadcn's combobox with the
+  server's answer in place of cmdk's own filter (`picker.tsx`); the offer dialog's Product is a `SearchField` with
+  the products listed under it, each with its photo and codes.
+
 #### P1 · Prices - `/admin/prices?store=&q=&filter=&size=`
 
 - **Subtitle**: "Retail prices for each size, and what customers pay today."
