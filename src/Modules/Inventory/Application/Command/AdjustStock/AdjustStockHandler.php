@@ -10,6 +10,7 @@ use Modules\Inventory\Application\Stock\HoldsShortNotice;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
 use Modules\Inventory\Application\Stock\StockFacts;
+use Modules\Inventory\Application\Stock\StockSaved;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NoteRequired;
 use Modules\Inventory\Domain\Exception\ProviderOwnsStock;
@@ -32,6 +33,10 @@ use Shared\Application\Unauthorized;
  * never goes below 0; it may go below what is held - those orders are flagged (`HoldsShort`, with
  * holds in step 3). One ledger line and one audit entry, from and to, in one transaction under the
  * store's lock, the size's row locked.
+ *
+ * *(Stage 5's screens step 4:)* a refusal names its size, its words naming the box (Q2) - a removal
+ * larger than what is in stock says how many there are - and the answer names the size when the change
+ * left orders short of it, for the screen's amber toast (Q20).
  */
 final readonly class AdjustStockHandler
 {
@@ -50,7 +55,7 @@ final readonly class AdjustStockHandler
     /**
      * @throws Unauthorized|InvalidInventoryInput|StoreOff|ProviderOwnsStock|QuantityInvalid|NoteRequired|StockBelowZero
      */
-    public function handle(AdjustStock $command): void
+    public function handle(AdjustStock $command): StockSaved
     {
         $store = $this->change->authorize(self::PERMISSION, $command->storeId);
         $storeId = $store->storeId();
@@ -62,28 +67,34 @@ final readonly class AdjustStockHandler
         [$variantId, $productId] = $this->sizes->check([$command->variantId])[$command->variantId];
         // Trimmed first, so its length is the length kept.
         $note = HandAdjustment::note($command->note);
-        $change = HandAdjustment::change($command->direction, $command->quantity, $command->reason, $note);
+
+        try {
+            $change = HandAdjustment::change($command->direction, $command->quantity, $command->reason, $note);
+        } catch (QuantityInvalid) {
+            // The dialog's Quantity box (§4.3.1).
+            throw new QuantityInvalid([$command->variantId], QuantityInvalid::QUANTITY);
+        }
+
         $reason = MovementReason::from($command->reason);
 
-        $this->change->run($storeId, function () use ($storeId, $variantId, $productId, $change, $reason, $note): array {
+        return $this->change->run($storeId, function () use ($command, $storeId, $variantId, $productId, $change, $reason, $note): array {
             $row = $this->stock->lockFor($storeId, [$variantId => $productId])[$variantId];
             $before = $row->inStock;
             $after = $before + $change;
 
             if ($after < 0) {
-                throw new StockBelowZero;
+                throw new StockBelowZero([$command->variantId], $before);
             }
 
             if ($after > StockLimits::MOST_PIECES) {
-                throw new QuantityInvalid;
+                throw new QuantityInvalid([$command->variantId], QuantityInvalid::TOO_MANY);
             }
 
             $this->stock->setInStock($storeId, $variantId, $after);
 
-            // Below what orders hold: every order holding it is named, none blocked (§1.5).
-            if ($change < 0 && $after < $row->held) {
-                $this->notice->send($storeId, $variantId);
-            }
+            // Below what orders hold: every order holding it is named, none blocked (§1.5) - and the
+            // size named in the answer, for the screen's amber toast.
+            $short = $this->notice->short($storeId, $variantId, $before, $after, $row->held);
             $this->movements->record($storeId, $variantId, $reason, $before, $after, $note, 'hand:'.Str::ulid());
 
             $this->facts->refresh($storeId, [$variantId]);
@@ -91,7 +102,7 @@ final readonly class AdjustStockHandler
             // The note stays in the ledger alone: free text is kept out of the audit log, kept forever.
             $changes = AuditChanges::none()->changed('in_stock', $before, $after)->changed('reason', null, $reason->value);
 
-            return [null, [new AuditEntryDto('inventory.stock.adjusted', 'inventory.stock', $variantId, $storeId->value, $changes)]];
+            return [new StockSaved($short === null ? [] : [$short]), [new AuditEntryDto('inventory.stock.adjusted', 'inventory.stock', $variantId, $storeId->value, $changes)]];
         });
     }
 }

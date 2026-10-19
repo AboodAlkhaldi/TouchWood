@@ -30,8 +30,9 @@ final readonly class SizeInput
     {
         [$own, $archived, $notFound] = $this->sort($given);
 
+        // Named, so a screen marks the rows refused (Q2).
         if ($archived !== [] || $notFound !== []) {
-            throw new InvalidInventoryInput('variant');
+            throw new InvalidInventoryInput('variant', [...$archived, ...$notFound]);
         }
 
         return $own;

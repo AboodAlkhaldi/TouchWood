@@ -230,6 +230,11 @@ describe('the provider\'s numbers', function () {
             {
                 return $this->asked++ === 0;
             }
+
+            public function wiredStores(): array
+            {
+                return [];
+            }
         });
 
         $result = providerStockApply([$size => 5]);

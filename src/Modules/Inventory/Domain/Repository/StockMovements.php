@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Domain\Repository;
 
+use DateTimeImmutable;
+use Modules\Inventory\Domain\ValueObject\LedgerLine;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -21,4 +23,23 @@ interface StockMovements
 
     /** Whether a movement with this reference was recorded: work run again records nothing twice. */
     public function referenced(string $reference): bool;
+
+    /**
+     * **A size's ledger, newest first** (§4.3.3 `StockHistory`): the lines before `$beforeId` (all,
+     * without one), at most `$limit`, in one query - each shipment's and return's order named.
+     *
+     * @return list<LedgerLine>
+     */
+    public function history(StoreId $store, string $variantId, ?int $beforeId, int $limit): array;
+
+    /**
+     * **When the provider last changed each size's number** (§4.3.1, Q23): the moment of each size's
+     * last `PROVIDER` line in each store - a number sent again unchanged writes none - in one query. A
+     * size the provider never sent is left out.
+     *
+     * @param  list<StoreId>  $stores
+     * @param  list<string>  $variantIds
+     * @return array<string, array<string, DateTimeImmutable>> store id => variant id => when
+     */
+    public function lastProviderChanges(array $stores, array $variantIds): array;
 }

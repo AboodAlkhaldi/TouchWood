@@ -43,6 +43,24 @@ interface StockRows
     public function read(StoreId $store, array $variantIds): array;
 
     /**
+     * Every row the store has, read without a lock, in one query - for the screens' filters and the
+     * Low Stock list, which look at all of a store's sizes (§4.3.3).
+     *
+     * @return array<string, StockRow> variant id => its row
+     */
+    public function ofStore(StoreId $store): array;
+
+    /**
+     * These sizes' rows in each of these stores, read without a lock, in one query - a product's stock
+     * in every store at once (§4.3.3 `ViewProductStock`). A size with no row in a store is left out.
+     *
+     * @param  list<StoreId>  $stores
+     * @param  list<string>  $variantIds
+     * @return array<string, array<string, StockRow>> store id => variant id => its row
+     */
+    public function inStores(array $stores, array $variantIds): array;
+
+    /**
      * Holds the pieces if the size has them free, in one conditional update (§1.4): no row changed
      * means not enough - with no lock taken first, no race and no deadlock.
      *

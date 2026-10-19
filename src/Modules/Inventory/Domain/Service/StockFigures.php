@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Domain\Service;
 
+use Modules\Inventory\Domain\ValueObject\StockBadge;
 use Modules\Inventory\Domain\ValueObject\StockRow;
 
 /**
@@ -28,6 +29,32 @@ final class StockFigures
     public static function orderable(?StockRow $row, bool $wired): bool
     {
         return ! self::counts($row, $wired) || self::free($row, $wired) > 0;
+    }
+
+    /**
+     * How many pieces orders hold beyond what there is (§4.3.1, Q18): held above in stock - in a wired
+     * store above in stock plus its returned extra (§1.9) - or 0.
+     */
+    public static function shortBy(?StockRow $row, bool $wired): int
+    {
+        return $row === null ? 0 : max(0, $row->held - $row->inStock - ($wired ? $row->returnedExtra : 0));
+    }
+
+    /**
+     * **The one badge a row shows** (§4.3.1, Q17, Q18), the first that applies - Short, Out of Stock,
+     * Orderable (a wired ordinary size at 0, §1.3), Low - or none.
+     */
+    public static function badge(?StockRow $row, bool $wired, int $defaultThreshold): ?StockBadge
+    {
+        $free = self::free($row, $wired);
+
+        return match (true) {
+            self::shortBy($row, $wired) > 0 => StockBadge::Short,
+            $free === 0 && self::counts($row, $wired) => StockBadge::OutOfStock,
+            $free === 0 => StockBadge::Orderable,
+            $free <= ($row->threshold ?? $defaultThreshold) => StockBadge::Low,
+            default => null,
+        };
     }
 
     /**

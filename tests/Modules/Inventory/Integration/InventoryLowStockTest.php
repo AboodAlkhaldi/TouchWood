@@ -20,6 +20,7 @@ use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFileHandl
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Query\LowStock\LowStock;
 use Modules\Inventory\Application\Query\LowStock\LowStockHandler;
+use Modules\Inventory\Application\Query\LowStock\LowStockList;
 use Modules\Inventory\Application\Query\LowStock\LowStockRow;
 use Modules\Inventory\Application\Stock\LowStockCount;
 use Modules\Inventory\Infrastructure\Import\StockImportSection;
@@ -70,7 +71,7 @@ function lowStockReady(array $sizes = ['60 cm', '80 cm', '100 cm']): array
  */
 function lowStockList(): array
 {
-    return array_map(static fn (LowStockRow $row): string => $row->variantId, Fx::asSystem(fn (): array => app(LowStockHandler::class)->handle(new LowStock(Ix::storeId('sa')))));
+    return array_map(static fn (LowStockRow $row): string => $row->size->variantId, Fx::asSystem(fn (): LowStockList => app(LowStockHandler::class)->handle(new LowStock(Ix::storeId('sa'))))->rows);
 }
 
 describe('the Low Stock list (§1.7)', function () {
@@ -78,14 +79,14 @@ describe('the Low Stock list (§1.7)', function () {
         [$few, $plenty, $none] = lowStockReady()['variants'];
         Ix::count('sa', [$few => 3, $plenty => 50]);
 
-        $rows = Fx::asSystem(fn (): array => app(LowStockHandler::class)->handle(new LowStock(Ix::storeId('sa'))));
+        $rows = Fx::asSystem(fn (): LowStockList => app(LowStockHandler::class)->handle(new LowStock(Ix::storeId('sa'))))->rows;
 
         // The store's default threshold, 10: 3 and 0 are low, 50 is not.
         expect(lowStockList())->toBe([$none, $few])
-            ->and($rows[1]->available)->toBe(3)
-            ->and($rows[1]->threshold)->toBe(10)
-            ->and($rows[1]->code)->not->toBe('')
-            ->and($rows[1]->productNameAr)->not->toBe('');
+            ->and($rows[1]->figures->available)->toBe(3)
+            ->and($rows[1]->figures->threshold)->toBe(10)
+            ->and($rows[1]->size->code)->not->toBe('')
+            ->and($rows[1]->size->productNameAr)->not->toBe('');
 
         DB::table('inventory.stock')->where('store_id', Ix::storeId('sa'))->where('variant_id', $plenty)->update(['threshold' => 50]);
 

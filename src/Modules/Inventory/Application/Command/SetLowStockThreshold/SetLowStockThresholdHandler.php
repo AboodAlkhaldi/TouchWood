@@ -52,11 +52,11 @@ final readonly class SetLowStockThresholdHandler
             [$variantId, $productId] = $own[(string) $given];
 
             if ($threshold !== null && ($threshold < 0 || $threshold > StockLimits::THRESHOLD_MOST)) {
-                throw new ThresholdInvalid;
+                throw new ThresholdInvalid([(string) $given]);
             }
 
             if (array_key_exists($variantId, $thresholds) && $thresholds[$variantId] !== $threshold) {
-                throw new InvalidInventoryInput('variant');
+                throw new InvalidInventoryInput('variant', [(string) $given]);
             }
 
             $thresholds[$variantId] = $threshold;

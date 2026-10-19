@@ -22,4 +22,13 @@ interface StoreProducts
      * @return list<string> those with "last pieces" switched on there
      */
     public function endingSoonOf(StoreId $store, array $productIds): array;
+
+    /**
+     * Of these stores, those where "last pieces" is switched on for the product - one query, for a
+     * product's page (§4.3.3 `ViewProductStock`).
+     *
+     * @param  list<StoreId>  $stores
+     * @return list<string> their ids
+     */
+    public function endingSoonIn(array $stores, string $productId): array;
 }

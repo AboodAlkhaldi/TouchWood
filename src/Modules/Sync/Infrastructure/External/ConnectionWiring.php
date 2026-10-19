@@ -24,7 +24,7 @@ final readonly class ConnectionWiring implements InventoryWiring, PricingWiring
         return $this->connections->exists($store);
     }
 
-    /** Pricing's: every wired store at once (pricing.md §4.3.3). */
+    /** Pricing's and Inventory's: every wired store at once (pricing.md §4.3.3, inventory.md §4.3.3). */
     public function wiredStores(): array
     {
         return $this->connections->wiredStores();
