@@ -409,12 +409,12 @@ while unused.
 
 **A gift level:** active within its dates while switched on.
 
-### 4.1 The screens (stage 6's screens) — DRAFT, round 1 of the owner's questions open
+### 4.1 The screens (stage 6's screens)
 
 **Written 2026-10-19** by the stage 6 screens session, after the backend's seven steps (#143–#173), as
 Loyalty's screens were (loyalty.md §4.1). Every **[Qn]** is a question for the owner, listed in §9.4
-with the options and the one I recommend; the text says what is built **if the recommendation is
-taken**. Nothing here is built before the owner answers. The use cases behind every button are §3's;
+with the options and the one I recommended; **the owner answered all eighteen on 2026-10-19** (§9.4) and
+the text below is written to those answers. The use cases behind every button are §3's;
 a screen offers only what the reader may do next — asked of an Application query
 (`PromotionsActionsForReader`, new), never of the authorizer from the screen
 (`tests/Architecture/AccessDecisionsTest`) — and every handler asks again.
@@ -433,7 +433,10 @@ off store's promotions are set by Super Admins only (§1.8). Words in
 **Who sees what.** `promotions.marketing.view` — or any of the three manage jobs — reads every list
 and page of a store (§3). Each button needs its own job: coupons and their assignments
 `promotions.coupon.manage`, segments `promotions.segment.manage`, gift levels
-`promotions.gift.manage`. A reader without it sees no button at all **[Q16]**.
+`promotions.gift.manage`. **A reader without the job sees no button at all; one who holds it but whom
+the item or the store stops sees it out of reach, with the reason in its tooltip** (owner, Q16 — as
+frontend.md: "an action that cannot be done is shown disabled, with the reason"; inside a ⋯ menu the
+reason is written under the item instead).
 
 **The menu** — Platform's `AdminMenu`, the **Marketing** group (it exists, access.md amendment 69):
 
@@ -486,14 +489,17 @@ Fieldset, one **Save Coupon** at the foot, out of reach until something changed)
    reduced (off by default); with points (on by default) — each a Geist Switch with its one-line
    meaning.
 6. **What it covers** [Q4, Q5]: two lists, **Includes** and **Excludes**, each a list of products,
-   categories and brands with a remove button per entry and **Add…** opening a picker (a product found
-   by name or code; a category from the tree; a brand from the list). Empty Includes reads "Every
+   categories and brands, each a chip **naming it** ("Category: Kitchens › Drawers", "Brand: Acme",
+   "Product: Oak Table") with a remove button, and **Add…** opening one picker with three tabs — a product
+   found by name or code; **a category read by its name and its path in the tree**, ticked by name; a
+   brand from the list by name (owner, Q4: nobody remembers a category's number, so staff read and
+   pick names; an id never shows). Empty Includes reads "Every
    product". At most 500 entries (§1.2). An entry added since that is no longer ready, active or
    switched on is marked "Not sold now" (answer 22: it stays, matching nothing).
 
 **The switch**: **Turn Off** / **Turn On** in the page's header for a manager (`SwitchCoupon`), saved at
-once with a toast. **Delete Coupon…** (an AlertDialog naming the code) only while it was never used; a used coupon shows the button out of reach, "Used once or more:
-turn it off instead" [Q6].
+once with a toast. **Delete Coupon…** (an AlertDialog naming the code) only while it was never used; a used coupon shows the button out of reach, its tooltip "Used once or more:
+turn it off instead" (owner, Q6).
 
 **Uses** — the coupon's uses, newest first: **Date** · **Order** (public number, plain text until Sales's
 screens — as loyalty.md answer 12) · **Customer** (the name; "Deleted customer") · **Discount**. Empty:
@@ -531,15 +537,25 @@ it again." (§1.4) [Q14].
   `inEffect`, `active`). Under the list, one line: "An order gets one gift — the highest level it
   reaches; out of stock, the next one down." (§1.7)
 - **New Level…** / **Edit…** (a dialog for `promotions.gift.manage`): the amount; the gift — a size
-  found by product name or code in this store (`searchVariants`) [Q11]; individuals and/or companies;
-  dates, optional. A clash (§7 `GiftLevelClash`) said in the dialog. **Turn Off** / **Turn On** per row.
+  found by product name or code in this store (`searchVariants`), its photo shown; individuals and/or
+  companies; dates, optional. **In a wired store**, under the gift (owner, Q11 (c)): a tick box, off by
+  default, **"Also limit this size's normal sales to its stock"**, with the line "The gift itself is
+  always given from stock. Ticking this also makes customers able to buy this size only while it is in
+  stock — it leaves the shop when it runs out." Shown only for a size whose stock-dependency is off;
+  out of reach, with the reason, for a reader without Inventory's switch job. Saving the level with it
+  ticked also turns the size's switch on, **in the level's own save** (one transaction: no level saved
+  without its switch) — `CreateGiftLevel` and `ChangeGiftLevel` call Inventory's public
+  `makeStockDependent` (inventory.md, stage 5's — §9.4), which turns on only and audits as Inventory's
+  own switch does. A clash (§7 `GiftLevelClash`) said in the dialog. **Turn Off** / **Turn On** per row.
   No delete — a level is switched off (§3).
 
 #### M5 · The shop: the account's Coupons tab — `/{store}/{locale}/account/coupons`
 
 - **Offered** in the account's side list (Access's `CustomerAccountPages`, `promotions.coupons`) **[Q12]**.
-- **One card per coupon** (`ViewMyCoupons`, soonest to end first): the code, large, with Geist's
-  **Copy** button [Q13]; the name; what it takes off; the minimum order; "Ends on {date}" or "No end
+- **One card per coupon** (`ViewMyCoupons`, soonest to end first): the code, large, with the panel's
+  own **CopyButton** (Geist's Copy Button, owner Q13): an icon named "Copy coupon code"; pressed, the icon
+  turns to a check for about two seconds and back, a screen reader hears "Copied", and a refused copy
+  shows a cross and "Couldn't copy"; the name; what it takes off; the minimum order; "Ends on {date}" or "No end
   date"; "Uses left: 2" when limited. Under the list: "Type the code at checkout. Whether it applies to
   your cart is checked there." (answer to §3's "usable" assumption).
 - **Empty**: "No coupons for you right now."
@@ -795,11 +811,22 @@ deleting a coupon with assignments; `COMPANY` defined and useless combinations r
 race; `RecordOrder` renamed from `OrderPlaced`; `NO_ORDER_FOR` and customers who never ordered; the
 handoff's §4.4 and §11.2 amended; gift levels' menu place; off stores; order numbers on uses.
 
-### 9.4 The screens — the owner's questions, round 1 (2026-10-19, open)
+### 9.4 The screens — the owner's questions, round 1 (asked and answered 2026-10-19)
 
-Asked by the stage 6 screens session for §4.1. The first option of each is the recommendation, which
-§4.1 is written to; nothing is built before the owner answers. A later round asks only what these
-answers open.
+Asked by the stage 6 screens session for §4.1; the first option of each was the recommendation.
+**The owner's answers (2026-10-19): (a) for every question, with these additions** — Q4: staff read and
+pick categories (and brands) **by name**, a category with its path, never a number; Q6: the reason in the
+greyed button's tooltip (the references' rule); Q13: the panel's CopyButton as it is (a check for a
+moment, then back); Q16: hidden without the job, greyed with the reason when the item or store stops a
+reader who holds it; **Q11: (c) — a tick box in the gift dialog, off by default, also making the size's
+normal sales depend on stock, the dialog saying in plain words what that does** (the gift itself always
+counts on stock, Inventory's code: `! wired || gift || stockDependent`; stage 5 and the backend session,
+2026-10-19). That needs **an Inventory amendment** (`InventoryApi::makeStockDependent`, stage 5's) and
+**a new edge Promotions → Inventory** (handoff §4.4, `deptrac.yaml`), called **inside the gift level's own
+save** (`CreateGiftLevel`, `ChangeGiftLevel` — the backend session's). Whether ticking also needs
+Inventory's own switch job (`inventory.stock.manage`) is asked of the owner by stage 5 (recommended: yes,
+so a promotions manager cannot change a stock setting); with it, the box is out of reach, with the reason,
+for a reader without that job.
 
 | # | Question | Options (recommended first) |
 |---|---|---|
