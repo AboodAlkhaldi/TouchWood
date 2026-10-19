@@ -377,6 +377,8 @@ not the order's recorded store is refused. The permission must belong to the cal
 | Access | The permission catalog | Exists (`PermissionCatalog::declare`) |
 | Access | **A `Points` permission group**, so the role editor and the menu show the points permissions together (owner, 2026-10-07) | **An Access addition, built with Loyalty**: `PermissionGroup::Points` — built with step 1, access.md amendment 66 |
 | Access | A customer exists, for a change by hand | Exists (`AccessApi::customer`) |
+| Access | **For the screens** (§4.1): customers' names in bulk; a search by name, email or phone; a section on the staff customer page; a condition on the account's Points tab | `AccessApi::customers` exists (amendment 70); **the rest is access.md amendment 72**, built with the screens |
+| Platform | **For the screens**: a settings card opened by address (`#settings-loyalty`); the Points menu's icons | **A Platform addition, built with the screens** (platform.md §9.4, 2026-10-19) |
 
 ### 2.4 What Loyalty gives others
 
@@ -404,7 +406,7 @@ Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`
 | Read (query) | Permission |
 |---|---|
 | **My points** in a store: the balance, what it is worth, each live lot and its date, the history newest first with each order's public number | `loyalty.points.view_own` — every customer, about their own account only |
-| **A customer's points** in a store (the menu's "Customers › Loyalty", handoff §14): the same, and every change by hand with its admin's name (`StaffNames::forReader`) and reason | `loyalty.points.view` in **the store the points belong to**, not the customer's home store (a KSA-registered customer's UAE points are UAE's). My assumption, stated for the owner to reject |
+| **A customer's points** in a store (the menu's "Points › Customers" and the customer page's Points section, §4.1; handoff §14 amended 2026-10-19): the same, and every change by hand with its admin's name (`StaffNames::forReader`) and reason | `loyalty.points.view` in **the store the points belong to**, not the customer's home store (a KSA-registered customer's UAE points are UAE's). My assumption, stated for the owner to reject |
 | **The store's redemptions** (the menu's "Points › Redemptions", handoff §14): the order's public number, the customer, the points, the discount, the date | `loyalty.points.view` in that store |
 
 **The permissions Loyalty declares:**
@@ -420,7 +422,8 @@ Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`
 **Both changes are admin-only** (owner, 2026-10-07): only an admin role can hold `loyalty.points.adjust`
 or `loyalty.settings.update` — points cost the business money — unlike a store's own Access settings,
 which stay an ordinary action (access.md §1.5). **The menu's Points section** holds the store's points
-settings and its redemptions; a customer's points are reached from the customer.
+settings, its customers holding points and its redemptions; a customer's points are reached from that
+list and from the customer's own page (§4.1, owner 2026-10-19).
 
 ---
 
@@ -455,6 +458,248 @@ order is never delivered or returned.
 
 **An account:** no state beyond its balance, which is never below 0.
 
+### 4.1 The screens (stage 6's screens)
+
+**Written 2026-10-19** from the owner's answers of 2026-10-19 (§9.4, answers 1–15), all as
+recommended. What is marked **[PROPOSED Pn]** is mine, listed in §9.5, built as written unless the
+owner says otherwise. The use cases behind every button are §3's. A screen offers only what the reader
+may do next — asked of an Application query (`LoyaltyActionsForReader`), never of the authorizer from
+the screen (`tests/Architecture/AccessDecisionsTest`) — and every handler asks again.
+
+**What every screen keeps** — as Catalog's and Pricing's (catalog.md §4.4, pricing.md §4.3): Geist's
+rules on shadcn's code (frontend.md §1.11), every box checking itself as it is typed, every number in
+0-9, every moment through `Time` in the store's zone, names in the page's language first. **Points** are
+whole numbers with the thousands grouped ("12,500"), in Latin digits; **money** with the store's
+currency and its own decimals, through **`resources/js/lib/money.ts`** — the one formatter every
+screen showing money uses (Pricing's screens too; whichever is built first adds it): the server sends
+an amount as its decimal text and the currency's code ("12.34", "SAR"), never a float. An empty cell
+(no order, no staff member, nothing expiring) is Geist's em dash. The words in
+`src/Modules/Loyalty/Presentation/lang/{ar,en}/admin_points.php`, `shop_points.php`, `menu.php` and
+`account_pages.php` (the Points tab's name, as `CustomerAccountPageDto::labelKey()` reads it); refusals
+are §7's.
+
+**The store.** Every Loyalty staff screen has **its own store filter** (`?store=<code>`, frontend.md
+§2.2, Platform's `StoreChoices`): the stores where the reader holds the screen's job, a Super Admin's
+off stores marked Off, none drawn for one store; no `?store=` opens the first store that is on (answer
+3). **There is no all-stores view**: points belong to one store (§1.12), and every read takes one. A
+reader with the job in no store they may open — none at all, or only in stores that are off and they
+cannot switch stores — gets the panel's 403 page. A store that is **off** shows its screens to whoever
+may still open it (a Super Admin), with the StoreOff badge; reading works, and so do changes by hand
+(§1.9). **A programme that is off** (`loyalty.points.enabled` false) shows a Geist Note above the
+screen — "Points are off in this store: nobody earns or uses points. Balances stay, and still
+expire." — and changes nothing else (answer 9).
+
+**Where they are.** Admin routes in `Presentation/admin-routes.php`, named `loyalty.admin.*`, loaded
+by the module's provider through `App\Http\AdminArea`, `Page` and `FormErrors` (as Catalog's,
+catalog.md amendment 13(d); `config/ziggy.php`'s admin group gains `loyalty.admin.*`); the shop's in
+`Presentation/shop-routes.php`, named **`storefront.loyalty.*`**, which the storefront group already
+holds. **The menu** — Platform's `AdminMenu`, the **Points** group (it exists, access.md amendment
+66), its icon `points` (Lucide's `Coins`, joining `MenuIcon`'s list):
+
+| # | Entry | Address | Icon | Offered for |
+|---|---|---|---|---|
+| 10 | Customers · العملاء | `/admin/points/customers` | `customers` (exists) | `loyalty.points.view` |
+| 20 | Redemptions · الاستبدالات | `/admin/points/redemptions` | `redemptions` (Lucide's `TicketPercent`, new) | `loyalty.points.view` |
+| 30 | Settings · الإعدادات | `/admin/points/settings` → Platform's settings screen at the Points card | `store_settings` (exists) | `loyalty.settings.update` |
+
+**The reads the screens add** — Application queries, each **one query or a fixed few, never one per
+row** (frontend.md §5: 15 queries an admin page, the page's own; 8 a shop page):
+
+| Query | Job | What it answers |
+|---|---|---|
+| `ListPointHolders` (new) | `loyalty.points.view`, that store | **every points account in the store, most live points first** (then the account's id), 50 at a time, keyset by (live points, id): each customer's name (Access, below), the **live** points (the live lots' sum, as every read counts them, §1.1 — never the stored balance, which still holds points past their date until the next write or the nightly sweep), their worth, the points expiring on the soonest date (below) and that date, and the last entry's moment. Accounts with no live points come last. One query over the store's accounts and live lots; with a search, the same query kept to the customers Access found |
+| `ViewCustomerPoints` | §3's, **tightened** (below) | as built: the balance, its worth, every live lot (all of them, unpaged — they are few), the history newest first with staff names and reasons |
+| `CustomerPointsInStores` (new) | `loyalty.points.view`, each store asked | one customer's live points, worth and soonest expiry in each store the reader holds the job in where the customer has an account — **one query** for all of them (the customer page's section, below) |
+| `ListRedemptions` | §3's | as built, with each row's customer name (below) |
+| `ViewMyPoints` | §3's | as built, plus whether the programme is on and its two rates, for the off note and the "how it works" line **[PROPOSED P3]** |
+| `LoyaltyActionsForReader` (new) | — (asks the authorizer for the reader) | for a store: whether the reader may change points by hand there (`loyalty.points.adjust`) **and** open L2 there (`loyalty.points.view`); for a customer, whether the reader may open the customer's own page (Access's `access.customer.view` in the customer's home store) |
+
+**"Expiring next"**, wherever it shows: the points of every live lot whose date falls on the **soonest
+calendar day** in the store's time zone, summed, and that day — lots are timestamps, and several can end
+on one day.
+
+**Names come from Access** — Loyalty keeps none. Every list reads the page's customers in **one call**,
+`AccessApi::customers(ids)` (access.md amendment 70); L2 reads its one customer with
+`AccessApi::customer`. **A store's staff see the name of a customer who has an account in that store
+though registered in another** — the owner's answer 7, the same widening Promotions has (access.md
+amendment 72(c)); **only the name**: the email shows only for a customer whose page the reader may
+open **[PROPOSED P1]**. An anonymized customer reads "Deleted customer" · "عميل محذوف", with no link
+(answer 7).
+
+**The search** (answer 2) asks Access for the customers matching the text (access.md amendment 72(b)):
+**by name, any store; by email or phone, only among the customers the reader may already view** — so
+typing someone's email never names a customer the reader could not see **[PROPOSED P6]**. Access
+answers at most 1,000 ids; Loyalty keeps those with an account in the store and lists them as above,
+with **Show More**. When Access answers 1,000, the list says "Too many customers match — type more of
+the name, email or phone." and shows none **[PROPOSED P2]**.
+
+**`ViewCustomerPoints`, tightened** (review of 2026-10-19): today it answers any existing customer, an
+empty account where they have none — so any holder of `loyalty.points.view` could learn that an id is a
+customer and read their name on L2. From the screens on, **a customer with no account in the store is
+`PointsAccountNotFound`** unless the reader may view that customer's own page (`access.customer.view`
+in their home store), as access.md amendment 44(c) answers a customer who is not the reader's
+**[PROPOSED P7]**. A Loyalty change, told to the stage 6 backend session.
+
+#### L1 · Points › Customers — `/admin/points/customers?store=&search=`
+
+- **Header**: title "Customers" · "العملاء", subtitle "Who holds points in this store" · "من لديه نقاط
+  في هذا المتجر"; the store filter; the programme-off Note when off.
+- **Search**: one box (shadcn Input, Geist's search look), "Search by name, email or phone", sent 300 ms
+  after typing stops and kept in the address (`?search=`); fewer than 3 characters searches nothing and
+  says "Type at least 3 characters." under the box; more than 100 is refused as typed; Escape empties
+  it.
+- **Columns** (shadcn Table, Geist's look; it scrolls inside its card at phone width, frontend.md):
+  **Customer** (the name; under it, the email for a customer whose page the reader may open — P1) ·
+  **Points** (live, right-aligned, grouped) · **Worth** (money) · **Expiring next** ("1,200 on 3 Jan
+  2027", or an em dash) · **Last change** (`Time`, relative, the full moment in its tooltip). A row opens
+  **L2** in the same store — the whole row is the link (keyboard reachable).
+- **Paging**: 50 rows, then **Show More** under the table while there are more (answer 13; Geist's Load
+  More, `useLoadMore`): the button shows it is busy while the page comes; the rows already there stay.
+  The same with a search.
+- **Empty**: no accounts — Geist's Empty, "No points yet" / "When customers earn points in this store,
+  they appear here."; a search that finds nobody — "No customers match "{text}"." with **Clear Search**.
+
+#### L2 · A customer's points — `/admin/points/customers/{customer}?store=`
+
+- **Header**: the customer's name as the title (or "Deleted customer"), subtitle "Points"; breadcrumbs
+  Points › Customers › the name; the store filter; **Open Customer** (a link to `/admin/customers/{id}`)
+  only when `LoyaltyActionsForReader` says the reader may open it.
+- **Balance card** (shadcn Card, Geist's Description): **Points** (large, grouped) · **Worth** (money)
+  · **Expiring next**: "1,200 points expire on 3 Jan 2027" (answer 11), or "No points are waiting to
+  expire." The card's action: **Change Points…** for a reader who may (`loyalty.points.adjust` in that
+  store); nobody else sees it.
+- **Live points** (answer 11): a short table — **Points** · **Expires** (date) — every live lot, soonest
+  first, unpaged; hidden when there is none.
+- **History**: a table, newest first — **Date** (`Time`) · **What** (the kind, in staff words: Earned,
+  Used, Given back, Taken back, Added by hand, Removed by hand, Expired) · **Order** (its public number,
+  plain text until Sales's screens can open it — answer 12; an em dash when none) · **Points** (+1,200
+  in green, −300 in the default ink; never red for an ordinary spend) · **By** (the admin's name for a
+  change by hand, "System administrator" for a Super Admin, as `StaffNames`; an em dash otherwise) ·
+  **Reason** (by hand only; long reasons wrap). 50 rows, then **Show More**.
+- **No account in this store** (reached only by a reader who may view the customer — above): Empty, "No
+  points in this store" / "This customer has not earned or used points here."; **Change Points…** is
+  still offered, on Add (Remove needs points).
+- **Refusals**: an unknown customer, a customer with no account here whom the reader may not view, or a
+  store the reader may not open → the panel's 404 page (the store, as every screen: the filter's
+  refusal).
+
+#### L3 · The change-by-hand dialog (answer 8)
+
+- **One shadcn Dialog**, "Change Points" · "تعديل النقاط", opened from L2's card. At the top a shadcn
+  ToggleGroup of two items: **Add** · **Remove**, Add chosen first. **Remove is out of reach, saying
+  why** ("There are no points to remove."), while the live balance is 0.
+- **Points**: a number box, whole numbers 1 to 1,000,000,000 (`Inputs::MOST_BY_HAND`), checked as typed;
+  for Remove also "at most the balance, {balance}".
+- **Reason**: a Textarea, required, 1 to 500 characters **after trimming** (as `Inputs::reason`), the
+  count shown on the trimmed text ("120 / 500"); the hint "Kept in the customer's history and the audit
+  log. The customer does not see it." (answer 10).
+- **Before and after**: a line under the boxes, "Balance: 4,500 → 5,700" (Remove: "→ 3,300"), worked out
+  as typed from the page's balance; the server's answer is the truth.
+- **Buttons**: Cancel · **Add Points** / **Remove Points** (the main button names the action; out of
+  reach, saying why, until both boxes pass). Enter in the points box sends. No second "Are you sure"
+  (answer 8). **Remove is not red**: a correction, not a deletion **[PROPOSED P4]**.
+- **After**: the dialog closes, a toast "1,200 points added." / "300 points removed.", the card and the
+  history show the new entry at the top; focus goes back to Change Points….
+- **Refused** — the dialog stays open, the boxes as typed, the message in it (`DialogError`), and the
+  page's balance refreshed: `DeductionTooLarge` (the balance changed meanwhile), `InvalidPointsAttribute`,
+  `PointsAccountNotFound` (a Remove where the account is gone or never was); **`Unauthorized`** (the
+  permission taken away meanwhile) closes the dialog with the panel's refusal message, and Change
+  Points… leaves the page on its next answer.
+
+#### L4 · Points › Redemptions — `/admin/points/redemptions?store=`
+
+- **Header**: title "Redemptions" · "الاستبدالات", subtitle "Points used on orders in this store"; the
+  store filter; the programme-off Note.
+- **Columns**: **Date** (`Time`) · **Order** (public number, plain text — answer 12) · **Customer** (the
+  name, a link to L2 in this store; "Deleted customer", no link) · **Points** (grouped) · **Discount**
+  (money). Newest first, 50 rows, then **Show More**. No filters, no totals (answer 6).
+- **Empty**: "No redemptions yet" / "When customers use points on an order here, it appears here."
+
+#### L5 · The customer page's Points section (answers 1 and 15)
+
+- On Access's customer page (G2), under Addresses, through **`CustomerPageSections`** (access.md
+  amendment 72(a)): **Points**, one block per store where the reader holds `loyalty.points.view` **and**
+  the customer has an account, in the stores' order — the store's name (Off badge when off) · the live
+  points · their worth · expiring next — and **View Points** (a link to L2 in that store) **only where
+  L2's filter offers that store** (an off store's block, for staff who cannot switch stores, has no
+  link: G2 shows them the data, as their addresses, but L2 cannot open there).
+- **Not drawn at all** for a reader without `loyalty.points.view` in any store; for one who holds it
+  but the customer has points in none of those stores: "No points in your stores."
+- **Giving a first point**: for a reader who may change points by hand **and** open L2 in a store where
+  the customer has no account yet, the section ends with **Give Points…**, a link to L2 in that store
+  (the first such store; the filter there reaches the others), where Change Points… starts on Add
+  **[PROPOSED P5]**. That reader may view the customer (they are on G2), so L2 answers them.
+- One query for every block (`CustomerPointsInStores`), plus the reader's stores already read.
+
+#### L6 · Settings — `/admin/points/settings?store=`
+
+Not a screen of its own (answer 5): the address answers with a redirect to Platform's settings screen
+for the same store, opened at the **Points** card (`/admin/settings?store=<code>#settings-loyalty`).
+Platform's settings cards gain an `id` of `settings-{module}` (platform.md §9.4, 2026-10-19), and the
+page scrolls to the card named in the address once it has drawn. The settings themselves are as built
+(§1.5); each row stays the admin-only `loyalty.settings.update`'s.
+
+#### L7 · The shop: the account's Points tab — `/{store}/{locale}/account/points`
+
+- **Offered** in the account's side list (Access's `CustomerAccountPages`, `loyalty.points`, every
+  account type, its name from `loyalty::account_pages.points`) **when the store's programme is on, or the
+  customer has an account there** (answer 4) — through amendment 72(d)'s condition: the switch is read
+  from the settings every shop page already holds (no query); only when it is off does the condition
+  read whether the customer has an account in the store (one query, on shop pages of signed-in customers
+  in such a store — the recorded counts of those pages move by one, deliberately). A customer who opens
+  the address when it is not offered gets the shop's 404.
+- **Drawn in `AccountLayout`**, as B2B's company page. Title "My Points" · "نقاطي".
+- **Balance card**: the live points, large · "Worth {money}" · expiring next, "1,200 points expire on 3
+  Jan 2027" (answer 11). **How it works** — one line from the store's two rates **[PROPOSED P3]**: "You
+  earn 1 point for every 1.00 SAR. 100 points take 1.00 SAR off an order." — shown only while the
+  programme is on.
+- **Programme off** but points left: a Note, "Points are paused in this store. You cannot earn or use
+  points for now; your points stay until they expire."
+- **Live points**: as L2's, soonest first.
+- **History**: newest first — **Date** · **What**, in the customer's words (answer 10): "Earned on order
+  SA-10428", "Used on order SA-10428", "Given back — order SA-10428", "Taken back — order SA-10428
+  returned", "Added by the store", "Removed by the store", "Expired" · **Points** (+/−). **No reason, no
+  staff name** — the read already strips them (§3). 50 rows, then Show More.
+- **Empty** (on, no account yet): "No points yet" / "You earn points on every delivered order."
+- **Queries**: within the shop page's 8.
+
+**Every screen above** is checked at phone width (375 px, no sideways scroll), in Arabic and English,
+light and dark; its query count recorded by a feature test; its page under 60 KB gzipped.
+
+#### As built — the build and its three reviews, 2026-10-19
+
+Where the built screens say or do something other than the lines above, and why. Nothing here changes
+an owner's answer.
+
+- **The words have no plurals** (the screens' words never had them), so the lines quoted above read,
+  in English: the expiring line "Expiring on {day}: {points}"; the toasts "Points added: 1,200." and
+  "Points removed: 300."; the "how it works" line (P3) "Every 1.00 SAR you spend adds 1 to your
+  points. Every 100 of your points takes 1.00 SAR off an order." The Arabic reads the same way.
+- **The reads are a fixed few, not one**: `CustomerPointsInStores` reads the accounts, then their
+  live lots (two queries for every block); the shop's rates and on/off are read from the programme's
+  settings beside `ViewMyPoints`, not inside it. Recorded own counts: Points › Customers 5, a
+  customer's points 8, Redemptions 3, the customer page's section 3 — each the same for one row as for
+  six (`Feature/LoyaltyScreensTest`).
+- **A store the reader may not open is the panel's 403** on every Points page, as on every store screen
+  (the filter's refusal); an unknown customer, or one with no points here whom the reader may not view,
+  is its 404.
+- **A search typed into the address that the box would never send** (under 3 or over 100 characters)
+  searches nothing; a Show More cursor given only in part is refused (422).
+- **Remove is out of reach at a balance of 0** on its own choice, and the main button says why.
+- **A change by hand always names its store**: one that names none is refused, never made in the first
+  store that is on.
+- **Points › Settings opens the settings screen with a full page load**, since an Inertia visit's
+  redirect drops the "#" the screen scrolls to.
+- **An amount on Redemptions** is written with its own order's currency's decimals.
+- **Dates, amounts and the typed search inside a sentence are isolated** (frontend.md §1.8), so an
+  Arabic sentence keeps "1.00 SAR" and an order number in their order; the points box takes digits
+  typed in Arabic-Indic too.
+- **Accounts by store**: an index `accounts_by_store` (`store_id`, `id`), §5.
+- **Signed-in shop pages read one query more** while a store's programme is off (every store starts
+  off): the account menu asks whether to offer the Points tab (access.md amendment 72(d)) - Catalog's
+  recorded counts 13 → 14 (search 14 → 15). **Accepted by the owner "for now", 2026-10-19**; the
+  alternative, remembering the answer in the customer's session, stays open.
+
 ---
 
 ## 5 · Tables
@@ -477,7 +722,8 @@ and every CHECK touching a nullable column is written so that NULL fails it wher
 | `loyalty.covers` | `id` bigint identity, `account_id`, `lot_id` (the earned lot whose reversal it settles), `order_id`, `return_id` (the return that made it — NOT NULL since 2026-10-11, answer 19: only a return takes earned points back — a cover may move no point, so it is keyed to the settlement, not to an entry), `source` (`EXPIRED_POINTS`, `LOT`, `DROPPED`), `source_take_id` NULL (the `COVER` take from the covering lot), `points`, `undone` | (`lot_id`, `account_id`) → lots; (`order_id`, `account_id`) → orders; (`source_take_id`, `account_id`) → takes; CHECK `points > 0`, `undone >= 0`, `undone <= points`; CHECK `(source = 'LOT') = (source_take_id IS NOT NULL)` |
 | `loyalty.lot_movements` | `id` bigint identity, `account_id`, `lot_id`, `entry_id`, `points` (+ onto the lot, − off it) | (`lot_id`, `account_id`) → lots; (`entry_id`, `account_id`) → entries; CHECK `points <> 0`; **append-only** — every lot's history |
 
-**Indexes:** lots by (`account_id`, `expires_at`, `id`) WHERE `points_left > 0` — spending and the next
+**Indexes:** accounts by (`store_id`, `id`) — a store's accounts, for Points › Customers (§4.1,
+2026-10-19); lots by (`account_id`, `expires_at`, `id`) WHERE `points_left > 0` — spending and the next
 expiry; lots by `expires_at` WHERE `points_left > 0` — the sweep; takes by (`lot_id`, `id`) — a lot's
 takes, oldest first; takes by `entry_id`; covers by (`lot_id`, `id`) — a lot's covers, oldest first; entries by (`account_id`,
 `occurred_at` DESC, `id` DESC) — the history; entries by (`store_id`, `kind`, `occurred_at` DESC, `id`
@@ -646,10 +892,8 @@ refuses.
    buyer may see and buy (handoff §6, amended 2026-10-07) and Loyalty's per-audience redemption mode
    (§6); whether one Shared enum serves Loyalty, Promotions, Catalog's visibility and Sales is the
    owner's call (handoff §4.5's three-module rule).
-2. **Loyalty's screens** — the settings come free on Platform's settings page; the customer's points
-   page, the staff's view of a customer's points, the redemptions list and the change-by-hand dialog
-   are to build. The owner gave the frontend to the screens session (stage 5 memory, 2026-10-07); to
-   confirm that Loyalty's screens go there too.
+2. ~~**Loyalty's screens**~~ — **settled** (owner, 2026-10-18/19): the stage 6 screens session builds
+   them, as §4.1 says; the answers are §9.4.
 3. **Every assumption marked above** — accepted with the spec (owner, 2026-10-10) — the defaults and ranges, the programme read at delivery, the
    minimum measured on points charged, giving back in the order spent, deducted points counting as
    taken back, a lot's covers undone lot covers first and oldest first, an undone expired-point cover
@@ -692,3 +936,45 @@ the lot, so points coming back from any of a lot's takes undo its covers in one 
 keyed to their settlement (a cover may move no point, so it can have no entry); undone expired-point
 covers and points that went nowhere never count again; which landed lot covers first; the handoff's
 "points given back keep their old expiry dates" qualified.
+
+### 9.4 The owner's answers for the screens, 2026-10-19
+
+Asked by the stage 6 screens session; every one as recommended. Written into §4.1.
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Where staff see a customer's points, when the customer page opens by the **home** store and points belong to the store they were earned in | **Both**: a Points section on the customer page (an Access registry of sections, amendment 72(a)) **and** a Points › Customers list of the store's holders, each opening the customer's points |
+| 2 | Searching that list | **By name, email or phone** — a new Access search (amendment 72(b)) |
+| 3 | The store on Loyalty's staff screens | **The screen's own `?store=` filter**, as every store screen; none given opens the first store that is on. Only Home has All Stores (its figures); Loyalty has no all-stores view, every read being one store's |
+| 4 | When the shop account shows its Points tab | **When the store's programme is on, or the customer has points or history there** |
+| 5 | Where admins change the programme's settings | **On Platform's settings screen**, as built; the Points menu's Settings entry opens it at the Points card |
+| 6 | Filters and totals on Redemptions | **None**: date, order, customer, points, discount |
+| 7 | A customer registered in another store, on Redemptions | **Their name is shown**, as Promotions does; an anonymized customer reads "Deleted customer", with no link |
+| 8 | Changing points by hand | **One dialog, Add or Remove**: points, a reason of 1 to 500 characters, the balance before and after, Remove capped at the balance; a toast after; no second confirmation |
+| 9 | Changing points while the programme is off | **Allowed, with a note** that the programme is off |
+| 10 | What the customer's history says | **Plain words**; the reason of a change by hand is **never** shown to the customer |
+| 11 | Expiry | **The soonest expiry as a headline**, then the list of live points with their dates |
+| 12 | Order numbers | **Plain text until Sales's screens exist**, then links |
+| 13 | Paging | **Show More** under each list, no page numbers — as Geist and shadcn do |
+| 14 | Points elsewhere in the shop (the header, product pages) | **Not now**; the cart's and checkout's preview come with Sales's screens |
+| 15 | The customer page's Points section | **One block per store** the reader covers where the customer has points, as its addresses are grouped |
+
+**For Ops (owner, 2026-10-19)**: staff sending customers a message — all, some, or one by name; in the
+account's notifications, by email or by SMS, as the staff member chooses — for example to explain a
+change of points. Not Loyalty's and not now: written into handoff §13.3 so Ops specifies it.
+
+### 9.5 Proposed with the screens — built as recommended
+
+Mine, written 2026-10-19 while the owner was away (their go: "start until all done"); built as
+written, for the owner to review with the built screens. Each says what changing it later costs.
+
+| # | Proposal | Changing it later |
+|---|---|---|
+| P1 | **Only the name** of a customer registered in a store whose customers the reader may not view — no email, no phone — on Points › Customers and Redemptions; on Points › Customers the email shows under the name for a customer the reader may open (Redemptions shows names only, as L4 says) | One field in the list's row |
+| P2 | **A search that matches 1,000 customers or more** asks for more of the text and shows none, rather than a partial list that would look complete | The search's cap and the message |
+| P3 | **A "how it works" line** on the customer's Points tab from the store's two rates ("You earn 1 point for every 1.00 SAR. 100 points take 1.00 SAR off an order."), only while the programme is on | One line and two values in the read |
+| P4 | **Remove Points is not red**: a correction, not a deletion; the dialog's main button names the action | A button variant |
+| P5 | **Give Points…** on the customer page's section, for a reader who may change points and open L2 in a store where the customer has none yet — otherwise only customers who already hold points could be given any | A link |
+| P6 | **The search matches email and phone only among customers the reader may already view** (names in every store), so an email or phone typed in never reveals who owns it — the review of 2026-10-19 found that matching them everywhere would show more than answer 7's "the name only" | The search's query, in Access |
+| P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; **the owner, 2026-10-19: left as is** | One check in the handler |
+| P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |

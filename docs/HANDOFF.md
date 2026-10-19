@@ -135,6 +135,8 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-10 | §1, §5.3, §7.5, §7.9, §11.3, §12.1, §12.3–§12.5 | **Sales's rules** (`docs/modules/sales.md`): a guest's lines the account may not buy — wholesale for an individual, **a category hidden from its account type, which is not for sale to it** — leave the cart on signing in, with a notice; **individuals pay online or by staff contact, companies by bank transfer (uploading its document) or staff contact, never online**; **a hold has no expiry**: unpaid orders wait until staff cancel them; staff decide per order whether an unpaid order may ship; **one shipment per order**; staff contact the customer before shipping, and nothing is cancelled once shipped; **staff may fully edit an order before it ships** (kept lines keep their price, added pieces today's; the coupon then the points checked again under the order's own rules, the points giving way first and **the coupon only staying or shrinking** — §11.3's one exception; differences settled by hand; the gift staff's call); staff mark an order delivered, which starts the 14-day return window, **or came back**, settled as a whole return; returns asked by the customer with pieces, a reason and photos, the gift included for nothing, staff accept; a refund includes its pieces' share of VAT; order numbers per store (`SA-10428`); an anonymized customer's orders lose the email; an off store's unfinished orders stay with its staff; **a flat shipping fee per store until Shipping (stage 7)**; every message to customers waits for Ops | Sales spec, owner decision |
 | 2026-10-10 | §4.5 | `Ulids` — whether an id from a caller is a ULID, checked before it reaches a query — moves to the Shared kernel: Access, B2B and Catalog each kept a copy, and Loyalty is the fourth module to need it. Platform's media repository, which had a looser check of its own, uses it too (owner, 2026-10-11) | Loyalty step 2, owner decision |
 | 2026-10-13 | §12.2 | **Sync's rules** ([sync.md](modules/sync.md)): the provider gives **the base price and stock only** (its discounts are not read); it **notifies us** of price and stock changes, with **Sync now**, a **nightly** full read and a light **hourly** one; a provider price that takes a sale past the ceiling is taken and **stops the sale on that size**, reported; off and draft sizes take the values and are listed, archived ones skipped; **unwiring keeps the last values** and hands them to staff at once; a **Sync report** per store with a menu count, kept **90 days**; the key and the notification secret **encrypted in our database** (CONVENTIONS.md's exception). "Our invoice shows the base price and the price after discount" means our order page, email and receipt — no invoices are issued here | Owner, 2026-10-13 |
+| 2026-10-19 | §14 | **The Points menu** (owner, 2026-10-19, Loyalty's screens; loyalty.md §4.1): Points › Customers (the store's points holders, each opening their points), Redemptions and Settings (opening the settings screen at the Points card); "Customers › Loyalty" leaves the Customers menu (proposed, loyalty.md §9.5 P8) — a customer's points also show as a section of the customer's own page | Owner decision; P8 proposed |
+| 2026-10-19 | §13.3 | **Staff messages to customers, for Ops** (owner, 2026-10-19, from Loyalty's screens): staff may send a message to all customers, to some, or to one found by name, in the account's notifications, by email or by SMS as they choose — for example to explain a change of points. Ops specifies and builds it; nothing before Ops | Owner decision |
 
 ---
 
@@ -1603,6 +1605,11 @@ notifications fall out of that. This is a per-module deliverable, not a blocking
 system's scope. Reporting covers revenue — money coming in — and nothing about what the
 goods cost. Do not add `unit_cost`, `variant_costs` or anything similar.
 
+**Staff messages to customers** (owner, 2026-10-19): staff may write to all customers, to some, or
+to one found by name, and choose how it reaches them — the account's notifications, email or SMS —
+for example to explain a change of points made by hand (loyalty.md §9.4). Ops specifies it with its
+permissions, limits and records; no module before Ops sends such a message.
+
 **Newsletters and subscribers** live here rather than in Content, because Ops already owns
 email delivery, templates and provider adapters, and splitting would put email in two
 modules.
@@ -1637,14 +1644,14 @@ Products      Add product · All products · Categories · Category discounts ·
 Notes         Add note · Notes list          (internal notes on product / order / company)
 Wholesale     Add wholesale product · All wholesale products
 Sales         All orders · Store orders · Unpaid orders
-Customers     Customer list · Company accounts · Favourited products · Loyalty
+Customers     Customer list · Company accounts · Favourited products
 Library       Media files
 Reports       Revenue · Product sales · Stock · Favourites · Customer searches
 Blog          All posts · Post categories
 Marketing     Campaigns · Pop-up offers · Alert offers · Newsletters · Subscribers
               · Coupons · Segments
 Support       Product questions
-Points        Points settings · Redemptions
+Points        Customers · Redemptions · Settings
 Payments      Bank payment settings · Bank transfer requests
 Staff         All staff · Employee permissions
 Configuration Account & settings · Store settings
