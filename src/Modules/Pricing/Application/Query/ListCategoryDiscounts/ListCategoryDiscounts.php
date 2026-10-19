@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Query\ListCategoryDiscounts;
 
 /**
- * A page of a store's category discounts (pricing.md §3), the latest start first.
+ * **The Category Discounts screen's rows** (pricing.md §4.3.3 P3): a store's discounts in one state or
+ * any (`SCHEDULED`, `RUNNING`, `ENDED`), by state or newest added (`BY_STATE`, `NEWEST`; Q7, as P2's), 50
+ * at a time after the cursor of the page before.
  */
 final readonly class ListCategoryDiscounts
 {
@@ -13,6 +15,8 @@ final readonly class ListCategoryDiscounts
 
     public function __construct(
         public string $storeId,
-        public int $page = 1,
+        public ?string $state = null,
+        public string $order = 'BY_STATE',
+        public ?string $after = null,
     ) {}
 }

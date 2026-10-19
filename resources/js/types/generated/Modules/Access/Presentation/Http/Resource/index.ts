@@ -109,6 +109,7 @@ mayUnblock: boolean,
 mayStartDeletion: boolean,
 mayCancelDeletion: boolean,
 deletionDays: number,
+sections: CustomerSection[],
 };
 export type CustomerListPage = {
 customers: CustomerRow[],
@@ -138,6 +139,11 @@ anonymized: boolean,
 homeStore: string,
 registeredAt: string,
 homeStoreIsActive: boolean,
+};
+export type CustomerSection = {
+module: string,
+key: string,
+data: Record<string, any>,
 };
 export type CustomerSignInPage = {
 rememberDays: number,

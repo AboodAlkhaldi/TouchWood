@@ -22,6 +22,7 @@ Built in eight steps, one PR each (stage 5's plan; owner's go 2026-10-10):
 | 7b | Needs a Price (the list, and `NeedsAPriceCount` for the menu entry its screen adds); the screens' reads - `ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount` and `PreviewCategoryDiscount` (the preview), `ViewPrices`, `OverlapsFor` naming discounts too; an off store only for whoever may switch stores | Edit Prices and Sales (Needs a Price), Manage Category Discounts (preview), any of the three (the rest) | **built** |
 | 8 | The module's own pass: the known costs below written down, the status brought up to date | — | **built** with 5-7b |
 | Sync 6b | Its first published event, `DiscountReachChecked` (pricing.md §6.1): a wired store's sizes priced again while it has a category discount, or as one is added, changed, ended or removed - with the fixed amounts still left out past the ceiling - so Sync closes a "discount skipped" entry at once (sync.md §9.3 #28). `CandidateWriter::refresh(..., discountsChanged)`; no other price looks at the wiring | — | built (#159) |
+| Screens 2 | Stage 5's screens, the server side (pricing.md §4.3.3, "Built"): the reads - `ListPrices`, `ViewSizePrices`, `ViewProductPrices` (and its `ProductPricesSection` in Catalog's product page), `ListSales` (state, product, sale; by state or newest; All Sizes / n of m; archived since; keyset), `ViewSale`, `ListSaleProducts`, `ListCategoryDiscounts` (paths, left-out names, state, keyset), `PreviewCategoryDiscount` (why skipped, unpriced sizes, 20 products a page with totals), `OverlapsFor` (each size's new price, whether it wins, its depth), `ListWholesale`, `NeedsAPrice` (50 a page, search), `PricingActionsForReader`; `PricingApi::salesNamed` / `discountsNamed` for Sync; Needs a Price's count kept per store (`pricing.unpriced_counts`, `CountUnpricedSizes` and its job, nightly, Q43); the rules: errors naming their sizes (Q2), left-out products in the category (Q10), at most ten bands, none past the maximum, the rule named (Q12), a sale only on a ready product switched on (Q13), "All Sizes" the priced ones (Q39), three wordings (Q15) | `pricing.needs_a_price.count` | built (no pages: step 3) |
 | Sync 2 | What Pricing gives Sync (§2.6): `StoreWiring` in the Public contracts; `ProviderPrices` - the provider's base prices in (source PROVIDER, audited with the read), off and draft sizes named, a sale the price takes past the ceiling stopped on that size (left, ended or removed); a fixed-amount category discount skips a size it would take past the ceiling, everywhere (sync.md §9.3 #17) | **built** |
 
 ## Known costs (step 8, from the reviews of steps 6 and 7b)
@@ -37,12 +38,15 @@ them at volume:
 - **A discount's reach** (`DiscountCoverage::pricedSizes`): every priced size of the store, matched to
   the products, in reads of 1,000 - on adding, changing, ending or removing a discount, its timed task,
   and the daily check.
-- **Needs a Price's count** (`NeedsAPriceCount`): 2 reads per store the reader may edit prices in -
-  measure before its menu entry goes in, as Inventory's `LowStockCount`.
-- **The notes and the preview** (`OverlapsFor`, `PreviewCategoryDiscount`, `ViewCategoryDiscount`):
-  about 4 reads of Catalog per discount not ended, and the preview's reads grow with the store's priced
-  sizes - over an admin page's 15 when a store has thousands; to bring down with the screens (step 7b's
-  review).
+- **Needs a Price's count** (`NeedsAPriceCount`): kept per store since screens step 2 (Q43) - one query
+  for the menu; a store not counted yet is counted live (three queries) and its count queued.
+- **The notes and the preview** (`OverlapsFor`, `PreviewCategoryDiscount`, `ViewCategoryDiscount`): the
+  note reads the product's category once (`lineFacts`) instead of each discount's products; the preview
+  reads the category's own sizes, a read a thousand, no longer the store's whole price list - and still
+  about 4 reads of Catalog for each other discount not ended, for its overlap note.
+- **The screens' reads** (screens step 2): a fixed few queries however many rows, counted by
+  `PricingScreenReadsTest`; the reads spanning stores read the wired stores once (`wiredStores`).
+  `PricingActionsForReader` reads each store's ceiling setting (Platform's settings, a read a store).
 
 **Moved from step 1 to step 3a**, where the first handler uses them: the off-store guard
 (`pricing.store_off` unless the person may switch stores), the seam that answers "is this store wired"
@@ -93,4 +97,7 @@ permission missing, before anything is looked up; a store that does not exist is
 | `tests/Modules/Pricing/Unit/PricingErrorsTest.php` | Exactly §7's nineteen errors, each with §7's type and category; a non-empty title and detail in both languages with the same placeholders |
 | `tests/Architecture/PricingAccessUseTest.php` | Pricing takes from Access only what declaring its permissions needs |
 | `tests/Modules/Pricing/Unit/PriceResolutionTest.php` | §1.6 case by case (§8 #1): retail, sales, category discounts, bands at each edge, ties, windows at their edges, "always wins" against sales, discounts, bands and the retail price, ends cut short by a scheduled "always wins" |
+| `tests/Modules/Pricing/Integration/PricingScreenReadsTest.php` | The screens' reads (screens step 2): each list's rows, filters, order and keyset with the total; the drawer; a product's prices in every store and its section in Catalog; the note before saving; the actions; the names for Sync - each a fixed few queries |
+| `tests/Modules/Pricing/Integration/PricingScreenRulesTest.php` | Q2 (refusals name their sizes), Q12 (the bands' rules, named), Q13 and Q39 (which sizes a sale takes), a changed sale keeping its sizes, Q15's words |
+| `tests/Modules/Pricing/Integration/PricingUnpricedCountTest.php` | Needs a Price paged, searched, none archived; its count kept per store, counted again after each change, read in one query, nightly, the system's alone |
 | `tests/Modules/Pricing/Unit/OrderAmountsTest.php` | A percentage off, half up to the coin with 2 and 3 decimals (§8 #3); a fixed amount skipping; every total, VAT rounded once half up, and each refusal (§8 #2) |

@@ -29,6 +29,8 @@ final readonly class Sale
         public ?DateTimeImmutable $endsAt,
         public bool $alwaysWins,
         public array $variantIds,
+        /** When it was added - kept, never changed; read back for the screens' **Newest Added** (Q7). */
+        public ?DateTimeImmutable $createdAt = null,
     ) {}
 
     /**

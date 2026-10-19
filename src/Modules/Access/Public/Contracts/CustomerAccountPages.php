@@ -30,6 +30,14 @@ interface CustomerAccountPages
     public function for(AccountType $type): array;
 
     /**
+     * The pages this signed-in customer is offered now: `for()`'s, less those whose condition says
+     * no (amendment 72(d)). Each condition is asked only for a page the account type already gets.
+     *
+     * @return list<CustomerAccountPageDto>
+     */
+    public function offeredTo(AccountType $type, string $customerId): array;
+
+    /**
      * The page offered to an account of this type under its full name, `{module}.{key}` — as the
      * Addresses tab's `return` names it (amendment 51); null for any other name.
      */

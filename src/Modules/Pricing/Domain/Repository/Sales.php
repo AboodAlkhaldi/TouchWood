@@ -6,6 +6,8 @@ namespace Modules\Pricing\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Pricing\Domain\ValueObject\Sale;
+use Modules\Pricing\Domain\ValueObject\WindowOrder;
+use Modules\Pricing\Domain\ValueObject\WindowState;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -15,6 +17,15 @@ use Shared\Domain\ValueObject\StoreId;
 interface Sales
 {
     public function find(string $saleId): ?Sale;
+
+    /** The store a sale is in, read alone - to ask the reader's permission there before reading the sale. */
+    public function storeOf(string $saleId): ?string;
+
+    /**
+     * @param  list<string>  $saleIds
+     * @return array<string, Sale> by id; one that does not exist is left out
+     */
+    public function findMany(array $saleIds): array;
 
     /** A new sale or a changed one, with its sizes. */
     public function save(Sale $sale): void;
@@ -33,11 +44,25 @@ interface Sales
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
 
     /**
-     * A page of the store's sales, the latest start first (the screens' `ListSales`), and how many there are.
+     * A page of the store's sales for the screens (`ListSales`, pricing.md §4.3.3 P2): in one state, of one
+     * product, or the one sale named - in the order chosen (`WindowOrder`), keyset-paged after the keys of
+     * the page before - with how many match and the keys of its last row when more follow.
      *
-     * @return array{list<Sale>, int}
+     * @param  array{int, string, string}|null  $after
+     * @return array{list<Sale>, int, array{int, string, string}|null}
      */
-    public function page(StoreId $store, int $page, int $perPage): array;
+    public function list(StoreId $store, DateTimeImmutable $now, ?WindowState $state, ?string $productId, ?string $saleId, WindowOrder $order, ?array $after, int $limit): array;
+
+    /**
+     * @return list<string> the products with a sale in the store, any state - P2's product filter
+     */
+    public function productIds(StoreId $store): array;
+
+    /**
+     * @param  list<StoreId>  $stores
+     * @return list<Sale> the product's sales not ended by then, in these stores
+     */
+    public function notEndedOfProduct(array $stores, string $productId, DateTimeImmutable $at): array;
 
     /**
      * The daily safety check's read (§1.10), the one that names no store: every sale, in any store, whose

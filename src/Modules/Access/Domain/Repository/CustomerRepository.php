@@ -44,6 +44,17 @@ interface CustomerRepository
     public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array;
 
     /**
+     * The customers, not anonymized, whose first or last name holds the text in any store, or whose
+     * email or phone holds it among those registered in `$contactStoreIds` — null for every store,
+     * an empty list for none — by id, at most `$limit` (amendment 72(b)). Matched as the staff list's
+     * search matches: case-insensitive, a phone in Latin digits.
+     *
+     * @param  list<string>|null  $contactStoreIds
+     * @return list<string>
+     */
+    public function idsMatching(string $text, ?array $contactStoreIds, int $limit): array;
+
+    /**
      * The customer with this email, ignoring case. Locks the row.
      */
     public function byEmail(EmailAddress $email): ?Customer;

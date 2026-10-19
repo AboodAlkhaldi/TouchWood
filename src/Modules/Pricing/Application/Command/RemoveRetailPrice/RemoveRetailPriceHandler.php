@@ -9,6 +9,7 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Pricing\Application\Prices\CandidateWriter;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SizeInput;
+use Modules\Pricing\Application\Prices\UnpricedRecounts;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
@@ -34,6 +35,7 @@ final readonly class RemoveRetailPriceHandler
         private SizeInput $sizes,
         private RetailPrices $retailPrices,
         private CandidateWriter $writer,
+        private UnpricedRecounts $recounts,
     ) {}
 
     /**
@@ -76,6 +78,11 @@ final readonly class RemoveRetailPriceHandler
             }
 
             $this->writer->refresh($storeId, $removed);
+
+            // A size left with no price returns to Needs a Price: its kept count is counted again (Q43).
+            if ($removed !== []) {
+                $this->recounts->queue($storeId);
+            }
 
             return [null, $entries];
         });

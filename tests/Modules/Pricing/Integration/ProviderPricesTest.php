@@ -17,6 +17,7 @@ use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscount;
 use Modules\Pricing\Application\Command\AddCategoryDiscount\AddCategoryDiscountHandler;
 use Modules\Pricing\Application\Command\AddSale\AddSale;
@@ -68,6 +69,11 @@ function providerPricesWired(bool $wired = true): void
         {
             return $this->wired;
         }
+
+        public function wiredStores(): array
+        {
+            return $this->wired ? array_map(static fn ($store): string => $store->id, app(PlatformApi::class)->allStores()) : [];
+        }
     });
 }
 
@@ -89,6 +95,8 @@ function providerPricesUnit(string $size): ?int
  */
 function providerPricesSale(array $sizes, string $price, ?string $startsAt = null, ?string $percent = null): string
 {
+    Rx::switchOn('sa', $sizes);
+
     return Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, $sizes, $percent, $percent === null ? $price : null, $startsAt, null)));
 }
 
@@ -188,6 +196,11 @@ describe('the provider\'s prices', function () {
             public function isWired(StoreId $store): bool
             {
                 return $this->asked++ === 0;
+            }
+
+            public function wiredStores(): array
+            {
+                return [];
             }
         });
 
@@ -340,17 +353,23 @@ describe('a wired store\'s ceiling skips, never refuses (sync.md §9.3 #17, #20)
         [$category, $a, $b] = providerPricesSkipped();
 
         $second = Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Rx::storeId('sa'), $category, null, '40', 'BOTH', null, null, true)));
-        $preview = app(DiscountPreviewer::class)->preview(StoreId::fromString(Rx::storeId('sa')), app(CategoryDiscounts::class)->find($second) ?? throw new LogicException('No discount.'));
+        $store = app(PlatformApi::class)->store(StoreId::fromString(Rx::storeId('sa'))) ?? throw new LogicException('No store.');
+        $preview = app(DiscountPreviewer::class)->preview($store, app(CategoryDiscounts::class)->find($second) ?? throw new LogicException('No discount.'));
         $newPrices = [];
+        $skipped = [];
 
         foreach ($preview->reached as $product) {
             foreach ($product->sizes as $size) {
-                $newPrices[$size->variantId] = $size->newMinor;
+                $newPrices[$size->variantId] = $size->newPrice?->minor;
+                $skipped[$size->variantId] = $size->skipped;
             }
         }
 
-        // "Always wins", so the second discount is the price wherever it reaches.
+        // "Always wins", so the second discount is the price wherever it reaches; the size it skips says
+        // why (Q9): past the ceiling in this wired store.
         expect($newPrices)->toEqual([$a => null, $b => 16000])
+            ->and($skipped)->toEqual([$a => 'past_ceiling', $b => null])
+            ->and([$preview->reachedSizes, $preview->skippedSizes])->toBe([1, 1])
             ->and(providerPricesUnit($a))->toBe(12000)
             ->and(providerPricesUnit($b))->toBe(16000);
     });

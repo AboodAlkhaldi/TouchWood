@@ -134,7 +134,7 @@ it('has an Arabic and an English title and detail for every error, none empty, w
         ->and($placeholders($en['invalid_pricing_input']['detail']))->toBe([':attribute'])
         ->and($placeholders($en['ceiling_below_sales']['detail']))->toBe([':count', ':products'])
         ->and($placeholders($en['over_ceiling']['detail']))->toBe([':ceiling', ':products'])
-        ->and(array_keys($en['fields']))->toBe(['amount', 'ends_at', 'lines', 'percent', 'price', 'product', 'quantity', 'starts_at', 'store', 'variant'])
+        ->and(array_keys($en['fields']))->toBe(['amount', 'ends_at', 'filter', 'left_out', 'lines', 'order', 'percent', 'price', 'product', 'quantity', 'starts_at', 'state', 'store', 'variant'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
 

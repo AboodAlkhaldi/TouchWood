@@ -24,4 +24,7 @@ return [
         'apply' => 'Update Shop Prices When a Sale or Discount Starts or Ends',
         'check' => 'Daily Check That Shop Prices Followed Every Start and End',
     ],
+    'needs_a_price' => [
+        'count' => 'Count the Sizes That Need a Price Again',
+    ],
 ];

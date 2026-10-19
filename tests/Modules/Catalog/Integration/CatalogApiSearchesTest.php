@@ -89,6 +89,20 @@ function catalogSearchesQueries(array $only): int
 }
 
 describe('searchVariants', function () {
+    it('leaves out an archived size, and a size of an archived product, when asked (Pricing\'s Needs a Price)', function () {
+        $drawer = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm']);
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($drawer['variants'][1])));
+        $queries = Cx::recordQueries();
+
+        // Archiving switches a size off, so it matters for the sizes named: `only` answers them whatever their state.
+        $kept = catalogSearches()->searchVariants(catalogSearchesStore(), null, only: $drawer['variants'], notArchived: true);
+
+        expect(catalogSearchesIds($kept->rows))->toBe([$drawer['variants'][0]])
+            ->and($kept->total)->toBe(1)
+            ->and(count($queries))->toBe(2)
+            ->and(catalogSearches()->searchVariants(catalogSearchesStore(), null, only: $drawer['variants'])->total)->toBe(2);
+    });
+
     it('pages the store\'s switched-on sizes by product name in the page\'s language, then the size\'s place, with the total', function () {
         $beta = catalogSearchesProduct('Beta Drawer', 'أدراج', ['60 cm', '80 cm']);
         $alpha = catalogSearchesProduct('Alpha Hinge', 'مفصلة');
@@ -292,6 +306,23 @@ describe('searchProducts and productsInCategory', function () {
     });
 });
 
+describe('variantIdsOfProducts', function () {
+    it('answers many products\' sizes in their own order in one query, archived ones only when asked', function () {
+        $drawer = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm']);
+        $hinge = catalogSearchesProduct('Hinge', 'مفصلة');
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($drawer['variants'][0])));
+        DB::table('catalog.variants')->where('id', $drawer['variants'][0])->update(['position' => 9]);
+        $queries = Cx::recordQueries();
+
+        $sizes = catalogSearches()->variantIdsOfProducts([strtoupper($drawer['product']), $hinge['product'], 'not-an-id', strtolower((string) Str::ulid())]);
+
+        expect(count($queries))->toBe(1)
+            ->and($sizes)->toEqual([$drawer['product'] => [$drawer['variants'][1]], $hinge['product'] => $hinge['variants']])
+            ->and(catalogSearches()->variantIdsOfProducts([$drawer['product']], true)[$drawer['product']])->toBe([$drawer['variants'][1], $drawer['variants'][0]])
+            ->and(catalogSearches()->variantIdsOfProducts([]))->toBe([]);
+    });
+});
+
 describe('categoriesWithPaths and wholesaleOf', function () {
     it('answers each category with the path from the top down to it, in the order asked, in one query', function () {
         $kitchens = Px::category('Kitchens');
@@ -329,6 +360,8 @@ describe('categoriesWithPaths and wholesaleOf', function () {
         expect(count($queries))->toBe(1)
             ->and(array_keys($terms))->toEqualCanonicalizing([$sixty, $eighty, $elsewhere['variants'][0]])
             ->and([$terms[$sixty]->minimum, $terms[$sixty]->maximum, $terms[$sixty]->soldWholesale])->toBe([10, 500, true])
+            // Sold one piece at a time too (Pricing's "Wholesale Only" is the other way round).
+            ->and([$terms[$sixty]->soldRetail, $terms[$elsewhere['variants'][0]]->soldRetail])->toBe([true, false])
             ->and([$terms[$eighty]->minimum, $terms[$eighty]->soldWholesale])->toBe([10, false])
             // Not chosen in this store: no terms there, not sold wholesale.
             ->and([$terms[$elsewhere['variants'][0]]->minimum, $terms[$elsewhere['variants'][0]]->maximum, $terms[$elsewhere['variants'][0]]->soldWholesale])->toBe([null, null, false])

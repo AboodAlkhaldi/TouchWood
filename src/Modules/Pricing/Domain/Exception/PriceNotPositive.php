@@ -13,7 +13,8 @@ use Shared\Domain\Error\ErrorCategory;
 final class PriceNotPositive extends PricingError
 {
     /**
-     * @param  list<string>  $variants  the sizes a sale's percentage would leave at 0, named for the note
+     * @param  list<string>  $variants  the sizes it concerns - a price typed at 0 or below, a sale's percentage
+     *                                  that would leave 0 - named for the note and the rows (owner Q2)
      */
     public function __construct(public readonly array $variants = [])
     {

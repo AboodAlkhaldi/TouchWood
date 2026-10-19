@@ -18,6 +18,7 @@ use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnR
 use Modules\Access\Application\Command\DeleteCustomerOnRequest\DeleteCustomerOnRequestHandler;
 use Modules\Access\Application\Command\UnblockCustomer\UnblockCustomer;
 use Modules\Access\Application\Command\UnblockCustomer\UnblockCustomerHandler;
+use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
 use Modules\Access\Presentation\Http\Request\ReasonRequest;
 use Modules\Access\Presentation\Http\Resource\CustomerPages;
 use Shared\Domain\Error\DomainError;
@@ -63,9 +64,10 @@ final readonly class CustomersController
     }
 
     /** G2. */
-    public function show(string $customer): Response
+    public function show(string $customer, InMemoryCustomerPageSections $sections): Response
     {
-        return $this->page->render('Access/Admin/Customers/Show', $this->pages->view($customer)->toArray(), self::WORDS);
+        // The sections' own words travel with the page, as its own do (amendment 72(a)).
+        return $this->page->render('Access/Admin/Customers/Show', $this->pages->view($customer)->toArray(), [...self::WORDS, ...$sections->words()]);
     }
 
     public function block(ReasonRequest $request, string $customer, BlockCustomerHandler $handler): RedirectResponse

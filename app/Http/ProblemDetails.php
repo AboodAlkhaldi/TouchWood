@@ -96,11 +96,16 @@ final class ProblemDetails
             return app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
         }
 
+        // A refusal naming the rule it broke says that rule's words where the module wrote them (FormErrors).
+        $rule = FormErrors::ruleKey($key, $error->context());
+
         return self::problem(
             $error->type(),
             $status,
             $title,
-            self::translate("{$key}.detail", $replace, $error->getMessage()),
+            $rule === null
+                ? self::translate("{$key}.detail", $replace, $error->getMessage())
+                : self::translate($rule, $replace, self::translate("{$key}.detail", $replace, $error->getMessage())),
         );
     }
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Storefront;
 
+use Illuminate\Contracts\Container\Container;
 use LogicException;
+use Modules\Access\Public\Contracts\CustomerAccountPageCondition;
 use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Access\Public\Enums\AccountType;
@@ -17,6 +19,10 @@ final class InMemoryCustomerAccountPages implements CustomerAccountPages
 {
     /** @var list<CustomerAccountPageDto> */
     private array $pages = [];
+
+    public function __construct(
+        private readonly Container $container,
+    ) {}
 
     public function register(CustomerAccountPageDto ...$pages): void
     {
@@ -31,8 +37,30 @@ final class InMemoryCustomerAccountPages implements CustomerAccountPages
                 }
             }
 
+            if ($page->condition !== null && ! is_subclass_of($page->condition, CustomerAccountPageCondition::class)) {
+                throw new LogicException("The account page \"{$page->module}.{$page->key}\" names a condition that is not a CustomerAccountPageCondition.");
+            }
+
             $this->pages[] = $page;
         }
+    }
+
+    /**
+     * Resolved each time it is asked, as a shopper line is: this list lives for the whole
+     * application, and a condition depends on the request it answers.
+     *
+     * @param  class-string  $class
+     */
+    private function condition(string $class): CustomerAccountPageCondition
+    {
+        $condition = $this->container->make($class);
+
+        // Checked when it was registered; resolved from the container, so asked again.
+        if (! $condition instanceof CustomerAccountPageCondition) {
+            throw new LogicException("{$class} is not a CustomerAccountPageCondition.");
+        }
+
+        return $condition;
     }
 
     public function for(AccountType $type): array
@@ -45,6 +73,14 @@ final class InMemoryCustomerAccountPages implements CustomerAccountPages
         usort($offered, static fn (CustomerAccountPageDto $a, CustomerAccountPageDto $b): int => [$a->position, $a->module, $a->key] <=> [$b->position, $b->module, $b->key]);
 
         return $offered;
+    }
+
+    public function offeredTo(AccountType $type, string $customerId): array
+    {
+        return array_values(array_filter(
+            $this->for($type),
+            fn (CustomerAccountPageDto $page): bool => $page->condition === null || $this->condition($page->condition)->offers($customerId),
+        ));
     }
 
     public function find(AccountType $type, string $name): ?CustomerAccountPageDto

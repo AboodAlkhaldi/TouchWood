@@ -483,10 +483,14 @@ describe('the budget (P21)', function () {
             'guest' => $measure(new AdminBrowser('10.13.1.10')),
             'individual' => $measure($signedIn('sara@example.test', 'individual')),
             'company' => $measure($signedIn('works@example.test', 'company')),
+            // Signed in, one more since 2026-10-19 (access.md amendment 72(d), loyalty.md §4.1 L7): the
+            // account menu asks whether to offer the Points tab, and while a store's programme is off
+            // (as every store starts) that reads whether the customer has points there. Brought to the
+            // owner with the Loyalty screens' PR.
         ])->toBe([
             'guest' => ['category' => 8, 'brand' => 8, 'product' => 8, 'search' => 9],
-            'individual' => ['category' => 13, 'brand' => 13, 'product' => 13, 'search' => 14],
-            'company' => ['category' => 13, 'brand' => 13, 'product' => 13, 'search' => 14],
+            'individual' => ['category' => 14, 'brand' => 14, 'product' => 14, 'search' => 15],
+            'company' => ['category' => 14, 'brand' => 14, 'product' => 14, 'search' => 15],
         ]);
     });
 });

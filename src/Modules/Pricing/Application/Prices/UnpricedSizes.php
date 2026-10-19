@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Prices;
 
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Pricing\Domain\Repository\RetailPrices;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * **Needs a Price** (pricing.md §1.9): every size the store has switched on with no retail price there -
- * read live (§6.2), one reader for the list and its count, so the two never disagree.
+ * **Needs a Price** (pricing.md §1.9, §4.3.3 P5): every size the store has switched on with no retail price
+ * there - an archived size, or a size of an archived product, left out: it can't be priced until it is
+ * restored (owner, 2026-10-11). One reader for the list and its kept count, so the two never disagree:
+ * Pricing names its priced sizes (one query), Catalog pages the rest by its order (`searchVariants` with
+ * `except`, two queries).
  */
 final readonly class UnpricedSizes
 {
@@ -19,14 +23,13 @@ final readonly class UnpricedSizes
         private RetailPrices $retailPrices,
     ) {}
 
-    /**
-     * @return list<string> the sizes, in size-id order
-     */
-    public function in(StoreId $store): array
+    public function page(StoreId $store, ?string $search, ?string $after, int $limit): FoundVariantsDto
     {
-        $unpriced = array_values(array_diff($this->catalog->switchedOnVariantIds($store), $this->retailPrices->pricedVariants($store)));
-        sort($unpriced);
+        return $this->catalog->searchVariants($store, $search, null, $this->retailPrices->pricedVariants($store), after: $after, limit: $limit, notArchived: true);
+    }
 
-        return $unpriced;
+    public function count(StoreId $store): int
+    {
+        return $this->page($store, null, null, 1)->total;
     }
 }

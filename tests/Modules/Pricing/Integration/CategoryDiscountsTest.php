@@ -274,6 +274,7 @@ describe('its life and "always wins" (§4.1, §1.3)', function () {
         $shop = discountShop();
         $size = $shop['inChild']['variants'][0];
         discountAdd($shop['top'], percent: '10', endsAt: '2026-10-30 00:00:00+00', alwaysWins: true);
+        Rx::switchOn('sa', [$size]);
 
         expect(fn () => discountAdd($shop['child'], percent: '5', alwaysWins: true))->toThrow(AlwaysWinsOverlap::class)
             ->and(fn () => Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, [$size], '5', null, null, null, true))))->toThrow(AlwaysWinsOverlap::class);

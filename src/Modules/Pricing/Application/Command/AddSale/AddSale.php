@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Command\AddSale;
 
 /**
- * A sale (pricing.md §1.3, §3): for the sizes given, or for every size of a product when only the
- * product is given; a new price or a percentage off - exactly one; a start (now when not given) and an
+ * A sale (pricing.md §1.3, §3): for the sizes given, or - only the product given - for "All Sizes": every
+ * size of it switched on in the store that has a price there (owner Q39); a new price or a percentage off - exactly one; a start (now when not given) and an
  * end if wanted; "always wins" or not.
  */
 final readonly class AddSale
 {
     /**
-     * @param  list<string>  $variantIds  the sizes, all of one product; empty for every size of `productId`
+     * @param  list<string>  $variantIds  the sizes, all of one product; empty for All Sizes of `productId`
      */
     public function __construct(
         public string $storeId,

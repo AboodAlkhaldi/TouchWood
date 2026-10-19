@@ -40,7 +40,7 @@ final readonly class DatabaseApiSearches implements ApiSearches
         private ConnectionInterface $db,
     ) {}
 
-    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale): FoundVariantsDto
+    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale, bool $notArchived = false): FoundVariantsDto
     {
         $store = strtolower($storeId);
         $onlyIds = $only === null ? null : self::ids($only);
@@ -72,6 +72,11 @@ final readonly class DatabaseApiSearches implements ApiSearches
 
         if ($soldWholesale) {
             $query->where('sv.sells_wholesale', true);
+        }
+
+        // Neither the size nor its product archived (Pricing's Needs a Price, step 2).
+        if ($notArchived) {
+            $query->where('v.is_archived', false)->where('p.stage', '<>', ProductStage::Archived->value);
         }
 
         if ($text !== null) {
@@ -230,7 +235,7 @@ final readonly class DatabaseApiSearches implements ApiSearches
         $terms = [];
 
         foreach ($this->db->select(
-            'SELECT v.id, sp.wholesale_minimum, sp.wholesale_maximum, coalesce(sv.sells_wholesale, false) AS sold'
+            'SELECT v.id, sp.wholesale_minimum, sp.wholesale_maximum, coalesce(sv.sells_wholesale, false) AS sold, coalesce(sv.sells_retail, false) AS sold_retail'
             .' FROM catalog.variants v'
             .' LEFT JOIN catalog.store_products sp ON sp.product_id = v.product_id AND sp.store_id = ?'
             .' LEFT JOIN catalog.store_variants sv ON sv.variant_id = v.id AND sv.store_id = ?'
@@ -242,6 +247,7 @@ final readonly class DatabaseApiSearches implements ApiSearches
                 $row->wholesale_minimum === null ? null : (int) $row->wholesale_minimum,
                 $row->wholesale_maximum === null ? null : (int) $row->wholesale_maximum,
                 (bool) $row->sold,
+                (bool) $row->sold_retail,
             );
         }
 

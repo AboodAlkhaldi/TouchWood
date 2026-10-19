@@ -134,6 +134,41 @@ final readonly class CeilingCheck
     }
 
     /**
+     * Of the prices about to be set, the sizes that take these sales or discounts past the ceiling - named
+     * on the refusal, so the screen marks their rows (owner Q2). A discount's sizes are those of the
+     * products it takes past it.
+     *
+     * @param  array<string, Money>  $retail
+     * @param  list<Sale>  $sales
+     * @param  array<string, array{category: string, products: list<string>}>  $discounts
+     * @return list<string>
+     */
+    public function sizesOver(array $retail, array $sales, array $discounts): array
+    {
+        $sizes = array_map('strval', array_keys($retail));
+        $hit = [];
+
+        foreach ($sales as $sale) {
+            array_push($hit, ...array_intersect($sizes, $sale->variantIds));
+        }
+
+        $products = array_merge(...array_values(array_map(static fn (array $discount): array => $discount['products'], $discounts)));
+
+        if ($products !== []) {
+            foreach ($this->catalog->variants($sizes) as $variant) {
+                if (in_array($variant->productId, $products, true)) {
+                    $hit[] = $variant->id;
+                }
+            }
+        }
+
+        $hit = array_values(array_unique($hit));
+        sort($hit);
+
+        return $hit;
+    }
+
+    /**
      * The products of these sales by name, in the language of whoever is refused, for the note: staff
      * see which products hit the ceiling (owner, 2026-10-13). A product with no English name yet shows
      * its Arabic one.

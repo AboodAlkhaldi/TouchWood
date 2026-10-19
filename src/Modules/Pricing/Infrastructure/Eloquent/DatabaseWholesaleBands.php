@@ -36,6 +36,30 @@ final readonly class DatabaseWholesaleBands implements WholesaleBands
         return $bands;
     }
 
+    public function inStores(array $stores, array $variantIds): array
+    {
+        if ($stores === [] || $variantIds === []) {
+            return [];
+        }
+
+        $bands = [];
+
+        foreach ($this->db->table(self::TABLE)
+            ->whereIn('store_id', array_map(static fn (StoreId $store): string => $store->value, $stores))
+            ->whereIn('variant_id', $variantIds)
+            ->orderBy('store_id')->orderBy('variant_id')->orderBy('from_quantity')
+            ->get() as $row) {
+            $bands[(string) $row->store_id][(string) $row->variant_id][] = new Band((int) $row->from_quantity, Money::of((int) $row->amount_minor, (string) $row->currency_code));
+        }
+
+        return $bands;
+    }
+
+    public function variantsWithBands(StoreId $store): array
+    {
+        return array_values(array_map('strval', $this->db->table(self::TABLE)->where('store_id', $store->value)->distinct()->orderBy('variant_id')->pluck('variant_id')->all()));
+    }
+
     public function replace(StoreId $store, string $variantId, array $bands): void
     {
         $this->db->table(self::TABLE)->where('store_id', $store->value)->where('variant_id', $variantId)->delete();

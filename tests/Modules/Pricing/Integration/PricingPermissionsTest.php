@@ -62,9 +62,10 @@ it('makes the ceiling\'s job admin-only, per store, under Pricing, named as the 
         ->and(PricingPermissions::jobs())->not->toContain(PricingPermissions::CEILING_MANAGE);
 });
 
-it('reserves exactly the three system jobs, and nothing else', function () {
+it('reserves exactly the four system jobs, and nothing else', function () {
     expect(pricingDeclaredPermissions(reserved: true))->toBe([
         'pricing.candidates.rebuild',
+        'pricing.needs_a_price.count',
         'pricing.windows.apply',
         'pricing.windows.check',
     ]);

@@ -113,6 +113,7 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'platform.store.switch',
         // Reserved: the system's jobs belong to no store (pricing.md §3).
         'pricing.candidates.rebuild',
+        'pricing.needs_a_price.count',
         'pricing.windows.apply',
         'pricing.windows.check',
         // Reserved: the system's nightly refresh of segments (promotions.md §3).

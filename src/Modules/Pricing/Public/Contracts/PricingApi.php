@@ -7,6 +7,7 @@ namespace Modules\Pricing\Public\Contracts;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Pricing\Public\Dto\KeptPartDto;
+use Modules\Pricing\Public\Dto\OfferNameDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -68,4 +69,23 @@ interface PricingApi
      * @param  list<CartLineDto>  $added  the pieces added by this edit
      */
     public function pricesForEdit(StoreId $store, array $kept, array $added, int $taxRateBasisPoints): CartPricesDto;
+
+    /**
+     * **Sales named for a line of text** (pricing.md §2.1, §4.3.3; for Sync's report): each id asked, in the
+     * order asked - whether the sale still exists and, while it does, its short description in the reader's
+     * language ("−10% · 60 cm, 80 cm"). An id that is not a sale's answers `exists` false. A fixed few
+     * queries however many.
+     *
+     * @param  list<string>  $saleIds
+     * @return list<OfferNameDto>
+     */
+    public function salesNamed(array $saleIds): array;
+
+    /**
+     * **Category discounts named for a line of text**, as `salesNamed` ("Kitchens: 50.00 off", with the currency's sign).
+     *
+     * @param  list<string>  $discountIds
+     * @return list<OfferNameDto>
+     */
+    public function discountsNamed(array $discountIds): array;
 }

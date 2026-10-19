@@ -63,20 +63,54 @@ final readonly class DatabasePriceCandidates implements PriceCandidates
 
     public function forVariants(StoreId $store, array $variantIds): array
     {
-        if ($variantIds === []) {
+        return $this->inStores([$store], $variantIds)[$store->value] ?? [];
+    }
+
+    public function inStores(array $stores, array $variantIds): array
+    {
+        if ($stores === [] || $variantIds === []) {
             return [];
         }
 
-        $rows = $this->db->table(self::TABLE)
-            ->where('store_id', $store->value)
+        return $this->candidates($this->db->table(self::TABLE)
+            ->whereIn('store_id', array_map(static fn (StoreId $store): string => $store->value, $stores))
             ->whereIn('variant_id', $variantIds)
             ->orderBy('id')
-            ->get();
+            ->get()->all());
+    }
 
+    public function reducedAt(StoreId $store, DateTimeImmutable $at): array
+    {
+        $moment = $at->format('Y-m-d H:i:s.uP');
+
+        // The sizes a sale or a discount reaches on a retail line now, and every candidate of theirs - in one query.
+        return $this->candidates($this->db->table(self::TABLE.' as c')
+            ->where('c.store_id', $store->value)
+            ->whereIn('c.variant_id', static fn ($reached) => $reached->select('r.variant_id')->from(self::TABLE.' as r')
+                ->where('r.store_id', $store->value)
+                ->where('r.mode', SaleMode::Retail->value)
+                ->whereIn('r.kind', [PriceKind::Sale->value, PriceKind::Category->value])
+                ->where('r.starts_at', '<=', $moment)
+                ->where(static fn ($end) => $end->whereNull('r.ends_at')->orWhere('r.ends_at', '>', $moment)))
+            ->orderBy('c.id')
+            ->select('c.*')
+            ->get()->all())[$store->value] ?? [];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $rows
+     * @return array<string, array<string, list<Candidate>>> store id => variant id => its candidates
+     */
+    private function candidates(array $rows): array
+    {
         $candidates = [];
 
         foreach ($rows as $row) {
-            $candidates[(string) $row->variant_id][] = new Candidate(
+            if (! $row instanceof \stdClass) {
+                continue;
+            }
+
+            $candidates[(string) $row->store_id][(string) $row->variant_id][] = new Candidate(
                 SaleMode::from((string) $row->mode),
                 (int) $row->from_quantity,
                 Money::of((int) $row->amount_minor, (string) $row->currency_code),
