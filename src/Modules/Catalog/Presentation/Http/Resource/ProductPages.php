@@ -7,6 +7,7 @@ namespace Modules\Catalog\Presentation\Http\Resource;
 use Illuminate\Contracts\Foundation\Application;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Import\DescriptionText;
+use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
 use Modules\Catalog\Application\Query\ListProducts\ListProducts;
 use Modules\Catalog\Application\Query\ListProducts\ListProductsHandler;
 use Modules\Catalog\Application\Query\Products\AttributeChoice;
@@ -21,9 +22,11 @@ use Modules\Catalog\Application\Query\ViewProduct\ProductView;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProduct;
 use Modules\Catalog\Application\Query\ViewProduct\ViewProductHandler;
 use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Text\LatinDigits;
+use Shared\Domain\ValueObject\Money;
 
 /**
  * The products screens' pages, in the shape the screens want (catalog.md §4.4 S8, S9).
@@ -43,6 +46,7 @@ final readonly class ProductPages
         private ListProductsHandler $list,
         private ViewProductHandler $view,
         private CatalogProductReads $reads,
+        private InMemoryProductStoreSections $sections,
     ) {}
 
     /**
@@ -63,7 +67,7 @@ final readonly class ProductPages
 
         // The filters as the list applied them, so the page shows what it was narrowed by.
         return new ProductsPage(
-            array_map(fn (ProductRow $row): ProductRowData => $this->row($row, $thumbs, $codes), $list->products),
+            array_map(fn (ProductRow $row): ProductRowData => $this->row($row, $thumbs, $codes, $chosen), $list->products),
             $list->more,
             $list->more ? $last : null,
             $applied->search,
@@ -151,7 +155,8 @@ final readonly class ProductPages
     /**
      * A card for each store the reader covers, as every store screen offers them (StoreChoices: a
      * Super Admin's off stores too, P6) - what it does with the product, and which of its jobs the
-     * reader holds there.
+     * reader holds there - and in each, the parts the modules above registered (amendment 23(e)): each
+     * section read once for every card.
      *
      * @return list<StoreCardData>
      */
@@ -160,9 +165,11 @@ final readonly class ProductPages
         // A job held with All stores is null: it reaches every store.
         $jobs = $view->storeJobs ?? [];
         $holds = static fn (string $job, string $storeId): bool => array_key_exists($job, $jobs) && ($jobs[$job] === null || in_array($storeId, $jobs[$job], true));
+        $stores = $this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW);
+        $sections = $this->sections($view, $stores);
         $cards = [];
 
-        foreach ($this->choices->forJobs(CatalogPermissions::PRODUCT_VIEW) as $store) {
+        foreach ($stores as $store) {
             $id = strtolower($store->id);
             $row = $view->stores[$id] ?? null;
             $cards[] = new StoreCardData(
@@ -186,6 +193,7 @@ final readonly class ProductPages
                 $holds(CatalogPermissions::LISTING_SELLING, $id),
                 $holds(CatalogPermissions::LISTING_UNAVAILABLE, $id),
                 $holds(CatalogPermissions::LISTING_LABELS, $id),
+                $sections[$id] ?? [],
             );
         }
 
@@ -193,17 +201,61 @@ final readonly class ProductPages
     }
 
     /**
+     * The registered sections' parts of the cards (amendment 23(e)), by store: each section asked once,
+     * for every store on the tab - a store it leaves out draws nothing of it.
+     *
+     * @param  list<StoreDto>  $stores
+     * @return array<string, list<StoreSectionData>> store id => its card's sections, in the order registered
+     */
+    private function sections(ProductView $view, array $stores): array
+    {
+        $registered = $this->sections->all();
+
+        if ($registered === [] || $stores === []) {
+            return [];
+        }
+
+        $variantIds = array_values(array_map(
+            static fn (VariantView $variant): string => $variant->id,
+            array_filter($view->variants ?? [], static fn (VariantView $variant): bool => ! $variant->archived),
+        ));
+        $byStore = [];
+
+        foreach ($registered as ['module' => $module, 'section' => $section]) {
+            foreach ($section->read($view->product->id, $variantIds, $stores) as $storeId => $data) {
+                $byStore[strtolower((string) $storeId)][] = new StoreSectionData($module, $section->component(), $data);
+            }
+        }
+
+        return $byStore;
+    }
+
+    /**
      * @param  array<string, string>  $thumbs
      * @param  array<string, string>  $codes  store id => code
+     * @param  StoreDto|null  $store  the store chosen on the list, whose Price and Can't Order it shows
      */
-    private function row(ProductRow $row, array $thumbs, array $codes): ProductRowData
+    private function row(ProductRow $row, array $thumbs, array $codes, ?StoreDto $store = null): ProductRowData
     {
+        $locale = $this->locale();
+        // A price kept in another currency than the store's - its currency changed since - is not shown
+        // with the store's decimals and sign: Pricing writes it again.
+        $price = $store !== null && $row->lowestPrice !== null && $row->lowestPrice['currency'] === $store->currencyCode
+            ? MoneyData::of(Money::of($row->lowestPrice['minor'], $row->lowestPrice['currency']), $store, $locale)
+            : null;
+        // "2 of 5 sizes", counted by the sizes switched on there; none switched on, nothing to count.
+        $cantOrder = $store !== null && $row->storeVariantsOn > 0
+            ? trans_choice('catalog::admin_products.cant_order_count', $row->storeVariantsOn, ['count' => $row->cantOrder, 'total' => $row->storeVariantsOn], $locale)
+            : null;
+
         return new ProductRowData(
             $row->id, $row->nameAr, $row->nameEn, $row->codes, $row->stage, $row->brandNameAr, $row->brandNameEn,
             $row->categoryNameAr, $row->categoryNameEn, $thumbs[$row->photoMediaId ?? ''] ?? null, $row->variants,
             // A store the reader is not offered (off, for anyone but a Super Admin) is not named.
             array_values(array_filter(array_map(static fn (string $id): ?string => $codes[strtolower($id)] ?? null, $row->onIn))),
             $row->storeState, $row->storeVariantsOn,
+            $price,
+            $cantOrder,
         );
     }
 

@@ -24,8 +24,13 @@ import type { SharedProps } from '@/types/page';
 */
 
 export type Box = {
-    /** The control's id: the focus goes there when Save finds it wrong. */
+    /** The control's id: the focus goes there when Save finds it wrong, unless `focus` names another. */
     id: string;
+    /**
+     * The control the focus goes to when Save finds the box wrong, where a box is more than one control
+     * and the one at fault differs - a moment's date button or its time box (lib/moments.ts).
+     */
+    focus?: string;
     /** The box's label, named as the sentence's subject. */
     label: string;
     value: string;
@@ -180,7 +185,7 @@ export function useChecks(boxes: Box[], fresh?: unknown): Checks {
             }
 
             setShown(new Set(boxes.map((box) => box.id)));
-            document.getElementById(wrong[0]?.id ?? '')?.focus();
+            document.getElementById(wrong[0]?.focus ?? wrong[0]?.id ?? '')?.focus();
         },
     };
 }

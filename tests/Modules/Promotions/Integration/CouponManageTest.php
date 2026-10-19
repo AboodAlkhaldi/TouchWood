@@ -7,10 +7,14 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Dto\CategoryPathDto;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Promotions\Application\Command\ChangeCoupon\ChangeCoupon;
 use Modules\Promotions\Application\Command\ChangeCoupon\ChangeCouponHandler;
 use Modules\Promotions\Application\Command\CouponFields;
@@ -376,4 +380,24 @@ describe('changing, switching, deleting', function () {
             ->and(DB::table('promotions.coupons')->where('id', $id)->exists())->toBeTrue()
             ->and(DB::table('platform.audit_entries')->where('action', 'promotions.coupon.deleted')->exists())->toBeFalse();
     });
+});
+
+describe('a list entry removed while the coupon is saved', function () {
+    it('answers it as the check would have, never as a database error', function (Closure $save) {
+        couponManager();
+        $id = couponCreate();
+        // Catalog said the category was there and on; it is gone by the time the rule is written.
+        $gone = strtolower((string) Str::ulid());
+        $catalog = Mockery::mock(CatalogApi::class);
+        // Only the categories are read on this path: a list of one category reads no products or brands.
+        $catalog->shouldReceive('categoriesWithPaths')->andReturn([$gone => new CategoryPathDto($gone, 'أبواب', 'Doors', true, [new TranslatedTextDto('أبواب', 'Doors')])]);
+        app()->instance(CatalogApi::class, $catalog);
+        $fields = couponFields(['rules' => [['kind' => 'INCLUDE', 'target' => 'category', 'id' => $gone]]]);
+
+        expect(Pr::thrown(fn () => $save($id, $fields), InvalidPromotionAttribute::class)->attribute)->toBe('rules')
+            ->and(DB::table('promotions.coupon_rules')->where('category_id', $gone)->exists())->toBeFalse();
+    })->with([
+        'creating' => [fn (string $id, CouponFields $fields) => couponCreate('OTHER-1', $fields)],
+        'changing' => [fn (string $id, CouponFields $fields) => app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, $fields))],
+    ]);
 });

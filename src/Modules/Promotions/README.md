@@ -11,7 +11,7 @@ under `pricing.ceiling.manage`): Promotions reads it and declares no setting of 
 
 ## Built
 
-The module is built in seven steps (the execution plan, approved 2026-10-17):
+The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**; one item waits on another session (spec §9.2 #6):
 
 | Step | What | Where |
 |---|---|---|
@@ -23,6 +23,9 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
 | 4a — segments | The segment tables; create, change (name and rule — type and audience fixed, answer 23), delete, pick by hand, refresh now; the nightly refresh job; Access's bulk customer reads (access.md amendment 70) | below |
 | 4b — assignments | Assigning an `ASSIGNED` coupon to a segment's members of that moment (answer 24); removing an unused assignment; a coupon assigned from a segment may not leave its audience out; `PromotionsApi::segmentMembers` | below |
 | 5 — gift levels | The gift levels table; create, change, switch; one amount one gift for the same buyers and dates (`GiftLevelClash`); `PromotionsApi::giftLevels`; Catalog refuses to delete a gift's variant | below |
+| 6a — the coupon reads | `ListCoupons`, `ViewCoupon`, `ListCouponUses`, `ListCouponAssignments` for the staff screens, under the view permission or any manage one | below |
+| 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
+| 7 — the module's pass | One whole-module review; a coupon's brands read in bulk (catalog.md amendment 27); a list entry Catalog removed while a coupon is saved answered as `rules`, never a database error; every refusable attribute named in both languages; the spec's stale lines | below |
 
 ## What is here
 
@@ -33,9 +36,9 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   of segments, reserved to the system.
 - **`Infrastructure/Persistence/PromotionsSchema`** and its migration — the `promotions` schema, on
   the connection's search path so a fresh migration wipes it.
-- **`Domain/Exception`** — the errors of spec §7 built so far, each with its type
-  (`promotions.{snake}`), its status, and a title and a message in Arabic and English at
-  `promotions::errors.{snake}`. `CouponRefused` and its reasons come with the coupon checks (step 2).
+- **`Domain/Exception`** — the errors of spec §7, each with its type (`promotions.{snake}`), its
+  status, and a title and a message in Arabic and English at `promotions::errors.{snake}`; every
+  attribute `InvalidPromotionAttribute` can name has a word in both (the test reads them from the code).
 - **`Presentation/lang/{en,ar}`** — the permissions' names and the errors' words.
 - **`Infrastructure/Persistence/Migrations/…_create_coupon_tables`** — §5's coupon tables. Every CHECK
   of the spec, composite keys carrying the coupon's store, `UNIQUE (order_id)` on uses (one coupon per
@@ -121,13 +124,24 @@ The module is built in seven steps (the execution plan, approved 2026-10-17):
   (`GiftLevelRaceTest`: two saves at once). `PromotionsApi::giftLevels`: the levels an order's goods
   total reaches now for the buyer — at exactly its amount too (answer 27) — highest first
   (`GiftOfferDto`); the total must be in the store's currency.
+- **The staff screens' reads** (`Application/Query`): **`MarketingReader`** — `promotions.marketing.view`
+  in the store or any of the three manage permissions (each handler authorizes the one held), an
+  uncovered store's coupon not found, an off store for Super Admins alone; **`CouponStates`** — the
+  state now (§4), as `CouponRules::refusalNow` reads it; **`CustomerNames`** — a page's names in one
+  `AccessApi::customers` call. `ListCoupons` (filters: state now, start of the code), `ViewCoupon`,
+  `ListCouponUses`, `ListCouponAssignments`, `ListSegments`, `ListSegmentMembers` (names only),
+  `ListGiftLevels` (gifts named in two Catalog bulk reads); the customer's `ViewMyCoupons`
+  (`promotions.coupon.view_own`: assigned to me, usable now, my uses left — one query). SQL in
+  `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
+  `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and
+  `…_index_segments_list`.
 - **`Infrastructure/Eloquent/PromotionsCatalogUsage`** — registered with Catalog's `CatalogUsages`:
   every coupon whose include or exclude list names a product, category or brand Catalog is about to
   delete, and every gift level giving a variant it is about to delete, in one query; Catalog then
   refuses the delete (`catalog.item_in_use`).
 
 Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, every number of §8);
-`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
+`tests/Modules/Promotions/Integration` — `AssignmentsTest`, `SegmentsTest`, `SegmentTablesTest`, `CouponManageTest` (staff's commands), `GiftLevelsTest` (gift levels, their read and table), `GiftLevelRaceTest`, `CouponReadsTest`, `MarketingReadsTest`, `PromotionsCatalogUsageTest`, `ApplyCouponTest`, `CouponWritesTest`, `CouponRaceTest` (two
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.

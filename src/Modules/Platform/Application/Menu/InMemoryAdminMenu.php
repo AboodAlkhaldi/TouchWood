@@ -32,12 +32,17 @@ final class InMemoryAdminMenu implements AdminMenu
     private const array GROUPS = [
         'catalog',
         'pricing',
+        // Sync's section follows Pricing's (platform.md §9.4; sync.md §4.1.2, S6): its report and its
+        // provider, stage 5's screens.
+        'sync',
         'orders',
         'companies',
         'customers',
         // Handoff §14 places Marketing after Customers and before Points (platform.md §9.4).
         'marketing',
-        // Handoff §14 places Points after Marketing and before Staff (platform.md §9.4).
+        // Handoff §14 places Support after Marketing and before Points (platform.md §9.4).
+        'support',
+        // Handoff §14 places Points after Support and before Staff (platform.md §9.4).
         'points',
         'staff_and_permissions',
         'store_settings',

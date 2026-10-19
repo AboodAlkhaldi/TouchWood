@@ -51,6 +51,17 @@ final class Inputs
     }
 
     /**
+     * The start of a code as staff type it to search (§1.1): read as a code is — case, Arabic digits,
+     * spaces around it. Null when no code can start so: nothing found, and never a LIKE wildcard.
+     */
+    public static function codeStart(string $typed): ?string
+    {
+        $start = strtoupper(LatinDigits::of(trim($typed)));
+
+        return preg_match('/\A[A-Z0-9-]{1,30}\z/', $start) === 1 ? $start : null;
+    }
+
+    /**
      * The code as a coupon stores it (§1.1): read without regard to case, Arabic digits as 0-9 (the
      * system's rule since 2026-10-06), spaces around it ignored. Null when it cannot be any coupon's.
      */

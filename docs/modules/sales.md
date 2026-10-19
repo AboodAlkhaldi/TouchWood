@@ -419,12 +419,15 @@ reject.
 ### 2.1 `Modules\Sales\Public\Contracts\SalesApi`
 
 **Declared on `main` before Feedback is built** (feedback.md §2.1, and its handoff §17 amendment in PR
-#104), with `ReturnCompleted`:
+#104), with `ReturnCompleted` — on 2026-10-19: `Public/Contracts/SalesApi`,
+`Public/Dto/DeliveredPurchaseDto`, `ReturnedProductsDto`, `Public/Events/ReturnCompleted`, bound until
+the build to `Infrastructure/External/NothingSoldYet` (nothing delivered, no return) so Feedback runs
+before Sales exists; Sales's build replaces the binding.
 
 | Method | Answers |
 |---|---|
-| `deliveredPurchase(string $customerId, string $productId): ?DeliveredPurchaseDto` | Whether the customer had that product delivered in any store: `variantId` (the latest delivered, by delivery time), `deliveredAt`, `returned` (any of that product in a completed return) |
-| `returnedProducts(string $returnId): ReturnedProductsDto` | `customerId`, `storeId`, `productIds` of a completed return |
+| `deliveredPurchase(string $customerId, string $productId): ?DeliveredPurchaseDto` | Whether the customer had that product delivered in any store: `variantId` (the latest delivered, by delivery time), `deliveredAt`, `returned` (any of that product in a completed return); gift lines never (feedback.md §9.1b, 20) |
+| `returnedProducts(string $returnId): ?ReturnedProductsDto` | `customerId`, `storeId`, `productIds` of a completed return — only products with pieces received, gift lines never (feedback.md §9.1b, 20); null for a return not completed or unknown |
 
 ### 2.2 Events (`Public/Events`, ids only — handoff §4.5)
 

@@ -1,3 +1,4 @@
+import type { MoneyData } from '../../../../Platform/Public/Dto';
 export type AttributeChoiceData = {
 id: string,
 nameAr: string,
@@ -306,6 +307,8 @@ variants: number,
 onIn: string[],
 storeState: string | null,
 storeVariantsOn: number,
+priceFrom: MoneyData | null,
+cantOrder: string | null,
 };
 export type ProductsPage = {
 products: ProductRowData[],
@@ -498,6 +501,7 @@ mayChoose: boolean,
 maySell: boolean,
 mayUnavailable: boolean,
 mayLabel: boolean,
+sections: StoreSectionData[],
 };
 export type StoreFileItemData = {
 id: string,
@@ -547,6 +551,11 @@ id: string,
 code: string,
 name: string,
 isActive: boolean,
+};
+export type StoreSectionData = {
+module: string,
+component: string,
+data: Record<string, any>,
 };
 export type StoreVariantData = {
 variantId: string,

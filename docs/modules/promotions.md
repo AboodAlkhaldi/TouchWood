@@ -2,7 +2,8 @@
 
 **Status:** **ACCEPTED by the owner, 2026-10-10** (merged as #101) — sections 1–9 written 2026-10-08
 from the owner's answers of 2026-10-07 to 2026-10-10 (§9.1), with the changes Sales's spec needed. The
-picks marked "my assumption" were accepted with it.
+picks marked "my assumption" were accepted with it. **Backend built** 2026-10-17 to 2026-10-19 in seven
+steps (#143 to #169, and step 7's pass); its screens are the frontend session's (§9.2 #3).
 **Tier:** 2. **Stage:** 6 (handoff §17), the second of the stage's modules to be built (Loyalty →
 Promotions → Feedback → Sales).
 **Depends on:** Platform, Access, Catalog, Pricing (handoff §4.4; `deptrac.yaml` already says so).
@@ -321,12 +322,12 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | From | What | State |
 |---|---|---|
 | Pricing | The cart's prices: each line's variant, `mode`, `unit`, `listUnit` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
-| Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)`. Today `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories. Catalog's amendment, numbered when it lands |
-| Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exists (`CatalogApi::product`, `variant`); categories and brands by the same addition |
+| Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)` — **built**, catalog.md amendment 18 (step 2a). `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories |
+| Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exist: `CatalogApi::products` and `variant` for products and gifts; `categoriesWithPaths()` (catalog.md amendment 23(c), Stage 5's) for categories and `brands()` (amendment 27, after `brand()`, amendment 20) for brands — each one read whatever a list's length |
 | Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `PromotionsCatalogUsage` — its coupons' lists, and its gift levels' variants (step 5) |
 | Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **Built** (access.md amendment 70, Promotions step 4a): `AccessApi::customerIdsInStore` and `AccessApi::customers` — a fixed number of queries however many |
 | Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **Recorded in access.md amendment 70**: Promotions decides who ordered in a store (its order facts) and reads the name through `customers()`; its segment screens show the name only (step 6) |
-| Access | The permission catalog, and **a `Marketing` permission group** — the admin menu's "Marketing" section (handoff §14: Coupons · Segments) | Catalog exists; **the group is an Access addition** (and `marketing` in Platform's menu groups), built with Promotions — the same as Loyalty's Points section (loyalty.md §2.3). My assumption, following the owner's answer for Points |
+| Access | The permission catalog, and **a `Marketing` permission group** — the admin menu's "Marketing" section (handoff §14: Coupons · Segments) | Catalog exists; **the group is an Access addition** (and `marketing` in Platform's menu groups), built with Promotions — the same as Loyalty's Points section (loyalty.md §2.3). **Built** with step 1 (access.md amendment 69; the owner approved the build plan, 2026-10-17) |
 | Platform | A store setting (the ceiling), the audit log, the store's currency | Exists |
 
 ### 2.4 What Promotions gives others
@@ -358,6 +359,20 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 |---|---|
 | A store's coupons (with their uses — each by the order's **public number**, never its id, handoff §5.3), segments (with their members' names, §1.5) and gift levels | `promotions.marketing.view` (per store) — or any of the three manage permissions |
 | **My coupons** in a store, in the account centre: those assigned to me and still usable | `promotions.coupon.view_own` — every customer, their own only |
+
+Built in step 6 (`Application/Query`): `ListCoupons` (newest first; by state now — §4 — and by the
+start of the code), `ViewCoupon` (its lists named through Catalog, how many customers have it),
+`ListCouponUses` (the order's public number, the customer's name), `ListCouponAssignments` (name,
+segment, uses) — a page at a time by keyset, 50 at most; names through `AccessApi::customers` in one
+call. A store switched off is read by Super Admins alone, as it is changed (§1.8). Then
+`ListSegments` (newest first, with how many each holds), `ListSegmentMembers` (the name only, by
+customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
+bulk reads, whether it gives its gift now) and, for the customer, `ViewMyCoupons` (the coupons given
+to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
+first; a store switched off has none). My assumption, stated for the owner to reject: **"usable" leaves
+out what depends on the cart or the buyer** — sale mode, the minimum (shown on the row), and whether
+the customer is now an individual or a company (Promotions never reads B2B; checkout says why a coupon
+takes nothing).
 
 **The permissions Promotions declares** — every name has three parts, as Access requires
 (`InMemoryPermissionCatalog::NAME`):
@@ -420,7 +435,10 @@ composite key on (`id`, `store_id`), so one store's rows never reach another's.
 **Indexes:** coupons by (`store_id`, `code`) (the UNIQUE); coupon uses by (`coupon_id`, `customer_id`)
 — uses per customer; order facts by (`store_id`, `customer_id`, `placed_at`) — the segment rules;
 assignments by `customer_id` — "my coupons"; segment members by `customer_id`; gift levels by
-(`store_id`, `amount_minor` DESC).
+(`store_id`, `amount_minor` DESC). For the staff screens' pages (step 6): coupons by (`store_id`,
+`created_at` DESC, `id` DESC); uses by (`coupon_id`, `used_at` DESC, `id` DESC); assignments by
+(`coupon_id`, `assigned_at` DESC, `customer_id` DESC); segments by (`store_id`, `created_at` DESC,
+`id` DESC).
 
 ---
 
@@ -609,7 +627,15 @@ Owner, 2026-10-19 ("accept for all", after step 5's review):
    not read Promotions (§4.4). The owner's call when Content is specified: add Content → Promotions to
    the graph, or target pop-ups another way.
 5. **A guest trying a code in the cart** — Sales's spec asks it (their cart). Using one needs an account.
-6. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
+6. **Finding customers to pick by hand for a segment** — a staff member must find a customer registered
+   in the store or who ordered there (§1.5; access.md amendment 70). `SetSegmentMembers` takes their
+   ids; the search itself waits on Access's text search among customers (`customerIdsMatching`, access.md
+   amendment 72, the screens session's PR #168, for the owner to merge). Then a Promotions read,
+   `SearchSegmentCandidates(segmentId, text)` — Access's matches kept to the segment's store or its order
+   facts, names only.
+7. ~~**A category's name and switch, read one at a time**~~ — **settled**: read in bulk through Stage 5's
+   `categoriesWithPaths` (catalog.md amendment 23(c)) since step 7, with brands (amendment 27).
+8. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
    deleted, an unused one deleted with its assignments; unused assignments removable; anonymized
    customers leaving segments; two levels with one amount refused; gift levels in the Marketing
    section; an off store's promotions for Super Admins only. (The three gift-level picks of step 5 are

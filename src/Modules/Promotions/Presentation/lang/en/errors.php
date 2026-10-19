@@ -44,6 +44,7 @@ return [
 
     'fields' => [
         'code' => 'code',
+        'gift_variant' => 'gift',
         'percent' => 'percentage',
         'amount' => 'amount',
         'dates' => 'date range',

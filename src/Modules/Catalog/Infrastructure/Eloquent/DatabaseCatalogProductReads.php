@@ -15,6 +15,8 @@ use Modules\Catalog\Application\Query\Products\ProductRow;
 use Modules\Catalog\Application\Query\Products\RelatedRow;
 use Modules\Catalog\Application\Query\Products\StoreListingRow;
 use Modules\Catalog\Application\Query\Products\VariantView;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -37,6 +39,7 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
 
     public function __construct(
         private ConnectionInterface $db,
+        private PlatformApi $platform,
     ) {}
 
     public function products(ProductFilter $filter, int $perPage): array
@@ -59,6 +62,31 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             ->selectRaw('(SELECT count(*) FROM catalog.store_variants sv WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active) as on_here', [$store])
             ->orderByRaw('p.id COLLATE "C" DESC')
             ->limit($perPage + 1);
+
+        if ($filter->storeId !== null) {
+            // Price and Can't Order (pricing.md §9.4 Q5), in the same query: from the facts the modules
+            // above pushed into Catalog's own table, over the sizes switched on in the store. The price is
+            // the lowest one-piece price now; a size can't be ordered while Inventory says so, while it
+            // has no price, while it or its product is "Not available now" there, or while the product is
+            // hidden with its category or brand (as `storeVariant()` answers whether it is orderable). Only a
+            // price in the store's own currency is the store's: one kept from before its currency changed
+            // is never picked (the store directory is read once a request, platform.md §9.11).
+            $currency = Ulids::valid($store) ? $this->platform->store(StoreId::fromString($store))?->currencyCode : null;
+            $query->selectRaw(
+                "(SELECT json_build_object('minor', f.price_minor, 'currency', f.currency) FROM catalog.store_variants sv"
+                .' JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
+                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active AND f.price_minor IS NOT NULL AND f.currency = ?'
+                .' ORDER BY f.price_minor LIMIT 1) as lowest_price',
+                [$store, $currency ?? ''],
+            )->selectRaw(
+                '(SELECT count(*) FROM catalog.store_variants sv'
+                .' LEFT JOIN catalog.store_variant_facts f ON f.store_id = sv.store_id AND f.variant_id = sv.variant_id'
+                .' WHERE sv.product_id = p.id AND sv.store_id = ? AND sv.is_active'
+                .' AND (f.orderable IS FALSE OR f.price_minor IS NULL OR sv.not_available_now OR coalesce(sp.not_available_now, false)'
+                .' OR p.hidden_by_category OR p.hidden_by_brand)) as cant_order',
+                [$store],
+            );
+        }
 
         if ($filter->search !== null) {
             $like = '%'.addcslashes($filter->search, '\\%_').'%';
@@ -118,6 +146,8 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
             self::strings($row->on_in),
             $filter->storeId === null ? null : self::state($row),
             (int) $row->on_here,
+            $filter->storeId === null ? null : self::price($row->lowest_price ?? null),
+            $filter->storeId === null ? 0 : (int) ($row->cant_order ?? 0),
         ), array_slice($rows, 0, $perPage)), $more];
     }
 
@@ -493,6 +523,20 @@ final readonly class DatabaseCatalogProductReads implements CatalogProductReads
         }
 
         return $lowest;
+    }
+
+    /**
+     * The lowest price as the query wrote it, or none.
+     *
+     * @return array{minor: int, currency: string}|null
+     */
+    private static function price(mixed $value): ?array
+    {
+        $price = self::json($value);
+
+        return is_array($price) && is_numeric($price['minor'] ?? null) && is_string($price['currency'] ?? null)
+            ? ['minor' => (int) $price['minor'], 'currency' => $price['currency']]
+            : null;
     }
 
     /** With a store chosen: the product's state there (S8). */
