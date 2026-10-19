@@ -10,6 +10,7 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Promotions\Application\PromotionsApiImpl;
 use Modules\Promotions\Application\PromotionsPermissions;
+use Modules\Promotions\Application\Query\MarketingQueries;
 use Modules\Promotions\Domain\Repository\Assignments;
 use Modules\Promotions\Domain\Repository\Coupons;
 use Modules\Promotions\Domain\Repository\GiftLevels;
@@ -18,6 +19,7 @@ use Modules\Promotions\Domain\Repository\Segments;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseAssignments;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseCoupons;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseGiftLevels;
+use Modules\Promotions\Infrastructure\Eloquent\DatabaseMarketingQueries;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseOrderFacts;
 use Modules\Promotions\Infrastructure\Eloquent\DatabaseSegments;
 use Modules\Promotions\Infrastructure\Eloquent\PromotionsCatalogUsage;
@@ -38,6 +40,7 @@ final class PromotionsServiceProvider extends ServiceProvider
         $this->app->bind(Segments::class, DatabaseSegments::class);
         $this->app->bind(Assignments::class, DatabaseAssignments::class);
         $this->app->bind(GiftLevels::class, DatabaseGiftLevels::class);
+        $this->app->bind(MarketingQueries::class, DatabaseMarketingQueries::class);
         $this->app->bind(PromotionsApi::class, PromotionsApiImpl::class);
     }
 
