@@ -398,128 +398,315 @@ NONE (on Needs a Price) ──Set──► SET ──Set──► SET
 
 ### 4.3 The admin screens (stage 5's screens)
 
-**Written 2026-10-18.** The owner chose (2026-10-18): the screens **by module** in the menu; a
-product's prices edited **on its page as well as on the store-wide pages**; **all three modules'
-screen specs first, approved once**, then built Pricing → Inventory → Sync, a PR per group. What is
-marked **[PROPOSED Sn]** is mine, listed in §9.3, built as written unless the owner says otherwise.
-The use cases behind every button are §3's. A screen offers only what the reader may do next - asked
-of an Application query, never of the authorizer from the screen (`tests/Architecture/AccessDecisionsTest`)
-- and every handler asks again.
+**Written 2026-10-18, detailed 2026-10-19.** The owner chose (2026-10-18): the screens **by module** in
+the menu; a product's prices edited **on its page as well as on the store-wide pages**; **every detail
+settled before building, then built without stopping** (2026-10-19). Proposals S1-S8 accepted
+(2026-10-19). **Every question of §9.4 is answered** (owner, 2026-10-19): the points marked **(Qn)** are
+written as answered. The use cases behind every button are §3's. These
+rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) screens too.
 
-**What every screen keeps** - as Catalog's (catalog.md §4.4), unchanged: Geist's rules on shadcn's code
-(frontend.md §1.11), every box checking itself as it is typed, every number in 0-9, every moment
-through `Time` in the store's zone, **its own store filter** (`?store=<code>`; the stores where the
-reader holds the screen's job, a Super Admin's off stores marked Off), names in the page's language
-first. **Money** is shown with the store's currency and its own decimals, in Latin digits - one
-formatter shared by every Pricing screen, added with the first **[PROPOSED S4]**; a price is typed as the store writes it ("149.50"), checked as it is typed against
-the currency's decimals. The words in `src/Modules/Pricing/Presentation/lang/{ar,en}/admin_*.php` and
-`menu.php`; refusals are §7's.
+#### 4.3.1 What every screen keeps (Pricing, Inventory, Sync)
 
-**A store that is off** shows its screens read-only, with the reason, to anyone who may not switch
-stores. **A wired store** (sync.md): the retail price is the provider's - shown, never typed, with
-"From the provider" and the last read's time; sales, wholesale bands and category discounts stay ours.
+**Who may do what**
+- A screen offers only what the reader may do next, answered by the module's `…ActionsForReader` query
+  (never the page asking the authorizer, `tests/Architecture/AccessDecisionsTest`); every handler asks
+  again. A button the reader may not press is **not drawn**; one they may press but cannot now is **drawn
+  disabled with its reason** - a tooltip on a button (`ActionButton disabledReason`), written under the
+  item in a ⋯ menu (Catalog's `Guarded`). A link to another module's page is drawn only when the reader may
+  open it (the product page needs `catalog.product.view`; the actions query answers `mayViewProducts`).
+- **Off stores (Q1)**: someone who may not switch stores is never offered one (the store filter leaves it
+  out) and the reads keep refusing them (`StoreOff`). A Super Admin sees an off store marked **Off**
+  (`StoreOffBadge`) and works in it as usual.
 
-**Where they are.** Admin routes in `Presentation/admin-routes.php`, named `pricing.admin.*`, loaded
-by the module's provider through `App\Http\AdminArea`, `Page` and `FormErrors` (as Catalog's,
-catalog.md amendment 13(d); `config/ziggy.php`'s admin group gains `pricing.admin.*`). **The menu** -
-Platform's `AdminMenu`, the **Pricing** group (it exists), its icon `pricing`; each entry offered to
-anyone holding its job in any store:
+**The frame** (frontend.md §2.2, §1.11)
+- `AdminLayout`: a title, a one-line subtitle, **one main action** at the top end; everything else in a
+  row's ⋯ menu (`MoreButton`, `align="end"`, `min-w-56`), destructive items last after a separator, each
+  item that opens a dialog ending with "…".
+- **The store filter** (`StoreFilter`, `StoreChoices::forJobs`): the stores where the reader holds the
+  screen's job; none drawn for one store; a store outside the list refused (403). The page opens on **the
+  first store that is on** (frontend.md §2.2, owner 2026-10-07).
+- **Tables** in `material-base`, small headings on `bg-surface-sunken`; a row that opens something has
+  its name as the link (stretched over the row, `after:absolute after:inset-0`) - **except rows holding
+  boxes**: there only the product's name is a link, so a click in a box never opens anything.
+- **Show More** (`LoadMoreButton`, `useLoadMore`): 50 more under the rows shown, keyset paged; above the
+  table **"Showing 50 of 312"** (Q6).
+- **Loading**: a page arrives whole (Inertia); the drawer shows `Spinner` "Loading" until its read
+  arrives; a live note or preview keeps its last content dimmed with a `Spinner` beside its title while
+  it refreshes; Show More's button is `loading`.
+- **Phones** (frontend.md §2.1, §6): a table scrolls sideways inside its card; a box keeps 128 px; the
+  drawer is full width under 640 px; the selection checkbox is the first column; touch targets 24 px.
+
+**Rows that hold boxes** (P1, P5, I1, the product page)
+- A box holds today's value; a box typed with a different value is **changed** - marked by a dot and
+  "Changed" (screen readers: "changed"). **Escape** puts the box back; **Tab / Shift+Tab** move box to box
+  in row order; **Enter** saves every changed box.
+- **The save bar (Q40)**: while any box is changed, a bar fixed to the bottom of the page - `material-menu`,
+  full width of the content - says "3 prices changed" with **Cancel** and **Save Prices** (the verb and
+  noun of the page: Save Prices, Save Counts). It is not the page's main action, which stays as it is.
+- **Leaving with changed boxes** - a link, a filter, the search, the store filter, the browser's back -
+  asks first (`PanelDialog`): "Leave Without Saving" · "3 changed prices will be lost." · **Leave Page** /
+  **Stay**. Show More and the drawer keep the boxes.
+- **A batch** is one command (`SetRetailPrice`, `SetStock`): all saved or none. **A refusal marks its rows
+  (Q2)**: the commands' errors carry the sizes they concern (`variants`), `App\Http\FormErrors` passes them
+  on as `errors.rows` (size id → message), each marked row shows its message under its box, focus moves to
+  the first; nothing is saved; the other boxes keep what was typed. A refusal about no row (the store off,
+  wired since) shows at the top and reloads the page's actions.
+- **After a save**: the toast; the rows reload (they show any change another person made meanwhile);
+  focus stays where it was. **Two people editing** (Q41): the last save wins, as everywhere in the panel;
+  both are in the audit log.
+- **The network fails** during a save: the boxes keep what was typed; a red toast "Failed to save prices.
+  Check the connection and try again."; Save stays pressable. An expired session or page (419) is the
+  panel's own handling.
+
+**Money and numbers**
+- Every amount reaches the page **already written** by the server (S4) - `Money::format` with the store's
+  decimals, Latin digits, then the currency's sign where set, else its letters (ر.س / SAR; frontend.md
+  §1.8, HANDOFF §5.1) - as `MoneyData {text, minor}`. In `<bdi dir="ltr">`, Geist figures (`tw-figure`).
+- **A price box**: `TextField` + `input-group`, `inputMode="decimal"`, `dir="ltr"`, the currency's letters
+  after it; `toLatinDigits` as typed; checked as typed with **the store's decimals** (`checks.ts` `number:
+  {decimals, min}`): "Price must be a number like 149.50." (the example in the store's decimals), "Price
+  can have at most 2 decimals.", "Price must be more than 0." No thousands separator.
+- **A percentage box**: "%" after it; "Percent must be from 0.01 to 99.99.", at most 2 decimals.
+- **Comparisons as typed** (a band below the one before, below retail) compare the typed numbers to help;
+  the server decides (HANDOFF §2.4). A depth against the ceiling is answered by the server's note or
+  preview, never computed on the page.
+- **Signs and arrows**: "−12.5%", "+3", "−2" in `<bdi dir="ltr">`; "from → to" is Lucide's `ArrowRight`,
+  mirrored on Arabic pages (`rtl:rotate-180`), its label read out ("to").
+
+**Moments** (frontend.md §1.10)
+- Shown with `Time` in the store's zone ("in 3 days"; the full moment on hover; on a detail page the full
+  moment).
+- **Typed (Q4)** with a date (shadcn `Calendar` in a `Popover`, as `DateRangeField` uses it) and a time box
+  (24-hour HH:MM), the store's zone named beside ("Riyadh time"); sent as ISO 8601 with the store's offset.
+  A start offers **Now** (the default; sends no start) and refuses a past moment as typed ("Start must be
+  now or later."); a start that passes while the dialog is open is taken as now by the server, said under
+  it: "Starts when saved if this time has passed." An end is optional (**No End**), after the start ("End
+  must be after the start.").
+
+**Words**
+- **"Offer" in the panel** (owner, 2026-10-19): the screens say **Offer** wherever this spec says sale - the
+  menu entry, the page, every button, badge, toast and text ("Add Offer", "Offer ended", the badge
+  **Offer**, Sync's **Offer Stopped** and **Open Offer**) - so it never meets the orders section, which
+  handoff §14 calls Sales. In Arabic **عرض / العروض**. The code, the audit log and this spec keep "sale".
+- Writing rules (frontend.md §1.10): buttons and menu items Title Case Verb + Noun; a destructive button
+  and its toast share the verb; toasts "{Noun} {past participle}", no period; validation names the field
+  and its rule, a sentence with a period; "Couldn't …" for the person's state, "Failed to …" for the
+  system's.
+- **Arabic (Q42)**: every word in both languages in the module's `lang/{ar,en}/admin_*.php` and
+  `menu.php`, formal Arabic; the terms the owner chooses are listed in §9.4 Q42. **Plurals** with
+  `trans_choice` - Arabic's six forms ("3 prices", "1 archived since", "12 sizes").
+- Refusals are §7's words (Q15 fixes three).
+
+**Budget**: every page, drawer and dialog read **15 queries at most, its own** (frontend.md §5),
+asserted by its feature test; JavaScript 60 KB a page.
+
+#### 4.3.2 Where Pricing's screens are
+
+Admin routes in `Presentation/admin-routes.php`, named `pricing.admin.*`, loaded by the module's provider
+through `App\Http\AdminArea`, `Page` and `FormErrors` (as Catalog's, catalog.md amendment 13(d));
+`config/ziggy.php`'s admin group gains `pricing.admin.*`; deptrac lets Pricing's Presentation use
+`AppHttp`. One controller per screen in `Presentation/Http/Controller/`; page data as `spatie/laravel-data`
+classes in `Presentation/Http/Resource/`; pages under `resources/js/pages/Pricing/Admin/`.
+
+**The menu** - Platform's `AdminMenu`, the **Pricing** group, icon `pricing`:
 
 | # | Entry | Address | Offered for |
 |---|---|---|---|
-| 10 | Prices · الأسعار | `/admin/prices` | any of the three jobs (§3: reading prices takes any) |
-| 20 | Sales · العروض | `/admin/sales` | any of the three |
+| 10 | Prices · الأسعار | `/admin/prices` | any of the three jobs |
+| 20 | Offers · العروض | `/admin/offers` | any of the three |
 | 30 | Category Discounts · خصومات الأقسام | `/admin/category-discounts` | any of the three |
 | 40 | Wholesale Prices · أسعار الجملة | `/admin/wholesale-prices` | any of the three |
-| 50 | Needs a Price · بلا سعر | `/admin/needs-a-price` | `pricing.price.edit`, with **`NeedsAPriceCount`** beside it (registered with the entry) |
+| 50 | Needs a Price · بلا سعر | `/admin/needs-a-price` | `pricing.price.edit`, with its count **kept per store** as Low Stock's is (Q43) |
 
-**The discount ceiling** is a store setting (§1.12, `pricing.ceiling.manage`): it stays on Platform's
-settings screen, where it already is - no Pricing screen.
+**The ceiling**: each Pricing screen shows it under its subtitle - "The store's discount ceiling: 30%" -
+linked to Platform's settings screen for whoever may change it (Q11).
 
-**The reads the screens add** - Application queries, each **one query or a fixed few, never one per
-row** (frontend.md §5: 15 queries an admin page, **the page's own**, the panel's frame apart):
+**A wired store**: a `Note` at the top of each Pricing screen - "This store's prices come from its
+provider. Sales, wholesale prices and category discounts are set here." The retail price is shown, never
+a box (S2), with its source.
 
-| Query | Job | What it answers |
+#### 4.3.3 The reads (Pricing's, and what they need of Catalog)
+
+| Query | Job | Answers |
 |---|---|---|
-| `ListPrices` (new) | any of the three, that store | the store's sizes - switched on, or with a price there - 50 at a time by product then size: each with its product's names and photo, its code, its retail price and source (`STAFF`, `FILE`, `PROVIDER`), the price a customer pays today and why (base, sale, discount, "always wins"), and whether it has wholesale bands; a search by name or code; filters: **On sale now**, **No price**, **Has wholesale prices** |
-| `ListWholesale` (new) | any of the three, that store | the sizes with bands, each with its bands in order, 50 at a time; the same search |
-| `ViewPrices` | any of the three, that store | one size's every price, as §2.1 (the drawer and the product page) |
-| `ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount`, `PreviewCategoryDiscount`, `OverlapsFor`, `NeedsAPrice` | §3's | as built |
-| `PricingActionsForReader` (new) | - (asks the authorizer for the reader) | for each screen and store, which buttons the reader may press, and why not |
+| `ListPrices` (new) | any of the three | P1's rows, 50 at a time, keyset, with the total |
+| `ViewSizePrices` (new) | any of the three | one size: retail with source and when, today's price for one piece retail and wholesale and **why**, every sale, discount and band reaching it with state and dates, names included |
+| `ViewProductPrices` (new) | any of the three, per store | each of a product's sizes **in every store the reader prices in**, in one read - a fixed few queries for the whole Stores tab |
+| `ListSales` (extended) | any of the three | filters by state, product and sale (`?sale=`); P2's order; names; "All sizes" or "3 of 5"; a size archived since; keyset |
+| `ViewSale` (new) | any of the three | one sale, every field, for its read-only dialog and Sync's link |
+| `ListCategoryDiscounts` (extended) | any of the three | the category's path and names, left-out names, a state filter; keyset |
+| `ViewCategoryDiscount`, `PreviewCategoryDiscount` (extended) | as built | the preview says **why** a size is skipped (Q9), counts the category's sizes with no price, and pages its products 20 at a time with totals for all |
+| `OverlapsFor` (extended) | any of the three | takes the sale's price or percentage: per size the new price, whether it wins (today, or at its start), its depth against the ceiling, the names of what it overlaps |
+| `ListWholesale` (new) | any of the three | P4's rows |
+| `NeedsAPrice` (extended) | `pricing.price.edit` | paged 50 with the total (Q14), photo, size names, the search |
+| `PricingActionsForReader` (new) | - | per store: the three jobs, wired, off, `mayViewProducts`, the reasons |
+| `PricingApi::salesNamed`, `::discountsNamed` (new, public) | - | for Sync's report (§2.1 grows): a sale's or discount's short description ("−10% · 60 cm, 80 cm", "Kitchens: 50.00 off") and whether it still exists |
 
-**Names and the search come from Catalog** - Pricing keeps no product names. The store-wide lists need
-a store's sizes found by name or code, a page at a time: Catalog's amendment 23 **[PROPOSED S1]** adds
-`CatalogApi::searchVariants(StoreId, ?string $text, ?string $after, int $limit)` - the store's switched-on
-variants, and those it names, matched as the products list matches (catalog.md S8: a name in either
-language, or a code), keyset-paged. Pricing reads its own rows for the page's sizes in one query.
+**What Pricing needs of Catalog** (catalog.md amendment 23, written there in full): `searchVariants` -
+the store's variants by name or code, **ordered by product name then the size's place**, keyset-paged,
+with the total - taking `only` (these sizes) and `except` (not these) so a filter owned by Pricing pages
+by Catalog's order: Pricing works out the sizes its filter keeps (one query of its own), Catalog pages
+them by name; `searchProducts` (the store's ready, switched-on products, for pickers; and "products with
+sales here" for P2's filter); `categoriesWithPaths(ids)`; a category's products by name for **Left Out**;
+`wholesaleOf(store, sizes)` (minimum, maximum, sold wholesale). A sold-wholesale filter on
+`searchVariants` serves P4's picker.
 
-#### P1 · Prices - `/admin/prices?store=`
+#### P1 · Prices - `/admin/prices?store=&q=&filter=&size=`
 
-- **Columns**: photo · product (the other language under it) · size · code (mono) · **Retail price**
-  (its source as a small badge: Staff, File, Provider) · **Today** - what a customer pays now, struck
-  through above it when a sale or discount wins, the winner's name in a tooltip · a mark when it has
-  wholesale bands.
-- **Editing in the row** (`pricing.price.edit`): the retail price is a box in the row, saved on Enter
-  or leaving it, several typed then **Save Changes** saving them at once (`SetRetailPrice` takes
-  several); **Remove Price** in the row's ⋯ menu (`RemoveRetailPrice`). A wired store: no box, the
-  provider's price with its time **[PROPOSED S2]**.
-- **The row opens the size's drawer**: every price of `ViewPrices` - retail, each sale and discount
-  with its dates, each wholesale band - and links to the sale, the discount, the wholesale bands.
-- **The ⋯ menu**: Add a Sale for This Size (P2's dialog, the size chosen) · Wholesale Prices (P4's
-  dialog) · Remove Price (last, destructive).
-- **Filters**: the search; On sale now; No price; Has wholesale prices. 50 at a time, **Show More**.
+- **Subtitle**: "Retail prices for each size, and what customers pay today."
+- **Main action**: none.
+- **Filters** (a `Card`, as Catalog's products list): **search** (`SearchField`, name in either language or
+  code, 300 ms) and a `ToggleGroup` **All** · **No Price** · **On Sale Now** · **Has Wholesale Prices**;
+  **Clear Filters** when any is set.
+- **Order** (Q16): product name in the page's language, then the size's place.
+- **Rows**: the store's sizes switched on, and those with a price here though switched off.
+- **Columns**: photo (40 px) · **Product** (the page's language; the other under it, secondary) · **Size**
+  (its values, "60 cm · Oak"; "One Size" for a product with one) · **Code** (mono, `dir="ltr"`) · **Retail
+  Price** · **Today** · **Wholesale**.
+- **Retail Price**: the box (`pricing.price.edit`, no provider) or the amount; under it its **source** -
+  **Set Here**, **From File**, **From Provider** (Q42 words) - and when it last changed (`Time`); "—" with
+  "No price" when it has none.
+- **Today**: what one piece costs retail now; when a sale or discount wins, the retail struck through
+  above, a badge **Sale** or **Discount** (and **Always Wins** beside it when it is one) and "until 30 Oct";
+  "—" with no price; **Wholesale Only** for a size not sold one piece at a time.
+- **Wholesale**: "3 bands"; "Kept, not sold wholesale" (gray) when bands remain but the size is not sold
+  wholesale here (§1.4); "—".
+- **Marks on a row**: **Not Switched On** (gray) for a size priced here though switched off; **Archived**
+  (amber) for an archived size or product - read-only, the reason "Archived in the catalog. Restore it to
+  change its price."
+- **Warnings under a box as typed (Q8)**, never refusals: "Below the running sale's price, 90.00. The sale
+  stops winning." · "Below the first wholesale band, 95.00. The band stops winning." A price taking a
+  running sale past the ceiling is refused on Save, naming the sale (`over_ceiling`).
+- **The ⋯ menu**: **View Prices** · **Add Sale…** (`pricing.price.edit`; disabled with no price: "Add a
+  price first.") · **Edit Wholesale Prices…** (`pricing.wholesale.edit`; "Not sold wholesale in this store."
+  / "Add a price first.") · separator · **Remove Price…** (`pricing.price.edit`; with a price; wired: "The
+  provider sets this price."). **Remove Price** asks: "Remove Price" · "Customers can't order 60 cm · Oak in
+  KSA until it has a price again. Its running sale stops, and its wholesale bands are kept unused." ·
+  **Remove Price** / **Cancel** → "Price removed".
+- **The drawer (Q3)** - **View Prices** or the product's name: shadcn `Sheet` from the end side, 480 px,
+  `material-menu`, in the address (`?size=`): the product, size and code; **Retail** (amount, source, when;
+  the box for whoever may type it, with its own **Save Price**); **Today** (one piece retail, one piece
+  wholesale, and why each); **What Reaches It** - every sale, discount and band with its state badge, amount,
+  dates and a link (a sale → P2 `?sale=`, at `/admin/offers`, a discount → its page, bands → P4's dialog).
+- **Empty**: "No sizes yet" · "Sizes appear here once the store switches them on." Filtered: "No sizes match
+  these filters" · "Clear the filters to see every size."
 
-#### P2 · Sales - `/admin/sales?store=`
+#### P2 · Offers - `/admin/offers?store=&state=&sort=&product=&sale=`
 
-- **Columns**: product · the sizes (all, or "3 of 5") · the price or the percentage · **Starts** ·
-  **Ends** (or "No end") · **State** - Scheduled (gray), Running (green), Ended (amber) - from §4.1 ·
-  "Always wins" as a badge. 50 at a time, the running first, then scheduled by start, then ended.
-- **Add Sale** (main action, `pricing.price.edit`): the product (Catalog's search, P1's), its sizes
-  (all, or some ticked), **a price or a percentage** (a switch), start (now, or a date and time),
-  optional end, **Always wins**. Before saving, **the note** - `OverlapsFor`: what it affects, what it
-  overlaps, a price it would not beat - shown in the dialog as §1.3 words it; Save under it.
-- **The ⋯ menu** by state (§4.1): a scheduled sale - **Change**, **Remove**; a running one -
-  **Change End**, **End Now**; an ended one - nothing but view. The destructive item last, its
-  toast repeating its verb ("End Sale" → "Sale ended").
-- A size archived since: the row says so; the sale is kept (§1.3).
+- **Subtitle**: "Lower prices for chosen sizes, for a time."
+- **Main action**: **Add Sale** (`pricing.price.edit`).
+- **Filters**: `ToggleGroup` **All** · **Running** · **Scheduled** · **Ended**; **Product** (a picker of the
+  products that have sales in this store, any state). `?sale=` shows that one sale (from a link), with
+  "Show All Sales".
+- **Order (Q7; owner, 2026-10-19)**: a **Sort** switch above the list - **By State** (the default): running
+  (ending soonest first), scheduled (starting soonest first), ended (ended last first); or **Newest Added**
+  (the date each was added, newest first). The state filter works with either.
+- **Columns**: **Product** (names; a link when the reader may view products) · **Sizes** - "All Sizes" when
+  the sale covers every size the store has switched on now, else "3 of 5" (of those switched on now), the
+  sizes in a tooltip; "1 archived since" (amber) · **Price** (the sale price, or "−12.5%") · **Starts** ·
+  **Ends** ("No End") · **State** - **Scheduled** (blue), **Running** (green), **Ended** (gray) · **Always
+  Wins** (a badge, or nothing).
+- **The ⋯ menu by state**: scheduled - **Change Sale…**, separator, **Remove Sale…**; running - **Change
+  End…**, separator, **End Sale…**; ended - **View Sale…**. A product archived or switched off since: the
+  same items; a scheduled sale whose size lost its price since: **Change Sale…** disabled, "60 cm · Oak has no
+  price now. Remove the sale or price the size."
+  - **Remove Sale** asks "Remove Sale" · "It never started; nothing changes for customers." · **Remove
+    Sale** → "Sale removed".
+  - **End Sale** asks "End Sale" · "Customers pay the usual price from now on." · **End Sale** → "Sale
+    ended".
+  - **View Sale** - a read-only `PanelDialog` of its fields (`ViewSale`), **Close**.
+- **The sale dialog** - Add, and Change of a scheduled sale (`PanelDialog wide`):
+  - **Product** (Add only; on Change read-only - the command keeps product and sizes): a `SearchField` in the
+    dialog listing **the store's ready, switched-on products** (Q13), each with photo and code, 300 ms.
+  - **Sizes** (Add only): **All Sizes** - **every size switched on in this store that has a price**, saved as
+    that list (Q39) - or **Some Sizes**, a checkbox per size switched on, with its retail price; a size with
+    no price listed disabled, "No price yet."
+  - **Sale Price** or **Percent Off** (`ToggleGroup`, no default chosen), its box.
+  - **Starts** · **Ends** · **Always Wins** (`Switch`; helper "This sale beats every other price on these
+    sizes while it runs.").
+  - **The note** (`OverlapsFor`, refreshed 300 ms after a change): per size the new price and "Wins today"
+    (a scheduled sale: "Wins at its start") or why not ("A lower sale runs" · "An Always Wins discount
+    runs"); what it overlaps, named and dated; "Takes 60 cm · Oak 42% off - the ceiling is 30%." (a warning;
+    the server refuses on Save).
+  - **Add Sale** / **Change Sale**; refusals in the dialog (`DialogError`) and as a toast → "Sale added" /
+    "Sale changed".
+  - **Change End** (running): the end only, the rest read-only; **No End** allowed; a past end refused as
+    typed → "Sale changed".
+- **Empty**: "No sales" · "Add a sale to lower prices for a time."
 
-#### P3 · Category Discounts - `/admin/category-discounts?store=`
+#### P3 · Category Discounts - `/admin/category-discounts?store=&state=`
 
-- **Columns**: category (its path) · a percentage or an amount off · **Lines** - Retail, Wholesale,
-  Both · Starts · Ends · State · "Always wins" · products left out (a count).
-- **Add Discount** (`pricing.category_discount.manage`): the category (Catalog's combobox, as S8's
-  filter), percentage or amount, lines, dates, always wins, **products left out** (picked from the
-  category's products). **The preview** before saving (`PreviewCategoryDiscount`): how many sizes it
-  reaches, the deepest, the ones it skips and why (0 or below; in a wired store, past the ceiling -
-  sync.md §9.3 #17), what it overlaps.
-- **The discount's page** (`/admin/category-discounts/{id}`, `ViewCategoryDiscount`): its fields, its
-  preview as it is today, and the actions of its state - Change / Remove (scheduled), Change End /
-  End Now (running).
+- **Subtitle**: "A percentage or an amount off every product in a category."
+- **Main action**: **Add Discount** (`pricing.category_discount.manage`).
+- **Filters and order**: as P2's.
+- **Columns**: **Category** (its path, "Kitchens › Cabinets") · **Off** ("10%" or "50.00 ر.س off") ·
+  **Lines** - **Retail**, **Wholesale**, **Both** · **Starts** · **Ends** · **State** · **Always Wins** ·
+  **Left Out** ("3 products", names in a tooltip). The row opens the discount's page.
+- **The discount dialog** (Add; Change of a scheduled one):
+  - **Category**: Catalog's category combobox (`SearchCombobox`), the categories switched on.
+  - **Percent Off** or **Amount Off** (`ToggleGroup`, no default), its box.
+  - **Lines** (`RadioGroup`, **no default** - Geist: a choice with consequences): **Retail** · **Wholesale** ·
+    **Both**; helper "Which prices it lowers: one piece, wholesale bands, or both."
+  - **Starts** · **Ends** · **Always Wins**.
+  - **Left Out**: a picker of **the category's products and its children's** (Q10), chosen ones as chips;
+    changing the category clears them, said once: "Left-out products were cleared for the new category."
+  - **The preview** (`PreviewCategoryDiscount`, refreshed 300 ms after a change): "Reaches 124 sizes in 38
+    products" · "Up to 31% off" · "12 sizes have no price and are left out" · the products, 20 at a time with
+    **Show More**, each collapsible with its sizes: retail → new price, or **Skipped** and why: "Would be 0
+    or below." / "Past the ceiling in this wired store." (Q9) · what it overlaps. **An empty category** is
+    allowed: "Reaches no sizes now. Products added to the category later are reached."
+  - A percentage above the ceiling, or a fixed amount deeper than it (a store not wired): said under its box
+    from the preview, refused on Save (`over_ceiling`, naming its products).
+  - **Add Discount** / **Change Discount** → "Discount added" / "Discount changed".
+- **The discount's page** - `/admin/category-discounts/{id}`: breadcrumb Category Discounts › its category;
+  its fields (`Description`); its preview as of today while scheduled or running ("Ended - nothing is reached
+  now." when ended); the state's actions - scheduled: **Change Discount** (main), ⋯ **Remove Discount…**;
+  running: **Change End** (main), ⋯ **End Discount…**; ended: none. Remove / End ask as P2's → "Discount
+  removed" / "Discount ended".
+- **Empty**: "No category discounts" · "Add one to lower every price in a category."
 
-#### P4 · Wholesale Prices - `/admin/wholesale-prices?store=`
+#### P4 · Wholesale Prices - `/admin/wholesale-prices?store=&q=`
 
-- **Columns**: product · size · code · retail price · **the bands** ("from 10: 95.00 · from 50:
-  90.00"). 50 at a time; the search.
-- **Add Wholesale Prices** (`pricing.wholesale.edit`): a size (the search), then **the bands dialog**:
-  rows of *from quantity* and *price*, added and removed, the first at the wholesale minimum and below
-  the retail price (§1.4) - checked as typed - saved all at once (`SetWholesalePrices`); every row
-  removed and saved removes the size's bands. The same dialog from a row's **Edit**.
+- **Subtitle**: "Lower prices for buying in quantity, per size."
+- **Main action**: **Add Wholesale Prices** (`pricing.wholesale.edit`) - a size picker (`searchVariants`,
+  sold wholesale here, with no bands yet), then the bands dialog.
+- **Rows**: the sizes with bands in this store.
+- **Columns**: photo · **Product** · **Size** · **Code** · **Retail Price** · **Bands** ("From 10: 95.00 ·
+  From 50: 90.00") · **Minimum** (the size's wholesale minimum here). Marks: **Kept, Not Sold Wholesale**
+  (gray, §1.4: kept unused); **No Retail Price** (amber: "The bands don't apply until the size has a
+  price."); **Minimum Changed** (amber: "The minimum is now 10; the first band starts at 5.").
+- **The ⋯**: **Edit Wholesale Prices…** · separator · **Remove Wholesale Prices…** ("Remove Wholesale
+  Prices" · "Wholesale customers pay the retail price for 60 cm · Oak." · **Remove Wholesale Prices** →
+  "Wholesale prices removed").
+- **The bands dialog**: rows of **From** (whole pieces) and **Price**; **Add Band** under them, **at most 10**
+  (Q12); each row's **Remove Band** (an icon button with its label). Checked as typed: "First band must start
+  at 5, the wholesale minimum." · "From must be more than the band before." · "From can't be more than 50,
+  the wholesale maximum." (Q12) · "Band price must be below the band before." · "First band price must be
+  below 120.00, the retail price." The server names which rule a refusal broke (`bands_invalid` gains its
+  rule). Opened on a **Minimum Changed** row, the first band's message shows at once. **Save Wholesale
+  Prices** → "Wholesale prices saved"; every row removed, the button reads **Remove Wholesale Prices**.
+- **Empty**: "No wholesale prices" · "Add bands to sell a size for less in quantity."
 
-#### P5 · Needs a Price - `/admin/needs-a-price?store=`
+#### P5 · Needs a Price - `/admin/needs-a-price?store=&q=`
 
-The store's switched-on sizes with no price (`NeedsAPrice`), with the count beside the menu entry:
-product · size · code · a **price box** in each row, **Save Changes** saving every price typed
-(`SetRetailPrice`); a row leaves the list once saved. A wired store: the list is read-only and says the
-provider's next read prices them.
+- **Subtitle**: "Sizes switched on in this store with no price. Customers can't order them."
+- Its count beside the menu entry, **kept per store** (Q43).
+- **Columns**: photo · Product · Size · Code · **Price** (a box). The save bar as P1's ("Save Prices"); a
+  saved row leaves the list; 50 at a time with the total (Q14); the search.
+- **A wired store**: read-only - "The provider's next read prices these." - no boxes.
+- **Empty**: "Every size has a price" · "Sizes the store switches on without a price appear here."
 
-#### The product page's store section (Catalog's S9, Stores tab)
+#### The product page's Pricing section (Catalog's S9, Stores tab)
 
-Each store's card on a product's Stores tab (catalog.md S9) gains **Pricing's section** through
-Catalog's registry **[PROPOSED S3]** (Catalog's amendment 23, as `ImportSections`): for each of the
-product's sizes - retail price (a box, as P1; the provider's in a wired store), today's price and why,
-its wholesale bands (P4's dialog) - and **Add a Sale** for the product (P2's dialog, the product
-chosen). Each control is drawn for someone holding its job in that store; anyone else reads it. One
-`ViewPrices`-shaped read for the product's sizes in that store - a fixed few queries, never one per size.
+Through Catalog's `ProductStoreSections` (amendment 23(b)), **one `ViewProductPrices` read for every store
+card on the tab**. In each store's card, for whoever holds a Pricing job in that store (nothing for the
+rest):
+- A table: **Size** · **Retail Price** (a box with `pricing.price.edit`, no provider; else the amount) ·
+  **Today** · **Wholesale** ("3 bands", opening P4's dialog with `pricing.wholesale.edit`).
+- The save bar inside the card ("Save Prices").
+- Under it: the product's running and scheduled sales, one line each ("−10%, until 30 Oct") with P2's ⋯;
+  **Add Sale…** (P2's dialog, the product chosen); the discounts reaching it ("Kitchens: 10% off, until 15
+  Nov", linked).
 
 ---
 
@@ -706,3 +893,77 @@ used up a 30% ceiling on its own.
 | S2 | **A wired store's retail price is shown, never a box**: "From the provider", with the last read's time | The provider owns it (§1.1 rule 9); a box that always refuses would only mislead |
 | S3 | **Catalog's product page gains the modules' store sections** through a registry (catalog.md amendment 23), as its store files gained `ImportSections` | The owner chose prices and stock on the product page (2026-10-18); Catalog's page shows them without Catalog reading Pricing or Inventory |
 | S4 | **One money formatter** shared by every Pricing screen: the store's currency, its own decimals, Latin digits | Prices look the same on every screen; frontend.md has none yet |
+
+### 9.4 Questions for stage 5's screens - answered (owner, 2026-10-19), one list for Pricing, Inventory and Sync
+
+**Round 1**: every question as recommended, except **Q7** - a **Sort** switch, **By State** the default and
+**Newest Added** the other - and Q10, Q17 and Q27, explained and then answered. **Round 2**: Q7's default
+**By State**; Pricing's menu entry **renamed "Offers"** (العروض), "Offer" the panel's word for a sale
+(§4.3.1); **Q17 - out of stock in the shop stays as decided on 2026-10-02 (option A)**: what can't be ordered
+leaves lists, search and suggestions, a direct link says "Not available now" - stock decides that for every
+product in a store with no provider, and only for stock-dependent sizes in a store wired to a provider;
+**Q10 and Q27 confirmed** as recommended. Nothing is left open.
+
+| # | Question | Recommended | What it changes |
+|---|---|---|---|
+| **All three** ||||
+| Q1 | Someone who may not switch stores, and an off store | **Never offered** (the store filter leaves it out); the reads keep refusing it | §4.3 first said "read-only"; the built reads refuse |
+| Q2 | Saving several prices or counts at once, one of them wrong | **Nothing saved; the wrong rows marked**, each with its message under its box | Some errors already name their sizes; the rest gain them, and the panel passes them to the page |
+| Q3 | A size's details (prices, stock, history) | **A side panel** (shadcn's `Sheet`, from the end side), kept in the address | The other choice is a page per size |
+| Q4 | Typing a start or an end | **A date** (shadcn's `Calendar` in a popover, as the audit log's date range uses it) **and a time box** (24-hour), in the store's zone; "Now" the default start; no past | Geist has no date-and-time picker; this is built from shadcn's parts |
+| Q5 | Catalog's products list | With a store chosen, it gains **Price** ("from 120.00", the lowest one-piece price of its sizes switched on there) and **Can't Order** ("2 of 5 sizes") - from the facts Catalog already keeps, so Catalog reads neither Pricing nor Inventory | Low stock isn't in Catalog's facts, so the list can't say "Low" |
+| Q6 | Long lists | **Show More**, 50 at a time, with "Showing 50 of 312" | - |
+| Q40 | Saving typed boxes on a long list | **A bar fixed to the bottom of the page** while boxes are changed: "3 prices changed · Cancel · Save Prices" | Neither Geist nor shadcn has this bar; it is built from their parts |
+| Q41 | Two people editing the same price | **The last save wins** (as everywhere in the panel); both are in the audit log; rows reload after each save | The other choice is refusing a save over a newer change |
+| Q42 | The Arabic words (table below) | **As proposed** | Words only |
+| **Pricing** ||||
+| Q7 | Offers and discounts: order and filter | **Answered**: a Sort switch - **By State** (default: running, then scheduled, then ended) or **Newest Added**; the filter **All · Running · Scheduled · Ended** | The built order is latest start first |
+| Q8 | A retail price typed below a running sale's price, or below the first wholesale band | **A warning under the box, never a refusal** ("The sale stops winning.") | Today nothing is said |
+| Q9 | The discount preview's skipped sizes | **Say why**: "Would be 0 or below" or "Past the ceiling" | Today both look the same |
+| Q10 | A discount's "products left out" | **Only the category's products** (and its children's); the server refuses others | Today any product passes |
+| Q11 | The ceiling in the sale and discount dialogs | **Shown** ("The store's discount ceiling: 30%") **and checked as typed** by the server's note; still refused on Save | Today it is met only on Save |
+| Q12 | Wholesale bands | **At most 10**; a band's quantity **no more than the size's wholesale maximum** when it has one | Today no limit |
+| Q13 | Which products a sale can be put on | **Products switched on in this store, and ready** | Today drafts and products not switched on pass |
+| Q39 | A sale on "All sizes" | **Every size switched on in this store that has a price**, saved as that list | Today "all" means every size of the product, so one size with no price refuses the sale |
+| Q14 | Needs a Price | **Paged** 50 at a time, with the total | Today one unbounded list |
+| Q43 | Needs a Price's count beside the menu | **Kept per store**, counted again by a job after each change - as you chose for Low Stock | Today it is counted live on every admin page |
+| Q15 | Three wording fixes | the ceiling refusal names "the price, the sale or the discount"; its count says "sales and discounts"; Arabic audit words say **قسم**, as the menu | Words only |
+| Q16 | The Prices list's order | **By product name**, then the size's place | The other choice: newest priced first |
+| **Inventory** ||||
+| Q17 | "Out of Stock" | **Available 0 on a size that counts on stock**; a wired ordinary size at 0 shows **Orderable** instead | It stays orderable (§1.3) |
+| Q18 | Orders holding more than there is | **"Short by 3"** in red, first of the badges | Available never shows below 0 |
+| Q19 | Counts saved from the screen | **Only rows typed with a new number** - no "counted, no change" ledger lines | Each sent row writes a ledger line |
+| Q20 | A count or removal below what orders hold | **Said before saving** ("2 orders hold 5 of these"), not refused; an amber toast after | Order numbers come once Sales has orders |
+| Q21 | Holds in a size's panel | **A summary**: "Held by 2 orders: 5 pieces (3 bought, 2 gift)"; each order listed once Sales exists | No order pages yet |
+| Q22 | A size's history | **The ledger only**, who did it by name; holds and a wired store's returned extra aren't ledger lines and aren't shown | They are kept elsewhere |
+| Q23 | A wired store's stock and the provider's time | **"From Provider"** with when the provider last **changed** this size's number; Pricing the same for prices | Neither can read Sync's read times; a number sent again unchanged leaves no trace |
+| Q24 | A size the store doesn't sell (gifts only) | **"Add Size"** on the Stock page: pick any ready size, then count it | Today no screen can start one |
+| ~~Q25~~ | ~~Low Stock opening on the store with the most low sizes~~ | **Withdrawn**: every store page opens on the first store that is on (your rule, 2026-10-07); the subtitle says "12 low in KSA" | - |
+| **Sync** ||||
+| Q26 | Sync Now while a read runs | **Allowed** - one more read follows it; disabled only while a Now read already waits | The first spec said disabled while one runs |
+| Q27 | Retry on "Offer Stopped" and "Off or Draft" | **Not offered** (a read never closes them); **Open Offer** / **Open Product** instead | Today Retry is accepted and changes nothing |
+| Q28 | The closing word | **"Dismiss Entry"** for every kind | "Leave it" was the off-or-draft word |
+| Q29 | "Last read" | **The newest finished read of any kind**, and **Last full read** beside it | Today's field is the last hourly or full read's start |
+| Q30 | A failed read's counts | **Counted from what it wrote** | Today a failed read shows 0 |
+| Q31 | Failure text on an Arabic page | **Sync's own reasons kept as codes and written in both languages**; the provider's reason shown as it came, under "The provider said:" | Today English text is stored |
+| Q32 | A read's page | **Each section a tab with its own paging** (Prices, Stock, Reported, Codes Asked) | Today one page number pages all three |
+| Q33 | "Key and secret changed" | **"Last Changed"** - any change of the connection | A separate time needs a new column |
+| Q34 | A provider setting refused | **By its own name** | Today every setting's error is named "provider" |
+| Q35 | A store not wired, on the report | **"Not Wired"**, the reads kept (90 days) read-only, no Problems tab; **Wire Store** for a Super Admin | - |
+| Q36 | Who asked for a read | **By name** ("Asked By"), "The System" for the rest; no separate cause | Wiring, Sync Now and Retry on a failed read make Now reads; Retry on an entry makes a One Code read |
+| Q37 | A stopped sale's entry once the sale is gone | **"Sale removed"**, no link | - |
+| Q38 | The Odoo connection isn't built yet | **The Provider page says so** above the form; the form stays (its test refuses) | - |
+
+**Q42 - the Arabic words proposed** (formal Arabic; Latin digits; "%" as written in English):
+
+| English | Arabic | English | Arabic |
+|---|---|---|---|
+| Offers (menu) | العروض | Discount (badge) | خصم |
+| Offer (badge) | عرض | Always Wins | يتقدّم دائمًا |
+| Scheduled · Running · Ended | مجدول · سارٍ · منتهٍ | Retail · Wholesale · Both | التجزئة · الجملة · كلاهما |
+| Set Here · From File · From Provider | مُدخل هنا · من ملف · من المزوّد | Wholesale Only | جملة فقط |
+| Out of Stock · Low · Short by 3 · Orderable | نفد · منخفض · ناقص 3 · متاح للطلب | Counts on Stock | يعتمد على المخزون |
+| Last Pieces | آخر القطع | Received · Damaged or Lost · Offline Sale · Correction | استلام · تالف أو مفقود · بيع خارج المتجر · تصحيح |
+| Unknown Code · Not at Provider · Archived · Off or Draft | رمز غير معروف · غير موجود لدى المزوّد · مؤرشف · متوقف أو مسودة | Offer Stopped · Bad Value · Read Failed · Discount Skipped | عرض متوقف · قيمة غير صالحة · فشلت القراءة · خصم مُتجاوَز |
+| Notice · Hourly · Nightly · Now · One Code | إشعار · كل ساعة · ليلية · الآن · رمز واحد | Waiting · Running · Done · Failed | بالانتظار · قيد التشغيل · تمّت · فشلت |
+| Working · Failing · Not Wired | يعمل · متعثّر · غير مربوط | Wire Store · Unwire Store · Sync Now · Dismiss Entry | ربط المتجر · فكّ ربط المتجر · مزامنة الآن · إغلاق البند |
