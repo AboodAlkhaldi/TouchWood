@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Feedback\Application\Review;
 
 use Illuminate\Database\ConnectionInterface;
+use LogicException;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Sales\Public\Contracts\SalesApi;
 
@@ -27,7 +28,11 @@ final readonly class ReturnedReviews
     {
         $returned = $this->sales->returnedProducts($returnId);
 
+        // Sales published the return as completed: no answer for it means a mark that would never
+        // flip, so it is reported for someone to look at (the queue's retries end there too).
         if ($returned === null) {
+            report(new LogicException("Sales has no completed return {$returnId}: its reviews were not marked returned."));
+
             return;
         }
 

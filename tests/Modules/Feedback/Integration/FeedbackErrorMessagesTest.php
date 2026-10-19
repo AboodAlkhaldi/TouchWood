@@ -99,7 +99,7 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("feedback::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['rating', 'body', 'answer', 'reason', 'product', 'variant', 'store', 'customer', 'locale']);
+})->with(['rating', 'body', 'answer', 'reason', 'product', 'variant', 'store', 'locale', 'status', 'after']);
 
 it('never shows the English written for the log', function (FeedbackError $error) {
     App::setLocale('ar');

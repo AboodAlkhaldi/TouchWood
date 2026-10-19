@@ -46,7 +46,8 @@ return [
         'product' => 'product',
         'variant' => 'variant',
         'store' => 'store',
-        'customer' => 'customer',
         'locale' => 'language',
+        'status' => 'status',
+        'after' => 'place in the list',
     ],
 ];

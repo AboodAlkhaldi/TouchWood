@@ -79,5 +79,6 @@ Backend only in this stage's build; the screens are another session's.
   FeedbackCatalogUsage`**: Catalog refuses to delete a product or variant a review names, or a product a question is about.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
-`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`;
+`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
+`tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.

@@ -304,10 +304,10 @@ every kind column has a CHECK `IN (…)` (lessons 35, 162).
 | `feedback.questions` | `id`, `product_id` → `catalog.products` RESTRICT, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` RESTRICT, `body`, `locale`, `status`, `answer` NULL, `answered_by` NULL → `access.staff_users` RESTRICT, `answered_at` NULL, `reason` NULL, `created_at`, `updated_at` | CHECK `char_length(body) BETWEEN 1 AND 1000`, `locale IN ('ar', 'en')`, `status IN ('PENDING', 'ANSWERED', 'REJECTED', 'UNPUBLISHED')`; CHECK `num_nonnulls(answer, answered_by, answered_at) IN (0, 3)` and `(status IN ('ANSWERED', 'UNPUBLISHED')) = (answer IS NOT NULL)`; CHECK `answer IS NULL OR char_length(answer) BETWEEN 1 AND 2000`; CHECK `reason IS NULL OR (status IN ('REJECTED', 'UNPUBLISHED') AND char_length(reason) BETWEEN 1 AND 500)` |
 | `feedback.wishlist_items` | `customer_id` → `access.customers` RESTRICT, `product_id` → `catalog.products` CASCADE, `store_id` → `platform.stores` RESTRICT, `saved_at` | PK (`customer_id`, `product_id`, `store_id`). A product Catalog deletes leaves the lists (nothing to keep) |
 
-**Indexes:** reviews by (`product_id`, `status`, `created_at` DESC, `id`) — a product's page; by
+**Indexes:** reviews by (`product_id`, `status`, `created_at` DESC, `id` DESC) — a product's page; by
 (`store_id`, `status`, `created_at`, `id`) — a store's queue; the unique (`customer_id`, `product_id`)
 — "my reviews"; by `variant_id` — Catalog's check before deleting a variant;
-questions by (`product_id`, `status`, `answered_at` DESC, `id`), by (`store_id`,
+questions by (`product_id`, `status`, `answered_at` DESC, `id` DESC), by (`store_id`,
 `status`, `created_at`, `id`) and by (`customer_id`, `status`) — "my questions" and the waiting count; wishlist items by (`store_id`,
 `product_id`) — the counts; by `customer_id` — the key, which starts with it (no second index).
 
@@ -446,10 +446,11 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 
 ### 9.2 Still open
 
-1. **What Feedback needs from Sales** — the delivered-purchase read and the completed-return event,
-   precisely as §2.3 states them — is defined in Sales's spec, next, and declared on `main` before
-   Feedback is built (§2.1).
-2. **The Catalog additions** — bulk reads, ratings in the listing (and how the rating sort places
+1. ~~**What Feedback needs from Sales**~~ — **settled**: declared on `main` with step F0 (#170,
+   sales.md §2.1), answered by the placeholder `NothingSoldYet` until Sales's build replaces it.
+2. ~~**The Catalog additions**~~ — **settled**: built with Feedback, catalog.md amendments 24 (which
+   products a store sells), 25 (ratings in the listing and the weighted sort) and 26 (product cards,
+   the product page's sections). Was: **The Catalog additions** — bulk reads, ratings in the listing (and how the rating sort places
    products with few or no reviews), the product page's sections — agreed with the Catalog-screens
    session, who build the shop's lists and pages.
 3. ~~**The `Support` permission group and menu section**~~ — **settled**: the owner's answer of
