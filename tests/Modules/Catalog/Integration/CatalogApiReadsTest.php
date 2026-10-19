@@ -154,6 +154,41 @@ describe('many at once', function () {
     });
 });
 
+describe('what a store sells, for Feedback (amendment 24)', function () {
+    it('answers in one read which products the store sells now, and leaves out every other', function () {
+        $choose = static fn (string $product, string $store) => Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $product, true)));
+        $sold = Px::ready(['60 cm'])['product'];
+        $elsewhere = Px::ready(['60 cm'])['product'];
+        $unavailable = Px::ready(['60 cm'])['product'];
+        $sizeUnavailable = Px::ready(['60 cm'])['product'];
+        $hidden = Px::ready(['60 cm'])['product'];
+        $archivedSizes = Px::ready(['60 cm']);
+        $draft = Px::product('Hinge');
+        $outOfStock = Px::ready(['60 cm'])['product'];
+
+        foreach ([$sold, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $outOfStock] as $product) {
+            $choose($product, 'sa');
+        }
+
+        $choose($elsewhere, 'eg');
+        $sa = Fx::storeId('sa');
+        DB::table('catalog.store_products')->where('store_id', $sa)->where('product_id', $unavailable)->update(['not_available_now' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('product_id', $sizeUnavailable)->update(['not_available_now' => true]);
+        DB::table('catalog.products')->where('id', $hidden)->update(['hidden_by_brand' => true]);
+        DB::table('catalog.variants')->whereIn('id', $archivedSizes['variants'])->update(['is_archived' => true]);
+
+        $queries = Cx::recordQueries();
+        $found = catalogReads()->productsSoldIn(StoreId::fromString($sa), [
+            strtoupper($sold), $elsewhere, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $draft, $outOfStock, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id',
+        ]);
+
+        // Stock never counts: a product out of stock can still be saved and asked about (answer 19).
+        expect($found)->toEqualCanonicalizing([$sold, $outOfStock])
+            ->and(count($queries))->toBe(1)
+            ->and(catalogReads()->productsSoldIn(StoreId::fromString($sa), []))->toBe([]);
+    });
+});
+
 describe('a brand, for Promotions (amendment 20)', function () {
     it('answers a brand with its names and whether it is switched on; nothing for an unknown id', function () {
         $brand = Px::brand('Hafele');
