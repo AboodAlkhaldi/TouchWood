@@ -7,7 +7,7 @@ namespace Modules\Feedback\Application\Command\RepushRatings;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Feedback\Application\FeedbackPermissions;
-use Modules\Feedback\Application\FeedbackSettings;
+use Modules\Feedback\Application\Review\RatingsSwitch;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -29,6 +29,7 @@ final readonly class RepushRatingsHandler
         private PlatformApi $platform,
         private ListingFacts $listing,
         private ConnectionInterface $db,
+        private RatingsSwitch $switch,
     ) {}
 
     /**
@@ -43,8 +44,7 @@ final readonly class RepushRatingsHandler
         $products = 0;
 
         foreach ($this->platform->allStores() as $store) {
-            $id = $store->storeId();
-            $this->db->transaction(fn () => $this->listing->ratingsShown($id, $this->platform->setting(FeedbackSettings::RATINGS_IN_LISTS, $id)->bool()), 3);
+            $this->switch->push($store->storeId());
             $stores++;
         }
 

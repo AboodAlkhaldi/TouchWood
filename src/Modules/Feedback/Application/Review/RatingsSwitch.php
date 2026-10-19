@@ -32,15 +32,22 @@ final readonly class RatingsSwitch
             return;
         }
 
-        $store = StoreId::fromString($storeId);
-
         try {
-            $this->db->transaction(function () use ($store): void {
-                $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['feedback:ratings-switch:'.$store->value], false);
-                $this->listing->ratingsShown($store, $this->platform->setting(FeedbackSettings::RATINGS_IN_LISTS, $store)->bool());
-            }, 3);
+            $this->push(StoreId::fromString($storeId));
         } catch (Throwable $error) {
             report($error);
         }
+    }
+
+    /**
+     * Tells Catalog the store's switch as it is now, under a lock on the store: two quick changes, or a
+     * change and the repair (`RepushRatings`), each push the value read after the other's.
+     */
+    public function push(StoreId $store): void
+    {
+        $this->db->transaction(function () use ($store): void {
+            $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['feedback:ratings-switch:'.$store->value], false);
+            $this->listing->ratingsShown($store, $this->platform->setting(FeedbackSettings::RATINGS_IN_LISTS, $store)->bool());
+        }, 3);
     }
 }

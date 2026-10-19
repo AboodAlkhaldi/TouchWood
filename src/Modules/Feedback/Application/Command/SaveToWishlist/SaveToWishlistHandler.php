@@ -33,7 +33,7 @@ final readonly class SaveToWishlistHandler
 {
     public const string PERMISSION = FeedbackPermissions::WISHLIST_MANAGE;
 
-    /** Items in a list, in every store (§1.4, my assumption). */
+    /** Items in a list, in every store (§1.4; accepted by the owner, 2026-10-19). */
     public const int MOST = 500;
 
     public function __construct(
