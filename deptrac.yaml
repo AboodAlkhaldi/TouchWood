@@ -198,7 +198,8 @@ deptrac:
 
     # Inventory → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-07).
     InventoryPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
-    Inventory: [+InventoryPublic, AccessPublic]
+    # Its screens use the framework glue, as Catalog's and Pricing's (inventory.md §4.3.2, stage 5's screens step 5).
+    Inventory: [+InventoryPublic, AccessPublic, AppHttp]
 
     # Promotions → Platform, Access, Catalog, Pricing. Never Sales: Sales passes it the cart and
     # the order facts it needs (owner, 2026-09-18).

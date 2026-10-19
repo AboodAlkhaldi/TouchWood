@@ -14,6 +14,7 @@ final readonly class ProductStoreStock
 {
     /**
      * @param  list<ProductSizeStock>  $sizes  in the product's order
+     * @param  int  $defaultThreshold  the store's own, for Set Threshold's "Empty uses the store's default" (stage 5's screens step 5)
      */
     public function __construct(
         public string $storeId,
@@ -21,5 +22,6 @@ final readonly class ProductStoreStock
         public bool $off,
         public ?bool $lastPieces,
         public array $sizes,
+        public int $defaultThreshold = 0,
     ) {}
 }

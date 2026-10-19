@@ -92,6 +92,9 @@ describe('the admin menu', function () {
             'catalog/store_files',
             // Its products import (step 4), the Super Admin's.
             'catalog/imports',
+            // Inventory's screens (inventory.md §4.3, stage 5's screens step 5), in Catalog's group.
+            'catalog/stock',
+            'catalog/low_stock',
             // Pricing's screens (pricing.md §4.3.2, stage 5's screens step 3), its group after Catalog's.
             'pricing/prices',
             'pricing/offers',

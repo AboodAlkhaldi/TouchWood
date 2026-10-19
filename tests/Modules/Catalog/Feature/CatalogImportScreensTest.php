@@ -23,6 +23,8 @@ use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProdu
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
+use Modules\Inventory\Application\Command\CountLowStock\CountLowStock;
+use Modules\Inventory\Application\Command\CountLowStock\CountLowStockHandler;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizes;
 use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizesHandler;
 use Symfony\Component\HttpFoundation\Response;
@@ -57,6 +59,8 @@ beforeEach(function () {
     // Needs a Price's count beside the menu kept per store, as production keeps it (pricing.md Q43): the
     // Super Admin's menu reads it, never counts it live through Catalog's reads.
     Fx::asSystem(fn () => app(CountUnpricedSizesHandler::class)->handle(new CountUnpricedSizes));
+    // Low Stock's count the same way (inventory.md §4.3.2).
+    Fx::asSystem(fn () => app(CountLowStockHandler::class)->handle(new CountLowStock));
 });
 
 afterEach(function () {

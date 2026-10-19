@@ -28,6 +28,11 @@ export function Toasts() {
             toast.success(flash.status);
         }
 
+        // What the success left to see to - orders a count left short: amber, after it.
+        if (flash.warning) {
+            toast.warning(flash.warning);
+        }
+
         // `form` is the business error of §1.7: the one that belongs to no single field.
         if (errors.form) {
             toast.error(errors.form);

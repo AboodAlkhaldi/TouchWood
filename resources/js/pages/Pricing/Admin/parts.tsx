@@ -1,6 +1,6 @@
-import { createContext, forwardRef, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowRight, MoreHorizontal } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Money } from '@/components/Money';
 import { Note } from '@/components/Note';
 import { StoreFilter } from '@/components/StoreFilter';
@@ -8,8 +8,6 @@ import { StoreOffBadge } from '@/components/StoreOffBadge';
 import { formatDate } from '@/components/Time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
 import { figure, intlLocale } from '@/lib/digits';
 import { translate, useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
@@ -19,6 +17,8 @@ import type { SharedProps } from '@/types/page';
 import { ltr, plural, type Locale, type Translate } from './checks';
 
 export { ltr, plural, type Locale, type Translate };
+export { Guarded, MoreButton } from '@/components/RowMenu';
+export { readJson, useDebounced, useLiveRead } from '@/lib/live-read';
 
 /*
 | What Pricing's screens share (pricing.md §4.3.1): their words - on Pricing's own pages from the page,
@@ -145,47 +145,7 @@ export function RowPhoto({ src }: { src: string | null }) {
     return src !== null ? <img src={src} alt="" className="size-10 rounded-md border border-line object-cover" /> : <span className="block size-10 rounded-md bg-surface-sunken" aria-hidden="true" />;
 }
 
-/** A row's ⋯ button: its name says whose actions, and a spinner stands in while one is on its way. */
-export const MoreButton = forwardRef<HTMLButtonElement, ComponentProps<typeof Button> & { name: string; busy?: boolean }>(function MoreButton({ name, busy = false, ...rest }, ref) {
-    const t = useTranslator();
 
-    return (
-        <Button ref={ref} type="button" variant="ghost" size="icon-sm" aria-label={`${t('ui.more_actions')}: ${name}`} aria-busy={busy || undefined} title={t('ui.more_actions')} {...rest}>
-            {busy ? <Spinner aria-hidden="true" role={undefined} aria-label={undefined} /> : <MoreHorizontal aria-hidden="true" />}
-        </Button>
-    );
-});
-
-/**
- * A ⋯ item that may be out of reach: drawn, its reason written under it (Catalog's Guarded). Destructive
- * ones in red, last after a separator.
- */
-export function Guarded({ label, reason, onSelect, test, destructive = false }: { label: string; reason?: string | null; onSelect: () => void; test: string; destructive?: boolean }) {
-    const off = reason !== undefined && reason !== null;
-
-    return (
-        <DropdownMenuItem
-            variant={destructive ? 'destructive' : 'default'}
-            aria-disabled={off || undefined}
-            className={off ? 'cursor-not-allowed' : undefined}
-            onSelect={(event) => {
-                if (off) {
-                    event.preventDefault();
-
-                    return;
-                }
-
-                onSelect();
-            }}
-            data-test={test}
-        >
-            <span className="grid gap-0.5">
-                <span className={off ? 'opacity-60' : undefined}>{label}</span>
-                {off ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
-            </span>
-        </DropdownMenuItem>
-    );
-}
 
 /**
  * What every Pricing screen draws above its rows (§4.3.1, §4.3.2): the store filter (none for one store),
@@ -232,89 +192,8 @@ export function Showing({ shown, total }: { shown: number; total: number }) {
     );
 }
 
-/** A value that follows another after a pause - a search typed, a dialog's fields for its note. */
-export function useDebounced<T>(value: T, delay = 300): T {
-    const [settled, setSettled] = useState(value);
 
-    useEffect(() => {
-        const timer = setTimeout(() => setSettled(value), delay);
 
-        return () => clearTimeout(timer);
-    }, [value, delay]);
-
-    return settled;
-}
-
-/** A read the page asks as it is typed: JSON, in the panel's session; null when it is refused or fails. */
-export async function readJson<T>(path: string, params: Record<string, string | string[] | boolean | null | undefined>, signal?: AbortSignal): Promise<T | null> {
-    const query = new URLSearchParams();
-
-    for (const [key, value] of Object.entries(params)) {
-        if (Array.isArray(value)) {
-            value.forEach((each) => query.append(`${key}[]`, each));
-        } else if (typeof value === 'boolean') {
-            if (value) {
-                query.set(key, '1');
-            }
-        } else if (value !== null && value !== undefined && value !== '') {
-            query.set(key, value);
-        }
-    }
-
-    try {
-        const response = await fetch(`${path}?${query.toString()}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin', signal });
-
-        return response.ok ? ((await response.json()) as T) : null;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * A read that follows what is typed (a dialog's note or preview, a picker's search): it keeps its last
- * answer while the next one is on its way (`loading`), and a later answer always wins over an earlier one.
- *
- * @param params  null while there is nothing to ask yet
- */
-export function useLiveRead<T>(path: string, params: Record<string, string | string[] | boolean | null | undefined> | null, delay = 300) {
-    const settled = useDebounced(params === null ? null : JSON.stringify(params), delay);
-    const [data, setData] = useState<T | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [failed, setFailed] = useState(false);
-    const [attempt, setAttempt] = useState(0);
-    // Each read numbered: only the latest one's answer is taken, whatever order the answers arrive in.
-    const latest = useRef(0);
-
-    useEffect(() => {
-        const mine = ++latest.current;
-
-        if (settled === null) {
-            setData(null);
-            setLoading(false);
-            setFailed(false);
-
-            return;
-        }
-
-        const controller = new AbortController();
-        setLoading(true);
-        setFailed(false);
-        readJson<T>(path, JSON.parse(settled) as Record<string, string | string[] | boolean | null>, controller.signal).then((answer) => {
-            if (controller.signal.aborted || mine !== latest.current) {
-                return;
-            }
-
-            setLoading(false);
-            // Refused (403, 404, an invalid input) or failed: said, never a spinner forever or nothing at all.
-            setFailed(answer === null);
-            setData(answer);
-        });
-
-        return () => controller.abort();
-    }, [path, settled, attempt]);
-
-    return { data, loading, failed, retry: () => setAttempt((count) => count + 1) };
-}
 
 /** A read that failed, said in words with its way to try again (the review of step 3). */
 export function LoadFailed({ what, onRetry }: { what: 'note' | 'preview' | 'offer' | 'bands' | 'sizes' | 'categories' | 'search'; onRetry: () => void }) {

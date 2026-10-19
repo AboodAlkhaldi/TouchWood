@@ -87,6 +87,9 @@ final class HandleInertiaRequests extends Middleware
             'translations' => [],
             'flash' => [
                 'status' => fn (): ?string => $this->flashString($request, 'status'),
+                // A second word after a success that left something to see to - Inventory's "2 orders are
+                // short of 60 cm" (inventory.md §4.3.1): an amber toast.
+                'warning' => fn (): ?string => $this->flashString($request, 'warning'),
             ],
             /*
             | The proof that a request came from one of our own pages, carried in the page itself.

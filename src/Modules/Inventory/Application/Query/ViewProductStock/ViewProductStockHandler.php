@@ -94,7 +94,7 @@ final readonly class ViewProductStockHandler
                 );
             }
 
-            $cards[] = new ProductStoreStock($id, $isWired, ! $store->isActive, $isWired ? null : isset($lastPieces[$id]), $sizes);
+            $cards[] = new ProductStoreStock($id, $isWired, ! $store->isActive, $isWired ? null : isset($lastPieces[$id]), $sizes, $default);
         }
 
         return $cards;

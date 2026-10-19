@@ -267,7 +267,8 @@ describe('the Stock list (I1)', function () {
             ->and($next->next)->toBeNull()
             ->and(array_intersect(stockIds($page), stockIds($next)))->toBe([])
             ->and(stockQueries($read))->toBe($one)
-            ->and($one)->toBeLessThanOrEqual(7);
+            // 7, and since screens step 5 one more: the rows' products' Last Pieces, for each row's menu.
+            ->and($one)->toBeLessThanOrEqual(8);
     });
 });
 
