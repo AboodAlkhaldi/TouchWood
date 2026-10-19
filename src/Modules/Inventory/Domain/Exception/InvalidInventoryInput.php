@@ -11,11 +11,15 @@ use Shared\Domain\Error\ErrorCategory;
  * unknown store is invalid input, "since such a store actually doesn't exist" (owner, 2026-10-10) - an
  * archived size or a size of an archived product (read-only until restored, owner, 2026-10-11), a
  * direction or a reason a hand change does not take, a note too long. Named by its field, as
- * Catalog's invalid attribute is.
+ * Catalog's invalid attribute is - and, for a size, by **the sizes** it concerns (`variants`; stage 5's
+ * screens, Q2), so the panel marks their rows.
  */
 final class InvalidInventoryInput extends InventoryError
 {
-    public function __construct(public readonly string $attribute)
+    /**
+     * @param  list<string>  $variants  the sizes it concerns, as the caller named them
+     */
+    public function __construct(public readonly string $attribute, public readonly array $variants = [])
     {
         parent::__construct("Invalid {$attribute}.");
     }
@@ -32,6 +36,6 @@ final class InvalidInventoryInput extends InventoryError
 
     public function context(): array
     {
-        return ['attribute' => $this->attribute];
+        return $this->variants === [] ? ['attribute' => $this->attribute] : ['attribute' => $this->attribute, 'variants' => implode(',', $this->variants)];
     }
 }

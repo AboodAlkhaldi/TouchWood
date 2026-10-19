@@ -17,4 +17,9 @@ final readonly class NoStoreWired implements StoreWiring
     {
         return false;
     }
+
+    public function wiredStores(): array
+    {
+        return [];
+    }
 }

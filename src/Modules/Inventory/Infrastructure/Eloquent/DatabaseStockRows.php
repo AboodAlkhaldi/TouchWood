@@ -10,6 +10,7 @@ use LogicException;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\ValueObject\StockRow;
 use Shared\Domain\ValueObject\StoreId;
+use stdClass;
 
 /**
  * `inventory.stock` (inventory.md §5): every query names its store (catalog.md amendment 4(h)). Rows
@@ -94,15 +95,53 @@ final readonly class DatabaseStockRows implements StockRows
 
         foreach (array_chunk($variantIds, self::CHUNK) as $chunk) {
             foreach ($this->db->table(self::TABLE)->where('store_id', $store->value)->whereIn('variant_id', $chunk)->get() as $row) {
-                $rows[(string) $row->variant_id] = new StockRow(
-                    (string) $row->variant_id, (string) $row->product_id, (int) $row->in_stock, (int) $row->held,
-                    $row->threshold === null ? null : (int) $row->threshold, (bool) $row->stock_dependent, (int) $row->returned_extra,
-                    $row->orderable === null ? null : (bool) $row->orderable, (bool) $row->ending_soon,
-                );
+                $rows[(string) $row->variant_id] = self::row($row);
             }
         }
 
         return $rows;
+    }
+
+    public function ofStore(StoreId $store): array
+    {
+        $rows = [];
+
+        foreach ($this->db->table(self::TABLE)->where('store_id', $store->value)->orderBy('variant_id')->get() as $row) {
+            $rows[(string) $row->variant_id] = self::row($row);
+        }
+
+        return $rows;
+    }
+
+    public function inStores(array $stores, array $variantIds): array
+    {
+        $storeIds = IdArray::valid(array_map(static fn (StoreId $store): string => $store->value, $stores));
+        $ids = IdArray::valid($variantIds);
+
+        if ($storeIds === [] || $ids === []) {
+            return [];
+        }
+
+        $rows = [];
+
+        // Two arrays, two parameters: however many stores and sizes, one query under the parameter limit.
+        foreach ($this->db->table(self::TABLE)
+            ->whereRaw('store_id = ANY(?::text[])', [IdArray::of($storeIds)])
+            ->whereRaw('variant_id = ANY(?::text[])', [IdArray::of($ids)])
+            ->get() as $row) {
+            $rows[(string) $row->store_id][(string) $row->variant_id] = self::row($row);
+        }
+
+        return $rows;
+    }
+
+    private static function row(stdClass $row): StockRow
+    {
+        return new StockRow(
+            (string) $row->variant_id, (string) $row->product_id, (int) $row->in_stock, (int) $row->held,
+            $row->threshold === null ? null : (int) $row->threshold, (bool) $row->stock_dependent, (int) $row->returned_extra,
+            $row->orderable === null ? null : (bool) $row->orderable, (bool) $row->ending_soon,
+        );
     }
 
     public function reserve(StoreId $store, string $variantId, int $pieces, bool $withReturned): bool

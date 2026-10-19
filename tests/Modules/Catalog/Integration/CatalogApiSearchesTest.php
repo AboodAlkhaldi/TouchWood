@@ -323,6 +323,39 @@ describe('variantIdsOfProducts', function () {
     });
 });
 
+describe('variantBriefs and a search with no total (amendment 23(h))', function () {
+    it('answers many sizes in brief in one query - product names and stage, place, archived - an unknown id left out', function () {
+        $drawer = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm']);
+        $draft = Px::product('Draft');
+        $draftSize = Px::variant($draft, '7300001');
+        Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($drawer['variants'][0])));
+        $queries = Cx::recordQueries();
+
+        $briefs = catalogSearches()->variantBriefs([strtoupper($drawer['variants'][0]), $drawer['variants'][1], $draftSize, 'not-an-id', strtolower((string) Str::ulid())]);
+
+        expect(count($queries))->toBe(1)
+            ->and(array_keys($briefs))->toEqualCanonicalizing([$drawer['variants'][0], $drawer['variants'][1], $draftSize])
+            ->and([$briefs[$drawer['variants'][0]]->isArchived, $briefs[$drawer['variants'][1]]->isArchived])->toBe([true, false])
+            ->and([$briefs[$drawer['variants'][1]]->productId, $briefs[$drawer['variants'][1]]->productNameEn, $briefs[$drawer['variants'][1]]->productNameAr])->toBe([$drawer['product'], 'Drawer', 'درج'])
+            ->and($briefs[$drawer['variants'][1]]->position)->toBeGreaterThan($briefs[$drawer['variants'][0]]->position)
+            ->and([$briefs[$drawer['variants'][1]]->productStage, $briefs[$draftSize]->productStage])->toBe([ProductStage::Ready, ProductStage::Draft])
+            ->and(catalogSearches()->variantBriefs([]))->toBe([]);
+    });
+
+    it('skips the count when asked: the same rows and cursor, the total 0, one query fewer', function () {
+        $drawer = catalogSearchesProduct('Drawer', 'درج', ['60 cm', '80 cm']);
+        $counted = Cx::recordQueries();
+        $with = catalogSearches()->searchVariants(catalogSearchesStore(), null, $drawer['variants'], limit: 1);
+        $withQueries = count($counted);
+        $skipped = Cx::recordQueries();
+        $without = catalogSearches()->searchVariants(catalogSearchesStore(), null, $drawer['variants'], limit: 1, withTotal: false);
+
+        expect([catalogSearchesIds($without->rows), $without->next, $without->total])->toBe([catalogSearchesIds($with->rows), $with->next, 0])
+            ->and($with->total)->toBe(2)
+            ->and(count($skipped))->toBe($withQueries - 1);
+    });
+});
+
 describe('categoriesWithPaths and wholesaleOf', function () {
     it('answers each category with the path from the top down to it, in the order asked, in one query', function () {
         $kitchens = Px::category('Kitchens');

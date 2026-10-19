@@ -20,10 +20,19 @@ return [
     'quantity_invalid' => [
         'title' => 'Check the quantity',
         'detail' => 'A quantity must be at least 1, a count at least 0, and neither more than 2,147,483,647 pieces.',
+        // The screens' refusals name the box (inventory.md §4.3.1, Q2).
+        'rules' => [
+            'count' => 'Count must be a whole number from 0 to 2,147,483,647.',
+            'quantity' => 'Quantity must be 1 or more.',
+            'too_many' => "In stock can't go above 2,147,483,647.",
+        ],
     ],
     'stock_below_zero' => [
         'title' => 'Not that many in stock',
         'detail' => 'That would take the stock below 0.',
+        'rules' => [
+            'removal' => "Quantity can't be more than :in_stock, what's in stock.",
+        ],
     ],
     'note_required' => [
         'title' => 'Add a note',
@@ -43,7 +52,7 @@ return [
     ],
     'threshold_invalid' => [
         'title' => 'Check the threshold',
-        'detail' => 'A threshold must be from 0 to 100,000.',
+        'detail' => 'Threshold must be from 0 to 100,000.',
     ],
     'store_off' => [
         'title' => 'This store is off',
@@ -60,6 +69,7 @@ return [
 
     'fields' => [
         'direction' => 'add or remove choice',
+        'filter' => 'filter',
         'note' => 'note',
         'order' => 'order',
         'product' => 'product',

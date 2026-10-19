@@ -14,4 +14,13 @@ use Shared\Domain\ValueObject\StoreId;
 interface StoreWiring
 {
     public function isWired(StoreId $store): bool;
+
+    /**
+     * Every store wired now, by id, in one read - for a screen asking of many stores at once (stage 5's
+     * screens step 4: a product's stock in every store, what the screens may offer), as Pricing's
+     * `StoreWiring::wiredStores` answers.
+     *
+     * @return list<string>
+     */
+    public function wiredStores(): array;
 }

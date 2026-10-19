@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Catalog\Public\Contracts\ImportSections;
+use Modules\Catalog\Public\Contracts\ProductStoreSections;
 use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductRestored;
 use Modules\Catalog\Public\Events\StoreListingChanged;
@@ -20,12 +21,14 @@ use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\ProviderStockImpl;
 use Modules\Inventory\Application\Stock\LowStockRecounts;
+use Modules\Inventory\Application\Stock\Words;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\InventoryLocks;
 use Modules\Inventory\Domain\Repository\LowCounts;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
+use Modules\Inventory\Infrastructure\Catalog\ProductStockSection;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseHolds;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseInventoryLocks;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseLowCounts;
@@ -57,6 +60,7 @@ use Modules\Platform\Public\Events\SettingChanged;
  * Steps 1-4: the schema, the permission, the default threshold, the errors and their words; stock,
  * the hand changes and the ledger; holds and `InventoryApi`; what Catalog is told; Low Stock (the list,
  * its count, its Home card) and its part of a store file. With Sync's step 2a: what it gives Sync (§2.5).
+ * Stage 5's screens step 4: the screens' reads, and its part of a product's Stores tab.
  */
 final class InventoryServiceProvider extends ServiceProvider
 {
@@ -73,6 +77,7 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->app->bind(ProviderStock::class, ProviderStockImpl::class);
         $this->app->bind(LowCounts::class, DatabaseLowCounts::class);
         $this->app->bind(LowStockRecounts::class, QueuedLowStockRecounts::class);
+        $this->app->bind(Words::class, LangWords::class);
     }
 
     public function boot(): void
@@ -89,6 +94,9 @@ final class InventoryServiceProvider extends ServiceProvider
 
         // Its part of a store file (§1.8): the stock each item sets, kept when the item is switched on.
         $this->app->make(ImportSections::class)->register('inventory', StockImportSection::class);
+
+        // Its part of a product's Stores tab (§4.3.3; Catalog's amendment 23(e)): one read for every card.
+        $this->app->make(ProductStoreSections::class)->register('inventory', ProductStockSection::class);
 
         // Its card on the admin home: the low sizes, the fewest left first (§1.7). The Low Stock menu
         // entry, with LowStockCount beside it, comes with the list's screen: the menu links every

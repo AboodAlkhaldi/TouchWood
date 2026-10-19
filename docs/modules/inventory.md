@@ -251,6 +251,7 @@ here is audited: Sync audits each read once, the detail being in the ledger (syn
 | Contract | Says |
 |---|---|
 | `StoreWiring::isWired(StoreId): bool` | Moved from Inventory's Application layer to its Public contracts, so Sync can answer it. Inventory binds "no store is wired" until Sync binds its own. |
+| `StoreWiring::wiredStores(): list<string>` | *(Stage 5's screens step 4:)* every store wired now, by id, in one read - for a screen asking of many stores at once (a product's stock in every store, what the screens may offer), as Pricing's `StoreWiring` answers it. Sync's `ConnectionWiring` answers both modules' with one method. |
 | `ProviderStock::apply(StoreId, array<variantId, int>, string $readRef): ProviderStockResult` | Each size's in stock set to the provider's number (§1.1 rule 3, §1.9; sync.md §1.5 #3): the same number as now changes nothing — a size with no row that the provider has at 0 gets none, so sizes the store does not sell stay off its Low Stock list; a different one is a `PROVIDER` movement to it, its reference the read's and the size's, so the same read run again is counted once; the size's returned extra goes back to 0; orderable and "last pieces" pushed to Catalog. A size switched off in the store, or of a draft product, takes it too. 500 sizes a transaction, under the store's lock, the wiring asked again in each: a store unwired while the read ran gets nothing from then on (`wired` false). **Not written, and named in the result** for Sync to report: an archived size or one of an archived product, a size not found, a number below 0 or above the most pieces a size holds (Sync drops fractions and keeps a number below 0 as 0 first, sync.md §1.5 #2), a second id written for the same size. `HoldsShort` is not sent: §6.1 names hand changes only. **Sync's part**: `readRef` is the read's own id (letters, digits, `-` and `_`, at most 64 — the ledger's reference holds 120), never reused; one read per store at a time, a retry asking the provider again (sync.md §1.3, §1.7) — an old read's numbers are never applied after a later read's. |
 | `ProviderStock::wired(StoreId): void` | Sync calls it once the store is wired (`StoreWiring` answers true; refused otherwise; sync.md §1.2): every size switched on or with a row is told to Catalog again for a wired store — an ordinary product orderable whatever its number (§1.3). Nothing is written. *(Added in step 2a's review: without it, a size the provider reports at the number it had, or never reports, kept the unwired figures.)* |
 | `ProviderStock::stopsWhenUnwired(StoreId): int` | How many sizes switched on in the store would stop being orderable once it is unwired — orderable now, nothing free with no provider: ordinary ones at 0 or all held, sizes never counted — for the Super Admin's confirmation (sync.md §1.8). Reads only. |
@@ -274,7 +275,8 @@ as given · `changes` (size, `before`, `after`, whole numbers — for Sync's pag
 | `SetEndingSoon` — on or off for a product | `inventory.stock.manage` | That store (no provider) |
 | `SetStockDependent` — on or off for the sizes picked: all of a product's, some, or one | `inventory.stock.manage` | That store (wired) |
 | The store's default threshold | Platform's settings screen, the setting's own permission | That store |
-| The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`) | `inventory.stock.manage` | That store |
+| The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`); with stage 5's screens step 4 the Stock list (`ListStock`), the holds before saving (`HoldsOnSizes`), Add Size's picker (`AddSizeChoices`) | `inventory.stock.manage` | That store |
+| A product's stock in every store (`ViewProductStock`), what the screens may offer (`InventoryActionsForReader`) | `inventory.stock.manage` | Each store the reader holds it in |
 | The store's file — Inventory's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
 | `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared · `CountLowStock` — a store's Low Stock count kept, or every store's (step 5) | System (reserved): `inventory.holds.expire`, `inventory.low_stock.count`, `inventory.orderable.rebuild` | — |
 
@@ -332,7 +334,8 @@ marking its rows, numbers and moments, the words and plurals, 15 queries a page.
   4. **Low** (amber) - available at or below the threshold.
 - **A wired store** (§1.5): the in-stock number is the provider's - never a box - with **From Provider** and
   when the provider last **changed** it (the size's last `PROVIDER` ledger line: a number sent again
-  unchanged writes none) (Q23); a size the provider never sent shows "Not sent by the provider yet".
+  unchanged writes none) (Q23); a size with no `PROVIDER` line shows "From Provider" with **no time** -
+  never "not sent": the provider may have sent the same number, or 0 for a size with no row (2026-10-19).
   Counting, Add or Remove and Last Pieces are not offered ("The provider sets this store's stock."); the
   threshold and **Counts on Stock** are. A `Note` at the top of each page: "This store's stock comes from its
   provider. Thresholds and which sizes count on stock are set here."
@@ -366,6 +369,56 @@ Presentation); controllers and `spatie/laravel-data` resources; pages under
 | `ViewProductStock` (new) | each of a product's sizes **in every store the reader manages stock in**, one read for the whole Stores tab |
 | `LowStock` (extended) | photo, size values, own-or-default threshold; paged 50 with the total; order: fewest available, then product name, then the size's place |
 | `InventoryActionsForReader` (new) | per store: manage stock, wired, off, `mayViewProducts`, the reasons |
+| `HoldsOnSizes` (new, step 4) | the holds said before saving (Q20): for each size asked, how many orders hold how many pieces, bought and gift apart - one query however many sizes |
+| `AddSizeChoices` (new, step 4) | Add Size's picker (Q24): every ready size not archived, less those listed here (switched on, or with a stock row) - `searchVariants(anyReady:, except:)` - 50 at a time with the total; a search also names up to 5 listed sizes it finds, for "Already listed". Refused in a wired store (`provider_owns_stock`) |
+
+**As built (stage 5's screens step 4, 2026-10-19).** Every read answers a size as Catalog's `searchVariants`
+finds it (names, photo, values in the page's language, code, archived, switched on) and **its figures**
+(`StockFiguresView`): in stock, held, available, a wired store's returned extra, the threshold that applies
+and the size's own (none: the default), the one badge (`SHORT` with how many, `OUT_OF_STOCK`, `ORDERABLE`,
+`LOW`, or none - `StockFigures::badge`), whether its stock limits ordering, a wired store's Counts on
+Stock, the provider's last change (wired only; none: no `PROVIDER` line - "From Provider" with no time)
+and how many orders hold it. Measured, warm (the feature tests): `ListStock` 7 queries, `ViewStock` 6,
+`StockHistory` 2 (and `StaffNames`' own read when a line names staff), `ViewProductStock` 4, `LowStock` 7,
+`AddSizeChoices` 6, `HoldsOnSizes` one of its own - each the same for one row as for many. **In a wired
+store**, the wiring asked as Sync asks it (a query a question), each page's whole server side: the Stock
+page (`ListStock` with `InventoryActionsForReader`) 9, the drawer 5, the Low Stock page (`LowStock` with
+`InventoryActionsForReader`) 8 - the review of step 4 cut the Low Stock reader's Catalog reads to one
+(`variantBriefs`, catalog.md amendment 23(h)) and the searches that know their total ask no count
+(`withTotal: false`).
+
+- **`ListStock`'s filters** are conditions, not badges: **Out of Stock** keeps a size also **Short**; **Low**
+  leaves archived sizes out, as the Low Stock list does; the others list them, marked. The figures come from
+  the one read of the store's rows the filter used.
+- **`LowStock`'s order**: Catalog orders by name only among the sizes it is given, and this order starts
+  with Inventory's own figure, so the list orders itself - each product's sizes in their order from one read
+  of Catalog (`variantIdsOfProducts`), names compared by ICU's collation for the page's language with
+  punctuation and spaces set aside, as PostgreSQL's does. Close to `searchVariants`' order, not promised
+  identical for names differing only in such marks. The list, its count and the Home card still share one
+  reader, which now reads the store's rows in one query.
+- **`StockHistory`'s who**: `STAFF` (named), `PROVIDER`, `FILE` (with the requester, named), `ORDER` (a
+  shipment's order from its reference, a return's from its return lines, found by the return id the
+  reference names) or `SYSTEM`; a Super Admin hidden as `StaffNames` says. **Paged by the ledger's id**,
+  newest first: the id rises with every line written, so it orders as the time does and breaks a tie of
+  one transaction's moment (accepted in the review of step 4).
+- **`ViewStock`** answers any size Catalog has, switched on or not, archived or not; an unknown size is
+  `invalid_inventory_input` naming it.
+- **`ViewProductStock`** is registered with Catalog's `ProductStoreSections` as `ProductStockSection`,
+  component `Inventory/ProductStock` (step 5 draws it - until then a card draws nothing for it), each card's
+  part carrying `inventory::admin_stock`'s words.
+- **The saves' answer** (the amber toast): `SetStock` and `AdjustStock` answer `StockSaved` - each size the
+  change left with in stock below what is held, how many orders hold it and by how many pieces. `HoldsShort`
+  is still sent only when the change took the size down (§6.1); a change that raised a short size but left
+  it short names it with no event.
+- **Add Size** (Q24) needs no new command: `SetStock` counts a size switched on whatever its product's
+  stage, and a size the store does not sell **only when its product is ready** (2026-10-19) - a draft's size
+  not switched on is refused, `invalid_inventory_input` naming its row; the stocktake makes its row, and the
+  Stock list lists it from then on. The store's file (§1.8) is not held to it.
+- **A batch refusal marks every bad row**: `SetStock` and `SetLowStockThreshold` name every count or
+  threshold out of bounds, and both rows of a size written twice with two values, in one refusal. A count
+  that finds the number right on a size already short names it in `StockSaved` too, with no event.
+- **`ViewProductStock`'s defaults** are read once for all its stores, from Platform's one snapshot of its
+  settings - no query a store.
 
 #### I1 · Stock - `/admin/stock?store=&q=&filter=&size=`
 
@@ -486,7 +539,16 @@ Every error extends `InventoryError` → `DomainError` ("inventory.*"), with bot
 | `StoreOff` | FORBIDDEN | changing an off store's stock without the store switch |
 | `NoHold` | NOT_FOUND | editing or returning for an order with no hold |
 | `HoldNotEditable` | CONFLICT | editing a hold whose line is already shipped or ticked |
-| `InvalidInventoryInput` | INVALID | a store, a size or a product that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or product (owner, 2026-10-11); one size given twice with two numbers; a direction that is not add or remove; a reason a hand change does not take, or one going the other way (owner, 2026-10-11); a note over 500 characters — named by its field (`store`, `variant`, `product`, `order`, `direction`, `reason`, `note`), as Catalog's invalid attribute is |
+| `InvalidInventoryInput` | INVALID | a store, a size or a product that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or product (owner, 2026-10-11); one size given twice with two numbers; a direction that is not add or remove; a reason a hand change does not take, or one going the other way (owner, 2026-10-11); a note over 500 characters; a screen's filter that is not one — named by its field (`store`, `variant`, `product`, `order`, `direction`, `reason`, `note`, `filter`), as Catalog's invalid attribute is |
+
+**The sizes a refusal names (Q2; stage 5's screens step 4).** From a screen's command, `quantity_invalid`,
+`threshold_invalid`, `stock_below_zero` and `invalid_inventory_input` about a size carry `variants` - the
+sizes as the caller named them, comma-separated - so `App\Http\FormErrors` marks those rows. Their words name
+the box (§4.3.1): `quantity_invalid` with the rule `count` - "Count must be a whole number from 0 to
+2,147,483,647." - `quantity` - "Quantity must be 1 or more." - or `too_many`; `stock_below_zero` from a
+removal by hand, the rule `removal` with `in_stock` - "Quantity can't be more than 4, what's in stock.";
+`threshold_invalid` - "Threshold must be from 0 to 100,000." Refusals from `InventoryApi` carry neither:
+their one detail stands.
 
 ---
 

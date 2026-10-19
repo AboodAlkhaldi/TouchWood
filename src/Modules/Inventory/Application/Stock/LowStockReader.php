@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Inventory\Application\Stock;
 
 use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Domain\Repository\StockRows;
@@ -54,13 +54,22 @@ final readonly class LowStockReader
      */
     public function low(StoreId $store): array
     {
+        return $this->read($store)->sizes;
+    }
+
+    /**
+     * The low sizes with what decided them and their products (the Low Stock list's names and order,
+     * stage 5's screens step 4). The store's rows in one query, every size switched on in another.
+     */
+    public function read(StoreId $store): LowRead
+    {
+        $rows = $this->stock->ofStore($store);
         $variantIds = array_values(array_unique([
             ...$this->catalog->switchedOnVariantIds($store),
-            ...$this->stock->variantIds($store),
+            ...array_map('strval', array_keys($rows)),
         ]));
         $wired = $this->wiring->isWired($store);
         $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store)->value;
-        $rows = $this->stock->read($store, $variantIds);
         $low = [];
 
         foreach ($variantIds as $variantId) {
@@ -69,37 +78,37 @@ final readonly class LowStockReader
             $threshold = $row->threshold ?? $default;
 
             if ($free <= $threshold) {
-                $low[] = new LowSize($variantId, $row?->productId, $row->inStock ?? 0, $row->held ?? 0, $free, $threshold);
+                $low[] = new LowSize($variantId, $row?->productId, $row->inStock ?? 0, $row->held ?? 0, $free, $threshold, $row);
             }
         }
 
         usort($low, static fn (LowSize $a, LowSize $b): int => [$a->free, $a->variantId] <=> [$b->free, $b->variantId]);
+        [$kept, $briefs] = $this->withoutArchived($low);
 
-        return $this->withoutArchived($low);
+        return new LowRead($kept, $briefs, $wired, $default);
     }
 
     /**
      * An archived size - or a size of an archived product - is left off: staff cannot change its stock
      * until it is restored, and then it is back if it is low (owner, 2026-10-13). A size Catalog no
-     * longer has is left off too. Two reads of Catalog, over the low sizes only.
+     * longer has is left off too. One read of Catalog, over the low sizes only - the sizes in brief
+     * (amendment 23(h)), which also name them for the list's order.
      *
      * @param  list<LowSize>  $low
-     * @return list<LowSize>
+     * @return array{list<LowSize>, array<string, VariantBriefDto>} the sizes kept, and each in brief
      */
     private function withoutArchived(array $low): array
     {
         if ($low === []) {
-            return [];
+            return [[], []];
         }
 
-        $variants = $this->catalog->variants(array_map(static fn (LowSize $size): string => $size->variantId, $low));
-        $products = $this->catalog->products(array_values(array_unique(array_map(static fn (VariantDto $variant): string => $variant->productId, array_values($variants)))));
+        $briefs = $this->catalog->variantBriefs(array_map(static fn (LowSize $size): string => $size->variantId, $low));
 
-        return array_values(array_filter($low, static function (LowSize $size) use ($variants, $products): bool {
-            $variant = $variants[$size->variantId] ?? null;
-            $product = $variant === null ? null : ($products[$variant->productId] ?? null);
+        return [array_values(array_filter($low, static function (LowSize $size) use ($briefs): bool {
+            $brief = $briefs[$size->variantId] ?? null;
 
-            return $variant !== null && ! $variant->isArchived && $product !== null && $product->stage !== ProductStage::Archived;
-        }));
+            return $brief !== null && ! $brief->isArchived && $brief->productStage !== ProductStage::Archived;
+        })), $briefs];
     }
 }

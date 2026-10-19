@@ -10,6 +10,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\ValueObject\Hold;
 use Modules\Inventory\Domain\ValueObject\HoldLine;
+use Modules\Inventory\Domain\ValueObject\HoldSummary;
 use Shared\Domain\ValueObject\StoreId;
 use stdClass;
 
@@ -118,6 +119,37 @@ final readonly class DatabaseHolds implements Holds
             ->orderBy('h.order_id')
             ->pluck('h.order_id')
             ->all()));
+    }
+
+    public function summaries(array $stores, array $variantIds): array
+    {
+        $storeIds = IdArray::valid(array_map(static fn (StoreId $store): string => $store->value, $stores));
+        $ids = IdArray::valid($variantIds);
+
+        if ($storeIds === [] || $ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // Each open line that counts on stock holds what HoldLine::held() says: all of it in a hold
+        // placed wired, until its tick; otherwise what is not shipped yet.
+        foreach ($this->db->select(<<<'SQL'
+            SELECT h.store_id, l.variant_id,
+                count(DISTINCT h.order_id) AS orders,
+                coalesce(sum(CASE WHEN h.wired THEN l.quantity ELSE l.quantity - l.shipped END) FILTER (WHERE NOT l.gift), 0) AS bought,
+                coalesce(sum(CASE WHEN h.wired THEN l.quantity ELSE l.quantity - l.shipped END) FILTER (WHERE l.gift), 0) AS gift
+            FROM inventory.holds h
+            JOIN inventory.hold_lines l ON l.hold_id = h.id
+            WHERE h.store_id = ANY(?::text[]) AND l.variant_id = ANY(?::text[])
+                AND l.counts_on_stock AND l.ended = 'OPEN'
+                AND (h.wired OR l.quantity > l.shipped)
+            GROUP BY h.store_id, l.variant_id
+            SQL, [IdArray::of($storeIds), IdArray::of($ids)]) as $row) {
+            $found[(string) $row->store_id][(string) $row->variant_id] = new HoldSummary((int) $row->orders, (int) $row->bought, (int) $row->gift);
+        }
+
+        return $found;
     }
 
     public function returnCounted(string $returnId, string $variantId, bool $gift): bool

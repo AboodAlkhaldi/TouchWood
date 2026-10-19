@@ -7,6 +7,7 @@ namespace Modules\Inventory\Domain\Repository;
 use DateTimeImmutable;
 use Modules\Inventory\Domain\ValueObject\Hold;
 use Modules\Inventory\Domain\ValueObject\HoldLine;
+use Modules\Inventory\Domain\ValueObject\HoldSummary;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -42,6 +43,17 @@ interface Holds
      * @return list<string> every order with an open line on the size there that counts on stock
      */
     public function ordersHolding(StoreId $store, string $variantId): array;
+
+    /**
+     * **What orders hold of each size in each store** (§4.3.3, Q20, Q21): how many orders, how many
+     * pieces bought and given, as the size's `held` counts them - in one query. A size nothing holds
+     * is left out.
+     *
+     * @param  list<StoreId>  $stores
+     * @param  list<string>  $variantIds
+     * @return array<string, array<string, HoldSummary>> store id => variant id => its summary
+     */
+    public function summaries(array $stores, array $variantIds): array;
 
     /** Whether this return's line was counted already. */
     public function returnCounted(string $returnId, string $variantId, bool $gift): bool;

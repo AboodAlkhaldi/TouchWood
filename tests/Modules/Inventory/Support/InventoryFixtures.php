@@ -34,11 +34,24 @@ final class InventoryFixtures
      */
     public static function wired(): void
     {
-        app()->instance(StoreWiring::class, new class implements StoreWiring
+        // Read once here, so a read's queries counted later are its own.
+        $stores = array_values(array_map('strval', DB::table('platform.stores')->pluck('id')->all()));
+
+        app()->instance(StoreWiring::class, new readonly class($stores) implements StoreWiring
         {
+            /**
+             * @param  list<string>  $stores
+             */
+            public function __construct(private array $stores) {}
+
             public function isWired(StoreId $store): bool
             {
                 return true;
+            }
+
+            public function wiredStores(): array
+            {
+                return $this->stores;
             }
         });
     }

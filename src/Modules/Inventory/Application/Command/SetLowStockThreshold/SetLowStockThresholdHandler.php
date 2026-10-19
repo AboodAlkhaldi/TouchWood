@@ -41,26 +41,41 @@ final readonly class SetLowStockThresholdHandler
     {
         $store = $this->change->authorize(self::PERMISSION, $command->storeId);
         $storeId = $store->storeId();
+        // Every threshold out of bounds named at once, so the screen marks each of their rows (Q2).
+        $outOfBounds = array_keys(array_filter($command->thresholds, static fn (?int $threshold): bool => $threshold !== null && ($threshold < 0 || $threshold > StockLimits::THRESHOLD_MOST)));
+
+        if ($outOfBounds !== []) {
+            throw new ThresholdInvalid(array_map('strval', $outOfBounds));
+        }
+
         $own = $this->sizes->check(array_map('strval', array_keys($command->thresholds)));
 
         /** @var array<string, int|null> $thresholds */
         $thresholds = [];
         /** @var array<string, string> $products */
         $products = [];
+        /** @var array<string, string> $first */
+        $first = [];
+        $twice = [];
 
         foreach ($command->thresholds as $given => $threshold) {
             [$variantId, $productId] = $own[(string) $given];
 
-            if ($threshold !== null && ($threshold < 0 || $threshold > StockLimits::THRESHOLD_MOST)) {
-                throw new ThresholdInvalid;
-            }
-
+            // One size written two ways with two thresholds: both rows named.
             if (array_key_exists($variantId, $thresholds) && $thresholds[$variantId] !== $threshold) {
-                throw new InvalidInventoryInput('variant');
+                $twice[$first[$variantId]] = true;
+                $twice[(string) $given] = true;
+
+                continue;
             }
 
             $thresholds[$variantId] = $threshold;
             $products[$variantId] = $productId;
+            $first[$variantId] ??= (string) $given;
+        }
+
+        if ($twice !== []) {
+            throw new InvalidInventoryInput('variant', array_map('strval', array_keys($twice)));
         }
 
         if ($thresholds === []) {

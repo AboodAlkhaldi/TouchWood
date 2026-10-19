@@ -151,6 +151,11 @@ final readonly class CatalogApiImpl implements CatalogApi
         return $this->reads->variants($variantIds);
     }
 
+    public function variantBriefs(array $variantIds): array
+    {
+        return $this->reads->variantBriefs($variantIds);
+    }
+
     public function products(array $productIds): array
     {
         return $this->reads->products($productIds);
@@ -219,9 +224,9 @@ final readonly class CatalogApiImpl implements CatalogApi
         );
     }
 
-    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false): FoundVariantsDto
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false, bool $withTotal = true): FoundVariantsDto
     {
-        return $this->searches->variants($store->value, self::text($text), $only, $except, $soldWholesale, $anyReady, $after, $limit, $this->locale(), $notArchived);
+        return $this->searches->variants($store->value, self::text($text), $only, $except, $soldWholesale, $anyReady, $after, $limit, $this->locale(), $notArchived, $withTotal);
     }
 
     public function searchProducts(StoreId $store, ?string $text, bool $readySwitchedOn, ?array $only = null, ?string $after = null, int $limit = 50): FoundProductsDto
