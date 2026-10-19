@@ -59,8 +59,9 @@ function feedbackOffered(string $name, RoleLevel $level): ?EditorPermission
     return null;
 }
 
-it('declares the seven permissions of the spec', function () {
+it('declares the eight permissions of the spec', function () {
     expect(feedbackDeclaredPermissions())->toBe([
+        'feedback.own.view',
         'feedback.question.answer',
         'feedback.question.ask',
         'feedback.review.moderate',
@@ -71,7 +72,7 @@ it('declares the seven permissions of the spec', function () {
     ]);
 });
 
-it('gives every customer reviewing, asking and a wishlist, store-free, outside the role editor', function (string $name) {
+it('gives every customer reviewing, asking, a wishlist and their own, store-free, outside the role editor', function (string $name) {
     $permission = app(InMemoryPermissionCatalog::class)->definition($name);
 
     expect($permission?->audience)->toBe(PermissionAudience::EveryCustomer)
@@ -81,7 +82,7 @@ it('gives every customer reviewing, asking and a wishlist, store-free, outside t
     Fx::actAsCustomer(Fx::customer());
 
     expect(Fx::allows($name, PermissionScope::global()))->toBeTrue();
-})->with(['feedback.review.write', 'feedback.question.ask', 'feedback.wishlist.manage']);
+})->with(['feedback.review.write', 'feedback.question.ask', 'feedback.wishlist.manage', 'feedback.own.view']);
 
 it('makes the staff jobs per store, in their areas, open to a staff role, in the role\'s own store', function (string $name, PermissionGroup $group) {
     $permission = app(InMemoryPermissionCatalog::class)->definition($name);

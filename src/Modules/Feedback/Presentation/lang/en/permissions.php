@@ -17,6 +17,9 @@ return [
         'manage' => 'Keep my wishlist',
         'view' => 'View customers\' wishlists and favourited products',
     ],
+    'own' => [
+        'view' => 'View my reviews, questions and wishlist',
+    ],
     'settings' => [
         'update' => 'Switch ratings in the store\'s product lists',
     ],

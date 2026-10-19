@@ -12,7 +12,7 @@ Backend only in this stage's build; the screens are another session's.
 | Step | What | Where |
 |---|---|---|
 | F0 — Sales's contract | `SalesApi` (`deliveredPurchase`, `returnedProducts`) and `ReturnCompleted`, declared in Sales before Sales is built, answered by a placeholder that knows no purchase | `src/Modules/Sales/Public`, sales.md §2.1 |
-| F1 — foundation | The `feedback` schema; the seven permissions of spec §3 (every customer's three; reviews and questions under Access's new **Support** group, access.md amendment 73; wishlists under Customers; the admin-only ratings switch); Platform's `support` menu area (platform.md §9.4); the store setting `feedback.ratings.in_lists` (on by default); the errors of §7 in both languages | below |
+| F1 — foundation | The `feedback` schema; the eight permissions of spec §3 (every customer's four; reviews and questions under Access's new **Support** group, access.md amendment 73; wishlists under Customers; the admin-only ratings switch); Platform's `support` menu area (platform.md §9.4); the store setting `feedback.ratings.in_lists` (on by default); the errors of §7 in both languages | below |
 
 ## What is here
 
@@ -26,4 +26,4 @@ Backend only in this stage's build; the screens are another session's.
 - **`Presentation/lang/{en,ar}`** — the permissions' names, the setting's name, the errors' words.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
-`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`.
+`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`.

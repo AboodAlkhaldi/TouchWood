@@ -10,10 +10,10 @@ use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 
 /**
- * Feedback's permissions (feedback.md §3): every customer writes reviews, asks questions and keeps a
- * wishlist; staff moderate reviews and answer questions under Support (owner, 2026-10-18), and see
- * wishlists under Customers ("Customers › Favourited products", handoff §14); only an admin switches
- * ratings in a store's lists.
+ * Feedback's permissions (feedback.md §3): every customer writes reviews, asks questions, keeps a
+ * wishlist and reads their own; staff moderate reviews and answer questions under Support (owner,
+ * 2026-10-18), and see wishlists under Customers ("Customers › Favourited products", handoff §14); only
+ * an admin switches ratings in a store's lists.
  */
 final class FeedbackPermissions
 {
@@ -25,6 +25,9 @@ final class FeedbackPermissions
 
     /** Save a product to my wishlist, remove it. */
     public const string WISHLIST_MANAGE = 'feedback.wishlist.manage';
+
+    /** My reviews, my questions (with answers and reasons), my wishlist. */
+    public const string OWN_VIEW = 'feedback.own.view';
 
     /** Approve, reject or unpublish the reviews written in a store. */
     public const string REVIEW_MODERATE = 'feedback.review.moderate';
@@ -49,6 +52,7 @@ final class FeedbackPermissions
             $customer(self::REVIEW_WRITE),
             $customer(self::QUESTION_ASK),
             $customer(self::WISHLIST_MANAGE),
+            $customer(self::OWN_VIEW),
             new PermissionDefinitionDto(self::REVIEW_MODERATE, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Support),
             new PermissionDefinitionDto(self::QUESTION_ANSWER, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Support),
             new PermissionDefinitionDto(self::WISHLIST_VIEW, PermissionAudience::Role, kind: PermissionKind::PerStore, group: PermissionGroup::Customers),

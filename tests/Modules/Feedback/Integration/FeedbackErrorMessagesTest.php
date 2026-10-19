@@ -92,7 +92,7 @@ it('names a refused value as a word, never as its key', function () {
     expect(FormErrors::message(new InvalidFeedbackAttribute('body', 'too long')))->toBe('The text isn\'t valid. Check it and try again.');
 
     App::setLocale('ar');
-    expect(FormErrors::message(new InvalidFeedbackAttribute('rating', 'above 5')))->toBe('قيمة التقييم غير صالحة. تحقّق منها وحاول مجددًا.');
+    expect(FormErrors::message(new InvalidFeedbackAttribute('rating', 'above 5')))->toBe('قيمة عدد النجوم غير صالحة. تحقّق منها وحاول مجددًا.');
 });
 
 it('has a word in both languages for every value a refusal can name', function (string $field) {
