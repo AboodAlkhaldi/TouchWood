@@ -187,8 +187,10 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
 - **Marking shipped**: the carrier, and a tracking number when there is one (free text until stage 7;
   the number optional — my assumption, stated for the owner to reject);
   `InventoryApi::ship` takes the stock off (in a store with no provider; a wired store's provider is the
-  source); refused (`NotShippable`) if the order is flagged "not enough stock" (§1.11), or holds less
-  than is due without "may ship unpaid".
+  source); refused (`NotShippable`) only if it holds less than is due without "may ship unpaid" —
+  **an order flagged "stock was reduced" ships** (answer 36), and in a store with no provider a
+  shipment larger than the counted stock takes it to 0 and records the shortfall for a recount, never
+  refused (answer 41; Inventory's `ship`, stage 5).
 - **"Reduced in the provider"**, in a wired store: per variant, for stock-dependent variants and for
   the gift, staff tick once they have reduced its stock in the provider (handoff §12.3) —
   `InventoryApi::reducedInProvider`, which ends that variant's hold lines.
@@ -204,7 +206,7 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   damaged one may be left out). `InventoryApi::release` first frees what the order still holds (a wired
   store's lines not yet ticked); then `InventoryApi::returned(orderId, cameBackId, lines)` gets only the
   pieces put back **whose stock was taken** — every piece in a store with no provider, the ticked ones in
-  a wired store — so nothing is counted back twice (inventory.md §2.1, the came-back callers in PR #109 [PROPOSED]). It is settled **as a whole return of an order
+  a wired store — so nothing is counted back twice (inventory.md §2.1, the came-back callers, PR #109 merged). It is settled **as a whole return of an order
   never delivered**: what is due becomes 0, so everything paid, shipping included, is a refund due,
   settled by hand (§1.9); `LoyaltyApi::orderCancelled` gives the points used back (nothing was earned);
   the coupon's use stays counted (promotions.md §2.1). The order is `UNDELIVERED`; the customer sees
@@ -445,7 +447,7 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 | From | What | State |
 |---|---|---|
 | Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order on `main` (#107, `89c07e9`) |
-| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); **`release` and `returned` for a parcel that came back in PR #109** [PROPOSED] |
+| Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); `release` and `returned` for a parcel that came back on `main` (#109, `906fca62`) |
 | Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read are Catalog additions** — to agree with the Catalog-screens session, who own §1.13 |
@@ -459,8 +461,9 @@ modules export no error classes); Sales catches them by key, following the `{mod
 convention (e.g. `catalog.attribute_kind_locked`): `promotions.coupon_refused`,
 `promotions.coupon_changed`, `loyalty.redemption_changed`, `loyalty.redemption_refused`,
 `loyalty.points_programme_off`, `inventory.not_enough_stock`, `inventory.hold_not_editable`,
-`inventory.no_hold`, `pricing.duplicate_lines`. Inferred from that convention; each module's build
-confirms its keys.
+`inventory.no_hold`, `pricing.duplicate_lines`; and, confirmed against the modules' code before the
+build, `inventory.stock_below_zero` (until answer 41's change), `inventory.ship_more_than_held`,
+`inventory.already_held`, `inventory.quantity_invalid`, `loyalty.order_not_settleable`.
 
 ### 2.4 What Sales defines for stage 7 to fill
 
@@ -534,8 +537,9 @@ ORDER      PENDING_APPROVAL ─▶ APPROVED ─▶ COMPLETED            (deliver
            PENDING_APPROVAL | APPROVED ─▶ CANCELLED              (not shipped)
 
 SHIPMENT   NOT_SHIPPED ─▶ SHIPPED ─▶ DELIVERED | CAME_BACK        (one per order; shipped only
-                                                                   APPROVED, not flagged short,
-                                                                   held ≥ due or "may ship unpaid")
+                                                                   APPROVED, held ≥ due or
+                                                                   "may ship unpaid" — a flag of
+                                                                   reduced stock never blocks it)
 
 PAYMENT    derived: NOTHING_DUE · UNPAID · PARTLY_PAID · PAID · REFUND_DUE · REFUNDED
 
@@ -772,6 +776,22 @@ refusing anything but one void.
     refund voided first); the outbox relay runs every minute, backing off to at most an hour, never
     dropping a message, logged after 10 tries; the stage 7 interfaces declared as §2.4 states, their
     unstated types marked provisional for stage 7.
+
+**2026-10-19, after the build plan** (the owner, before step S1):
+
+41. **Shipping after stock was reduced**, in a store with no provider: the shipment goes through; the
+    stock stops at 0, never below, and the shortfall is recorded for a recount (answer 36: reduced
+    stock only marks, never blocks). Inventory's `ship` changes accordingly — built by stage 5.
+42. **Voiding a payment record** (answer 40, refunds being recorded per order, not per payment):
+    allowed while what was paid without it still covers what was refunded; refused otherwise
+    (`InvalidOrderChange`).
+43. **The outbox lives in `Shared/Infrastructure`** as platform.md §5.6 decided; the ~20-class ceiling
+    of Shared gets a recorded exception for it, as for the versioned cache.
+44. **Three columns added** (§5): `quotes.use_points` (whether points were asked for — Loyalty reads
+    none as "as many as allowed"), `orders.return_deadline_at` (fixed at delivery, answer 34), and an
+    order line's English name falls back to the Arabic one. **A customer without a phone never
+    orders** — `customerMayOrder` asks for a verified phone (handoff §7.4) — so `orders.customer_phone`
+    stays required.
 
 ### 9.2 Still open
 
