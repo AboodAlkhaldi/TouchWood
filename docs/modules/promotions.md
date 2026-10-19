@@ -448,8 +448,10 @@ reason is written under the item instead).
 
 **The reads the screens add** to step 6's (§3): `PromotionsActionsForReader` (which buttons, per
 store), `SearchSegmentCandidates` (the backend session's, §9.2 #6, on Access's `customerIdsMatching`),
-and for the coupon rules' pickers **brands and categories to choose from** — Catalog's public surface
-reads them only by id today **[Q4]**. `ViewMyCoupons` needs nothing new.
+and for the coupon rules' pickers **brands and categories to choose from**: categories from Catalog's
+existing `activeCategories()` (amendment 23(f), each with its path), brands from a new
+`CatalogApi::activeBrands()` — every switched-on brand in Catalog's order, one query (**catalog.md
+amendment 28**, built with these screens) **[Q4]**. `ViewMyCoupons` needs nothing new.
 
 #### M1 · Marketing › Coupons — `/admin/coupons?store=&state=&code=`
 
@@ -849,8 +851,7 @@ for a reader without that job.
 | Q17 | Menu entries and their order | (a) **Coupons, Segments, Gift Levels — in that order, under Marketing**, gift levels there as §1.7 already assumes. (b) Gift levels elsewhere |
 | Q18 | A deleted customer on Uses, Customers and Members | (a) **"Deleted customer", no other detail** — as Loyalty's screens. (b) Leave such rows out |
 
-**What the screens need from other modules** (in the answers' terms, if (a) is taken): Catalog
-`categoryTree` and `brandsList` (Q4, a Catalog amendment — the next free number, agreed with the
-other sessions first); Promotions `SearchSegmentCandidates` (the backend session's, on Access's
+**What the screens need from other modules**: Catalog's `activeCategories()` (exists) and a new
+`activeBrands()` (Q4, catalog.md amendment 28); Promotions `SearchSegmentCandidates` (the backend session's, on Access's
 `customerIdsMatching`, which ships with Loyalty's screens, PR #168) and `PromotionsActionsForReader`;
 Platform's menu icons `coupons`, `segments`, `gifts`.
