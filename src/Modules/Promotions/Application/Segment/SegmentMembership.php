@@ -72,6 +72,25 @@ final readonly class SegmentMembership
     {
         $customerIds = array_values(array_unique($customerIds));
         sort($customerIds);
+        $kept = $this->eligible($segment, $customerIds);
+
+        foreach (array_diff($customerIds, $kept) as $customerId) {
+            throw new InvalidPromotionAttribute('members', "{$customerId} cannot be in this segment");
+        }
+
+        return $kept;
+    }
+
+    /**
+     * Of these customers, those who may be picked for the segment (§1.5) — of its audience, not
+     * anonymized, registered in its store or who ordered in it — in the order given; the hand-picker's
+     * search keeps these (`SearchSegmentCandidates`), and a save refuses any other (`picked`).
+     *
+     * @param  list<string>  $customerIds  lower-case ids
+     * @return list<string>
+     */
+    public function eligible(Segment $segment, array $customerIds): array
+    {
         $type = AccountType::from($segment->audience->value);
         $kept = [];
 
@@ -82,12 +101,10 @@ final readonly class SegmentMembership
             foreach ($chunk as $customerId) {
                 $customer = $found[$customerId] ?? null;
 
-                if ($customer === null || $customer->anonymized || $customer->accountType !== $type
-                    || ($customer->homeStoreId !== $segment->storeId && ! isset($ordered[$customerId]))) {
-                    throw new InvalidPromotionAttribute('members', "{$customerId} cannot be in this segment");
+                if ($customer !== null && ! $customer->anonymized && $customer->accountType === $type
+                    && ($customer->homeStoreId === $segment->storeId || isset($ordered[$customerId]))) {
+                    $kept[] = $customerId;
                 }
-
-                $kept[] = $customerId;
             }
         }
 

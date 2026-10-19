@@ -11,7 +11,7 @@ under `pricing.ceiling.manage`): Promotions reads it and declares no setting of 
 
 ## Built
 
-The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**; one item waits on another session (spec §9.2 #6):
+The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**:
 
 | Step | What | Where |
 |---|---|---|
@@ -110,6 +110,9 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
   coupon came from, so deleting a segment releases it; and assigning writes the stored members, so one
   anonymized since the last refresh is assigned too (harmless: an anonymized account cannot order).
   `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000.
+  **The hand-picker's search** (`Query/SearchSegmentCandidates`, `promotions.segment.manage`): Access's
+  `customerIdsMatching` (amendment 72(b)) kept by `SegmentMembership::eligible` — the same rule a save
+  enforces — names only, at most 50, members marked.
 - **Gift levels** (`Application/Command/{Create,Change,Switch}GiftLevel`, under
   `promotions.gift.manage`, through `MarketingChange` — `giftLevelStore` answers a level of a store
   not covered as `GiftLevelNotFound` — audited `promotions.gift_level.created`, `…updated` with only

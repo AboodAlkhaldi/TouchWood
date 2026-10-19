@@ -39,6 +39,14 @@ interface Segments
     public function memberIds(string $segmentId): array;
 
     /**
+     * Which of these customers are the segment's members (the hand-picker's marks).
+     *
+     * @param  list<string>  $customerIds
+     * @return list<string>
+     */
+    public function membersAmong(string $segmentId, array $customerIds): array;
+
+    /**
      * The members made exactly these: those gone removed, those new added now, those staying keep
      * when they were added.
      *
