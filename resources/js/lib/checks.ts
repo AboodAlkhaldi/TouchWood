@@ -47,6 +47,11 @@ export type Rules = {
     keepSpaces?: boolean;
     /** A module's own shape - an address's letters, a colour code - and its sentence's key, taking :field. */
     format?: { pattern: RegExp; key: string };
+    /**
+     * A rule its form works out beyond the value's shape - a moment that is not in the past, an end
+     * after its start (lib/moments.ts) - answering the key of its sentence, taking :field, or null.
+     */
+    own?: (text: string) => string | null;
 };
 
 /** What is wrong: a rule of `ui.check` (or the module's own key) and the figures its sentence names. */
@@ -111,7 +116,10 @@ export function problemOf(value: string, rules: Rules): Problem | null {
         return { rule: 'format', values: {}, key: rules.format.key };
     }
 
-    return null;
+    // Said as a module's own format is: its own sentence, by its key.
+    const own = rules.own?.(text) ?? null;
+
+    return own === null ? null : { rule: 'format', values: {}, key: own };
 }
 
 function numberProblem(text: string, rule: NonNullable<Rules['number']>): Problem | null {

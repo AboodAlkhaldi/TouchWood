@@ -31,6 +31,25 @@ return [
     'show_password' => 'Show password',
     'to_confirm' => 'To confirm, type ":phrase"',
     'to_confirm_named' => 'To confirm, type the :label ":phrase"',
+    // A side panel's own close button (shadcn's Sheet draws an English one; ours is given words).
+    'close' => 'Close',
+    // A box typed with a value other than the one saved (pricing.md §4.3.1, "Rows that hold boxes").
+    'changed' => 'Changed',
+    // Leaving a page with changed boxes asks first (§4.3.1); the page says what would be lost.
+    'leave' => [
+        'title' => 'Leave Without Saving',
+        'confirm' => 'Leave Page',
+        'stay' => 'Stay',
+    ],
+    // A moment typed in the store's clock (pricing.md §4.3.1 "Moments", Q4; components/DateTimeField).
+    'moment' => [
+        'now' => 'Now',
+        'no_end' => 'No End',
+        'date' => 'Date',
+        'time' => 'Time',
+        'pick_date' => 'Pick a Date',
+        'passed' => 'Starts when saved if this time has passed.',
+    ],
     // What a box says is wrong as it is typed (frontend.md §1.7; resources/js/lib/checks.ts), in
     // Geist's "Validation" form: the box, then its rule, a period. :field is the box's label.
     'check' => [
@@ -51,5 +70,10 @@ return [
         'max_length_one' => ':field is at most one character.',
         'email' => ':field takes an address like name@example.com.',
         'phone' => ':field takes a number with its country code, starting with + or 00.',
+        // A moment's own rules (resources/js/lib/moments.ts).
+        'date' => ':field needs a date.',
+        'time' => ':field takes a time like 14:30.',
+        'not_past' => ':field must be now or later.',
+        'after_start' => ':field must be after the start.',
     ],
 ];

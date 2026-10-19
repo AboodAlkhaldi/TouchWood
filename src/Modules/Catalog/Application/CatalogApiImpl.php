@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application;
 
+use Illuminate\Contracts\Foundation\Application;
 use Modules\Catalog\Application\Api\ApiReads;
+use Modules\Catalog\Application\Api\ApiSearches;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -15,11 +17,14 @@ use Modules\Catalog\Domain\ValueObject\ProductCode;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\CategoryDto;
+use Modules\Catalog\Public\Dto\FoundProductsDto;
+use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Shared\Domain\Text\LatinDigits;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -34,6 +39,8 @@ final readonly class CatalogApiImpl implements CatalogApi
         private CategoryRepository $categories,
         private BrandRepository $brands,
         private ApiReads $reads,
+        private ApiSearches $searches,
+        private Application $app,
     ) {}
 
     public function variant(string $variantId): ?VariantDto
@@ -200,6 +207,31 @@ final readonly class CatalogApiImpl implements CatalogApi
         );
     }
 
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50): FoundVariantsDto
+    {
+        return $this->searches->variants($store->value, self::text($text), $only, $except, $soldWholesale, $anyReady, $after, $limit, $this->locale());
+    }
+
+    public function searchProducts(StoreId $store, ?string $text, bool $readySwitchedOn, ?array $only = null, ?string $after = null, int $limit = 50): FoundProductsDto
+    {
+        return $this->searches->products($store->value, self::text($text), $readySwitchedOn, $only, $after, $limit, $this->locale());
+    }
+
+    public function categoriesWithPaths(array $ids): array
+    {
+        return $this->searches->categoriesWithPaths($ids);
+    }
+
+    public function productsInCategory(string $categoryId, ?string $text, ?string $after = null, int $limit = 50): FoundProductsDto
+    {
+        return $this->searches->productsInCategory($categoryId, self::text($text), $after, $limit, $this->locale());
+    }
+
+    public function wholesaleOf(StoreId $store, array $variantIds): array
+    {
+        return $this->searches->wholesaleOf($store->value, $variantIds);
+    }
+
     public function resolveVariant(string $productId, array $valueIds): ?string
     {
         // A product with no variant attributes has one variant, made of no values: nothing picked names it.
@@ -216,5 +248,26 @@ final readonly class CatalogApiImpl implements CatalogApi
         }
 
         return null;
+    }
+
+    /**
+     * A search as the products list reads one (ListProductsHandler): bytes that are not text dropped,
+     * Arabic-Indic digits as Latin, the ends trimmed; nothing left is no search.
+     */
+    private static function text(?string $text): ?string
+    {
+        $text = $text === null ? '' : trim(LatinDigits::of(mb_scrub($text, 'UTF-8')));
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * The page's language, which a store-wide list is ordered in (amendment 23): Arabic unless English.
+     *
+     * @return 'ar'|'en'
+     */
+    private function locale(): string
+    {
+        return $this->app->getLocale() === 'en' ? 'en' : 'ar';
     }
 }

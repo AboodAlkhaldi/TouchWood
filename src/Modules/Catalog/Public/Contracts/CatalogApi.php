@@ -6,10 +6,14 @@ namespace Modules\Catalog\Public\Contracts;
 
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\CategoryDto;
+use Modules\Catalog\Public\Dto\CategoryPathDto;
+use Modules\Catalog\Public\Dto\FoundProductsDto;
+use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
+use Modules\Catalog\Public\Dto\WholesaleTermsDto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -137,4 +141,57 @@ interface CatalogApi
      * @param  list<string>  $valueIds
      */
     public function resolveVariant(string $productId, array $valueIds): ?string;
+
+    /**
+     * **A store's sizes for a store-wide list** (amendment 23(a); pricing.md §4.3.3, inventory.md §4.3):
+     * the variants switched on in the store - with `anyReady`, every ready product's variants not
+     * archived; with `only`, **exactly the variants named**, whatever their state (a size priced or
+     * stocked there though switched off) - less those in `except`; with `soldWholesale`, only those the
+     * store sells wholesale. Found as the products list finds: a name in either language, or a size's
+     * code. **Ordered by product name in the page's language, then the size's place**, keyset-paged by
+     * `after` (the `next` of the page before; one that is not one starts at the top), `limit` from 1 to
+     * 100, with the total. So a filter owned by the module asking - its sizes, as `only` or `except` -
+     * pages by Catalog's order. A fixed two queries however many sizes or ids.
+     *
+     * @param  list<string>|null  $only
+     * @param  list<string>|null  $except
+     */
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50): FoundVariantsDto;
+
+    /**
+     * **Products for a picker** (amendment 23(b)): with `readySwitchedOn`, the store's ready products
+     * with a size switched on there (pricing.md Q13); with `only`, among the products named (P2's "the
+     * products with sales here"); with neither, every product. Found by a name in either language or a
+     * code, by name in the page's language, keyset-paged with the total, as `searchVariants`. A fixed two
+     * queries.
+     *
+     * @param  list<string>|null  $only
+     */
+    public function searchProducts(StoreId $store, ?string $text, bool $readySwitchedOn, ?array $only = null, ?string $after = null, int $limit = 50): FoundProductsDto;
+
+    /**
+     * **Categories with the path to each** (amendment 23(c)), keyed by id in the order asked - an
+     * unknown id left out - in one query.
+     *
+     * @param  list<string>  $ids
+     * @return array<string, CategoryPathDto>
+     */
+    public function categoriesWithPaths(array $ids): array;
+
+    /**
+     * **A category's products, and those of every category below it** (amendment 23(c)), any stage, by
+     * name in the page's language, found and paged as `searchProducts` - for a discount's "Left Out". An
+     * unknown category holds none. A fixed two queries.
+     */
+    public function productsInCategory(string $categoryId, ?string $text, ?string $after = null, int $limit = 50): FoundProductsDto;
+
+    /**
+     * **Each size's wholesale terms in the store** (amendment 23(d)): its product's wholesale minimum and
+     * maximum there, and whether it sells wholesale there - keyed by variant id, an unknown id left out.
+     * One query however many.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, WholesaleTermsDto>
+     */
+    public function wholesaleOf(StoreId $store, array $variantIds): array;
 }
