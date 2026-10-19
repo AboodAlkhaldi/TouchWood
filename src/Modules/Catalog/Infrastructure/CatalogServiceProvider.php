@@ -22,6 +22,7 @@ use Modules\Catalog\Application\Import\InMemoryImportSections;
 use Modules\Catalog\Application\Import\StoreFillCodes;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Application\Products\InMemoryProductStoreSections;
+use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\ListCategories\ListCategoriesHandler;
 use Modules\Catalog\Application\Query\Lists\CatalogListReads;
 use Modules\Catalog\Application\Query\Products\CatalogProductReads;
@@ -79,6 +80,7 @@ use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
+use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
@@ -135,6 +137,9 @@ final class CatalogServiceProvider extends ServiceProvider
         // The product page's store sections (amendment 23(e)): one registry, the modules above register.
         $this->app->singleton(InMemoryProductStoreSections::class);
         $this->app->alias(InMemoryProductStoreSections::class, ProductStoreSections::class);
+        // The shop product page's sections (amendment 26(b)): one registry, the modules above register.
+        $this->app->singleton(InMemoryShopProductSections::class);
+        $this->app->alias(InMemoryShopProductSections::class, ShopProductSections::class);
         // The modules that hold on to Catalog's items, asked before a delete (amendment 19).
         $this->app->singleton(InMemoryCatalogUsages::class);
         $this->app->alias(InMemoryCatalogUsages::class, CatalogUsages::class);

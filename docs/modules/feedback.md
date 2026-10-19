@@ -41,7 +41,9 @@ A **star rating, 1 to 5, plus text** (handoff §13.1) — **no photos** (owner, 
 - **One review per customer per product, never edited** (owner, 2026-10-09: "1, but not editable") —
   and **a rejected review cannot be written again** (owner, 2026-10-09).
 - **Global per product** (owner, 2026-10-02): written in one store, it shows in **every store that
-  sells the product**, and its rating counts in each.
+  sells the product**, and its rating counts in each. **One list for the product, shared by all its
+  sizes** — no "this size's reviews only"; the size bought is a label on the review (owner confirmed,
+  2026-10-19).
 - **It shows the variant bought** (handoff §13.1) — the last variant of that product delivered to the
   customer when they wrote it. My assumption, stated for the owner to reject.
 - **Its mark:** "Verified purchase" — **flips to "Returned"** once the customer has returned **any of
@@ -205,7 +207,7 @@ no purchase — so a review is refused as no verified purchase until then.
 | Sales | **A return completed**: its customer and the products returned, so their reviews flip to "Returned" | Sales's `ReturnCompleted` event (ids only, handoff §4.5's critical events) and `SalesApi::returnedProducts(returnId)` → the customer and the product ids — Sales's spec |
 | Catalog | **Reads in bulk, never one id at a time** (handoff §5.4): which of a list of products a store sells now; product cards (name, slug, card photo) for a list of products in a store and language; the values of a list of variants. For asking a question, saving to the wishlist and its "unavailable", the wishlist page, "Favourited products", "My reviews" and the variant a review shows | **A Catalog addition, built with Feedback.** Today `CatalogApi` reads one product (`product`, which lists no variants) or one variant in a store (`storeVariant`) at a time |
 | Catalog | **Each product's rating in the listing, and whether a store shows ratings** — for stars on cards and the rating sort (§1.2) | **A Catalog addition, built with Feedback** — beside Pricing's `ListingFacts::prices` (catalog.md amendment 15); the shop's lists are built by the Catalog-screens session, to be agreed with it |
-| Catalog | **Feedback's sections on the product page** — its rating and reviews, its answered questions and the ask box, the wishlist button. The page is Catalog's (`ShopReader`), and Catalog may not read Feedback | **A Catalog addition, built with Feedback**: a registry of product-page sections other modules fill — as Access's `ShopperLines` and `CustomerAccountPages` — each section reading its data in one batched query, within the page's query budget and server-side rendering. To agree with the Catalog-screens session, who build the page |
+| Catalog | **Feedback's sections on the product page** — its rating and reviews, its answered questions and the ask box, the wishlist button. The page is Catalog's (`ShopReader`), and Catalog may not read Feedback | **A Catalog addition, built with Feedback**: a registry of product-page sections other modules fill — as Access's `ShopperLines` and `CustomerAccountPages` — each section reading its data in one batched query, within the page's query budget and server-side rendering. To agree with the Catalog-screens session, who build the page. **Built with step F6b** (catalog.md amendment 26(b)): `feedback.reviews`, `feedback.questions`, `feedback.wishlist`, one statement for all three, "Show more" as `after[{key}]` on the same page; the product page's queries go up by 1 with no reviews, by 5 with reviews and answers — over the shop's 8, which the owner set as a target, not a cap (2026-10-19) |
 | Catalog | **Refusing to delete a product that has reviews or questions** — never a database error | The usage check Promotions adds to Catalog (promotions.md §1.2), which Feedback registers with too — **asked also by the import page's deletion of products made ready or put on sale** (`DeleteImportedProducts`, catalog.md amendment 11(c)), which a reviewed product can reach |
 | Access | The author's **first name and last name separately**, and whether anonymized, for many reviews at once | The batch read Promotions adds to Access (promotions.md §2.3) |
 | Access | `CustomerAnonymized` | Exists — its docblock already names Feedback |
@@ -237,7 +239,7 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 | A customer's wishlist — only its items of stores where the reader holds the permission; the store's "Favourited products" with counts | `feedback.wishlist.view` (per store; `storesWith` for the list) |
 | A product's approved reviews and rating; its answered questions | Shop readers, public (§2.1) |
 
-**The reads as built (step F6a).** My assumptions, stated for the owner to reject:
+**The reads as built (step F6a)** — accepted by the owner, 2026-10-19 ("accept all"):
 - **Pages:** 20 rows for a customer's own lists, 50 for staff's, each after the last row shown (a
   keyset, never an offset); a wishlist (at most 500) comes whole, grouped by store in the stores'
   own order. "Favourited products" pages after the last count and product read — at most five
@@ -453,9 +455,11 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 3. ~~**The `Support` permission group and menu section**~~ — **settled**: the owner's answer of
    2026-10-18; built with step F1 (access.md amendment 73, platform.md §9.4).
 4. **Feedback's screens** — the frontend session's, to confirm (as for Loyalty and Promotions).
-5. **Every assumption marked above** — the variant shown, the author's name (and what moderators see),
-   answers signed by the store's team, unpublishing, correcting answers, 5 waiting questions, 500
-   wishlist items, the switch starting on; the reads' pages, orders and empty answer (§3, step F6a).
+5. ~~**Every assumption marked above**~~ — **settled**: the variant shown, the author's name (and what
+   moderators see), answers signed by the store's team, unpublishing, correcting answers, 5 waiting
+   questions, 500 wishlist items, the switch starting on, the reads' pages, orders and empty answer
+   (§3, step F6a) — all **accepted by the owner, 2026-10-19** ("accept all"). Where the text above
+   still says "my assumption", read "accepted".
 
 ### 9.3 The independent review of the draft (2026-10-09/10)
 

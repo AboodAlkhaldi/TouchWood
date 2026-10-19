@@ -438,7 +438,11 @@ describe('the budget (P21)', function () {
         // read once a request, shared with the menu); a search's word pairs, results and log 3. The
         // suggestions, JSON with no frame: the store 2, the word pairs and the search 2. An account page
         // carries the menu: its 4 (the store's 2, the settings' 2, all from the cache) and the menu's 2.
-        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 6, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
+        // A product's page, one more since 2026-10-19 (catalog.md amendment 26(b)): Feedback's sections -
+        // its rating, reviews, questions and the wishlist button - in one statement (more only once
+        // there are reviews or answers: their authors' names and the sizes bought, read in bulk).
+        // The limits are a target, not a cap (owner, 2026-10-19).
+        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 7, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
     });
 
     it('records each page as production serves it - the session in the database - for a guest, an individual and a company', function () {
@@ -486,11 +490,12 @@ describe('the budget (P21)', function () {
             // Signed in, one more since 2026-10-19 (access.md amendment 72(d), loyalty.md §4.1 L7): the
             // account menu asks whether to offer the Points tab, and while a store's programme is off
             // (as every store starts) that reads whether the customer has points there. Brought to the
-            // owner with the Loyalty screens' PR.
+            // owner with the Loyalty screens' PR. A product's page, one more since 2026-10-19 for
+            // Feedback's sections (amendment 26(b)) - the limits a target, not a cap (owner, 2026-10-19).
         ])->toBe([
-            'guest' => ['category' => 8, 'brand' => 8, 'product' => 8, 'search' => 9],
-            'individual' => ['category' => 14, 'brand' => 14, 'product' => 14, 'search' => 15],
-            'company' => ['category' => 14, 'brand' => 14, 'product' => 14, 'search' => 15],
+            'guest' => ['category' => 8, 'brand' => 8, 'product' => 9, 'search' => 9],
+            'individual' => ['category' => 14, 'brand' => 14, 'product' => 15, 'search' => 15],
+            'company' => ['category' => 14, 'brand' => 14, 'product' => 15, 'search' => 15],
         ]);
     });
 });
