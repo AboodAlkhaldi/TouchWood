@@ -87,7 +87,7 @@ final readonly class GiftLevelPages
      */
     private function sizes(StoreId $store, string $search): array
     {
-        $found = $this->catalog->searchVariants($store, $search, limit: self::FOUND, notArchived: true, withTotal: false)->rows;
+        $found = $this->catalog->searchVariants($store, $search, anyReady: true, limit: self::FOUND, notArchived: true, withTotal: false)->rows;
         $ids = array_values(array_unique(array_filter(array_map(static fn (FoundVariantDto $row): ?string => $row->photoMediaId, $found))));
         $thumbs = [];
 
