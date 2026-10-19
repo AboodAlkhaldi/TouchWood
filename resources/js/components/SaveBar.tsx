@@ -24,6 +24,8 @@ import { useTranslator } from '@/lib/t';
 */
 
 type SaveBarProps = {
+    /** Its elements' ids, unique on the page: a page with several sets of boxes draws a bar each. */
+    id?: string;
     /** How many boxes are changed; the bar is drawn while it is more than none. */
     count: number;
     /** "3 prices changed", written by the page in its own words and plural. */
@@ -35,7 +37,7 @@ type SaveBarProps = {
     onCancel: () => void;
 };
 
-export function SaveBar({ count, message, saveLabel, saving, onSave, onCancel }: SaveBarProps) {
+export function SaveBar({ id = 'save-bar', count, message, saveLabel, saving, onSave, onCancel }: SaveBarProps) {
     const t = useTranslator();
     const shown = count > 0;
 
@@ -48,11 +50,11 @@ export function SaveBar({ count, message, saveLabel, saving, onSave, onCancel }:
             {shown ? (
                 <div
                     role="region"
-                    aria-labelledby="save-bar-message"
+                    aria-labelledby={`${id}-message`}
                     className="material-menu sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                     data-test="save-bar"
                 >
-                    <p id="save-bar-message" className="tw-figure text-label-14 text-ink">
+                    <p id={`${id}-message`} className="tw-figure text-label-14 text-ink">
                         {message}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">

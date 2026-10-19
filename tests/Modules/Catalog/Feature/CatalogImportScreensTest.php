@@ -23,6 +23,8 @@ use Modules\Catalog\Application\Command\BringInImportProducts\BringInImportProdu
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Catalog\Domain\Exception\ImportUndecided;
+use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizes;
+use Modules\Pricing\Application\Command\CountUnpricedSizes\CountUnpricedSizesHandler;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -52,6 +54,9 @@ beforeEach(function () {
     Storage::fake('local', ['serve' => true]);
     Storage::fake('public');
     Queue::fake();
+    // Needs a Price's count beside the menu kept per store, as production keeps it (pricing.md Q43): the
+    // Super Admin's menu reads it, never counts it live through Catalog's reads.
+    Fx::asSystem(fn () => app(CountUnpricedSizesHandler::class)->handle(new CountUnpricedSizes));
 });
 
 afterEach(function () {

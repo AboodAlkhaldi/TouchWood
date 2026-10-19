@@ -193,7 +193,8 @@ deptrac:
     # 2026-10-07). Access's public surface only to declare its permissions, from the interior, as
     # Catalog (owner, 2026-10-07).
     PricingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
-    Pricing: [+PricingPublic, AccessPublic]
+    # Its screens use the framework glue, as Catalog's (pricing.md §4.3.2, stage 5's screens step 3).
+    Pricing: [+PricingPublic, AccessPublic, AppHttp]
 
     # Inventory → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-07).
     InventoryPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]

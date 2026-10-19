@@ -38,13 +38,22 @@ final readonly class PricingActionsForReader
      */
     public function stores(): array
     {
+        return $this->answer(null);
+    }
+
+    /**
+     * @return list<StorePricingActions>
+     */
+    private function answer(?string $only): array
+    {
         $held = $this->stores->authorize([...ReadAccess::ANY_OF_THE_THREE, PricingPermissions::CEILING_MANAGE, self::PRODUCT_VIEW]);
         $actions = [];
         $wiredStores = array_fill_keys(array_map('strtolower', $this->wiring->wiredStores()), true);
 
         foreach ($held as $id => ['store' => $store, 'jobs' => $jobs]) {
             // A Pricing screen is offered for any of the three; the ceiling or the products alone open none.
-            if (array_intersect($jobs, ReadAccess::ANY_OF_THE_THREE) === []) {
+            // One store asked for: the others' ceilings are not read (a read a store).
+            if (array_intersect($jobs, ReadAccess::ANY_OF_THE_THREE) === [] || ($only !== null && (string) $id !== $only)) {
                 continue;
             }
 
@@ -68,13 +77,7 @@ final readonly class PricingActionsForReader
 
     public function forStore(string $storeId): ?StorePricingActions
     {
-        foreach ($this->stores() as $actions) {
-            if ($actions->storeId === strtolower(trim($storeId))) {
-                return $actions;
-            }
-        }
-
-        return null;
+        return $this->answer(strtolower(trim($storeId)))[0] ?? null;
     }
 
     public function reasons(): PricingReasons

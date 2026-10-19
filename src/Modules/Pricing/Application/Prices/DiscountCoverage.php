@@ -29,13 +29,44 @@ final readonly class DiscountCoverage
      */
     public function products(CategoryDiscount $discount): array
     {
-        $products = array_fill_keys($this->catalog->productIdsInCategory($discount->categoryId), true);
+        // One query: the category and those below it, joined to their products (the review of step 3).
+        $categoryId = strtolower($discount->categoryId);
+        $products = array_fill_keys($this->catalog->productIdsInCategories([$categoryId])[$categoryId] ?? [], true);
 
         foreach ($discount->excludedProductIds as $productId) {
             unset($products[$productId]);
         }
 
         return $products;
+    }
+
+    /**
+     * The products each discount reaches - its category's and those below it, less those it leaves out - for
+     * many discounts in one read of Catalog (stage 5's screens step 3's review: a preview's other discounts).
+     *
+     * @param  list<CategoryDiscount>  $discounts
+     * @return array<string, array<string, true>> discount id => product id => true
+     */
+    public function productsOfEach(array $discounts): array
+    {
+        if ($discounts === []) {
+            return [];
+        }
+
+        $inCategory = $this->catalog->productIdsInCategories(array_values(array_unique(array_map(static fn (CategoryDiscount $discount): string => strtolower($discount->categoryId), $discounts))));
+        $each = [];
+
+        foreach ($discounts as $discount) {
+            $products = array_fill_keys($inCategory[strtolower($discount->categoryId)] ?? [], true);
+
+            foreach ($discount->excludedProductIds as $productId) {
+                unset($products[$productId]);
+            }
+
+            $each[$discount->id] = $products;
+        }
+
+        return $each;
     }
 
     /**

@@ -42,7 +42,9 @@ final readonly class PreviewCategoryDiscountHandler
     {
         $store = $this->access->authorize($query->storeId, [PricingPermissions::CATEGORY_DISCOUNT_MANAGE]);
         $categoryId = strtolower(trim($query->categoryId));
-        $category = $this->catalog->category($categoryId);
+        // Its state from the paths' one read, not the category's own two (stage 5's screens step 3: the preview
+        // within the budget of 15).
+        $category = $this->catalog->categoriesWithPaths([$categoryId])[$categoryId] ?? null;
 
         if ($category === null || ! $category->isActive) {
             throw new CategoryNotUsable;

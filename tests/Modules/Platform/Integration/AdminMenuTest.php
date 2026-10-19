@@ -92,6 +92,12 @@ describe('the admin menu', function () {
             'catalog/store_files',
             // Its products import (step 4), the Super Admin's.
             'catalog/imports',
+            // Pricing's screens (pricing.md §4.3.2, stage 5's screens step 3), its group after Catalog's.
+            'pricing/prices',
+            'pricing/offers',
+            'pricing/category_discounts',
+            'pricing/wholesale_prices',
+            'pricing/needs_a_price',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

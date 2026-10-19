@@ -40,6 +40,12 @@ final readonly class PriceViews
         return $money->currencyCode === $store->currencyCode ? MoneyData::of($money, $store, $this->words->locale()) : null;
     }
 
+    /** The store's currency's letters in the reader's language, as a price box ends (its abbreviation, never its sign). */
+    public function letters(StoreDto $store): string
+    {
+        return $store->currencyAbbreviation->in($this->words->locale());
+    }
+
     public function size(FoundVariantDto $found): SizeView
     {
         return new SizeView(
