@@ -4,7 +4,7 @@ import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Button } from '@/components/ui/button';
-import { type HeldVisit, type LeaveGuard, leaveGuard } from '@/lib/leave-guard';
+import { guardHub, type HeldVisit, type LeaveGuard, leaveGuard } from '@/lib/leave-guard';
 import { useTranslator } from '@/lib/t';
 
 /*
@@ -103,6 +103,9 @@ type LeaveWords = {
  *
  * @param keeps  a visit that keeps the boxes, beside `keepsBoxes` - the page's own judgement
  */
+/** The guards of the page shown share one question (lib/leave-guard.ts). */
+const PAGE_GUARDS = guardHub();
+
 export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: PendingVisit) => boolean = () => false) {
     const [held, setHeld] = useState<HeldVisit | null>(null);
     const latest = useRef({ dirty, keeps });
@@ -114,6 +117,7 @@ export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: 
         keeps: (visit) => latest.current.keeps(visit),
         hold: setHeld,
         visit: (url, options) => router.visit(url, options),
+        hub: PAGE_GUARDS,
     });
 
     useEffect(() => {

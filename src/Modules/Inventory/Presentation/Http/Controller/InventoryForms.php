@@ -22,16 +22,27 @@ final class InventoryForms
 {
     /**
      * Does the work and answers with the toast that says it was done - and the amber one its answer asks
-     * for - or with the refusal.
+     * for - or with the refusal. The amber words are made only once the work is done, outside the refusal's
+     * reach: a change that was saved is never said to be refused because its words could not be made.
      *
-     * @param  Closure(): (string|null)  $work  the amber toast's words, or null
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @param  (Closure(T): (string|null))|null  $warn  the amber toast's words from the work's answer, or null
      */
-    public static function act(Request $request, Closure $work, string $done): RedirectResponse
+    public static function act(Request $request, Closure $work, string $done, ?Closure $warn = null): RedirectResponse
     {
         try {
-            $warning = $work();
+            $answer = $work();
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
+        }
+
+        try {
+            $warning = $warn === null ? null : $warn($answer);
+        } catch (DomainError) {
+            // Saved all the same: the green toast says so, and the rows' badges say who is short.
+            $warning = null;
         }
 
         $back = back()->with('status', __($done));

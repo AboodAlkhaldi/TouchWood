@@ -47,6 +47,30 @@ function browserUntil(mixed $page, string $expression): bool
 }
 
 /**
+ * Whether the JavaScript expression comes to hold within this many seconds - browserUntil asked again
+ * until then. For a page that may be slow to come: the first page a test opens on a busy machine (another
+ * suite running beside it, a cold start) took longer than browserUntil's four seconds and failed a test
+ * that passed on every run after it (stage 5's screens step 5, 2026-10-19). A page between two addresses
+ * - the script's page gone under it - is asked again, not failed.
+ */
+function browserSoon(mixed $page, string $expression, int $seconds = 15): bool
+{
+    $until = microtime(true) + $seconds;
+
+    do {
+        try {
+            if (browserUntil($page, $expression)) {
+                return true;
+            }
+        } catch (Throwable) {
+            // The page was leaving while it was asked: ask the next one.
+        }
+    } while (microtime(true) < $until);
+
+    return false;
+}
+
+/**
  * Whether the staff member has landed in the panel. The code's submit only starts the sign-in, and
  * a page opened before its answer lands is the sign-in screen again (it raced, and lost, in CI on
  * 2026-10-04) - so every sign-in waits for this before it opens the screen under test.
@@ -66,6 +90,9 @@ function signedInToPanel(mixed $page): bool
 | 2026-10-06).
 */
 const BROWSER_PAGE_LOAD = ['timeout' => 5_000];
+
+/** The same, for a test that waits with browserSoon: a page on a busy machine given fifteen seconds. */
+const BROWSER_SLOW_PAGE_LOAD = ['timeout' => 15_000];
 
 /*
 | A test's own temporary folder. The system's temp folder is one per machine, and every worktree's

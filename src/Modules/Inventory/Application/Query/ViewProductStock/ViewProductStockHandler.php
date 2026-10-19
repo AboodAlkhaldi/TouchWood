@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Inventory\Application\Query\ViewProductStock;
 
+use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Enums\ProductStage;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\Stock\ReaderStores;
@@ -31,6 +33,7 @@ final readonly class ViewProductStockHandler
 {
     public function __construct(
         private ReaderStores $stores,
+        private CatalogApi $catalog,
         private PlatformApi $platform,
         private StoreWiring $wiring,
         private StockRows $stock,
@@ -63,6 +66,13 @@ final readonly class ViewProductStockHandler
         $rows = $this->stock->inStores($storeIds, $variantIds);
         $lastPieces = array_fill_keys($this->products->endingSoonIn($storeIds, $productId), true);
         $holds = $this->holds->summaries($storeIds, $variantIds);
+        // Which sizes are archived - the size or its product - in one read of Catalog: read-only (§4.3.1).
+        $archived = [];
+
+        foreach ($this->catalog->variantBriefs($variantIds) as $brief) {
+            $archived[strtolower($brief->variantId)] = $brief->isArchived || $brief->productStage === ProductStage::Archived;
+        }
+
         $provider = $wired === [] ? [] : $this->movements->lastProviderChanges(
             array_values(array_filter($storeIds, static fn (StoreId $store): bool => isset($wired[$store->value]))),
             $variantIds,
@@ -91,6 +101,7 @@ final readonly class ViewProductStockHandler
                 $sizes[] = new ProductSizeStock(
                     $variantId,
                     $this->views->figures($rows[$id][$variantId] ?? null, $isWired, $default, $provider[$id][$variantId] ?? null, $holds[$id][$variantId] ?? null),
+                    $archived[$variantId] ?? false,
                 );
             }
 

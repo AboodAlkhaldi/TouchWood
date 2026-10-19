@@ -276,7 +276,9 @@ export function AddSizeDialog({ store, onOpenChange, returnFocusTo }: { store: s
                         {found.loading && found.data === null ? <Spinner aria-label={t('ui.loading')} className="text-ink-muted" /> : null}
                         <ul className="grid max-h-72 gap-1 overflow-y-auto" data-test="add-size-results">
                             {found.data !== null && found.data.rows.length === 0 && found.data.alreadyListed.length === 0 ? (
-                                <li className="px-2 py-1 text-copy-14 text-ink-muted">{t('inventory::admin_stock.add_size.none', { query: typed })}</li>
+                                <li className="px-2 py-1 text-copy-14 text-ink-muted">
+                                    {typed.trim() === '' ? t('inventory::admin_stock.add_size.none_at_all') : t('inventory::admin_stock.add_size.none', { query: typed.trim() })}
+                                </li>
                             ) : null}
                             {(found.data?.rows ?? []).map((size) => (
                                 <li key={size.variantId}>

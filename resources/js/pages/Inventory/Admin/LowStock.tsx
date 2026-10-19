@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure } from '@/lib/digits';
+import { useKeptDepth } from '@/lib/kept-depth';
 import { useLoadMore } from '@/lib/use-load-more';
 import type { LowStockPage, StockRowData } from '@/types/generated/Modules/Inventory/Presentation/Http/Resource';
 import type { AdjustTarget } from './dialogs';
@@ -32,6 +33,9 @@ export default function LowStock(page: LowStockPage) {
     const [dialog, setDialog] = useState<Dialog>(null);
     const opener = useRef<HTMLElement | null>(null);
     const list = useLoadMore<StockRowData>(rows, (row) => row.size.variantId);
+    const more = (cursor: string) => list.more('/admin/low-stock', { store: frame.storeCode, after: cursor }, ['rows', 'next', 'total']);
+    // A change keeps the rows Show More had shown.
+    const restoring = useKeptDepth(list, next, more);
     const nameOf = (row: StockRowData) => `${nameIn(locale, row.size.productNameAr, row.size.productNameEn)} · ${sizeName(t, row.size.values)}`;
     const subtitle = `${t('inventory::admin_low.subtitle')} ${plural(t, locale, 'inventory::admin_low.count_in', total, { store: frame.storeName })}`;
 
@@ -75,7 +79,7 @@ export default function LowStock(page: LowStockPage) {
                                             key={row.size.variantId}
                                             row={row}
                                             store={frame.storeCode}
-                                            wired={frame.wired}
+                                            wired={frame.wired ? frame.reasons.wired : null}
                                             name={nameOf(row)}
                                             onAdjust={(trigger) => {
                                                 opener.current = trigger;
@@ -93,7 +97,7 @@ export default function LowStock(page: LowStockPage) {
                     </>
                 )}
 
-                {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more('/admin/low-stock', { store: frame.storeCode, after: next }, ['rows', 'next', 'total'])} /> : null}
+                {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
             </div>
 
             <Suspense fallback={null}>
@@ -114,7 +118,22 @@ export default function LowStock(page: LowStockPage) {
     );
 }
 
-function LowRow({ row, store, wired, name, onAdjust, onThreshold }: { row: StockRowData; store: string; wired: boolean; name: string; onAdjust: (trigger: HTMLElement | null) => void; onThreshold: (trigger: HTMLElement | null) => void }) {
+function LowRow({
+    row,
+    store,
+    wired,
+    name,
+    onAdjust,
+    onThreshold,
+}: {
+    row: StockRowData;
+    store: string;
+    /** Why Add or Remove Stock is out of reach in a wired store, or null. */
+    wired: string | null;
+    name: string;
+    onAdjust: (trigger: HTMLElement | null) => void;
+    onThreshold: (trigger: HTMLElement | null) => void;
+}) {
     const t = useT();
     const locale = useLocale();
     const more = useRef<HTMLButtonElement>(null);
@@ -148,7 +167,8 @@ function LowRow({ row, store, wired, name, onAdjust, onThreshold }: { row: Stock
                         <MoreButton ref={more} name={name} data-test={`low-actions-${id}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-56">
-                        {wired ? null : <Guarded label={t('inventory::admin_stock.menu.adjust')} onSelect={() => onAdjust(more.current)} test="adjust-stock" />}
+                        {/* A wired store's stock is the provider's (§1.5): drawn, with why not. */}
+                        <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={wired} onSelect={() => onAdjust(more.current)} test="adjust-stock" />
                         <Guarded label={t('inventory::admin_stock.menu.threshold')} onSelect={() => onThreshold(more.current)} test="set-threshold" />
                     </DropdownMenuContent>
                 </DropdownMenu>

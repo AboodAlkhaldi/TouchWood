@@ -435,13 +435,28 @@ save bar its own, the store named in each box's label).
   one query more (8). **`ProductStoreStock`** carries the store's default threshold, for Set Threshold's
   helper. `HoldsOnSizes` is not used by the pages: each row's figures already say how many orders hold how
   many pieces.
+- **The drawer is deferred** (Inertia's deferred props `drawer`, `drawerFailed`, `history`): Stock opened
+  with a size in its address answers the rows first and the drawer in a request of its own, so neither
+  passes 15 however the history reads (its staff named through Platform's `StaffNames`). A size the store
+  cannot show - unknown, or gone since the address was kept - says so in the drawer (`drawerFailed`,
+  "failed.size" with Try Again), never a refused page. The size's JSON read is gone: nothing asked for it.
 - **Measured, warm** (`tests/Modules/Inventory/Feature/InventoryScreensTest.php`, the page's own queries,
-  the frame and the menu's count apart): Stock 9, **Stock opened with its drawer 15** (the drawer's size
-  read first, its photo in the rows' one read), Low Stock 8, the drawer's read 6, the history's next page 1,
-  Add Size's picker 8; in a wired store (the wiring answered without a query) 7, 12 and 7. The panel's frame
-  for whoever manages stock: one query more, the kept Low Stock count.
+  the frame and the menu's count apart, a staff member's line in the history): Stock 9, Stock with a size
+  in its address 9 and its drawer after it 8, Low Stock 8, the history's next page 2, Add Size's picker 8;
+  in a wired store (the wiring answered without a query) 7, 7, 7 and 7. The panel's frame for whoever
+  manages stock: one query more, the kept Low Stock count. `ViewProductStock` reads which sizes are
+  archived (Catalog's `variantBriefs`): 5.
 - Shared with Pricing's pages, moved out of them: `components/RowMenu.tsx` (the ⋯ button, an item with
   its reason) and `lib/live-read.ts` (a read as typed, its failure and retry, stale answers ignored).
+- **The review of step 5** (2026-10-19), for every screen: the flash is an always-sent prop, so a partial
+  reload (Show More, a drawer) never says the last toast again; a page's leave guards share one question
+  (a product's store cards ask once); a store chosen in the filter drops the drawer's size. For Inventory's:
+  a change keeps the rows Show More had shown (`lib/kept-depth.ts`, the next pages asked again), the
+  selection keeps only rows still shown and starts again only once a new list is shown; select all has its
+  mixed state and the count is said politely; archived sizes are read-only everywhere (no box, no
+  selection, Counts on Stock off, their changes drawn with the reason - the product page's cards too, from
+  each size's `archived`); a wired store's Add or Remove Stock and Last Pieces are drawn with their reason;
+  the amber words are made after the change, so a saved change is never said refused.
 
 #### I1 · Stock - `/admin/stock?store=&q=&filter=&size=`
 

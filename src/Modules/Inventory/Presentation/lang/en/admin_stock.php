@@ -189,6 +189,7 @@ return [
         'size' => 'Size',
         'search' => 'Search ready sizes',
         'none' => 'No sizes match ":query"',
+        'none_at_all' => 'No size is left to add: every ready size is listed here.',
         'listed' => 'Already listed',
         'count' => 'Count',
         'save' => 'Count Size',
@@ -198,13 +199,22 @@ return [
     'drawer' => [
         'figures' => 'Figures',
         'holds' => 'Holds',
+        // By the orders; :pieces is `pieces` below, by the pieces.
         'holds_line' => [
-            'zero' => 'Held by :count orders: :pieces pieces (:bought bought, :gift gift)',
-            'one' => 'Held by :count order: :pieces pieces (:bought bought, :gift gift)',
-            'two' => 'Held by :count orders: :pieces pieces (:bought bought, :gift gift)',
-            'few' => 'Held by :count orders: :pieces pieces (:bought bought, :gift gift)',
-            'many' => 'Held by :count orders: :pieces pieces (:bought bought, :gift gift)',
-            'other' => 'Held by :count orders: :pieces pieces (:bought bought, :gift gift)',
+            'zero' => 'Held by :count orders: :pieces (:bought bought, :gift gift)',
+            'one' => 'Held by :count order: :pieces (:bought bought, :gift gift)',
+            'two' => 'Held by :count orders: :pieces (:bought bought, :gift gift)',
+            'few' => 'Held by :count orders: :pieces (:bought bought, :gift gift)',
+            'many' => 'Held by :count orders: :pieces (:bought bought, :gift gift)',
+            'other' => 'Held by :count orders: :pieces (:bought bought, :gift gift)',
+        ],
+        'pieces' => [
+            'zero' => ':count pieces',
+            'one' => ':count piece',
+            'two' => ':count pieces',
+            'few' => ':count pieces',
+            'many' => ':count pieces',
+            'other' => ':count pieces',
         ],
         'no_holds' => 'No order holds this size.',
         'history' => 'History',
@@ -238,7 +248,7 @@ return [
     'failed' => [
         'history' => 'Failed to load the history. Try again.',
         'sizes' => 'Failed to load the sizes. Try again.',
-        'size' => 'Failed to load the size. Try again.',
+        'size' => 'This size could not be shown in this store. Try again, or choose it from the list.',
         'try_again' => 'Try Again',
     ],
 

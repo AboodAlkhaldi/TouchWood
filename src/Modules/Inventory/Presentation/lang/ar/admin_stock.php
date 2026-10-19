@@ -182,6 +182,7 @@ return [
         'size' => 'المقاس',
         'search' => 'ابحث في المقاسات الجاهزة',
         'none' => 'لا مقاسات تطابق «:query»',
+        'none_at_all' => 'لم يبقَ مقاس لإضافته: كل مقاس جاهز مُدرج هنا.',
         'listed' => 'مُدرج من قبل',
         'count' => 'العدد',
         'save' => 'جرد المقاس',
@@ -190,13 +191,22 @@ return [
     'drawer' => [
         'figures' => 'الأرقام',
         'holds' => 'الحجوزات',
+        // بعدد الطلبات؛ و:pieces هو «pieces» أدناه، بعدد القطع.
         'holds_line' => [
-            'zero' => 'تحجزه :count طلبات: :pieces قطعة (:bought مشتراة، :gift هدية)',
-            'one' => 'يحجزه طلب واحد: :pieces قطعة (:bought مشتراة، :gift هدية)',
-            'two' => 'يحجزه طلبان: :pieces قطعة (:bought مشتراة، :gift هدية)',
-            'few' => 'تحجزه :count طلبات: :pieces قطعة (:bought مشتراة، :gift هدية)',
-            'many' => 'يحجزه :count طلبًا: :pieces قطعة (:bought مشتراة، :gift هدية)',
-            'other' => 'يحجزه :count طلب: :pieces قطعة (:bought مشتراة، :gift هدية)',
+            'zero' => 'يحجزه :count طلب: :pieces (:bought مشتراة، :gift هدية)',
+            'one' => 'يحجزه طلب واحد: :pieces (:bought مشتراة، :gift هدية)',
+            'two' => 'يحجزه طلبان: :pieces (:bought مشتراة، :gift هدية)',
+            'few' => 'تحجزه :count طلبات: :pieces (:bought مشتراة، :gift هدية)',
+            'many' => 'يحجزه :count طلبًا: :pieces (:bought مشتراة، :gift هدية)',
+            'other' => 'يحجزه :count طلب: :pieces (:bought مشتراة، :gift هدية)',
+        ],
+        'pieces' => [
+            'zero' => ':count قطعة',
+            'one' => 'قطعة واحدة',
+            'two' => 'قطعتان',
+            'few' => ':count قطع',
+            'many' => ':count قطعة',
+            'other' => ':count قطعة',
         ],
         'no_holds' => 'لا يحجز أي طلب هذا المقاس.',
         'history' => 'السجل',
@@ -230,7 +240,7 @@ return [
     'failed' => [
         'history' => 'تعذّر تحميل السجل. حاول مرة أخرى.',
         'sizes' => 'تعذّر تحميل المقاسات. حاول مرة أخرى.',
-        'size' => 'تعذّر تحميل المقاس. حاول مرة أخرى.',
+        'size' => 'تعذّر عرض هذا المقاس في هذا المتجر. حاول مرة أخرى، أو اختره من القائمة.',
         'try_again' => 'حاول مرة أخرى',
     ],
 

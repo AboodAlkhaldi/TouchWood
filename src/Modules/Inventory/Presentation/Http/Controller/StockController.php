@@ -7,6 +7,7 @@ namespace Modules\Inventory\Presentation\Http\Controller;
 use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Inventory\Application\Command\AdjustStock\AdjustStock;
 use Modules\Inventory\Application\Command\AdjustStock\AdjustStockHandler;
@@ -19,10 +20,10 @@ use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
 use Modules\Inventory\Application\Query\ListStock\ListStock;
+use Modules\Inventory\Application\Stock\StockSaved;
 use Modules\Inventory\Presentation\Http\Resource\HistoryData;
 use Modules\Inventory\Presentation\Http\Resource\InventoryPages;
 use Modules\Inventory\Presentation\Http\Resource\SizeChoicesData;
-use Modules\Inventory\Presentation\Http\Resource\SizeStockData;
 use Modules\Inventory\Presentation\Http\Resource\StockPage;
 
 /**
@@ -48,17 +49,19 @@ final readonly class StockController
         $size = InventoryForms::query($request, 'size');
 
         return $this->page->render('Inventory/Admin/Stock', [
-            ...InventoryForms::lazy(StockPage::class, fn (): StockPage => $pages->stock($store, InventoryForms::query($request, 'q'), $filter, InventoryForms::query($request, 'after'), $size)),
-            // The drawer's own reads, only while the address names a size (Q3): its figures and its history's first page.
-            'drawer' => static fn (): ?array => $size === null ? null : $pages->sizeStock($pages->store($store)->id, $size)->toArray(),
-            'history' => static fn (): ?array => $size === null ? null : $pages->history($pages->store($store)->id, $size, null)->toArray(),
+            ...InventoryForms::lazy(StockPage::class, fn (): StockPage => $pages->stock($store, InventoryForms::query($request, 'q'), $filter, InventoryForms::query($request, 'after'))),
+            /*
+            | The drawer's own reads, only while the address names a size (Q3): its figures and its
+            | history's first page. **Deferred**: the page comes first, within its own budget, and the
+            | drawer's reads follow in a request of their own - the page and its open drawer are never one
+            | answer over 15 (frontend.md §5; the review of step 5). Opening a drawer asks for them by name.
+            | A size the store cannot show - an address typed or kept from before - says so in the
+            | drawer (`drawerFailed`), never as a refused page.
+            */
+            'drawer' => $size === null ? null : Inertia::defer(static fn (): ?array => $pages->drawer($pages->store($store)->id, $size)?->toArray(), 'drawer'),
+            'drawerFailed' => $size === null ? false : Inertia::defer(static fn (): bool => $pages->drawer($pages->store($store)->id, $size) === null, 'drawer'),
+            'history' => $size === null ? null : Inertia::defer(static fn (): ?array => $pages->drawerHistory($pages->store($store)->id, $size)?->toArray(), 'drawer'),
         ], self::WORDS);
-    }
-
-    /** A size's figures, for its dialogs where the page has no row of it. */
-    public function size(Request $request, InventoryPages $pages): SizeStockData
-    {
-        return $pages->sizeStock($pages->storeId(InventoryForms::query($request, 'store')), (string) InventoryForms::query($request, 'size'));
     }
 
     /** The history's next page (Show More in the drawer). */
@@ -87,8 +90,9 @@ final readonly class StockController
 
         return InventoryForms::act(
             $request,
-            fn (): ?string => $pages->shortWarning($handler->handle(new SetStock($pages->storeId(InventoryForms::text($request, 'store')), $counts))),
+            fn (): StockSaved => $handler->handle(new SetStock($pages->storeId(InventoryForms::text($request, 'store')), $counts)),
             'inventory::admin_stock.toast.counts_saved',
+            $pages->shortWarning(...),
         );
     }
 
@@ -98,15 +102,16 @@ final readonly class StockController
 
         return InventoryForms::act(
             $request,
-            fn (): ?string => $pages->shortWarning($handler->handle(new AdjustStock(
+            fn (): StockSaved => $handler->handle(new AdjustStock(
                 $pages->storeId(InventoryForms::text($request, 'store')),
                 (string) InventoryForms::text($request, 'size'),
                 $direction,
                 InventoryForms::whole($request->input('quantity')),
                 (string) InventoryForms::text($request, 'reason'),
                 InventoryForms::text($request, 'note'),
-            ))),
+            )),
             $direction === 'REMOVE' ? 'inventory::admin_stock.toast.removed' : 'inventory::admin_stock.toast.added',
+            $pages->shortWarning(...),
         );
     }
 
@@ -117,10 +122,8 @@ final readonly class StockController
         $typed = InventoryForms::text($request, 'threshold');
         $threshold = $typed === null ? null : InventoryForms::whole($typed);
 
-        return InventoryForms::act($request, function () use ($handler, $pages, $request, $sizes, $threshold): ?string {
+        return InventoryForms::act($request, function () use ($handler, $pages, $request, $sizes, $threshold): void {
             $handler->handle(new SetLowStockThreshold($pages->storeId(InventoryForms::text($request, 'store')), array_fill_keys($sizes, $threshold)));
-
-            return null;
         }, count($sizes) === 1 ? 'inventory::admin_stock.toast.threshold_saved' : 'inventory::admin_stock.toast.thresholds_saved');
     }
 
@@ -129,10 +132,8 @@ final readonly class StockController
     {
         $on = $request->boolean('on');
 
-        return InventoryForms::act($request, function () use ($handler, $pages, $request, $on): ?string {
+        return InventoryForms::act($request, function () use ($handler, $pages, $request, $on): void {
             $handler->handle(new SetEndingSoon($pages->storeId(InventoryForms::text($request, 'store')), (string) InventoryForms::text($request, 'product'), $on));
-
-            return null;
         }, $on ? 'inventory::admin_stock.toast.last_pieces_shown' : 'inventory::admin_stock.toast.last_pieces_hidden');
     }
 
@@ -141,10 +142,8 @@ final readonly class StockController
     {
         $on = $request->boolean('on');
 
-        return InventoryForms::act($request, function () use ($handler, $pages, $request, $on): ?string {
+        return InventoryForms::act($request, function () use ($handler, $pages, $request, $on): void {
             $handler->handle(new SetStockDependent($pages->storeId(InventoryForms::text($request, 'store')), InventoryForms::texts($request, 'sizes'), $on));
-
-            return null;
         }, $on ? 'inventory::admin_stock.toast.dependency_on' : 'inventory::admin_stock.toast.dependency_off');
     }
 }

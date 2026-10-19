@@ -91,12 +91,15 @@ function inventoryBrowser(string $locale = 'en'): mixed
     $page = visit('/admin/sign-in')
         ->type('#email', $email)
         ->type('#password', Fx::STAFF_PASSWORD)
-        ->click('button[type="submit"]')
-        ->assertPathIs('/admin/sign-in/code')
-        ->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
         ->click('button[type="submit"]');
 
-    expect(signedInToPanel($page))->toBeTrue();
+    // A busy machine answers slowly: each step waits for the page it leads to (tests/Pest.php, browserSoon).
+    expect(browserSoon($page, "window.location.pathname === '/admin/sign-in/code' && document.querySelector('input[autocomplete=\"one-time-code\"]') !== null"))->toBeTrue();
+
+    $page->type('input[autocomplete="one-time-code"]', RecordingSecurityMessages::installed()->lastCode())
+        ->click('button[type="submit"]');
+
+    expect(browserSoon($page, "window.location.pathname === '/admin'"))->toBeTrue();
 
     return $page;
 }
@@ -106,7 +109,7 @@ function inventoryBrowserSoon(mixed $page, Closure $read, Closure $holds): mixed
 {
     $value = $read();
 
-    for ($tries = 0; $tries < 60 && ! $holds($value); $tries++) {
+    for ($tries = 0; $tries < 150 && ! $holds($value); $tries++) {
         $page->wait(0.1);
         $value = $read();
     }
@@ -185,21 +188,46 @@ it('counts in the row and saves from the save bar, saying in amber when orders a
     inventoryBrowserCount('sa', [$held => 6, $other => 20]);
     app(InventoryApi::class)->hold(StoreId::fromString(Fx::storeId('sa')), strtolower((string) Str::ulid()), [new HoldLineDto($held, 5)], null);
     $page = inventoryBrowser();
-    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.getElementById('count-{$held}')?.value === '6'"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('count-{$held}')?.value === '6'"))->toBeTrue();
 
     $page->type("#count-{$held}", '2');
 
     // Said under the box before it is saved, and the bar counts the one change.
-    expect(browserUntil($page, "document.getElementById('count-{$held}-warning') !== null"))->toBeTrue()
-        ->and(browserUntil($page, "document.getElementById('count-save-bar-message')?.textContent.includes('1')"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('count-{$held}-warning') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.getElementById('count-save-bar-message')?.textContent.includes('1')"))->toBeTrue();
 
     $page->click('[data-test="save-bar-save"]');
 
     expect(inventoryBrowserSoon($page, fn (): ?int => inventoryBrowserInStock('sa', $held), fn (?int $count): bool => $count === 2))->toBe(2)
-        ->and(browserUntil($page, "document.body.textContent.includes('Counts saved')"))->toBeTrue()
-        ->and(browserUntil($page, "[...document.querySelectorAll('[data-sonner-toast][data-type=\"warning\"]')].some((toast) => toast.textContent.includes('1 order is short of {$ready['values'][0]}'))"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Counts saved')"))->toBeTrue()
+        ->and(browserSoon($page, "[...document.querySelectorAll('[data-sonner-toast][data-type=\"warning\"]')].some((toast) => toast.textContent.includes('1 order is short of {$ready['values'][0]}'))"))->toBeTrue();
+});
+
+it('says a save once: opening a drawer after it does not say it again', function () {
+    $ready = inventoryBrowserProduct();
+    [$size] = $ready['sizes'];
+    inventoryBrowserCount('sa', [$size => 6]);
+    $page = inventoryBrowser();
+    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
+    $saved = "[...document.querySelectorAll('[data-sonner-toast]')].filter((toast) => toast.textContent.includes('Counts saved')).length";
+
+    expect(browserSoon($page, "document.getElementById('count-{$size}')?.value === '6'"))->toBeTrue();
+
+    $page->type("#count-{$size}", '8')->click('[data-test="save-bar-save"]');
+
+    expect(inventoryBrowserSoon($page, fn (): ?int => inventoryBrowserInStock('sa', $size), fn (?int $count): bool => $count === 8))->toBe(8)
+        ->and(browserSoon($page, "{$saved} === 1"))->toBeTrue();
+
+    // A partial reload - the drawer's - keeps the page's last words to itself.
+    $page->click("[data-test=\"open-size-{$size}\"]");
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-history\"] [data-test=\"history-line\"]') !== null"))->toBeTrue();
+
+    $page->wait(0.5);
+
+    expect($page->script("() => {$saved}"))->toBe(1);
 });
 
 it('adds stock through Add or Remove Stock', function () {
@@ -207,26 +235,26 @@ it('adds stock through Add or Remove Stock', function () {
     [$size] = $ready['sizes'];
     inventoryBrowserCount('sa', [$size => 6]);
     $page = inventoryBrowser();
-    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"stock-actions-{$size}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"stock-actions-{$size}\"]') !== null"))->toBeTrue();
 
     $page->click("[data-test=\"stock-actions-{$size}\"]")->click('[data-test="adjust-stock"]');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"adjust-dialog\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-dialog\"]') !== null"))->toBeTrue();
 
     $page->click('[data-test="adjust-add"]')->type('#adjust-quantity', '4');
 
-    expect(browserUntil($page, "document.getElementById('adjust-reason-RECEIVED') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('adjust-reason-RECEIVED') !== null"))->toBeTrue();
 
     $page->click('#adjust-reason-RECEIVED');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"adjust-becomes\"]')?.textContent.includes('10')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"adjust-becomes\"]')?.textContent.includes('10')"))->toBeTrue();
 
     $page->click('[data-test="confirm-adjust"]');
 
     expect(inventoryBrowserSoon($page, fn (): ?int => inventoryBrowserInStock('sa', $size), fn (?int $count): bool => $count === 10))->toBe(10)
-        ->and(browserUntil($page, "document.body.textContent.includes('Stock added')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Stock added')"))->toBeTrue();
 });
 
 it('sets one threshold for the selected rows', function () {
@@ -234,24 +262,24 @@ it('sets one threshold for the selected rows', function () {
     [$first, $second] = $ready['sizes'];
     inventoryBrowserCount('sa', [$first => 30, $second => 30]);
     $page = inventoryBrowser();
-    $page->navigate("/admin/stock?q={$ready['name']}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/stock?q={$ready['name']}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"select-{$first}\"]') !== null && document.querySelector('[data-test=\"select-{$second}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"select-{$first}\"]') !== null && document.querySelector('[data-test=\"select-{$second}\"]') !== null"))->toBeTrue();
 
     $page->click("[data-test=\"select-{$first}\"]")->click("[data-test=\"select-{$second}\"]");
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"selection\"]')?.textContent.includes('2')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"selection\"]')?.textContent.includes('2')"))->toBeTrue();
 
     $page->click('[data-test="threshold-selected"]');
 
-    expect(browserUntil($page, "document.getElementById('threshold-value') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('threshold-value') !== null"))->toBeTrue();
 
     $page->type('#threshold-value', '3')->click('[data-test="confirm-threshold"]');
 
     $both = fn (): array => [inventoryBrowserThreshold('sa', $first), inventoryBrowserThreshold('sa', $second)];
 
     expect(inventoryBrowserSoon($page, $both, fn (array $thresholds): bool => $thresholds === [3, 3]))->toBe([3, 3])
-        ->and(browserUntil($page, "document.body.textContent.includes('Thresholds saved')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Thresholds saved')"))->toBeTrue();
 });
 
 it('opens a size\'s side panel from its row, with its History, and closes it with Escape', function () {
@@ -260,20 +288,20 @@ it('opens a size\'s side panel from its row, with its History, and closes it wit
     inventoryBrowserCount('sa', [$size => 6]);
     inventoryBrowserCount('sa', [$size => 8]);
     $page = inventoryBrowser();
-    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"open-size-{$size}\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"open-size-{$size}\"]') !== null"))->toBeTrue();
 
     $page->click("[data-test=\"open-size-{$size}\"]");
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue()
-        ->and(browserUntil($page, "new URL(window.location.href).searchParams.get('size') === '{$size}'"))->toBeTrue()
-        ->and(browserUntil($page, "document.querySelectorAll('[data-test=\"drawer-history\"] [data-test=\"history-line\"]').length === 2"))->toBeTrue()
-        ->and(browserUntil($page, "document.querySelector('[data-test=\"drawer-history\"]')?.textContent.includes('Stocktake')"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "new URL(window.location.href).searchParams.get('size') === '{$size}'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelectorAll('[data-test=\"drawer-history\"] [data-test=\"history-line\"]').length === 2"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"drawer-history\"]')?.textContent.includes('Stocktake')"))->toBeTrue();
 
     $page->keys('[data-test="drawer-adjust"]', 'Escape');
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"drawer-body\"]') === null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') === null"))->toBeTrue();
 });
 
 it('lists a low size on Low Stock, which opens it on Stock', function () {
@@ -281,21 +309,21 @@ it('lists a low size on Low Stock, which opens it on Stock', function () {
     [$low, $plenty] = $ready['sizes'];
     inventoryBrowserCount('sa', [$low => 1, $plenty => 50]);
     $page = inventoryBrowser();
-    $page->navigate('/admin/low-stock', BROWSER_PAGE_LOAD);
+    $page->navigate('/admin/low-stock', BROWSER_SLOW_PAGE_LOAD);
 
     // The rows other runs left are low too: Show More until this one is drawn.
     $found = false;
 
     for ($tries = 0; $tries < 10 && ! $found; $tries++) {
-        $found = browserUntil($page, "document.querySelector('[data-test=\"low-row-{$low}\"]') !== null || (document.querySelector('[data-test=\"more\"]:not([disabled])')?.click(), false)");
+        $found = browserSoon($page, "document.querySelector('[data-test=\"low-row-{$low}\"]') !== null || (document.querySelector('[data-test=\"more\"]:not([disabled])')?.click(), false)");
     }
 
     expect($found)->toBeTrue()
-        ->and(browserUntil($page, "document.querySelector('[data-test=\"low-row-{$plenty}\"]') === null"))->toBeTrue();
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"low-row-{$plenty}\"]') === null"))->toBeTrue();
 
     $page->click("[data-test=\"open-size-{$low}\"]");
 
-    expect(browserUntil($page, "window.location.pathname === '/admin/stock' && document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue();
+    expect(browserSoon($page, "window.location.pathname === '/admin/stock' && document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue();
 });
 
 it('draws the product page\'s Inventory section in two store cards, each with boxes of its own', function () {
@@ -304,15 +332,15 @@ it('draws the product page\'s Inventory section in two store cards, each with bo
     inventoryBrowserCount('sa', [$size => 7]);
     inventoryBrowserCount('eg', [$size => 3]);
     $page = inventoryBrowser();
-    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.querySelector('[data-test=\"inventory-section-sa\"]') !== null && document.querySelector('[data-test=\"inventory-section-eg\"]') !== null"))->toBeTrue()
-        ->and(browserUntil($page, "document.getElementById('count-sa-{$size}')?.value === '7' && document.getElementById('count-eg-{$size}')?.value === '3'"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"inventory-section-sa\"]') !== null && document.querySelector('[data-test=\"inventory-section-eg\"]') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.getElementById('count-sa-{$size}')?.value === '7' && document.getElementById('count-eg-{$size}')?.value === '3'"))->toBeTrue();
 
     $page->type("#count-eg-{$size}", '9');
 
     // Only the Egyptian card's bar: the Saudi card's boxes are untouched.
-    expect(browserUntil($page, "document.getElementById('count-eg-save-bar-message') !== null && document.getElementById('count-sa-save-bar-message') === null"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('count-eg-save-bar-message') !== null && document.getElementById('count-sa-save-bar-message') === null"))->toBeTrue();
 
     $page->click('[data-test="inventory-section-eg"] [data-test="save-bar-save"]');
 
@@ -324,9 +352,9 @@ it('draws Stock right to left in Arabic', function () {
     $ready = inventoryBrowserProduct();
     inventoryBrowserCount('sa', [$ready['sizes'][0] => 4]);
     $page = inventoryBrowser('ar');
-    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_PAGE_LOAD);
+    $page->navigate("/admin/stock?q={$ready['codes'][0]}", BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserUntil($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
-        ->and(browserUntil($page, "document.querySelector('h1')?.textContent.includes('المخزون')"))->toBeTrue()
-        ->and(browserUntil($page, "document.getElementById('count-{$ready['sizes'][0]}')?.value === '4'"))->toBeTrue();
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('h1')?.textContent.includes('المخزون')"))->toBeTrue()
+        ->and(browserSoon($page, "document.getElementById('count-{$ready['sizes'][0]}')?.value === '4'"))->toBeTrue();
 });

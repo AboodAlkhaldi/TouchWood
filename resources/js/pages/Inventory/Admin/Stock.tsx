@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { figure } from '@/lib/digits';
+import { useKeptDepth } from '@/lib/kept-depth';
 import { readJson, useDebounced } from '@/lib/live-read';
 import { useLoadMore } from '@/lib/use-load-more';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
@@ -38,14 +39,21 @@ const AddSizeDialog = lazy(() => import('./dialogs').then((module) => ({ default
 | in a wired store) -, Held, Available with its one badge, Threshold, wired: **Counts on Stock**; a ⋯ of View
 | Stock (the drawer, in the address), Add or Remove Stock…, Set Threshold…, Show / Hide Last Pieces. The
 | selection sets one threshold for many - and, wired, counts them on stock or not. **Add Size** stocks a size
-| the store does not sell (Q24).
+| the store does not sell (Q24). An archived size is read-only (§4.3.1): no box, no selection, its changes
+| drawn with their reason; so are a wired store's Add or Remove Stock and Last Pieces.
+|
+| The drawer's reads are deferred (the server's `drawer`, `drawerFailed`, `history`): the page first, then
+| the drawer. A size the store cannot show says so in the drawer. A change keeps the rows Show More had
+| shown (lib/kept-depth.ts), and the selection keeps only the rows still shown.
 */
 
 const FILTERS = ['ALL', 'LOW', 'OUT_OF_STOCK', 'HELD', 'SHORT'] as const;
 
 type Dialog = { kind: 'adjust'; size: AdjustTarget } | { kind: 'threshold'; sizes: string[]; name: string | null; current: number | null } | { kind: 'add' } | null;
 
-export default function Stock(page: StockPage & { drawer: SizeStockData | null; history: HistoryData | null }) {
+type DrawerProps = { drawer?: SizeStockData | null; drawerFailed?: boolean; history?: HistoryData | null };
+
+export default function Stock(page: StockPage & DrawerProps) {
     const { storeFrame: frame, rows, next, total, search, filter } = page;
     const t = useT();
     const locale = useLocale();
@@ -54,19 +62,26 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
     const [selected, setSelected] = useState<string[]>([]);
     const opener = useRef<HTMLElement | null>(null);
     const list = useLoadMore<StockRowData>(rows, (row) => row.size.variantId);
-    const drawer = useAddressDrawer('size', ['drawer', 'history']);
+    const drawer = useAddressDrawer('size', ['drawer', 'drawerFailed', 'history']);
     const countable = !frame.wired;
     const counts = useCounts(
         countable ? list.rows.filter((row) => !row.size.archived).map((row) => ({ id: row.size.variantId, inStock: row.figures.inStock, held: row.figures.held, holdingOrders: row.figures.holdingOrders })) : [],
         { store: frame.storeCode },
     );
     const filtered = search !== '' || filter !== 'ALL';
+    // Another list - a filter, a search - starts the selection and the typed counts again, once the visit
+    // goes ahead: leaving with counts typed asks first, and staying keeps both.
+    const replaced = () => {
+        setSelected([]);
+        counts.discard();
+    };
     const visit = (params: { q?: string; filter?: string }) => {
         const asked = { store: frame.storeCode, q: params.q ?? search, filter: params.filter ?? filter };
-        // A filter or a search starts the selection again.
-        setSelected([]);
-        router.get('/admin/stock', Object.fromEntries(Object.entries(asked).filter(([key, value]) => value !== '' && !(key === 'filter' && value === 'ALL'))), { preserveState: true });
+        router.get('/admin/stock', Object.fromEntries(Object.entries(asked).filter(([key, value]) => value !== '' && !(key === 'filter' && value === 'ALL'))), { preserveState: true, onSuccess: replaced });
     };
+    const more = (cursor: string) =>
+        list.more('/admin/stock', Object.fromEntries(Object.entries({ store: frame.storeCode, q: search, filter: filter === 'ALL' ? '' : filter, after: cursor }).filter(([, value]) => value !== '')), ['rows', 'next', 'total']);
+    const restoring = useKeptDepth(list, next, more);
     const typed = useDebounced(query, 300);
 
     useEffect(() => {
@@ -78,8 +93,26 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
     }, [typed]);
 
     const nameOf = (row: { size: StockRowData['size'] }) => `${nameIn(locale, row.size.productNameAr, row.size.productNameEn)} · ${sizeName(t, row.size.values)}`;
-    const shownIds = list.rows.map((row) => row.size.variantId);
-    const allSelected = shownIds.length > 0 && shownIds.every((id) => selected.includes(id));
+    // Only the rows shown and not archived can be chosen.
+    const selectable = list.rows.filter((row) => !row.size.archived).map((row) => row.size.variantId);
+    const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
+    const someSelected = !allSelected && selected.length > 0;
+
+    useEffect(() => {
+        if (restoring) {
+            return;
+        }
+
+        // After a change or a new list, the selection keeps only the rows still shown.
+        setSelected((before) => {
+            const kept = before.filter((id) => selectable.includes(id));
+
+            return kept.length === before.length ? before : kept;
+        });
+        // The rows decide; the ids are read from them.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [list.rows, restoring]);
+
     const openDialog = (next: Dialog, trigger: HTMLElement | null) => {
         opener.current = trigger;
         setDialog(next);
@@ -90,6 +123,9 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
         </ActionButton>
     ) : undefined;
     const switchCounts = (sizes: string[], on: boolean) => router.post('/admin/stock/counts-on-stock', { store: frame.storeCode, sizes, on }, { preserveScroll: true });
+    // The drawer of the size the address names, once its deferred reads came - never an older size's.
+    const view = page.drawer !== undefined && page.drawer !== null && page.drawer.size.variantId === drawer.value ? page.drawer : null;
+    const failed = view === null && page.drawerFailed === true && drawer.value !== null && !drawer.loading;
 
     return (
         <AdminLayout title={t('inventory::admin_stock.title')} subtitle={t('inventory::admin_stock.subtitle')} action={add}>
@@ -120,8 +156,7 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                                 variant="ghost"
                                 onClick={() => {
                                     setQuery('');
-                                    setSelected([]);
-                                    router.get('/admin/stock', { store: frame.storeCode }, { preserveState: true });
+                                    router.get('/admin/stock', { store: frame.storeCode }, { preserveState: true, onSuccess: replaced });
                                 }}
                                 data-test="clear-filters"
                             >
@@ -131,9 +166,15 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                     </CardContent>
                 </Card>
 
+                {/* How many are chosen, said as it changes. */}
+                <p className="sr-only" aria-live="polite" data-test="selection-live">
+                    {selected.length > 0 ? plural(t, locale, 'inventory::admin_stock.selected', selected.length) : ''}
+                </p>
                 {selected.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-3" data-test="selection">
-                        <span className="tw-figure text-label-14 text-ink">{plural(t, locale, 'inventory::admin_stock.selected', selected.length)}</span>
+                        <span className="tw-figure text-label-14 text-ink" aria-hidden="true">
+                            {plural(t, locale, 'inventory::admin_stock.selected', selected.length)}
+                        </span>
                         <Button
                             type="button"
                             variant="outline"
@@ -177,8 +218,9 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                                     <TableRow>
                                         <TableHead className="w-10">
                                             <Checkbox
-                                                checked={allSelected}
-                                                onCheckedChange={(on) => setSelected(on === true ? shownIds : [])}
+                                                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                                                disabled={selectable.length === 0}
+                                                onCheckedChange={() => setSelected(allSelected ? [] : selectable)}
                                                 aria-label={t('inventory::admin_stock.column.select_all')}
                                                 data-test="select-all"
                                             />
@@ -207,12 +249,15 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                                         return (
                                             <TableRow key={id} data-test={`stock-row-${id}`}>
                                                 <TableCell>
-                                                    <Checkbox
-                                                        checked={selected.includes(id)}
-                                                        onCheckedChange={(on) => setSelected((before) => (on === true ? [...before, id] : before.filter((each) => each !== id)))}
-                                                        aria-label={t('inventory::admin_stock.column.select', { size: nameOf(row) })}
-                                                        data-test={`select-${id}`}
-                                                    />
+                                                    {/* An archived size is read-only: nothing to choose it for (§4.3.1). */}
+                                                    {row.size.archived ? null : (
+                                                        <Checkbox
+                                                            checked={selected.includes(id)}
+                                                            onCheckedChange={(on) => setSelected((before) => (on === true ? [...before, id] : before.filter((each) => each !== id)))}
+                                                            aria-label={t('inventory::admin_stock.column.select', { size: nameOf(row) })}
+                                                            data-test={`select-${id}`}
+                                                        />
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <RowPhoto src={row.size.photo} />
@@ -245,7 +290,11 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                                                         {row.size.archived ? <Mark tone="amber-subtle" test="archived">{t('inventory::admin_stock.badge.archived')}</Mark> : null}
                                                         {row.lastPieces === true ? <Mark tone="blue-subtle">{t('inventory::admin_stock.badge.last_pieces')}</Mark> : null}
                                                     </span>
-                                                    {row.size.archived ? <span className="mt-1 block max-w-56 text-copy-12 text-ink-muted">{frame.reasons.archived}</span> : null}
+                                                    {row.size.archived ? (
+                                                        <span id={`archived-${id}`} className="mt-1 block max-w-56 text-copy-12 text-ink-muted">
+                                                            {frame.reasons.archived}
+                                                        </span>
+                                                    ) : null}
                                                 </TableCell>
                                                 <TableCell className="tw-figure font-mono text-copy-13" dir="ltr">
                                                     {row.size.code}
@@ -279,8 +328,10 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                                                     <TableCell className="align-top">
                                                         <Switch
                                                             checked={row.figures.stockDependent}
+                                                            disabled={row.size.archived}
                                                             onCheckedChange={(on) => switchCounts([id], on)}
                                                             aria-label={t('inventory::admin_stock.counts_on_label', { size: nameOf(row) })}
+                                                            aria-describedby={row.size.archived ? `archived-${id}` : undefined}
                                                             data-test={`counts-on-${id}`}
                                                         />
                                                     </TableCell>
@@ -307,12 +358,7 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
                     </>
                 )}
 
-                {next !== null ? (
-                    <LoadMoreButton
-                        loading={list.loading}
-                        onClick={() => list.more('/admin/stock', Object.fromEntries(Object.entries({ store: frame.storeCode, q: search, filter: filter === 'ALL' ? '' : filter, after: next }).filter(([, value]) => value !== '')), ['rows', 'next', 'total'])}
-                    />
-                ) : null}
+                {next !== null ? <LoadMoreButton loading={list.loading || restoring} onClick={() => more(next)} /> : null}
 
                 {countable ? counts.bar() : null}
             </div>
@@ -320,18 +366,20 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
             <SizeDrawer
                 open={drawer.value !== null}
                 onClose={drawer.close}
-                title={page.drawer === null ? '' : nameIn(locale, page.drawer.size.productNameAr, page.drawer.size.productNameEn)}
-                description={page.drawer === null ? '' : `${sizeName(t, page.drawer.size.values)} · ${page.drawer.size.code}`}
-                loading={drawer.loading || page.drawer === null || page.drawer.size.variantId !== drawer.value}
+                title={view === null ? t('inventory::admin_stock.menu.view') : nameIn(locale, view.size.productNameAr, view.size.productNameEn)}
+                description={view === null ? '' : `${sizeName(t, view.size.values)} · ${view.size.code}`}
+                loading={drawer.loading || (view === null && !failed)}
                 returnFocusTo={opener}
             >
-                {page.drawer !== null ? (
+                {failed ? (
+                    <LoadFailed what="size" onRetry={() => (drawer.value === null ? undefined : drawer.open(drawer.value))} />
+                ) : view !== null ? (
                     <DrawerBody
-                        view={page.drawer}
-                        history={page.history}
+                        view={view}
+                        history={page.history ?? null}
                         frame={frame}
-                        onAdjust={(trigger) => page.drawer !== null && openDialog({ kind: 'adjust', size: { variantId: page.drawer.size.variantId, name: nameOf(page.drawer), figures: page.drawer.figures } }, trigger)}
-                        onThreshold={(trigger) => page.drawer !== null && openDialog({ kind: 'threshold', sizes: [page.drawer.size.variantId], name: nameOf(page.drawer), current: page.drawer.figures.ownThreshold }, trigger)}
+                        onAdjust={(trigger) => openDialog({ kind: 'adjust', size: { variantId: view.size.variantId, name: nameOf(view), figures: view.figures } }, trigger)}
+                        onThreshold={(trigger) => openDialog({ kind: 'threshold', sizes: [view.size.variantId], name: nameOf(view), current: view.figures.ownThreshold }, trigger)}
                     />
                 ) : null}
             </SizeDrawer>
@@ -356,7 +404,6 @@ export default function Stock(page: StockPage & { drawer: SizeStockData | null; 
     );
 }
 
-
 function RowMenu({
     row,
     frame,
@@ -375,6 +422,8 @@ function RowMenu({
     const t = useT();
     const more = useRef<HTMLButtonElement>(null);
     const archived = row.size.archived ? frame.reasons.archived : null;
+    // A wired store's stock and Last Pieces are the provider's (§1.5): drawn, with why not.
+    const providers = frame.wired ? frame.reasons.wired : archived;
 
     return (
         <DropdownMenu>
@@ -383,10 +432,11 @@ function RowMenu({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
                 <Guarded label={t('inventory::admin_stock.menu.view')} onSelect={() => onView(more.current)} test="view-stock" />
-                {/* A wired store's stock is the provider's (§1.5): Add or Remove not offered. */}
-                {frame.wired ? null : <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={archived} onSelect={() => onAdjust(more.current)} test="adjust-stock" />}
+                <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={providers} onSelect={() => onAdjust(more.current)} test="adjust-stock" />
                 <Guarded label={t('inventory::admin_stock.menu.threshold')} reason={archived} onSelect={() => onThreshold(more.current)} test="set-threshold" />
-                {row.lastPieces === null || frame.wired ? null : (
+                {providers !== null || row.lastPieces === null ? (
+                    <Guarded label={row.lastPieces === true ? t('inventory::admin_stock.menu.hide_last') : t('inventory::admin_stock.menu.show_last')} reason={providers ?? frame.reasons.wired} onSelect={() => undefined} test="last-pieces" />
+                ) : (
                     <LastPiecesItem store={frame.storeCode} product={row.size.productId} on={row.lastPieces} />
                 )}
             </DropdownMenuContent>
@@ -445,11 +495,16 @@ function DrawerBody({ view, history, frame, onAdjust, onThreshold }: { view: Siz
                     ) : null}
                 </dl>
                 <div className="flex flex-wrap gap-2">
-                    {frame.wired ? null : (
-                        <ActionButton type="button" variant="outline" size="sm" disabledReason={archived ? frame.reasons.archived : undefined} onClick={(event) => onAdjust(event.currentTarget)} data-test="drawer-adjust">
-                            {t('inventory::admin_stock.menu.adjust')}
-                        </ActionButton>
-                    )}
+                    <ActionButton
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabledReason={frame.wired ? frame.reasons.wired : archived ? frame.reasons.archived : undefined}
+                        onClick={(event) => onAdjust(event.currentTarget)}
+                        data-test="drawer-adjust"
+                    >
+                        {t('inventory::admin_stock.menu.adjust')}
+                    </ActionButton>
                     <ActionButton type="button" variant="outline" size="sm" disabledReason={archived ? frame.reasons.archived : undefined} onClick={(event) => onThreshold(event.currentTarget)} data-test="drawer-threshold">
                         {t('inventory::admin_stock.menu.threshold')}
                     </ActionButton>
@@ -463,7 +518,11 @@ function DrawerBody({ view, history, frame, onAdjust, onThreshold }: { view: Siz
                 <p className="tw-figure text-copy-14 text-ink" data-test="drawer-holds">
                     {holds.orders === 0
                         ? t('inventory::admin_stock.drawer.no_holds')
-                        : plural(t, locale, 'inventory::admin_stock.drawer.holds_line', holds.orders, { pieces: figure(locale, holds.pieces), bought: figure(locale, holds.bought), gift: figure(locale, holds.gift) })}
+                        : plural(t, locale, 'inventory::admin_stock.drawer.holds_line', holds.orders, {
+                              pieces: plural(t, locale, 'inventory::admin_stock.drawer.pieces', holds.pieces),
+                              bought: figure(locale, holds.bought),
+                              gift: figure(locale, holds.gift),
+                          })}
                 </p>
             </section>
 

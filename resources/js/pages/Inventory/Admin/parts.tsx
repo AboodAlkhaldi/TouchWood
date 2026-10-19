@@ -146,7 +146,8 @@ export function StoreFrame({ frame }: { frame: InventoryFrameData }) {
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-end gap-3">
-                <StoreFilter stores={frame.stores} value={frame.storeCode} className="max-w-xs" />
+                {/* An open drawer's size is the store left's: another store starts without it. */}
+                <StoreFilter stores={frame.stores} value={frame.storeCode} drop={['size', 'after']} className="max-w-xs" />
                 {frame.off ? <StoreOffBadge className="mb-2" /> : null}
             </div>
             {frame.wired ? (

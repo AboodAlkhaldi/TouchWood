@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type HeldVisit, leaveGuard } from '@/lib/leave-guard';
+import { guardHub, type HeldVisit, leaveGuard } from '@/lib/leave-guard';
 
 /** A visit as Inertia hands its `before` listeners one: its own fields, the options and callbacks asked with. */
 function visit(overrides: Record<string, unknown> = {}): HeldVisit {
@@ -87,5 +87,32 @@ describe('leaving', () => {
         assert.deepEqual(finished, ['finish']);
         assert.equal(guard.leaving(), false);
         assert.equal(guard.before(visit()), false);
+    });
+});
+
+describe('a page with several sets of boxes', () => {
+    it('asks once for a visit, the first guard with changes asking, and lets the chosen leaving through all of them', () => {
+        const hub = guardHub();
+        const held: string[] = [];
+        const made: Array<Record<string, unknown>> = [];
+        const guard = (name: string, dirty: boolean) => leaveGuard({ dirty: () => dirty, keeps: () => false, hold: () => held.push(name), visit: (_url, options) => made.push(options), hub });
+        const pricing = guard('pricing', true);
+        const inventory = guard('inventory', true);
+        const clean = guard('clean', false);
+        const leaving = visit({ id: 'visit-2' });
+
+        assert.equal(pricing.before(leaving), false);
+        assert.equal(inventory.before(leaving), false);
+        assert.equal(clean.before(leaving), true);
+        assert.deepEqual(held, ['pricing']);
+
+        pricing.leave(leaving);
+
+        assert.equal(inventory.before(visit({ id: 'visit-3' })), true);
+        assert.equal(inventory.leaving(), true);
+
+        (made[0]?.onFinish as () => void)();
+        assert.equal(inventory.before(visit({ id: 'visit-4' })), false);
+        assert.deepEqual(held, ['pricing', 'inventory']);
     });
 });

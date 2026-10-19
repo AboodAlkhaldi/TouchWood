@@ -48,15 +48,17 @@ export function useCounts(rows: CountRow[], { store, prefix = 'count' }: { store
             return;
         }
 
-        focusFirst.current = false;
         const first = firstMarked(rows, (row) => row.id, marked);
 
+        // A refused row Show More had shown comes back with the list's next pages (lib/kept-depth.ts):
+        // the focus waits for it.
         if (first !== undefined) {
+            focusFirst.current = false;
             document.getElementById(idOf(first.id))?.focus();
         }
-        // Only a new answer moves the focus.
+        // A new answer, or the rows it named coming back, moves the focus.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [marked]);
+    }, [marked, rows.length]);
 
     const count = changedIds.length;
 
@@ -124,6 +126,11 @@ export function useCounts(rows: CountRow[], { store, prefix = 'count' }: { store
                 return next;
             }),
         save,
+        /** Forgets what was typed and the marks: the page is left, or replaced by another list. */
+        discard: () => {
+            setTyped({});
+            setMarked({});
+        },
         bar: () => (
             <>
                 <SaveBar

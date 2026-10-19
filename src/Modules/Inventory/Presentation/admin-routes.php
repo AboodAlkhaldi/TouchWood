@@ -9,8 +9,8 @@ use Modules\Inventory\Presentation\Http\Controller\StockController;
 
 /*
 | Inventory's screens in the admin panel (inventory.md §4.3.2, stage 5's screens step 5): Stock and Low Stock,
-| the reads their dialogs and drawer ask for (JSON: a size's figures, its history's next page, Add Size's
-| picker) and every change.
+| the reads their drawer and dialogs ask for (JSON: the history's next page, Add Size's picker) and
+| every change.
 |
 | Mounted into the area App\Http\AdminArea names, as Catalog's and Pricing's screens are. Who may open or do
 | any of these is Inventory's answer, never the routing's: each read and each handler asks for Manage Stock
@@ -22,7 +22,6 @@ Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
         Route::get('stock', [StockController::class, 'index'])->name('inventory.admin.stock');
-        Route::get('stock/size', [StockController::class, 'size'])->name('inventory.admin.stock.size');
         Route::get('stock/history', [StockController::class, 'history'])->name('inventory.admin.stock.history');
         Route::get('stock/add-sizes', [StockController::class, 'addSizes'])->name('inventory.admin.stock.add-sizes');
         Route::post('stock/counts', [StockController::class, 'counts'])->name('inventory.admin.stock.counts');

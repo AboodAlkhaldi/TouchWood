@@ -28,7 +28,6 @@ export { readJson, useDebounced, useLiveRead } from '@/lib/live-read';
 | rules (frontend.md §1.11); nothing here draws a component of its own making.
 */
 
-
 /** Pricing's words when they do not arrive with the page: a product's Stores tab sends them in its data. */
 export const PricingWords = createContext<Record<string, string> | null>(null);
 
@@ -54,12 +53,10 @@ export function otherName(locale: Locale, ar: string | null, en: string | null):
     return locale === 'ar' ? en : ar;
 }
 
-
 /** A size's values joined - "60 cm · Oak" - or "One Size". */
 export function sizeName(t: Translate, values: string[]): string {
     return values.length === 0 ? t('pricing::admin.one_size') : values.join(' · ');
 }
-
 
 /** A percentage kept in basis points, as a person reads it: 1250 → "12.5". */
 export function percentOf(locale: Locale, basisPoints: number): string {
@@ -145,8 +142,6 @@ export function RowPhoto({ src }: { src: string | null }) {
     return src !== null ? <img src={src} alt="" className="size-10 rounded-md border border-line object-cover" /> : <span className="block size-10 rounded-md bg-surface-sunken" aria-hidden="true" />;
 }
 
-
-
 /**
  * What every Pricing screen draws above its rows (§4.3.1, §4.3.2): the store filter (none for one store),
  * Off for a Super Admin's off store, the discount ceiling - a link to the settings for whoever may change
@@ -191,9 +186,6 @@ export function Showing({ shown, total }: { shown: number; total: number }) {
         </p>
     );
 }
-
-
-
 
 /** A read that failed, said in words with its way to try again (the review of step 3). */
 export function LoadFailed({ what, onRetry }: { what: 'note' | 'preview' | 'offer' | 'bands' | 'sizes' | 'categories' | 'search'; onRetry: () => void }) {

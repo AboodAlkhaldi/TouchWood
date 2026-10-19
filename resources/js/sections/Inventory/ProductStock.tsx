@@ -23,6 +23,8 @@ const ThresholdDialog = lazy(() => import('@/pages/Inventory/Admin/dialogs').the
 | its badge, Threshold, wired: Counts on Stock; the save bar inside the card; each size's ⋯ of Add or Remove
 | Stock…, Set Threshold…, View Stock (Stock's drawer). Each card's boxes are its own - ids with the store's code,
 | a refusal marking only its own rows, the store named in each box's label. Its words travel with its data.
+| An archived size (the size or its product) is read-only: its figures and why, no box and no change; a
+| wired store's Add or Remove Stock and Last Pieces are drawn with why not (§4.3.1).
 */
 
 type Card = {
@@ -30,7 +32,7 @@ type Card = {
     wired: boolean;
     off: boolean;
     lastPieces: boolean | null;
-    sizes: { variantId: string; figures: StockFiguresData }[];
+    sizes: { variantId: string; figures: StockFiguresData; archived: boolean }[];
     defaultThreshold: number;
     words: Record<string, string>;
 };
@@ -64,9 +66,13 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
     const opener = useRef<HTMLElement | null>(null);
     const variants = new Map((host.variants ?? []).map((variant) => [variant.id, variant]));
     const nameOf = (id: string) => sizeLabel(locale, t('inventory::admin_stock.one_size'), variants.get(id)?.values ?? []);
+    // A product archived has every size archived: nothing of it changes, its Last Pieces neither.
+    const allArchived = card.sizes.length > 0 && card.sizes.every((size) => size.archived);
     const countable = !card.wired;
+    const wiredReason = t('inventory::admin_stock.reasons.wired');
+    const archivedReason = t('inventory::admin_stock.reasons.archived');
     const counts = useCounts(
-        countable ? card.sizes.map((size) => ({ id: size.variantId, inStock: size.figures.inStock, held: size.figures.held, holdingOrders: size.figures.holdingOrders })) : [],
+        countable ? card.sizes.filter((size) => !size.archived).map((size) => ({ id: size.variantId, inStock: size.figures.inStock, held: size.figures.held, holdingOrders: size.figures.holdingOrders })) : [],
         // Each store card's boxes their own: ids, refusals and save bar.
         { store: store.code, prefix: `count-${store.code}` },
     );
@@ -74,20 +80,23 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
     return (
         <div className="grid gap-4" data-test={`inventory-section-${store.code}`}>
             <h3 className="text-heading-14 text-ink">{t('inventory::admin_stock.section.title')}</h3>
-            {card.lastPieces !== null ? (
-                <Field orientation="horizontal">
-                    <Switch
-                        id={`last-pieces-${store.code}`}
-                        checked={card.lastPieces}
-                        onCheckedChange={(on) => router.post('/admin/stock/last-pieces', { store: store.code, product: host.product?.id ?? '', on }, { preserveScroll: true })}
-                        data-test={`last-pieces-${store.code}`}
-                    />
-                    <FieldContent>
-                        <FieldLabel htmlFor={`last-pieces-${store.code}`}>{t('inventory::admin_stock.section.last_pieces')}</FieldLabel>
-                        <FieldDescription>{t('inventory::admin_stock.section.last_pieces_helper')}</FieldDescription>
-                    </FieldContent>
-                </Field>
-            ) : null}
+            {/* The product's Last Pieces: the provider's in a wired store, drawn off with why (§1.5). */}
+            <Field orientation="horizontal" data-disabled={card.lastPieces === null || allArchived || undefined}>
+                <Switch
+                    id={`last-pieces-${store.code}`}
+                    checked={card.lastPieces === true}
+                    disabled={card.lastPieces === null || allArchived}
+                    onCheckedChange={(on) => router.post('/admin/stock/last-pieces', { store: store.code, product: host.product?.id ?? '', on }, { preserveScroll: true })}
+                    aria-describedby={`last-pieces-${store.code}-helper`}
+                    data-test={`last-pieces-${store.code}`}
+                />
+                <FieldContent>
+                    <FieldLabel htmlFor={`last-pieces-${store.code}`}>{t('inventory::admin_stock.section.last_pieces')}</FieldLabel>
+                    <FieldDescription id={`last-pieces-${store.code}-helper`}>
+                        {card.lastPieces === null ? wiredReason : allArchived ? archivedReason : t('inventory::admin_stock.section.last_pieces_helper')}
+                    </FieldDescription>
+                </FieldContent>
+            </Field>
             <div className="overflow-x-auto">
                 <Table>
                     <TableCaption className="sr-only">{t('inventory::admin_stock.section.title')}</TableCaption>
@@ -121,7 +130,14 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                         </span>
                                     </TableCell>
                                     <TableCell className="align-top">
-                                        {countable ? (
+                                        {size.archived ? (
+                                            <span className="grid gap-1">
+                                                <InStock figures={size.figures} wired={card.wired} />
+                                                <span className="max-w-56 text-copy-12 text-ink-muted" data-test={`archived-${store.code}-${id}`}>
+                                                    {archivedReason}
+                                                </span>
+                                            </span>
+                                        ) : countable ? (
                                             <CountBox
                                                 id={counts.idOf(id)}
                                                 label={t('inventory::admin_stock.box.label_store', { size: name, store: store.name })}
@@ -149,6 +165,7 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                         <TableCell className="align-top">
                                             <Switch
                                                 checked={size.figures.stockDependent}
+                                                disabled={size.archived}
                                                 onCheckedChange={(on) => router.post('/admin/stock/counts-on-stock', { store: store.code, sizes: [id], on }, { preserveScroll: true })}
                                                 aria-label={t('inventory::admin_stock.counts_on_label', { size: `${name} (${store.name})` })}
                                                 data-test={`counts-on-${store.code}-${id}`}
@@ -160,7 +177,8 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
                                             name={`${name} (${store.name})`}
                                             store={store.code}
                                             size={id}
-                                            wired={card.wired}
+                                            adjustReason={card.wired ? wiredReason : size.archived ? archivedReason : null}
+                                            thresholdReason={size.archived ? archivedReason : null}
                                             onAdjust={(trigger) => {
                                                 opener.current = trigger;
                                                 setDialog({ kind: 'adjust', size: { variantId: id, name, figures: size.figures } });
@@ -197,7 +215,24 @@ function Section({ card, store }: { card: Card; store: { code: string; name: str
     );
 }
 
-function SizeMenu({ name, store, size, wired, onAdjust, onThreshold }: { name: string; store: string; size: string; wired: boolean; onAdjust: (trigger: HTMLElement | null) => void; onThreshold: (trigger: HTMLElement | null) => void }) {
+function SizeMenu({
+    name,
+    store,
+    size,
+    adjustReason,
+    thresholdReason,
+    onAdjust,
+    onThreshold,
+}: {
+    name: string;
+    store: string;
+    size: string;
+    /** Why Add or Remove Stock is out of reach - a wired store, an archived size - or null. */
+    adjustReason: string | null;
+    thresholdReason: string | null;
+    onAdjust: (trigger: HTMLElement | null) => void;
+    onThreshold: (trigger: HTMLElement | null) => void;
+}) {
     const t = useT();
     const more = useRef<HTMLButtonElement>(null);
 
@@ -207,8 +242,8 @@ function SizeMenu({ name, store, size, wired, onAdjust, onThreshold }: { name: s
                 <MoreButton ref={more} name={name} data-test={`section-stock-actions-${store}-${size}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
-                {wired ? null : <Guarded label={t('inventory::admin_stock.menu.adjust')} onSelect={() => onAdjust(more.current)} test="adjust-stock" />}
-                <Guarded label={t('inventory::admin_stock.menu.threshold')} onSelect={() => onThreshold(more.current)} test="set-threshold" />
+                <Guarded label={t('inventory::admin_stock.menu.adjust')} reason={adjustReason} onSelect={() => onAdjust(more.current)} test="adjust-stock" />
+                <Guarded label={t('inventory::admin_stock.menu.threshold')} reason={thresholdReason} onSelect={() => onThreshold(more.current)} test="set-threshold" />
                 <Guarded label={t('inventory::admin_stock.menu.view')} onSelect={() => router.get('/admin/stock', { store, size })} test="view-stock" />
             </DropdownMenuContent>
         </DropdownMenu>

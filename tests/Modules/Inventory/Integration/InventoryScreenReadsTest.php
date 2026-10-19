@@ -419,7 +419,8 @@ describe('a product\'s stock in every store (the product page)', function () {
         expect(array_map(static fn (ProductStoreStock $card): string => $card->storeId, $read()))->toBe([$sa])
             // One read for every card: two stores cost what one does.
             ->and(stockQueries($read))->toBe($two)
-            ->and($two)->toBeLessThanOrEqual(4);
+            // 4, and since the review of screens step 5 one more: which sizes are archived (Catalog's variantBriefs).
+            ->and($two)->toBeLessThanOrEqual(5);
 
         $section = app(ProductStockSection::class);
         $part = $section->read($ready['product'], [$a, $b], [app(PlatformApi::class)->store(StoreId::fromString($sa)) ?? throw new LogicException('No store.')]);

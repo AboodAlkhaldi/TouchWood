@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
@@ -13,6 +14,8 @@ use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\CatalogPermissions;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Modules\Inventory\Application\Command\CountLowStock\CountLowStock;
@@ -139,13 +142,43 @@ function inventoryScreensErrors(TestResponse $response): array
 }
 
 /**
+ * What the page asks for after it arrives when its address names a size: the drawer's deferred reads,
+ * asked as the page's own partial reload asks (Inertia's headers).
+ *
+ * @return array<string, string>
+ */
+function inventoryScreensDrawerHeaders(): array
+{
+    return [
+        'HTTP_X_INERTIA' => 'true',
+        'HTTP_X_INERTIA_VERSION' => (string) app(HandleInertiaRequests::class)->version(request()),
+        'HTTP_X_INERTIA_PARTIAL_COMPONENT' => 'Inventory/Admin/Stock',
+        'HTTP_X_INERTIA_PARTIAL_DATA' => 'drawer,drawerFailed,history',
+    ];
+}
+
+/**
+ * The drawer's props for the size the address names, as the page receives them after it arrives.
+ *
+ * @return array<string, mixed>
+ */
+function inventoryScreensDrawer(AdminBrowser $browser, string $uri): array
+{
+    $props = $browser->get($uri, inventoryScreensDrawerHeaders())->assertOk()->json('props');
+
+    return is_array($props) ? $props : [];
+}
+
+/**
  * How many queries the page asks for itself, opened a second time (warm): those made while Inventory's own
  * code runs - the panel's frame counted apart, Low Stock's count beside the menu entry with it (counted live
- * here, the queue being faked), and never the cache's rows.
+ * here, the queue being faked), and never the cache's rows. With headers, a partial reload's.
+ *
+ * @param  array<string, string>  $headers
  */
-function inventoryScreensOwnQueries(AdminBrowser $browser, string $uri): int
+function inventoryScreensOwnQueries(AdminBrowser $browser, string $uri, array $headers = []): int
 {
-    $browser->get($uri)->assertOk();
+    $browser->get($uri, $headers)->assertOk();
     /** @var ArrayObject<int, string> $own */
     $own = new ArrayObject;
 
@@ -171,7 +204,7 @@ function inventoryScreensOwnQueries(AdminBrowser $browser, string $uri): int
         }
     });
 
-    $browser->get($uri)->assertOk();
+    $browser->get($uri, $headers)->assertOk();
 
     return count($own);
 }
@@ -228,17 +261,34 @@ describe('Stock (I1)', function () {
         $browser = inventoryScreens();
 
         $low = inventoryScreensProps($browser->get('/admin/stock?filter=low'), 'Inventory/Admin/Stock');
-        $drawer = inventoryScreensProps($browser->get('/admin/stock?size='.$a['variants'][0]), 'Inventory/Admin/Stock');
-        $size = $browser->get('/admin/stock/size?store=sa&size='.$a['variants'][0])->assertOk()->json();
+        $page = inventoryScreensProps($browser->get('/admin/stock?size='.$a['variants'][0]), 'Inventory/Admin/Stock');
+        $drawer = inventoryScreensDrawer($browser, '/admin/stock?size='.$a['variants'][0]);
         $history = $browser->get('/admin/stock/history?store=sa&size='.$a['variants'][0])->assertOk()->json();
 
         expect(array_column(array_column($low['rows'], 'size'), 'variantId'))->toBe([$a['variants'][0]])
             ->and($low['filter'])->toBe('LOW')
+            // The drawer follows the page (deferred), so the page alone stays within its budget.
+            ->and($page)->not->toHaveKey('drawer')
             ->and($drawer['drawer']['size']['variantId'])->toBe($a['variants'][0])
             ->and($drawer['drawer']['holds']['orders'])->toBe(1)
+            ->and($drawer['drawer']['figures']['held'])->toBe(2)
+            ->and($drawer['drawerFailed'])->toBeFalse()
             ->and($drawer['history']['lines'][0]['reason'])->toBe('STOCKTAKE')
-            ->and($size['figures']['held'])->toBe(2)
             ->and($history['lines'])->toHaveCount(1);
+    });
+
+    it('says in the drawer that a size the address names cannot be shown, never refusing the page', function () {
+        $a = inventoryScreensProduct('Alpha');
+        $browser = inventoryScreens();
+        $unknown = strtolower((string) Str::ulid());
+
+        $page = inventoryScreensProps($browser->get("/admin/stock?size={$unknown}"), 'Inventory/Admin/Stock');
+        $drawer = inventoryScreensDrawer($browser, "/admin/stock?size={$unknown}");
+
+        expect($page['rows'][0]['size']['variantId'])->toBe($a['variants'][0])
+            ->and($drawer['drawer'])->toBeNull()
+            ->and($drawer['drawerFailed'])->toBeTrue()
+            ->and($drawer['history'])->toBeNull();
     });
 
     it('offers only the stores where the reader manages stock, refuses another, and shows an off store to a Super Admin only, marked', function () {
@@ -358,9 +408,12 @@ describe('the guards', function () {
         Ix::count('eg', [$size => 4]);
         $browser = inventoryScreens([P::STOCK_MANAGE], ['sa']);
 
-        foreach (["/admin/stock/size?store=eg&size={$size}", "/admin/stock/history?store=eg&size={$size}", '/admin/stock/add-sizes?store=eg', '/admin/low-stock?store=eg'] as $uri) {
+        foreach (["/admin/stock/history?store=eg&size={$size}", '/admin/stock/add-sizes?store=eg', '/admin/low-stock?store=eg'] as $uri) {
             $browser->get($uri)->assertForbidden();
         }
+
+        // The drawer's deferred reads in another store are refused as the page is.
+        $browser->get("/admin/stock?store=eg&size={$size}", inventoryScreensDrawerHeaders())->assertForbidden();
 
         foreach (['eg', null] as $store) {
             foreach ([
@@ -401,25 +454,31 @@ describe('the budget', function () {
         Ix::count('sa', [$a['variants'][0] => 4, $a['variants'][1] => 1, $a['variants'][2] => 50]);
         inventoryScreensHold($a['variants'][0], 2);
         $browser = inventoryScreens([P::STOCK_MANAGE, CatalogPermissions::PRODUCT_VIEW]);
+        // As in use: the history names a staff member, read by name (Platform's StaffNames).
+        $browser->post('/admin/stock/adjust', ['store' => 'sa', 'size' => $a['variants'][0], 'direction' => 'ADD', 'quantity' => '2', 'reason' => 'RECEIVED']);
+        $drawer = '/admin/stock?size='.$a['variants'][0];
         $reads = [
             'stock' => '/admin/stock',
-            'stock with a drawer' => '/admin/stock?size='.$a['variants'][0],
+            'stock with a drawer' => $drawer,
             'low stock' => '/admin/low-stock',
-            'size' => '/admin/stock/size?store=sa&size='.$a['variants'][0],
             'history' => '/admin/stock/history?store=sa&size='.$a['variants'][0],
             'add sizes' => '/admin/stock/add-sizes?store=sa&q=Alpha',
         ];
-        $counts = array_map(static fn (string $uri): int => inventoryScreensOwnQueries($browser, $uri), $reads);
+        $counts = [
+            ...array_map(static fn (string $uri): int => inventoryScreensOwnQueries($browser, $uri), $reads),
+            'the drawer after it' => inventoryScreensOwnQueries($browser, $drawer, inventoryScreensDrawerHeaders()),
+        ];
         Ix::wired();
         $wired = [
             'stock' => inventoryScreensOwnQueries($browser, '/admin/stock'),
-            'stock with a drawer' => inventoryScreensOwnQueries($browser, $reads['stock with a drawer']),
+            'stock with a drawer' => inventoryScreensOwnQueries($browser, $drawer),
+            'the drawer after it' => inventoryScreensOwnQueries($browser, $drawer, inventoryScreensDrawerHeaders()),
             'low stock' => inventoryScreensOwnQueries($browser, '/admin/low-stock'),
         ];
 
         expect(array_filter([...array_values($counts), ...array_values($wired)], static fn (int $count): bool => $count > 15))->toBe([])
-            ->and($counts)->toBe(['stock' => 9, 'stock with a drawer' => 15, 'low stock' => 8, 'size' => 6, 'history' => 1, 'add sizes' => 8])
-            ->and($wired)->toBe(['stock' => 7, 'stock with a drawer' => 12, 'low stock' => 7]);
+            ->and($counts)->toBe(['stock' => 9, 'stock with a drawer' => 9, 'low stock' => 8, 'history' => 2, 'add sizes' => 8, 'the drawer after it' => 8])
+            ->and($wired)->toBe(['stock' => 7, 'stock with a drawer' => 7, 'the drawer after it' => 7, 'low stock' => 7]);
     });
 });
 
@@ -454,7 +513,27 @@ describe('the menu and the product page', function () {
         expect($cards['sa']['component'] ?? null)->toBe('Inventory/ProductStock')
             ->and($cards['sa']['data']['sizes'][0]['figures']['inStock'])->toBe(7)
             ->and($cards['sa']['data']['defaultThreshold'])->toBe(10)
+            ->and($cards['sa']['data']['sizes'][0]['archived'])->toBeFalse()
             ->and($cards['eg']['data']['sizes'][0]['figures']['inStock'])->toBe(0)
             ->and($cards['sa']['data']['words']['inventory::admin_stock.section.title'])->toBe('Stock');
+    });
+
+    it('marks every size of an archived product read-only in its cards', function () {
+        $a = inventoryScreensProduct('Alpha', ['60 cm'], ['sa']);
+        Ix::count('sa', [$a['variants'][0] => 7]);
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($a['product'])));
+        $browser = inventoryScreens([CatalogPermissions::PRODUCT_VIEW, P::STOCK_MANAGE]);
+        $card = null;
+
+        $browser->get("/admin/products/{$a['product']}?tab=stores")->assertOk()->assertInertia(function (AssertableInertia $page) use (&$card): void {
+            foreach ($page->toArray()['props']['stores'] ?? [] as $store) {
+                foreach ($store['code'] === 'sa' ? $store['sections'] : [] as $section) {
+                    $card = $section['module'] === 'inventory' ? $section : $card;
+                }
+            }
+        });
+
+        expect($card['data']['sizes'][0]['archived'] ?? null)->toBeTrue()
+            ->and($card['data']['sizes'][0]['figures']['inStock'])->toBe(7);
     });
 });

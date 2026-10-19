@@ -22,10 +22,10 @@ use Modules\Inventory\Application\Query\StockHistory\HistoryLine;
 use Modules\Inventory\Application\Query\StockHistory\StockHistory;
 use Modules\Inventory\Application\Query\StockHistory\StockHistoryHandler;
 use Modules\Inventory\Application\Query\StockViews\SizeView;
-use Modules\Inventory\Application\Query\ViewStock\SizeStockView;
 use Modules\Inventory\Application\Query\ViewStock\ViewStock;
 use Modules\Inventory\Application\Query\ViewStock\ViewStockHandler;
 use Modules\Inventory\Application\Stock\StockSaved;
+use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
@@ -33,7 +33,6 @@ use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Shared\Application\Unauthorized;
-use Shared\Domain\Error\DomainError;
 use Spatie\LaravelData\Data;
 
 /**
@@ -49,19 +48,12 @@ use Spatie\LaravelData\Data;
 final class InventoryPages
 {
     /**
-     * The sizes' drawers already read in this request, by "store size".
+     * The drawers already made in this request, by "store size" - null for a size the store cannot show:
+     * the drawer, its failure and its history are three props of one answer, read once.
      *
-     * @var array<string, SizeStockView>
+     * @var array<string, SizeStockData|null>
      */
-    private array $views = [];
-
-    /**
-     * The thumbnails already read in this request, by media id (null: none): Stock opened with its drawer
-     * reads the drawer's photo with the rows', not again.
-     *
-     * @var array<string, string|null>
-     */
-    private array $photos = [];
+    private array $drawers = [];
 
     public function __construct(
         private readonly Application $app,
@@ -122,25 +114,11 @@ final class InventoryPages
         );
     }
 
-    /**
-     * Stock's rows - with the drawer's size, when the address names one, read first so its photo comes in the
-     * rows' one read (the page and its open drawer within the budget of 15).
-     */
-    public function stock(?string $code, ?string $search, string $filter, ?string $after, ?string $drawerSize = null): StockPage
+    public function stock(?string $code, ?string $search, string $filter, ?string $after): StockPage
     {
         $store = $this->store($code);
-        $drawerPhoto = null;
-
-        if ($drawerSize !== null) {
-            try {
-                $drawerPhoto = $this->sizeView($store->id, $drawerSize)->size->photoMediaId;
-            } catch (DomainError) {
-                // The drawer says its own refusal; the rows are drawn regardless.
-            }
-        }
-
         $list = $this->list->handle(new ListStock($store->id, $search, $filter, $after));
-        $thumbs = $this->thumbs([...array_map(static fn (StockListRow $row): ?string => $row->size->photoMediaId, $list->rows), $drawerPhoto]);
+        $thumbs = $this->thumbs(array_map(static fn (StockListRow $row): ?string => $row->size->photoMediaId, $list->rows));
 
         return new StockPage(
             $this->frame($store),
@@ -156,7 +134,7 @@ final class InventoryPages
     /** A size's drawer: its figures, its product's Last Pieces, its holds. */
     public function sizeStock(string $storeId, string $variantId): SizeStockData
     {
-        $view = $this->sizeView($storeId, $variantId);
+        $view = $this->view->handle(new ViewStock($storeId, $variantId));
 
         return new SizeStockData(
             $this->sizeData($view->size, $this->thumbs([$view->size->photoMediaId])),
@@ -166,12 +144,29 @@ final class InventoryPages
         );
     }
 
-    /** A size's drawer as Inventory reads it, once a request. */
-    private function sizeView(string $storeId, string $variantId): SizeStockView
+    /**
+     * The drawer the address names, once a request; null for a size the store cannot show (unknown, or
+     * gone since the address was kept) - the drawer says so rather than the page being refused.
+     */
+    public function drawer(string $storeId, string $variantId): ?SizeStockData
     {
         $key = strtolower("{$storeId} {$variantId}");
 
-        return $this->views[$key] ??= $this->view->handle(new ViewStock($storeId, $variantId));
+        if (! array_key_exists($key, $this->drawers)) {
+            try {
+                $this->drawers[$key] = $this->sizeStock($storeId, $variantId);
+            } catch (InvalidInventoryInput) {
+                $this->drawers[$key] = null;
+            }
+        }
+
+        return $this->drawers[$key];
+    }
+
+    /** The drawer's history's first page; none for a size the drawer cannot show. */
+    public function drawerHistory(string $storeId, string $variantId): ?HistoryData
+    {
+        return $this->drawer($storeId, $variantId) === null ? null : $this->history($storeId, $variantId, null);
     }
 
     public function history(string $storeId, string $variantId, ?string $after): HistoryData
@@ -272,24 +267,14 @@ final class InventoryPages
      */
     private function thumbs(array $mediaIds): array
     {
-        $ids = array_values(array_unique(array_map('strtolower', array_filter($mediaIds, static fn (?string $id): bool => $id !== null && $id !== ''))));
-        $unread = array_values(array_filter($ids, fn (string $id): bool => ! array_key_exists($id, $this->photos)));
-
-        foreach ($unread as $id) {
-            $this->photos[$id] = null;
-        }
-
-        foreach ($unread === [] ? [] : $this->platform->mediaUrlsOf($unread) as $id => $urls) {
-            $this->photos[strtolower((string) $id)] = self::thumb($urls);
-        }
-
+        $ids = array_values(array_unique(array_filter($mediaIds, static fn (?string $id): bool => $id !== null && $id !== '')));
         $thumbs = [];
 
-        foreach ($ids as $id) {
-            $thumb = $this->photos[$id] ?? null;
+        foreach ($ids === [] ? [] : $this->platform->mediaUrlsOf($ids) as $id => $urls) {
+            $thumb = self::thumb($urls);
 
             if ($thumb !== null) {
-                $thumbs[$id] = $thumb;
+                $thumbs[strtolower((string) $id)] = $thumb;
             }
         }
 

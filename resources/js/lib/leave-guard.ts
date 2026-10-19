@@ -29,20 +29,39 @@ export type LeaveGuard = {
 /** The fields Inertia adds to a visit of its own, which a new visit makes afresh. */
 const OWN = ['id', 'url', 'cancelled', 'completed', 'interrupted'];
 
+/**
+ * What the guards of one page share: a page with several sets of boxes - a product's store cards, each
+ * with Pricing's and Inventory's - asks **once** for a visit, the first guard with changes asking, and a
+ * person who chose to leave is let through by all of them (the review of stage 5's screens step 5).
+ */
+export type GuardHub = { leaving: boolean; asking: unknown };
+
+export function guardHub(): GuardHub {
+    return { leaving: false, asking: null };
+}
+
 export function leaveGuard(options: {
     dirty: () => boolean;
     keeps: (visit: HeldVisit) => boolean;
     hold: (visit: HeldVisit) => void;
     visit: Visitor;
+    /** Shared with the page's other guards; a guard of its own when none is given. */
+    hub?: GuardHub;
 }): LeaveGuard {
-    let leaving = false;
+    const hub = options.hub ?? guardHub();
 
     return {
         before: (visit) => {
-            if (visit.prefetch || leaving || !options.dirty() || keepsBoxes(visit) || options.keeps(visit)) {
+            if (visit.prefetch || hub.leaving || !options.dirty() || keepsBoxes(visit) || options.keeps(visit)) {
                 return true;
             }
 
+            // Another guard of the page is asking about this visit already: cancelled, not asked twice.
+            if (hub.asking === visit.id && visit.id !== undefined) {
+                return false;
+            }
+
+            hub.asking = visit.id;
             options.hold(visit);
 
             return false;
@@ -57,15 +76,16 @@ export function leaveGuard(options: {
             }
 
             const finish = typeof visit.onFinish === 'function' ? (visit.onFinish as (...args: unknown[]) => unknown) : null;
-            leaving = true;
+            hub.leaving = true;
+            hub.asking = null;
             options.visit(visit.url, {
                 ...asked,
                 onFinish: (...args: unknown[]) => {
-                    leaving = false;
+                    hub.leaving = false;
                     finish?.(...args);
                 },
             });
         },
-        leaving: () => leaving,
+        leaving: () => hub.leaving,
     };
 }
