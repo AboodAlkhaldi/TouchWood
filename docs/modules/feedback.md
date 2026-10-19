@@ -285,7 +285,8 @@ every kind column has a CHECK `IN (…)` (lessons 35, 162).
 | `feedback.wishlist_items` | `customer_id` → `access.customers` RESTRICT, `product_id` → `catalog.products` CASCADE, `store_id` → `platform.stores` RESTRICT, `saved_at` | PK (`customer_id`, `product_id`, `store_id`). A product Catalog deletes leaves the lists (nothing to keep) |
 
 **Indexes:** reviews by (`product_id`, `status`, `created_at` DESC, `id`) — a product's page; by
-(`store_id`, `status`, `created_at`, `id`) — a store's queue; by `customer_id` — "my reviews";
+(`store_id`, `status`, `created_at`, `id`) — a store's queue; the unique (`customer_id`, `product_id`)
+— "my reviews"; by `variant_id` — Catalog's check before deleting a variant;
 questions by (`product_id`, `status`, `answered_at` DESC, `id`), by (`store_id`,
 `status`, `created_at`, `id`) and by `customer_id` — "my questions"; wishlist items by (`store_id`,
 `product_id`) — the counts; by `customer_id`.
@@ -413,7 +414,9 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
     ready, chosen in that store, and not marked "not available now"; stock does not count, so a
     product out of stock can still be saved and asked about. Asking or saving in a store that does not
     sell it is `InvalidFeedbackAttribute`; a review is written in a store that sells the product, so
-    the store that moderates it shows it.
+    the store that moderates it shows it. My assumption, built with step F2 (catalog.md amendment 24):
+    which kind of buyer a store shows a category to (`store_category_audiences`) is not part of "sells"
+    — a shopper who cannot see a product never gets it delivered, so never reviews it.
 20. With the spec's other picks: a product a store stopped selling stays in "Favourited products",
     marked; a customer's wishlist is read only where Access lets the reader see the customer; a gift
     line counts neither as a delivered nor a returned purchase; only pieces actually received make a

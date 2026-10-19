@@ -7,6 +7,7 @@ namespace Modules\Feedback\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use LogicException;
 use Modules\Feedback\Domain\Model\Review;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Public\Enums\ReviewMark;
@@ -86,10 +87,14 @@ final readonly class DatabaseReviews implements Reviews
         // Taken away, the rating was counted when approved: its row is there. An INSERT … ON CONFLICT
         // would be refused here, as PostgreSQL checks the row it would insert (a count of -1) first.
         if ($sign < 0) {
-            $this->db->update(
+            $changed = $this->db->update(
                 'UPDATE feedback.product_ratings SET rating_sum = rating_sum - ?, rating_count = rating_count - 1, updated_at = ? WHERE product_id = ?',
                 [$rating, Moment::of($at), $productId],
             );
+
+            if ($changed !== 1) {
+                throw new LogicException("No rating of product {$productId} counted the approved review taken away.");
+            }
 
             return;
         }

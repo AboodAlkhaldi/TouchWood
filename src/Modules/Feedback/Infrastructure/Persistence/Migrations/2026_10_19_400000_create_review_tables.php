@@ -57,7 +57,9 @@ return new class extends Migration
 
         DB::statement('CREATE INDEX reviews_by_product ON feedback.reviews (product_id, status, created_at DESC, id)');
         DB::statement('CREATE INDEX reviews_by_store_queue ON feedback.reviews (store_id, status, created_at, id)');
-        DB::statement('CREATE INDEX reviews_by_customer ON feedback.reviews (customer_id)');
+        // "My reviews" walk the unique key (customer_id, product_id); a variant Catalog would delete is
+        // looked up by its own index — the foreign key's check and the usage check both ask it.
+        DB::statement('CREATE INDEX reviews_by_variant ON feedback.reviews (variant_id)');
 
         Schema::create('feedback.product_ratings', function (Blueprint $table) {
             $table->ulid('product_id');

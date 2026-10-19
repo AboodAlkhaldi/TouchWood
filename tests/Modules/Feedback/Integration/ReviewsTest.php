@@ -8,6 +8,8 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Usage\InMemoryCatalogUsages;
+use Modules\Catalog\Domain\Exception\CatalogItemInUse;
 use Modules\Catalog\Public\Enums\CatalogItem;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReview;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReviewHandler;
@@ -197,7 +199,10 @@ describe('moderating', function () {
         app(RejectReviewHandler::class)->handle(new RejectReview($withReason, '  Mentions another shop.  '));
         app(RejectReviewHandler::class)->handle(new RejectReview($without, '   '));
 
+        $audit = DB::table('platform.audit_entries')->where('action', 'feedback.review.rejected')->where('subject_id', $withReason)->first();
+
         expect([reviewRow($withReason)['status'], reviewRow($withReason)['reason']])->toBe(['REJECTED', 'Mentions another shop.'])
+            ->and(json_decode((string) $audit?->changes, true))->toEqual(['status' => ['PENDING', 'REJECTED'], 'reason' => [null, 'Mentions another shop.']])
             ->and([reviewRow($without)['status'], reviewRow($without)['reason']])->toBe(['REJECTED', null])
             ->and(app(Reviews::class)->rating($product))->toBe(['sum' => 0, 'count' => 0]);
     });
@@ -214,7 +219,8 @@ describe('moderating', function () {
 
         expect([reviewRow($id)['status'], reviewRow($id)['reason']])->toBe(['UNPUBLISHED', 'Asked by the customer'])
             ->and(app(Reviews::class)->rating($product))->toBe(['sum' => 0, 'count' => 0])
-            ->and(DB::table('platform.audit_entries')->where('action', 'feedback.review.unpublished')->exists())->toBeTrue();
+            ->and(json_decode((string) DB::table('platform.audit_entries')->where('action', 'feedback.review.unpublished')->value('changes'), true))
+            ->toEqual(['status' => ['APPROVED', 'UNPUBLISHED'], 'reason' => [null, 'Asked by the customer']]);
     });
 
     it('refuses a move its state does not allow, and changes nothing', function (Closure $move) {
@@ -339,4 +345,18 @@ describe('what Catalog may not delete', function () {
             ->and($usage->usesOf(CatalogItem::Category, [$product]))->toBe([])
             ->and($usage->usesOf(CatalogItem::Product, []))->toBe([]);
     });
+});
+
+it('lets Catalog refuse to delete a reviewed product or variant: Feedback answers its usage check', function () {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    $sara = Fx::customer();
+    Fb::delivered($sara, $product, $sixty);
+    $id = Fb::write($sara, $product);
+
+    $refused = Fb::thrown(fn () => app(InMemoryCatalogUsages::class)->refuseIfUsed(CatalogItem::Product, [$product]), CatalogItemInUse::class);
+    $variant = Fb::thrown(fn () => app(InMemoryCatalogUsages::class)->refuseIfUsed(CatalogItem::Variant, [$sixty]), CatalogItemInUse::class);
+
+    expect($refused->context())->toBe(['modules' => 'feedback', 'uses' => 1, 'item' => 'product', 'item_id' => $product])
+        ->and($variant->context()['modules'])->toBe('feedback')
+        ->and(DB::table('feedback.reviews')->where('id', $id)->exists())->toBeTrue();
 });

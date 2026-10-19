@@ -165,8 +165,12 @@ describe('what a store sells, for Feedback (amendment 24)', function () {
         $archivedSizes = Px::ready(['60 cm']);
         $draft = Px::product('Hinge');
         $outOfStock = Px::ready(['60 cm'])['product'];
+        $hiddenWithCategory = Px::ready(['60 cm'])['product'];
+        $switchedOff = Px::ready(['60 cm'])['product'];
+        $oneSizeLeft = Px::ready(['60 cm', '80 cm']);
+        $archived = Px::ready(['60 cm'])['product'];
 
-        foreach ([$sold, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $outOfStock] as $product) {
+        foreach ([$sold, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $outOfStock, $hiddenWithCategory, $switchedOff, $oneSizeLeft['product'], $archived] as $product) {
             $choose($product, 'sa');
         }
 
@@ -176,14 +180,19 @@ describe('what a store sells, for Feedback (amendment 24)', function () {
         DB::table('catalog.store_variants')->where('store_id', $sa)->where('product_id', $sizeUnavailable)->update(['not_available_now' => true]);
         DB::table('catalog.products')->where('id', $hidden)->update(['hidden_by_brand' => true]);
         DB::table('catalog.variants')->whereIn('id', $archivedSizes['variants'])->update(['is_archived' => true]);
+        DB::table('catalog.products')->where('id', $hiddenWithCategory)->update(['hidden_by_category' => true]);
+        DB::table('catalog.store_variants')->where('store_id', $sa)->where('product_id', $switchedOff)->update(['is_active' => false]);
+        DB::table('catalog.variants')->where('id', $oneSizeLeft['variants'][0])->update(['is_archived' => true]);
+        DB::table('catalog.products')->where('id', $archived)->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
 
         $queries = Cx::recordQueries();
         $found = catalogReads()->productsSoldIn(StoreId::fromString($sa), [
-            strtoupper($sold), $elsewhere, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $draft, $outOfStock, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id',
+            strtoupper($sold), $elsewhere, $unavailable, $sizeUnavailable, $hidden, $archivedSizes['product'], $draft, $outOfStock,
+            $hiddenWithCategory, $switchedOff, $oneSizeLeft['product'], $archived, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id',
         ]);
 
         // Stock never counts: a product out of stock can still be saved and asked about (answer 19).
-        expect($found)->toEqualCanonicalizing([$sold, $outOfStock])
+        expect($found)->toEqualCanonicalizing([$sold, $outOfStock, $oneSizeLeft['product']])
             ->and(count($queries))->toBe(1)
             ->and(catalogReads()->productsSoldIn(StoreId::fromString($sa), []))->toBe([]);
     });
