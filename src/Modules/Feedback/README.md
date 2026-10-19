@@ -17,6 +17,7 @@ Backend only in this stage's build; the screens are another session's.
 | F3 — ratings in the shop's lists | Each approval and unpublishing pushes the product's rating into Catalog's listing (`ListingFacts::ratings`, catalog.md amendment 25), in the same transaction; the store's switch reaches Catalog on Platform's `SettingChanged` (`Review/RatingsSwitch`, read under the store's lock, a failure reported; `Infrastructure/Listener/TellCatalogOfRatingsSwitch`), and the repair `feedback:ratings:repush` (`Command/RepushRatings`, the system's reserved `feedback.ratings.repush`) tells it all again; Catalog shows the stars on cards and the weighted rating sort | below |
 | F4 — product questions | The questions table; `AskQuestion` (a signed-in customer, in an open store that sells the product, at most five waiting in all under a lock on the customer — answer 16); `AnswerQuestion`, `CorrectAnswer` (text only, who and when kept — answer 20), `RejectQuestion`, `UnpublishQuestion` (answer 18) by the staff of the store asked in, audited `feedback.question.answered` / `…answer_changed` / `…rejected` / `…unpublished`; Catalog's usage check counts questions | below |
 | F5 — the wishlist | The wishlist table (product CASCADE — a deleted product leaves the lists); `SaveToWishlist` (a signed-in customer, in an open store that sells the product, once per store, at most 500 items in all under a lock on the customer); `RemoveFromWishlist` (any item, whatever became of it; nothing when not there); an anonymized account's list deleted (`ClearAnonymizedWishlist`, queued) | below |
+| F6a — account and staff reads | `ViewMyReviews`, `ViewMyQuestions`, `ViewMyWishlist` (`feedback.own.view`); `ListReviews`, `ListQuestions` (the store's queues); `ViewCustomerWishlist`, `ListFavourites` (`feedback.wishlist.view`); Catalog amendment 26(a) `productCards` | below |
 
 ## What is here
 
@@ -47,6 +48,13 @@ Backend only in this stage's build; the screens are another session's.
   lock — a save under way finishes first and goes with the rest. Left open: a save authorized just
   before the anonymization that reaches the lock only after the listener ran keeps its one item; the
   account can never sign in again, so nobody sees it.
+- **Reads** (`Application/Query`): every page's products, variants, authors and staff read in bulk by
+  **`FeedbackReader`** — products through Catalog's `productCards` (amendment 26(a)), each in the store
+  it belongs to, photos through Platform in one read; authors in their public form only (`AuthorName`:
+  "Sara A.", or deleted). **`WishlistGroups`** groups a list by store, unavailable judged there (answer
+  17). SQL in `Infrastructure/Eloquent/DatabaseFeedbackQueries`: keyset pages after the last id;
+  queues' waiting items oldest first. Customers' own reads through `ReadInputs::customer`; staff lists
+  authorize the store, then `ReadInputs::staffIn` (an off store only for store switchers).
 - **Reviews**: **`Command/WriteReview`** (`feedback.review.write`, a signed-in customer): the text read
   by the domain's **`FeedbackText`** (trimmed, line breaks kept, Arabic digits as 0-9, length in
   characters); the product sold in the open store (Catalog's `productsSoldIn`); then under

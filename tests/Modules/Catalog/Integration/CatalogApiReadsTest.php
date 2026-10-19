@@ -198,6 +198,47 @@ describe('what a store sells, for Feedback (amendment 24)', function () {
     });
 });
 
+describe('product cards, for Feedback (amendment 26(a))', function () {
+    it('reads many products as cards in two queries, whatever became of them', function () {
+        $choose = fn (string $product, string $code) => Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($code), $product, true)));
+        $sold = Px::ready(['60 cm'])['product'];
+        $elsewhere = Px::ready(['60 cm'])['product'];
+        $archived = Px::ready(['60 cm'])['product'];
+        $draft = Px::product('A draft');
+        $choose($sold, 'sa');
+        $choose($archived, 'sa');
+        $choose($elsewhere, 'eg');
+        DB::table('catalog.products')->where('id', $archived)->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
+        DB::table('catalog.products')->where('id', $draft)->update(['name_en' => null]);
+        // A second photo placed before the one it had: the first by position is the card's.
+        DB::table('catalog.product_photos')->where('product_id', $sold)->update(['position' => 5]);
+        $front = Cx::media();
+        DB::table('catalog.product_photos')->insert(['product_id' => $sold, 'media_id' => $front, 'position' => 1]);
+        $sa = StoreId::fromString(Fx::storeId('sa'));
+
+        $queries = Cx::recordQueries();
+        $cards = catalogReads()->productCards($sa, 'en', [strtoupper($sold), $elsewhere, $archived, $draft, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id']);
+        $read = count($queries);
+        $arabic = catalogReads()->productCards($sa, 'ar', [$sold]);
+        $slug = static fn (string $product, string $locale): string => (string) DB::table('catalog.product_slugs')->where('product_id', $product)->where('locale', $locale)->where('is_current', true)->value('slug');
+
+        expect($read)->toBe(2)
+            ->and(array_keys($cards))->toEqualCanonicalizing([$sold, $elsewhere, $archived, $draft])
+            ->and([$cards[$sold]->sold, $cards[$elsewhere]->sold, $cards[$archived]->sold, $cards[$draft]->sold])->toBe([true, false, false, false])
+            ->and([$cards[$sold]->stage, $cards[$archived]->stage, $cards[$draft]->stage])->toBe([ProductStage::Ready, ProductStage::Archived, ProductStage::Draft])
+            ->and($cards[$sold]->name)->toBe((string) DB::table('catalog.products')->where('id', $sold)->value('name_en'))
+            ->and($cards[$sold]->slug)->toBe($slug($sold, 'en'))
+            ->and($cards[$sold]->photoMediaId)->toBe($front)
+            ->and($arabic[$sold]->name)->toBe((string) DB::table('catalog.products')->where('id', $sold)->value('name_ar'))
+            ->and($arabic[$sold]->slug)->toBe($slug($sold, 'ar'))
+            // A draft's English name may still be missing; it has no photo yet here.
+            ->and($cards[$draft]->photoMediaId)->toBeNull()
+            ->and($cards[$draft]->name)->toBe((string) DB::table('catalog.products')->where('id', $draft)->value('name_ar'))
+            ->and(catalogReads()->productCards($sa, 'en', []))->toBe([])
+            ->and(catalogReads()->productCards($sa, 'en', ['not-an-id']))->toBe([]);
+    });
+});
+
 describe('a brand, for Promotions (amendment 20)', function () {
     it('answers a brand with its names and whether it is switched on; nothing for an unknown id', function () {
         $brand = Px::brand('Hafele');

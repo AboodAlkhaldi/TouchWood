@@ -11,9 +11,11 @@ use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
+use Modules\Feedback\Application\Query\FeedbackQueries;
 use Modules\Feedback\Domain\Repository\Questions;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Domain\Repository\Wishlist;
+use Modules\Feedback\Infrastructure\Eloquent\DatabaseFeedbackQueries;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseQuestions;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseReviews;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseWishlist;
@@ -38,6 +40,7 @@ final class FeedbackServiceProvider extends ServiceProvider
         $this->app->bind(Reviews::class, DatabaseReviews::class);
         $this->app->bind(Questions::class, DatabaseQuestions::class);
         $this->app->bind(Wishlist::class, DatabaseWishlist::class);
+        $this->app->bind(FeedbackQueries::class, DatabaseFeedbackQueries::class);
     }
 
     public function boot(): void

@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
+use Modules\Catalog\Public\Dto\ProductCardDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
@@ -239,6 +240,41 @@ final readonly class DatabaseApiReads implements ApiReads
                 ->where('v.is_archived', false))
             ->pluck('p.id')
             ->all()));
+    }
+
+    public function productCards(string $storeId, string $locale, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        [$locale, $other] = $locale === 'ar' ? ['ar', 'en'] : ['en', 'ar'];
+        $sold = array_flip($this->productsSoldIn($storeId, $ids));
+        $rows = $this->db->table('catalog.products as p')
+            ->leftJoin('catalog.product_slugs as s', static function ($join) use ($locale): void {
+                $join->on('s.product_id', '=', 'p.id')->where('s.locale', $locale)->where('s.is_current', true);
+            })
+            ->whereIn('p.id', $ids)
+            ->selectRaw("p.id, coalesce(p.name_{$locale}, p.name_{$other}) as name, s.slug, p.stage")
+            ->selectRaw('(SELECT ph.media_id FROM catalog.product_photos ph WHERE ph.product_id = p.id ORDER BY ph.position LIMIT 1) as photo')
+            ->get();
+        $cards = [];
+
+        foreach ($rows as $row) {
+            $id = (string) $row->id;
+            $cards[$id] = new ProductCardDto(
+                $id,
+                (string) $row->name,
+                $row->slug === null ? null : (string) $row->slug,
+                $row->photo === null ? null : (string) $row->photo,
+                ProductStage::from((string) $row->stage),
+                isset($sold[$id]),
+            );
+        }
+
+        return $cards;
     }
 
     public function lineFacts(array $variantIds): array

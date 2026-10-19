@@ -237,6 +237,19 @@ audited (`feedback.review.approved`, `…rejected`, `…unpublished`; `feedback.
 | A customer's wishlist — only its items of stores where the reader holds the permission; the store's "Favourited products" with counts | `feedback.wishlist.view` (per store; `storesWith` for the list) |
 | A product's approved reviews and rating; its answered questions | Shop readers, public (§2.1) |
 
+**The reads as built (step F6a).** My assumptions, stated for the owner to reject:
+- **Pages:** 20 rows for a customer's own lists, 50 for staff's, each after the last row shown (a
+  keyset, never an offset); a wishlist (at most 500) comes whole, grouped by store in the stores'
+  own order. "Favourited products" pages after the last count and product read — at most five
+  batches a page past archived products, so a page may come back short with a `next`; a count that
+  changes between pages may show a product twice or not at all, as any list ranked by a live count.
+- **Order:** "my" lists newest first; a queue's waiting items **oldest first** — the next to decide on
+  top — and its other states newest first.
+- **A customer's wishlist for staff:** a customer the reader may not see (access.md amendment 44(c)),
+  or no such customer, reads as an empty list — the same answer for both, no new error.
+- **An off store's queues and "Favourited products"** open only to those who may switch stores, as
+  Feedback's changes there (§3); an off store's items in a customer's wishlist stay listed, marked.
+
 **The permissions Feedback declares** (three-part names, as Access requires):
 
 | Permission | Audience | Kind | Group | Admin-only |
@@ -442,7 +455,7 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 4. **Feedback's screens** — the frontend session's, to confirm (as for Loyalty and Promotions).
 5. **Every assumption marked above** — the variant shown, the author's name (and what moderators see),
    answers signed by the store's team, unpublishing, correcting answers, 5 waiting questions, 500
-   wishlist items, the switch starting on.
+   wishlist items, the switch starting on; the reads' pages, orders and empty answer (§3, step F6a).
 
 ### 9.3 The independent review of the draft (2026-10-09/10)
 
