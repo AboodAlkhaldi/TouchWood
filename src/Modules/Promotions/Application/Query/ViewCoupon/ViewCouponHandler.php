@@ -20,9 +20,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * One coupon in full (promotions.md §3): its store covered by one of the four permissions, or it is
- * not found; its lists named through Catalog — the products and the brands in one call each (catalog.md
- * amendment 27), a category one at a time until Catalog's bulk category read lands (Stage 5's
- * amendment 23(c)).
+ * not found; its lists named through Catalog in one call for each kind — products, categories
+ * (catalog.md amendment 23(c)), brands (amendment 27).
  */
 final readonly class ViewCouponHandler
 {
@@ -49,11 +48,13 @@ final readonly class ViewCouponHandler
         $products = $productIds === [] ? [] : $this->catalog->products($productIds);
         $brandIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($coupon->rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Brand)));
         $brands = $brandIds === [] ? [] : $this->catalog->brands($brandIds);
+        $categoryIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($coupon->rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Category)));
+        $categories = $categoryIds === [] ? [] : $this->catalog->categoriesWithPaths($categoryIds);
 
-        $rules = array_map(function (CouponRule $rule) use ($products, $brands): RuleView {
+        $rules = array_map(static function (CouponRule $rule) use ($products, $brands, $categories): RuleView {
             $named = match ($rule->target) {
                 RuleTarget::Product => $products[$rule->targetId] ?? null,
-                RuleTarget::Category => $this->catalog->category($rule->targetId),
+                RuleTarget::Category => $categories[$rule->targetId] ?? null,
                 RuleTarget::Brand => $brands[$rule->targetId] ?? null,
             };
 

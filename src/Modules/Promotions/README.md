@@ -11,7 +11,7 @@ under `pricing.ceiling.manage`): Promotions reads it and declares no setting of 
 
 ## Built
 
-The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**; two items wait on others (spec §9.2 #6, #7):
+The module was built in seven steps (the execution plan, approved 2026-10-17) — **the backend is complete**; one item waits on another session (spec §9.2 #6):
 
 | Step | What | Where |
 |---|---|---|

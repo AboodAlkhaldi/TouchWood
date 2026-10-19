@@ -323,7 +323,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 |---|---|---|
 | Pricing | The cart's prices: each line's variant, `mode`, `unit`, `listUnit` and `total`, `grossSubtotal`, `netSubtotal` | Exists (`PricingApi::prices`, `CartPricesDto`, on `main` since #97) — Sales passes them in |
 | Catalog | **For each cart line: its product, brand and every category above the product's** — one call per cart | **A Catalog addition, built with Promotions**: `CatalogApi::lineFacts(list $variantIds)` — **built**, catalog.md amendment 18 (step 2a). `ProductDto` gives the product's own category only; "Kitchens" must cover its sub-categories |
-| Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exist: `CatalogApi::products` and `variant` for products and gifts; `category()` (catalog.md amendment 17) for a category, one at a time until Stage 5's bulk `categoriesWithPaths` lands (§9.2 #7); `brands()` (amendment 27, after `brand()`, amendment 20) for brands in one read |
+| Catalog | Products, categories, brands and variants exist and are ready / active, for a coupon's lists and a gift | Exist: `CatalogApi::products` and `variant` for products and gifts; `categoriesWithPaths()` (catalog.md amendment 23(c), Stage 5's) for categories and `brands()` (amendment 27, after `brand()`, amendment 20) for brands — each one read whatever a list's length |
 | Catalog | **Refusing to delete what a coupon rule or a gift level uses** (§1.2) | **Built** (catalog.md amendment 19, Promotions step 3): `CatalogUsages` / `CatalogUsage`, as Platform's `MediaUsages` — Catalog's deletes of a category, brand, draft product or draft variant ask it first and refuse with `catalog.item_in_use`; Promotions answers through `PromotionsCatalogUsage` — its coupons' lists, and its gift levels' variants (step 5) |
 | Access | **The customers a segment can hold, in bulk**: those registered in a store, of one account type, not anonymized, keyset-paged; and a batch read of many customers by id (type, home store, name, anonymized) | **Built** (access.md amendment 70, Promotions step 4a): `AccessApi::customerIdsInStore` and `AccessApi::customers` — a fixed number of queries however many |
 | Access | **A store's staff see the name of a customer who ordered in that store** (owner, 2026-10-09, for segments) — beyond today's "only their stores' customers" (access.md amendment 44(c)) | **Recorded in access.md amendment 70**: Promotions decides who ordered in a store (its order facts) and reads the name through `customers()`; its segment screens show the name only (step 6) |
@@ -633,9 +633,8 @@ Owner, 2026-10-19 ("accept for all", after step 5's review):
    amendment 72, the screens session's PR #168, for the owner to merge). Then a Promotions read,
    `SearchSegmentCandidates(segmentId, text)` — Access's matches kept to the segment's store or its order
    facts, names only.
-7. **A category's name and switch, read one at a time** for a coupon's lists — until Catalog's bulk
-   category read (`categoriesWithPaths`, Stage 5's amendment 23(c), PR #171) is on `main`; brands are
-   read in bulk since step 7 (catalog.md amendment 27).
+7. ~~**A category's name and switch, read one at a time**~~ — **settled**: read in bulk through Stage 5's
+   `categoriesWithPaths` (catalog.md amendment 23(c)) since step 7, with brands (amendment 27).
 8. **Every assumption marked above** — codes unique in a store and never changed; a used coupon never
    deleted, an unused one deleted with its assignments; unused assignments removable; anonymized
    customers leaving segments; two levels with one amount refused; gift levels in the Marketing

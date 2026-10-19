@@ -13,9 +13,9 @@ use Modules\Promotions\Domain\Model\RuleTarget;
 
 /**
  * What a coupon's include and exclude lists may name (promotions.md §1.2): **products that are ready,
- * active categories and brands** — through Catalog's public reads. The products and the brands are
- * read in one call each (catalog.md amendment 27); a category one at a time until Catalog's bulk
- * category read lands (Stage 5's amendment 23(c)).
+ * active categories and brands** — through Catalog's public reads, one call for each kind whatever
+ * the list's length (handoff §5.4): `products`, `categoriesWithPaths` (catalog.md amendment 23(c)),
+ * `brands` (amendment 27).
  */
 final readonly class RuleTargets
 {
@@ -46,12 +46,14 @@ final readonly class RuleTargets
         $products = $productIds === [] ? [] : $this->catalog->products($productIds);
         $brandIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Brand)));
         $brands = $brandIds === [] ? [] : $this->catalog->brands($brandIds);
+        $categoryIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Category)));
+        $categories = $categoryIds === [] ? [] : $this->catalog->categoriesWithPaths($categoryIds);
 
         foreach ($rules as $rule) {
             match ($rule->target) {
                 RuleTarget::Product => ($products[$rule->targetId] ?? null)?->stage === ProductStage::Ready
                     ?: throw new InvalidPromotionAttribute('product', "{$rule->targetId} is not a ready product"),
-                RuleTarget::Category => $this->catalog->category($rule->targetId)?->isActive
+                RuleTarget::Category => ($categories[$rule->targetId] ?? null)?->isActive
                     ?: throw new InvalidPromotionAttribute('category', "{$rule->targetId} is not an active category"),
                 RuleTarget::Brand => ($brands[$rule->targetId] ?? null)?->isActive
                     ?: throw new InvalidPromotionAttribute('brand', "{$rule->targetId} is not an active brand"),

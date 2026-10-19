@@ -11,9 +11,10 @@ use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Dto\CategoryDto;
+use Modules\Catalog\Public\Dto\CategoryPathDto;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Promotions\Application\Command\ChangeCoupon\ChangeCoupon;
 use Modules\Promotions\Application\Command\ChangeCoupon\ChangeCouponHandler;
 use Modules\Promotions\Application\Command\CouponFields;
@@ -388,8 +389,8 @@ describe('a list entry removed while the coupon is saved', function () {
         // Catalog said the category was there and on; it is gone by the time the rule is written.
         $gone = strtolower((string) Str::ulid());
         $catalog = Mockery::mock(CatalogApi::class);
-        // Only the category is read on this path: a list of one category reads no products or brands.
-        $catalog->shouldReceive('category')->andReturn(new CategoryDto($gone, null, 'أبواب', 'Doors', true));
+        // Only the categories are read on this path: a list of one category reads no products or brands.
+        $catalog->shouldReceive('categoriesWithPaths')->andReturn([$gone => new CategoryPathDto($gone, 'أبواب', 'Doors', true, [new TranslatedTextDto('أبواب', 'Doors')])]);
         app()->instance(CatalogApi::class, $catalog);
         $fields = couponFields(['rules' => [['kind' => 'INCLUDE', 'target' => 'category', 'id' => $gone]]]);
 
