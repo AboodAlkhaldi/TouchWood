@@ -57,6 +57,9 @@ interface MarketingQueries
      */
     public function members(string $segmentId, ?string $afterCustomerId, int $limit): array;
 
+    /** One segment of the store with how many it holds; null when the store holds no such segment. */
+    public function segmentRow(StoreId $store, string $segmentId): ?SegmentRow;
+
     /**
      * The coupons of the store given to this customer, with the customer's uses of each — whether they
      * can still use one is the caller's to work out.

@@ -16,6 +16,7 @@ final readonly class CouponView
      * @param  list<RuleView>  $rules
      */
     public function __construct(
+        public string $storeId,
         public CouponRow $coupon,
         public ?Money $cap,
         public ?Money $minimum,

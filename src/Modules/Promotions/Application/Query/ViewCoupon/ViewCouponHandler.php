@@ -62,6 +62,7 @@ final readonly class ViewCouponHandler
         }, $coupon->rules);
 
         return new CouponView(
+            $store->value,
             $row,
             $coupon->cap,
             $coupon->minimum,

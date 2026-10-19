@@ -203,6 +203,7 @@ describe('one coupon', function () {
         $named = array_map(static fn ($rule): array => [$rule->kind, $rule->target, $rule->targetId, $rule->nameEn !== null], $view->rules);
 
         expect($view->coupon->code)->toBe('VIP-10')
+            ->and([$view->storeId, $view->coupon->storeId])->toBe([Fx::storeId('sa'), Fx::storeId('sa')])
             ->and($view->coupon->state)->toBe(CouponState::Active)
             ->and([$view->cap?->minorUnits, $view->minimum?->minorUnits, $view->maxUsesPerCustomer, $view->forPublic, $view->forCompany])->toBe([50_00, 100_00, 2, true, false])
             ->and([$view->cap?->currencyCode, $view->coupon->currencyCode])->toBe([Pr::currency(), Pr::currency()])
