@@ -177,7 +177,8 @@ describe('a brand, for Promotions (amendment 20)', function () {
         DB::table('catalog.brands')->where('id', $blum)->update(['is_active' => false]);
 
         $queries = Cx::recordQueries();
-        $found = catalogReads()->brands([strtoupper($hafele), $blum, '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id', $hafele]);
+        // Typed in capitals: read as the lower-case id it is.
+        $found = catalogReads()->brands([strtoupper($hafele), ' '.$blum.' ', '01k6abcdefghjkmnpqrstvwxyz', 'not-an-id']);
 
         expect(count($queries))->toBe(1)
             ->and(array_keys($found))->toEqualCanonicalizing([$hafele, $blum])
