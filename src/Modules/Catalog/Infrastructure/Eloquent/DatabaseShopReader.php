@@ -126,7 +126,10 @@ final readonly class DatabaseShopReader implements ShopReader
             ." CASE (SELECT side FROM side) WHEN 'retail' THEN listed.sells_retail WHEN 'wholesale' THEN listed.sells_wholesale ELSE true END AS by_side"
             .' FROM listed)'
             ." SELECT 'head' AS kind, head.id::text AS id, head.name AS name, head.other_slug::text AS swatch, head.slug::text AS group_id, NULL::text AS group_name,"
-            .' (EXISTS (SELECT 1 FROM listed))::int AS found, 0 AS group_position, 0 AS position FROM head'
+            // The head's spare column carries whether the store's lists show ratings (amendment 25), so
+            // the page reads it in this same query (P21).
+            .' (EXISTS (SELECT 1 FROM listed))::int AS found,'
+            .' (COALESCE((SELECT d.shown FROM catalog.store_rating_display d WHERE d.store_id = ?), true))::int AS group_position, 0 AS position FROM head'
             ." UNION ALL SELECT 'brand', b.id::text, b.{$name}, NULL, NULL, NULL,"
             .' count(*) FILTER (WHERE base.by_side AND cardinality(base.missed) = 0), b.position, b.position'
             .' FROM base JOIN catalog.brands b ON b.id = base.brand_id GROUP BY b.id'
@@ -144,7 +147,7 @@ final readonly class DatabaseShopReader implements ShopReader
             [
                 self::other($locale), $locale, $slug, $storeId, $locale,
                 self::array(self::ulids($filters->brands)), self::array(self::ulids($filters->values)),
-                $filters->side, $filters->side, $filters->side,
+                $filters->side, $filters->side, $filters->side, $storeId,
             ],
         );
 
@@ -175,6 +178,7 @@ final readonly class DatabaseShopReader implements ShopReader
             'other_slug' => $head->swatch === null ? null : (string) $head->swatch,
             'name' => (string) $head->name,
             'lists' => (int) $head->found === 1,
+            'ratings_shown' => (int) $head->group_position === 1,
             'filters' => new CategoryFilters(
                 $brandChoices,
                 array_map(static fn (string $id, string $name): FilterGroup => new FilterGroup($id, $name, $values[$id]), array_keys($names), $names),
@@ -559,11 +563,6 @@ final readonly class DatabaseShopReader implements ShopReader
             ->selectRaw(self::labelsOf($locale, self::LISTING).' AS labels')
             ->selectRaw(self::ratingOf(self::LISTING))
             ->where('store_id', $storeId)->where('locale', $locale)->where('orderable', true)->whereRaw(self::seenBy($viewer));
-    }
-
-    public function ratingsShown(string $storeId): bool
-    {
-        return (bool) ($this->db->table('catalog.store_rating_display')->where('store_id', $storeId)->value('shown') ?? true);
     }
 
     /**

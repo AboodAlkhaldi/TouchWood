@@ -50,12 +50,9 @@ interface ShopReader
      * its own kind's left out. A choice the page no longer offers (a brand not listed here, a value
      * switched off or held by nothing here, a side nothing here is sold on) counts as not made.
      *
-     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, filters: CategoryFilters}|null
+     * @return array{id: string, slug: string, other_slug: string|null, name: string, lists: bool, ratings_shown: bool, filters: CategoryFilters}|null
      */
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array;
-
-    /** Whether the store's lists show ratings — stars and the rating sort (amendment 25); never told, they do. */
-    public function ratingsShown(string $storeId): bool;
 
     /**
      * A brand's page head, in one read: who holds the slug — now or before — their slug now in this

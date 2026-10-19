@@ -98,7 +98,7 @@ final readonly class ShopCatalog
         // The cards by the choices the page still offers, as its counts were (P14) — the rating sort
         // only where the store's lists show ratings, best-selling otherwise (amendment 25).
         $chosen = $filters->narrowedTo($head['filters']);
-        $ratingSort = $this->reader->ratingsShown($store->value);
+        $ratingSort = $head['ratings_shown'];
 
         if (! $ratingSort && $chosen->sort === ShopFilters::RATING) {
             $chosen = $chosen->withSort(ShopFilters::BEST_SELLING);
