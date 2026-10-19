@@ -184,7 +184,8 @@ permission of their own. Ops adds what it needs when it writes to customers.
 Sales exists; the owner's order puts it before (2026-10-07). So **Sales's read and its
 `ReturnCompleted` event are declared first** — on `main`, as stage 5's interfaces were (#97) — and
 faked in Feedback's tests; the real answers come when Sales is built. Handoff §17 is amended with this
-spec.
+spec. **Declared 2026-10-19** (sales.md §2.1), answered until Sales's build by a placeholder that knows
+no purchase — so a review is refused as no verified purchase until then.
 
 ### 2.2 DTOs and enums
 

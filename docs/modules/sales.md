@@ -424,7 +424,12 @@ reject.
 | Method | Answers |
 |---|---|
 | `deliveredPurchase(string $customerId, string $productId): ?DeliveredPurchaseDto` | Whether the customer had that product delivered in any store: `variantId` (the latest delivered, by delivery time), `deliveredAt`, `returned` (any of that product in a completed return) |
-| `returnedProducts(string $returnId): ReturnedProductsDto` | `customerId`, `storeId`, `productIds` of a completed return |
+| `returnedProducts(string $returnId): ?ReturnedProductsDto` | `customerId`, `storeId`, `productIds` of a completed return — only products with pieces received, gift lines never (feedback.md §9.1b, 20); null for a return not completed or unknown |
+
+**Declared on `main` (2026-10-19, with `ReturnCompleted`)** — `Public/Contracts/SalesApi`,
+`Public/Dto/DeliveredPurchaseDto`, `ReturnedProductsDto`, `Public/Events/ReturnCompleted` — and bound
+until the build to `Infrastructure/External/NothingSoldYet` (nothing delivered, no return), so
+Feedback runs before Sales exists. Sales's build replaces the binding.
 
 ### 2.2 Events (`Public/Events`, ids only — handoff §4.5)
 
