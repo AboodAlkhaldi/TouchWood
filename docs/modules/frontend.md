@@ -754,6 +754,34 @@ way back (the dashboard or the store home). They show the translated title that
 `ProblemDetails` already produces, never a developer message. Stage 2b adds the missing pages
 for 409, 413, 415 and 422 (platform.md §9.3).
 
+**As built - the admin panel's (stage 5's screens, step 8; the owner's follow-ups, 2026-10-19):**
+
+- **Where:** `app/Http/ProblemDetails` answers a page request (not JSON) of a signed-in staff member
+  with the Inertia page `Admin/Error` (`resources/js/pages/Admin/Error.tsx`) in `AdminLayout` - the
+  sidebar, the trail, View Store - with the HTTP status. It does so for **403, 404, 409, 413, 415 and
+  422**, whether the error is a module's `DomainError` or Laravel's own (`abort(404)`, a model not found).
+- **What it says:** the error's translated **title** as the page's title (as before), and under it
+  **one sentence**: the error's own `….detail` - Sync's `ReadNotFound` says "This read isn't available."
+  / "هذه القراءة غير متاحة." - or a rule's words when the error names one (FormErrors); when the error
+  has none written, its status's sentence (`errors.page.{status}`, both languages). The message a
+  `DomainError` carries for developers is never shown. One button goes back: **Back to Home**
+  (`admin.error.back`), to `/admin`.
+- **Language:** the panel's, as every panel page: this browser's choice, else the person's own.
+- **Only when the frame can be drawn:** the route passes the panel's page middleware and its sign-in
+  (`AdminArea::PAGE`, `AdminArea::SIGNED_IN`) and the menu was shared, and the request is a read (GET or
+  HEAD). Everything else keeps Laravel's own page, which shows the status's text only: an address no
+  route answers (`/admin/no-such-page` - no route, so none of the panel's middleware ran), the sign-in
+  pages, a form sent (a refusal there is said in its own screen, FormErrors), and the statuses not listed
+  (419, 429, 500, 503).
+- **Words added:** `errors.http` 409, 413, 415, 422 (also the JSON problem's title for those statuses);
+  `errors.page.*`; `admin.error.back`.
+- **Not built:** the **storefront's** error pages. A shop page is drawn in `StorefrontLayout` with the
+  shop's own shared data and its way back is the store's home, so it is not the same path; Catalog's own
+  not-found shop page (`Catalog/Storefront/NotFound`, catalog.md §4.5) is unchanged.
+- **Tests:** `tests/Shared/Feature/PanelErrorPageTest.php` (both languages, each status's sentence, no
+  developer message with debug off, what stays on Laravel's page); Sync's not-found read in
+  `tests/Modules/Sync/Feature/SyncScreensTest.php` and `tests/Browser/SyncScreensTest.php`.
+
 ### 2.7 What the design shows that the system does differently
 
 The owner's direction, 2026-09-19: the design is look and behaviour only.

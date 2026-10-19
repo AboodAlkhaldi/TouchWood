@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/cn';
 import { figure } from '@/lib/digits';
+import { entryHere } from '@/lib/menu-here';
 import { useTranslator } from '@/lib/t';
 import type { MenuEntry, MenuGroup, SharedProps } from '@/types/page';
 
@@ -62,9 +63,13 @@ const SECTIONS_COOKIE = 'sidebar_sections';
 /** A year, as the panel's other preferences: re-choosing them every session would be a nuisance. */
 const SECTIONS_MAX_AGE = 60 * 60 * 24 * 365;
 
-/** Whether the person is on this entry's screen, or on one underneath it (/admin/staff/{id}). */
-function isHere(here: string, entry: MenuEntry): boolean {
-    return here === entry.href || here.startsWith(`${entry.href}/`);
+/**
+ * Whether this is the entry being read (lib/menu-here.ts): the person is on its screen, or on one underneath it
+ * (/admin/staff/{id}) - and no other entry's address holds the path more closely, so /admin/sync/provider
+ * lights the Provider alone, not the Sync Report at /admin/sync too.
+ */
+function isHere(lit: MenuEntry | null, entry: MenuEntry): boolean {
+    return lit !== null && lit.module === entry.module && lit.key === entry.key;
 }
 
 /** How many wait behind an area's screens, together - failed jobs, say (frontend.md E7). */
@@ -80,7 +85,8 @@ export function AppSidebar() {
     // The path only, so a search or a filter in the query string does not un-light the entry the
     // person is standing on.
     const here = page.url.split('?')[0] ?? page.url;
-    const current = menu.find((group) => group.entries.some((entry) => isHere(here, entry)))?.key;
+    const lit = entryHere(menu, here);
+    const current = lit?.group;
 
     // What the person opened, as this browser remembers it; the area being read opens by itself on
     // every page besides, unless they fold it here - and only what they opened is remembered, so an
@@ -129,7 +135,7 @@ export function AppSidebar() {
                             <MenuArea
                                 key={group.key}
                                 group={group}
-                                here={here}
+                                lit={lit?.entry ?? null}
                                 open={isOpen(group.key)}
                                 onOpenChange={(opened) => toggle(group.key, opened)}
                             />
@@ -150,7 +156,7 @@ export function AppSidebar() {
 
 type AreaProps = {
     group: MenuGroup;
-    here: string;
+    lit: MenuEntry | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -161,12 +167,12 @@ type AreaProps = {
  * show one item, often with the area's own name; it folds once a second screen joins it (owner,
  * 2026-10-04).
  */
-function MenuArea({ group, here, open, onOpenChange }: AreaProps) {
+function MenuArea({ group, lit, open, onOpenChange }: AreaProps) {
     const page = usePage<SharedProps>();
     const { state, isMobile } = useSidebar();
     const t = useTranslator();
     const { locale } = page.props;
-    const holdsHere = group.entries.some((entry) => isHere(here, entry));
+    const holdsHere = group.entries.some((entry) => isHere(lit, entry));
     const waiting = waitingIn(group);
     // Said aloud whether or not a number shows; after a pause, so it is not read as the name.
     const waitingWords = waiting > 0 ? <span className="sr-only">{t('admin.menu_waiting', { count: String(waiting) })}</span> : null;
@@ -234,7 +240,7 @@ function MenuArea({ group, here, open, onOpenChange }: AreaProps) {
                         <DropdownMenuSeparator />
                         {group.entries.map((entry) => (
                             <DropdownMenuItem key={`${entry.module}.${entry.key}`} asChild>
-                                <Link href={entry.href} aria-current={isHere(here, entry) ? 'page' : undefined}>
+                                <Link href={entry.href} aria-current={isHere(lit, entry) ? 'page' : undefined}>
                                     <MenuIcon name={entry.icon} />
                                     <span className="flex-1">{entry.label}</span>
                                     {entry.count !== null && entry.count > 0 ? <span className="tabular-nums">{figure(locale, entry.count)}</span> : null}
@@ -282,7 +288,7 @@ function MenuArea({ group, here, open, onOpenChange }: AreaProps) {
                     <SidebarMenuSub>
                         {group.entries.map((entry) => (
                             <SidebarMenuSubItem key={`${entry.module}.${entry.key}`}>
-                                <SidebarMenuSubButton asChild isActive={isHere(here, entry)}>
+                                <SidebarMenuSubButton asChild isActive={isHere(lit, entry)}>
                                     <Link href={entry.href}>
                                         <span>
                                             {entry.label}

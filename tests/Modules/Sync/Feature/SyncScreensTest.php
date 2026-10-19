@@ -7,6 +7,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -311,6 +312,30 @@ describe('a read (Y2)', function () {
         syncScreens()->get('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz')->assertNotFound();
         syncScreens()->get('/admin/sync/reads/nope')->assertNotFound();
     });
+
+    it('says the error\'s own sentence on the panel\'s not-found page, in the page\'s language, never the developers\' message (frontend.md §2.6)', function (string $locale, string $title, string $sentence, string $back) {
+        config(['app.debug' => false]);
+        $response = syncScreensAs(Fx::staffWith([P::REPORT_VIEW], ['sa']), $locale)->get('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz');
+
+        $response->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Admin/Error')
+            ->where('status', 404)
+            ->where('title', $title)
+            ->where('detail', $sentence)
+            ->where('locale', $locale)
+            ->where('translations', fn (Collection $words): bool => $words->get('admin.error.back') === $back)
+            // In the panel's frame: the person and their menu are there.
+            ->where('viewer', fn ($viewer): bool => $viewer !== null)
+            ->where('menu', fn (Collection $menu): bool => $menu->pluck('key')->contains('sync')));
+
+        // ReadNotFound's own message is written for developers.
+        expect($response->getContent())->not->toContain('There is no such read')
+            ->and($response->getContent())->not->toContain('ReadNotFound')
+            ->and($response->getContent())->not->toContain('sync.read_not_found');
+    })->with([
+        'English' => ['en', 'Not found', 'This read isn\'t available.', 'Back to Home'],
+        'Arabic' => ['ar', 'غير موجودة', 'هذه القراءة غير متاحة.', 'العودة إلى الرئيسية'],
+    ]);
 });
 
 describe('the Provider page (Y3)', function () {

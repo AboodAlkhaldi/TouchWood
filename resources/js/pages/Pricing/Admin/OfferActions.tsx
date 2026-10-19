@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState, type RefObject } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState, type RefObject } from 'react';
 import { router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -20,27 +20,80 @@ const OfferDialog = lazy(() => import('./OfferDialog').then((module) => ({ defau
 
 type Open = { mode: OfferMode | 'end' | 'remove'; sale: SaleRowData | null; product?: PickedProductData | null; sizes?: string[] };
 
+/** What End Offer or Remove Offer asks about. */
+type Confirming = { kind: 'end' | 'remove'; sale: SaleRowData };
+
+/** Every offer's ⋯ on the screen, in the order they are drawn (OfferMenu's `offer-actions-{id}`). */
+const OFFER_MENUS = '[data-test^="offer-actions-"]';
+
+/**
+ * Where focus may go back once End or Remove closes, besides the opener's ⋯: the next offer's ⋯, the one
+ * before, then the screen's Add Offer - on Offers, or in the opener's own store on a product's Stores tab.
+ */
+function nearOpener(trigger: HTMLElement | null): HTMLElement[] {
+    const menus = Array.from(document.querySelectorAll<HTMLElement>(OFFER_MENUS));
+    const at = trigger === null ? -1 : menus.indexOf(trigger);
+    const add =
+        document.querySelector<HTMLElement>('[data-test="add-offer"]') ??
+        trigger?.closest('[data-test^="pricing-section-"]')?.querySelector<HTMLElement>('[data-test^="section-add-offer-"]') ??
+        null;
+
+    return [at === -1 ? undefined : menus[at + 1], at === -1 ? undefined : menus[at - 1], add].filter((element): element is HTMLElement => element !== undefined && element !== null);
+}
+
 /** The offer dialogs a screen opens, drawn once for all its rows. */
 export function useOfferDialogs(store: OfferStore) {
     const [open, setOpen] = useState<Open | null>(null);
+    // End and Remove stay mounted while they close, so focus is given back (useReturnFocus) - unmounted at
+    // once, it fell to the page's start.
+    const [confirming, setConfirming] = useState<Confirming | null>(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
     const opener = useRef<HTMLElement | null>(null);
+    // Taken as it opens (nearOpener): a removed offer's row is gone once its dialog closes - and an ended
+    // one's too, on a list of running offers.
+    const near = useRef<HTMLElement[]>([]);
+    // Where focus goes back, read as the dialog closes: the opener's ⋯ while its row is still there, else the
+    // first of the others still on the page.
+    const back = useMemo<RefObject<HTMLElement | null>>(
+        () => ({
+            get current() {
+                return [opener.current, ...near.current].find((element) => element !== null && element.isConnected) ?? null;
+            },
+        }),
+        [],
+    );
     const close = (next: boolean) => (next ? undefined : setOpen(null));
 
     return {
         open: (next: Open, trigger: HTMLElement | null) => {
             opener.current = trigger;
+
+            if (next.mode === 'end' || next.mode === 'remove') {
+                near.current = nearOpener(trigger);
+
+                if (next.sale !== null) {
+                    setConfirming({ kind: next.mode, sale: next.sale });
+                    setConfirmOpen(true);
+                }
+
+                return;
+            }
+
+            near.current = [];
             setOpen(next);
         },
-        dialogs:
-            open === null ? null : open.mode === 'end' || open.mode === 'remove' ? (
-                open.sale === null ? null : (
-                    <ConfirmOffer kind={open.mode} sale={open.sale} onOpenChange={close} returnFocusTo={opener} />
-                )
-            ) : (
-                <Suspense fallback={null}>
-                    <OfferDialog mode={open.mode} store={store} sale={open.sale} product={open.product ?? null} sizes={open.sizes ?? []} open onOpenChange={close} returnFocusTo={opener} />
-                </Suspense>
-            ),
+        dialogs: (
+            <>
+                {confirming === null ? null : (
+                    <ConfirmOffer kind={confirming.kind} sale={confirming.sale} open={confirmOpen} onOpenChange={setConfirmOpen} returnFocusTo={back} />
+                )}
+                {open === null || open.mode === 'end' || open.mode === 'remove' ? null : (
+                    <Suspense fallback={null}>
+                        <OfferDialog mode={open.mode} store={store} sale={open.sale} product={open.product ?? null} sizes={open.sizes ?? []} open onOpenChange={close} returnFocusTo={opener} />
+                    </Suspense>
+                )}
+            </>
+        ),
     };
 }
 
@@ -82,7 +135,19 @@ export function OfferMenu({ sale, mayEdit, name, onOpen }: { sale: SaleRowData; 
 }
 
 /** End Offer / Remove Offer: asked first, the toast saying the button's verb. */
-function ConfirmOffer({ kind, sale, onOpenChange, returnFocusTo }: { kind: 'end' | 'remove'; sale: SaleRowData; onOpenChange: (open: boolean) => void; returnFocusTo: RefObject<HTMLElement | null> }) {
+function ConfirmOffer({
+    kind,
+    sale,
+    open,
+    onOpenChange,
+    returnFocusTo,
+}: {
+    kind: 'end' | 'remove';
+    sale: SaleRowData;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo: RefObject<HTMLElement | null>;
+}) {
     const t = useT();
     const [busy, setBusy] = useState(false);
     const title = kind === 'end' ? t('pricing::admin.offer.end') : t('pricing::admin.offer.remove');
@@ -90,7 +155,7 @@ function ConfirmOffer({ kind, sale, onOpenChange, returnFocusTo }: { kind: 'end'
     return (
         <PanelDialog
             destructive
-            open
+            open={open}
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
             title={title}

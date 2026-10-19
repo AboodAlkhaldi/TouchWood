@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { entryHere } from '@/lib/menu-here';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
@@ -150,13 +151,9 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
  * nothing: a trail that reads "Staff / Staff" tells somebody less than no trail at all.
  */
 function defaultTrail(menu: SharedProps['menu'], here: string): Crumb[] {
-    for (const group of menu) {
-        for (const entry of group.entries) {
-            if (here.startsWith(`${entry.href}/`)) {
-                return [{ label: entry.label, href: entry.href }];
-            }
-        }
-    }
+    // The entry holding the path most closely, as the sidebar lights it (lib/menu-here.ts): /admin/sync/provider
+    // is the Provider's own entry, not a page under the Sync Report's.
+    const lit = entryHere(menu, here);
 
-    return [];
+    return lit === null || lit.entry.href === here ? [] : [{ label: lit.entry.label, href: lit.entry.href }];
 }

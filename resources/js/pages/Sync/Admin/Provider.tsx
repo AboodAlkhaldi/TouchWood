@@ -63,9 +63,9 @@ export default function Provider(page: ProviderPage) {
             </div>
         ) : undefined;
 
-    // A menu entry of its own: no trail - the menu's default would read /admin/sync/provider as under the Sync Report.
+    // A menu entry of its own, so no trail: the menu's default finds the Provider's entry, not the Sync Report's.
     return (
-        <AdminLayout title={t(`${P}.title`)} subtitle={t(`${P}.subtitle`)} action={actions} breadcrumbs={[]}>
+        <AdminLayout title={t(`${P}.title`)} subtitle={t(`${P}.subtitle`)} action={actions}>
             <div className="grid gap-4">
                 {/* With the form drawn, a refusal is said under it, where the person is looking. Cancel takes the
                     form's refusal away with it (ConnectionForm), so it never comes back here. */}

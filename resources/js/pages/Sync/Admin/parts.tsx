@@ -309,9 +309,14 @@ export function Detail({ about, links }: { about: ReportedData; links: Links }) 
                 </span>
             );
         case 'DISCOUNT_SKIPPED':
+            // A discount deleted since is said so, without a link, as a stopped offer's is (pricing.md §9.4 Q37).
             return (
                 <span className="grid gap-0.5">
-                    {about.discount !== null && about.discount.exists && about.discount.description !== null ? (
+                    {about.discount === null || !about.discount.exists ? (
+                        <span className="text-ink-muted" data-test="discount-removed">
+                            {t(`${D}.discount_removed`)}
+                        </span>
+                    ) : about.discount.description !== null ? (
                         links.mayViewOffers ? (
                             <Link href={`/admin/category-discounts/${about.discount.id}`} className={LINK} data-test="discount-link">
                                 {about.discount.description}

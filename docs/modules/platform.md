@@ -1048,7 +1048,10 @@ To decide when hosting is chosen:
 With the frontend milestone:
 - **Error pages** for 409, 413, 415 and 422. Laravel has no page for these statuses, so a page
   request shows only the status text (for example "Conflict"); JSON requests already get the
-  translated title and detail.
+  translated title and detail. **Built for the admin panel** (2026-10-19, stage 5's screens step 8):
+  a signed-in staff member's page request answered 403, 404, 409, 413, 415 or 422 gets the panel's own
+  error page with the error's title and sentence (frontend.md §2.6, as built). Still open: the
+  storefront's, and an admin address no route answers.
 
 ### 9.4 Additions asked for by later modules
 

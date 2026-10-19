@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { Note } from '@/components/Note';
+import { freshRefusal, type OpenedAt, openedAtNow } from '@/lib/fresh-refusal';
 import type { SharedProps } from '@/types/page';
 
 /**
@@ -10,24 +11,26 @@ import type { SharedProps } from '@/types/page';
  * Read plainly, a refusal of Block showed inside the Close Account dialog opened afterwards, before
  * anything had been sent from it (the review of the Geist move, 2026-10-02). Counting the visits
  * that finish after the dialog opened tells this dialog's own answer from an older one.
+ *
+ * The moment of opening is marked on the render it opens (lib/fresh-refusal.ts), by adjusting state
+ * while rendering, so React draws again before anything shows: marked in an effect, it came a render
+ * late, and a dialog opened again said the older refusal for that one render.
  */
 export function useFreshRefusal(open: boolean): string | undefined {
     const { errors } = usePage<SharedProps>().props;
     const [visits, setVisits] = useState(0);
-    const openedAt = useRef(0);
+    const [openedAt, setOpenedAt] = useState<OpenedAt>(null);
 
     useEffect(() => router.on('finish', () => setVisits((count) => count + 1)), []);
 
-    useEffect(() => {
-        if (open) {
-            openedAt.current = visits;
-        }
-        // Only the moment of opening counts; later visits are what the dialog is waiting for.
-    }, [open]);
+    // Only the moment of opening counts; later visits are what the dialog is waiting for.
+    const mark = openedAtNow(openedAt, open, visits);
 
-    const message = errors.form;
+    if (mark !== openedAt) {
+        setOpenedAt(mark);
+    }
 
-    return open && visits > openedAt.current && message !== undefined && message !== '' ? message : undefined;
+    return freshRefusal(mark, visits, errors.form);
 }
 
 /** The refusal of what a dialog itself sent, said inside it (it stays open on a refusal). */

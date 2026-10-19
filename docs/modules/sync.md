@@ -413,8 +413,8 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
     P2 `?sale=`; "Offer removed" when it is gone, Q37) and what the provider's price did, taking the size past
     the ceiling: **Left** "The size left the offer." / **Ended** "The offer ended." / **Removed** "The scheduled
     offer was removed."; Bad Value - what came ("0", "12.5", "−3") and what was kept; Read Failed - the read
-    (a link to Y2) and its reason; Discount Skipped - the discount (linked) and "Past the ceiling at the
-    provider's price."
+    (a link to Y2) and its reason; Discount Skipped - the discount (linked; "Discount removed" when it is
+    gone, as Q37 says of an offer - owner, 2026-10-19) and "Past the ceiling at the provider's price."
   - **The ⋯ menu** (`sync.read.run`): **Retry Read** - reads that size's code again (a One Code read) →
     "Read queued" - for every kind but **Offer Stopped** and **Off or Draft**, which a read never closes; those
     offer **Open Offer** / **Open Product** instead (Q27); a **Read Failed** entry's Retry Read is a whole read
