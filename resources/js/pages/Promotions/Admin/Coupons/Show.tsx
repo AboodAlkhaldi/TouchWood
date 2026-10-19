@@ -49,7 +49,7 @@ export default function Show(page: CouponPage) {
         <AdminLayout
             title={title}
             subtitle={page.storeName}
-            breadcrumbs={[{ label: t('promotions::admin_coupons.list.title'), href: `${LIST}?store=${encodeURIComponent(page.storeCode)}` }, { label: title }]}
+            breadcrumbs={[{ label: t('promotions::admin_coupons.list.title'), href: `${LIST}?store=${encodeURIComponent(page.storeCode)}` }]}
             action={coupon === null || !page.mayManage ? undefined : <HeaderActions coupon={coupon} />}
         >
             <div className="grid gap-4">
