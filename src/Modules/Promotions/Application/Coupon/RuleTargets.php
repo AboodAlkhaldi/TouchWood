@@ -30,7 +30,7 @@ final readonly class RuleTargets
      */
     public static function removedMeanwhile(QueryException $failed): InvalidPromotionAttribute|QueryException
     {
-        return $failed->getCode() === '23503' && preg_match('/"coupon_rules_(product|category|brand)"/', $failed->getMessage()) === 1
+        return $failed->getCode() === '23503' && preg_match('/\bcoupon_rules_(product|category|brand)\b/', $failed->getPrevious()?->getMessage() ?? $failed->getMessage()) === 1
             ? new InvalidPromotionAttribute('rules', 'an entry was removed from the catalog meanwhile')
             : $failed;
     }

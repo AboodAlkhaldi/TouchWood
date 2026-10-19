@@ -119,13 +119,14 @@ it('has a word in both languages for every attribute the module\'s code can refu
     $found = [];
 
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 4).'/src/Modules/Promotions', FilesystemIterator::SKIP_DOTS)) as $file) {
-        if ($file->getExtension() === 'php' && preg_match_all("/InvalidPromotionAttribute\\(\\s*'([a-z_]+)'/", (string) file_get_contents($file->getPathname()), $matches) > 0) {
+        if ($file->getExtension() === 'php' && preg_match_all("/(?:InvalidPromotionAttribute\\(|Inputs::id\\([^,]+,)\\s*'([a-z_]+)'/", (string) file_get_contents($file->getPathname()), $matches) > 0) {
+            // A literal attribute, or the one a caller names for Inputs::id(), which throws with it.
             $found = [...$found, ...$matches[1]];
         }
     }
 
     $found = array_values(array_unique($found));
-    expect($found)->toContain('gift_variant')->toContain('code');
+    expect($found)->toContain('gift_variant')->toContain('code')->toContain('order')->toContain('segment');
 
     foreach ($found as $field) {
         foreach (['ar', 'en'] as $locale) {

@@ -388,6 +388,7 @@ describe('a list entry removed while the coupon is saved', function () {
         // Catalog said the category was there and on; it is gone by the time the rule is written.
         $gone = strtolower((string) Str::ulid());
         $catalog = Mockery::mock(CatalogApi::class);
+        // Only the category is read on this path: a list of one category reads no products or brands.
         $catalog->shouldReceive('category')->andReturn(new CategoryDto($gone, null, 'أبواب', 'Doors', true));
         app()->instance(CatalogApi::class, $catalog);
         $fields = couponFields(['rules' => [['kind' => 'INCLUDE', 'target' => 'category', 'id' => $gone]]]);

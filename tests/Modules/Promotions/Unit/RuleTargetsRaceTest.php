@@ -11,7 +11,7 @@ use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 | as the check would have named it; any other database error stays what it is.
 */
 
-function failedWith(string $sqlState, string $message): QueryException
+function promotionsFailedWith(string $sqlState, string $message): QueryException
 {
     $driver = new PDOException($message);
     (new ReflectionProperty(Exception::class, 'code'))->setValue($driver, $sqlState);
@@ -20,18 +20,25 @@ function failedWith(string $sqlState, string $message): QueryException
 }
 
 it('names a rule\'s Catalog key broken meanwhile as the rules, for a product, category or brand', function (string $constraint) {
-    $named = RuleTargets::removedMeanwhile(failedWith('23503', "insert or update violates foreign key constraint \"{$constraint}\""));
+    $named = RuleTargets::removedMeanwhile(promotionsFailedWith('23503', "insert or update violates foreign key constraint \"{$constraint}\""));
 
     expect($named)->toBeInstanceOf(InvalidPromotionAttribute::class)
         ->and($named instanceof InvalidPromotionAttribute ? $named->attribute : null)->toBe('rules');
 })->with(['coupon_rules_product', 'coupon_rules_category', 'coupon_rules_brand']);
 
 it('leaves any other database error as it is', function (string $sqlState, string $message) {
-    $failed = failedWith($sqlState, $message);
+    $failed = promotionsFailedWith($sqlState, $message);
 
     expect(RuleTargets::removedMeanwhile($failed))->toBe($failed);
 })->with([
     'another key' => ['23503', 'violates foreign key constraint "coupons_store"'],
     'the coupon\'s own key' => ['23503', 'violates foreign key constraint "coupon_rules_coupon"'],
     'not a key at all' => ['23505', 'duplicate key value violates unique constraint "coupon_rules_brand"'],
+    'a longer name only starting so' => ['23503', 'violates foreign key constraint "coupon_rules_brandx"'],
 ]);
+
+it('reads the constraint whatever quotes the server\'s language uses', function () {
+    $named = RuleTargets::removedMeanwhile(promotionsFailedWith('23503', 'viole la contrainte de clé étrangère « coupon_rules_category »'));
+
+    expect($named)->toBeInstanceOf(InvalidPromotionAttribute::class);
+});
