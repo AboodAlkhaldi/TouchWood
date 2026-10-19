@@ -80,7 +80,10 @@ final class ShopFeedback
         );
     }
 
-    /** A place in a list as the address gives it; anything that is not an id starts from the top. */
+    /**
+     * A place in a list as the address gives it: anything that is not an id starts from the top; an id
+     * the list does not hold ends it, as Feedback's other pages.
+     */
     private static function after(?string $after): ?string
     {
         $id = $after === null ? '' : strtolower(trim($after));

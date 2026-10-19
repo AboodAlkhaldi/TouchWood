@@ -132,8 +132,8 @@ final readonly class ShopPagesController
     }
 
     /**
-     * Where each of the page's sections goes on from, as `after[{module}.{key}]` (amendment 26(b));
-     * anything else left out.
+     * Where each of the page's sections goes on from, as `after[{module}.{key}]` (amendment 26(b)), at
+     * most 64 characters a place - more is no place any section gives; anything else left out.
      *
      * @return array<string, string>
      */
@@ -141,7 +141,7 @@ final readonly class ShopPagesController
     {
         $after = $request->query('after');
 
-        return is_array($after) ? array_filter($after, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value) && $value !== '', ARRAY_FILTER_USE_BOTH) : [];
+        return is_array($after) ? array_filter($after, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value) && $value !== '' && strlen($value) <= 64, ARRAY_FILTER_USE_BOTH) : [];
     }
 
     private static function text(Request $request, string $key): ?string

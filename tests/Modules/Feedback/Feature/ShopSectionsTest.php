@@ -11,7 +11,9 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
 use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Application\Actor;
 use Shared\Domain\ValueObject\StoreId;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -83,7 +85,7 @@ it('shows the approved reviews of every store, newest first, ten at a time, with
     ['product' => $product, 'variants' => [$sixty]] = Fb::sold(['sa', 'eg']);
     $ids = [];
 
-    foreach (range(1, 11) as $n) {
+    foreach (range(1, 12) as $n) {
         $ids[] = Fb::reviewRow($product, $sixty, Fx::customer("buyer{$n}@example.test"), [
             'status' => 'APPROVED', 'rating' => 4, 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now(),
             'created_at' => sprintf('2026-10-01 10:%02d:00+00', $n),
@@ -91,6 +93,9 @@ it('shows the approved reviews of every store, newest first, ten at a time, with
     }
 
     Fb::reviewRow($product, $sixty, Fx::customer('waiting@example.test'), ['created_at' => '2026-10-02 10:00:00+00']);
+    $decided = ['moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now(), 'created_at' => '2026-10-03 10:00:00+00'];
+    Fb::reviewRow($product, $sixty, Fx::customer('refused@example.test'), ['status' => 'REJECTED', 'reason' => 'Off topic', ...$decided]);
+    Fb::reviewRow($product, $sixty, Fx::customer('taken@example.test'), ['status' => 'UNPUBLISHED', ...$decided]);
     // The rating as Feedback keeps it: 4.25 shows 4.3, half up (amendment 25).
     DB::table('feedback.product_ratings')->insert(['product_id' => $product, 'rating_sum' => 17, 'rating_count' => 4, 'updated_at' => CarbonImmutable::now()]);
 
@@ -99,11 +104,13 @@ it('shows the approved reviews of every store, newest first, ten at a time, with
 
     expect(array_column([...$first['reviews'], ...$second['reviews']], 'reviewId'))->toBe(array_reverse($ids))
         ->and([$first['average'], $first['count'], count($first['reviews'])])->toBe([4.3, 4, 10])
-        ->and($first['next'])->toBe($ids[1])
+        ->and($first['next'])->toBe($ids[2])
+        ->and(count($second['reviews']))->toBe(2)
         ->and($second['next'])->toBeNull()
         ->and($first['reviews'][0]['author'])->toBe(['firstName' => 'Sara', 'lastInitial' => 'A', 'deleted' => false])
         ->and([$first['reviews'][0]['rating'], $first['reviews'][0]['mark'], $first['reviews'][0]['variant'][0]['value']])->toBe([4, 'VERIFIED_PURCHASE', '60 cm'])
-        ->and(array_keys($first['reviews'][0]))->toBe(['reviewId', 'author', 'rating', 'body', 'locale', 'mark', 'variant', 'writtenAt']);
+        ->and(array_keys($first['reviews'][0]))->toBe(['reviewId', 'author', 'rating', 'body', 'locale', 'mark', 'variant', 'writtenAt'])
+        ->and(CarbonImmutable::parse($first['reviews'][0]['writtenAt'])->equalTo(CarbonImmutable::parse('2026-10-01 10:12:00+00')))->toBeTrue();
 });
 
 it('shows answered questions of every store, newest answer first, each signed by the store that answered', function () {
@@ -111,8 +118,8 @@ it('shows answered questions of every store, newest answer first, each signed by
     $sara = Fx::customer();
     $ids = [];
 
-    foreach (range(1, 11) as $n) {
-        $ids[] = shopSectionsQuestion($product, $sara, sprintf('2026-10-01 10:%02d:00+00', $n), $n === 11 ? 'eg' : 'sa');
+    foreach (range(1, 12) as $n) {
+        $ids[] = shopSectionsQuestion($product, $sara, sprintf('2026-10-01 10:%02d:00+00', $n), $n === 12 ? 'eg' : 'sa');
     }
 
     shopSectionsQuestion($product, $sara, '2026-10-03 10:00:00+00', 'sa', 'UNPUBLISHED');
@@ -121,9 +128,64 @@ it('shows answered questions of every store, newest answer first, each signed by
     $egypt = (string) app(PlatformApi::class)->store(StoreId::fromString(Fx::storeId('eg')))?->name->in('en');
 
     expect(array_column([...$first['questions'], ...$second['questions']], 'questionId'))->toBe(array_reverse($ids))
-        ->and([count($first['questions']), $second['next']])->toBe([10, null])
+        ->and([count($first['questions']), count($second['questions']), $second['next']])->toBe([10, 2, null])
+        ->and(CarbonImmutable::parse($first['questions'][0]['answeredAt'])->equalTo(CarbonImmutable::parse('2026-10-01 10:12:00+00')))->toBeTrue()
         ->and([$first['questions'][0]['answer'], $first['questions'][0]['store']])->toBe(['Yes.', $egypt])
         ->and(array_keys($first['questions'][0]))->toBe(['questionId', 'author', 'body', 'locale', 'answer', 'store', 'answeredAt']);
+});
+
+it('ends a page of exactly ten with no next, and a place it does not hold with nothing', function () {
+    ['product' => $product] = Fb::sold();
+    $sara = Fx::customer();
+
+    foreach (range(1, 10) as $n) {
+        shopSectionsQuestion($product, $sara, sprintf('2026-10-01 10:%02d:00+00', $n));
+    }
+
+    $full = shopSections(get(shopSectionsUrl($product)))['feedback.questions'];
+    $unknown = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions]='.strtolower((string) Str::ulid()))))['feedback.questions'];
+    $notOne = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions]=nowhere')))['feedback.questions'];
+    $nested = shopSections(get(shopSectionsUrl($product, 'after[feedback.questions][]=x&after[0]=y')))['feedback.questions'];
+
+    expect([count($full['questions']), $full['next']])->toBe([10, null])
+        ->and($unknown['questions'])->toBe([])
+        // Not an id: from the top, as anything the address cannot mean.
+        ->and([count($notOne['questions']), count($nested['questions'])])->toBe([10, 10]);
+});
+
+it('never shows one customer\'s own state to another or to a guest, though the page itself is kept', function () {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    $sara = Fx::customer();
+    $layla = Fx::customer('layla@example.test');
+    DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $product, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
+    Fb::reviewRow($product, $sixty, $sara);
+    $state = static fn (array $sections): array => [$sections['feedback.reviews']['canWrite'], $sections['feedback.wishlist']];
+
+    Fx::actAsCustomer($sara);
+    $saras = $state(shopSections(get(shopSectionsUrl($product))));
+    Fx::actAsCustomer($layla);
+    $laylas = $state(shopSections(get(shopSectionsUrl($product))));
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+    $guests = $state(shopSections(get(shopSectionsUrl($product))));
+
+    expect([$saras, $laylas, $guests])->toBe([[false, ['saved' => true]], [true, ['saved' => false]], [false, null]]);
+});
+
+it('reads the page in Arabic: the store\'s name and the size in Arabic, a deleted author as deleted', function () {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    $gone = Fx::customer('gone@example.test');
+    DB::table('access.customers')->where('id', $gone)->update(['anonymized_at' => CarbonImmutable::now()]);
+    Fb::reviewRow($product, $sixty, $gone, ['status' => 'APPROVED', 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()]);
+    shopSectionsQuestion($product, $gone, '2026-10-01 10:00:00+00');
+    $slug = (string) DB::table('catalog.product_slugs')->where('product_id', $product)->where('locale', 'ar')->where('is_current', true)->value('slug');
+
+    $sections = shopSections(get("/sa/ar/products/{$slug}"));
+    $size = app(CatalogApi::class)->variants([$sixty])[$sixty]->values[0];
+
+    expect($sections['feedback.reviews']['reviews'][0]['author'])->toBe(['firstName' => '', 'lastInitial' => '', 'deleted' => true])
+        ->and($sections['feedback.reviews']['reviews'][0]['variant'][0])->toBe(['attribute' => $size->attribute->in('ar'), 'value' => $size->value->in('ar')])
+        ->and($sections['feedback.questions']['questions'][0]['store'])->toBe((string) app(PlatformApi::class)->store(StoreId::fromString(Fx::storeId('sa')))?->name->in('ar'))
+        ->and($sections['feedback.questions']['questions'][0]['author']['deleted'])->toBeTrue();
 });
 
 it('tells a signed-in customer what they may do and whether they saved it here', function () {
@@ -149,7 +211,11 @@ it('gives a page that is not available now no sections', function () {
     ['product' => $product] = Fb::sold();
     Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $product)));
 
-    expect(shopSections(get(shopSectionsUrl($product))))->toBe([]);
+    $response = get(shopSectionsUrl($product));
+
+    // An empty object for the page, not a list nor nothing at all.
+    expect(shopSections($response))->toBe([])
+        ->and((string) json_encode($response->viewData('page')))->toContain('"sections":{}');
 });
 
 it('reads the sections in the same number of queries for one review as for ten, with questions', function () {
@@ -177,5 +243,8 @@ it('reads the sections in the same number of queries for one review as for ten, 
         shopSectionsQuestion($product, $customer, sprintf('2026-10-01 11:%02d:00+00', $n));
     }
 
-    expect($count())->toBe($one);
+    // Measured 2026-10-19, a guest, the session in memory: the shop's own 6, then Feedback's one
+    // statement, the authors' names 1, the sizes bought 2 (Catalog's variants and their values) and
+    // the stores' names 1 - the limits a target, not a cap (owner, 2026-10-19).
+    expect([$one, $count()])->toBe([11, 11]);
 });
