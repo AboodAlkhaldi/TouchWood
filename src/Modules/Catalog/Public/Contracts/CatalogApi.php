@@ -115,6 +115,15 @@ interface CatalogApi
      */
     public function brand(string $brandId): ?BrandDto;
 
+    /**
+     * For Promotions — a coupon's lists checked and named (amendment 27; promotions.md §1.2): **many
+     * brands in one read**, each with whether it is switched on, keyed by id, an unknown id left out.
+     *
+     * @param  list<string>  $brandIds
+     * @return array<string, BrandDto>
+     */
+    public function brands(array $brandIds): array;
+
     /** For Sales's record of an order, Feedback, Content. */
     public function product(string $productId): ?ProductDto;
 

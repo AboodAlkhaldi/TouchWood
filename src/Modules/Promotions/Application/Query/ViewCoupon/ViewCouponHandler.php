@@ -20,8 +20,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * One coupon in full (promotions.md §3): its store covered by one of the four permissions, or it is
- * not found; its lists named through Catalog — the products in one call, a category or brand one at a
- * time as Catalog offers them (a list is a handful: Catalog has no bulk read of categories or brands).
+ * not found; its lists named through Catalog in one call for each kind — products, categories
+ * (catalog.md amendment 23(c)), brands (amendment 27).
  */
 final readonly class ViewCouponHandler
 {
@@ -46,12 +46,16 @@ final readonly class ViewCouponHandler
 
         $productIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($coupon->rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Product)));
         $products = $productIds === [] ? [] : $this->catalog->products($productIds);
+        $brandIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($coupon->rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Brand)));
+        $brands = $brandIds === [] ? [] : $this->catalog->brands($brandIds);
+        $categoryIds = array_values(array_map(static fn (CouponRule $rule): string => $rule->targetId, array_filter($coupon->rules, static fn (CouponRule $rule): bool => $rule->target === RuleTarget::Category)));
+        $categories = $categoryIds === [] ? [] : $this->catalog->categoriesWithPaths($categoryIds);
 
-        $rules = array_map(function (CouponRule $rule) use ($products): RuleView {
+        $rules = array_map(static function (CouponRule $rule) use ($products, $brands, $categories): RuleView {
             $named = match ($rule->target) {
                 RuleTarget::Product => $products[$rule->targetId] ?? null,
-                RuleTarget::Category => $this->catalog->category($rule->targetId),
-                RuleTarget::Brand => $this->catalog->brand($rule->targetId),
+                RuleTarget::Category => $categories[$rule->targetId] ?? null,
+                RuleTarget::Brand => $brands[$rule->targetId] ?? null,
             };
 
             return new RuleView($rule->kind->value, $rule->target->value, $rule->targetId, $named?->nameAr, $named?->nameEn);

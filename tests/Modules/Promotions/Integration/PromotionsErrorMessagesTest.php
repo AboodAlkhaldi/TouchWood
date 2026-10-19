@@ -114,6 +114,27 @@ it('names a refused value as a word, never as its key', function () {
     expect(FormErrors::message(new InvalidPromotionAttribute('percent', 'above 100')))->toBe('قيمة النسبة غير صالحة. تحقّق منها وحاول مجددًا.');
 });
 
+// Read from the code, so an attribute thrown later cannot be missed by a list typed by hand.
+it('has a word in both languages for every attribute the module\'s code can refuse', function () {
+    $found = [];
+
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 4).'/src/Modules/Promotions', FilesystemIterator::SKIP_DOTS)) as $file) {
+        if ($file->getExtension() === 'php' && preg_match_all("/(?:InvalidPromotionAttribute\\(|Inputs::id\\([^,]+,)\\s*'([a-z_]+)'/", (string) file_get_contents($file->getPathname()), $matches) > 0) {
+            // A literal attribute, or the one a caller names for Inputs::id(), which throws with it.
+            $found = [...$found, ...$matches[1]];
+        }
+    }
+
+    $found = array_values(array_unique($found));
+    expect($found)->toContain('gift_variant')->toContain('code')->toContain('order')->toContain('segment');
+
+    foreach ($found as $field) {
+        foreach (['ar', 'en'] as $locale) {
+            expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
+        }
+    }
+});
+
 it('has a word in both languages for every value a refusal can name', function (string $field) {
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("promotions::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
