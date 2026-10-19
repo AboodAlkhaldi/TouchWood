@@ -58,7 +58,9 @@ beforeEach(function () {
     FakeBreachList::install();
     RecordingSecurityMessages::install();
     Queue::fake();
-    CarbonImmutable::setTestNow('2026-10-19 10:00:00+00');
+    // Pinned an hour behind the real clock, never to a fixed date: sign-in codes and sessions are
+    // checked against the database's own clock, which a fixed date falls behind (lesson 221).
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->subHour()->startOfSecond());
     FakeProvider::bind(fields: ['database']);
 });
 
@@ -126,7 +128,7 @@ function syncScreensWorst(): string
     DB::table('pricing.retail_prices')->insert(array_map(static fn (string $size): array => ['store_id' => Fx::storeId('sa'), 'variant_id' => $size, 'amount_minor' => 20000, 'currency_code' => 'SAR', 'source' => 'PROVIDER', 'updated_at' => now()], [$onSale, $discounted]));
     Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$onSale], null, '160', null, null)));
     Fx::asSystem(fn (): string => app(AddCategoryDiscountHandler::class)->handle(new AddCategoryDiscount(Fx::storeId('sa'), $category, null, '50', 'BOTH', null, null)));
-    CarbonImmutable::setTestNow('2026-10-19 11:00:00+00');
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
     $code = static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code');
     FakeProvider::bound()->values = [new ProviderValue($code($onSale), '400', null), new ProviderValue($code($discounted), '120', null), new ProviderValue($code($bad), '0', 2), new ProviderValue('987654', '5', 1)];
     $staff = [Fx::staff(firstName: 'Huda'), Fx::staff(firstName: 'Omar'), Fx::staff(firstName: 'Lina')];
