@@ -173,18 +173,25 @@ function syncBrowserProduct(): array
 
 /**
  * The store wired to the pretend provider, which sends the product's size a price and a stock number that is
- * not whole, and a code we do not have: its first read runs at once (the tests' queue is synchronous).
+ * not whole, and a code we do not have: its first read runs at once (the tests' queue is synchronous) - `read`,
+ * known by being the one read wiring added. Never "the store's newest read": a read's times are kept to the
+ * second, so the read a test before left (Sync Now) can share this one's second, and the database then answers
+ * either (PR #191's CI failure, 2026-10-20).
  *
- * @return array{product: string, size: string, code: string, name: string, unknown: string}
+ * @return array{product: string, size: string, code: string, name: string, unknown: string, read: string}
  */
 function syncBrowserWired(): array
 {
     $ready = syncBrowserProduct();
     $unknown = '7'.substr((string) hrtime(true), -8);
     FakeProvider::bound()->values = [new ProviderValue($ready['code'], '150.00', '2.5'), new ProviderValue($unknown, '5', 1)];
+    $before = DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->pluck('id')->all();
     syncBrowserAsSuperAdmin(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'k', 's', ['database' => 'tw'])));
+    $added = DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->whereNotIn('id', $before)->pluck('id')->all();
 
-    return [...$ready, 'unknown' => $unknown];
+    expect($added)->toHaveCount(1);
+
+    return [...$ready, 'unknown' => $unknown, 'read' => (string) $added[0]];
 }
 
 it('shows the status line and Problems, dismisses an entry, and queues Sync Now', function () {
@@ -237,29 +244,74 @@ it('shows the status line and Problems, dismisses an entry, and queues Sync Now'
         ->and($now())->toBe($before + 1);
 });
 
+/**
+ * What a read's page showed, and what the database holds of the read, when a wait for it failed: so a run that
+ * fails says why (the review of PR #191's CI failure, 2026-10-20).
+ *
+ * @param  array{size: string, read: string}  $about
+ */
+function syncBrowserReadState(mixed $page, array $about): string
+{
+    try {
+        $shown = $page->script(<<<'JS'
+            () => JSON.stringify({
+                url: window.location.href,
+                h1: document.querySelector('h1')?.textContent ?? null,
+                state: document.querySelector('[data-test="read-state"]')?.textContent ?? null,
+                header: document.querySelector('[data-test="read-header"]')?.textContent ?? null,
+                lines: [...document.querySelectorAll('[data-test^="line-"]')].map((row) => row.getAttribute('data-test') + ' ' + row.textContent),
+                fromTo: [...document.querySelectorAll('[data-test="from-to"]')].map((cell) => cell.textContent),
+                empty: document.querySelector('[data-test="section-empty"]')?.textContent ?? null,
+            })
+            JS);
+    } catch (Throwable $error) {
+        $shown = 'the page could not be read: '.$error->getMessage();
+    }
+
+    $read = DB::table('sync.reads')->where('id', $about['read'])->first();
+    $newest = DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->orderByDesc('queued_at')->orderByDesc('id')->limit(3)->get(['id', 'kind', 'state', 'queued_at', 'error'])->all();
+    $lines = DB::table('sync.read_lines')->where('read_id', $about['read'])->get(['kind', 'variant_id', 'before', 'after'])->all();
+    $price = DB::table('pricing.retail_prices')->where('store_id', Fx::storeId('ae'))->where('variant_id', $about['size'])->first();
+
+    return 'page '.(is_string($shown) ? $shown : json_encode($shown))
+        .' | read '.json_encode($read)
+        .' | its lines '.json_encode($lines)
+        .' | the size '.$about['size'].' priced '.json_encode($price)
+        .' | the store\'s newest reads '.json_encode($newest);
+}
+
 it('opens a read from the Reads tab, with its header and its sections as tabs; a read not there is not found', function () {
     $wired = syncBrowserWired();
-    $read = (string) DB::table('sync.reads')->where('store_id', Fx::storeId('ae'))->orderByDesc('queued_at')->value('id');
+    $read = $wired['read'];
+    $about = ['size' => $wired['size'], 'read' => $read];
     $page = syncBrowserReader();
     $page->navigate('/admin/sync?store=ae&tab=reads', BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserSoon($page, "document.querySelector('[data-test=\"read-{$read}\"]')?.textContent.includes('Now')"))->toBeTrue();
+    // Each wait on its own, each failure saying what the page and the database held.
+    $wait = function (string $what, string $expression) use ($page, $about): void {
+        $held = browserSoon($page, $expression);
 
-    // The row's link, pressed again until its page is there - as Low Stock's test presses Show More - so a press
-    // lost while the list settles fails nothing.
-    expect(browserSoon($page, "(window.location.pathname === '/admin/sync/reads/{$read}' && document.querySelector('[data-test=\"read-header\"]') !== null) || (document.querySelector('[data-test=\"read-{$read}\"] [data-test=\"open-read\"]')?.click(), false)"))->toBeTrue()
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"read-state\"]')?.textContent.includes('Done') && document.querySelector('h1')?.textContent.startsWith('Read of')"))->toBeTrue()
-        // Prices Changed first: the provider's price, from nothing to 150.00.
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"line-{$wired['size']}\"] [data-test=\"from-to\"]')?.textContent.includes('150.00')"))->toBeTrue();
+        expect($held)->toBeTrue($held ? '' : "{$what}: ".syncBrowserReadState($page, $about));
+    };
+
+    $wait('the read listed', "document.querySelector('[data-test=\"read-{$read}\"]')?.textContent.includes('Now')");
+
+    $page->click("[data-test=\"read-{$read}\"] [data-test=\"open-read\"]");
+
+    $wait('the read opened', "window.location.pathname === '/admin/sync/reads/{$read}' && document.querySelector('[data-test=\"read-header\"]') !== null");
+    $wait('the read done', "document.querySelector('[data-test=\"read-state\"]')?.textContent.includes('Done')");
+    $wait('its title', "document.querySelector('h1')?.textContent.startsWith('Read of')");
+    // Prices Changed first: the provider's price, from nothing to 150.00.
+    $wait('its price line', "document.querySelector('[data-test=\"line-{$wired['size']}\"] [data-test=\"from-to\"]')?.textContent.includes('150.00')");
 
     $page->click('[data-test="section-REPORTED"]');
 
-    expect(browserSoon($page, "new URL(window.location.href).searchParams.get('section') === 'reported' && document.querySelectorAll('[data-test=\"reported-row\"]').length === 2"))->toBeTrue()
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"section-CODES\"]') === null"))->toBeTrue();
+    $wait('its Reported section', "new URL(window.location.href).searchParams.get('section') === 'reported' && document.querySelectorAll('[data-test=\"reported-row\"]').length === 2");
+    $wait('no Codes Asked', "document.querySelector('[data-test=\"section-CODES\"]') === null");
 
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserSoon($page, "document.body.textContent.includes('Not Found') || document.body.textContent.includes('404')"))->toBeTrue();
+    $wait('a read not there', "document.body.textContent.includes('Not Found') || document.body.textContent.includes('404')");
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {
