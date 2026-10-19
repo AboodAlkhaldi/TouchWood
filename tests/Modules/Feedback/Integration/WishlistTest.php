@@ -12,6 +12,10 @@ use Illuminate\Support\Str;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProduct;
+use Modules\Catalog\Application\Command\DeleteDraftProduct\DeleteDraftProductHandler;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Feedback\Application\Command\RemoveFromWishlist\RemoveFromWishlist;
 use Modules\Feedback\Application\Command\RemoveFromWishlist\RemoveFromWishlistHandler;
 use Modules\Feedback\Application\Command\SaveToWishlist\SaveToWishlist;
@@ -26,6 +30,7 @@ use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 
 use function Pest\Laravel\seed;
@@ -134,14 +139,22 @@ describe('saving', function () {
     })->with([
         'a store that does not sell it' => [fn (string $c, string $p) => saveToWishlist($c, $p, 'ae'), 'product'],
         'a product that is not one' => [fn (string $c) => saveToWishlist($c, 'not-a-product'), 'product'],
-        'a product not ready' => [fn (string $c) => saveToWishlist($c, strtolower((string) Str::ulid())), 'product'],
+        'a product that is nothing' => [fn (string $c) => saveToWishlist($c, strtolower((string) Str::ulid())), 'product'],
+        'a product not ready' => [fn (string $c) => saveToWishlist($c, Px::product('A draft')), 'product'],
+        'a product not available now' => [function (string $c, string $p) {
+            Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p)));
+            saveToWishlist($c, $p);
+        }, 'product'],
         'a store that is not one' => [function (string $c, string $p) {
             Fx::actAsCustomer($c);
             app(SaveToWishlistHandler::class)->handle(new SaveToWishlist('not-a-store', $p));
         }, 'store'],
         'a store switched off' => [function (string $c, string $p) {
+            // An off store is not found by its code any more: its id, kept from before.
+            $egypt = Fx::storeId('eg');
             Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
-            saveToWishlist($c, $p, 'eg');
+            Fx::actAsCustomer($c);
+            app(SaveToWishlistHandler::class)->handle(new SaveToWishlist($egypt, $p));
         }, 'store'],
     ]);
 
@@ -193,9 +206,14 @@ describe('removing', function () {
         saveToWishlist($sara, $product, 'ae');
         saveToWishlist($layla, $product);
 
-        removeFromWishlist($sara, strtoupper($product));
+        removeFromWishlist($sara, strtoupper(" {$product} "));
+
+        expect(wishlistOf($sara))->toBe([[$product, 'ae']]);
+
         removeFromWishlist($sara, $product);
         removeFromWishlist($sara, $other);
+        Fx::actAsCustomer($sara);
+        app(RemoveFromWishlistHandler::class)->handle(new RemoveFromWishlist(strtolower((string) Str::ulid()), $product));
 
         expect(wishlistOf($sara))->toBe([[$product, 'ae']])
             ->and(wishlistOf($layla))->toBe([[$product, 'sa']]);
@@ -240,8 +258,23 @@ it('deletes an anonymized account\'s list in every store, once however often tol
     saveToWishlist($layla, $product);
 
     event(new CustomerAnonymized((string) Str::uuid(), strtoupper($sara), CarbonImmutable::now()));
+
+    expect(wishlistOf($sara))->toBe([]);
+
     event(new CustomerAnonymized((string) Str::uuid(), $sara, CarbonImmutable::now()));
 
     expect(wishlistOf($sara))->toBe([])
         ->and(wishlistOf($layla))->toBe([[$product, 'sa']]);
+});
+
+it('lets Catalog delete a product in lists, the items going with it', function () {
+    // Only a draft is deleted by hand, and none is saved through the shop: the item written directly.
+    $draft = Px::product('A draft');
+    $sara = Fx::customer();
+    DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $draft, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
+
+    Fx::asSystem(fn () => app(DeleteDraftProductHandler::class)->handle(new DeleteDraftProduct($draft)));
+
+    expect(DB::table('catalog.products')->where('id', $draft)->exists())->toBeFalse()
+        ->and(wishlistOf($sara))->toBe([]);
 });

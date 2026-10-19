@@ -43,7 +43,10 @@ Backend only in this stage's build; the screens are another session's.
   one item, unchanged; a 501st is `WishlistFull`. **`Command/RemoveFromWishlist`**: any item, an off
   store's or an archived product's too; nothing when not there. SQL in
   `Infrastructure/Eloquent/DatabaseWishlist`. **`Infrastructure/Listener/ClearAnonymizedWishlist`**
-  (queued, five tries) deletes an anonymized account's list in every store (§1.5).
+  (queued, five tries) deletes an anonymized account's list in every store (§1.5), under the save's
+  lock — a save under way finishes first and goes with the rest. Left open: a save authorized just
+  before the anonymization that reaches the lock only after the listener ran keeps its one item; the
+  account can never sign in again, so nobody sees it.
 - **Reviews**: **`Command/WriteReview`** (`feedback.review.write`, a signed-in customer): the text read
   by the domain's **`FeedbackText`** (trimmed, line breaks kept, Arabic digits as 0-9, length in
   characters); the product sold in the open store (Catalog's `productsSoldIn`); then under

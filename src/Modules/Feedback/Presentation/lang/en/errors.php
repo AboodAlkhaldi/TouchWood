@@ -19,7 +19,7 @@ return [
     ],
     'wishlist_full' => [
         'title' => 'Wishlist Full',
-        'detail' => 'Your wishlist already holds 500 products. Remove one to save another.',
+        'detail' => 'Your wishlist already holds 500 items. Remove one to save another.',
     ],
     'invalid_moderation' => [
         'title' => 'Can\'t Do That Now',
