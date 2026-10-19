@@ -165,7 +165,9 @@ it('draws the shop account\'s Points tab, with how it works, at a phone\'s width
 
     $page->navigate('/sa/en/account/points', BROWSER_PAGE_LOAD)
         ->assertSee('My Points')
-        ->assertSee('Every 1.00 SAR you spend adds 1 to your points.')
+        // The amount is isolated inside the sentence (invisible marks around it), so read in parts.
+        ->assertSee('1.00 SAR')
+        ->assertSee('you spend adds 1 to your points.')
         ->assertPresent('[data-test="history"]');
 
     $page->resize(375, 812);

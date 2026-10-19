@@ -417,7 +417,7 @@ describe('what the reviews of 2026-10-19 asked', function () {
 
         // Recorded (frontend.md §5); off costs the Points tab's own question once more, on the page
         // and in the account menu (access.md amendment 72(d)).
-        expect([$on, $off])->toBe([0, 0])
+        expect([$on, $off])->toBe([3, 5])
             ->and(max($on, $off))->toBeLessThanOrEqual(8);
     });
 });

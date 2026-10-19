@@ -9,8 +9,9 @@ use Shared\Domain\ValueObject\Money;
 
 /**
  * A customer's points in one store, as the customer page's section shows them (loyalty.md §4.1 L5).
- * `exponent`: the currency's decimals, to write the worth with. `mayOpen`: the store is among those the reader's L2 filter offers - an off store is not, for
- * anyone who cannot switch stores, though they still see its points here.
+ * `exponent`: the currency's decimals, to write the worth with. `mayOpen`: the store is among those
+ * the reader's L2 filter offers - an off store is not, for anyone who cannot switch stores, though
+ * they still see its points here.
  */
 final readonly class StorePoints
 {

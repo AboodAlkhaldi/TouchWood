@@ -45,7 +45,9 @@ stage 6 screens session (below).
 - **Shared pieces**: `Presentation/Http/Resource/PointsPages` builds every page's data; `MoneyData`
   sends an amount as decimal text and its currency, which `resources/js/lib/money.ts` writes;
   `Application/Query/ExpiringNext` sums the lots ending on the soonest day in the store's zone.
-  The pages are `resources/js/pages/Loyalty/Admin/Points/*` and `Loyalty/Storefront/Points.tsx`.
+  The pages are `resources/js/pages/Loyalty/Admin/Points/*` and `Loyalty/Storefront/Points.tsx`;
+  the parts they share with the customer page's section are `resources/js/components/loyalty/parts.tsx`.
+  The store's accounts are found through the index `accounts_by_store` (2026-10-19).
 - **Tests**: `LoyaltyScreenReadsTest` (the reads), `Feature/LoyaltyScreensTest` (the pages over
   HTTP), `tests/Browser/LoyaltyScreensTest` (a person using them, at a phone's width too); Access's
   `CustomerSearchForModulesTest` and `Unit/ModuleRegistriesTest`.
