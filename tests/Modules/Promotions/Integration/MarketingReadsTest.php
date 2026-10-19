@@ -21,6 +21,8 @@ use Modules\Promotions\Application\Query\ListSegments\ListSegments;
 use Modules\Promotions\Application\Query\ListSegments\ListSegmentsHandler;
 use Modules\Promotions\Application\Query\ViewMyCoupons\ViewMyCoupons;
 use Modules\Promotions\Application\Query\ViewMyCoupons\ViewMyCouponsHandler;
+use Modules\Promotions\Application\Query\ViewSegment\ViewSegment;
+use Modules\Promotions\Application\Query\ViewSegment\ViewSegmentHandler;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Public\Enums\SegmentRule;
 use Shared\Application\Unauthorized;
@@ -81,7 +83,26 @@ describe('segments', function () {
 
         expect(array_map(static fn ($row): array => [$row->id, $row->memberCount], [...$first->rows, ...$second->rows]))->toBe([[$new, 1], [$rule, 0], [$old, 2]])
             ->and([$first->rows[1]->rule, $first->rows[1]->ruleMonths, $first->rows[1]->refreshedAt?->getTimestamp()])->toBe([SegmentRule::NoOrderFor, 6, $now->getTimestamp()])
-            ->and($second->nextId)->toBeNull();
+            ->and($second->nextId)->toBeNull()
+            ->and($first->rows[0]->storeId)->toBe(Fx::storeId('sa'));
+    });
+
+    it('reads one segment by its id for its page, with its store, and only for its own readers', function () {
+        $now = CarbonImmutable::now()->startOfSecond();
+        $rule = readSegment(['name_en' => 'Quiet', 'type' => 'DYNAMIC', 'audience' => 'COMPANY', 'rule' => 'NO_ORDER_FOR', 'rule_months' => 6, 'refreshed_at' => $now]);
+        $egypt = readSegment([], 'eg');
+        addMember($rule, Fx::customer());
+        Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::VIEW], ['sa']));
+
+        $row = app(ViewSegmentHandler::class)->handle(new ViewSegment(strtoupper($rule)));
+
+        expect([$row->id, $row->storeId, $row->nameEn, $row->type->value, $row->audience->value, $row->rule, $row->ruleMonths, $row->memberCount, $row->refreshedAt?->getTimestamp()])
+            ->toBe([$rule, Fx::storeId('sa'), 'Quiet', 'DYNAMIC', 'COMPANY', SegmentRule::NoOrderFor, 6, 1, $now->getTimestamp()])
+            ->and(fn () => app(ViewSegmentHandler::class)->handle(new ViewSegment($egypt)))->toThrow(SegmentNotFound::class)
+            ->and(fn () => app(ViewSegmentHandler::class)->handle(new ViewSegment('not-an-id')))->toThrow(SegmentNotFound::class);
+
+        Fx::actAsStaff(Fx::staffWith(['access.customer.view'], ['*']));
+        expect(fn () => app(ViewSegmentHandler::class)->handle(new ViewSegment($rule)))->toThrow(Unauthorized::class);
     });
 
     it('lists a segment\'s members by name only, a page at a time, whatever store they registered in', function () {

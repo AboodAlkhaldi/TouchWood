@@ -130,19 +130,19 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             $query->whereRaw('(s.created_at, s.id) < (?, ?)', [Moment::of($beforeAt), strtolower($beforeId)]);
         }
 
-        return array_values(array_map(static fn (stdClass $row): SegmentRow => new SegmentRow(
-            (string) $row->id,
-            (string) $row->name_ar,
-            (string) $row->name_en,
-            SegmentType::from((string) $row->type),
-            SegmentAudience::from((string) $row->audience),
-            $row->rule === null ? null : SegmentRule::from((string) $row->rule),
-            $row->rule_months === null ? null : (int) $row->rule_months,
-            $row->rule_orders === null ? null : (int) $row->rule_orders,
-            (int) $row->member_count,
-            $row->refreshed_at === null ? null : CarbonImmutable::parse((string) $row->refreshed_at),
-            CarbonImmutable::parse((string) $row->created_at),
-        ), $query->orderByDesc('s.created_at')->orderByDesc('s.id')->limit($limit)->get()->all()));
+        return array_values(array_map(self::toSegmentRow(...), $query->orderByDesc('s.created_at')->orderByDesc('s.id')->limit($limit)->get()->all()));
+    }
+
+    public function segmentRow(StoreId $store, string $segmentId): ?SegmentRow
+    {
+        $row = $this->db->table('promotions.segments as s')
+            ->where('s.store_id', $store->value)
+            ->where('s.id', strtolower($segmentId))
+            ->select('s.*')
+            ->selectSub(fn (Builder $members) => $members->from('promotions.segment_members as m')->selectRaw('count(*)')->whereColumn('m.segment_id', 's.id'), 'member_count')
+            ->first();
+
+        return $row instanceof stdClass ? self::toSegmentRow($row) : null;
     }
 
     public function members(string $segmentId, ?string $afterCustomerId, int $limit): array
@@ -179,6 +179,24 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             ->all()));
     }
 
+    private static function toSegmentRow(stdClass $row): SegmentRow
+    {
+        return new SegmentRow(
+            (string) $row->id,
+            (string) $row->store_id,
+            (string) $row->name_ar,
+            (string) $row->name_en,
+            SegmentType::from((string) $row->type),
+            SegmentAudience::from((string) $row->audience),
+            $row->rule === null ? null : SegmentRule::from((string) $row->rule),
+            $row->rule_months === null ? null : (int) $row->rule_months,
+            $row->rule_orders === null ? null : (int) $row->rule_orders,
+            (int) $row->member_count,
+            $row->refreshed_at === null ? null : CarbonImmutable::parse((string) $row->refreshed_at),
+            CarbonImmutable::parse((string) $row->created_at),
+        );
+    }
+
     private static function toRow(stdClass $row, DateTimeImmutable $now): CouponRow
     {
         $currency = (string) $row->currency_code;
@@ -188,6 +206,7 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
 
         return new CouponRow(
             (string) $row->id,
+            (string) $row->store_id,
             (string) $row->code,
             (string) $row->name_ar,
             (string) $row->name_en,
@@ -195,6 +214,7 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             DiscountKind::from((string) $row->discount_kind),
             $row->percent === null ? null : (int) $row->percent,
             $row->amount_minor === null ? null : Money::of((int) $row->amount_minor, $currency),
+            $row->cap_minor === null ? null : Money::of((int) $row->cap_minor, $currency),
             $currency,
             $startsAt,
             $endsAt,

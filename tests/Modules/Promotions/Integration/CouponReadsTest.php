@@ -203,12 +203,42 @@ describe('one coupon', function () {
         $named = array_map(static fn ($rule): array => [$rule->kind, $rule->target, $rule->targetId, $rule->nameEn !== null], $view->rules);
 
         expect($view->coupon->code)->toBe('VIP-10')
+            ->and([$view->storeId, $view->coupon->storeId])->toBe([Fx::storeId('sa'), Fx::storeId('sa')])
             ->and($view->coupon->state)->toBe(CouponState::Active)
             ->and([$view->cap?->minorUnits, $view->minimum?->minorUnits, $view->maxUsesPerCustomer, $view->forPublic, $view->forCompany])->toBe([50_00, 100_00, 2, true, false])
             ->and([$view->cap?->currencyCode, $view->coupon->currencyCode])->toBe([Pr::currency(), Pr::currency()])
             ->and($view->assignedCount)->toBe(2)
             ->and($named)->toContain(['INCLUDE', 'product', $product, true], ['INCLUDE', 'category', $category, true], ['EXCLUDE', 'brand', $brand, true])
-            ->and(count($view->rules))->toBe(4);
+            ->and(count($view->rules))->toBe(4)
+            ->and($view->coupon->cap?->minorUnits)->toBe(50_00);
+    });
+
+    it('names a category by its path in both languages, and marks what is no longer sold (answer 22)', function () {
+        $top = Px::category('Kitchens');
+        $category = Px::category('Drawers', $top);
+        $archived = Px::ready()['product'];
+        $live = Px::ready()['product'];
+        $brand = Px::brand('Hafele');
+        $off = Px::category('Old');
+        $coupon = Pr::coupon('PATHS', rules: [
+            ['INCLUDE', 'category', $category], ['INCLUDE', 'product', $live], ['INCLUDE', 'product', $archived],
+            ['EXCLUDE', 'brand', $brand], ['EXCLUDE', 'category', $off],
+        ]);
+        DB::table('catalog.products')->where('id', $archived)->update(['stage' => 'ARCHIVED', 'archived_from' => 'READY']);
+        DB::table('catalog.brands')->where('id', $brand)->update(['is_active' => false]);
+        DB::table('catalog.categories')->where('id', $off)->update(['is_active' => false]);
+        $names = static fn (string $id, string $column): string => (string) DB::table('catalog.categories')->where('id', $id)->value($column);
+        couponReader(PromotionsPermissions::VIEW);
+
+        $rules = [];
+
+        foreach (app(ViewCouponHandler::class)->handle(new ViewCoupon($coupon))->rules as $rule) {
+            $rules[$rule->targetId] = $rule;
+        }
+
+        expect([$rules[$category]->pathAr, $rules[$category]->pathEn])->toBe([$names($top, 'name_ar').' › '.$names($category, 'name_ar'), $names($top, 'name_en').' › '.$names($category, 'name_en')])
+            ->and([$rules[$live]->pathEn, $rules[$brand]->pathEn])->toBe([null, null])
+            ->and(array_map(static fn ($rule): bool => $rule->sold, [$rules[$category], $rules[$live], $rules[$archived], $rules[$brand], $rules[$off]]))->toBe([true, true, false, false, false]);
     });
 });
 

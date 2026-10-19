@@ -9,11 +9,15 @@ use Modules\Promotions\Public\Enums\SegmentAudience;
 use Modules\Promotions\Public\Enums\SegmentRule;
 use Modules\Promotions\Public\Enums\SegmentType;
 
-/** One segment of a store's list (promotions.md §1.5, §3): its rule, how many it holds, when last refreshed. */
+/**
+ * One segment of a store's list (promotions.md §1.5, §3): its store (a lower-case id), its rule, how
+ * many it holds, when last refreshed.
+ */
 final readonly class SegmentRow
 {
     public function __construct(
         public string $id,
+        public string $storeId,
         public string $nameAr,
         public string $nameEn,
         public SegmentType $type,
