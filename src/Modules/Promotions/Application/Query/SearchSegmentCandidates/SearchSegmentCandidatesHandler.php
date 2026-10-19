@@ -11,8 +11,10 @@ use Modules\Promotions\Application\Query\CandidateRow;
 use Modules\Promotions\Application\Query\CustomerNames;
 use Modules\Promotions\Application\Query\SegmentCandidates;
 use Modules\Promotions\Application\Segment\SegmentMembership;
+use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Repository\Segments;
+use Modules\Promotions\Public\Enums\SegmentType;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
@@ -22,7 +24,10 @@ use Shared\Domain\ValueObject\StoreId;
  * under `promotions.segment.manage` in the segment's store, the text sent to Access's search —
  * names in any store, email and phone among the customers the staff member may view — then only the
  * customers the segment may hold kept (`SegmentMembership::eligible`, the rule a save enforces), each
- * **by name only**, at most 50, in id order, marked when already a member.
+ * **by name only**, at most 50, in id order, marked when already a member. A hand-picked segment
+ * only. Access answers the first thousand matches in every store, by id: a common name may leave this
+ * store's customers past them — `more` then asks the screen for more letters, as it does when exactly
+ * a thousand were found.
  */
 final readonly class SearchSegmentCandidatesHandler
 {
@@ -42,12 +47,17 @@ final readonly class SearchSegmentCandidatesHandler
     ) {}
 
     /**
-     * @throws Unauthorized|SegmentNotFound|DomainError
+     * @throws Unauthorized|SegmentNotFound|InvalidPromotionAttribute|DomainError
      */
     public function handle(SearchSegmentCandidates $query): SegmentCandidates
     {
         $store = $this->change->authorize(self::PERMISSION, $this->change->segmentStore(self::PERMISSION, $query->segmentId));
-        $segment = $this->segments->byId(StoreId::fromString($store->id), strtolower($query->segmentId)) ?? throw new SegmentNotFound;
+        $segment = $this->segments->byId(StoreId::fromString($store->id), $query->segmentId) ?? throw new SegmentNotFound;
+
+        // Only a hand-picked segment is picked by hand: a rule fills the others (§1.5), as a save says.
+        if ($segment->type !== SegmentType::Static) {
+            throw new InvalidPromotionAttribute('segment_type', 'a rule fills this segment');
+        }
 
         $matches = $this->access->customerIdsMatching($query->text, self::MATCHES);
         $eligible = $this->membership->eligible($segment, $matches);

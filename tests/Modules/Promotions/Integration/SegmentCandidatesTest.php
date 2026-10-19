@@ -7,12 +7,15 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
 use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Application\Query\CandidateRow;
 use Modules\Promotions\Application\Query\SearchSegmentCandidates\SearchSegmentCandidates;
 use Modules\Promotions\Application\Query\SearchSegmentCandidates\SearchSegmentCandidatesHandler;
+use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
@@ -115,4 +118,42 @@ it('passes Access\'s refusal of a text too short to search', function () {
     Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['sa']));
 
     expect(fn () => candidates(pickerSegment(), 'Sa'))->toThrow(DomainError::class);
+});
+
+it('refuses a segment a rule fills: it is never picked by hand', function () {
+    Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['sa']));
+    $ruled = strtolower((string) Str::ulid());
+    DB::table('promotions.segments')->insert([
+        'id' => $ruled, 'store_id' => Fx::storeId('sa'), 'name_ar' => 'قاعدة', 'name_en' => 'Ruled', 'type' => 'DYNAMIC',
+        'audience' => 'INDIVIDUAL', 'rule' => 'NO_ORDERS_EVER', 'rule_months' => null, 'rule_orders' => null,
+        'created_at' => CarbonImmutable::now(), 'updated_at' => CarbonImmutable::now(),
+    ]);
+
+    expect(Pr::thrown(fn () => candidates($ruled, 'Sara'), InvalidPromotionAttribute::class)->attribute)->toBe('segment_type');
+});
+
+it('finds by email only the customers the staff member may view', function () {
+    $sara = Fx::customer('sara@example.test');
+    $egypt = Fx::customer('omar@example.test', 'eg');
+    Pr::ordered($egypt, CarbonImmutable::now()->subMonth());
+    $segment = pickerSegment();
+
+    // Viewing Saudi customers only: the Egyptian buyer's email names nobody; his name still finds him.
+    Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE, 'access.customer.view'], ['sa']));
+
+    expect(candidates($segment, 'sara@example'))->toBe([$sara => false])
+        ->and(candidates($segment, 'omar@example'))->toBe([])
+        ->and(array_keys(candidates($segment, 'Sara')))->toContain($egypt);
+});
+
+it('keeps a switched-off store\'s segments for Super Admins alone', function () {
+    Fx::customer('sara@example.test');
+    $egypt = pickerSegment(storeCode: 'eg');
+    Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+    Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['*']));
+
+    expect(fn () => candidates($egypt, 'Sara'))->toThrow(Unauthorized::class);
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    expect(candidates($egypt, 'Sara'))->toBe([]);
 });
