@@ -9,6 +9,7 @@ return [
     'subtitle' => 'ما وجدته قراءات المزوّد، وكل قراءة لهذا المتجر.',
 
     'sync_now' => 'مزامنة الآن',
+    'one_size' => 'مقاس واحد',
     'wire_store' => 'ربط المتجر',
 
     'providers' => [
@@ -17,6 +18,7 @@ return [
 
     // سطر الحالة (SyncStatus).
     'status' => [
+        'label' => 'الحالة',
         'states' => [
             'WORKING' => 'يعمل',
             'FAILING' => 'متعثّر',

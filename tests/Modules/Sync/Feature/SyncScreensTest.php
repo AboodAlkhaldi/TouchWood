@@ -258,7 +258,9 @@ describe('the Sync Report (Y1)', function () {
         $reads = syncScreensProps($browser->get('/admin/sync?tab=reads'), 'Sync/Admin/Report');
 
         expect([$notWired['tab'], $notWired['status']['state'], $notWired['problems'], $notWired['reads']['total']])->toBe(['reads', 'NOT_WIRED', null, 0])
-            ->and([$reads['tab'], $reads['reads']['total'], $reads['reads']['reads'][0]['kind'], $reads['problems']])->toBe(['reads', 1, 'NOW', null]);
+            ->and([$reads['tab'], $reads['reads']['total'], $reads['reads']['reads'][0]['kind'], $reads['problems']])->toBe(['reads', 1, 'NOW', null])
+            // The Problems tab's trigger keeps its count while Reads is shown (step 7): the unknown code.
+            ->and([$notWired['reads']['openEntries'], $reads['reads']['openEntries']])->toBe([0, 1]);
     });
 
     it('is refused to someone without View the Sync Report there, and for a store not theirs', function () {
@@ -414,7 +416,7 @@ describe('the menu and the budget', function () {
 
         expect(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a page that grows is seen.
-            ->and($counts)->toBe(['problems' => 4, 'reads' => 5, 'read' => 8, 'read reported' => 5, 'provider' => 5]);
+            ->and($counts)->toBe(['problems' => 4, 'reads' => 6, 'read' => 8, 'read reported' => 5, 'provider' => 5]);
     });
 
     it('reads each page\'s own queries within 15 in the worst case: an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several askers', function () {
@@ -441,8 +443,8 @@ describe('the menu and the budget', function () {
 
         expect($kinds)->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
             ->and(array_filter([...array_values($counts), ...array_values($superCounts)], static fn (int $count): bool => $count > 15))->toBe([])
-            ->and($superCounts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13])
+            ->and($superCounts)->toBe(['problems' => 12, 'reads' => 6, 'read' => 8, 'read stock' => 8, 'read reported' => 13])
             // Measured, so a page that grows is seen.
-            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read' => 8, 'read stock' => 8, 'read reported' => 13, 'provider' => 5]);
+            ->and($counts)->toBe(['problems' => 12, 'reads' => 6, 'read' => 8, 'read stock' => 8, 'read reported' => 13, 'provider' => 5]);
     });
 });

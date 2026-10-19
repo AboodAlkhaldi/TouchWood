@@ -56,6 +56,7 @@ return [
         'last_full_read' => 'Last Full Read',
         'never' => 'Not yet',
         'notice_address' => 'Notice Address',
+        'copy_notice' => 'Copy Notice Address',
         'notice_sends' => 'The provider sends:',
         'notice_timestamp' => 'X-TouchWood-Timestamp: the time, in Unix seconds',
         'notice_signature' => 'X-TouchWood-Signature: an HMAC-SHA256 of "timestamp.body" with the secret, in hexadecimal',
@@ -78,7 +79,8 @@ return [
             'other' => ':count sizes stop being orderable: with no provider every size counts on its stock, and these have none free.',
         ],
         'stays' => 'Prices and stock the provider wrote stay. Staff set them here again from now on.',
-        'type_code' => 'Type the store\'s code, :code, to confirm.',
+        // Read as: To confirm, type the store's code "sa" (ui.to_confirm_named).
+        'code_label' => 'store\'s code',
         'confirm' => 'Unwire Store',
     ],
 

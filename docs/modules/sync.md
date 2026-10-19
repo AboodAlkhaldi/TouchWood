@@ -370,9 +370,15 @@ controllers and page data, the menu's two entries and the words; the pages are p
   worst case** (an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several
   askers): the page's sizes are read once and handed to Pricing's `salesNamed` (pricing.md §2.1), and every
   store's wiring and waiting Sync Now reads are one query - each page's own queries, for a reader of one store
-  and for a Super Admin alike: Problems 12, Reads 5, a read 8, its Stock 8, its Reported 13, Provider 5. (The
+  and for a Super Admin alike: Problems 12, Reads 6 (step 7 added the open entries' count, for the Problems tab's trigger), a read 8, its Stock 8, its Reported 13, Provider 5. (The
   frame's Low Stock count, counted live until a store's count is kept, asks Sync's `StoreWiring` binding; it is
   the frame's, not the page's, and is left out as Inventory's own test leaves it out.)
+
+**Built (stage 5's screens step 7, 2026-10-19)** - the three pages as Y1-Y3 say, from shadcn's and the panel's
+shared parts. As built: the Problems tab's trigger keeps its count while Reads is shown (`ListSyncReads` also
+answers the open entries); a Bad Value's Detail says the stock when it was the stock that was refused (not
+whole, or below 0), else the price; Codes Asked is a tab only for a Notice or One Code read; a refused
+connection form keeps neither the key nor the secret, and a refusal naming a box is said under that box only.
 
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 

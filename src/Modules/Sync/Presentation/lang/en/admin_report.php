@@ -9,6 +9,7 @@ return [
     'subtitle' => 'What the provider\'s reads found, and every read of this store.',
 
     'sync_now' => 'Sync Now',
+    'one_size' => 'One Size',
     'wire_store' => 'Wire Store',
 
     'providers' => [
@@ -17,6 +18,7 @@ return [
 
     // The status line (SyncStatus).
     'status' => [
+        'label' => 'Status',
         'states' => [
             'WORKING' => 'Working',
             'FAILING' => 'Failing',

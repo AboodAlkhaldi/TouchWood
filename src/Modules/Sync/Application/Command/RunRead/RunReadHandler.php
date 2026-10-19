@@ -6,6 +6,7 @@ namespace Modules\Sync\Application\Command\RunRead;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Inventory\Public\Contracts\ProviderStock;
@@ -73,6 +74,7 @@ final readonly class RunReadHandler
         private ReadReports $reports,
         private Dispatcher $events,
         private SyncWords $words,
+        private ConnectionInterface $db,
     ) {}
 
     /**
@@ -166,22 +168,35 @@ final readonly class RunReadHandler
         // Counted from what it wrote, over every attempt: an attempt tried again finds its prices set.
         $counts = [$this->lines->count($read->id, 'PRICE'), $this->lines->count($read->id, 'STOCK'), $this->reports->skipped($read->id)];
 
+        // The read's end and its audit entry in one transaction, as every audited change is (platform.md
+        // §1.5): a queued job runs in none of its own (found by stage 5's screens step 7's browser test).
+        $finished = $ran && $this->db->transaction(function () use ($store, $read, $counts): bool {
+            if (! $this->reads->finish($read->id, ...$counts)) {
+                return false;
+            }
+
+            [$prices, $stock, $skipped] = $counts;
+            $this->connections->markRead($store, $read->coversChanges() ? $read->startedAt : null, $read->isFull());
+            $this->entries->closeKind($store, ReportKind::ReadFailed, self::CLOSED_BY_READ);
+            $this->platform->recordAudit(new AuditEntryDto('sync.read.done', 'sync.read', $read->id, $store->value, AuditChanges::none()
+                ->changed('kind', null, $read->kind->value)
+                ->changed('prices_changed', null, $prices)
+                ->changed('stock_changed', null, $stock)
+                ->changed('skipped', null, $skipped)));
+
+            return true;
+        });
+
         // Unwired before or while it ran - or taken over: whatever it wrote stays, the rest is not its.
-        if (! $ran || ! $this->reads->finish($read->id, ...$counts)) {
-            $this->reads->fail($read->id, ReadFailure::StoppedRewired->value);
-            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, $this->failure(ReadFailure::StoppedRewired->value)));
+        if (! $finished) {
+            $this->db->transaction(function () use ($store, $read): void {
+                $this->reads->fail($read->id, ReadFailure::StoppedRewired->value);
+                $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $read->id, $store->value, $this->failure(ReadFailure::StoppedRewired->value)));
+            });
 
             return;
         }
 
-        [$prices, $stock, $skipped] = $counts;
-        $this->connections->markRead($store, $read->coversChanges() ? $read->startedAt : null, $read->isFull());
-        $this->entries->closeKind($store, ReportKind::ReadFailed, self::CLOSED_BY_READ);
-        $this->platform->recordAudit(new AuditEntryDto('sync.read.done', 'sync.read', $read->id, $store->value, AuditChanges::none()
-            ->changed('kind', null, $read->kind->value)
-            ->changed('prices_changed', null, $prices)
-            ->changed('stock_changed', null, $stock)
-            ->changed('skipped', null, $skipped)));
         $this->announce($store, $read->id);
     }
 
@@ -190,13 +205,23 @@ final readonly class RunReadHandler
     {
         $why = mb_substr($why, 0, 1000);
 
-        if ($this->connections->exists($store)) {
-            $this->connections->markFailing($store, $why);
-            $this->reported($store, $readId, ReportKind::ReadFailed, [['code' => null, 'variantId' => null, 'saleId' => null, 'detail' => ['read' => $readId, 'error' => $why]]]);
+        // The failure and its audit entry in one transaction; staff told once it is committed.
+        $wired = $this->db->transaction(function () use ($store, $readId, $why): bool {
+            $wired = $this->connections->exists($store);
+
+            if ($wired) {
+                $this->connections->markFailing($store, $why);
+                $this->reported($store, $readId, ReportKind::ReadFailed, [['code' => null, 'variantId' => null, 'saleId' => null, 'detail' => ['read' => $readId, 'error' => $why]]]);
+            }
+
+            $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, $this->failure($why)));
+
+            return $wired;
+        });
+
+        if ($wired) {
             $this->announce($store, $readId);
         }
-
-        $this->platform->recordAudit(new AuditEntryDto('sync.read.failed', 'sync.read', $readId, $store->value, $this->failure($why)));
     }
 
     /**

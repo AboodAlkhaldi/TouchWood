@@ -42,6 +42,7 @@ final readonly class ListSyncReadsHandler
             $this->views->of($rows),
             $more && $last !== null ? Cursor::of($last['queuedAt'], $last['id']) : null,
             $this->log->readsCount($store),
+            $this->log->openCount($store),
         );
     }
 }
