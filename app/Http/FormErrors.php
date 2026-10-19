@@ -82,14 +82,41 @@ final class FormErrors
 
     /**
      * "access.invalid_credentials" → access::errors.invalid_credentials.detail, with its values.
+     *
+     * A refusal that names **the rule it broke** in its `rule` context - Pricing's wholesale bands (pricing.md
+     * §7, owner Q12) - says that rule's own words, `….rules.{rule}`, where the module wrote them; the error's
+     * one detail otherwise.
      */
     public static function message(DomainError $error): string
     {
         [$module, $name] = str_contains($error->type(), '.') ? explode('.', $error->type(), 2) : ['shared', $error->type()];
-        $key = $module === 'shared' ? "errors.{$name}.detail" : "{$module}::errors.{$name}.detail";
-        $translated = trans($key, self::values($module, $error->context()));
+        $base = $module === 'shared' ? "errors.{$name}" : "{$module}::errors.{$name}";
+        $values = self::values($module, $error->context());
+        $rule = self::ruleKey($base, $error->context());
 
-        return is_string($translated) && $translated !== $key ? $translated : $error->getMessage();
+        if ($rule !== null) {
+            $translated = trans($rule, $values);
+
+            if (is_string($translated) && $translated !== $rule) {
+                return $translated;
+            }
+        }
+
+        $translated = trans("{$base}.detail", $values);
+
+        return is_string($translated) && $translated !== "{$base}.detail" ? $translated : $error->getMessage();
+    }
+
+    /**
+     * The key of the words for the rule a refusal names, or null when it names none.
+     *
+     * @param  array<string, string|int|float|bool|null>  $context
+     */
+    public static function ruleKey(string $base, array $context): ?string
+    {
+        $rule = $context['rule'] ?? null;
+
+        return is_string($rule) && preg_match('/\A[a-z_]{1,40}\z/', $rule) === 1 ? "{$base}.rules.{$rule}" : null;
     }
 
     /**

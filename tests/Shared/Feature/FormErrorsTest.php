@@ -10,6 +10,7 @@ use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
+use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Modules\Pricing\Domain\Exception\NoRetailPrice;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Symfony\Component\HttpFoundation\Response;
@@ -80,7 +81,40 @@ it('names each size a batch refusal concerns, with the refusal\'s message', func
     expect(FormErrors::rows($error))->toBe([
         '01K7AAAAAAAAAAAAAAAAAAAAAA' => FormErrors::message($error),
         '01K7BBBBBBBBBBBBBBBBBBBBBB' => FormErrors::message($error),
-    ])->and(FormErrors::message($error))->toBe('This size has no retail price in the store, so there is nothing to take a percentage off.');
+    ])->and(FormErrors::message($error))->toBe('This size has no retail price in the store. Give it a price before putting it on any sale or giving it wholesale prices.');
+});
+
+/*
+| A refusal naming the rule it broke (pricing.md §7, owner Q12) says that rule's words - the module's
+| `rules.{rule}` - on a page and in a problem response alike; one with no words for its rule says the
+| error's detail.
+*/
+
+it('says the words of the rule a refusal names, in either language', function (string $locale, string $expected) {
+    app()->setLocale($locale);
+
+    expect(FormErrors::message(new BandsInvalid(BandsInvalid::FIRST_BAND, 20, 500, variants: ['01K7AAAAAAAAAAAAAAAAAAAAAA'])))->toBe($expected);
+})->with([
+    ['en', 'The first band must start at 20, the wholesale minimum.'],
+    ['ar', 'يجب أن تبدأ الشريحة الأولى من 20، وهو الحدّ الأدنى للجملة.'],
+]);
+
+it('says the error\'s detail for a rule it has no words for, and for a rule that is not one', function () {
+    app()->setLocale('en');
+    $detail = 'The first band starts at the wholesale minimum and costs less than the retail price; each next band starts at a higher quantity and costs less.';
+
+    expect(FormErrors::message(new BandsInvalid('no_such_rule')))->toBe($detail)
+        ->and(FormErrors::message(new BandsInvalid('Not-A-Rule')))->toBe($detail)
+        ->and(FormErrors::message(new BandsInvalid(BandsInvalid::BELOW_RETAIL, retail: '120.00')))->toBe('The first band must cost less than 120.00, the retail price.');
+});
+
+it('answers a client asking for JSON with the rule\'s words too', function () {
+    Route::post('/_test/bands', static fn () => throw new BandsInvalid(BandsInvalid::TOO_MANY));
+    app()->setLocale('en');
+
+    post('/_test/bands', [], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonPath('detail', 'A size can have at most 10 bands.');
 });
 
 it('names no row for a refusal about no size, and never one that is not an id', function () {

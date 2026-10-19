@@ -57,6 +57,16 @@ interface CatalogApi
     public function variantIdsOf(string $productId, bool $includeArchived = false): array;
 
     /**
+     * **Many products' variants in one read** (stage 5's screens step 2; pricing.md §4.3.3): each product's
+     * variants in its own order, archived ones only when asked, keyed by product id - a product with none,
+     * or unknown, left out. One query however many products.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, list<string>>
+     */
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived = false): array;
+
+    /**
      * For Pricing's category discounts: **the products in the category and in every category below
      * it**, any stage (amendment 16(e)). An unknown category holds none. When a category moves,
      * `CategoryMoved` says so.
@@ -163,12 +173,13 @@ interface CatalogApi
      * code. **Ordered by product name in the page's language, then the size's place**, keyset-paged by
      * `after` (the `next` of the page before; one that is not one starts at the top), `limit` from 1 to
      * 100, with the total. So a filter owned by the module asking - its sizes, as `only` or `except` -
-     * pages by Catalog's order. A fixed two queries however many sizes or ids.
+     * pages by Catalog's order. With `notArchived`, a size archived - or of an archived product - is left
+     * out (Pricing's Needs a Price, stage 5's screens step 2). A fixed two queries however many sizes or ids.
      *
      * @param  list<string>|null  $only
      * @param  list<string>|null  $except
      */
-    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50): FoundVariantsDto;
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false): FoundVariantsDto;
 
     /**
      * **Products for a picker** (amendment 23(b)): with `readySwitchedOn`, the store's ready products

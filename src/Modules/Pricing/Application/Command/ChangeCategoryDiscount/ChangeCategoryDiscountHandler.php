@@ -55,8 +55,9 @@ final readonly class ChangeCategoryDiscountHandler
         $percent = $command->percent === null ? null : SaleInput::percent($command->percent);
         $amount = $command->amount === null ? null : AmountInput::of($command->amount, $store);
         $lines = DiscountInput::lines($command->lines);
-        $leftOut = $this->input->leftOut($command->leftOut);
         $categoryId = strtolower(trim($command->categoryId));
+        // A product left out already stays allowed: it may have moved out of the category since (Q10).
+        $leftOut = $this->input->leftOut($command->leftOut, $categoryId, $found->excludedProductIds);
         $endsAt = SaleInput::end($command->endsAt);
 
         $this->change->run($storeId, function () use ($command, $storeId, $store, $percent, $amount, $lines, $leftOut, $categoryId, $endsAt): array {

@@ -11,6 +11,8 @@ use Illuminate\Database\Query\Builder;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Modules\Pricing\Domain\ValueObject\DiscountLines;
+use Modules\Pricing\Domain\ValueObject\WindowOrder;
+use Modules\Pricing\Domain\ValueObject\WindowState;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use stdClass;
@@ -33,6 +35,26 @@ final readonly class DatabaseCategoryDiscounts implements CategoryDiscounts
         $row = $this->db->table(self::TABLE)->where('id', strtolower(trim($discountId)))->first();
 
         return $row instanceof stdClass ? $this->discounts([$row])[0] : null;
+    }
+
+    public function findMany(array $discountIds): array
+    {
+        $ids = array_values(array_filter(
+            array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $discountIds)),
+            static fn (string $id): bool => preg_match('/\A[0-9a-z]{1,64}\z/', $id) === 1,
+        ));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->discounts($this->db->table(self::TABLE)->whereRaw('id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])->get()->values()->all()) as $discount) {
+            $found[$discount->id] = $discount;
+        }
+
+        return $found;
     }
 
     public function save(CategoryDiscount $discount): void
@@ -73,14 +95,25 @@ final readonly class DatabaseCategoryDiscounts implements CategoryDiscounts
             ->get()->values()->all());
     }
 
-    public function page(StoreId $store, int $page, int $perPage): array
+    public function notEndedInStores(array $stores, DateTimeImmutable $at): array
     {
-        $query = $this->db->table(self::TABLE.' as d')->where('d.store_id', $store->value);
+        if ($stores === []) {
+            return [];
+        }
 
-        return [
-            $this->discounts((clone $query)->orderByDesc('d.starts_at')->orderBy('d.id')->forPage(max(1, $page), $perPage)->select('d.*')->get()->values()->all()),
-            $query->count(),
-        ];
+        return $this->discounts($this->db->table(self::TABLE.' as d')
+            ->whereIn('d.store_id', array_map(static fn (StoreId $store): string => $store->value, $stores))
+            ->where(fn (Builder $query) => $query->whereNull('d.ends_at')->orWhere('d.ends_at', '>', $at->format('Y-m-d H:i:s.uP')))
+            ->orderBy('d.starts_at')->orderBy('d.id')
+            ->select('d.*')
+            ->get()->values()->all());
+    }
+
+    public function list(StoreId $store, DateTimeImmutable $now, ?WindowState $state, WindowOrder $order, ?array $after, int $limit): array
+    {
+        [$rows, $total, $next] = WindowListing::page($this->db->table(self::TABLE.' as d')->where('d.store_id', $store->value), 'd', $now, $state, $order, $after, $limit);
+
+        return [$this->discounts($rows), $total, $next];
     }
 
     public function storesWithDiscounts(DateTimeImmutable $at): array

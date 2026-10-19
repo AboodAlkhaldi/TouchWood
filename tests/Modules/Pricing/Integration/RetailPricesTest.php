@@ -19,6 +19,7 @@ use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariant;
 use Modules\Catalog\Application\Command\RestoreVariant\RestoreVariantHandler;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Application\Command\RebuildPriceCandidates\RebuildPriceCandidates;
 use Modules\Pricing\Application\Command\RebuildPriceCandidates\RebuildPriceCandidatesHandler;
 use Modules\Pricing\Application\Command\RemoveRetailPrice\RemoveRetailPrice;
@@ -325,6 +326,11 @@ describe('who may change a store\'s prices', function () {
             public function isWired(StoreId $store): bool
             {
                 return true;
+            }
+
+            public function wiredStores(): array
+            {
+                return array_map(static fn ($store): string => $store->id, app(PlatformApi::class)->allStores());
             }
         });
 

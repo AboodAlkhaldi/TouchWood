@@ -60,6 +60,11 @@ function priceFileWired(): void
         {
             return true;
         }
+
+        public function wiredStores(): array
+        {
+            return array_map(static fn ($store): string => $store->id, app(PlatformApi::class)->allStores());
+        }
     });
 }
 
@@ -115,6 +120,7 @@ it('sets an off store\'s price for the admin who filled it, though they may not 
 it('holds a price back as for staff when it would take a sale past the ceiling', function () {
     [$size] = Px::ready()['variants'];
     Rx::set('sa', [$size => '100']);
+    Rx::switchOn('sa', [$size]);
     Fx::asSystem(fn () => app(AddSaleHandler::class)->handle(new AddSale(Rx::storeId('sa'), null, [$size], null, '75', null, null, false)));
 
     // 200 would make the 75 sale 62.5% off, past the 30% ceiling: the job goes to the failed jobs screen.

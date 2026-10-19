@@ -14,14 +14,16 @@ use Modules\Pricing\Application\Prices\SaleInput;
 use Modules\Pricing\Application\PricingPermissions;
 use Modules\Pricing\Domain\Exception\CategoryNotUsable;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
+use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
 use Shared\Application\Unauthorized;
 
 /**
- * **The preview before saving** (`PreviewCategoryDiscount`, pricing.md §1.5, §3), under **Manage Category
- * Discounts** in that store: the discount as the form holds it, read as adding it would - its category
- * there and on, a percentage or an amount, its lines, the products it leaves out - and what it would do.
- * A read: no lock, nothing written; the checks that refuse it run when it is saved.
+ * **The preview before saving** (`PreviewCategoryDiscount`, pricing.md §1.5, §3, §4.3.3 P3), under **Manage
+ * Category Discounts** in that store: the discount as the form holds it, read as adding it would - its
+ * category there and on, a percentage or an amount, its lines, the products it leaves out (in the category,
+ * Q10) - and what it would do, its products 20 at a time. A read: no lock, nothing written; the checks
+ * that refuse it run when it is saved.
  */
 final readonly class PreviewCategoryDiscountHandler
 {
@@ -30,6 +32,7 @@ final readonly class PreviewCategoryDiscountHandler
         private DiscountInput $input,
         private DiscountPreviewer $previewer,
         private CatalogApi $catalog,
+        private CategoryDiscounts $discounts,
     ) {}
 
     /**
@@ -50,8 +53,10 @@ final readonly class PreviewCategoryDiscountHandler
         }
 
         $now = CarbonImmutable::now()->toDateTimeImmutable();
+        // Being changed: the products it leaves out already stay allowed, as the change allows them.
+        $before = $query->discountId === null ? null : $this->discounts->find($query->discountId);
 
-        return $this->previewer->preview($store->storeId(), new CategoryDiscount(
+        return $this->previewer->preview($store, new CategoryDiscount(
             // Its own id when it is being changed, so it is not its own overlap.
             $query->discountId === null ? 'preview' : strtolower(trim($query->discountId)),
             $store->id,
@@ -62,7 +67,7 @@ final readonly class PreviewCategoryDiscountHandler
             SaleInput::start($query->startsAt, $now),
             SaleInput::end($query->endsAt),
             false,
-            $this->input->leftOut($query->leftOut),
-        ));
+            $this->input->leftOut($query->leftOut, $categoryId, $before !== null && $before->storeId === $store->id ? $before->excludedProductIds : []),
+        ), $query->after);
     }
 }

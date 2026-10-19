@@ -40,6 +40,31 @@ final readonly class DatabaseApiReads implements ApiReads
             ->all()));
     }
 
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn (string $id): string => strtolower(trim($id)), $productIds),
+            static fn (string $id): bool => Ulids::valid($id),
+        )));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // One bound array, never a parameter an id: a thousand products cost what one does.
+        foreach ($this->db->table('catalog.variants')
+            ->whereRaw('product_id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])
+            ->when(! $includeArchived, fn ($query) => $query->where('is_archived', false))
+            ->orderBy('product_id')->orderBy('position')->orderBy('id')
+            ->get(['id', 'product_id']) as $row) {
+            $found[(string) $row->product_id][] = (string) $row->id;
+        }
+
+        return $found;
+    }
+
     public function switchedOnVariantIds(string $storeId): array
     {
         return array_values(array_map('strval', $this->db->table('catalog.store_variants')

@@ -58,11 +58,21 @@ final readonly class SetRetailPriceHandler
 
         foreach ($command->prices as $given => $amount) {
             $variantId = $own[(string) $given];
-            $money = AmountInput::of($amount, $store);
+
+            // A refusal names the size it is about, so the screen marks its row (owner Q2).
+            try {
+                $money = AmountInput::of($amount, $store);
+            } catch (PriceTooPrecise $refused) {
+                throw new PriceTooPrecise($refused->decimals, [(string) $given]);
+            } catch (PriceNotPositive) {
+                throw new PriceNotPositive([(string) $given]);
+            } catch (InvalidPricingInput $refused) {
+                throw new InvalidPricingInput($refused->attribute, [(string) $given]);
+            }
 
             // One size written two ways with two prices: which was meant cannot be told.
             if (isset($amounts[$variantId]) && ! $amounts[$variantId]->equals($money)) {
-                throw new InvalidPricingInput('variant');
+                throw new InvalidPricingInput('variant', [(string) $given]);
             }
 
             $amounts[$variantId] = $money;

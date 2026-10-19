@@ -10,6 +10,8 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Pricing\Domain\Repository\Sales;
 use Modules\Pricing\Domain\ValueObject\Sale;
+use Modules\Pricing\Domain\ValueObject\WindowOrder;
+use Modules\Pricing\Domain\ValueObject\WindowState;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use stdClass;
@@ -28,6 +30,23 @@ final readonly class DatabaseSales implements Sales
         $row = $this->db->table('pricing.sales')->where('id', strtolower(trim($saleId)))->first();
 
         return $row instanceof stdClass ? $this->sales([$row])[0] : null;
+    }
+
+    public function findMany(array $saleIds): array
+    {
+        $ids = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $saleIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->sales($this->db->table('pricing.sales')->whereRaw('id = ANY(?::text[])', [self::array($ids)])->get()->values()->all()) as $sale) {
+            $found[$sale->id] = $sale;
+        }
+
+        return $found;
     }
 
     public function save(Sale $sale): void
@@ -70,14 +89,41 @@ final readonly class DatabaseSales implements Sales
         return $this->sales($this->notEndedQuery($store, $at)->get()->values()->all());
     }
 
-    public function page(StoreId $store, int $page, int $perPage): array
+    public function list(StoreId $store, DateTimeImmutable $now, ?WindowState $state, ?string $productId, ?string $saleId, WindowOrder $order, ?array $after, int $limit): array
     {
         $query = $this->db->table('pricing.sales as s')->where('s.store_id', $store->value);
 
-        return [
-            $this->sales((clone $query)->orderByDesc('s.starts_at')->orderBy('s.id')->forPage(max(1, $page), $perPage)->select('s.*')->get()->values()->all()),
-            $query->count(),
-        ];
+        if ($productId !== null) {
+            $query->where('s.product_id', strtolower(trim($productId)));
+        }
+
+        if ($saleId !== null) {
+            $query->where('s.id', strtolower(trim($saleId)));
+        }
+
+        [$rows, $total, $next] = WindowListing::page($query, 's', $now, $state, $order, $after, $limit);
+
+        return [$this->sales($rows), $total, $next];
+    }
+
+    public function productIds(StoreId $store): array
+    {
+        return array_values(array_map('strval', $this->db->table('pricing.sales')->where('store_id', $store->value)->distinct()->orderBy('product_id')->pluck('product_id')->all()));
+    }
+
+    public function notEndedOfProduct(array $stores, string $productId, DateTimeImmutable $at): array
+    {
+        if ($stores === []) {
+            return [];
+        }
+
+        return $this->sales($this->db->table('pricing.sales as s')
+            ->whereIn('s.store_id', array_map(static fn (StoreId $store): string => $store->value, $stores))
+            ->where('s.product_id', strtolower(trim($productId)))
+            ->where(fn (Builder $query) => $query->whereNull('s.ends_at')->orWhere('s.ends_at', '>', $at->format('Y-m-d H:i:s.uP')))
+            ->orderBy('s.starts_at')->orderBy('s.id')
+            ->select('s.*')
+            ->get()->values()->all());
     }
 
     public function windowsBetween(DateTimeImmutable $from, DateTimeImmutable $to): array
@@ -100,6 +146,15 @@ final readonly class DatabaseSales implements Sales
             ->where(fn (Builder $query) => $query->whereNull('s.ends_at')->orWhere('s.ends_at', '>', $at->format('Y-m-d H:i:s.uP')))
             ->orderBy('s.starts_at')->orderBy('s.id')
             ->select('s.*');
+    }
+
+    /**
+     * @param  list<string>  $ids
+     */
+    private static function array(array $ids): string
+    {
+        // Ids are letters and digits: nothing in them needs quoting inside the array literal.
+        return '{'.implode(',', array_filter($ids, static fn (string $id): bool => preg_match('/\A[0-9a-z]{1,64}\z/', $id) === 1)).'}';
     }
 
     /**
@@ -130,6 +185,7 @@ final readonly class DatabaseSales implements Sales
             $row->ends_at === null ? null : CarbonImmutable::parse((string) $row->ends_at)->toDateTimeImmutable(),
             (bool) $row->always_wins,
             $sizes[(string) $row->id] ?? [],
+            $row->created_at === null ? null : CarbonImmutable::parse((string) $row->created_at)->toDateTimeImmutable(),
         ), $rows);
     }
 }

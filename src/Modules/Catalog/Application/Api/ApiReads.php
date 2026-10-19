@@ -23,6 +23,12 @@ interface ApiReads
     public function variantIdsOf(string $productId, bool $includeArchived): array;
 
     /**
+     * @param  list<string>  $productIds
+     * @return array<string, list<string>> product id => its variants in its own order, archived ones when asked
+     */
+    public function variantIdsOfProducts(array $productIds, bool $includeArchived): array;
+
+    /**
      * @return list<string> the variants switched on in the store (§1.3)
      */
     public function switchedOnVariantIds(string $storeId): array;

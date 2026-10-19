@@ -19,6 +19,7 @@ use Modules\Pricing\Application\Prices\DiscountCoverage;
 use Modules\Pricing\Application\Prices\PricingChange;
 use Modules\Pricing\Application\Prices\SaleAudit;
 use Modules\Pricing\Application\Prices\SizeInput;
+use Modules\Pricing\Application\Prices\UnpricedRecounts;
 use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Exception\PriceNotPositive;
 use Modules\Pricing\Domain\Exception\PriceTooPrecise;
@@ -57,6 +58,7 @@ final readonly class ProviderPricesImpl implements ProviderPrices
         private DiscountCoverage $coverage,
         private CeilingCheck $ceiling,
         private CandidateWriter $writer,
+        private UnpricedRecounts $recounts,
     ) {}
 
     public function apply(StoreId $store, array $prices, string $readRef): ProviderPricesResult
@@ -120,6 +122,11 @@ final readonly class ProviderPricesImpl implements ProviderPrices
             array_push($salesStopped, ...$done['salesStopped']);
             array_push($discountsSkipped, ...$done['discountsSkipped']);
             array_push($changes, ...$done['changes']);
+        }
+
+        // A size given its first price leaves Needs a Price: the store's kept count is counted again (Q43).
+        if ($changed !== []) {
+            $this->recounts->queue($store);
         }
 
         return new ProviderPricesResult($wired, $changed, $offOrDraft, $salesStopped, $discountsSkipped, $archived, $notFound, $invalid, $changes);

@@ -27,6 +27,7 @@ final readonly class RetailPriceWriter
         private RetailPrices $retailPrices,
         private CandidateWriter $writer,
         private CeilingCheck $ceiling,
+        private UnpricedRecounts $recounts,
     ) {}
 
     /**
@@ -47,7 +48,12 @@ final readonly class RetailPriceWriter
             $discounts = $this->ceiling->discountsOver($storeId, $ceiling, $amounts);
 
             if ($over !== [] || $discounts !== []) {
-                throw new OverCeiling($ceiling, [...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)], [], $this->ceiling->namesFor($over, $discounts));
+                throw new OverCeiling(
+                    $ceiling,
+                    [...array_map(static fn (Sale $sale): string => $sale->id, $over), ...array_keys($discounts)],
+                    $this->ceiling->sizesOver($amounts, $over, $discounts),
+                    $this->ceiling->namesFor($over, $discounts),
+                );
             }
 
             $changed = [];
@@ -72,6 +78,11 @@ final readonly class RetailPriceWriter
             }
 
             $this->writer->refresh($storeId, $changed);
+
+            // A size priced for the first time leaves Needs a Price: its kept count is counted again (Q43).
+            if ($changed !== []) {
+                $this->recounts->queue($storeId);
+            }
 
             return [null, $entries];
         });

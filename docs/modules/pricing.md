@@ -73,7 +73,11 @@ A lower price for a size, for a time (owner, 2026-10-08):
 - **For one size, some of a product's sizes (owner, 2026-10-13), or every size of a product at
   once** - never sizes of two products. A sale over several sizes is kept as one sale over them, so
   it is changed and ended as one; a size added to the product later is not in it (owner, 2026-10-08).
-  None of an archived product, nor an archived size (§7).
+  None of an archived product, nor an archived size (§7). **Only a ready product switched on in the
+  store, and only its sizes switched on there** (owner Q13, 2026-10-19). **"All Sizes" is every size of
+  the product switched on in the store that has a price there, saved as that list** (owner Q39): a size
+  with no price is left out, not a reason to refuse; a product with none priced is refused
+  (`no_retail_price`). Changing a sale keeps its product and sizes.
 - **A start, and an end only if wanted**: without an end it lasts until it is ended. A sale may be
   scheduled ahead. The end is after the start.
 - **Overlapping sales on the same size are allowed**; the lowest wins while both run (owner,
@@ -103,7 +107,9 @@ per size** (owner, 2026-10-08), in **quantity bands**:
   from 500 = 70" (owner, 2026-10-08).
 - Each band starts higher and costs **less** than the one before; every price is above 0; **the first
   band costs less than the retail price** when saved (owner, 2026-10-10). If the retail price later
-  drops below a band, the line's normal price is the retail price (§1.6 step 5).
+  drops below a band, the line's normal price is the retail price (§1.6 step 5). **At most 10 bands, and
+  none starting above the size's wholesale maximum** when it has one (owner Q12, 2026-10-19); a refusal
+  names the rule it broke (§7).
 - Saving needs the size to **sell wholesale** in that store (Catalog). If the store stops selling it
   wholesale, its bands are kept, unused, for the day it sells wholesale again (owner, 2026-10-08).
 - **If Catalog's wholesale minimum is later lowered** below the first band, a wholesale line under the
@@ -121,7 +127,9 @@ A discount on every product in a category and its sub-categories, in one store (
   prices.
 - **Applies to retail lines, wholesale lines, or both.** On a wholesale line it competes with the
   wholesale band (lowest wins).
-- **Products can be left out** by name.
+- **Products can be left out** by name - **only the category's products and its children's** (owner Q10,
+  2026-10-19; `invalid_pricing_input`, field `left_out`); one left out already stays allowed when the
+  discount is changed, though it moved out of the category since.
 - **A start, and an end only if wanted**, as a sale; the same life (§4.1); the same note of what it
   affects and what it overlaps, and the same **"always wins"** choice (§1.3) — **two "always wins"
   discounts on lines that differ (one retail only, one wholesale only) may run together**, as they
@@ -202,7 +210,13 @@ Pricing's `ImportSection` for a store's file:
 
 Per store: **every size the store has switched on with no retail price there**, with a count beside
 it in the menu — seen by whoever may **Edit Prices and Sales** in that store (owner, 2026-10-08).
-Pricing gives the list and the count (Platform's `MenuCount`); the frontend session draws it.
+Pricing gives the list and the count (Platform's `MenuCount`); the frontend session draws it. An archived
+size, or one of an archived product, is left out: it can't be priced until it is restored. **The count
+is kept per store** (owner Q43, 2026-10-19, as Inventory's Low Stock): `pricing.unpriced_counts`, counted
+again by a queued job (`CountUnpricedSizes`, the system's) about 30 seconds after any retail price is set
+or removed in the store, sizes are switched on or off there, any size or product is archived or
+restored, and every night at 03:40 Riyadh time; the menu reads the kept counts in one query, a store not
+counted yet live once. The list and the count read the same sizes (`UnpricedSizes`).
 
 ### 1.10 What Pricing pushes into Catalog
 
@@ -265,6 +279,7 @@ store's currency. **On `main` since #97.**
 | `prices(StoreId $store, list<CartLineDto> $lines): CartPricesDto` | Sales (cart, quote), Promotions (via Sales) | Each line's price: its unit price (the lowest applicable), the base price it compares with, the kind that won, the line amounts, and when that price stops applying; the lines with no price, apart; `gross_subtotal` and `net_subtotal` over the priced lines; the store's VAT rate. Reads the materialized prices — never resolves at request time (handoff §10.1). |
 | `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base`, `vat` (rounded once, half up), `order_total`. **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
 | `pricesForEdit(StoreId $store, list<KeptPartDto> $kept, list<CartLineDto> $added, int $taxRateBasisPoints): CartPricesDto` **[PROPOSED]** | Sales (staff edited an order before it ships) | §1.11: the kept parts as they are, the added lines priced now (a wholesale one by the band for its new total), the order's VAT rate. A variant and mode may appear more than once among the parts; once among the added lines (`pricing.duplicate_lines`). `validUntil` from the added lines only. |
+| `salesNamed(list<string> $saleIds): list<OfferNameDto>` · `discountsNamed(list<string> $discountIds): list<OfferNameDto>` | Sync's report (stage 5's screens step 2) | Each id in the order asked: whether the sale or discount still exists and, while it does, its short description in the reader's language - "−10% · 60 cm, 80 cm" (a percentage or its price, then its sizes by their values, "One Size" for a product with one), "Kitchens: 50.00 off" with the currency's sign. A fixed few queries however many. |
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
 (for `goods_total`, which free shipping and points earning bind to), then with the shipping.
@@ -297,6 +312,7 @@ no error classes.
 | `CartPricesDto` | `storeId` · `currencyCode` · `taxRateBasisPoints` · `lines` (list of `LinePriceDto`) · `unpriced` (variant ids with no price there) · `grossSubtotal` (Σ `listTotal`) · `netSubtotal` (Σ `total`) · `pricedAt` · `?validUntil` (the earliest `endsAt`: a quote built on these prices must not outlive it) |
 | `TotalsDto` | `grossSubtotal` · `netSubtotal` · `couponDiscount` · `pointsDiscount` · `goodsTotal` · `shipping` · `taxableBase` · `vat` · `orderTotal` · `taxRateBasisPoints` |
 | `PriceKind` (enum) | `BASE` · `SALE` · `CAMPAIGN` · `CATEGORY` · `QUANTITY` |
+| `OfferNameDto` | `id` (as asked) · `exists` · `?description` (none once it is gone: Sync says "Sale removed") |
 | `KeptPartDto` **[PROPOSED]** | `variantId` · `mode` · `quantity` (as edited: never above what the order held; 1 or more — a part whose pieces were all taken off is left out) · `listUnit` · `unit` · `kind` — as the order's snapshot holds them, in the store's currency, above 0 (§1.11) |
 
 ### 2.3 What Pricing gives Catalog
@@ -331,7 +347,7 @@ permission is checked here — Sync's read checks its own.
 
 | Contract | Says |
 |---|---|
-| `StoreWiring::isWired(StoreId): bool` | Moved from Pricing's Application layer to its Public contracts, so Sync can answer it. Pricing binds "no store is wired" until Sync binds its own. |
+| `StoreWiring::isWired(StoreId): bool` · `wiredStores(): list<string>` | Moved from Pricing's Application layer to its Public contracts, so Sync can answer it. Pricing binds "no store is wired" until Sync binds its own. `wiredStores` (stage 5's screens step 2): every wired store in one read, for the reads spanning stores (`ViewProductPrices`, `PricingActionsForReader`); Sync answers it from its connections. |
 | `ProviderPrices::apply(StoreId, array<variantId, mixed>, string $readRef): ProviderPricesResult` | Each size's retail price set to the provider's base price (§1.1 rule 9), **as the provider wrote it** — a decimal in the store's currency, checked by the store's own rules (§1.2: refused, never rounded) rather than handed over as `Money`, the provider giving no currency (sync.md §9.1). The same price changes nothing; a different one is saved with source `PROVIDER`, audited from and to with the read (`pricing.retail_price.provided`). A size switched off in the store, or of a draft product, takes it too and, when its price changed, is named. **The ceiling** (§1.12): a running or scheduled **sale** the new price takes past it **stops on that size** — the size leaves the sale; a sale left with none ends if running, or is removed if not started (or started this very moment, having no time to end at) — audited as the system's (`pricing.sale.changed` / `.ended` / `.removed`); a **fixed-amount category discount** the price takes past it **skips the size** (below), named. 500 sizes a transaction, under the store's lock, the wiring asked again in each. **Not written, and named**: archived sizes and sizes of archived products, sizes not found, prices that are not one (not text, not a number, 0 or below, too many decimals) — one bad value never fails the read — and a second id for the same size. Sync passes a read in calls of at most 10,000 sizes (PostgreSQL's bind limit on the size reads). A store not wired, or unwired while the read ran, gets nothing from then on (`wired` false). |
 
 `ProviderPricesResult`: `wired` · `changed`, `offOrDraft` · `salesStopped` (sale, size, `left` / `ended`
@@ -366,6 +382,8 @@ group; their names accepted by the owner (2026-10-08).
 | `AddCategoryDiscount` · `ChangeCategoryDiscount` · `EndCategoryDiscount` · `RemoveCategoryDiscount` | `pricing.category_discount.manage` | That store |
 | The screens' reads: a size's prices (`ViewPrices`), the store's sales and category discounts (`ListSales`, `ListCategoryDiscounts`, `ViewCategoryDiscount` with its preview), the note before saving (`OverlapsFor`) | Any of the three, in that store (owner, 2026-10-08) | That store |
 | `NeedsAPrice` — the list and its count | `pricing.price.edit` (owner, 2026-10-08) | That store |
+| The screens' reads of §4.3.3 (`ListPrices`, `ViewSizePrices`, `ViewProductPrices`, `ListSales`, `ViewSale`, `ListSaleProducts`, `ListCategoryDiscounts`, `ListWholesale`, `OverlapsFor`) and `PricingActionsForReader` | Any of the three, in that store; `PreviewCategoryDiscount` Manage Category Discounts; `NeedsAPrice` Edit Prices and Sales | That store (`ViewProductPrices`: every store of the page where the reader holds one) |
+| `CountUnpricedSizes` — Needs a Price's count kept per store (Q43) | System (reserved): `pricing.needs_a_price.count` | — |
 | The store's file — Pricing's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
 | `RebuildPriceCandidates` — a repair job, every size rewritten and compared · `ApplyPriceWindow` — the timed task at a sale's or discount's start and end · `CheckPriceWindows` — the daily safety check (owner, 2026-10-09) | System (reserved): `pricing.candidates.rebuild`, `pricing.windows.apply`, `pricing.windows.check` | — |
 
@@ -544,6 +562,47 @@ a box (S2), with its source.
 | `NeedsAPrice` (extended) | `pricing.price.edit` | paged 50 with the total (Q14), photo, size names, the search |
 | `PricingActionsForReader` (new) | - | per store: the three jobs, wired, off, `mayViewProducts`, the reasons |
 | `PricingApi::salesNamed`, `::discountsNamed` (new, public) | - | for Sync's report (§2.1 grows): a sale's or discount's short description ("−10% · 60 cm, 80 cm", "Kitchens: 50.00 off") and whether it still exists |
+
+**Built (stage 5's screens step 2, 2026-10-19)** - the reads as Application queries answering page-facing
+DTOs (step 3 maps them to the pages' data), every amount already written (`MoneyData`), every moment ISO
+8601, names and size values in the reader's language; each a fixed few queries however many rows, its
+feature test counting them:
+
+- **Shared shapes** (`Application/Query/PriceViews`): `SizeView` (names, photo media id, values, code,
+  archived, switched on), `RetailPriceView` (amount, source `STAFF`/`FILE`/`PROVIDER`, `updatedAt`),
+  `TodayPrice` (price, `before` while lower, `why` - `BASE`, `SALE`, `CATEGORY`, `QUANTITY` -, always wins,
+  the sale's or discount's id, its end), `BandView`.
+- **Keyset**: Catalog's cursor for the size lists (`ListPrices`, `ListWholesale`, `NeedsAPrice`); Pricing's
+  own for sales and discounts - the state's rank, a number from the dates, the id - one ascending key for
+  both orders (`WindowListing`). The preview pages its products 20 at a time after the last product's id.
+- `ListPrices` filters `ALL` · `NO_PRICE` · `ON_SALE_NOW` (one piece costs less than retail now, resolved
+  from the candidates of the sizes a sale or discount reaches) · `HAS_WHOLESALE`; **Wholesale Only** is
+  the store selling the size wholesale and not one piece at a time (Catalog's `wholesaleOf`, which gains
+  `soldRetail`).
+- `ViewSizePrices`: the wholesale line priced at the product's wholesale minimum (`wholesaleQuantity`);
+  the sales and discounts **running or scheduled** (an ended one is on P2); a discount's skip reason read
+  from the candidates (`zero_or_below`, `past_ceiling`).
+- `ViewProductPrices`: per store `mayEditPrices`, `mayEditWholesale`, `mayManageDiscounts`, `wired`, each
+  size's retail, today and bands, the product's running and scheduled sales, the discounts reaching it;
+  registered with Catalog as `Pricing/ProductPrices` (`Infrastructure/Catalog/ProductPricesSection`, plain
+  arrays). The wired stores are read once for all (`StoreWiring::wiredStores`, §2.6).
+- `ListSales` (`state`, `productId`, `saleId`, `order` `BY_STATE`/`NEWEST`, `after`): **All Sizes** when the
+  sale covers every size of its product switched on in the store now (archived ones not counted), else
+  `sizesOn` of `productSizesOn`; `archivedSince`; `unpricedSizeNames`; `createdAt` (a sale keeps when it was
+  added). `ViewSale` adds each size with its retail and sale price. `ListSaleProducts` answers P2's product
+  filter (`searchProducts` with `only`).
+- `ListCategoryDiscounts` (`state`, `order`, `after`): `categoryPath`, `leftOutNames`.
+- `PreviewCategoryDiscount` / `ViewCategoryDiscount` (`after`): `reachedProducts`, `reachedSizes`,
+  `skippedSizes`, `unpricedSizes` (the category's sizes switched on with no price), `deepestBasisPoints`,
+  each size's `skipped` reason; it reads the category's own products' sizes (`variantIdsOfProducts`), no
+  longer the store's whole price list; an archived size is not reached.
+- `OverlapsFor` gains `percent`, `price`, `alwaysWins`: per size `OverlapSize` (new price, `wins`,
+  `notWinning` - `lower_price`, `always_wins`, `not_below_retail`, `zero`, `no_price` -, depth, over the
+  ceiling), judged at the start of a scheduled sale (`atStart`); the overlapping sales and discounts gain
+  a `description`.
+- `PricingActionsForReader`: `stores()` / `forStore()` - per store the three jobs, `maySetCeiling`,
+  `mayViewProducts`, `wired`, `off`, `ceilingPercent`, `retailPriceRefusal` - and `reasons()` (no price,
+  not sold wholesale, archived, wired), words in `lang/{ar,en}/admin_reasons.php`.
 
 **What Pricing needs of Catalog** (catalog.md amendment 23, written there in full): `searchVariants` -
 the store's variants by name or code, **ordered by product name then the size's place**, keyset-paged,
@@ -727,6 +786,7 @@ amendment 4(h)). Money: `bigint` minor units + `char(3)` currency, CHECK the amo
 | `pricing.wholesale_bands` | (`store_id`, `variant_id`, `from_quantity` CHECK ≥ 1) PK · `amount_minor` bigint CHECK > 0 · `currency_code` |
 | `pricing.category_discounts` | `id` ULID PK · `store_id` · `category_id` FK `catalog.categories` CASCADE (Catalog deletes only an empty category: its discounts reach nothing and go with it, the audit log keeping them; step 6 review) · `percent_bp` NULL / `amount_minor` NULL (exactly one) · `currency_code` NULL · `lines` CHECK (`RETAIL`, `WHOLESALE`, `BOTH`) · `starts_at` · `ends_at` NULL CHECK > `starts_at` · `always_wins` boolean · `created_at` |
 | `pricing.category_discount_exclusions` | (`discount_id` FK CASCADE, `product_id` FK CASCADE) PK |
+| `pricing.unpriced_counts` | `store_id` PK FK `platform.stores` RESTRICT · `unpriced` int NULL CHECK ≥ 0 · `counted_at` NULL (both or neither) · `recount_queued` boolean - Needs a Price's count kept per store (owner Q43; as Inventory's `low_counts`): one recount waits per store, its mark taken after the change commits |
 | `pricing.price_candidates` | `id` bigint PK · `store_id` · `variant_id` · `mode` CHECK (`RETAIL`, `WHOLESALE`) · `from_quantity` · `amount_minor` · `currency_code` · `kind` · `always_wins` boolean · `source_id` NULL (the sale or discount) · `starts_at` NULL · `ends_at` NULL · index (`store_id`, `variant_id`, `mode`) — **the materialized candidates (§1.6), rewritten per size by every change** |
 
 The timed tasks (§1.10) are queued jobs delayed to their moment; they need no table — each reads
@@ -754,8 +814,8 @@ added when a consumer appears). The first consumer is Sync:
 | `ProductChanged` | Catalog | Rewrites the product's candidates: it may have moved into or out of a discounted category |
 | `ProductMadeReady` | Catalog | Rewrites the product's candidates: a draft's category change sends nothing until it is made ready (stage 5's review of amendment 16, 2026-10-10) |
 | `CategoryMoved` | Catalog | Rewrites the candidates of every product now in or under the moved category (`productIdsInCategory`), in every store with a category discount — the products' ancestors changed, and so may their discounts (amendment 16, 2026-10-10) |
-| `VariantArchived`, `ProductArchived`, `VariantRestored`, `ProductRestored` | Catalog | Nothing: prices are kept; an archived size is not on sale anyway (Catalog) |
-| `StoreListingChanged` | Catalog | Nothing to store: Needs a Price is read live |
+| `VariantArchived`, `ProductArchived`, `VariantRestored`, `ProductRestored` | Catalog | Prices are kept; an archived size is not on sale anyway (Catalog). Every store's Needs a Price count is counted again (Q43): an archived size leaves the list |
+| `StoreListingChanged`, `StoreListingWithdrawn` | Catalog | The store's Needs a Price count is counted again (Q43) |
 | `StoreUpdated` (the VAT rate) | Platform | Nothing: the rate is read when prices are |
 
 ---
@@ -774,16 +834,16 @@ Every error extends `PricingError` → `DomainError` ("pricing.*"), with both la
 | `SaleNotFound`, `CategoryDiscountNotFound` | NOT_FOUND | — |
 | `NotChangeable` | CONFLICT | changing an ended one; removing a running one |
 | `AlwaysWinsOverlap` | CONFLICT | a second "always wins" sale or discount on a size in the same dates (owner, 2026-10-09) |
-| `BandsInvalid` | INVALID | the first band not at the wholesale minimum, or not below the retail price (owner, 2026-10-10); a band not higher, or not cheaper, than the one before |
+| `BandsInvalid` | INVALID | the first band not at the wholesale minimum, or not below the retail price (owner, 2026-10-10); a band not higher, or not cheaper, than the one before; more than 10 bands, or one above the wholesale maximum (Q12). **Names the rule** in its context (`rule`: `first_band` the first band not at the minimum, `minimum` a band below it, `maximum`, `order` not cheaper than the band before, `below_retail`, `too_many`), with `minimum`, `maximum`, `retail`, `most` and the size (`variants`); each rule has its own words (`errors.bands_invalid.rules.<rule>`), which `App\Http\FormErrors` and `ProblemDetails` say in place of the detail |
 | `NotSoldWholesale` | CONFLICT | wholesale bands for a size the store does not sell wholesale |
 | `CategoryNotUsable` | INVALID | a category that does not exist or is off |
-| `NoRetailPrice` | CONFLICT | a percentage sale for a size with no retail price; wholesale bands for one (the first band is measured against it, step 5) |
+| `NoRetailPrice` | CONFLICT | any sale for a size with no retail price (stage 5's screens: its words say "any sale", not "a percentage sale"); wholesale bands for one (the first band is measured against it, step 5); "All Sizes" of a product with none priced |
 | `ProviderOwnsPrice` | CONFLICT | changing a retail price in a wired store |
 | `StoreOff` | FORBIDDEN | changing an off store's prices without the store switch |
 | `DuplicateLines`, `LinesWithoutPrice`, `AmountsInvalid` | INVALID / CONFLICT | §2.1 |
-| `OverCeiling` | INVALID | deeper than the store's discount ceiling: a sale saved, or a retail price taking a sale past it - naming the ceiling and the sales or sizes (§1.12) |
-| `CeilingBelowSales` | CONFLICT | a lower ceiling while sales go deeper, naming them (§1.12) |
-| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number; a line's quantity below 1 (§2.1) — named by its field (`store`, `variant`, `amount`, `quantity`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive` |
+| `OverCeiling` | INVALID | deeper than the store's discount ceiling: a sale saved, or a retail price taking a sale past it - naming the ceiling and the sales or sizes (§1.12); a retail price refused names the sizes whose new price does it (`variants`, Q2). Its words name "the price, the sale or the discount" (Q15) |
+| `CeilingBelowSales` | CONFLICT | a lower ceiling while sales and discounts go deeper, naming them (§1.12); its words say "sales and discounts" (Q15) |
+| `InvalidPricingInput` | INVALID | a store or a size that does not exist (owner, 2026-10-10: an unknown store is invalid input); an archived size or a size of an archived product (owner, 2026-10-11: read-only until restored); one size given twice with two prices; an amount that is not a number; a line's quantity below 1 (§2.1) — named by its field (`store`, `variant`, `amount`, `quantity`; for the screens also `filter`, `state`, `order`, `left_out`), as Catalog's invalid attribute is. A price below 0 is `PriceNotPositive`. **Errors about sizes name them** (owner Q2): `InvalidPricingInput`, `PriceTooPrecise` and `PriceNotPositive` carry `variants` (comma-separated, as the caller named them) when they concern sizes, so `App\Http\FormErrors` marks those rows |
 
 ---
 

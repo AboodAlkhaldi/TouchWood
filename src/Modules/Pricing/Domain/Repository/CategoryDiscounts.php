@@ -6,6 +6,8 @@ namespace Modules\Pricing\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Pricing\Domain\ValueObject\CategoryDiscount;
+use Modules\Pricing\Domain\ValueObject\WindowOrder;
+use Modules\Pricing\Domain\ValueObject\WindowState;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -16,6 +18,12 @@ use Shared\Domain\ValueObject\StoreId;
 interface CategoryDiscounts
 {
     public function find(string $discountId): ?CategoryDiscount;
+
+    /**
+     * @param  list<string>  $discountIds
+     * @return array<string, CategoryDiscount> by id; one that does not exist is left out
+     */
+    public function findMany(array $discountIds): array;
 
     /** A new discount or a changed one, with the products it leaves out. */
     public function save(CategoryDiscount $discount): void;
@@ -28,12 +36,19 @@ interface CategoryDiscounts
     public function notEnded(StoreId $store, DateTimeImmutable $at): array;
 
     /**
-     * A page of the store's discounts, the latest start first (the screens' `ListCategoryDiscounts`), and
-     * how many there are.
-     *
-     * @return array{list<CategoryDiscount>, int}
+     * @param  list<StoreId>  $stores
+     * @return list<CategoryDiscount> every discount in these stores not ended by then
      */
-    public function page(StoreId $store, int $page, int $perPage): array;
+    public function notEndedInStores(array $stores, DateTimeImmutable $at): array;
+
+    /**
+     * A page of the store's discounts for the screens (`ListCategoryDiscounts`, pricing.md §4.3.3 P3): in
+     * one state or any, in the order chosen, keyset-paged as the sales are, with how many match.
+     *
+     * @param  array{int, string, string}|null  $after
+     * @return array{list<CategoryDiscount>, int, array{int, string, string}|null}
+     */
+    public function list(StoreId $store, DateTimeImmutable $now, ?WindowState $state, WindowOrder $order, ?array $after, int $limit): array;
 
     /**
      * @return list<string> the stores with a discount not ended by then - where a product moving matters

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Pricing\Domain\Repository;
 
+use DateTimeImmutable;
 use Modules\Pricing\Domain\ValueObject\Candidate;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -26,6 +27,21 @@ interface PriceCandidates
      * @return array<string, list<Candidate>> variant id => its candidates there, every mode
      */
     public function forVariants(StoreId $store, array $variantIds): array;
+
+    /**
+     * @param  list<StoreId>  $stores
+     * @param  list<string>  $variantIds
+     * @return array<string, array<string, list<Candidate>>> store id => variant id => its candidates there
+     */
+    public function inStores(array $stores, array $variantIds): array;
+
+    /**
+     * Every candidate of the sizes a sale or a category discount reaches on a retail line at that moment -
+     * the sizes that may be on sale then (the Prices screen's **On Sale Now**, §4.3.3 P1).
+     *
+     * @return array<string, list<Candidate>> variant id => its candidates there, every mode
+     */
+    public function reducedAt(StoreId $store, DateTimeImmutable $at): array;
 
     /**
      * @return list<string> every size holding a candidate in that store, for the repair job

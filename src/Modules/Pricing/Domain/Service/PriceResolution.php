@@ -98,6 +98,8 @@ final class PriceResolution
             unit: $winner->amount,
             kind: $winner->kind,
             endsAt: self::earliest([$winner->endsAt, ...array_map(static fn (Candidate $candidate): ?DateTimeImmutable => $candidate->startsAt, $scheduledAlwaysWins)]),
+            alwaysWins: $winner->alwaysWins,
+            sourceId: $winner->sourceId,
         );
     }
 

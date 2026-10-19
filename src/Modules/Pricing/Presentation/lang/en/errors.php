@@ -47,6 +47,15 @@ return [
     'bands_invalid' => [
         'title' => 'Check the quantity prices',
         'detail' => 'The first band starts at the wholesale minimum and costs less than the retail price; each next band starts at a higher quantity and costs less.',
+        // The rule a refusal names (owner Q12): the dialog says which.
+        'rules' => [
+            'first_band' => 'The first band must start at :minimum, the wholesale minimum.',
+            'minimum' => "A band can't start below :minimum, the wholesale minimum.",
+            'maximum' => "A band can't start above :maximum, the wholesale maximum.",
+            'order' => 'Each band must cost less than the band before.',
+            'below_retail' => 'The first band must cost less than :retail, the retail price.',
+            'too_many' => 'A size can have at most :most bands.',
+        ],
     ],
     'not_sold_wholesale' => [
         'title' => 'Not sold wholesale',
@@ -58,7 +67,7 @@ return [
     ],
     'no_retail_price' => [
         'title' => 'No retail price',
-        'detail' => 'This size has no retail price in the store, so there is nothing to take a percentage off.',
+        'detail' => 'This size has no retail price in the store. Give it a price before putting it on any sale or giving it wholesale prices.',
     ],
     'provider_owns_price' => [
         'title' => 'Set by the provider',
@@ -83,22 +92,26 @@ return [
 
     'over_ceiling' => [
         'title' => 'Deeper than the ceiling',
-        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price or the sale so it stays within it.",
+        'detail' => "That goes deeper than the store's discount ceiling of :ceiling% on :products. Change the price, the sale or the discount so it stays within it.",
     ],
     'ceiling_below_sales' => [
-        'title' => 'Sales go deeper',
-        'detail' => ':count running or scheduled sales go deeper than this ceiling, on :products. Change or end them first.',
+        'title' => 'Sales and discounts go deeper',
+        'detail' => ':count running or scheduled sales and discounts go deeper than this ceiling, on :products. Change or end them first.',
     ],
 
     'fields' => [
         'amount' => 'price',
         'ends_at' => 'end',
+        'filter' => 'filter',
+        'left_out' => 'left-out product',
         'lines' => 'lines',
+        'order' => 'order',
         'percent' => 'percentage',
         'price' => 'sale price',
         'product' => 'product',
         'quantity' => 'quantity',
         'starts_at' => 'start',
+        'state' => 'state',
         'store' => 'store',
         'variant' => 'size',
     ],

@@ -63,7 +63,7 @@ final readonly class AddCategoryDiscountHandler
             SaleInput::start($command->startsAt, $now),
             SaleInput::end($command->endsAt),
             $command->alwaysWins,
-            $this->input->leftOut($command->leftOut),
+            $this->input->leftOut($command->leftOut, $command->categoryId),
         );
 
         return $this->change->run($storeId, function () use ($storeId, $store, $discount, $now): array {

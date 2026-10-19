@@ -31,7 +31,8 @@ final readonly class SizeInput
         [$own, $archived, $notFound] = $this->sort($given);
 
         if ($archived !== [] || $notFound !== []) {
-            throw new InvalidPricingInput('variant');
+            // Named, so a screen saving many marks their rows (owner Q2).
+            throw new InvalidPricingInput('variant', [...$archived, ...$notFound]);
         }
 
         return array_map(static fn (array $size): string => $size[0], $own);
