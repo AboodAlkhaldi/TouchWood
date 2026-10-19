@@ -30,6 +30,11 @@ final readonly class DatabaseGiftLevels implements GiftLevels
         return $store === null ? null : StoreId::fromString((string) $store);
     }
 
+    public function ofStore(StoreId $store): array
+    {
+        return array_values(array_filter(array_map($this->toLevel(...), $this->levels($store)->orderByDesc('amount_minor')->orderBy('id')->get()->all())));
+    }
+
     public function lock(StoreId $store, string $levelId): ?GiftLevel
     {
         return Ulids::valid($levelId) ? $this->toLevel($this->levels($store)->where('id', strtolower($levelId))->lockForUpdate()->first()) : null;

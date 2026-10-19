@@ -42,4 +42,26 @@ interface MarketingQueries
      * @return list<array{customerId: string, assignedAt: DateTimeImmutable, segmentId: ?string, segmentNameAr: ?string, segmentNameEn: ?string, uses: int}>
      */
     public function assignments(string $couponId, ?DateTimeImmutable $beforeAt, ?string $beforeCustomerId, int $limit): array;
+
+    /**
+     * The store's segments, newest first, after the cursor, each with how many members it holds.
+     *
+     * @return list<SegmentRow>
+     */
+    public function segments(StoreId $store, ?DateTimeImmutable $beforeAt, ?string $beforeId, int $limit): array;
+
+    /**
+     * A segment's members by customer id, after the cursor.
+     *
+     * @return list<array{customerId: string, addedAt: DateTimeImmutable}>
+     */
+    public function members(string $segmentId, ?string $afterCustomerId, int $limit): array;
+
+    /**
+     * The coupons of the store given to this customer, with the customer's uses of each — whether they
+     * can still use one is the caller's to work out.
+     *
+     * @return list<array{row: CouponRow, cap: ?int, minimum: ?int, maxUsesPerCustomer: ?int, usesByMe: int}>
+     */
+    public function assignedTo(StoreId $store, string $customerId, DateTimeImmutable $now): array;
 }
