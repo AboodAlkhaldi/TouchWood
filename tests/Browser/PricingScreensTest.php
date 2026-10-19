@@ -138,7 +138,8 @@ function pricingBrowserProduct(array $stores = ['sa']): array
         app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $width, []));
         $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Drawer']]]]];
         app(EditProductDetailsHandler::class)->handle(new EditProductDetails($product, "درج {$n}", "Drawer {$n}", $brand, descriptionAr: $text, descriptionEn: $text, categoryId: $category));
-        $codes = [substr($n, -9), substr($n, -9, 8).'7'];
+        // The second size's code differs in its last digit - never the same as the first (a first ending in 7 got 7 again).
+        $codes = [substr($n, -9), substr($n, -9, 8).(str_ends_with($n, '7') ? '8' : '7')];
         $sizes = [
             app(AddVariantHandler::class)->handle(new AddVariant($product, $codes[0], [$width => $values[0]])),
             app(AddVariantHandler::class)->handle(new AddVariant($product, $codes[1], [$width => $values[1]])),
