@@ -73,7 +73,7 @@ final readonly class ShopPagesController
     public function product(Request $request, ShopPages $pages): Response
     {
         try {
-            $page = $pages->product($this->stores->current(), app()->getLocale(), self::slug($request));
+            $page = $pages->product($this->stores->current(), app()->getLocale(), self::slug($request), self::after($request));
         } catch (InvalidCatalogAttribute) {
             return $this->notFound($request);
         }
@@ -129,6 +129,19 @@ final readonly class ShopPagesController
     private static function query(Request $request): string
     {
         return mb_substr(trim(preg_replace('/\s+/u', ' ', self::text($request, 'q') ?? '') ?? ''), 0, 200);
+    }
+
+    /**
+     * Where each of the page's sections goes on from, as `after[{module}.{key}]` (amendment 26(b)), at
+     * most 64 characters a place - more is no place any section gives; anything else left out.
+     *
+     * @return array<string, string>
+     */
+    private static function after(Request $request): array
+    {
+        $after = $request->query('after');
+
+        return is_array($after) ? array_filter($after, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value) && $value !== '' && strlen($value) <= 64, ARRAY_FILTER_USE_BOTH) : [];
     }
 
     private static function text(Request $request, string $key): ?string

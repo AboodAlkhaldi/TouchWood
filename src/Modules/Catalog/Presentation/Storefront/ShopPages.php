@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CategoryFilters;
 use Modules\Catalog\Application\Query\Shop\CategoryPage;
@@ -38,6 +39,8 @@ use Modules\Catalog\Presentation\Http\Resource\ShopSellingData;
 use Modules\Catalog\Presentation\Http\Resource\ShopVariantData;
 use Modules\Catalog\Presentation\Http\Resource\ShopWarrantyData;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -54,6 +57,8 @@ final readonly class ShopPages
         private ShopVisit $visit,
         private ShopPagesCache $cache,
         private PlatformApi $platform,
+        private InMemoryShopProductSections $sections,
+        private ActorContext $actors,
     ) {}
 
     /**
@@ -109,13 +114,16 @@ final readonly class ShopPages
     }
 
     /**
-     * The product's page as props, its own address added to what the cache keeps.
+     * The product's page as props, its own address added to what the cache keeps — and the other
+     * modules' sections (amendment 26(b)), read on every request, never kept: they change with what
+     * those modules decide and with who is looking. A page not available now carries none.
      *
+     * @param  array<string, string>  $after  section key => where it goes on from ("Show more")
      * @return array<string, mixed>|Moved|null
      *
      * @throws InvalidCatalogAttribute
      */
-    public function product(StoreId $store, string $locale, string $slug): array|Moved|null
+    public function product(StoreId $store, string $locale, string $slug, array $after = []): array|Moved|null
     {
         $owner = $this->catalog->productOwner($locale, $slug);
 
@@ -175,7 +183,16 @@ final readonly class ShopPages
         $around = $kept['category'] === null ? null : $this->visit->around($store, $locale, $kept['category']);
         $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
 
-        return [...$kept['page'], 'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path), 'address' => $address->toArray()];
+        $actor = $this->actors->current();
+        $customerId = $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
+        $sections = $kept['page']['available'] === true ? $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after) : [];
+
+        return [
+            ...$kept['page'],
+            'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path),
+            'address' => $address->toArray(),
+            'sections' => (object) $sections,
+        ];
     }
 
     /**
