@@ -12,7 +12,8 @@ use Shared\Domain\ValueObject\Money;
 
 /**
  * One coupon in a store's list (promotions.md §3): its store (a lower-case id, for the page's currency,
- * time zone and jobs), what it takes off, its dates, its uses, its state now.
+ * time zone and jobs), what it takes off — a percent up to its cap, if it has one — its dates, its
+ * uses, its state now.
  */
 final readonly class CouponRow
 {
@@ -26,6 +27,7 @@ final readonly class CouponRow
         public DiscountKind $discountKind,
         public ?int $percent,
         public ?Money $amount,
+        public ?Money $cap,
         public string $currencyCode,
         public DateTimeImmutable $startsAt,
         public ?DateTimeImmutable $endsAt,

@@ -214,6 +214,7 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             DiscountKind::from((string) $row->discount_kind),
             $row->percent === null ? null : (int) $row->percent,
             $row->amount_minor === null ? null : Money::of((int) $row->amount_minor, $currency),
+            $row->cap_minor === null ? null : Money::of((int) $row->cap_minor, $currency),
             $currency,
             $startsAt,
             $endsAt,

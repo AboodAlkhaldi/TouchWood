@@ -6,6 +6,8 @@ namespace Modules\Promotions\Application\Query\ViewCoupon;
 
 use Carbon\CarbonImmutable;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Catalog\Public\Enums\ProductStage;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Promotions\Application\Query\CouponView;
 use Modules\Promotions\Application\Query\MarketingQueries;
 use Modules\Promotions\Application\Query\MarketingReader;
@@ -58,7 +60,23 @@ final readonly class ViewCouponHandler
                 RuleTarget::Brand => $brands[$rule->targetId] ?? null,
             };
 
-            return new RuleView($rule->kind->value, $rule->target->value, $rule->targetId, $named?->nameAr, $named?->nameEn);
+            $path = $rule->target === RuleTarget::Category ? ($categories[$rule->targetId] ?? null)?->path : null;
+            $sold = match ($rule->target) {
+                RuleTarget::Product => ($products[$rule->targetId] ?? null)?->stage === ProductStage::Ready,
+                RuleTarget::Category => isset($categories[$rule->targetId]) && $categories[$rule->targetId]->isActive,
+                RuleTarget::Brand => isset($brands[$rule->targetId]) && $brands[$rule->targetId]->isActive,
+            };
+
+            return new RuleView(
+                $rule->kind->value,
+                $rule->target->value,
+                $rule->targetId,
+                $named?->nameAr,
+                $named?->nameEn,
+                $path === null ? null : implode(' › ', array_map(static fn (TranslatedTextDto $step): string => $step->in('ar'), $path)),
+                $path === null ? null : implode(' › ', array_map(static fn (TranslatedTextDto $step): string => $step->in('en'), $path)),
+                $sold,
+            );
         }, $coupon->rules);
 
         return new CouponView(
