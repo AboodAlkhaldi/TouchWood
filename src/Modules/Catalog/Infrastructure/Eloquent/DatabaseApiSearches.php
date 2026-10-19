@@ -40,7 +40,7 @@ final readonly class DatabaseApiSearches implements ApiSearches
         private ConnectionInterface $db,
     ) {}
 
-    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale, bool $notArchived = false): FoundVariantsDto
+    public function variants(string $storeId, ?string $text, ?array $only, ?array $except, bool $soldWholesale, bool $anyReady, ?string $after, int $limit, string $locale, bool $notArchived = false, bool $withTotal = true): FoundVariantsDto
     {
         $store = strtolower($storeId);
         $onlyIds = $only === null ? null : self::ids($only);
@@ -91,7 +91,8 @@ final readonly class DatabaseApiSearches implements ApiSearches
             });
         }
 
-        $total = (clone $query)->count();
+        // A caller that knows the total already asks for none (amendment 23(h)): one query fewer.
+        $total = $withTotal ? (clone $query)->count() : 0;
         $cursor = self::cursor($after, 4);
 
         if ($cursor !== null) {

@@ -47,7 +47,7 @@ final readonly class ViewStockHandler
     public function handle(ViewStock $query): SizeStockView
     {
         $storeId = $this->change->authorize(self::PERMISSION, $query->storeId)->storeId();
-        $found = $this->catalog->searchVariants($storeId, null, [$query->variantId], limit: 1)->rows[0] ?? throw new InvalidInventoryInput('variant', [$query->variantId]);
+        $found = $this->catalog->searchVariants($storeId, null, [$query->variantId], limit: 1, withTotal: false)->rows[0] ?? throw new InvalidInventoryInput('variant', [$query->variantId]);
         $id = $found->variantId;
         $wired = $this->wiring->isWired($storeId);
         $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $storeId)->value;

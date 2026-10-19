@@ -67,6 +67,14 @@ final readonly class ViewProductStockHandler
             array_values(array_filter($storeIds, static fn (StoreId $store): bool => isset($wired[$store->value]))),
             $variantIds,
         );
+        // Each store's default threshold, read once for all the stores: Platform answers every setting
+        // from one snapshot of its settings, so no store costs a query of its own.
+        $defaults = [];
+
+        foreach ($storeIds as $store) {
+            $defaults[$store->value] = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store)->value;
+        }
+
         $cards = [];
 
         foreach ($asked as $id) {
@@ -76,7 +84,7 @@ final readonly class ViewProductStockHandler
 
             $store = $mine[$id]['store'];
             $isWired = isset($wired[$id]);
-            $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store->storeId())->value;
+            $default = $defaults[$id];
             $sizes = [];
 
             foreach ($variantIds as $variantId) {

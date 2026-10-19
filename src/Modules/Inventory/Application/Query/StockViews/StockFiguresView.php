@@ -15,7 +15,9 @@ namespace Modules\Inventory\Application\Query\StockViews;
  * - **the one badge** (Q17, Q18) - `SHORT` with how many pieces, `OUT_OF_STOCK`, `ORDERABLE`, `LOW` - or none;
  * - whether its stock limits ordering here, and a wired store's **Counts on Stock** switch;
  * - when the provider last **changed** its number (Q23; ISO 8601) - none in a store with no provider,
- *   and "Not sent by the provider yet" in a wired one;
+ *   and none in a wired one for a size with no `PROVIDER` line: the page says "From Provider" with no
+ *   time, never "not sent" - the provider may have sent the same number, or 0 for a size with no row
+ *   (coordinator's decision, 2026-10-19);
  * - how many orders hold it, for "2 orders hold 5 of these" under a box before saving (Q20).
  */
 final readonly class StockFiguresView

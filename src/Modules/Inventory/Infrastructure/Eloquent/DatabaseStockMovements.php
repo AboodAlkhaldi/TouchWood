@@ -63,8 +63,7 @@ final readonly class DatabaseStockMovements implements StockMovements
                     WHEN 'SHIPPED' THEN split_part(m.reference, ':', 2)
                     WHEN 'RETURNED' THEN (
                         SELECT r.order_id FROM inventory.return_lines r
-                        WHERE r.store_id = m.store_id AND r.variant_id = m.variant_id
-                            AND starts_with(m.reference, 'return:' || r.return_id || ':')
+                        WHERE r.return_id = split_part(m.reference, ':', 2) AND r.variant_id = m.variant_id
                         LIMIT 1
                     )
                 END AS order_id

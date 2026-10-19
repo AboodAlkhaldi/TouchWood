@@ -64,28 +64,43 @@ final readonly class SetStockHandler
             throw new ProviderOwnsStock;
         }
 
-        // An array key that looks like a number arrives as one.
-        $own = $this->sizes->check(array_map('strval', array_keys($command->counts)));
+        // Every count out of bounds named at once, so the screen marks each of their rows (Q2).
+        $outOfBounds = array_keys(array_filter($command->counts, static fn (int $count): bool => $count < 0 || $count > StockLimits::MOST_PIECES));
+
+        if ($outOfBounds !== []) {
+            throw new QuantityInvalid(array_map('strval', $outOfBounds), QuantityInvalid::COUNT);
+        }
+
+        // An array key that looks like a number arrives as one. A size the store does not sell is
+        // counted only when its product is ready (Add Size, Q24).
+        $own = $this->sizes->checkCount($storeId, array_map('strval', array_keys($command->counts)));
 
         /** @var array<string, int> $counts */
         $counts = [];
         /** @var array<string, string> $products */
         $products = [];
+        /** @var array<string, string> $first */
+        $first = [];
+        $twice = [];
 
         foreach ($command->counts as $given => $count) {
             [$variantId, $productId] = $own[(string) $given];
 
-            if ($count < 0 || $count > StockLimits::MOST_PIECES) {
-                throw new QuantityInvalid([(string) $given], QuantityInvalid::COUNT);
-            }
-
-            // One size written two ways with two counts: which was meant cannot be told.
+            // One size written two ways with two counts: which was meant cannot be told - both rows named.
             if (isset($counts[$variantId]) && $counts[$variantId] !== $count) {
-                throw new InvalidInventoryInput('variant', [(string) $given]);
+                $twice[$first[$variantId]] = true;
+                $twice[(string) $given] = true;
+
+                continue;
             }
 
             $counts[$variantId] = $count;
             $products[$variantId] = $productId;
+            $first[$variantId] ??= (string) $given;
+        }
+
+        if ($twice !== []) {
+            throw new InvalidInventoryInput('variant', array_map('strval', array_keys($twice)));
         }
 
         if ($counts === []) {
@@ -103,19 +118,20 @@ final readonly class SetStockHandler
                 $before = $rows[$variantId]->inStock;
                 $this->movements->record($storeId, $variantId, MovementReason::Stocktake, $before, $count, null, 'stocktake:'.Str::ulid());
 
-                if ($before === $count) {
-                    continue;
-                }
-
-                $this->stock->setInStock($storeId, $variantId, $count);
-
                 // Below what orders hold: every order holding it is named, none blocked (§1.5) - and
-                // the size named in the answer, for the screen's amber toast.
+                // the size named in the answer, for the screen's amber toast; a count that finds the
+                // number right on a size already short names it too, with no event (nothing went down).
                 $left = $this->notice->short($storeId, $variantId, $before, $count, $rows[$variantId]->held);
 
                 if ($left !== null) {
                     $short[] = $left;
                 }
+
+                if ($before === $count) {
+                    continue;
+                }
+
+                $this->stock->setInStock($storeId, $variantId, $count);
 
                 $entries[] = new AuditEntryDto(
                     'inventory.stock.counted',

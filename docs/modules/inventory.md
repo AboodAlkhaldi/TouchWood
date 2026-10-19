@@ -334,7 +334,8 @@ marking its rows, numbers and moments, the words and plurals, 15 queries a page.
   4. **Low** (amber) - available at or below the threshold.
 - **A wired store** (§1.5): the in-stock number is the provider's - never a box - with **From Provider** and
   when the provider last **changed** it (the size's last `PROVIDER` ledger line: a number sent again
-  unchanged writes none) (Q23); a size the provider never sent shows "Not sent by the provider yet".
+  unchanged writes none) (Q23); a size with no `PROVIDER` line shows "From Provider" with **no time** -
+  never "not sent": the provider may have sent the same number, or 0 for a size with no row (2026-10-19).
   Counting, Add or Remove and Last Pieces are not offered ("The provider sets this store's stock."); the
   threshold and **Counts on Stock** are. A `Note` at the top of each page: "This store's stock comes from its
   provider. Thresholds and which sizes count on stock are set here."
@@ -376,10 +377,15 @@ finds it (names, photo, values in the page's language, code, archived, switched 
 (`StockFiguresView`): in stock, held, available, a wired store's returned extra, the threshold that applies
 and the size's own (none: the default), the one badge (`SHORT` with how many, `OUT_OF_STOCK`, `ORDERABLE`,
 `LOW`, or none - `StockFigures::badge`), whether its stock limits ordering, a wired store's Counts on
-Stock, the provider's last change (wired only; none: never sent) and how many orders hold it. Measured,
-warm (the feature tests): `ListStock` 7 queries, `ViewStock` 7, `StockHistory` 2 (and `StaffNames`' own read when a line names staff),
-`ViewProductStock` 4, `LowStock` 11, `AddSizeChoices` 6, `HoldsOnSizes` one of its own - each the same for
-one row as for many.
+Stock, the provider's last change (wired only; none: no `PROVIDER` line - "From Provider" with no time)
+and how many orders hold it. Measured, warm (the feature tests): `ListStock` 7 queries, `ViewStock` 6,
+`StockHistory` 2 (and `StaffNames`' own read when a line names staff), `ViewProductStock` 4, `LowStock` 7,
+`AddSizeChoices` 6, `HoldsOnSizes` one of its own - each the same for one row as for many. **In a wired
+store**, the wiring asked as Sync asks it (a query a question), each page's whole server side: the Stock
+page (`ListStock` with `InventoryActionsForReader`) 9, the drawer 5, the Low Stock page (`LowStock` with
+`InventoryActionsForReader`) 8 - the review of step 4 cut the Low Stock reader's Catalog reads to one
+(`variantBriefs`, catalog.md amendment 23(h)) and the searches that know their total ask no count
+(`withTotal: false`).
 
 - **`ListStock`'s filters** are conditions, not badges: **Out of Stock** keeps a size also **Short**; **Low**
   leaves archived sizes out, as the Low Stock list does; the others list them, marked. The figures come from
@@ -391,8 +397,10 @@ one row as for many.
   identical for names differing only in such marks. The list, its count and the Home card still share one
   reader, which now reads the store's rows in one query.
 - **`StockHistory`'s who**: `STAFF` (named), `PROVIDER`, `FILE` (with the requester, named), `ORDER` (a
-  shipment's order from its reference, a return's from its return lines) or `SYSTEM`; a Super Admin hidden
-  as `StaffNames` says. Keyset by the ledger's id.
+  shipment's order from its reference, a return's from its return lines, found by the return id the
+  reference names) or `SYSTEM`; a Super Admin hidden as `StaffNames` says. **Paged by the ledger's id**,
+  newest first: the id rises with every line written, so it orders as the time does and breaks a tie of
+  one transaction's moment (accepted in the review of step 4).
 - **`ViewStock`** answers any size Catalog has, switched on or not, archived or not; an unknown size is
   `invalid_inventory_input` naming it.
 - **`ViewProductStock`** is registered with Catalog's `ProductStoreSections` as `ProductStockSection`,
@@ -402,8 +410,15 @@ one row as for many.
   change left with in stock below what is held, how many orders hold it and by how many pieces. `HoldsShort`
   is still sent only when the change took the size down (§6.1); a change that raised a short size but left
   it short names it with no event.
-- **Add Size** (Q24) needs no new command: `SetStock` counts any size that exists and is not archived, switched
-  on or not; the stocktake makes its row, and the Stock list lists it from then on.
+- **Add Size** (Q24) needs no new command: `SetStock` counts a size switched on whatever its product's
+  stage, and a size the store does not sell **only when its product is ready** (2026-10-19) - a draft's size
+  not switched on is refused, `invalid_inventory_input` naming its row; the stocktake makes its row, and the
+  Stock list lists it from then on. The store's file (§1.8) is not held to it.
+- **A batch refusal marks every bad row**: `SetStock` and `SetLowStockThreshold` name every count or
+  threshold out of bounds, and both rows of a size written twice with two values, in one refusal. A count
+  that finds the number right on a size already short names it in `StockSaved` too, with no event.
+- **`ViewProductStock`'s defaults** are read once for all its stores, from Platform's one snapshot of its
+  settings - no query a store.
 
 #### I1 · Stock - `/admin/stock?store=&q=&filter=&size=`
 

@@ -7,6 +7,7 @@ namespace Modules\Catalog\Application\Api;
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 
 /**
@@ -38,6 +39,12 @@ interface ApiReads
      * @return array<string, VariantDto> keyed by id
      */
     public function variants(array $variantIds): array;
+
+    /**
+     * @param  list<string>  $variantIds
+     * @return array<string, VariantBriefDto> keyed by id, in one query
+     */
+    public function variantBriefs(array $variantIds): array;
 
     /**
      * @param  list<string>  $codes  valid codes

@@ -27,6 +27,8 @@ use Modules\Inventory\Application\Command\SetStock\SetStock;
 use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
 use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
+use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFile;
+use Modules\Inventory\Application\Command\SetStockFromFile\SetStockFromFileHandler;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Query\AddSizeChoices\AddSizeChoices;
 use Modules\Inventory\Application\Query\AddSizeChoices\AddSizeChoicesHandler;
@@ -58,11 +60,13 @@ use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\ProviderOwnsStock;
 use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\StockBelowZero;
+use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
 use Modules\Inventory\Infrastructure\Catalog\ProductStockSection;
 use Modules\Inventory\Infrastructure\Queue\SetStockFromFileJob;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\ProviderStock;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Modules\Inventory\Public\Events\HoldsShort;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
@@ -314,7 +318,7 @@ describe('a size\'s drawer (ViewStock)', function () {
             ->and($view->lastPieces)->toBeTrue()
             ->and([$view->holds->orders, $view->holds->pieces, $view->holds->bought, $view->holds->gift])->toBe([2, 6, 4, 2])
             ->and([$view->size->variantId, $view->size->values])->toBe([$size, ['60 cm']])
-            ->and(stockQueries($read))->toBeLessThanOrEqual(7);
+            ->and(stockQueries($read))->toBeLessThanOrEqual(6);
 
         $unknown = Ix::invalid(fn () => app(ViewStockHandler::class)->handle(new ViewStock(Ix::storeId('sa'), strtolower((string) Str::ulid()))));
 
@@ -472,7 +476,7 @@ describe('the Low Stock list (I2)', function () {
             // A cursor that is not one starts at the top.
             ->and($read('not a cursor')->rows[0]->size->variantId)->toBe($page->rows[0]->size->variantId)
             ->and(stockQueries($read))->toBe($one)
-            ->and($one)->toBeLessThanOrEqual(11);
+            ->and($one)->toBeLessThanOrEqual(7);
     });
 });
 
@@ -611,5 +615,194 @@ describe('the save\'s answer: sizes left short (the amber toast)', function () {
             ->and($removed->short)->toEqual([new ShortSize($size, 2, 6)]);
 
         Event::assertDispatchedTimes(HoldsShort::class, 2);
+    });
+});
+
+/**
+ * Every store wired, asking the database once a question as Sync's `ConnectionWiring` does - so a read's
+ * counted queries include the wiring's, as on a real page.
+ */
+function stockWiredLikeSync(): void
+{
+    $stores = array_values(array_map('strval', DB::table('platform.stores')->pluck('id')->all()));
+
+    app()->instance(StoreWiring::class, new readonly class($stores) implements StoreWiring
+    {
+        /**
+         * @param  list<string>  $stores
+         */
+        public function __construct(private array $stores) {}
+
+        public function isWired(StoreId $store): bool
+        {
+            DB::select('SELECT 1');
+
+            return true;
+        }
+
+        public function wiredStores(): array
+        {
+            DB::select('SELECT 1');
+
+            return $this->stores;
+        }
+    });
+}
+
+describe('a wired store\'s pages within their budget (review of step 4)', function () {
+    it('reads the Stock list, a size\'s drawer and the Low Stock page - with what the screens may offer - in 15 queries at most', function () {
+        $ready = stockProduct('Wired', array_map('strval', range(1, 12)));
+        stockWiredLikeSync();
+        $sa = StoreId::fromString(Ix::storeId('sa'));
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent($sa->value, array_slice($ready['variants'], 0, 3), true)));
+        Fx::asSystem(fn () => app(ProviderStock::class)->apply($sa, array_fill_keys(array_slice($ready['variants'], 0, 6), 4), 'read-1'));
+        stockHold([new HoldLineDto($ready['variants'][0], 1), new HoldLineDto($ready['variants'][4], 1, gift: true)]);
+        stockManager();
+        $actions = static fn () => app(InventoryActionsForReader::class)->stores();
+        $list = stockQueries(static fn () => [stockList(), $actions()]);
+        $drawer = stockQueries(static fn () => app(ViewStockHandler::class)->handle(new ViewStock($sa->value, $ready['variants'][0])));
+        $low = stockQueries(static fn () => [app(LowStockHandler::class)->handle(new LowStock($sa->value)), $actions()]);
+
+        expect([$list, $drawer, $low])->each->toBeLessThanOrEqual(15)
+            // Measured, so a read that grows is seen: the Stock page 9, the drawer 5, the Low Stock page 8.
+            ->and([$list, $drawer, $low])->toBe([9, 5, 8]);
+    });
+});
+
+describe('the review\'s points (step 4)', function () {
+    it('names a size already short that a count finds right, with no event', function () {
+        [$size] = stockProduct('Short')['variants'];
+        Ix::count('sa', [$size => 5]);
+        stockHold([new HoldLineDto($size, 5)]);
+        Ix::count('sa', [$size => 2]);
+        Event::fake([HoldsShort::class]);
+        stockManager();
+
+        $saved = app(SetStockHandler::class)->handle(new SetStock(Ix::storeId('sa'), [$size => 2]));
+
+        expect($saved->short)->toEqual([new ShortSize($size, 1, 3)]);
+        Event::assertNotDispatched(HoldsShort::class);
+    });
+
+    it('marks every bad row of a batch at once', function () {
+        $ready = stockProduct('Batch', ['60 cm', '80 cm', '100 cm']);
+        [$a, $b, $c] = $ready['variants'];
+        stockManager();
+        $sa = Ix::storeId('sa');
+        $rows = static fn (callable $work): array => array_keys(FormErrors::rows(stockRefusal($work)));
+
+        expect($rows(fn () => app(SetStockHandler::class)->handle(new SetStock($sa, [$a => -1, $b => 3, $c => -2]))))->toEqualCanonicalizing([$a, $c])
+            // One size written two ways with two counts: both rows.
+            ->and($rows(fn () => app(SetStockHandler::class)->handle(new SetStock($sa, [$a => 1, strtoupper($a) => 2, $b => 3]))))->toEqualCanonicalizing([$a, strtoupper($a)])
+            ->and($rows(fn () => app(SetLowStockThresholdHandler::class)->handle(new SetLowStockThreshold($sa, [$a => -1, $b => 5, $c => 100_001]))))->toEqualCanonicalizing([$a, $c])
+            ->and($rows(fn () => app(SetLowStockThresholdHandler::class)->handle(new SetLowStockThreshold($sa, [$b => 1, strtoupper($b) => null]))))->toEqualCanonicalizing([$b, strtoupper($b)]);
+    });
+
+    it('counts a size the store does not sell only when its product is ready; the store file is not held to it', function () {
+        $draft = Px::product('Draft');
+        $draftSize = Px::variant($draft, '7300002');
+        $readyElsewhere = stockProduct('Ready', stores: []);
+        stockManager();
+        $sa = Ix::storeId('sa');
+
+        $refused = stockRefusal(fn () => app(SetStockHandler::class)->handle(new SetStock($sa, [$readyElsewhere['variants'][0] => 2, $draftSize => 4])));
+
+        expect($refused)->toBeInstanceOf(InvalidInventoryInput::class)
+            ->and(array_keys(FormErrors::rows($refused)))->toBe([$draftSize])
+            ->and(Ix::stock('sa', $readyElsewhere['variants'][0]))->toBeNull();
+
+        app(SetStockHandler::class)->handle(new SetStock($sa, [$readyElsewhere['variants'][0] => 2]));
+        Fx::asSystem(fn () => app(SetStockFromFileHandler::class)->handle(new SetStockFromFile($sa, $draftSize, 6, 'file:draft')));
+
+        expect([Ix::stock('sa', $readyElsewhere['variants'][0])?->in_stock, Ix::stock('sa', $draftSize)?->in_stock])->toBe([2, 6]);
+    });
+
+    it('names a return\'s order in the history, and a Super Admin as hidden to anyone else', function () {
+        [$size] = stockProduct('Returned')['variants'];
+        Fx::actAsStaff(Fx::staff(superAdmin: true, firstName: 'Root'));
+        app(SetStockHandler::class)->handle(new SetStock(Ix::storeId('sa'), [$size => 10]));
+        $order = stockHold([new HoldLineDto($size, 2)]);
+        app(InventoryApi::class)->ship($order, [new HoldLineDto($size, 2)]);
+        app(InventoryApi::class)->returned($order, 'return-1', [new HoldLineDto($size, 1)]);
+        stockManager();
+
+        $lines = app(StockHistoryHandler::class)->handle(new StockHistory(Ix::storeId('sa'), $size))->lines;
+
+        expect([$lines[0]->reason, $lines[0]->who, $lines[0]->orderId])->toBe(['RETURNED', 'ORDER', $order])
+            ->and([$lines[2]->reason, $lines[2]->who, $lines[2]->staffHidden])->toBe(['STOCKTAKE', 'STAFF', true])
+            ->and(str_contains((string) $lines[2]->staffName, 'Root'))->toBeFalse();
+    });
+
+    it('holds and figures in a wired store: a gift held, a bought line only noted', function () {
+        [$size] = stockProduct('Wired Gift')['variants'];
+        Ix::wired();
+        $sa = StoreId::fromString(Ix::storeId('sa'));
+        Fx::asSystem(fn () => app(ProviderStock::class)->apply($sa, [$size => 10], 'read-1'));
+        stockHold([new HoldLineDto($size, 3), new HoldLineDto($size, 2, gift: true)]);
+        stockManager();
+
+        $holds = app(HoldsOnSizesHandler::class)->handle(new HoldsOnSizes($sa->value, [$size]))[$size];
+        $figures = app(ViewStockHandler::class)->handle(new ViewStock($sa->value, $size))->figures;
+
+        expect([$holds->orders, $holds->pieces, $holds->bought, $holds->gift])->toBe([1, 2, 0, 2])
+            ->and([$figures->inStock, $figures->held, $figures->available, $figures->countsOnStock, $figures->badge, $figures->holdingOrders])->toBe([10, 2, 8, false, 'LOW', 1]);
+    });
+});
+
+describe('who may read (review of step 4)', function () {
+    it('refuses an off store to whoever may not switch stores, on every store read', function () {
+        [$size] = stockProduct('Off', stores: ['eg'])['variants'];
+        $eg = Ix::storeId('eg');
+        // Made while the store is on: the fixtures look up stores that are.
+        $manager = stockManager(['eg']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsStaff($manager);
+
+        foreach ([
+            fn () => app(ListStockHandler::class)->handle(new ListStock($eg)),
+            fn () => app(ViewStockHandler::class)->handle(new ViewStock($eg, $size)),
+            fn () => app(StockHistoryHandler::class)->handle(new StockHistory($eg, $size)),
+            fn () => app(LowStockHandler::class)->handle(new LowStock($eg)),
+            fn () => app(HoldsOnSizesHandler::class)->handle(new HoldsOnSizes($eg, [$size])),
+            fn () => app(AddSizeChoicesHandler::class)->handle(new AddSizeChoices($eg)),
+        ] as $read) {
+            expect(stockRefusal($read))->toBeInstanceOf(StoreOff::class);
+        }
+    });
+
+    it('refuses a store where the reader does not manage stock', function () {
+        [$size] = stockProduct('Elsewhere')['variants'];
+        $sa = Ix::storeId('sa');
+        stockManager(['eg']);
+
+        foreach ([
+            fn () => app(ViewStockHandler::class)->handle(new ViewStock($sa, $size)),
+            fn () => app(StockHistoryHandler::class)->handle(new StockHistory($sa, $size)),
+            fn () => app(LowStockHandler::class)->handle(new LowStock($sa)),
+            fn () => app(HoldsOnSizesHandler::class)->handle(new HoldsOnSizes($sa, [$size])),
+            fn () => app(AddSizeChoicesHandler::class)->handle(new AddSizeChoices($sa)),
+        ] as $read) {
+            expect($read)->toThrow(Unauthorized::class);
+        }
+    });
+
+    it('leaves an off store off a product\'s page for whoever may not switch stores, and shows it to a Super Admin', function () {
+        $ready = stockProduct('Both', stores: ['sa', 'eg']);
+        $sa = Ix::storeId('sa');
+        $eg = Ix::storeId('eg');
+        $manager = stockManager(['sa', 'eg']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        $read = static fn (): array => array_map(
+            static fn (ProductStoreStock $card): array => [$card->storeId, $card->off],
+            app(ViewProductStockHandler::class)->handle(new ViewProductStock($ready['product'], $ready['variants'], [$sa, $eg])),
+        );
+
+        Fx::actAsStaff($manager);
+
+        expect($read())->toBe([[$sa, false]]);
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect($read())->toBe([[$sa, false], [$eg, true]]);
     });
 });

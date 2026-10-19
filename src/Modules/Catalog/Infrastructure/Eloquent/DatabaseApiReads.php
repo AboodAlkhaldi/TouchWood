@@ -9,6 +9,7 @@ use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Public\Dto\BrandDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\VariantValueDto;
 use Modules\Catalog\Public\Enums\ProductStage;
@@ -87,6 +88,35 @@ final readonly class DatabaseApiReads implements ApiReads
         }
 
         return $ids;
+    }
+
+    public function variantBriefs(array $variantIds): array
+    {
+        $ids = self::ids($variantIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $found = [];
+
+        // One bound array, never a parameter an id: a whole store's sizes cost what one does.
+        foreach ($this->db->table('catalog.variants as v')
+            ->join('catalog.products as p', 'p.id', '=', 'v.product_id')
+            ->whereRaw('v.id = ANY(?::text[])', ['{'.implode(',', $ids).'}'])
+            ->get(['v.id', 'v.product_id', 'p.name_ar', 'p.name_en', 'p.stage', 'v.position', 'v.is_archived']) as $row) {
+            $found[(string) $row->id] = new VariantBriefDto(
+                (string) $row->id,
+                (string) $row->product_id,
+                (string) $row->name_ar,
+                $row->name_en === null ? null : (string) $row->name_en,
+                ProductStage::from((string) $row->stage),
+                (int) $row->position,
+                (bool) $row->is_archived,
+            );
+        }
+
+        return $found;
     }
 
     public function variants(array $variantIds): array

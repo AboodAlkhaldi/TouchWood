@@ -12,6 +12,7 @@ use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\LineFactsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
+use Modules\Catalog\Public\Dto\VariantBriefDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Dto\WholesaleTermsDto;
 use Shared\Domain\ValueObject\StoreId;
@@ -100,6 +101,17 @@ interface CatalogApi
     public function variants(array $variantIds): array;
 
     /**
+     * **Many sizes in brief, in one query** (amendment 23(h), stage 5's screens step 4): each size's product,
+     * the product's names and stage, the size's place and whether it is archived - keyed by id, an unknown id
+     * left out. For Inventory's Low Stock list (archived sizes left off, the rest ordered by name and place)
+     * and its changes' checks, where `variants()` and `products()` would cost three queries.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, VariantBriefDto>
+     */
+    public function variantBriefs(array $variantIds): array;
+
+    /**
      * **Many products in one read**, keyed by id, an unknown id left out (amendment 16(i)).
      *
      * @param  list<string>  $productIds
@@ -174,12 +186,14 @@ interface CatalogApi
      * `after` (the `next` of the page before; one that is not one starts at the top), `limit` from 1 to
      * 100, with the total. So a filter owned by the module asking - its sizes, as `only` or `except` -
      * pages by Catalog's order. With `notArchived`, a size archived - or of an archived product - is left
-     * out (Pricing's Needs a Price, stage 5's screens step 2). A fixed two queries however many sizes or ids.
+     * out (Pricing's Needs a Price, stage 5's screens step 2). A fixed two queries however many sizes or ids;
+     * one with `withTotal` false, for a caller that knows the total already - the total is then 0 (amendment
+     * 23(h), stage 5's screens step 4).
      *
      * @param  list<string>|null  $only
      * @param  list<string>|null  $except
      */
-    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false): FoundVariantsDto;
+    public function searchVariants(StoreId $store, ?string $text, ?array $only = null, ?array $except = null, bool $soldWholesale = false, bool $anyReady = false, ?string $after = null, int $limit = 50, bool $notArchived = false, bool $withTotal = true): FoundVariantsDto;
 
     /**
      * **Products for a picker** (amendment 23(b)): with `readySwitchedOn`, the store's ready products

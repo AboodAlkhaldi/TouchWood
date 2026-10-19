@@ -9,7 +9,6 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\LowRead;
-use Modules\Inventory\Application\Stock\LowSize;
 use Modules\Inventory\Application\Stock\LowStockReader;
 use Modules\Inventory\Application\Stock\StockViews;
 use Modules\Inventory\Application\Stock\Words;
@@ -26,11 +25,12 @@ use Shared\Application\Unauthorized;
  * language, then the size's place**; 50 at a time, keyset, with the total.
  *
  * Catalog orders by name only among sizes it is given, and this order starts with Inventory's own
- * figure, so the list orders itself: the products the reader already read for the archived check give
- * the names, one read of Catalog gives each product's sizes in their order. Names are compared by ICU's
+ * figure, so the list orders itself: the sizes in brief the reader already read for the archived check
+ * give the product names and the sizes' places (amendment 23(h)). Names are compared by ICU's
  * collation for the page's language, punctuation and spaces set aside as PostgreSQL's does - close to
  * Catalog's order, though not promised identical for names differing only in such marks. Then the page's
- * sizes - photo, values, code - in one search, and their holds and the provider's last changes. A fixed
+ * sizes - photo, values, code - in one search that does not count them again, and their holds and the
+ * provider's last changes. A fixed
  * few queries however many low sizes. A read: no lock, nothing written.
  */
 final readonly class LowStockHandler
@@ -73,7 +73,7 @@ final readonly class LowStockHandler
         $ids = array_map('strval', array_keys($page));
         $found = [];
 
-        foreach ($ids === [] ? [] : $this->catalog->searchVariants($storeId, null, $ids, limit: LowStock::PER_PAGE)->rows as $row) {
+        foreach ($ids === [] ? [] : $this->catalog->searchVariants($storeId, null, $ids, limit: LowStock::PER_PAGE, withTotal: false)->rows as $row) {
             $found[$row->variantId] = $row;
         }
 
@@ -113,23 +113,13 @@ final readonly class LowStockHandler
      */
     private function keys(LowRead $read): array
     {
-        $productIds = array_values(array_unique(array_map(static fn (LowSize $size): string => $read->productOf[$size->variantId] ?? '', $read->sizes)));
-        $places = [];
-
-        foreach ($productIds === [] ? [] : $this->catalog->variantIdsOfProducts($productIds) as $sizes) {
-            foreach ($sizes as $place => $variantId) {
-                $places[$variantId] = $place;
-            }
-        }
-
         $english = $this->words->locale() === 'en';
         $keys = [];
 
         foreach ($read->sizes as $size) {
-            $productId = $read->productOf[$size->variantId] ?? '';
-            $product = $read->products[$productId] ?? null;
-            $name = $product === null ? '' : ($english ? ($product->nameEn ?? $product->nameAr) : $product->nameAr);
-            $keys[$size->variantId] = [$size->free, $name, $productId, $places[$size->variantId] ?? 0, $size->variantId];
+            $brief = $read->briefs[$size->variantId] ?? null;
+            $name = $brief === null ? '' : ($english ? ($brief->productNameEn ?? $brief->productNameAr) : $brief->productNameAr);
+            $keys[$size->variantId] = [$size->free, $name, $brief->productId ?? '', $brief->position ?? 0, $size->variantId];
         }
 
         return $keys;
