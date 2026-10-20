@@ -367,7 +367,11 @@ segment, uses) — a page at a time by keyset, 50 at most; names through `Access
 call. A store switched off is read by Super Admins alone, as it is changed (§1.8). Then
 `ListSegments` (newest first, with how many each holds), `ListSegmentMembers` (the name only, by
 customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
-bulk reads, whether it gives its gift now) and, for the customer, `ViewMyCoupons` (the coupons given
+bulk reads, whether it gives its gift now — and, for the tick box of M4, whether the size already counts
+on stock here and whether the store is wired, from Inventory, 2026-10-20), `SearchGiftSizes` (the
+dialog's size search under `promotions.gift.manage`: the store's ready sizes by product name or code,
+archived ones left out, 20 at most, each with the same two facts — so the screen reads neither Catalog
+nor Inventory itself) and, for the customer, `ViewMyCoupons` (the coupons given
 to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
 first; a store switched off has none). My assumption, stated for the owner to reject: **"usable" leaves
 out what depends on the cart or the buyer** — sale mode, the minimum (shown on the row), and whether

@@ -357,7 +357,7 @@ B2B        → Platform, Access
 Catalog    → Platform, Access   (Access only to declare its permissions)
 Pricing    → Platform, Catalog, Access   (Access only to declare its permissions; no B2B: one price for everyone, 2026-10-07)
 Inventory  → Platform, Catalog, Access   (Access only to declare its permissions)
-Promotions → Platform, Access, Catalog, Pricing
+Promotions → Platform, Access, Catalog, Pricing, Inventory   (Inventory for a gift's stock switch and the stock facts of its dialog, 2026-10-19/20)
 Loyalty    → Platform, Access
 Shipping   → Platform, Catalog
 Payments   → Platform

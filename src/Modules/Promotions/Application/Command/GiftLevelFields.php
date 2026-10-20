@@ -20,6 +20,8 @@ final readonly class GiftLevelFields
         public bool $forCompany,
         public ?DateTimeImmutable $startsAt = null,
         public ?DateTimeImmutable $endsAt = null,
+        /** The tick box (owner, Q11 (c)): also make the size's normal sales depend on its stock, in a wired store. */
+        public bool $makeStockDependent = false,
     ) {}
 
     public function terms(string $currencyCode): GiftLevelTerms

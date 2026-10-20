@@ -32,5 +32,9 @@ final readonly class GiftLevelRow
         public bool $active,
         public bool $inEffect,
         public ?string $photoMediaId = null,
+        /** Whether the size's normal sales already depend on its stock in this store (always, with no provider). */
+        public bool $stockDependent = false,
+        /** Whether the store is wired to a provider: only there may the tick box make a size stock-dependent. */
+        public bool $wired = false,
     ) {}
 }

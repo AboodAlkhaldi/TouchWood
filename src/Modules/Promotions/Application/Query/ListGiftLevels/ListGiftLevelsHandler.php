@@ -6,6 +6,8 @@ namespace Modules\Promotions\Application\Query\ListGiftLevels;
 
 use Carbon\CarbonImmutable;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Promotions\Application\Query\GiftLevelRow;
 use Modules\Promotions\Application\Query\MarketingReader;
 use Modules\Promotions\Domain\Model\GiftLevel;
@@ -26,6 +28,8 @@ final readonly class ListGiftLevelsHandler
         private MarketingReader $reader,
         private GiftLevels $levels,
         private CatalogApi $catalog,
+        private InventoryApi $inventory,
+        private StoreWiring $wiring,
     ) {}
 
     /**
@@ -45,9 +49,12 @@ final readonly class ListGiftLevelsHandler
         $products = $productIds === [] ? [] : $this->catalog->products($productIds);
         // The gift's photo: its product's first (catalog.md amendment 26(a)).
         $cards = $productIds === [] ? [] : $this->catalog->productCards($store, 'en', $productIds);
+        // The tick box's facts (M4): whether each size counts on stock here already, and whether the store is wired.
+        $stock = $levels === [] ? [] : $this->inventory->stock($store, array_values(array_unique(array_map(static fn (GiftLevel $level): string => $level->variantId, $levels))));
+        $wired = $levels !== [] && $this->wiring->isWired($store);
         $now = CarbonImmutable::now();
 
-        return array_map(static function (GiftLevel $level) use ($store, $variants, $products, $cards, $now): GiftLevelRow {
+        return array_map(static function (GiftLevel $level) use ($store, $variants, $products, $cards, $stock, $wired, $now): GiftLevelRow {
             $variant = $variants[$level->variantId] ?? null;
             $product = $variant === null ? null : ($products[$variant->productId] ?? null);
 
@@ -67,6 +74,8 @@ final readonly class ListGiftLevelsHandler
                 $level->active,
                 $level->active && ($level->startsAt === null || $level->startsAt <= $now) && ($level->endsAt === null || $level->endsAt > $now),
                 $variant === null ? null : ($cards[$variant->productId] ?? null)?->photoMediaId,
+                $stock[$level->variantId]->countsOnStock ?? false,
+                $wired,
             );
         }, $levels);
     }
