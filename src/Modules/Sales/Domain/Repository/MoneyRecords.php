@@ -10,7 +10,7 @@ use Modules\Sales\Domain\Model\MoneyRecord;
 /** The payments and refunds recorded against orders (sales.md §1.9): written once, voided once at most. */
 interface MoneyRecords
 {
-    /** The record a form's request id made already, of either kind; null when none. */
+    /** The record of this kind a form's request id made already; null when none. */
     public function byRequest(string $kind, string $requestId): ?MoneyRecord;
 
     public function add(MoneyRecord $record): void;

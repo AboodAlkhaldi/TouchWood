@@ -191,7 +191,7 @@ describe('voiding', function () {
 
         expect(fn () => app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('PAYMENT', strtolower((string) Str::ulid()), 'Why')))->toThrow(OrderNotFound::class)
             ->and(fn () => app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('REFUND', $payment, 'Why')))->toThrow(OrderNotFound::class)
-            ->and(fn () => app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('GIFT', $payment, 'Why')))->toThrow(InvalidSalesAttribute::class)
+            ->and(fn () => app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('GIFT', $payment, 'Why')))->toThrow(OrderNotFound::class)
             ->and(fn () => app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('PAYMENT', $payment, ' ')))->toThrow(InvalidSalesAttribute::class);
 
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::PAYMENT_RECORD], ['eg']));
@@ -199,16 +199,22 @@ describe('voiding', function () {
             ->and(moneyHeld($order))->toBe([100_00, 0]);
     });
 
-    it('keeps a record unchanged in the database too', function (string $sql) {
+    it('keeps a record unchanged in the database too', function (string $sql, string $refusal) {
         $order = moneyOrder();
         $payment = moneyPay($order);
+        moneyRefund($order, '1.00');
 
-        expect(fn () => DB::statement(str_replace('{id}', $payment, $sql)))->toThrow(QueryException::class);
+        expect(fn () => DB::statement(str_replace('{id}', $payment, $sql)))->toThrow(QueryException::class, $refusal);
     })->with([
-        'deleted' => ["DELETE FROM sales.payments WHERE id = '{id}'"],
-        'its amount changed' => ["UPDATE sales.payments SET amount_minor = 1 WHERE id = '{id}'"],
-        'voided with no reason' => ["UPDATE sales.payments SET voided_at = now() WHERE id = '{id}'"],
-        'emptied' => ['TRUNCATE sales.payments'],
+        'deleted' => ["DELETE FROM sales.payments WHERE id = '{id}'", 'never deleted'],
+        'its amount changed' => ["UPDATE sales.payments SET amount_minor = 1 WHERE id = '{id}'", 'only voided, once'],
+        'nothing changed' => ["UPDATE sales.payments SET note = note WHERE id = '{id}'", 'only voided, once'],
+        'voided by someone alone' => ["UPDATE sales.payments SET voided_by = recorded_by WHERE id = '{id}'", 'only voided, once'],
+        'a refund deleted' => ["DELETE FROM sales.refunds WHERE order_id = (SELECT order_id FROM sales.payments WHERE id = '{id}')", 'never deleted'],
+        'a refund changed' => ["UPDATE sales.refunds SET amount_minor = 1 WHERE order_id = (SELECT order_id FROM sales.payments WHERE id = '{id}')", 'only voided, once'],
+        'refunds emptied' => ['TRUNCATE sales.refunds', 'append-only'],
+        'voided with no reason' => ["UPDATE sales.payments SET voided_at = now() WHERE id = '{id}'", 'payments_void'],
+        'emptied' => ['TRUNCATE sales.payments', 'append-only'],
     ]);
 });
 
@@ -253,4 +259,57 @@ describe('may ship unpaid', function () {
         'waiting' => [false, false],
         'shipped' => [true, true],
     ]);
+});
+
+describe('what the review asked for', function () {
+    it('takes a day that is already today in the store, though not yet in UTC', function () {
+        $order = moneyOrder();
+        // 22:30 UTC is 01:30 the next morning in Riyadh.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 22:30:00', 'UTC'));
+
+        moneyPay($order, day: '2026-10-21');
+
+        expect(DB::table('sales.payments')->value('happened_on'))->toBe('2026-10-21')
+            ->and(fn () => moneyPay($order, day: '2026-10-22'))->toThrow(InvalidSalesAttribute::class);
+    });
+
+    it('audits what staff type as written only', function () {
+        $order = moneyOrder();
+
+        $payment = moneyPay($order, way: 'OTHER', note: 'Khalid paid 0501234567', reference: 'IBAN SA4420000001234567891234');
+
+        $changes = (string) DB::table('platform.audit_entries')->where('action', 'sales.payment.recorded')->where('subject_id', $payment)->value('changes');
+        expect($changes)->toContain('reference')
+            ->and($changes)->toContain('note')
+            ->and($changes)->not->toContain('0501234567')
+            ->and($changes)->not->toContain('SA4420000001234567891234');
+    });
+
+    it('refuses an amount past any order', function () {
+        $order = moneyOrder();
+
+        expect(Pr::thrown(fn () => moneyPay($order, '10000000000.01'), InvalidSalesAttribute::class)->attribute)->toBe('amount')
+            ->and(moneyPay($order, '10000000000.00'))->not->toBe('');
+    });
+
+    it('refuses in the database a record in another currency or of another store', function (array $with) {
+        $order = moneyOrder();
+        $row = [
+            'id' => strtolower((string) Str::ulid()), 'order_id' => $order, 'store_id' => Fx::storeId('sa'), 'currency_code' => 'SAR',
+            'amount_minor' => 100, 'way' => 'BANK_TRANSFER', 'happened_on' => '2026-10-19', 'request_id' => (string) Str::uuid(), 'recorded_at' => CarbonImmutable::now(),
+        ];
+
+        expect(fn () => DB::table('sales.payments')->insert([...$row, ...$with]))->toThrow(QueryException::class, 'payments_order');
+    })->with([
+        'another currency' => [['currency_code' => 'EGP']],
+        'another store' => [fn () => ['store_id' => Fx::storeId('eg')]],
+    ]);
+
+    it('lets only a fulfiller allow shipping unpaid', function () {
+        $order = moneyOrder();
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::PAYMENT_RECORD], ['sa']));
+
+        expect(fn () => app(AllowShipUnpaidHandler::class)->handle(new AllowShipUnpaid($order, true)))->toThrow(Unauthorized::class);
+    });
 });

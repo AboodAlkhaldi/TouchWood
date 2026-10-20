@@ -38,8 +38,8 @@ final readonly class OrderState
         public int $paid,
         public int $refunded,
         public ?DateTimeImmutable $shortOfStockAt,
-        public string $currencyCode = '',
-        public bool $mayShipUnpaid = false,
+        public string $currencyCode,
+        public bool $mayShipUnpaid,
     ) {}
 
     public function isWaiting(): bool

@@ -45,14 +45,11 @@ final readonly class VoidMoneyRecordHandler
      */
     public function handle(VoidMoneyRecord $command): void
     {
+        // No such kind is no such record: the job is asked about first, and an unknown record is no order.
         $kind = strtoupper(trim($command->kind));
-
-        if (! in_array($kind, [MoneyRecord::PAYMENT, MoneyRecord::REFUND], true)) {
-            throw new InvalidSalesAttribute('way', 'a payment or a refund');
-        }
-
         $recordId = strtolower(trim($command->recordId));
-        $orderId = Ulids::valid($recordId) ? $this->records->orderOf($kind, $recordId) : null;
+        $known = in_array($kind, [MoneyRecord::PAYMENT, MoneyRecord::REFUND], true) && Ulids::valid($recordId);
+        $orderId = $known ? $this->records->orderOf($kind, $recordId) : null;
         [$orderId, , $staffId] = $this->access->authorize(self::PERMISSION, $orderId ?? '');
         $reason = OrderInputs::words($command->reason);
 
@@ -69,7 +66,7 @@ final readonly class VoidMoneyRecordHandler
             $kind === MoneyRecord::PAYMENT ? $this->orders->moveMoney($order->id, -$record->amount, 0) : $this->orders->moveMoney($order->id, 0, -$record->amount);
             $this->orders->recordHistory($order->id, $order->storeId, 'MONEY_VOIDED', null, $staffId, $now, ['recordId' => $record->id, 'kind' => $kind, 'amount' => $record->amount]);
             $this->platform->recordAudit(new AuditEntryDto('sales.'.strtolower($kind).'.voided', 'sales.'.strtolower($kind), $record->id, $order->storeId, AuditChanges::none()
-                ->changed('voided', false, true)->personal('void_reason')));
+                ->changed('order_id', null, $order->id)->changed('amount_minor', null, $record->amount)->changed('voided', false, true)->personal('void_reason')));
         }, 3);
     }
 }
