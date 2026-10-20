@@ -49,7 +49,9 @@ the coupon and the gift, Loyalty for points — **and owns none of their rules**
 those lines leave the merged cart, each with why.
 
 - **One cart per buyer per store** — a customer's or a guest's. A guest's id lives in Access's cookie
-  (access.md §1.7): **Sales writes it with the guest's first cart line** (handoff §7.7). Lines: a
+  (access.md §1.7): **Sales has it written with the guest's first cart line** (handoff §7.7), through
+  Access's `GuestIdentity` (amendment 74). Two first lines at once from one browser may make two guests;
+  the browser keeps one, and the other cart is left to the 90-day emptying. Lines: a
   variant, its sale mode (`RETAIL` / `WHOLESALE`), a quantity; the same variant and mode once.
 - **Guests see what either kind of account sees** (catalog.md §1.13) **and may add wholesale lines**
   (owner, 2026-10-09). **On signing in or registering**, lines the account may not buy **leave the
@@ -803,8 +805,9 @@ refusing anything but one void.
    interfaces are written here (§2.4).
 2. **Pricing's `pricesForEdit`** and **Inventory's `adjustHold` / `returned`** — on `main` since #107
    and #106 (2026-10-10), the stage 5 session's.
-3. **Catalog's additions** — the store's variants in bulk, and whether a product's category is open to
-   an account type, in bulk — to agree with the Catalog-screens session.
+3. ~~**Catalog's additions**~~ — **settled**: built with step S3 as catalog.md amendment 29 —
+   `storeVariants` and `productsOpenTo` (by Platform's `ShopperKind`, as deptrac allows Catalog's public
+   contract) — and the guest's id as access.md amendment 74 (`GuestIdentity`).
 4. **Promotions' and Loyalty's corrections** that this spec needs — the edited coupon's whole room, its
    cap at the discount now, `orderDiscountRoom` with the order's recorded ceiling and the shares by
    price line (promotions.md); `pointsAfterEdit` by the recorded cap, `orderEdited`'s answer and an edit

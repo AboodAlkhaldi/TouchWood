@@ -25,7 +25,8 @@ return [
 
     'storefront' => [
         // The visitor's guest id, in an encrypted HTTP-only cookie (spec §1.7). Access reads it to
-        // say "this guest became that customer"; Sales writes it with the first cart line.
+        // say "this guest became that customer"; Sales has it written with the first cart line, through
+        // Access's GuestIdentity::ensure (access.md amendment 74).
         'guest_cookie' => env('ACCESS_GUEST_COOKIE', 'touchwood_guest'),
         // How long that cookie lasts, so a cart left for a while is still theirs when they return
         // (owner's decision, 2026-09-20: a year).
