@@ -6,6 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 
 /*
 | sales.md §5, the order's part: the order — everything snapshotted at placement (handoff §12.3) and its
@@ -114,7 +115,7 @@ return new class extends Migration
                 ADD CONSTRAINT orders_completed_delivered CHECK ((status = 'COMPLETED') = (shipment_status = 'DELIVERED')),
                 ADD CONSTRAINT orders_undelivered_came_back CHECK ((status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')),
                 ADD CONSTRAINT orders_shipped_approved CHECK (shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED', 'COMPLETED', 'UNDELIVERED')),
-                ADD CONSTRAINT orders_return_deadline CHECK (return_deadline_at IS NULL OR delivered_at IS NOT NULL),
+                ADD CONSTRAINT orders_return_deadline CHECK ((delivered_at IS NOT NULL) = (return_deadline_at IS NOT NULL) AND COALESCE(return_deadline_at >= delivered_at, true)),
                 ADD CONSTRAINT orders_coupon_together CHECK ((coupon_id IS NULL) = (coupon_code IS NULL)),
                 ADD CONSTRAINT orders_coupon_discount CHECK (coupon_id IS NOT NULL OR coupon_discount_minor = 0),
                 ADD CONSTRAINT orders_points CHECK ((points_used = 0) = (points_discount_minor = 0)),
@@ -218,7 +219,7 @@ return new class extends Migration
         });
 
         Schema::create('sales.order_history', function (Blueprint $table) {
-            $table->bigIncrements('id');
+            $table->id()->generatedAs()->always();
             $table->ulid('order_id');
             $table->ulid('store_id');
             $table->string('kind', 32);
@@ -263,9 +264,7 @@ return new class extends Migration
             SQL);
 
         // One number sequence a store there is; a store opened later gets its own (CreateOrderSequence).
-        foreach (DB::table('platform.stores')->pluck('id') as $storeId) {
-            DB::statement(sprintf('CREATE SEQUENCE IF NOT EXISTS sales.%s START WITH 1001', 'order_number_'.strtolower((string) $storeId)));
-        }
+        OrderNumberSequences::createForStores(DB::connection());
     }
 
     /** Every change §3's commands make, and placing (§5 `order_history`). */
@@ -280,7 +279,7 @@ return new class extends Migration
     public function down(): void
     {
         foreach (DB::table('platform.stores')->pluck('id') as $storeId) {
-            DB::statement(sprintf('DROP SEQUENCE IF EXISTS sales.%s', 'order_number_'.strtolower((string) $storeId)));
+            DB::statement('DROP SEQUENCE IF EXISTS '.OrderNumberSequences::name((string) $storeId));
         }
 
         Schema::dropIfExists('sales.order_history');

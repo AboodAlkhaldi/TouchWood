@@ -29,12 +29,17 @@ final class OrderShares
      * @param  list<Money>  $couponShares  one a line, in the same order
      * @return array{lines: list<array{coupon: Money, points: Money, vat: Money}>, shippingVat: Money}
      *
-     * @throws InvalidArgumentException when the lists do not line up, or a coupon share passes its line
+     * @throws InvalidArgumentException when the lists do not line up, a coupon share passes its line, an
+     *                                  amount is below 0, or the points discount passes what the coupon left of the lines
      */
     public static function of(array $lineTotals, array $couponShares, Money $pointsDiscount, Money $vat, Money $shippingFee): array
     {
         if ($lineTotals === [] || count($lineTotals) !== count($couponShares)) {
             throw new InvalidArgumentException('One coupon share a line, and at least one line.');
+        }
+
+        if ($pointsDiscount->isNegative() || $vat->isNegative() || $shippingFee->isNegative()) {
+            throw new InvalidArgumentException('An amount below 0.');
         }
 
         $zero = Money::zero($vat->currencyCode);
@@ -48,6 +53,10 @@ final class OrderShares
             }
 
             $afterCoupon[] = $left;
+        }
+
+        if ($pointsDiscount->compareTo(array_reduce($afterCoupon, static fn (Money $sum, Money $left): Money => $sum->add($left), $zero)) > 0) {
+            throw new InvalidArgumentException('More points discount than the coupon left of the lines.');
         }
 
         $points = self::spread($pointsDiscount, array_map(static fn (Money $left): int => $left->minorUnits, $afterCoupon), $zero, 'points');
@@ -76,7 +85,7 @@ final class OrderShares
      */
     public static function forPieces(Money $share, int $pieces, int $before, int $count): Money
     {
-        if ($pieces < 1 || $before < 0 || $count < 0 || $before + $count > $pieces) {
+        if ($share->isNegative() || $pieces < 1 || $before < 0 || $count < 0 || $before + $count > $pieces) {
             throw new InvalidArgumentException('Pieces out of range.');
         }
 

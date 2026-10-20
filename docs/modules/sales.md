@@ -618,9 +618,15 @@ by (`store_id`, `status`, `requested_at`); by `order_id`. Carts by `guest_id`, b
 of `PLACED`, `APPROVED`, `REJECTED`, `CANCELLED`, `EDITED`, `SHORT_FLAGGED`, `SHORT_CLEARED`,
 `TICKED_REDUCED`, `SHIP_UNPAID_ALLOWED`, `SHIPPED`, `DELIVERED`, `CAME_BACK`, `PAYMENT_RECORDED`,
 `REFUND_RECORDED`, `MONEY_VOIDED`, `TRANSFER_DOCUMENT_UPLOADED`, `RETURN_REQUESTED`, `RETURN_WITHDRAWN`,
-`RETURN_ACCEPTED`, `RETURN_REFUSED`, `RETURN_RECEIVED`, `RETURN_CLOSED`, `RETURN_COMPLETED`; two CHECKs
-beyond the row above — `orders.locale IN ('ar','en')` and `return_deadline_at` only once delivered; the
-quotes' nightly deletion leaves a placed quote with its order (placing again answers that order, §1.3).
+`RETURN_ACCEPTED`, `RETURN_REFUSED`, `RETURN_RECEIVED`, `RETURN_CLOSED`, `RETURN_COMPLETED`. Beyond the
+rows above: CHECK `orders.locale IN ('ar','en')`; CHECK a return deadline exactly when delivered, never
+before the delivery; CHECK a line's unit, list and total prices `>= 0`; FKs `orders.cancelled_by` →
+`access.staff_users` and (`order_history.edit_id`, `order_id`) → `order_edits`; indexes on order lines by
+variant, edits by order and history by (order, id); `order_history.id` an identity column. A store's
+number sequence missing (a listener before Sales's failed) is made at its next number. The quotes' nightly
+deletion leaves a placed quote with its order (placing again answers that order, §1.3), and skips one
+being placed at that moment. **The history and the edits never hold the customer's email** — they cannot
+be changed, and anonymizing clears the order's copy (§1.12).
 The order number's format (`SA-1001`) is provisional: it must later match the company's current format
 (owner, 2026-10-19).
 

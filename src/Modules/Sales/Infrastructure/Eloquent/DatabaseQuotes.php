@@ -7,7 +7,6 @@ namespace Modules\Sales\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Database\Query\Builder;
 use Modules\Sales\Domain\Model\Quote;
 use Modules\Sales\Domain\Repository\Quotes;
 use stdClass;
@@ -64,10 +63,15 @@ final readonly class DatabaseQuotes implements Quotes
 
     public function deleteExpiredBefore(DateTimeImmutable $at): int
     {
-        // A placed quote stays with its order: placing again answers the order placed from it (§1.3).
-        return $this->db->table('sales.quotes')
-            ->where('expires_at', '<', Moment::of($at))
-            ->whereNotExists(fn (Builder $orders) => $orders->selectRaw('1')->from('sales.orders')->whereColumn('sales.orders.quote_id', 'sales.quotes.id'))
-            ->delete();
+        // A placed quote stays with its order: placing again answers the order placed from it (§1.3). One
+        // being placed now is locked and left alone, so its order is never missed for a deleted quote.
+        return $this->db->delete(<<<'SQL'
+            DELETE FROM sales.quotes WHERE id IN (
+                SELECT q.id FROM sales.quotes q
+                WHERE q.expires_at < ?
+                    AND NOT EXISTS (SELECT 1 FROM sales.orders o WHERE o.quote_id = q.id)
+                FOR UPDATE SKIP LOCKED
+            )
+            SQL, [Moment::of($at)]);
     }
 }

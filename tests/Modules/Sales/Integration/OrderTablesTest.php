@@ -116,6 +116,17 @@ it('refuses an order no command would write', function (array $with, string $con
     'cancelled after shipping' => [fn () => ['status' => 'CANCELLED', 'cancelled_at' => CarbonImmutable::now(), 'cancel_reason' => 'CHANGED_MIND', 'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA'], 'shipped'],
     'came back half written' => [['came_back_id' => '01m5b9eamjdr7m263kdyn1e6r7'], 'orders_came_back_together'],
     'a return deadline before delivery' => [['return_deadline_at' => CarbonImmutable::now()], 'orders_return_deadline'],
+    'cancel words without cancelling' => [['cancel_other' => 'Words'], 'orders_cancel_other'],
+    'cancelled by someone, not cancelled' => [fn () => ['cancelled_by' => Fx::staff()], 'orders_cancelled_by_staff'],
+    'delivered with no time' => [fn () => ['status' => 'COMPLETED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'DELIVERED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA', 'return_deadline_at' => CarbonImmutable::now()], 'orders_delivered_at'],
+    'delivered with no deadline' => [fn () => ['status' => 'COMPLETED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'DELIVERED', 'shipped_at' => CarbonImmutable::now(), 'delivered_at' => CarbonImmutable::now(), 'carrier' => 'SMSA'], 'orders_return_deadline'],
+    'a deadline before its delivery' => [fn () => ['status' => 'COMPLETED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'DELIVERED', 'shipped_at' => CarbonImmutable::now(), 'delivered_at' => CarbonImmutable::now(), 'return_deadline_at' => CarbonImmutable::now()->subMinute(), 'carrier' => 'SMSA'], 'orders_return_deadline'],
+    'came back with no time' => [fn () => ['status' => 'UNDELIVERED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'CAME_BACK', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA'], 'orders_came_back_at'],
+    'undelivered, not come back' => [fn () => ['status' => 'UNDELIVERED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA'], 'orders_undelivered_came_back'],
+    'an unknown audience' => [['audience' => 'VIP'], 'orders_audience'],
+    'an unknown shipment status' => [['shipment_status' => 'LOST'], 'check constraint "orders_'],
+    'an unknown way to pay' => [['way_to_pay' => 'CASH'], 'orders_way_to_pay'],
+    'an unknown cancel reason' => [['status' => 'CANCELLED', 'cancelled_at' => CarbonImmutable::now(), 'cancel_reason' => 'BORED'], 'orders_cancel_reason'],
     'a coupon code with no coupon' => [['coupon_code' => 'SUMMER-15'], 'orders_coupon_together'],
     'a coupon discount with no coupon' => [['coupon_discount_minor' => 1_00], 'orders_coupon_discount'],
     'points with no discount' => [['points_used' => 100], 'orders_points'],
@@ -146,6 +157,8 @@ it('refuses a line no command would write', function (array $with, string $const
     'a gift with VAT' => [['is_gift' => true, 'price_kind' => null, 'unit_minor' => 0, 'list_unit_minor' => 0, 'total_minor' => 0], 'order_lines_gift_free'],
     'a wholesale gift' => [['is_gift' => true, 'price_kind' => null, 'sale_mode' => 'WHOLESALE', 'unit_minor' => 0, 'list_unit_minor' => 0, 'total_minor' => 0, 'vat_share_minor' => 0], 'order_lines_gift_free'],
     'no pieces' => [['quantity' => 0], 'order_lines_quantity'],
+    'an unknown mode' => [['sale_mode' => 'BULK'], 'order_lines_sale_mode'],
+    'a price below 0' => [['unit_minor' => -1], 'order_lines_amounts'],
     'an unknown kind' => [['price_kind' => 'FREE'], 'order_lines_price_kind'],
     'discounts above the line' => [['coupon_share_minor' => 60_00, 'points_share_minor' => 40_01], 'order_lines_discount_within'],
     'a negative share' => [['vat_share_minor' => -1], 'order_lines_shares'],
@@ -167,7 +180,7 @@ it('keeps one gift line an order', function () {
     $gift = ['is_gift' => true, 'price_kind' => null, 'unit_minor' => 0, 'list_unit_minor' => 0, 'total_minor' => 0, 'vat_share_minor' => 0];
     orderLineRow($order, $gift);
 
-    expect(fn () => orderLineRow($order, $gift))->toThrow(QueryException::class);
+    expect(fn () => orderLineRow($order, $gift))->toThrow(QueryException::class, 'order_lines_one_gift');
 });
 
 it('never changes an edit or the history', function (string $table, Closure $row, string $sql) {
@@ -180,6 +193,8 @@ it('never changes an edit or the history', function (string $table, Closure $row
     'an edit deleted' => ['sales.order_edits', fn (string $order) => orderEdit($order), 'DELETE FROM %s'],
     'the history changed' => ['sales.order_history', fn (string $order) => DB::table('sales.order_history')->insert(['order_id' => $order, 'store_id' => Fx::storeId('sa'), 'kind' => 'PLACED', 'at' => CarbonImmutable::now(), 'detail' => '{}']), "UPDATE %s SET kind = 'APPROVED'"],
     'the history emptied' => ['sales.order_history', fn (string $order) => null, 'TRUNCATE %s CASCADE'],
+    'the history deleted' => ['sales.order_history', fn (string $order) => DB::table('sales.order_history')->insert(['order_id' => $order, 'store_id' => Fx::storeId('sa'), 'kind' => 'PLACED', 'at' => CarbonImmutable::now(), 'detail' => '{}']), 'DELETE FROM %s'],
+    'the edits emptied' => ['sales.order_edits', fn (string $order) => orderEdit($order), 'TRUNCATE %s CASCADE'],
 ]);
 
 it('refuses a history kind no command writes', function () {
@@ -224,4 +239,44 @@ it('keeps a placed quote past its expiry, and deletes one never placed', functio
 
     expect($deleted)->toBe(1)
         ->and(DB::table('sales.quotes')->pluck('id')->all())->toBe([$kept]);
+});
+
+it('refuses an edit with no reason, and an edit or a tick of another store', function (Closure $write, string $constraint) {
+    $order = orderRow();
+
+    expect(fn () => $write($order))->toThrow(QueryException::class, $constraint);
+})->with([
+    'an edit with no reason' => [fn (string $order) => DB::table('sales.order_edits')->insert(['id' => strtolower((string) Str::ulid()), 'order_id' => $order, 'store_id' => Fx::storeId('sa'), 'reason' => '', 'by' => Fx::staff(), 'at' => CarbonImmutable::now(), 'before' => '{}', 'after' => '{}']), 'order_edits_reason'],
+    'an edit in another store' => [fn (string $order) => DB::table('sales.order_edits')->insert(['id' => strtolower((string) Str::ulid()), 'order_id' => $order, 'store_id' => Fx::storeId('eg'), 'reason' => 'Swap', 'by' => Fx::staff(), 'at' => CarbonImmutable::now(), 'before' => '{}', 'after' => '{}']), 'order_edits_order'],
+    'a tick in another store' => [fn (string $order) => DB::table('sales.order_ticks')->insert(['order_id' => $order, 'store_id' => Fx::storeId('eg'), 'variant_id' => Px::ready(['60 cm'])['variants'][0], 'ticked_by' => Fx::staff(), 'ticked_at' => CarbonImmutable::now()]), 'order_ticks_order'],
+]);
+
+it('ticks a size of an order once', function () {
+    $order = orderRow();
+    $tick = ['order_id' => $order, 'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready(['60 cm'])['variants'][0], 'ticked_by' => Fx::staff(), 'ticked_at' => CarbonImmutable::now()];
+    DB::table('sales.order_ticks')->insert($tick);
+
+    expect(fn () => DB::table('sales.order_ticks')->insert($tick))->toThrow(QueryException::class, 'order_ticks_pkey');
+});
+
+it('gives a store whose numbers went missing its numbers back, from 1001', function () {
+    $store = StoreId::fromString(Fx::storeId('sa'));
+    DB::statement('DROP SEQUENCE '.OrderNumberSequences::name($store->value));
+
+    expect(app(OrderNumbers::class)->next($store))->toBe(1001)
+        ->and(app(OrderNumbers::class)->next($store))->toBe(1002);
+});
+
+it('makes every store numbers from 1001 the way the migration does', function () {
+    $stores = DB::table('platform.stores')->pluck('id')->map(fn ($id): string => (string) $id)->all();
+
+    foreach ($stores as $id) {
+        DB::statement('DROP SEQUENCE '.OrderNumberSequences::name($id));
+    }
+
+    OrderNumberSequences::createForStores(DB::connection());
+
+    expect(array_map(fn (string $id): int => (int) DB::selectOne('SELECT nextval(?::regclass) AS n', [OrderNumberSequences::name($id)])->n, $stores))
+        ->toBe(array_fill(0, count($stores), 1001))
+        ->and(count($stores))->toBe(3);
 });

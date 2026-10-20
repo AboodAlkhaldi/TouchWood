@@ -77,7 +77,11 @@ it('refuses lists that do not line up, a coupon share above its line or below 0,
     'one share short' => [fn () => OrderShares::of(sars([1_00, 1_00]), sars([0]), sar(0), sar(0), sar(0)), InvalidArgumentException::class],
     'a share above its line' => [fn () => OrderShares::of(sars([1_00]), sars([1_01]), sar(0), sar(0), sar(0)), InvalidArgumentException::class],
     'a share below 0' => [fn () => OrderShares::of(sars([1_00]), sars([-1]), sar(0), sar(0), sar(0)), InvalidArgumentException::class],
-    'points with nothing left' => [fn () => OrderShares::of(sars([1_00]), sars([1_00]), sar(1), sar(0), sar(0)), LogicException::class],
+    'points with nothing left' => [fn () => OrderShares::of(sars([1_00]), sars([1_00]), sar(1), sar(0), sar(0)), InvalidArgumentException::class],
+    'points above what the coupon left' => [fn () => OrderShares::of(sars([1_00, 2_00]), sars([50, 0]), sar(2_51), sar(0), sar(0)), InvalidArgumentException::class],
+    'negative points' => [fn () => OrderShares::of(sars([1_00]), sars([0]), sar(-1), sar(0), sar(0)), InvalidArgumentException::class],
+    'negative VAT' => [fn () => OrderShares::of(sars([1_00]), sars([0]), sar(0), sar(-1), sar(0)), InvalidArgumentException::class],
+    'negative shipping' => [fn () => OrderShares::of(sars([1_00]), sars([0]), sar(0), sar(0), sar(-1)), InvalidArgumentException::class],
     'VAT with nothing taxable' => [fn () => OrderShares::of(sars([0]), sars([0]), sar(0), sar(1), sar(0)), LogicException::class],
 ]);
 
@@ -102,6 +106,16 @@ it('refuses pieces out of range', function (int $pieces, int $before, int $count
     'before below 0' => [3, -1, 1],
     'count below 0' => [3, 1, -1],
 ]);
+
+it('refuses a share below 0 for pieces', function () {
+    expect(fn () => OrderShares::forPieces(sar(-1_00), 3, 0, 1))->toThrow(InvalidArgumentException::class);
+});
+
+it('takes points that use exactly what the coupon left', function () {
+    $shares = OrderShares::of(sars([1_00, 2_00]), sars([50, 0]), sar(2_50), sar(0), sar(0));
+
+    expect(shareMinors($shares))->toBe([[[50, 50, 0], [0, 2_00, 0]], 0]);
+});
 
 it('works past the ints a multiplication of a large share would overflow', function () {
     $share = sar(9_000_000_000_000_000);
