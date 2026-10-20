@@ -10,6 +10,8 @@ use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
+use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Pricing\Public\Dto\LinePriceDto;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Domain\Exception\QuoteChanged;
@@ -18,6 +20,7 @@ use Modules\Sales\Domain\Model\NewOrderLine;
 use Modules\Sales\Domain\Service\OrderShares;
 use Shared\Domain\Text\LatinDigits;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * An order as its quote placed it (sales.md §1.3 step 7): **everything snapshotted** (handoff §12.3) —
@@ -30,6 +33,8 @@ final readonly class OrderSnapshot
 {
     public function __construct(
         private CatalogApi $catalog,
+        private InventoryApi $inventory,
+        private StoreWiring $wiring,
     ) {}
 
     /** @throws QuoteChanged when a size of the quote no longer exists */
@@ -40,6 +45,10 @@ final readonly class OrderSnapshot
         $currency = $prices->currencyCode;
         $variantIds = array_values(array_unique([...array_map(static fn (LinePriceDto $line): string => $line->variantId, $prices->lines), ...($quote->giftVariantId === null ? [] : [$quote->giftVariantId])]));
         $variants = $this->catalog->variants($variantIds);
+        // As Inventory's hold fixes them when it is placed, a moment later in the same transaction (§1.5).
+        $store = StoreId::fromString($quote->storeId);
+        $wired = $this->wiring->isWired($store);
+        $stock = $this->inventory->stock($store, $variantIds);
         $products = $this->catalog->products(array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, $variants))));
 
         $shares = OrderShares::of(
@@ -67,6 +76,7 @@ final readonly class OrderSnapshot
                 strtolower((string) Str::ulid()), $variant->productId, $variant->id, false, $nameAr, $nameEn, $values, $variant->code,
                 $priced->mode->value, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
                 $shares['lines'][$index]['coupon']->minorUnits, $shares['lines'][$index]['points']->minorUnits, $shares['lines'][$index]['vat']->minorUnits,
+                $stock[$variant->id]->countsOnStock ?? ! $wired,
             );
         }
 
@@ -74,7 +84,7 @@ final readonly class OrderSnapshot
             [$variant, $nameAr, $nameEn, $values] = $line($quote->giftVariantId);
             $lines[] = new NewOrderLine(
                 strtolower((string) Str::ulid()), $variant->productId, $variant->id, true, $nameAr, $nameEn, $values, $variant->code,
-                SaleMode::Retail->value, null, 1, 0, 0, 0, 0, 0, 0,
+                SaleMode::Retail->value, null, 1, 0, 0, 0, 0, 0, 0, true,
             );
         }
 
@@ -111,6 +121,7 @@ final readonly class OrderSnapshot
             $totals->taxRateBasisPoints,
             $totals->orderTotal->minorUnits,
             $quote->giftLevelId,
+            $wired,
             $placedAt,
             $lines,
         );

@@ -58,6 +58,38 @@ interface Orders
 
     public function addTransferDocument(string $orderId, string $storeId, string $mediaId, int $position, DateTimeImmutable $at): void;
 
+    /**
+     * The order's pieces as they stand, a line a size and gift — what a shipment takes (§1.5).
+     *
+     * @return list<array{variantId: string, quantity: int, gift: bool}>
+     */
+    public function pieces(string $orderId): array;
+
+    public function ship(string $orderId, string $carrier, ?string $trackingNumber, DateTimeImmutable $at): void;
+
+    /** Delivered: completed, its return window fixed to the minute (answer 34). */
+    public function deliver(string $orderId, DateTimeImmutable $at, DateTimeImmutable $returnDeadline): void;
+
+    /** The parcel came back: undelivered, nothing due any more (§1.5). */
+    public function cameBack(string $orderId, string $cameBackId, DateTimeImmutable $at): void;
+
+    /**
+     * The sizes with a line counting on the store's stock as placed — the gift's included (§1.5).
+     *
+     * @return list<string>
+     */
+    public function countingOnStock(string $orderId): array;
+
+    /**
+     * The sizes ticked "reduced in the provider" (§1.5).
+     *
+     * @return list<string>
+     */
+    public function ticked(string $orderId): array;
+
+    /** @param  list<string>  $variantIds  ticked once each */
+    public function tick(string $orderId, string $storeId, array $variantIds, string $by, DateTimeImmutable $at): void;
+
     /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
     public function forgetEmail(string $customerId): void;
 

@@ -99,5 +99,7 @@ return [
         'date' => 'التاريخ',
         'request' => 'النموذج',
         'file' => 'الملف',
+        'carrier' => 'شركة الشحن',
+        'tracking_number' => 'رقم التتبع',
     ],
 ];
