@@ -46,6 +46,10 @@ interface InventoryApi
      * nothing is taken (the provider is the source); a stock-dependent line's hold waits for the tick.
      * Safe to repeat: what is already shipped is left as it is.
      *
+     * Never refused for the stock (sales.md answer 41): a shipment larger than what is in stock - a hand
+     * removal took the pieces - takes the stock to 0, never below, its ledger line naming the shortfall
+     * for a recount; the line is still shipped in full.
+     *
      * @param  list<HoldLineDto>  $lines
      */
     public function ship(string $orderId, array $lines): void;
@@ -84,4 +88,22 @@ interface InventoryApi
      * @param  list<HoldLineDto>  $lines
      */
     public function returned(string $orderId, string $returnId, array $lines): void;
+
+    /**
+     * Turns these sizes' stock-dependent switch **on** in a wired store, as staff's switch does - the
+     * same rows, audit entry and Catalog facts - for Promotions' gift level (owner, 2026-10-19). Never
+     * off. A size that does not exist or is archived (or of an archived product) is refused in every
+     * store, nothing changed (`inventory.invalid_inventory_input`, `variant`, naming them). Then nothing
+     * happens in a store with no provider, where every size counts on its stock already - unwired while
+     * it waited for the store's lock too - nor for a size already on.
+     *
+     * Runs in the caller's transaction when one is open (a savepoint in it), in its own otherwise. Call
+     * it last in that transaction, take no lock of the caller's own after it, and keep the transaction
+     * short: Inventory's store lock and Catalog's facts lock are held until the caller commits. No
+     * permission is checked here: the caller checks `InventoryPermissions::STOCK_MANAGE` in the store.
+     *
+     * @param  list<string>  $variantIds
+     * @return list<string> the sizes it turned on, by their own ids, in id order
+     */
+    public function makeStockDependent(StoreId $store, array $variantIds): array;
 }

@@ -129,10 +129,10 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         expect(DB::table('inventory.stock_movements')->count())->toBe(4);
     });
 
-    it('keeps each reason going its one way (owner, 2026-10-11)', function (string $reason, int $before, int $after, bool $kept) {
+    it('keeps each reason going its one way (owner, 2026-10-11)', function (string $reason, int $before, int $after, bool $kept, ?string $note = 'a note') {
         $row = [
             'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready()['variants'][0], 'reason' => $reason, 'change' => $after - $before,
-            'before' => $before, 'after' => $after, 'note' => 'a note', 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
+            'before' => $before, 'after' => $after, 'note' => $note, 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
         ];
         $insert = fn () => DB::transaction(fn () => DB::table('inventory.stock_movements')->insert($row));
 
@@ -155,6 +155,10 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         'an offline sale never comes in' => ['OFFLINE_SALE', 2, 3, false],
         'a shipment goes out' => ['SHIPPED', 3, 2, true],
         'a shipment never comes in' => ['SHIPPED', 2, 3, false],
+        'a shipment taking nothing notes its shortfall (owner, 2026-10-19)' => ['SHIPPED', 0, 0, true],
+        'a shipment taking nothing without a note is refused' => ['SHIPPED', 0, 0, false, null],
+        'a shipment taking nothing with a blank note is refused' => ['SHIPPED', 0, 0, false, " \t\n"],
+        'a shipment taking nothing from a stock above 0 is refused, note or not' => ['SHIPPED', 5, 5, false],
         'a correction comes in' => ['CORRECTION', 1, 2, true],
         'a correction goes out' => ['CORRECTION', 2, 1, true],
         'a correction is never nothing' => ['CORRECTION', 2, 2, false],
@@ -163,6 +167,29 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         'the file sets it' => ['FILE', 0, 9, true],
         'the provider sets it' => ['PROVIDER', 9, 4, true],
     ]);
+
+    it('rolls the shortfall line\'s check back to the old one and forward again, refused back while such a line is kept (owner, 2026-10-19)', function () {
+        $migration = require dirname(__DIR__, 4).'/src/Modules/Inventory/Infrastructure/Persistence/Migrations/2026_10_20_100000_allow_inventory_shipment_shortfall_line.php';
+        $size = Px::ready()['variants'][0];
+        $insert = static fn (): Closure => fn () => DB::transaction(fn () => DB::table('inventory.stock_movements')->insert([
+            'store_id' => Fx::storeId('sa'), 'variant_id' => $size, 'reason' => 'SHIPPED', 'change' => 0, 'before' => 0, 'after' => 0,
+            'note' => '2 more shipped than counted - recount', 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
+        ]));
+
+        // Each step in a savepoint of the test's transaction: PostgreSQL's DDL is transactional.
+        DB::transaction(fn () => $migration->down());
+
+        expect($insert())->toThrow(QueryException::class, 'stock_movements_direction')
+            ->and(DB::selectOne('select convalidated from pg_constraint where conname = ?', ['stock_movements_direction'])?->convalidated)->toBeTrue();
+
+        DB::transaction(fn () => $migration->up());
+        $insert()();
+
+        expect(DB::table('inventory.stock_movements')->count())->toBe(1)
+            ->and(DB::selectOne('select convalidated from pg_constraint where conname = ?', ['stock_movements_direction'])?->convalidated)->toBeTrue()
+            // The old check cannot come back over a 0 -> 0 line: the ledger is append-only.
+            ->and(fn () => DB::transaction(fn () => $migration->down()))->toThrow(QueryException::class, 'stock_movements_direction');
+    });
 
     it('keeps a hold line\'s pieces from 1, shipped within them, an end it knows and a time only once ended, and a return\'s pieces from 1', function () {
         $size = Px::ready()['variants'][0];
