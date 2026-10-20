@@ -91,6 +91,11 @@ final readonly class DatabaseOrders implements Orders
         ], $order->lines));
     }
 
+    public function forgetEmail(string $customerId): void
+    {
+        $this->db->table('sales.orders')->where('customer_id', $customerId)->whereNotNull('customer_email')->update(['customer_email' => null]);
+    }
+
     public function recordHistory(string $orderId, string $storeId, string $kind, ?string $editId, ?string $by, DateTimeImmutable $at, array $detail): void
     {
         $this->db->table('sales.order_history')->insert([

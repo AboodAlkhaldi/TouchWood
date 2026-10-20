@@ -8,17 +8,27 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
+use Modules\Inventory\Domain\Exception\NotEnoughStock;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
+use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLineHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
+use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Service\OrderShares;
+use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
@@ -252,7 +262,7 @@ describe('what changed since the quote', function () {
         $quote = Cx::start($address);
         DB::table('promotions.coupons')->update(['active' => false]);
 
-        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toStartWith('promotions.');
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toBe('promotions.coupon_refused');
         nothingPlaced();
     });
 
@@ -264,7 +274,7 @@ describe('what changed since the quote', function () {
         $quote = Cx::start($address, usePoints: true);
         Lx::programme('sa', [ProgrammeSettings::ENABLED => false]);
 
-        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toStartWith('loyalty.');
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toBe('loyalty.points_programme_off');
         nothingPlaced();
     });
 
@@ -284,3 +294,114 @@ describe('what changed since the quote', function () {
         nothingPlaced();
     });
 });
+
+describe('what the review asked for', function () {
+    it('rolls back the coupon used and the points redeemed when the stock cannot be held, naming the sizes', function () {
+        ['address' => $address, 'variants' => $variants, 'customer' => $customer] = Cx::ready();
+        Pr::ceiling(100);
+        Pr::coupon('SUMMER-15');
+        Lx::programme();
+        Lx::deliver($customer, 1_000_00);
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $quote = Cx::start($address, usePoints: true);
+        expect($quote->pointsUsed)->toBeGreaterThan(0);
+        placeHoldFailing(new NotEnoughStock([$variants[0] => 1]));
+
+        $changed = Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class);
+
+        expect($changed->reason)->toBe('inventory.not_enough_stock')
+            ->and($changed->context())->toBe(['reason' => 'inventory.not_enough_stock', 'variants' => $variants[0]])
+            ->and($changed->getPrevious())->toBeInstanceOf(NotEnoughStock::class);
+        nothingPlaced();
+    });
+
+    it('lets a fault go on as itself, never as QuoteChanged', function () {
+        ['address' => $address] = Cx::ready();
+        $quote = Cx::start($address);
+        placeHoldFailing(new InvalidInventoryInput('variant'));
+
+        expect(fn () => Cx::place($quote->id))->toThrow(InvalidInventoryInput::class);
+        nothingPlaced();
+    });
+
+    it('takes only the quoted pieces out of the cart, and a coupon typed since stays', function () {
+        ['address' => $address, 'variants' => $variants] = Cx::ready();
+        Pr::ceiling(50);
+        Pr::coupon('SUMMER-15');
+        Pr::coupon('AUTUMN-10');
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $quote = Cx::start($address);
+        app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $variants[0], 'RETAIL', 5));
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'AUTUMN-10'));
+
+        Cx::place($quote->id);
+
+        expect(DB::table('sales.cart_lines')->get()->map(fn ($line): array => [$line->variant_id, $line->quantity])->all())->toBe([[$variants[0], 3]])
+            ->and(DB::table('sales.carts')->value('coupon_code'))->toBe('AUTUMN-10');
+    });
+
+    it('refuses when the gift quoted is no longer given', function () {
+        ['address' => $address, 'variants' => $variants] = Cx::ready();
+        $level = Pr::giftLevel($variants[1], 100_00);
+        $quote = Cx::start($address);
+        expect($quote->giftLevelId)->toBe($level);
+        DB::table('promotions.gift_levels')->update(['active' => false]);
+
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toBe('gift');
+        nothingPlaced();
+    });
+
+    it('spreads the VAT over the lines and the shipping', function () {
+        ['address' => $address] = Cx::ready();
+        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+        $quote = Cx::start($address);
+
+        $placed = Cx::place($quote->id);
+
+        $shares = OrderShares::of(
+            array_map(fn ($line) => $line->total, $quote->prices->lines),
+            array_map(fn ($line) => Money::zero('SAR'), $quote->prices->lines),
+            $quote->totals->pointsDiscount, $quote->totals->vat, $quote->totals->shipping,
+        );
+        $lines = (int) DB::table('sales.order_lines')->where('order_id', $placed->id)->sum('vat_share_minor');
+        expect($quote->totals->shipping->minorUnits)->toBe(25_00)
+            ->and($shares['shippingVat']->minorUnits)->toBeGreaterThan(0)
+            ->and($lines + $shares['shippingVat']->minorUnits)->toBe($quote->totals->vat->minorUnits)
+            ->and((int) DB::table('sales.orders')->value('shipping_fee_minor'))->toBe(25_00);
+    });
+
+    it('keeps the coupon code on the order as Promotions keeps codes', function () {
+        ['address' => $address] = Cx::ready();
+        Pr::ceiling(50);
+        Pr::coupon('SUMMER-15');
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'summer-١٥'));
+
+        $placed = Cx::place(Cx::start($address)->id);
+
+        expect(DB::table('sales.orders')->where('id', $placed->id)->value('coupon_code'))->toBe('SUMMER-15');
+    });
+
+    it('clears an anonymized account email from its orders, and keeps the rest', function () {
+        ['address' => $address, 'customer' => $customer] = Cx::ready();
+        $placed = Cx::place(Cx::start($address)->id);
+        $phone = DB::table('sales.orders')->where('id', $placed->id)->value('customer_phone');
+
+        app(ForgetCustomer::class)->handle(new CustomerAnonymized((string) Str::uuid(), strtoupper($customer), CarbonImmutable::now()));
+
+        $order = DB::table('sales.orders')->where('id', $placed->id)->first();
+        expect($order?->customer_email)->toBeNull()
+            ->and($order?->customer_name)->toBe('Sara Ali')
+            ->and($order?->customer_phone)->toBe($phone)
+            ->and($order?->address)->not->toBeNull();
+    });
+});
+
+/** Inventory's hold refusing with this error; its reads as they are. */
+function placeHoldFailing(Throwable $error): void
+{
+    $real = app(InventoryApi::class);
+    $inventory = Mockery::mock(InventoryApi::class);
+    $inventory->shouldReceive('stock')->andReturnUsing(fn (mixed ...$arguments): mixed => $real->stock(...$arguments));
+    $inventory->shouldReceive('hold')->andThrow($error);
+    app()->instance(InventoryApi::class, $inventory);
+}

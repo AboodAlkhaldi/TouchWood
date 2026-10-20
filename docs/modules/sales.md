@@ -171,14 +171,24 @@ Built in this fixed order (handoff §10.2, §11.3):
 
 **As built (step S6b)** — my assumptions, stated for the owner to reject:
 - **The locks in one order**: Sales's own first (the quote, then the cart), then Promotions' and Loyalty's,
-  Inventory's last, nothing after it (stage 5: Inventory's hold takes Catalog's lock). So **the order is
-  written before `useCoupon`, `redeem` and `hold`** — the lines' keys lock Catalog's rows — all in the
-  one transaction, as if in the order above.
+  Inventory's last (stage 5: its hold takes Inventory's store lock, then Catalog's) — after it only new
+  rows are written, no existing row locked. The order is written before the other modules are called, and
+  `recordOrder` comes before `hold`; all in one transaction, so the outcome is the order above. A deadlock
+  with a Catalog write meanwhile is tried again, up to 3 times (a new number each time; gaps allowed).
 - **The re-checks run on the quote's own lines**, never the cart's (the cart may have changed since).
-- **`QuoteChanged` names what moved** (`reason`): `audience`, `way_to_pay`, `gift`, `ceiling`, or the
-  refusing error's type (`sales.not_orderable`, `promotions.…`, `loyalty.…`, `inventory.…`).
-- **Placing empties the cart of what was bought**: the quote's lines (by size and mode) leave the cart,
-  and its coupon is cleared; lines added since stay.
+- **`QuoteChanged` names what moved** (`reason`): a rule of the quote (`audience`, `way_to_pay`, `gift`,
+  `ceiling`), something gone since (`store`, `customer`, `lines`, `phone`), or the refusing error's type —
+  only these refusals: `sales.may_not_order`, `sales.not_for_your_account`, `sales.not_orderable`,
+  `sales.address_not_usable`, `promotions.coupon_refused`, `promotions.coupon_changed`,
+  `loyalty.redemption_refused`, `loyalty.redemption_changed`, `loyalty.points_programme_off`,
+  `inventory.not_enough_stock` (its sizes passed on as `variants`). Any other error is a fault and goes
+  on as itself.
+- **Placing empties the cart of what was bought**: each quoted line's pieces leave the cart (a line
+  raised since keeps the rest; one with none left goes), and the coupon is cleared when it is still the
+  one quoted; lines added since stay.
+- **The order keeps the coupon's code as Promotions keeps codes**: upper case, Latin digits.
+- **Anonymizing** (§1.12) is one queued listener, `ForgetCustomer`: the carts deleted and the orders' email
+  cleared; the name, phone and address stay.
 - `PlaceOrder` takes the store as well as the quote's id: the permission is checked in that store, and a
   quote of another store is `QuoteNotFound`.
 

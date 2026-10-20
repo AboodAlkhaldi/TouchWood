@@ -17,6 +17,9 @@ interface Orders
     /** The order and its lines, in one go. */
     public function add(NewOrder $order): void;
 
+    /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
+    public function forgetEmail(string $customerId): void;
+
     /**
      * One change of the order, once, never changed (§5 `order_history`). Its detail never holds the
      * customer's email or phone: anonymizing could not clear it.

@@ -33,6 +33,7 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Model\Cart;
 use Modules\Sales\Domain\Model\PlacedOrder;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\OrderNumbers;
@@ -52,7 +53,8 @@ use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * Placing a quote (sales.md §1.3) — **one transaction**, its locks in one order: Sales's own first (the
- * quote, then the cart), then Promotions' and Loyalty's, Inventory's last, nothing after it:
+ * quote, then the cart), then Promotions' and Loyalty's, Inventory's last — no lock on an existing row
+ * after it, only new rows (the cart's own row already locked); a deadlock tried again (`ATTEMPTS`):
  *
  * 1. the quote locked; an order already placed from it answered as it is — before the expiry, so a
  *    retry after 15 minutes still gets its order; then the expiry;
@@ -60,17 +62,31 @@ use Shared\Infrastructure\Persistence\Ulids;
  * 3. every rule that can change in 15 minutes, again, on the quote's own lines — the store, the
  *    account, the lines, the address, the way to pay, **the gift as quoted**, **the coupon and points
  *    within the discount room** (answer 37);
- * 4. the order written, snapshotted — before Inventory, whose hold takes Catalog's lock, as the lines'
- *    keys lock Catalog's rows;
- * 5. the coupon used, the points redeemed, the stock held (no expiry), the order's fact recorded;
- * 6. the bought lines and the coupon leave the cart (my assumption, stated for the owner to reject);
+ * 4. the order written, snapshotted;
+ * 5. the coupon used, the points redeemed, the order's fact recorded, the stock held (no expiry);
+ * 6. the bought pieces and the coupon leave the cart (my assumption, stated for the owner to reject);
  * 7. `OrderPlaced` into the outbox.
  *
- * **Any refusal rolls everything back** and is `QuoteChanged`, naming what moved (§1.3).
+ * **Any refusal rolls everything back** and is `QuoteChanged`, naming what moved (§1.3) — only the
+ * refusals of `REFUSALS`: anything else is a fault, and goes on as itself.
  */
 final readonly class PlaceOrderHandler
 {
     public const string PERMISSION = SalesPermissions::ORDER_PLACE;
+
+    /**
+     * The refusals that mean something moved since the quote (§1.3, §7) — every other error, a bug or a
+     * fault (a module's own input check, a permission), goes on as itself, never hidden as `QuoteChanged`.
+     */
+    public const array REFUSALS = [
+        'sales.may_not_order', 'sales.not_for_your_account', 'sales.not_orderable', 'sales.address_not_usable',
+        'promotions.coupon_refused', 'promotions.coupon_changed',
+        'loyalty.redemption_refused', 'loyalty.redemption_changed', 'loyalty.points_programme_off',
+        'inventory.not_enough_stock',
+    ];
+
+    /** A deadlock with a Catalog write meanwhile is tried again (Inventory's hold takes Catalog's lock). */
+    public const int ATTEMPTS = 3;
 
     public function __construct(
         private Authorizer $authorizer,
@@ -157,23 +173,39 @@ final readonly class PlaceOrderHandler
             } catch (QuoteChanged $changed) {
                 throw $changed;
             } catch (DomainError $refused) {
-                throw new QuoteChanged($refused->type());
+                throw in_array($refused->type(), self::REFUSALS, true) ? new QuoteChanged($refused->type(), $refused) : $refused;
             }
 
-            // 6. The bought lines and the coupon leave the cart.
+            // 6. The bought pieces leave the cart — what was added since stays — and the coupon, when it is
+            // still the one quoted.
             if ($cart !== null) {
-                foreach ($view->prices->lines as $line) {
-                    $this->carts->remove($cart->id, $line->variantId, $line->mode, $now);
-                }
-
-                $this->carts->setCoupon($cart->id, null, $now);
+                $this->emptyOf($cart, $view, $now);
             }
 
             // 7. Told, with the change.
             $this->outbox->record(new OrderPlaced((string) Str::uuid(), $orderId, $store->value, $customerId, $now));
 
             return new PlacedOrder($orderId, $number);
-        });
+        }, self::ATTEMPTS);
+    }
+
+    /** The quoted pieces of each line out of the cart, a line gone when none are left; the quoted coupon. */
+    private function emptyOf(Cart $cart, QuoteView $view, CarbonImmutable $now): void
+    {
+        foreach ($view->prices->lines as $quoted) {
+            foreach ($cart->lines as $line) {
+                if ($line->variantId !== $quoted->variantId || $line->mode !== $quoted->mode) {
+                    continue;
+                }
+
+                $left = $line->quantity - $quoted->quantity;
+                $left > 0 ? $this->carts->change($cart->id, $line->variantId, $line->mode, $left, $now) : $this->carts->remove($cart->id, $line->variantId, $line->mode, $now);
+            }
+        }
+
+        if ($cart->couponCode !== null && $cart->couponCode === $view->couponCode) {
+            $this->carts->setCoupon($cart->id, null, $now);
+        }
     }
 
     /**
@@ -213,8 +245,8 @@ final readonly class PlaceOrderHandler
     }
 
     /**
-     * §1.3 steps 4–6: the coupon used, the points redeemed, the stock held — one line a size over both
-     * its modes, and the gift's own — and the order's fact recorded.
+     * §1.3 steps 4–6: the coupon used, the points redeemed, the order's fact recorded, and — last, its
+     * lock the last taken — the stock held: one line a size over both its modes, and the gift's own.
      *
      * @throws DomainError
      */
@@ -249,7 +281,7 @@ final readonly class PlaceOrderHandler
             $hold[] = new HoldLineDto($view->giftVariantId, 1, true);
         }
 
-        $this->inventory->hold($store, $orderId, $hold, null);
         $this->promotions->recordOrder(new RecordOrder($orderId, $customerId, $store->value, $now, $promotionsCaller));
+        $this->inventory->hold($store, $orderId, $hold, null);
     }
 }

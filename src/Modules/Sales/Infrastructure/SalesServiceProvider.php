@@ -24,7 +24,7 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
 use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
-use Modules\Sales\Infrastructure\Listener\ForgetCustomerCarts;
+use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
@@ -58,7 +58,7 @@ final class SalesServiceProvider extends ServiceProvider
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
         // An anonymized account's carts deleted (§1.12).
-        Event::listen(CustomerAnonymized::class, [ForgetCustomerCarts::class, 'handle']);
+        Event::listen(CustomerAnonymized::class, [ForgetCustomer::class, 'handle']);
         // A store opened later gets its own order numbers from 1001 (§1.3).
         Event::listen(StoreCreated::class, [CreateOrderSequence::class, 'handle']);
 

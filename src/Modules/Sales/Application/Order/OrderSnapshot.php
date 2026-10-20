@@ -16,6 +16,7 @@ use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
 use Modules\Sales\Domain\Service\OrderShares;
+use Shared\Domain\Text\LatinDigits;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -95,7 +96,7 @@ final readonly class OrderSnapshot
             ],
             $quote->wayToPay->value,
             $quote->couponId,
-            $quote->couponId === null ? null : $quote->couponCode,
+            $quote->couponId === null || $quote->couponCode === null ? null : strtoupper(LatinDigits::of(trim($quote->couponCode))),
             $totals->couponDiscount->minorUnits,
             $quote->pointsUsed,
             $totals->pointsDiscount->minorUnits,
