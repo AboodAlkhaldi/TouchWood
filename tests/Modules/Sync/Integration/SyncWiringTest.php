@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
@@ -130,9 +131,12 @@ describe('wiring', function () {
             ->and(app(PricingWiring::class)->isWired(StoreId::fromString(syncSa())))->toBeFalse();
     });
 
-    it('cannot wire to Odoo before its adapter is built: it calls nothing and fails', function () {
-        expect(fn () => syncWire())->toThrow(ConnectionFailed::class)
+    it('wires to Odoo only when its adapter\'s test call works: a refused token saves nothing (SyncOdooAdapterTest)', function () {
+        Http::fake(['odoo.test/*' => Http::response(['error' => 'bad token'], 401)]);
+
+        expect(fn () => syncWire())->toThrow(ConnectionFailed::class, 'Odoo refused the token (401).')
             ->and(DB::table('sync.connections')->count())->toBe(0);
+        Http::assertSentCount(1);
     });
 
     it('refuses anyone but a Super Admin, before anything is looked up', function () {

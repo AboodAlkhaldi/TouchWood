@@ -399,14 +399,14 @@ describe('a read\'s page (ViewSyncRead, Y2)', function () {
 });
 
 describe('the Provider page (ViewConnection, Y3)', function () {
-    it('says until the Odoo connection is built (Q38), with the notice address and what it takes (S7)', function () {
+    it('says the Odoo connection is built (Q38: no "being built" note), with the notice address and what it takes (S7)', function () {
         app(UnwireStoreHandler::class)->handle(new UnwireStore(syncShownSa()));
         app()->forgetInstance(OdooAdapter::class);
         app()->offsetUnset(OdooAdapter::class);
 
         $view = app(ViewConnectionHandler::class)->handle(new ViewConnection(syncShownSa()));
 
-        expect([$view->provider, $view->state, $view->providerReady, $view->providers, $view->keySet])->toBe([null, 'NOT_WIRED', false, ['ODOO'], false])
+        expect([$view->provider, $view->state, $view->providerReady, $view->providers, $view->keySet])->toBe([null, 'NOT_WIRED', true, ['ODOO'], false])
             ->and($view->noticeAddress)->toEndWith('/sync/notify/'.syncShownSa())
             ->and($view->noticeAddress)->toStartWith('https://')
             ->and($view->noticeMostCodes)->toBe(1000);

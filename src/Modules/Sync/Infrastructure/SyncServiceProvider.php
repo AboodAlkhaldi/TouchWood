@@ -41,6 +41,7 @@ use Modules\Sync\Infrastructure\Listener\CloseReachedDiscounts;
 use Modules\Sync\Infrastructure\Listener\CloseSwitchedOnEntries;
 use Modules\Sync\Infrastructure\Listener\ReadCorrectedCode;
 use Modules\Sync\Infrastructure\Provider\ContainerProviderAdapters;
+use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Modules\Sync\Infrastructure\Queue\PruneSyncLogJob;
 use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
 use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
@@ -67,6 +68,8 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->bind(ReadReports::class, DatabaseReadReports::class);
         $this->app->bind(SyncLog::class, DatabaseSyncLog::class);
         $this->app->bind(ProviderAdapters::class, ContainerProviderAdapters::class);
+        // One a worker: it keeps each store's pace between its calls, a read after a read too (sync.md §2.4).
+        $this->app->singleton(OdooAdapter::class);
         $this->app->bind(SyncWords::class, LangSyncWords::class);
         $this->app->bind(NoticeAddresses::class, UrlNoticeAddresses::class);
         // In place of Pricing's and Inventory's "no store is wired" (sync.md §2.2): registered after

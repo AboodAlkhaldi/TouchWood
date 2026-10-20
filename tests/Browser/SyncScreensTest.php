@@ -35,6 +35,7 @@ use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Application\SyncPermissions as P;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
+use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -337,6 +338,18 @@ it('says a skipped discount deleted since as Discount removed, with no link (Q37
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"entry-{$gone}\"] [data-test=\"discount-removed\"]')?.textContent === 'Discount removed' && document.querySelector('[data-test=\"discount-link\"]') === null"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"entry-{$unnamed}\"]')?.textContent.includes('Past the ceiling') && document.querySelector('[data-test=\"entry-{$unnamed}\"] [data-test=\"discount-removed\"]') === null"))->toBeTrue();
+});
+
+it('draws the Provider form with no "being built" note now that Odoo\'s adapter is built (Q38)', function () {
+    // Odoo's own adapter in place of the pretend one: it says it is ready.
+    app()->forgetInstance(OdooAdapter::class);
+    $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
+    $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.getElementById('provider-address') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"not-ready\"]') === null && ! document.body.innerText.includes('being built')"))->toBeTrue()
+        // Odoo asks for nothing beside the address, the key and the secret (§2.4).
+        ->and(browserSoon($page, "document.querySelector('[id^=\"provider-setting-\"]') === null"))->toBeTrue();
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {

@@ -4,8 +4,8 @@
 the one wanted — **one way, per store**: each size's **base (retail) price** and **stock**, by product
 code. It is built from handoff §12.2 (rewritten 2026-10-01, narrowed 2026-10-13), the changelog row of
 2026-10-07 (handoff §0.1), inventory.md and pricing.md, and the owner's answers of 2026-10-13 (§9.2).
-Everything on our side is built against a **pretend provider** in the tests; only the adapter that
-calls Odoo waits for the provider's team (§9.1).
+Everything on our side is built against a **pretend provider** in the tests; the adapter that calls
+Odoo is built to §2.4 (2026-10-20) and tested against a faked HTTP API (§9.1 #1: no test copy).
 
 ## What Sync does not own
 
@@ -49,9 +49,9 @@ calls Odoo waits for the provider's team (§9.1).
 
 A Super Admin opens a store's **Provider** page and enters: the **provider** (Odoo, the one adapter),
 its **address**, the **key**, the **notification secret** (§1.3), and the fields the adapter asks for
-(which wait for the provider's team, §9.1). The key and the secret are **kept encrypted in our
-database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never shown again** — the page
-shows only that they are set and when; a new value replaces the old one.
+(none for Odoo: the address, the key and the secret are all it needs, §2.4). The key and the secret are
+**kept encrypted in our database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never
+shown again** — the page shows only that they are set and when; a new value replaces the old one.
 
 - **Saving tests the connection first**: one small read. If it fails, nothing is saved and the reason
   is shown (`sync.connection_failed`). *(§9.2 #10)*
@@ -185,7 +185,18 @@ prices and stock stay as they are, now editable by hand.
   a number)`. A `ConnectionFailed`'s reason is shown to staff: a short sentence (what failed, a status
   code), never the provider's response or an address with a key in it.
 
-`OdooAdapter` waits for the custom API's spec (§2.4, the owner's answers of 2026-10-19: §9.1); `FakeProvider` serves the tests.
+`OdooAdapter` is built to §2.4 (2026-10-20): Laravel's HTTP client, `GET`s only, the store's address and its token as
+`Authorization: Bearer`; 30 seconds a call - 10 for the Super Admin's test, which runs in a web request (§9.3 #21),
+so a `429` there fails at once rather than wait; one call at a time and **at least 1 second from the end of a
+store's call to its next**, kept by the adapter (one per worker, so a store's next read in the same worker keeps it
+too); an hourly read asks from the last read's start less 5 minutes, in UTC; named codes 500 a call; a `429` waits
+`Retry-After` (60 seconds when it is more, missing or not a number) and asks once more; redirects are not followed
+(the token would go with them). The reasons it gives, in English, each with its status code where there is one:
+"Odoo refused the token (401)." · "Odoo refused the request (400)." · "Odoo failed (5xx)." · "Odoo answered <status>." ·
+"Odoo answered 429 (too many calls) twice." · "Odoo did not answer within 30 seconds." · "Odoo could not be
+reached." · "Odoo's answer is not as agreed: <what>." - the body, the address and the key never. A code sent as a
+number is taken as its digits; the price and the stock are passed on as they came, for Pricing, Inventory and the
+read to check (§1.4, §1.5). `FakeProvider` serves the other tests.
 
 ### 2.2 What Sync gives other modules
 
@@ -357,7 +368,8 @@ controllers and page data, the menu's two entries and the words; the pages are p
   the Provider form puts it under its own box (`errors["settings.<name>"]`).
 - `SyncActionsForReader` also answers `mayViewOffers` (any of Pricing's three jobs), so a link to an offer
   or a discount is drawn only for whoever may open it (pricing.md §4.3.1).
-- The provider's adapter answers `ready()` (Q38): Odoo's is false until §2.4's adapter is written.
+- The provider's adapter answers `ready()` (Q38): Odoo's is true since its adapter was built to §2.4 (2026-10-20), so the
+  Provider page has no "being built" note and a Super Admin wires a store - its test call first (§1.2).
 - **A code twice in one read** (§2.4): the read's values are gathered by code before anything is written, so
   both are skipped however far apart they come; the size's `BAD_VALUE` keeps both (`detail.twice`). A code we
   do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5). The entry keeps the first five
@@ -443,12 +455,13 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
 #### Y3 · Provider - `/admin/sync/provider?store=` (Super Admins)
 
 - **Subtitle**: "Where this store's prices and stock come from."
-- **Until the Odoo connection is built** (Q38): a `Note` - "The Odoo connection is being built. Wiring a
-  store works once it is ready." The form is drawn; its test is refused with the adapter's reason.
+- **Until a provider's connection is built** (Q38): a `Note` - "The Odoo connection is being built. Wiring a
+  store works once it is ready." The form is drawn; its test is refused with the adapter's reason. Odoo's is
+  built (2026-10-20, §2.1): the note is not shown.
 - **A store not wired** - a `Card` **Wire Store**: **Provider** (`NativeSelect`: Odoo) · **Address** ("https://
   odoo.example.com"; as typed: "Address must start with https://." · "Address needs a host." · "Address
   can't hold spaces, a name or a password." · 500 characters) · **the provider's settings** - its own fields
-  (none for Odoo yet), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
+  (none for Odoo, §2.4), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
   characters). **Test and Wire Store** (main): `loading` "Testing…" while the test read runs (up to 10
   seconds); a failure under the form - "Failed to read the provider: <its reason>" - saves nothing; success
   → "Store wired", the page shows the wired store, a Now read is queued.
