@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Command\ChangeGiftLevel;
 
 use Carbon\CarbonImmutable;
+use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\InventoryPermissions;
 use Modules\Promotions\Application\Coupon\CouponAudit;
 use Modules\Promotions\Application\Gift\GiftLevelChecks;
 use Modules\Promotions\Application\MarketingChange;
@@ -34,6 +36,7 @@ final readonly class ChangeGiftLevelHandler
         private MarketingChange $change,
         private GiftLevels $levels,
         private GiftLevelChecks $checks,
+        private InventoryApi $inventory,
     ) {}
 
     /**
@@ -42,8 +45,19 @@ final readonly class ChangeGiftLevelHandler
     public function handle(ChangeGiftLevel $command): void
     {
         $store = $this->change->authorize(self::PERMISSION, $this->change->giftLevelStore(self::PERMISSION, $command->levelId));
+
+        if ($command->fields->makeStockDependent) {
+            $this->change->authorize(InventoryPermissions::STOCK_MANAGE, $store->id);
+        }
+
         $terms = $command->fields->terms($store->currencyCode);
         $storeId = StoreId::fromString($store->id);
+
+        // Ticked, the size is asked about even when it stays the same: one archived since the level was
+        // saved is refused here, by the gift's own field, before Inventory would refuse it in the save.
+        if ($command->fields->makeStockDependent) {
+            $this->checks->variant($terms->variantId);
+        }
 
         $this->change->run($store, function () use ($storeId, $terms, $command): array {
             $level = $this->levels->lock($storeId, $command->levelId) ?? throw new GiftLevelNotFound;
@@ -62,7 +76,22 @@ final readonly class ChangeGiftLevelHandler
                 $this->levels->change($level, $terms, CarbonImmutable::now());
             }
 
+            $this->stockDependent($storeId, $terms->variantId, $command->fields->makeStockDependent);
+
             return [null, array_filter([$entry])];
         });
+    }
+
+    /**
+     * The tick box (promotions.md M4; owner, Q11 (c)): the size's normal sales made to depend on its
+     * stock — in the level's own save, so no level is saved without it; called LAST, after every write
+     * of Promotions', no Promotions lock after it (inventory.md §2.1: Inventory's and Catalog's locks are
+     * held until the save commits). Nothing happens in a store with no provider, nor for a size on already.
+     */
+    private function stockDependent(StoreId $store, string $variantId, bool $ticked): void
+    {
+        if ($ticked) {
+            $this->inventory->makeStockDependent($store, [$variantId]);
+        }
     }
 }

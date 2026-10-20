@@ -26,6 +26,7 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
 | 6a — the coupon reads | `ListCoupons`, `ViewCoupon`, `ListCouponUses`, `ListCouponAssignments` for the staff screens, under the view permission or any manage one | below |
 | 6b — the other reads | `ListSegments`, `ListSegmentMembers`, `ListGiftLevels`; the customer's `ViewMyCoupons` | below |
 | 7 — the module's pass | One whole-module review; a coupon's brands read in bulk (catalog.md amendment 27); a list entry Catalog removed while a coupon is saved answered as `rules`, never a database error; every refusable attribute named in both languages; the spec's stale lines | below |
+| Gift stock (2026-10-20) | The gift dialog's tick box (owner, Q11 (c)): `GiftLevelFields::makeStockDependent`, Create/ChangeGiftLevel calling Inventory's `makeStockDependent` last in the level's own save, under Inventory's `inventory.stock.manage` too; `GiftLevelRow::stockDependent`/`wired`; `SearchGiftSizes` (20 at most, the same facts); the edge Promotions → Inventory | below |
 
 ## What is here
 
@@ -135,7 +136,8 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
   state now (§4), as `CouponRules::refusalNow` reads it; **`CustomerNames`** — a page's names in one
   `AccessApi::customers` call. `ListCoupons` (filters: state now, start of the code), `ViewCoupon`,
   `ListCouponUses`, `ListCouponAssignments`, `ListSegments`, `ListSegmentMembers` (names only),
-  `ListGiftLevels` (gifts named in two Catalog bulk reads); the customer's `ViewMyCoupons`
+  `ListGiftLevels` (gifts named in two Catalog bulk reads, each size's stock facts and the store's wiring
+  from Inventory), `SearchGiftSizes` (the gift dialog's size search); the customer's `ViewMyCoupons`
   (`promotions.coupon.view_own`: assigned to me, usable now, my uses left — one query). SQL in
   `Infrastructure/Eloquent/DatabaseMarketingQueries`, one query per page (the gift levels through
   `DatabaseGiftLevels::ofStore`), keyset indexes in `…_index_marketing_reads` and

@@ -191,6 +191,8 @@ it('reads the page in a fixed few queries, the same for one level as for six', f
         Pr::giftLevel($n % 2 === 0 ? $other : $gift, $n * 100_00);
     }
 
+    // 12: the 9 of the page, and the tick box's facts from Inventory (each size's stock, the store's
+    // wiring), 2026-10-20 — the same however many levels.
     expect($count())->toBe($one)
-        ->and($one)->toBe(9);
+        ->and($one)->toBe(12);
 });
