@@ -16,6 +16,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 | S1 — foundation | The `sales` schema; the fourteen permissions of §3 (every customer's cart and orders and every guest's cart, per store; the staff jobs under Orders; `sales.settings.update` admin-only; the system's reserved `sales.system.run`); the three store settings of §1.10 (flat fee 0, free from 0 — never free —, return window 14 days); the errors of §7 in both languages; `OrderPlaced`, `OrderCancelled`, `OrderDelivered`; stage 7's `ShippingApi` and `PaymentsApi` (with `PaymentAudience`, `PaymentSucceeded`, `PaymentFailed`), provisional and unbound; the owner's answers 41–44 in the spec | below |
 | S2 — the outbox | `Shared/Infrastructure/Outbox` (platform.md §5.6; a recorded exception to Shared's ceiling, answer 43): `Outbox::record` in the change's transaction; `OutboxRelay` every minute from one server (queued as Platform's `RelayOutboxJob`) — claimed under `FOR UPDATE SKIP LOCKED` and leased before dispatch, retried 1, 2, 4 … minutes up to an hour, never dropped, logged from the tenth attempt, dispatched rows kept 30 days; `ProcessedEvents::once` for idempotent consumers; tables `public.outbox_messages`, `public.processed_events` | `src/Shared/Infrastructure/Outbox`, `database/migrations` |
 | S3 — what Sales reads of Catalog and Access | catalog.md amendment 29: `storeVariants` (many sizes in a store in one read) and `productsOpenTo` (which products the category switches leave open to a shopper); access.md amendment 74: `GuestIdentity` (`current`, `ensure` — the guest cart's id, its cookie Access's) | `src/Modules/Catalog/Public`, `src/Modules/Access/Public` |
+| S4 — the cart | Tables `sales.carts`, `sales.cart_lines`; `AddCartLine` (permissive: any size, either mode, 1 to 1,000,000, the same size and mode once; a signed-in individual never wholesale — answer 32; a guest's first line creates the guest), `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` (a customer's only; a guest is told to sign in); a guest's carts move or merge at sign-in, the lines the account may not buy leaving with why (`GuestCartMover`, `MoveGuestCart`); an anonymized account's carts deleted (`ForgetCustomerCarts`); carts untouched for 90 days emptied each night (`EmptyOldCarts`) | below |
 
 ## What is here
 
@@ -28,6 +29,15 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   title and a message in Arabic and English at `sales::errors.{snake}`.
 - **`Public/Events`** — the critical events (handoff §4.5), ids only, after commit; published through the
   outbox once it exists (step S2).
+- **The cart** (S4): `Domain/Model/{Cart,CartLine,RemovedLine}`, `Domain/Repository/Carts` with SQL in
+  `Infrastructure/Eloquent/DatabaseCarts` (a change locks the cart's row first; the first line of a buyer
+  made under the buyer's own key, so two at once make one cart); `Application/Cart/CartBuyer` (who the
+  cart is — the customer, or the guest this browser is, made only once a first line passed every check),
+  `CartInputs`; the commands `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon`,
+  `EmptyOldCarts` (the system's, nightly through `Infrastructure/Queue/EmptyOldCartsJob`);
+  `Application/Cart/GuestCartMover` behind `Infrastructure/Listener/MoveGuestCart` (synchronous, never
+  failing a sign-in) and `ForgetCustomerCarts` (queued).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`.
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`; the outbox's in
+`tests/Shared/Integration/Outbox*Test`.

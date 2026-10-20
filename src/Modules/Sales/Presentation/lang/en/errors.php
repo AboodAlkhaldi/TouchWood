@@ -86,6 +86,7 @@ return [
         'store' => 'store',
         'quantity' => 'quantity',
         'variant' => 'size',
+        'sale_mode' => 'retail or wholesale',
         'coupon' => 'coupon',
         'address' => 'address',
         'way_to_pay' => 'way to pay',

@@ -616,7 +616,10 @@ by (`store_id`, `status`, `requested_at`); by `order_id`. Carts by `guest_id`, b
 | `StoreCreated` | Platform | Creates the store's order-number sequence (§5) |
 | `PaymentSucceeded`, `PaymentFailed` | Payments (stage 7) | Records the payment, or leaves the order unpaid |
 
-Each consumer records `processed_events`, so a message delivered twice is acted on once.
+Each consumer records `processed_events`, so a message delivered twice is acted on once — save the
+cart's two, which are done once however often told by what they do (a guest's carts are gone after the
+first move; an account with no carts has none to delete), as Feedback's and Catalog's listeners are
+(step S4).
 
 ---
 
