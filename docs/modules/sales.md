@@ -267,6 +267,18 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   order shows a refund due (§1.4). A cancellation writes `OrderCancelled` to the outbox; a rejection
   publishes nothing yet (§2.2).
 
+**As built (step S7a)** — my assumptions, stated for the owner to reject:
+- **Staff's words are required** for a rejection and a staff cancellation (1–500 characters); a customer's
+  "Other" needs words, a listed reason takes none.
+- **Each change locks the order first**, then Loyalty's `orderCancelled`, then — last — Inventory's
+  `release`; tried again on a deadlock. A staff change is audited (`sales.order.approved`, `…rejected`,
+  `…cancelled`, `…short_cleared`, with what changed); every change is in the order's history.
+- **An order of a store the reader does not cover is no order** (`OrderNotFound`); holding the job
+  nowhere is not allowed (`Unauthorized`); a customer's other order is no order.
+- **"Stock was reduced"** (§1.11) flags only the named orders still waiting or approved and unshipped,
+  once each, from the queue (`FlagShortOrders`); clearing an order with no flag changes nothing.
+- An off store's orders are decided and cancelled as any other (answer 39; §1.12).
+
 ### 1.7 Staff edits before shipping
 
 **Staff contact the customer before shipping** and settle anything missing with them (owner,

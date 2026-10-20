@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Infrastructure\Eloquent;
 
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
+use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\PlacedOrder;
 use Modules\Sales\Domain\Repository\Orders;
 use stdClass;
@@ -89,6 +91,72 @@ final readonly class DatabaseOrders implements Orders
             'points_share_minor' => $line->pointsShare,
             'vat_share_minor' => $line->vatShare,
         ], $order->lines));
+    }
+
+    public function lock(string $orderId): ?OrderState
+    {
+        $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at']);
+
+        return $row instanceof stdClass ? new OrderState(
+            (string) $row->id,
+            (string) $row->store_id,
+            (string) $row->number,
+            (string) $row->customer_id,
+            (string) $row->status,
+            (string) $row->shipment_status,
+            (int) $row->due_minor,
+            (int) $row->paid_minor,
+            (int) $row->refunded_minor,
+            $row->short_of_stock_at === null ? null : CarbonImmutable::parse((string) $row->short_of_stock_at),
+        ) : null;
+    }
+
+    public function storeOf(string $orderId): ?string
+    {
+        $store = $this->db->table('sales.orders')->where('id', strtolower($orderId))->value('store_id');
+
+        return $store === null ? null : (string) $store;
+    }
+
+    public function approve(string $orderId, string $by, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update(['status' => OrderState::APPROVED, 'decided_by' => $by, 'decided_at' => Moment::of($at)]);
+    }
+
+    public function reject(string $orderId, string $by, string $reason, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'status' => OrderState::REJECTED, 'decided_by' => $by, 'decided_at' => Moment::of($at), 'decision_reason' => $reason, 'due_minor' => 0,
+        ]);
+    }
+
+    public function cancel(string $orderId, string $reason, ?string $other, ?string $by, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'status' => OrderState::CANCELLED, 'cancel_reason' => $reason, 'cancel_other' => $other, 'cancelled_by' => $by,
+            'cancelled_at' => Moment::of($at), 'due_minor' => 0,
+        ]);
+    }
+
+    public function flagShort(string $storeId, array $orderIds, DateTimeImmutable $at): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $rows = $this->db->select(sprintf(
+            "UPDATE sales.orders SET short_of_stock_at = ? WHERE store_id = ? AND id IN (%s) AND short_of_stock_at IS NULL
+                AND status IN ('PENDING_APPROVAL', 'APPROVED') AND shipment_status = 'NOT_SHIPPED' RETURNING id",
+            implode(', ', array_fill(0, count($orderIds), '?')),
+        ), [Moment::of($at), $storeId, ...array_map('strtolower', $orderIds)]);
+
+        return array_values(array_map(static fn (stdClass $row): string => (string) $row->id, $rows));
+    }
+
+    public function clearShort(string $orderId): bool
+    {
+        return $this->db->table('sales.orders')->where('id', $orderId)->whereNotNull('short_of_stock_at')->update(['short_of_stock_at' => null]) > 0;
     }
 
     public function forgetEmail(string $customerId): void

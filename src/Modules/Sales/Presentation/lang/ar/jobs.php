@@ -6,5 +6,6 @@ declare(strict_types=1);
 return [
     'delete_expired_quotes' => 'حذف عمليات الدفع المنتهية',
     'empty_old_carts' => 'تفريغ السلال المتروكة 90 يومًا',
+    'flag_short_orders' => 'تعليم الطلبات التي نقص مخزونها',
     'forget_customer' => 'نسيان الحساب المجهّل: حذف سلاله ومسح بريده من طلباته',
 ];
