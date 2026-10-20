@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Inventory\Public\Events\HoldsShort;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
@@ -244,6 +246,7 @@ describe('cancelling', function () {
         'Other without words' => ['OTHER', null, InvalidSalesAttribute::class],
         'a listed reason with words' => ['TOO_SLOW', 'Slow', InvalidSalesAttribute::class],
         'by staff' => ['BY_STAFF', 'Me', InvalidSalesAttribute::class],
+        'by staff, no words' => ['BY_STAFF', null, InvalidSalesAttribute::class],
         'no such reason' => ['BORED', null, InvalidSalesAttribute::class],
     ]);
 
@@ -262,13 +265,19 @@ describe('stock was reduced', function () {
         $cancelled = Cx::place(Cx::start(Cx::ready()['address'])->id)->id;
         decidedStaff([SalesPermissions::ORDER_CANCEL]);
         app(CancelOrderHandler::class)->handle(new CancelOrder($cancelled, 'Gone'));
-        $event = new HoldsShort((string) Str::uuid(), Fx::storeId('sa'), $variants[0], [$open, $cancelled, strtolower((string) Str::ulid())], CarbonImmutable::now());
+        $shipped = Cx::place(Cx::start(Cx::ready()['address'])->id)->id;
+        DB::table('sales.orders')->where('id', $shipped)->update([
+            'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(),
+            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+        ]);
+        $event = new HoldsShort((string) Str::uuid(), Fx::storeId('sa'), $variants[0], [$open, $cancelled, $shipped, strtolower((string) Str::ulid())], CarbonImmutable::now());
 
         app(FlagShortOrders::class)->handle($event);
         app(FlagShortOrders::class)->handle($event);
 
         expect(decidedRow($open)?->short_of_stock_at)->not->toBeNull()
             ->and(decidedRow($cancelled)?->short_of_stock_at)->toBeNull()
+            ->and(decidedRow($shipped)?->short_of_stock_at)->toBeNull()
             ->and(decidedHistory($open))->toBe(['PLACED', 'SHORT_FLAGGED']);
     });
 
@@ -283,5 +292,116 @@ describe('stock was reduced', function () {
         expect(decidedRow($order)?->short_of_stock_at)->toBeNull()
             ->and(decidedHistory($order))->toBe(['PLACED', 'SHORT_CLEARED'])
             ->and(Fx::audits('sales.order.short_cleared', $order))->toBe(1);
+    });
+});
+
+describe('what the review asked for', function () {
+    it('lets an off store own staff decide and its customers cancel the orders placed there', function () {
+        $ready = Cx::ready(storeCode: 'eg');
+        $first = Cx::place(Cx::start($ready['address'], storeCode: 'eg')->id, 'eg')->id;
+        Cx::add($ready['variants'][0], storeCode: 'eg');
+        $second = Cx::place(Cx::start($ready['address'], storeCode: 'eg')->id, 'eg')->id;
+        // Made while the store is on: an off store's code no longer names it here.
+        $staff = Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['eg']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($first, 'CHANGED_MIND'));
+        Fx::actAsStaff($staff);
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($second));
+
+        expect(decidedRow($first)?->status)->toBe('CANCELLED')
+            ->and(decidedRow($second)?->status)->toBe('APPROVED');
+    });
+
+    it('gives the points back when staff or the customer cancel', function (bool $byStaff) {
+        ['order' => $order, 'customer' => $customer] = decidedOrder(withPoints: true);
+        $before = app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points;
+        $used = (int) DB::table('sales.orders')->where('id', $order)->value('points_used');
+
+        if ($byStaff) {
+            decidedStaff([SalesPermissions::ORDER_CANCEL]);
+            app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Called'));
+        } else {
+            app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'FOUND_CHEAPER'));
+        }
+
+        expect($used)->toBeGreaterThan(0)
+            ->and(app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points)->toBe($before + $used);
+    })->with([
+        'staff' => [true],
+        'the customer' => [false],
+    ]);
+
+    it('lets a Super Admin decide in any store', function () {
+        ['order' => $order] = decidedOrder();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+
+        expect(decidedRow($order)?->status)->toBe('APPROVED');
+    });
+
+    it('audits what changed, staff words only as written', function () {
+        ['order' => $order] = decidedOrder();
+        decidedStaff([SalesPermissions::ORDER_CANCEL]);
+
+        app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Called 0501234567'));
+
+        $entry = DB::table('platform.audit_entries')->where('action', 'sales.order.cancelled')->where('subject_id', $order)->first();
+        $history = (string) DB::table('sales.order_history')->where('order_id', $order)->where('kind', 'CANCELLED')->value('detail');
+        expect((string) $entry?->changes)->toContain('PENDING_APPROVAL')
+            ->and((string) $entry?->changes)->toContain('CANCELLED')
+            ->and((string) $entry?->changes)->toContain('cancel_other')
+            ->and((string) $entry?->changes)->not->toContain('0501234567')
+            ->and($history)->not->toContain('0501234567')
+            ->and(decidedRow($order)?->cancel_other)->toBe('Called 0501234567');
+    });
+
+    it('audits a cleared flag as the flag that changed', function () {
+        ['order' => $order] = decidedOrder();
+        DB::table('sales.orders')->where('id', $order)->update(['short_of_stock_at' => CarbonImmutable::now()]);
+        decidedStaff([SalesPermissions::ORDER_EDIT]);
+
+        app(ClearShortFlagHandler::class)->handle(new ClearShortFlag($order));
+
+        $changes = (string) DB::table('platform.audit_entries')->where('action', 'sales.order.short_cleared')->value('changes');
+        expect($changes)->toContain('short_of_stock_at')
+            ->and($changes)->not->toContain('status');
+    });
+
+    it('refuses the customer a cancellation once shipped, and staff the customer command', function () {
+        ['order' => $order] = decidedOrder();
+        DB::table('sales.orders')->where('id', $order)->update([
+            'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(),
+            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+        ]);
+
+        expect(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND')))->toThrow(NotCancellable::class);
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        expect(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND')))->toThrow(Unauthorized::class);
+    });
+
+    it('answers a bad reason the same for an order that is not the customer own', function () {
+        ['order' => $order] = decidedOrder();
+        Fx::actAsCustomer(Cx::customer());
+
+        expect(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'BORED')))->toThrow(InvalidSalesAttribute::class)
+            ->and(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder(strtolower((string) Str::ulid()), 'BORED')))->toThrow(InvalidSalesAttribute::class);
+    });
+
+    it('flags the orders of the event store only, and acts on an event once', function () {
+        ['order' => $order, 'variants' => $variants] = decidedOrder();
+        $other = new HoldsShort((string) Str::uuid(), Fx::storeId('eg'), $variants[0], [$order], CarbonImmutable::now());
+        app(FlagShortOrders::class)->handle($other);
+        expect(decidedRow($order)?->short_of_stock_at)->toBeNull();
+
+        $event = new HoldsShort((string) Str::uuid(), Fx::storeId('sa'), $variants[0], [$order], CarbonImmutable::now());
+        app(FlagShortOrders::class)->handle($event);
+        DB::table('sales.orders')->where('id', $order)->update(['short_of_stock_at' => null]);
+        app(FlagShortOrders::class)->handle($event);
+
+        expect(decidedRow($order)?->short_of_stock_at)->toBeNull()
+            ->and(decidedHistory($order))->toBe(['PLACED', 'SHORT_FLAGGED']);
     });
 });

@@ -38,22 +38,28 @@ final readonly class OrderUndoing
     }
 
     /**
-     * The change in the order's history; a staff member's audited too.
+     * The change in the order's history; a staff member's audited too, with what changed. Words typed by
+     * staff are never put here: they stay on the order's row, which anonymizing can reach — the audit
+     * says only that they were written (`personal`).
      *
-     * @param  array<string, string|int|bool|null>  $detail  never the customer's email or phone
+     * @param  array<string, string|int|bool|null>  $detail  never an email, a phone, or typed words
      */
-    public function record(OrderState $order, string $kind, ?string $staffId, DateTimeImmutable $at, string $toStatus, array $detail = []): void
+    public function record(OrderState $order, string $kind, ?string $staffId, DateTimeImmutable $at, AuditChanges $changes, array $detail = []): void
     {
         $this->orders->recordHistory($order->id, $order->storeId, $kind, null, $staffId, $at, $detail);
 
         if ($staffId !== null) {
-            $changes = AuditChanges::none()->changed('status', $order->status, $toStatus);
-
             foreach ($detail as $attribute => $value) {
                 $changes = $changes->changed($attribute, null, $value);
             }
 
             $this->platform->recordAudit(new AuditEntryDto('sales.order.'.strtolower($kind), 'sales.order', $order->id, $order->storeId, $changes));
         }
+    }
+
+    /** The status moving, as the audit says it. */
+    public static function status(OrderState $order, string $to): AuditChanges
+    {
+        return AuditChanges::none()->changed('status', $order->status, $to);
     }
 }

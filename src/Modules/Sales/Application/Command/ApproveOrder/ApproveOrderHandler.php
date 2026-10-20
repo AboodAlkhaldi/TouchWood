@@ -43,7 +43,7 @@ final readonly class ApproveOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->approve($order->id, $staffId, $now);
-            $this->changes->record($order, 'APPROVED', $staffId, $now, OrderState::APPROVED);
+            $this->changes->record($order, 'APPROVED', $staffId, $now, OrderUndoing::status($order, OrderState::APPROVED));
         }, 3);
     }
 }

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Command\ClearShortFlag;
 
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderUndoing;
 use Modules\Sales\Application\SalesPermissions;
@@ -39,8 +41,9 @@ final readonly class ClearShortFlagHandler
         $this->db->transaction(function () use ($orderId, $staffId): void {
             $order = $this->orders->lock($orderId) ?? throw new OrderNotFound;
 
-            if ($this->orders->clearShort($order->id)) {
-                $this->changes->record($order, 'SHORT_CLEARED', $staffId, CarbonImmutable::now(), $order->status);
+            if ($order->shortOfStockAt !== null && $this->orders->clearShort($order->id)) {
+                $changes = AuditChanges::none()->changed('short_of_stock_at', $order->shortOfStockAt->format(DateTimeInterface::ATOM), null);
+                $this->changes->record($order, 'SHORT_CLEARED', $staffId, CarbonImmutable::now(), $changes);
             }
         }, 3);
     }

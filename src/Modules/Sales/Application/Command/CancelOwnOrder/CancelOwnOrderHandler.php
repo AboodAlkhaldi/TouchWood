@@ -45,8 +45,9 @@ final readonly class CancelOwnOrderHandler
      */
     public function handle(CancelOwnOrder $command): bool
     {
-        [$orderId, , $customerId] = $this->access->authorize(self::PERMISSION, $command->orderId);
+        // The reason first: whether an id is an order is never told apart by a bad reason's answer.
         [$reason, $words] = OrderInputs::customerReason($command->reason, $command->other);
+        [$orderId, , $customerId] = $this->access->authorize(self::PERMISSION, $command->orderId);
 
         return $this->db->transaction(function () use ($orderId, $customerId, $reason, $words): bool {
             $order = $this->orders->lock($orderId);
@@ -61,7 +62,7 @@ final readonly class CancelOwnOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->cancel($order->id, $reason->value, $words, null, $now);
-            $this->changes->record($order, 'CANCELLED', null, $now, OrderState::CANCELLED, ['reason' => $reason->value]);
+            $this->changes->record($order, 'CANCELLED', null, $now, OrderUndoing::status($order, OrderState::CANCELLED), ['reason' => $reason->value]);
             $this->outbox->record(new OrderCancelled((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->undo($order, self::PERMISSION);
 

@@ -55,7 +55,7 @@ final readonly class CancelOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->cancel($order->id, CancelReason::ByStaff->value, $words, $staffId, $now);
-            $this->changes->record($order, 'CANCELLED', $staffId, $now, OrderState::CANCELLED, ['reason' => CancelReason::ByStaff->value, 'words' => $words]);
+            $this->changes->record($order, 'CANCELLED', $staffId, $now, OrderUndoing::status($order, OrderState::CANCELLED)->personal('cancel_other'), ['reason' => CancelReason::ByStaff->value]);
             $this->outbox->record(new OrderCancelled((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->undo($order, self::PERMISSION);
         }, 3);

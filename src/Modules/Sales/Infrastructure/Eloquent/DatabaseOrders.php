@@ -141,17 +141,24 @@ final readonly class DatabaseOrders implements Orders
 
     public function flagShort(string $storeId, array $orderIds, DateTimeImmutable $at): array
     {
-        if ($orderIds === []) {
-            return [];
+        $flagged = [];
+
+        // In parts: PostgreSQL takes at most 65,535 bound values in one statement.
+        foreach (array_chunk(array_values(array_unique(array_map('strtolower', $orderIds))), 1000) as $ids) {
+            $rows = $this->db->select(sprintf(
+                "UPDATE sales.orders SET short_of_stock_at = ? WHERE store_id = ? AND id IN (%s) AND short_of_stock_at IS NULL
+                    AND status IN ('PENDING_APPROVAL', 'APPROVED') AND shipment_status = 'NOT_SHIPPED' RETURNING id",
+                implode(', ', array_fill(0, count($ids), '?')),
+            ), [Moment::of($at), $storeId, ...$ids]);
+
+            foreach ($rows as $row) {
+                $flagged[] = (string) $row->id;
+            }
         }
 
-        $rows = $this->db->select(sprintf(
-            "UPDATE sales.orders SET short_of_stock_at = ? WHERE store_id = ? AND id IN (%s) AND short_of_stock_at IS NULL
-                AND status IN ('PENDING_APPROVAL', 'APPROVED') AND shipment_status = 'NOT_SHIPPED' RETURNING id",
-            implode(', ', array_fill(0, count($orderIds), '?')),
-        ), [Moment::of($at), $storeId, ...array_map('strtolower', $orderIds)]);
+        sort($flagged);
 
-        return array_values(array_map(static fn (stdClass $row): string => (string) $row->id, $rows));
+        return $flagged;
     }
 
     public function clearShort(string $orderId): bool

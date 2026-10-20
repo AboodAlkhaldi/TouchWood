@@ -272,11 +272,14 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   "Other" needs words, a listed reason takes none.
 - **Each change locks the order first**, then Loyalty's `orderCancelled`, then — last — Inventory's
   `release`; tried again on a deadlock. A staff change is audited (`sales.order.approved`, `…rejected`,
-  `…cancelled`, `…short_cleared`, with what changed); every change is in the order's history.
+  `…cancelled`, `…short_cleared`, with what changed); every change is in the order's history. **Words
+  typed by staff stay on the order's row only** — the audit says they were written, never what — so
+  anonymizing has nothing to rewrite in the history or the audit log.
 - **An order of a store the reader does not cover is no order** (`OrderNotFound`); holding the job
   nowhere is not allowed (`Unauthorized`); a customer's other order is no order.
-- **"Stock was reduced"** (§1.11) flags only the named orders still waiting or approved and unshipped,
-  once each, from the queue (`FlagShortOrders`); clearing an order with no flag changes nothing.
+- **"Stock was reduced"** (§1.11) flags only the named orders of the event's store still waiting or
+  approved and unshipped, once each, each event acted on once (`processed_events`), from the queue
+  (`FlagShortOrders`); clearing an order with no flag changes nothing.
 - An off store's orders are decided and cancelled as any other (answer 39; §1.12).
 
 ### 1.7 Staff edits before shipping

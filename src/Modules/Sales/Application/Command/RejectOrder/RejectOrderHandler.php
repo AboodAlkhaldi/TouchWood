@@ -50,7 +50,7 @@ final readonly class RejectOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->reject($order->id, $staffId, $reason, $now);
-            $this->changes->record($order, 'REJECTED', $staffId, $now, OrderState::REJECTED, ['reason' => $reason]);
+            $this->changes->record($order, 'REJECTED', $staffId, $now, OrderUndoing::status($order, OrderState::REJECTED)->personal('decision_reason'));
             $this->changes->undo($order, self::PERMISSION);
         }, 3);
     }
