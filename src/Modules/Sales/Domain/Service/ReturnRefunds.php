@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Domain\Service;
 
+use Brick\Math\BigInteger;
+use Brick\Math\RoundingMode;
 use InvalidArgumentException;
 
 /**
@@ -11,7 +13,8 @@ use InvalidArgumentException;
  * totals**: for a line of `n` pieces with a share `S`, the first `k` pieces returned carry
  * `floor(S × k ÷ n)`, and each return moves that less what earlier ones moved — so the last piece takes what
  * is left and a line returned in parts lands exactly on `S`. Each received piece refunds its goods share
- * (its part of the line's total less its coupon and points shares) plus its share of the VAT; a gift's is
+ * (its part of the line's total less its coupon and points shares, moved as one share) plus its share of
+ * the VAT; a gift's is
  * 0. **The shipping fee and its VAT share** go with the return that makes every bought piece returned —
  * once an order.
  */
@@ -42,8 +45,12 @@ final class ReturnRefunds
                 continue;
             }
 
-            $move = static fn (int $share): int => intdiv($share * ($earlier + $pieces), $line['quantity']) - intdiv($share * $earlier, $line['quantity']);
-            $lineGoods = $move($line['total']) - $move($line['coupon']) - $move($line['points']);
+            // In whole numbers of any size: a share × pieces may pass PHP's integers.
+            $upTo = static fn (int $share, int $taken): BigInteger => BigInteger::of($share)->multipliedBy($taken)->dividedBy($line['quantity'], RoundingMode::Down);
+            $move = static fn (int $share): int => $upTo($share, $earlier + $pieces)->minus($upTo($share, $earlier))->toInt();
+            // The goods moved as one share — the line's total less its coupon and points shares — so no return's
+            // goods go below 0 however the three round.
+            $lineGoods = $move($line['total'] - $line['coupon'] - $line['points']);
             $goods += $lineGoods;
             $points += $move($line['points']);
             $refund += $lineGoods + $move($line['vat']);

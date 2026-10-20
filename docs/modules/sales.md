@@ -421,8 +421,10 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
   none go back).
 - `CompleteReturn` refunds by `Domain/Service/ReturnRefunds` (the running totals above). The shipping's VAT
   share is the order's VAT less what its lines carry. The refund comes off `due`; the money itself is
-  paid back by hand (`RecordRefund`, §1.9) — until then the order shows `REFUND_DUE`. It answers the
-  refund, so staff see it. Loyalty is told the pieces' goods shares and points shares; `ReturnCompleted`
+  paid back by hand (`RecordRefund`, §1.9) — an order holding more than it is now due shows `REFUND_DUE`
+  until then. It answers the refund, so staff see it. Each piece's goods share moves as **one** share
+  (total less coupon and points shares), never the three rounded apart — so no return's goods go below 0 —
+  in whole numbers of any size. Loyalty is told the pieces' goods shares and points shares; `ReturnCompleted`
   goes to the outbox. A return of which nothing came completes, refunding nothing.
 - `SalesApi` (§2.1) now reads Sales's own rows (`Infrastructure/Eloquent/DatabaseSalesApi`; the placeholder
   is gone): the latest delivery by delivery time (then line); `returned` when any piece of the product came
@@ -570,7 +572,7 @@ reject.
 #104), with `ReturnCompleted` — on 2026-10-19: `Public/Contracts/SalesApi`,
 `Public/Dto/DeliveredPurchaseDto`, `ReturnedProductsDto`, `Public/Events/ReturnCompleted`, bound until
 the build to `Infrastructure/External/NothingSoldYet` (nothing delivered, no return) so Feedback runs
-before Sales exists; Sales's build replaces the binding.
+before Sales exists; Sales's build replaces the binding. **Replaced in step S10b** by `Infrastructure/Eloquent/DatabaseSalesApi`.
 
 | Method | Answers |
 |---|---|

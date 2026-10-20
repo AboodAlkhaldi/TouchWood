@@ -27,8 +27,8 @@ it('moves each share by running totals, so a line returned piece by piece lands 
     $second = ReturnRefunds::of($lines, ['a' => 1], ['a' => 1], false, 25_00, 3_75);
     $third = ReturnRefunds::of($lines, ['a' => 2], ['a' => 1], false, 25_00, 3_75);
 
-    // floor(S/3), floor(2S/3) - floor(S/3), S - floor(2S/3), for each share.
-    expect([$first['goods'], $second['goods'], $third['goods']])->toBe([33_33 - 3_33 - 1_67, 33_33 - 3_33 - 1_67, 33_34 - 3_34 - 1_67])
+    // floor(S/3), floor(2S/3) - floor(S/3), S - floor(2S/3), for each share — the goods (84.99) as one.
+    expect([$first['goods'], $second['goods'], $third['goods']])->toBe([28_33, 28_33, 28_33])
         ->and([$first['points'], $second['points'], $third['points']])->toBe([1_67, 1_67, 1_67])
         ->and($first['refund'] + $second['refund'] + $third['refund'])->toBe(100_00 - 10_00 - 5_01 + 12_74)
         ->and([$first['shipping'], $second['shipping'], $third['shipping']])->toBe([false, false, false]);
@@ -55,6 +55,24 @@ it('carries the shipping once only, and never while a bought piece is still out'
         ->and(ReturnRefunds::of($lines, ['a' => 3], ['b' => 1], true, 25_00, 3_75)['shipping'])->toBeFalse()
         ->and(ReturnRefunds::of($lines, ['a' => 2], ['b' => 1], false, 25_00, 3_75)['shipping'])->toBeFalse()
         ->and(ReturnRefunds::of($lines, ['a' => 3], ['b' => 1], false, 25_00, 3_75)['refund'])->toBe(50_00 - 2_50 + 7_12 + 25_00 + 3_75);
+});
+
+it('never moves goods below 0, however a line nearly paid by its coupon and points rounds', function () {
+    // Goods of 0.00 over 2 pieces: rounding total, coupon and points each on its own gave +0.01 then -0.01.
+    $lines = ['a' => ['quantity' => 2, 'total' => 3_00, 'coupon' => 1_51, 'points' => 1_49, 'vat' => 0, 'gift' => false]];
+
+    $first = ReturnRefunds::of($lines, [], ['a' => 1], false, 0, 0);
+    $second = ReturnRefunds::of($lines, ['a' => 1], ['a' => 1], false, 0, 0);
+
+    expect([$first['goods'], $second['goods'], $first['refund'], $second['refund']])->toBe([0, 0, 0, 0])
+        ->and($first['points'] + $second['points'])->toBe(1_49);
+});
+
+it('works in whole numbers beyond PHP integers: a large line of many pieces', function () {
+    // 10^13 × 10^6 = 10^19, past PHP_INT_MAX (about 9.2 × 10^18).
+    $lines = ['a' => ['quantity' => 1_000_000, 'total' => 10_000_000_000_000, 'coupon' => 0, 'points' => 0, 'vat' => 0, 'gift' => false]];
+
+    expect(ReturnRefunds::of($lines, ['a' => 999_999], ['a' => 1], true, 0, 0)['refund'])->toBe(10_000_000);
 });
 
 it('refuses more pieces back than a line holds, a line the order lacks, and fewer than none', function (array $before, array $now) {

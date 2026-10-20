@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
+use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Sales\Application\Return\ReturnAccess;
 use Modules\Sales\Application\Return\ReturnChanges;
 use Modules\Sales\Application\Return\ReturnInputs;
@@ -73,7 +74,8 @@ final readonly class ReceiveReturnHandler
 
             $now = CarbonImmutable::now();
             $this->returns->receive($return->id, $counts, $now);
-            $this->changes->record($order, $return, ReturnState::RECEIVED, $staffId, $now);
+            $this->changes->record($order, $return, ReturnState::RECEIVED, $staffId, $now, AuditChanges::none()
+                ->changed('pieces_received', null, array_sum(array_column($counts, 0)))->changed('pieces_restocked', null, array_sum(array_column($counts, 1))));
 
             // Inventory last.
             if ($back !== []) {
