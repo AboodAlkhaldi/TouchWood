@@ -99,5 +99,6 @@ return [
         'note' => 'note',
         'date' => 'date',
         'request' => 'form',
+        'file' => 'file',
     ],
 ];

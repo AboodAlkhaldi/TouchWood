@@ -436,7 +436,12 @@ Payments' (stage 7).
 - **"May ship unpaid"** is switched on or off by staff on an approved, unshipped order
   (`sales.order.fulfil`); each switch is in the history and audited. What staff type — a reference, a
   note, a void's reason — is audited as written only (§1.12).
-- The bank-transfer documents are step S7c.
+- **The bank-transfer documents** (step S7c): `UploadTransferDocument` under `sales.order.manage_own`
+  (also the scope of Platform's `uploadMediaFor`, in the order's store) — the customer's own order paid by
+  bank transfer, while it holds less than is due; at most 3, numbered 1–3 in the order they came; PDF,
+  JPEG or PNG judged by the file's content, not its name; private; in the order's history. Platform
+  keeps every one an order holds (`TransferDocumentsUsage`: each use blocks the delete). Staff open them
+  from the order (step S11).
 
 ### 1.10 Store settings
 

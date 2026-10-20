@@ -49,6 +49,15 @@ interface Orders
     /** Whether staff let the order ship before what it holds covers what is due (§1.4). */
     public function allowShipUnpaid(string $orderId, bool $allow): void;
 
+    /**
+     * The bank-transfer documents the order holds, by their media ids, in their order (§1.9).
+     *
+     * @return list<string>
+     */
+    public function transferDocuments(string $orderId): array;
+
+    public function addTransferDocument(string $orderId, string $storeId, string $mediaId, int $position, DateTimeImmutable $at): void;
+
     /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
     public function forgetEmail(string $customerId): void;
 

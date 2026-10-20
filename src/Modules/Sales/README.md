@@ -63,8 +63,11 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Domain/Repository/MoneyRecords` with SQL in `Infrastructure/Eloquent/DatabaseMoneyRecords`;
   `Application/Order/MoneyRecording` (one recorder for payments and refunds — pressing twice records once);
   the commands `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` (answer 42), `AllowShipUnpaid`.
+- **Transfer documents** (S7c): `sales.transfer_documents`; `UploadTransferDocument` (up to 3, PDF, JPEG or
+  PNG, private, through Platform's `uploadMediaFor`); `Infrastructure/Media/TransferDocumentsUsage` (Platform
+  never deletes one an order holds).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.
