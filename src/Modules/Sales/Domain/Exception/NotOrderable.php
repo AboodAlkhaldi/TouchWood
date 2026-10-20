@@ -7,11 +7,15 @@ namespace Modules\Sales\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * A line not orderable here: not sold, in its mode, unpriced, outside its minimum and maximum, or not enough stock (§1.1, §1.2).
+ * A line not orderable here: not sold, in its mode, unpriced, outside its minimum and maximum, or not
+ * enough stock (§1.1, §1.2) — the sizes named, so the cart can mark them; none for an empty cart.
  */
 final class NotOrderable extends SalesError
 {
-    public function __construct()
+    /**
+     * @param  list<string>  $variantIds
+     */
+    public function __construct(public readonly array $variantIds = [])
     {
         parent::__construct('A line cannot be ordered as it is.');
     }
@@ -24,5 +28,10 @@ final class NotOrderable extends SalesError
     public function category(): ErrorCategory
     {
         return ErrorCategory::Invalid;
+    }
+
+    public function context(): array
+    {
+        return ['variants' => implode(',', $this->variantIds)];
     }
 }

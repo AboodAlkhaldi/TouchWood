@@ -14,10 +14,13 @@ use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomerCarts;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
+use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Public\Contracts\SalesApi;
 
@@ -32,6 +35,7 @@ final class SalesServiceProvider extends ServiceProvider
     {
         $this->app->bind(SalesApi::class, NothingSoldYet::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
+        $this->app->bind(Quotes::class, DatabaseQuotes::class);
     }
 
     public function boot(): void
@@ -52,6 +56,8 @@ final class SalesServiceProvider extends ServiceProvider
         // job, never command() or call() (owner's decision, 2026-09-18).
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(EmptyOldCartsJob::class)->timezone('Asia/Riyadh')->dailyAt('03:15')->onOneServer();
+            // Quotes past their expiry (§5).
+            $schedule->job(DeleteExpiredQuotesJob::class)->timezone('Asia/Riyadh')->dailyAt('03:30')->onOneServer();
         });
     }
 }
