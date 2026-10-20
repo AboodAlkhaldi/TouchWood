@@ -8,6 +8,9 @@ use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Inventory\Application\Stock\InventoryChange;
+use Modules\Inventory\Application\Stock\SizeInput;
+use Modules\Inventory\Application\Stock\StockDependentSwitch;
 use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Domain\Exception\AlreadyHeld;
 use Modules\Inventory\Domain\Exception\HoldNotEditable;
@@ -17,7 +20,6 @@ use Modules\Inventory\Domain\Exception\NotEnoughStock;
 use Modules\Inventory\Domain\Exception\NotWired;
 use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\ShipMoreThanHeld;
-use Modules\Inventory\Domain\Exception\StockBelowZero;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
@@ -36,9 +38,10 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * `InventoryApi` (inventory.md §1.3, §1.4, §1.9, §2.1, §4.1). Module to module: no permission is
- * checked. Every change runs in its own transaction, retried on a deadlock; sizes are touched in
- * size-id order, as every writer to the stock does (`StockRows`). A hold is one conditional update per
- * size, all or nothing. Shipping, ticking, freeing, editing and returning are safe to repeat.
+ * checked. Every change runs in its own transaction, retried on a deadlock - a savepoint in the
+ * caller's when it has one open; sizes are touched in size-id order, as every writer to the stock does
+ * (`StockRows`). A hold is one conditional update per size, all or nothing. Shipping, ticking, freeing,
+ * editing and returning are safe to repeat.
  */
 final readonly class InventoryApiImpl implements InventoryApi
 {
@@ -52,6 +55,9 @@ final readonly class InventoryApiImpl implements InventoryApi
         private StockMovements $movements,
         private ConnectionInterface $db,
         private StockFacts $facts,
+        private SizeInput $sizes,
+        private InventoryChange $change,
+        private StockDependentSwitch $switch,
     ) {}
 
     public function stock(StoreId $store, array $variantIds): array
@@ -126,14 +132,21 @@ final readonly class InventoryApiImpl implements InventoryApi
 
                 if (! $wired && $current->countsOnStock) {
                     $before = $this->stock->lockExisting($store, [$line->variantId])[$line->variantId]->inStock ?? 0;
+                    // Never refused, never below 0 (sales.md answer 41; inventory.md §9.2 #22): what there is
+                    // goes, and the pieces shipped beyond the count are named for a recount. The hold lets
+                    // go of all of them.
+                    $taken = min($before, $line->quantity);
+                    $short = $line->quantity - $taken;
 
-                    if ($before < $line->quantity) {
-                        throw new StockBelowZero;
+                    if ($taken > 0) {
+                        $this->stock->take($store, $line->variantId, $taken);
+                        $after = $current->shipped + $line->quantity;
+                        $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $taken, $short > 0 ? self::shortNote($short) : null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
                     }
 
-                    $this->stock->take($store, $line->variantId, $line->quantity);
-                    $after = $current->shipped + $line->quantity;
-                    $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $line->quantity, null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
+                    if ($short > 0) {
+                        $this->stock->free($store, $line->variantId, $short);
+                    }
                 }
 
                 $shippedNow = $current->shipped + $line->quantity;
@@ -289,6 +302,35 @@ final readonly class InventoryApiImpl implements InventoryApi
 
             $this->facts->refresh($store, array_values(array_unique(array_map(static fn (HoldLineDto $line): string => $line->variantId, $back))));
         }, 3);
+    }
+
+    public function makeStockDependent(StoreId $store, array $variantIds): array
+    {
+        $this->platform->store($store) ?? throw new InvalidInventoryInput('store');
+
+        // Only a wired store has the switch: in one with no provider every size counts on its stock already.
+        if ($variantIds === [] || ! $this->wiring->isWired($store)) {
+            return [];
+        }
+
+        $products = [];
+
+        // As staff's switch: every size known and not archived, or nothing changes (SizeInput).
+        foreach ($this->sizes->check($variantIds) as [$variantId, $productId]) {
+            $products[$variantId] = $productId;
+        }
+
+        // The caller's transaction when there is one (a savepoint in it), its own otherwise: the store's
+        // lock first, the audit entries inside (InventoryChange). On only, never off.
+        return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true));
+    }
+
+    /**
+     * The ledger's note on a shipment that took the stock to 0 with pieces still to go (sales.md answer 41).
+     */
+    private static function shortNote(int $short): string
+    {
+        return "{$short} more shipped than counted - recount";
     }
 
     private function endOpen(string $orderId, string $ended): void

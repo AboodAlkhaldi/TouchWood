@@ -21,6 +21,7 @@ use Modules\Inventory\Domain\Exception\NotEnoughStock;
 use Modules\Inventory\Domain\Exception\NotWired;
 use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\ShipMoreThanHeld;
+use Modules\Inventory\Domain\Exception\StockBelowZero;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Modules\Inventory\Public\Events\HoldsShort;
@@ -176,6 +177,58 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
 
         expect(fn () => inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 3)]))->toThrow(ShipMoreThanHeld::class)
             ->and(inventoryHoldsFigures($size))->toBe([5, 2]);
+    });
+
+    it('ships more than is in stock in a store with no provider: the stock stops at 0 and the shortfall is noted for a recount (sales.md answer 41)', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::count('sa', [$size => 3]);
+        $order = inventoryHoldsOrder();
+        inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 3)], null);
+        // A hand removal took two of the three held pieces: 1 in stock, 3 held.
+        Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
+
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 3)]);
+
+        expect(inventoryHoldsFigures($size))->toBe([0, 0])
+            ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 3 3 SHIPPED"])
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→3 SYSTEM', 'DAMAGED_LOST 3→1 SYSTEM', 'SHIPPED 1→0 2 more shipped than counted - recount SYSTEM']);
+
+        // The same shipment again counts once; a removal by hand is still refused below 0.
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 3)]);
+
+        expect(inventoryHoldsFigures($size))->toBe([0, 0])
+            ->and(Ix::ledger('sa', $size))->toHaveCount(3)
+            ->and(fn () => Ix::adjust('sa', $size, 'REMOVE', 1, 'DAMAGED_LOST'))->toThrow(StockBelowZero::class)
+            ->and(inventoryHoldsFigures($size))->toBe([0, 0]);
+    });
+
+    it('ships from a stock already at 0 without a ledger line - nothing is taken - and frees the hold', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::count('sa', [$size => 2]);
+        $order = inventoryHoldsOrder();
+        inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 2)], null);
+        Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
+
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
+
+        expect(inventoryHoldsFigures($size))->toBe([0, 0])
+            ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 2 2 SHIPPED"])
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→2 SYSTEM', 'DAMAGED_LOST 2→0 SYSTEM']);
+    });
+
+    it('notes nothing on a part all in stock, and ships the next part from 0 with no line', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::count('sa', [$size => 4]);
+        $order = inventoryHoldsOrder();
+        inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 4)], null);
+        Ix::adjust('sa', $size, 'REMOVE', 1, 'DAMAGED_LOST');
+
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 3)]);
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
+
+        expect(inventoryHoldsFigures($size))->toBe([0, 0])
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'DAMAGED_LOST 4→3 SYSTEM', 'SHIPPED 3→0 SYSTEM']);
     });
 
     it('takes nothing on a wired store\'s shipment, and the tick ends a stock-dependent line\'s hold', function () {

@@ -8,6 +8,7 @@ use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
+use Modules\Inventory\Public\InventoryPermissions as Names;
 
 /**
  * The permissions Inventory's use cases check (inventory.md §3). Declared into Access's catalog at
@@ -17,21 +18,25 @@ use Modules\Access\Public\Enums\PermissionKind;
  * thresholds, the switches and the Low Stock list. It sits in the role editor's Catalog group, as no
  * stock group exists (owner, 2026-10-09). The system's two jobs are reserved: never offered in a role.
  *
+ * The names themselves are public (`Modules\Inventory\Public\InventoryPermissions`), so another module
+ * can check Manage Stock for itself (owner, 2026-10-19); the constants here are the same names, for the
+ * module's own use cases.
+ *
  * Each permission's handlers arrive with their build step; the module's README says which.
  */
 final class InventoryPermissions
 {
     /** Stock in a store: stocktakes, hand changes, thresholds, the switches; the Low Stock list. */
-    public const string STOCK_MANAGE = 'inventory.stock.manage';
+    public const string STOCK_MANAGE = Names::STOCK_MANAGE;
 
     /** The scheduled job that frees expired holds - the system's. */
-    public const string HOLDS_EXPIRE = 'inventory.holds.expire';
+    public const string HOLDS_EXPIRE = Names::HOLDS_EXPIRE;
 
     /** The repair job that pushes every size's orderability to Catalog again - the system's. */
-    public const string ORDERABLE_REBUILD = 'inventory.orderable.rebuild';
+    public const string ORDERABLE_REBUILD = Names::ORDERABLE_REBUILD;
 
     /** The job that counts a store's low sizes again for the menu (step 5) - the system's. */
-    public const string LOW_STOCK_COUNT = 'inventory.low_stock.count';
+    public const string LOW_STOCK_COUNT = Names::LOW_STOCK_COUNT;
 
     /**
      * @return list<PermissionDefinitionDto>
