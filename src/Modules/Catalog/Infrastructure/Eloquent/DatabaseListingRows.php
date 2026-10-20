@@ -129,8 +129,8 @@ final readonly class DatabaseListingRows implements ListingRows
             'INSERT INTO '.self::TABLE.' AS l ('.$list('%s').')'
             .' SELECT r.store_id, r.locale, r.product_id, r.name, r.slug, r.brand_id, r.brand_visible_by_default,'
             .' r.category_id, r.category_path, r.in_category_pages, r.value_ids, r.label_ids, r.card_media_id, r.card_photo,'
-            // The rank Sales pushed for the store (amendment 30), none when it has none.
-            .' r.orderable, r.price_minor, (SELECT sr.rank FROM catalog.sales_ranks AS sr WHERE sr.store_id = r.store_id AND sr.product_id = r.product_id),'
+            // The rank Sales pushed for the store (amendment 30), none when it has none — cast, so the ranks' key is used.
+            .' r.orderable, r.price_minor, (SELECT sr.rank FROM catalog.sales_ranks AS sr WHERE sr.store_id = r.store_id::bpchar AND sr.product_id = r.product_id::bpchar),'
             ." r.search_text, {$document},"
             .' r.for_individuals, r.for_companies, r.sells_retail, r.sells_wholesale, r.card_variant_id, r.retail_card_variant_id,'
             .' r.ending_soon_companies, r.ending_soon_individuals, r.price_before_minor, r.retail_price_minor, r.retail_price_before_minor'

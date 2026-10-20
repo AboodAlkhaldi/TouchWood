@@ -329,8 +329,8 @@ browser's, a product with no variant attributes named by no values. **For stage 
 read (`variants`, `products`: `ApiReads`, two queries and one, however many ids). `CategoryMoved` is
 sent when a category moves. **`ListingFacts` is bound** (`DatabaseListingFacts`): orderable, ending
 soon and prices (`ListingPrice`) kept in `store_variant_facts`, only the facts given, a variant not
-Catalog's left out; the cards read them with the shop's pages (P22); Sales' ranks are refused until
-stage 6. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+Catalog's left out; the cards read them with the shop's pages (P22); Sales's Best-Selling ranks
+(amendment 30) kept in `sales_ranks`, a store's whole ranking at a time, which every listing row takes. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
 register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
 says prices are kept once one is registered; switching an item on gives each section the variant,
 its price and stock, inside the same change.
@@ -857,7 +857,8 @@ individual's filter can offer a value only a wholesale-only size has (the produc
 | `Integration/CatalogApiTest` | `CatalogApi`: variants, codes (one corrected away), products, a variant in a store (switched off, hidden), resolving the variant (a product with no set) |
 | `Integration/CatalogUsagesTest` | The usage check before deletes (amendment 19): a category, brand, draft product (and its variants) and draft variant another module uses refused, nothing deleted; what nobody uses deleted after asking |
 | `Integration/CatalogApiReadsTest` | Stage 5's reads: a product's variants in order (archived when asked), a category's products and those below it, a store's switched-on variants, many variants and products in a fixed number of queries; a cart's line facts in one query (amendment 18); a brand and whether it is on (amendment 20), many brands in one read (amendment 27); which products a store sells now, in one read (amendment 24); `CategoryMoved` |
-| `Integration/CatalogListingFactsTest` | `ListingFacts` kept, each fact apart, a price cleared, `ListingPrice`'s rule, no ranks yet; `ImportSections`: once each, lines on a store file's page, each item switched on given to the sections |
+| `Integration/CatalogListingFactsTest` | `ListingFacts` kept, each fact apart, a price cleared, `ListingPrice`'s rule; `ImportSections`: once each, lines on a store file's page, each item switched on given to the sections |
+| `Integration/CatalogSalesRanksTest` | Amendment 30: a store's ranking on its listing rows, the other stores untouched, a product left out losing its rank, a rewritten row taking it back from `sales_ranks`, unknown ids and ranks below 1 left out |
 | `Unit/CatalogListLocksTest` | A list's lock is refused outside a transaction |
 | `Unit/CatalogListingRowsTest` | The listing is never written outside a transaction |
 | `Unit/CatalogSearchTermsTest` | What was typed, as search reads it; word pairs, a run of words before one |

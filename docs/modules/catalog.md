@@ -1241,6 +1241,8 @@ relations, variants and theirs) are removed with it — which happens only when 
 | `catalog.store_category_ranks` | (`store_id`, `category_id` FK CASCADE) PK · `rank` `integer` |
 | `catalog.store_category_audiences` | (`store_id` FK → `platform.stores` RESTRICT, `category_id` FK CASCADE) PK · `for_individuals`, `for_companies` `boolean` NOT NULL — **no row means both** (amendment 14: a category nobody switched is seen by both), so a new category and a store opened later need no rows · timestamps |
 | `catalog.store_variant_facts` | (`store_id`, `variant_id` FK CASCADE) PK · `orderable` `boolean` NULL — Inventory's (null: §1.3's rule until it pushes) · `ending_soon` `boolean` NOT NULL DEFAULT false — Inventory's "last pieces" (amendment 16(h)) · `price_minor`, `price_before_minor` `bigint` NULL and `currency` `char(3)` NULL — Pricing's `ListingPrice` (amendment 15), the before only with a now, and a currency with either · timestamps. **[PROPOSED P22]** The pushed facts kept where the listing's writer reads them (§2.2). Sales' ranks (stage 6) get their own table when Sales first pushes them |
+| `catalog.sales_ranks` | (`store_id` FK → `platform.stores` RESTRICT, `product_id` FK CASCADE) PK · `rank` `integer` CHECK ≥ 1 · `updated_at` — Sales's Best-Selling ranks (amendment 30), a store's whole ranking replaced at each push; every listing row of the store takes its `sales_rank` from here |
+| `catalog.product_ratings` | `product_id` FK CASCADE PK · `rating_sum` `bigint`, `rating_count` `integer` (CHECK `rating_count` ≥ 0, `rating_sum` between `rating_count` and 5 × it) · `updated_at` — Feedback's ratings, one for every store (amendment 25); with `catalog.store_rating_display` (`store_id` PK, `shown`) |
 
 **5.3 The lists**
 

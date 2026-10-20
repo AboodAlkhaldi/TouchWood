@@ -21,7 +21,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  * is not Catalog's is left out. **The listing reads them** (P22, amendment 16(h)): each push writes
  * the listing rows of the products it touched again, under the products' lock — "Last pieces" on
  * the cards, each side's card price kept for Pricing's stage — and so replaces the shop's cached
- * pages' version (DatabaseListLocks).
+ * pages' version (DatabaseListLocks). Sales's Best-Selling ranks (amendment 30) are kept the same way, in
+ * `catalog.sales_ranks`, a store's whole ranking at a time.
  */
 final readonly class DatabaseListingFacts implements ListingFacts
 {
