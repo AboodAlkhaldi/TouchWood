@@ -102,5 +102,6 @@ return [
         'file' => 'file',
         'carrier' => 'carrier',
         'tracking_number' => 'tracking number',
+        'gift' => 'gift',
     ],
 ];

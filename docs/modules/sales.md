@@ -351,6 +351,22 @@ had none (owner, 2026-10-19, answer 33).
 
 An edit does not clear the "stock was reduced" flag by itself (§1.11).
 
+**As built (step S9)** — my assumptions, stated for the owner to reject:
+- **Staff give the order's lines as they should be** (a size, its mode, its quantity; the gift aside): a
+  size and mode not named goes; at least one line stays. A raised quantity adds one part of this edit; the
+  order keeps each part's own price and the edit that added it.
+- **The gift**: `KEEP` keeps it as it is, even below its level now (as after a partial return, §1.8);
+  `REMOVE`; or a level the edited order reaches whose gift is in stock after the order's own pieces —
+  added when it had none, swapped when it had one.
+- **An edit's checks are checkout's** (§1.2 step 2) on every added or changed line's new total; their stock
+  is the hold's (`adjustHold` all or nothing — a refusal leaves the order as it was).
+- The edit keeps, with its own id: the reason (staff's words, on the edit's row only — the audit says it was
+  written), who, when, and the order's lines and totals before and after (never an email or a phone). The
+  address changed is audited as personal. Promotions' `updateCouponUse` and Loyalty's `orderEdited` are told
+  of every edit of an order that has a coupon or points; Inventory's `adjustHold` last.
+- `PreviewOrderEdit` works the same out without writing; both refuse an order waiting or approved only,
+  unshipped, nothing ticked (`NotEditable`).
+
 ### 1.8 Returns, refunds and their shares
 
 - **The customer asks**, within **the store's return window — 14 days from delivery by default**,

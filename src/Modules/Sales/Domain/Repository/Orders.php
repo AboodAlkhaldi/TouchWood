@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Modules\Sales\Domain\Repository;
 
 use DateTimeImmutable;
+use Modules\Sales\Domain\Model\EditedTotals;
 use Modules\Sales\Domain\Model\NewOrder;
+use Modules\Sales\Domain\Model\NewOrderLine;
+use Modules\Sales\Domain\Model\OrderForEdit;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\PlacedOrder;
 
@@ -89,6 +92,28 @@ interface Orders
 
     /** @param  list<string>  $variantIds  ticked once each */
     public function tick(string $orderId, string $storeId, array $variantIds, string $by, DateTimeImmutable $at): void;
+
+    /** What an edit reads of the order (§1.7); null when there is no such order. */
+    public function forEdit(string $orderId): ?OrderForEdit;
+
+    /**
+     * A staff edit kept (§5 `order_edits`): its own id, the reason, who and when, the order before and after
+     * — lines and totals, never an email or a phone.
+     *
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    public function addEdit(string $editId, string $orderId, string $storeId, string $reason, string $by, DateTimeImmutable $at, array $before, array $after): void;
+
+    /**
+     * The order's lines as the edit leaves them, every share allocated again: those not given go.
+     *
+     * @param  list<NewOrderLine>  $lines
+     */
+    public function replaceLines(string $orderId, string $storeId, array $lines): void;
+
+    /** The totals, the gift and — when it changed — the address an edit left; what is due follows. */
+    public function changeTotals(string $orderId, EditedTotals $totals): void;
 
     /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
     public function forgetEmail(string $customerId): void;

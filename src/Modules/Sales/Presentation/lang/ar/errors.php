@@ -101,5 +101,6 @@ return [
         'file' => 'الملف',
         'carrier' => 'شركة الشحن',
         'tracking_number' => 'رقم التتبع',
+        'gift' => 'الهدية',
     ],
 ];

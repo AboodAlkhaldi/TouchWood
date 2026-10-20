@@ -7,8 +7,11 @@ namespace Modules\Sales\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Sales\Domain\Model\EditedTotals;
 use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
+use Modules\Sales\Domain\Model\OrderForEdit;
+use Modules\Sales\Domain\Model\OrderLine;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\PlacedOrder;
 use Modules\Sales\Domain\Repository\Orders;
@@ -70,13 +73,25 @@ final readonly class DatabaseOrders implements Orders
             'placed_at' => Moment::of($order->placedAt),
         ]);
 
+        $this->insertLines($order->id, $order->storeId, $order->lines);
+    }
+
+    public function replaceLines(string $orderId, string $storeId, array $lines): void
+    {
+        $this->db->table('sales.order_lines')->where('order_id', $orderId)->delete();
+        $this->insertLines($orderId, $storeId, $lines);
+    }
+
+    /** @param  list<NewOrderLine>  $lines */
+    private function insertLines(string $orderId, string $storeId, array $lines): void
+    {
         $this->db->table('sales.order_lines')->insert(array_map(static fn (NewOrderLine $line): array => [
             'id' => $line->id,
-            'order_id' => $order->id,
-            'store_id' => $order->storeId,
+            'order_id' => $orderId,
+            'store_id' => $storeId,
             'product_id' => $line->productId,
             'variant_id' => $line->variantId,
-            'edit_id' => null,
+            'edit_id' => $line->editId,
             'is_gift' => $line->isGift,
             'name_ar' => $line->nameAr,
             'name_en' => $line->nameEn,
@@ -92,7 +107,7 @@ final readonly class DatabaseOrders implements Orders
             'points_share_minor' => $line->pointsShare,
             'vat_share_minor' => $line->vatShare,
             'counts_on_stock' => $line->countsOnStock,
-        ], $order->lines));
+        ], $lines));
     }
 
     public function lock(string $orderId): ?OrderState
@@ -241,6 +256,68 @@ final readonly class DatabaseOrders implements Orders
         $this->db->table('sales.order_ticks')->insertOrIgnore(array_map(static fn (string $variantId): array => [
             'order_id' => $orderId, 'store_id' => $storeId, 'variant_id' => $variantId, 'ticked_by' => $by, 'ticked_at' => Moment::of($at),
         ], $variantIds));
+    }
+
+    public function forEdit(string $orderId): ?OrderForEdit
+    {
+        $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->first();
+
+        if (! $row instanceof stdClass) {
+            return null;
+        }
+
+        // A size's parts oldest first: those placed with the order, then each edit's in turn.
+        $lines = $this->db->table('sales.order_lines AS l')->leftJoin('sales.order_edits AS e', 'e.id', '=', 'l.edit_id')
+            ->where('l.order_id', $row->id)->orderByRaw('l.edit_id IS NOT NULL, e.at, l.edit_id, l.id')->get(['l.*']);
+
+        /** @var array<string, mixed> $address */
+        $address = json_decode((string) $row->address, true, 512, JSON_THROW_ON_ERROR);
+
+        return new OrderForEdit(
+            (string) $row->id, (string) $row->store_id, (string) $row->customer_id, (string) $row->audience, (string) $row->currency_code,
+            (int) $row->vat_rate_basis_points, (int) $row->shipping_rule_fee_minor, (int) $row->shipping_rule_free_above_minor,
+            $row->coupon_id === null ? null : (string) $row->coupon_id, (int) $row->coupon_discount_minor, (int) $row->points_used, (int) $row->points_discount_minor,
+            $row->gift_level_id === null ? null : (string) $row->gift_level_id, (int) $row->order_total_minor, (int) $row->paid_minor, (int) $row->refunded_minor,
+            $address, (bool) $row->wired,
+            array_values(array_map(static function (stdClass $line): OrderLine {
+                /** @var list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}> $values */
+                $values = json_decode((string) $line->variant_values, true, 512, JSON_THROW_ON_ERROR);
+
+                return new OrderLine(
+                    (string) $line->id, (string) $line->product_id, (string) $line->variant_id, $line->edit_id === null ? null : (string) $line->edit_id,
+                    (bool) $line->is_gift, (string) $line->name_ar, (string) $line->name_en, $values, (string) $line->code, (string) $line->sale_mode,
+                    $line->price_kind === null ? null : (string) $line->price_kind, (int) $line->quantity, (int) $line->unit_minor, (int) $line->list_unit_minor,
+                    (int) $line->total_minor, (bool) $line->counts_on_stock,
+                );
+            }, $lines->all())),
+        );
+    }
+
+    public function addEdit(string $editId, string $orderId, string $storeId, string $reason, string $by, DateTimeImmutable $at, array $before, array $after): void
+    {
+        $this->db->table('sales.order_edits')->insert([
+            'id' => $editId, 'order_id' => $orderId, 'store_id' => $storeId, 'reason' => $reason, 'by' => $by, 'at' => Moment::of($at),
+            'before' => json_encode($before, JSON_THROW_ON_ERROR), 'after' => json_encode($after, JSON_THROW_ON_ERROR),
+        ]);
+    }
+
+    public function changeTotals(string $orderId, EditedTotals $totals): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'coupon_discount_minor' => $totals->couponDiscount,
+            'points_used' => $totals->pointsUsed,
+            'points_discount_minor' => $totals->pointsDiscount,
+            'gross_subtotal_minor' => $totals->grossSubtotal,
+            'net_subtotal_minor' => $totals->netSubtotal,
+            'goods_total_minor' => $totals->goodsTotal,
+            'shipping_fee_minor' => $totals->shippingFee,
+            'taxable_base_minor' => $totals->taxableBase,
+            'vat_minor' => $totals->vat,
+            'order_total_minor' => $totals->orderTotal,
+            'due_minor' => $totals->orderTotal,
+            'gift_level_id' => $totals->giftLevelId,
+            ...($totals->address === null ? [] : ['address' => json_encode($totals->address, JSON_THROW_ON_ERROR)]),
+        ]);
     }
 
     public function forgetEmail(string $customerId): void
