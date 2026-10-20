@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
+use Modules\Inventory\Public\Events\HoldsShort;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\SalesPermissions;
@@ -24,6 +25,7 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
 use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
+use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
@@ -61,6 +63,8 @@ final class SalesServiceProvider extends ServiceProvider
         Event::listen(CustomerAnonymized::class, [ForgetCustomer::class, 'handle']);
         // A store opened later gets its own order numbers from 1001 (§1.3).
         Event::listen(StoreCreated::class, [CreateOrderSequence::class, 'handle']);
+        // Stock removed under placed orders: those still open and unshipped flagged "stock was reduced" (§1.11).
+        Event::listen(HoldsShort::class, [FlagShortOrders::class, 'handle']);
 
         // Carts no one touched for 90 days, emptied each night (§1.1). Scheduled work is queued as a
         // job, never command() or call() (owner's decision, 2026-09-18).

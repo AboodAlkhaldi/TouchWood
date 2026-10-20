@@ -6,5 +6,6 @@ declare(strict_types=1);
 return [
     'delete_expired_quotes' => 'Deleting expired checkouts',
     'empty_old_carts' => 'Emptying carts left alone for 90 days',
+    'flag_short_orders' => 'Marking orders whose stock was reduced',
     'forget_customer' => "Forgetting an anonymized account: its carts deleted, its orders' email cleared",
 ];

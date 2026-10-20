@@ -54,8 +54,13 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   quote placed it), `Domain/Model/{NewOrder,NewOrderLine,PlacedOrder}`, `Domain/Repository/Orders` with
   SQL in `Infrastructure/Eloquent/DatabaseOrders`; the command `PlaceOrder` (one transaction, locks in one
   order, `OrderPlaced` through the outbox).
+- **Decisions** (S7a): `Application/Order/{OrderAccess,OwnOrderAccess}` (which orders staff and a customer
+  may reach), `OrderUndoing` (points back, then the stock freed; the history row and the audit entry),
+  `OrderInputs`; the commands `ApproveOrder`, `RejectOrder`, `CancelOrder`, `CancelOwnOrder` (answers
+  whether a refund is due), `ClearShortFlag`; `Infrastructure/Listener/FlagShortOrders` (queued, on
+  Inventory's `HoldsShort`); `Public/Enums/CancelReason`.
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

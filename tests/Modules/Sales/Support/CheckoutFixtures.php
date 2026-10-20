@@ -39,34 +39,34 @@ final class CheckoutFixtures
     }
 
     /**
-     * Two sizes on sale in the store at 100.00 and 50.00, 100 of each in stock, a customer who may order
+     * Two sizes on sale in the store ('sa' unless told) at 100.00 and 50.00, 100 of each in stock, a customer who may order
      * with an address there, acting as that customer, two of the first size and one of the second in the cart.
      *
      * @return array{customer: string, address: string, variants: list<string>, product: string}
      */
-    public static function ready(string $accountType = 'individual'): array
+    public static function ready(string $accountType = 'individual', string $storeCode = 'sa'): array
     {
         ['product' => $product, 'variants' => $variants] = Px::ready(['60 cm', '80 cm']);
-        Rx::switchOn('sa', $variants);
-        Rx::set('sa', [$variants[0] => '100.00', $variants[1] => '50.00']);
-        Ix::count('sa', [$variants[0] => 100, $variants[1] => 100]);
+        Rx::switchOn($storeCode, $variants);
+        Rx::set($storeCode, [$variants[0] => '100.00', $variants[1] => '50.00']);
+        Ix::count($storeCode, [$variants[0] => 100, $variants[1] => 100]);
         $customer = self::customer($accountType);
-        $address = Bx::savedAddress($customer);
+        $address = Bx::savedAddress($customer, $storeCode);
         Fx::actAsCustomer($customer);
-        self::add($variants[0], 2);
-        self::add($variants[1], 1);
+        self::add($variants[0], 2, storeCode: $storeCode);
+        self::add($variants[1], 1, storeCode: $storeCode);
 
         return ['customer' => $customer, 'address' => $address, 'variants' => $variants, 'product' => $product];
     }
 
-    public static function add(string $variantId, int $quantity = 1, string $mode = 'RETAIL'): void
+    public static function add(string $variantId, int $quantity = 1, string $mode = 'RETAIL', string $storeCode = 'sa'): void
     {
-        app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $variantId, $mode, $quantity));
+        app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId($storeCode), $variantId, $mode, $quantity));
     }
 
-    public static function start(string $addressId, string $way = 'STAFF_CONTACT', bool $usePoints = false, ?int $asked = null): QuoteView
+    public static function start(string $addressId, string $way = 'STAFF_CONTACT', bool $usePoints = false, ?int $asked = null, string $storeCode = 'sa'): QuoteView
     {
-        return app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId('sa'), $addressId, $usePoints, $asked, $way));
+        return app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId($storeCode), $addressId, $usePoints, $asked, $way));
     }
 
     public static function place(string $quoteId, string $storeCode = 'sa'): PlacedOrder
