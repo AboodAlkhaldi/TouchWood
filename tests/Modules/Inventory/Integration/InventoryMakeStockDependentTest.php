@@ -14,8 +14,12 @@ use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariant;
 use Modules\Catalog\Application\Command\ArchiveVariant\ArchiveVariantHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
 use Modules\Inventory\Application\InventoryPermissions as ApplicationPermissions;
+use Modules\Inventory\Domain\Exception\NotWired;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Inventory\Public\InventoryPermissions;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -153,6 +157,55 @@ it('refuses a size that does not exist or is archived, or a store that does not 
 
     expect(Ix::invalid(fn () => stockDependentApi()->makeStockDependent(StoreId::fromString(strtolower((string) Str::ulid())), [$ready['variants'][0]]))?->attribute)->toBe('store')
         ->and(Ix::stock('sa', $ready['variants'][0]))->toBeNull()
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
+});
+
+it('refuses an unknown or archived size in a store with no provider too, as in a wired one', function () {
+    $ready = stockDependentSizes();
+    Fx::asSystem(fn () => app(ArchiveVariantHandler::class)->handle(new ArchiveVariant($ready['variants'][1])));
+
+    foreach ([$ready['variants'][1], strtolower((string) Str::ulid())] as $size) {
+        expect(Ix::invalid(fn () => Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$ready['variants'][0], $size])))?->variants)->toBe([$size]);
+    }
+
+    expect(Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$ready['variants'][0]])))->toBe([]);
+});
+
+/**
+ * A store wired when first asked, unwired from then on: an unwiring committed while the change waited
+ * for the store's lock.
+ */
+function stockDependentUnwiredWhileWaiting(): void
+{
+    app()->instance(StoreWiring::class, new class implements StoreWiring
+    {
+        private int $asked = 0;
+
+        public function isWired(StoreId $store): bool
+        {
+            return $this->asked++ === 0;
+        }
+
+        public function wiredStores(): array
+        {
+            return [];
+        }
+    });
+}
+
+it('asks the wiring again under the store\'s lock: unwired while it waited, it writes nothing', function () {
+    $sizes = stockDependentSizes()['variants'];
+    stockDependentUnwiredWhileWaiting();
+
+    expect(Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0]])))->toBe([])
+        ->and(Ix::stock('sa', $sizes[0]))->toBeNull()
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
+
+    // Staff's switch the same way: refused as in a store with no provider, nothing written.
+    stockDependentUnwiredWhileWaiting();
+
+    expect(fn () => Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$sizes[0]], true))))->toThrow(NotWired::class)
+        ->and(Ix::stock('sa', $sizes[0]))->toBeNull()
         ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
 });
 

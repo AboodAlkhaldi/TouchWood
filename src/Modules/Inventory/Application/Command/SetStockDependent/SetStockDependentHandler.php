@@ -53,7 +53,12 @@ final readonly class SetStockDependentHandler
             return;
         }
 
-        // The switch itself is shared with InventoryApi::makeStockDependent (StockDependentSwitch).
-        $this->change->run($storeId, fn (): array => [null, $this->switch->set($storeId, $products, $command->on)[1]]);
+        // The switch itself is shared with InventoryApi::makeStockDependent (StockDependentSwitch); it
+        // asks the wiring again under the store's lock - unwired since, refused as above, nothing written.
+        $this->change->run($storeId, function () use ($storeId, $products, $command): array {
+            $switched = $this->switch->set($storeId, $products, $command->on) ?? throw new NotWired;
+
+            return [null, $switched[1]];
+        });
     }
 }

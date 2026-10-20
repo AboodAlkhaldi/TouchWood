@@ -92,11 +92,14 @@ interface InventoryApi
     /**
      * Turns these sizes' stock-dependent switch **on** in a wired store, as staff's switch does - the
      * same rows, audit entry and Catalog facts - for Promotions' gift level (owner, 2026-10-19). Never
-     * off. Nothing happens in a store with no provider, where every size counts on its stock already,
-     * nor for a size already on. A size that does not exist or is archived (or of an archived product)
-     * is refused, nothing changed (`inventory.invalid_inventory_input`, `variant`, naming them).
+     * off. A size that does not exist or is archived (or of an archived product) is refused in every
+     * store, nothing changed (`inventory.invalid_inventory_input`, `variant`, naming them). Then nothing
+     * happens in a store with no provider, where every size counts on its stock already - unwired while
+     * it waited for the store's lock too - nor for a size already on.
      *
-     * Runs in the caller's transaction when one is open (a savepoint in it), in its own otherwise. No
+     * Runs in the caller's transaction when one is open (a savepoint in it), in its own otherwise. Call
+     * it last in that transaction, take no lock of the caller's own after it, and keep the transaction
+     * short: Inventory's store lock and Catalog's facts lock are held until the caller commits. No
      * permission is checked here: the caller checks `InventoryPermissions::STOCK_MANAGE` in the store.
      *
      * @param  list<string>  $variantIds

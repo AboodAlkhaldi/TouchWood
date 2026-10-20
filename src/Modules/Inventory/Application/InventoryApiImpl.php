@@ -310,21 +310,27 @@ final readonly class InventoryApiImpl implements InventoryApi
     {
         $this->platform->store($store) ?? throw new InvalidInventoryInput('store');
 
-        // Only a wired store has the switch: in one with no provider every size counts on its stock already.
-        if ($variantIds === [] || ! $this->wiring->isWired($store)) {
+        if ($variantIds === []) {
             return [];
         }
 
         $products = [];
 
-        // As staff's switch: every size known and not archived, or nothing changes (SizeInput).
+        // As staff's switch: every size known and not archived, or nothing changes (SizeInput) - in
+        // every store alike, before the wiring is asked.
         foreach ($this->sizes->check($variantIds) as [$variantId, $productId]) {
             $products[$variantId] = $productId;
         }
 
+        // Only a wired store has the switch: in one with no provider every size counts on its stock already.
+        if (! $this->wiring->isWired($store)) {
+            return [];
+        }
+
         // The caller's transaction when there is one (a savepoint in it), its own otherwise: the store's
-        // lock first, the audit entries inside (InventoryChange). On only, never off.
-        return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true));
+        // lock first, the audit entries inside (InventoryChange). On only, never off. Unwired since the
+        // question above - asked again under the lock - nothing happens.
+        return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true) ?? [[], []]);
     }
 
     /**
