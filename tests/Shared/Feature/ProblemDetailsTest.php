@@ -116,13 +116,23 @@ it('translates errors owned by the shared kernel', function () {
         ->assertJsonPath('title', 'غير مسموح');
 });
 
-it('falls back to the category title and the developer message when an error has no translation', function () {
-    app()->setLocale('en');
+it('falls back to the category title and the status\'s sentence when an error has no translation, never the developer message (owner, 2026-10-20)', function (string $locale, string $category, string $title, string $detail) {
+    app()->setLocale($locale);
 
-    getJson('/_test/category/CONFLICT')
-        ->assertJsonPath('title', 'Conflict')
-        ->assertJsonPath('detail', 'Developer message.');
-});
+    $response = getJson("/_test/category/{$category}")
+        ->assertJsonPath('title', $title)
+        ->assertJsonPath('detail', $detail);
+
+    expect($response->getContent())->not->toContain('Developer message');
+})->with([
+    'a conflict' => ['en', 'CONFLICT', 'Conflict', 'Couldn\'t open this page: something changed meanwhile. Reload it and try again.'],
+    'not found' => ['en', 'NOT_FOUND', 'Not Found', 'There\'s nothing at this address: it was removed, or the link is wrong.'],
+    'an invalid request, in Arabic' => ['ar', 'INVALID', 'طلب غير صالح', 'تعذّر فتح هذه الصفحة: في عنوانها ما ليس صالحًا.'],
+]);
+
+it('says no developer message in a JSON problem for any category', function (string $category) {
+    expect(getJson("/_test/category/{$category}")->getContent())->not->toContain('Developer message');
+})->with(['NOT_FOUND', 'FORBIDDEN', 'CONFLICT', 'INVALID', 'UNSUPPORTED', 'TOO_LARGE']);
 
 it('does not report expected business errors as bugs', function () {
     Exceptions::fake();

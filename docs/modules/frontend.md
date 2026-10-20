@@ -754,6 +754,53 @@ way back (the dashboard or the store home). They show the translated title that
 `ProblemDetails` already produces, never a developer message. Stage 2b adds the missing pages
 for 409, 413, 415 and 422 (platform.md §9.3).
 
+**As built - the admin panel's (stage 5's screens, step 8; the owner's follow-ups, 2026-10-19, and
+three more he accepted on 2026-10-20):**
+
+- **Where:** `app/Http/ProblemDetails` answers a page request (not JSON) of a signed-in staff member
+  with the Inertia page `Admin/Error` (`resources/js/pages/Admin/Error.tsx`) in `AdminLayout` - the
+  sidebar, the trail, View Store - with the HTTP status. It does so for **403, 404, 409, 413, 415 and
+  422**, whether the error is a module's `DomainError` or Laravel's own (`abort(404)`, a model not found),
+  and for a visit made inside the panel or a partial reload alike (Inertia draws the page it is sent).
+- **What it says:** the error's translated **title** as the page's title (as before), and under it
+  **one sentence**: the error's own `….detail` - Sync's `ReadNotFound` says "This read isn't available."
+  / "هذه القراءة غير متاحة." - or a rule's words when the error names one, said exactly as a form says
+  it (`FormErrors::sentence`, so a field is named in words: "The kind of entry is not valid.", never
+  "The kind is not valid."); when the error has none written, its status's sentence
+  (`errors.page.{status}`, both languages). The message a `DomainError` carries for developers is never
+  shown, debug on or off. One button goes back: **Back to Home** (`admin.error.back`), to `/admin`.
+- **A page refused on permission reads as a page (owner, 2026-10-20):** a read refused by `Unauthorized`
+  says "You don't have access to this page." / "ليست لديك صلاحية لفتح هذه الصفحة." (`errors.page.403`),
+  not the action's "Couldn't do that: it isn't one of your jobs…". An action refused - a form sent -
+  keeps the action's words, in its own screen (FormErrors) and in a JSON problem.
+- **A mistyped panel address (owner, 2026-10-20):** `/admin/…` that no screen answers reaches Platform's
+  last route, `PanelNotFoundController` (a fallback in Platform's `admin-routes.php`, behind the panel's
+  middleware and its sign-in), and gets the panel's not-found page - "Page Not Found", Back to Home.
+  Somebody signed out is sent to sign in first, as for any panel page. The sign-in pages' addresses
+  (`/admin/sign-in`, `/admin/sign-in/…`) are never caught, nor anything outside `/admin`. Anything but a
+  read sent to such an address (a POST) is answered not found by Laravel's own page, as before - a second
+  fallback, without the panel's middleware, so it never becomes "method not allowed".
+- **Language:** the panel's, as every panel page: this browser's choice, else the person's own.
+- **Only when the frame can be drawn:** the route passes the panel's page middleware and its sign-in
+  (`AdminArea::PAGE`, `AdminArea::SIGNED_IN`) and the menu was shared, and the request is a read (GET or
+  HEAD). Everything else keeps Laravel's own page, which shows the status's text only: the sign-in pages,
+  a form sent (a refusal there is said in its own screen, FormErrors), and the statuses not listed (419,
+  429, 500, 503).
+- **JSON problems (owner, 2026-10-20):** an error with no sentence written says its status's sentence
+  (`errors.page.{status}`) as its `detail`, never its developers' message (platform.md §7.4).
+- **Words added:** `errors.http` 409, 413, 415, 422 (also the JSON problem's title for those statuses);
+  `errors.page.*`; `admin.error.back`.
+- **Not built:** the **storefront's** error pages. A shop page is drawn in `StorefrontLayout` with the
+  shop's own shared data and its way back is the store's home, so it is not the same path; Catalog's own
+  not-found shop page (`Catalog/Storefront/NotFound`, catalog.md §4.5) is unchanged.
+- **Tests:** `tests/Shared/Feature/PanelErrorPageTest.php` (both languages; each status's sentence, 403,
+  404, 409, 413, 415 and 422; the page's 403 and the action's; a rule's words; a mistyped address signed
+  in and signed out, and sent a POST; the sign-in pages' addresses; a visit inside the panel and a partial
+  reload; HEAD; no developer message with debug off or on; what stays on Laravel's page);
+  `tests/Shared/Feature/ProblemDetailsTest.php` (JSON's fallback sentence); Sync's not-found read and a
+  field named in words in `tests/Modules/Sync/Feature/SyncScreensTest.php`, and the not-found read in
+  `tests/Browser/SyncScreensTest.php`.
+
 ### 2.7 What the design shows that the system does differently
 
 The owner's direction, 2026-09-19: the design is look and behaviour only.

@@ -50,6 +50,12 @@ return [
         'waiting_note' => 'Some things need you.',
     ],
 
+    // The panel's error page (frontend.md §2.6): its title and sentence come translated with it; this is
+    // its way back.
+    'error' => [
+        'back' => 'Back to Home',
+    ],
+
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The
     // shop reads these too, as it ships this file (StorefrontArea::WORDS).
     'staff_view' => [

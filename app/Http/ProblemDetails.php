@@ -10,9 +10,12 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 use Shared\Application\CorrelationId;
+use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,12 +27,22 @@ use Throwable;
  * The one place errors become HTTP responses (handoff §5.3, Platform spec §7).
  *
  * JSON requests get an RFC 7807 problem document with the same shape from every module.
- * Page requests get the error page for the matching status. The category-to-status table
- * below exists nowhere else.
+ * Page requests get the error page for the matching status - inside the signed-in admin panel,
+ * the panel's own (frontend.md §2.6). The category-to-status table below exists nowhere else.
  */
 final class ProblemDetails
 {
     private const string CONTENT_TYPE = 'application/problem+json';
+
+    /**
+     * The statuses the admin panel answers a page request with in its own frame (frontend.md §2.6):
+     * every category's (§7.1). Anything else - a session expired (419), too many requests, a bug -
+     * keeps Laravel's page, which needs nothing the failing request may not have.
+     */
+    private const array PANEL_PAGE_STATUSES = [403, 404, 409, 413, 415, 422];
+
+    /** The admin panel's error page, beside its Home and Coming Soon (resources/js/pages/Admin). */
+    private const string PANEL_PAGE = 'Admin/Error';
 
     public static function register(Exceptions $exceptions): void
     {
@@ -50,9 +63,14 @@ final class ProblemDetails
             )
             : null);
 
-        $exceptions->render(fn (HttpExceptionInterface $error, Request $request): ?JsonResponse => $request->expectsJson()
+        $exceptions->render(fn (HttpExceptionInterface $error, Request $request): ?Response => $request->expectsJson()
             ? self::httpProblem($error->getStatusCode(), $error->getHeaders())
-            : null);
+            : self::panelPage(
+                $request,
+                $error->getStatusCode(),
+                self::translate("errors.http.{$error->getStatusCode()}", [], (string) (Response::$statusTexts[$error->getStatusCode()] ?? 'Error')),
+                self::pageSentence($error->getStatusCode()),
+            ));
 
         // Anything else reaching here is a bug. It has already been reported with the
         // correlation id; the caller learns nothing about the internals.
@@ -91,22 +109,81 @@ final class ProblemDetails
         $title = self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error')));
 
         // A page shows the translated title: Laravel's error pages print the exception's message,
-        // and a DomainError's message is written for developers.
+        // and a DomainError's message is written for developers. In the panel, its own page says the
+        // error's own sentence under it, as a form says it (FormErrors: a rule's words, a field named
+        // in words) - "This read isn't available." - or, with none written, the status's; never the
+        // message. A page refused on permission reads as a page, not an action: "You don't have
+        // access to this page." (owner, 2026-10-20) - an action refused keeps its own words, in its
+        // screen (FormErrors).
         if (! $request->expectsJson()) {
-            return app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
+            $sentence = $error instanceof Unauthorized ? self::pageSentence($status) : FormErrors::sentence($error) ?? self::pageSentence($status);
+
+            return self::panelPage($request, $status, $title, $sentence)
+                ?? app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
         }
 
         // A refusal naming the rule it broke says that rule's words where the module wrote them (FormErrors).
+        // With none written, the status's sentence, as the panel's page says it - never the developers'
+        // message (owner, 2026-10-20).
         $rule = FormErrors::ruleKey($key, $error->context());
+        $detail = self::translate("{$key}.detail", $replace, self::pageSentence($status));
 
         return self::problem(
             $error->type(),
             $status,
             $title,
-            $rule === null
-                ? self::translate("{$key}.detail", $replace, $error->getMessage())
-                : self::translate($rule, $replace, self::translate("{$key}.detail", $replace, $error->getMessage())),
+            $rule === null ? $detail : self::translate($rule, $replace, $detail),
         );
+    }
+
+    /**
+     * **The admin panel's error page** (frontend.md §2.6): in the panel's frame - its sidebar, its trail -
+     * in the page's language, the error's translated title and one sentence, and a way back to Home.
+     *
+     * Only for a page asked for by somebody signed in to the panel: the frame names them and lists what
+     * they may open, so a request that never reached the panel's own middleware - an address no route
+     * answers, the sign-in pages - keeps Laravel's page. A form sent is answered in its own screen
+     * (FormErrors) and never reaches here; anything not a plain read keeps Laravel's page too.
+     */
+    private static function panelPage(Request $request, int $status, string $title, string $sentence): ?Response
+    {
+        if (! in_array($status, self::PANEL_PAGE_STATUSES, true) || ! $request->isMethodSafe() || ! self::inSignedInPanel($request)) {
+            return null;
+        }
+
+        return app(Page::class)
+            ->render(self::PANEL_PAGE, ['status' => $status, 'title' => $title, 'detail' => $sentence], ['admin'])
+            ->toResponse($request)
+            ->setStatusCode($status);
+    }
+
+    /**
+     * Whether the request was answered inside the signed-in panel, so the frame's shared data - who is
+     * signed in, the menu - is already there: its route passes the panel's page middleware and the sign-in
+     * (AdminArea), and the menu was shared before it failed.
+     */
+    private static function inSignedInPanel(Request $request): bool
+    {
+        $route = $request->route();
+
+        if (! $route instanceof Route) {
+            return false;
+        }
+
+        $middleware = $route->gatherMiddleware();
+
+        return in_array(AdminArea::PAGE, $middleware, true)
+            && in_array(AdminArea::SIGNED_IN, $middleware, true)
+            && Inertia::getShared('menu') !== null;
+    }
+
+    /**
+     * The status's own sentence, for an error that wrote none - on the panel's page, and as a JSON
+     * problem's detail. Each of PANEL_PAGE_STATUSES has one, and so every category's status (§7.1).
+     */
+    private static function pageSentence(int $status): string
+    {
+        return self::translate("errors.page.{$status}", [], '');
     }
 
     /**

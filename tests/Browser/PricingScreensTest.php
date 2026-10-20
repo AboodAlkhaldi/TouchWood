@@ -266,7 +266,41 @@ it('adds an offer through its dialog - product, sizes, date and time, the note -
         ->click('[data-test="confirm-end-offer"]');
 
     expect(pricingBrowserSoon($page, fn (): bool => DB::table('pricing.sales')->where('id', $sale->id)->where('ends_at', '<=', now())->exists(), fn (bool $ended): bool => $ended))->toBeTrue()
-        ->and(browserSoon($page, "document.body.textContent.includes('Offer ended')"))->toBeTrue();
+        ->and(browserSoon($page, "document.body.textContent.includes('Offer ended')"))->toBeTrue()
+        // The dialog closed, focus is back on the ended offer's ⋯ - its row stays - never the page's start.
+        ->and(browserSoon($page, "document.querySelector('[role=\"alertdialog\"]') === null && document.activeElement?.getAttribute('data-test') === 'offer-actions-{$sale->id}'"))->toBeTrue();
+});
+
+it('removes a scheduled offer, focus going to the next offer\'s menu, else to Add Offer', function () {
+    $ready = pricingBrowserProduct();
+    pricingBrowserPrice('sa', [$ready['sizes'][0] => '120.00', $ready['sizes'][1] => '130.00']);
+    $later = now()->addDays(3)->utc()->format('Y-m-d H:i:s').'+00';
+    $sales = Fx::asSystem(fn (): array => array_map(
+        fn (string $size): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId('sa'), null, [$size], '10', null, $later, null)),
+        $ready['sizes'],
+    ));
+    $page = pricingBrowser();
+    $page->navigate("/admin/offers?product={$ready['product']}", BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelectorAll('[data-test^=\"offer-actions-\"]').length === 2"))->toBeTrue();
+
+    // The first row's offer: its row leaves, so focus goes to the other row's ⋯.
+    $first = (string) $page->script("() => document.querySelector('[data-test^=\"offer-actions-\"]').getAttribute('data-test').slice('offer-actions-'.length)");
+    $second = $first === $sales[0] ? $sales[1] : $sales[0];
+    $page->click("[data-test=\"offer-actions-{$first}\"]")
+        ->click('[data-test="remove-offer"]')
+        ->click('[data-test="confirm-remove-offer"]');
+
+    expect(browserSoon($page, "document.body.textContent.includes('Offer removed') && document.querySelector('[data-test=\"offer-actions-{$first}\"]') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[role=\"alertdialog\"]') === null && document.activeElement?.getAttribute('data-test') === 'offer-actions-{$second}'"))->toBeTrue();
+
+    // The last one: no offer is left, so focus goes to Add Offer.
+    $page->click("[data-test=\"offer-actions-{$second}\"]")
+        ->click('[data-test="remove-offer"]')
+        ->click('[data-test="confirm-remove-offer"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test^=\"offer-actions-\"]') === null && document.querySelector('[role=\"alertdialog\"]') === null && document.activeElement?.getAttribute('data-test') === 'add-offer'"))->toBeTrue()
+        ->and(DB::table('pricing.sales')->whereIn('id', $sales)->count())->toBe(0);
 });
 
 it('adds a category discount with its live preview, and opens the discount\'s page', function () {
@@ -367,4 +401,33 @@ it('draws the product page\'s Pricing section in two store cards, each with boxe
 
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('eg', $size), fn (?int $minor): bool => $minor === 160000))->toBe(160000)
         ->and(pricingBrowserRetail('sa', $size))->toBe(12000);
+});
+
+it('gives focus back inside the store\'s own card when its last offer is removed on a product\'s Stores tab', function () {
+    $ready = pricingBrowserProduct(['sa', 'eg']);
+    [$size] = $ready['sizes'];
+    pricingBrowserPrice('sa', [$size => '120.00']);
+    pricingBrowserPrice('eg', [$size => '1500.00']);
+    $later = now()->addDays(3)->utc()->format('Y-m-d H:i:s').'+00';
+    $sales = [];
+
+    foreach (['sa', 'eg'] as $store) {
+        $sales[$store] = Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId($store), null, [$size], '10', null, $later, null)));
+    }
+
+    $page = pricingBrowser();
+    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelectorAll('[data-test^=\"offer-actions-\"]').length === 2"))->toBeTrue();
+
+    // The card drawn first: removing its one offer, the next ⋯ on the page is the other store's.
+    $first = (string) $page->script("() => document.querySelector('[data-test^=\"pricing-section-\"]').getAttribute('data-test').slice('pricing-section-'.length)");
+    $other = $first === 'sa' ? 'eg' : 'sa';
+    $page->click("[data-test=\"offer-actions-{$sales[$first]}\"]")
+        ->click('[data-test="remove-offer"]')
+        ->click('[data-test="confirm-remove-offer"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$first]}\"]') === null && document.querySelector('[role=\"alertdialog\"]') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.activeElement?.getAttribute('data-test') === 'section-add-offer-{$first}'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$other]}\"]') !== null"))->toBeTrue();
 });

@@ -52,6 +52,16 @@ final class AdminBrowser
         return $this->send('GET', $uri, [], $headers);
     }
 
+    /**
+     * A HEAD request, as a browser or a link checker sends one: the page's answer without its body.
+     *
+     * @return TestResponse<Response>
+     */
+    public function head(string $uri): TestResponse
+    {
+        return $this->send('HEAD', $uri);
+    }
+
     public function cookie(string $name): ?string
     {
         return $this->cookies[$name] ?? null;

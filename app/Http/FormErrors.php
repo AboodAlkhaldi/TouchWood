@@ -89,6 +89,17 @@ final class FormErrors
      */
     public static function message(DomainError $error): string
     {
+        return self::sentence($error) ?? $error->getMessage();
+    }
+
+    /**
+     * The error's sentence for a person, as message() says it - the rule's words, else its detail, each
+     * with a field named in words - or null when the module wrote none. The admin panel's error page
+     * says this, falling back to its status's sentence and never to the developers' message
+     * (ProblemDetails; frontend.md §2.6).
+     */
+    public static function sentence(DomainError $error): ?string
+    {
         [$module, $name] = str_contains($error->type(), '.') ? explode('.', $error->type(), 2) : ['shared', $error->type()];
         $base = $module === 'shared' ? "errors.{$name}" : "{$module}::errors.{$name}";
         $values = self::values($module, $error->context());
@@ -104,7 +115,7 @@ final class FormErrors
 
         $translated = trans("{$base}.detail", $values);
 
-        return is_string($translated) && $translated !== "{$base}.detail" ? $translated : $error->getMessage();
+        return is_string($translated) && $translated !== "{$base}.detail" ? $translated : null;
     }
 
     /**

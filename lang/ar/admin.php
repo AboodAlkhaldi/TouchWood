@@ -50,6 +50,11 @@ return [
         'waiting_note' => 'هناك ما يحتاج إليك.',
     ],
 
+    // صفحة الخطأ في اللوحة (frontend.md §2.6): يصل عنوانها وجملتها مترجمَين معها؛ وهذا طريق العودة منها.
+    'error' => [
+        'back' => 'العودة إلى الرئيسية',
+    ],
+
     // The staff view (access.md §1.11): the panel's way to the shop, and the shop's way back. The
     // shop reads these too, as it ships this file (StorefrontArea::WORDS).
     'staff_view' => [

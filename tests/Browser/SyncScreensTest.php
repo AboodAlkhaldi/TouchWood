@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Catalog\Application\CatalogPermissions;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
@@ -194,6 +195,12 @@ function syncBrowserWired(): array
     return [...$ready, 'unknown' => $unknown, 'read' => (string) $added[0]];
 }
 
+/** A Discount Skipped entry for the size, naming a category discount deleted since - or, with $named false, none. Its id. */
+function syncBrowserDiscountGone(string $size, bool $named = true): int
+{
+    return (int) DB::table('sync.report_entries')->insertGetId(['store_id' => Fx::storeId('ae'), 'kind' => 'DISCOUNT_SKIPPED', 'code' => null, 'variant_id' => $size, 'sale_id' => null, 'detail' => json_encode($named ? ['discount' => strtolower((string) Str::ulid())] : (object) []), 'opened_at' => now(), 'seen_at' => now()]);
+}
+
 it('shows the status line and Problems, dismisses an entry, and queues Sync Now', function () {
     $wired = syncBrowserWired();
     $page = syncBrowserReader();
@@ -311,14 +318,35 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
 
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
 
-    $wait('a read not there', "document.body.textContent.includes('Not Found') || document.body.textContent.includes('404')");
+    // The panel's own not-found page (frontend.md §2.6): the error's sentence, in the panel's frame, the way back Home.
+    expect(browserSoon($page, "document.querySelector('[data-test=\"error-sentence\"]')?.textContent === \"This read isn't available.\" && document.querySelector('h1')?.textContent === 'Not found'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-slot=\"sidebar\"]') !== null && document.querySelector('[data-slot=\"breadcrumb\"] a[href=\"/admin/sync\"]') !== null"))->toBeTrue();
+
+    $page->click('[data-test="error-back"]');
+
+    expect(browserSoon($page, "window.location.pathname === '/admin'"))->toBeTrue();
+});
+
+it('says a skipped discount deleted since as Discount removed, with no link (Q37), and nothing of one for an entry naming none', function () {
+    $wired = syncBrowserWired();
+    $gone = syncBrowserDiscountGone($wired['size']);
+    // A size the store no longer has, so the two entries never share one.
+    $unnamed = syncBrowserDiscountGone(strtolower((string) Str::ulid()), named: false);
+    $page = syncBrowserReader();
+    $page->navigate('/admin/sync?store=ae&kind=discount_skipped', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"entry-{$gone}\"] [data-test=\"discount-removed\"]')?.textContent === 'Discount removed' && document.querySelector('[data-test=\"discount-link\"]') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"entry-{$unnamed}\"]')?.textContent.includes('Past the ceiling') && document.querySelector('[data-test=\"entry-{$unnamed}\"] [data-test=\"discount-removed\"]') === null"))->toBeTrue();
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {
     $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
     $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.getElementById('provider-setting-database') !== null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.getElementById('provider-setting-database') !== null"))->toBeTrue()
+        // The sidebar lights the Provider alone, not the Sync Report at /admin/sync too; and no trail puts it under the report.
+        ->and(browserSoon($page, "[...document.querySelectorAll('[data-sidebar=\"menu-sub-button\"][data-active=\"true\"]')].map((each) => each.textContent).join('|') === 'Provider'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-slot=\"breadcrumb\"] a') === null"))->toBeTrue();
 
     // As typed: an address that is not HTTPS, said under its box.
     $page->type('#provider-address', 'http://odoo.test');
@@ -375,12 +403,20 @@ it('refuses the Provider form as typed, says the failed test under the form and 
 });
 
 it('draws the Sync Report right to left in Arabic, its digits Latin', function () {
-    syncBrowserWired();
+    $wired = syncBrowserWired();
+    syncBrowserDiscountGone($wired['size']);
     $page = syncBrowserReader('ar');
     $page->navigate('/admin/sync?store=ae', BROWSER_SLOW_PAGE_LOAD);
 
     expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('h1')?.textContent.includes('تقرير المزامنة')"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"store-state\"]')?.textContent.includes('يعمل')"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"discount-removed\"]')?.textContent === 'الخصم محذوف'"))->toBeTrue()
         ->and(browserSoon($page, "!/[\u{0660}-\u{0669}]/.test(document.body.textContent ?? '')"))->toBeTrue();
+
+    // A read that is not there: the panel's not-found page in Arabic, right to left.
+    $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"error-sentence\"]')?.textContent === 'هذه القراءة غير متاحة.'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"error-back\"]')?.textContent === 'العودة إلى الرئيسية'"))->toBeTrue();
 });

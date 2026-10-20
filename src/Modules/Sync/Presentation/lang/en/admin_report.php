@@ -94,6 +94,7 @@ return [
             'twice' => 'The code came twice in one read: both skipped.',
             'read_failed' => 'The read failed.',
             'discount_skipped' => 'Past the ceiling at the provider\'s price.',
+            'discount_removed' => 'Discount removed',
         ],
         'menu' => [
             'retry' => 'Retry Read',

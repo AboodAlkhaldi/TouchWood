@@ -280,7 +280,7 @@ describe('Problems (ViewSyncReport, Y1)', function () {
             ->and(fn () => app(ViewSyncReportHandler::class)->handle(new ViewSyncReport(syncShownSa(), null, rtrim(base64_encode('2026-10-19 10:00:00+00|abc'), '='))))->toThrow(InvalidSyncInput::class);
     });
 
-    it('names each size with its values, a stopped offer and a skipped discount with whether they still exist (Q37), and a failed read with its reason', function () {
+    it('names each size with its values, a stopped offer and a skipped discount with whether they still exist (Q37) - one deleted since among them -, and a failed read with its reason', function () {
         $category = Px::category('Kitchens');
         ['product' => $product, 'variants' => [$onSale, $discounted]] = syncShownProduct(['60 cm', '80 cm'], $category);
         DB::table('pricing.retail_prices')->insert(array_map(static fn (string $size): array => ['store_id' => syncShownSa(), 'variant_id' => $size, 'amount_minor' => 20000, 'currency_code' => 'SAR', 'source' => 'PROVIDER', 'updated_at' => now()], [$onSale, $discounted]));
@@ -289,8 +289,9 @@ describe('Problems (ViewSyncReport, Y1)', function () {
         CarbonImmutable::setTestNow('2026-10-19 11:00:00+00');
         FakeProvider::bound()->values = [new ProviderValue(syncShownCode($onSale), '400', null), new ProviderValue(syncShownCode($discounted), '120', null)];
         $read = syncShownRun();
-        // A stopped offer removed since, and a failed read.
+        // A stopped offer removed since, a skipped discount deleted since, and a failed read.
         DB::table('sync.report_entries')->insert([
+            ['store_id' => syncShownSa(), 'kind' => 'DISCOUNT_SKIPPED', 'code' => null, 'variant_id' => $onSale, 'sale_id' => null, 'detail' => json_encode(['discount' => strtolower((string) Str::ulid())]), 'opened_at' => now(), 'seen_at' => now()->subMinutes(3)],
             ['store_id' => syncShownSa(), 'kind' => 'SALE_STOPPED', 'code' => null, 'variant_id' => $discounted, 'sale_id' => strtolower((string) Str::ulid()), 'detail' => '{"outcome":"removed"}', 'opened_at' => now(), 'seen_at' => now()->subMinute()],
             ['store_id' => syncShownSa(), 'kind' => 'READ_FAILED', 'code' => null, 'variant_id' => null, 'sale_id' => null, 'detail' => json_encode(['read' => $read, 'error' => 'SUPERSEDED']), 'opened_at' => now(), 'seen_at' => now()->subMinutes(2)],
         ]);
@@ -299,16 +300,18 @@ describe('Problems (ViewSyncReport, Y1)', function () {
         $about = [];
 
         foreach (app(ViewSyncReportHandler::class)->handle(new ViewSyncReport(syncShownSa()))->entries as $entry) {
-            $about[$entry->about->kind.($entry->about->offer?->exists === false ? ' gone' : '')] = $entry->about;
+            $about[$entry->about->kind.($entry->about->offer?->exists === false || $entry->about->discount?->exists === false ? ' gone' : '')] = $entry->about;
         }
 
-        expect(array_keys($about))->toEqualCanonicalizing(['SALE_STOPPED', 'DISCOUNT_SKIPPED', 'SALE_STOPPED gone', 'READ_FAILED'])
+        expect(array_keys($about))->toEqualCanonicalizing(['SALE_STOPPED', 'DISCOUNT_SKIPPED', 'SALE_STOPPED gone', 'DISCOUNT_SKIPPED gone', 'READ_FAILED'])
             ->and([$about['SALE_STOPPED']->productId, $about['SALE_STOPPED']->values, $about['SALE_STOPPED']->code, $about['SALE_STOPPED']->sizeExists])->toBe([$product, ['60 cm'], syncShownCode($onSale), true])
             ->and([$about['SALE_STOPPED']->offer?->id, $about['SALE_STOPPED']->offer?->exists])->toBe([$sale, true])
             ->and($about['SALE_STOPPED']->offer?->description)->not->toBeNull()
             ->and([$about['DISCOUNT_SKIPPED']->discount?->id, $about['DISCOUNT_SKIPPED']->discount?->exists])->toBe([$discount, true])
             ->and($about['DISCOUNT_SKIPPED']->discount?->description)->toStartWith('Kitchens')
             ->and([$about['SALE_STOPPED gone']->offer?->exists, $about['SALE_STOPPED gone']->offer?->description])->toBe([false, null])
+            // The page then says "Discount removed", with no link, as it says "Offer removed" (Q37).
+            ->and([$about['DISCOUNT_SKIPPED gone']->discount?->exists, $about['DISCOUNT_SKIPPED gone']->discount?->description])->toBe([false, null])
             ->and([$about['READ_FAILED']->readId, $about['READ_FAILED']->failure?->code, $about['READ_FAILED']->failure?->text])->toBe([$read, 'SUPERSEDED', 'Superseded: a read of the same kind is waiting.']);
     });
 

@@ -37,11 +37,8 @@ return [
         'address_host' => 'Address needs a host.',
         'address_plain' => 'Address can\'t hold spaces, a name or a password.',
         'address_long' => 'Address can be at most 500 characters.',
-        'key_required' => 'Key is required.',
-        'secret_required' => 'Secret is required.',
         'key_long' => 'The key can be at most 1,000 characters.',
         'secret_long' => 'The secret can be at most 1,000 characters.',
-        'setting_required' => ':setting is required.',
     ],
 
     'wired' => [
