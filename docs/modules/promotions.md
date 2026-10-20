@@ -545,7 +545,7 @@ it again." (§1.4) [Q14].
   `inEffect`, `active`). Under the list, one line: "An order gets one gift — the highest level it
   reaches; out of stock, the next one down." (§1.7)
 - **New Level…** / **Edit…** (a dialog for `promotions.gift.manage`): the amount; the gift — a size
-  found by product name or code in this store (`searchVariants`), its photo shown; individuals and/or
+  found by product name or code in this store (`SearchGiftSizes`, over Catalog's `searchVariants`), its photo shown; individuals and/or
   companies; dates, optional. **In a wired store**, under the gift (owner, Q11 (c)): a tick box, off by
   default, **"Also limit this size's normal sales to its stock"**, with the line "The gift itself is
   always given from stock. Ticking this also makes customers able to buy this size only while it is in
@@ -553,7 +553,7 @@ it again." (§1.4) [Q14].
   out of reach, with the reason, for a reader without Inventory's switch job. Saving the level with it
   ticked also turns the size's switch on, **in the level's own save** (one transaction: no level saved
   without its switch) — `CreateGiftLevel` and `ChangeGiftLevel` call Inventory's public
-  `makeStockDependent` (inventory.md, stage 5's — §9.4), which turns on only and audits as Inventory's
+  `makeStockDependent` (inventory.md §9.2 #23, stage 5's), which turns on only and audits as Inventory's
   own switch does. A clash (§7 `GiftLevelClash`) said in the dialog. **Turn Off** / **Turn On** per row.
   No delete — a level is switched off (§3).
 

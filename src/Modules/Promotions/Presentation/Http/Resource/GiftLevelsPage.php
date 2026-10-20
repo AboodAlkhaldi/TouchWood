@@ -10,7 +10,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * M4 · Marketing › Gift Levels (promotions.md §4.1): the store's levels, highest first (Q10); the sizes
  * the picker's search found, only when a manager searched; the currency and its decimals for the
- * amount box. `mayManage` offers New Level…, Edit… and the switch (Q16).
+ * amount box. `mayManage` offers New Level…, Edit… and the switch (Q16); `mayManageStock` the stock tick
+ * box, out of reach with its reason without it (Q11 (c)).
  */
 #[TypeScript]
 final class GiftLevelsPage extends Data
@@ -26,6 +27,7 @@ final class GiftLevelsPage extends Data
         public string $currency,
         public int $exponent,
         public bool $mayManage,
+        public bool $mayManageStock,
         public string $storeCode,
         public string $storeName,
         public bool $storeIsActive,

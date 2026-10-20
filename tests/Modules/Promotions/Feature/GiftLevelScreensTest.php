@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
+use Modules\Inventory\Public\InventoryPermissions;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -18,6 +19,7 @@ use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 
 use function Pest\Laravel\seed;
@@ -195,4 +197,55 @@ it('reads the page in a fixed few queries, the same for one level as for six', f
     // wiring), 2026-10-20 — the same however many levels.
     expect($count())->toBe($one)
         ->and($one)->toBe(12);
+});
+
+describe('the stock tick box (owner\'s Q11 (c))', function () {
+    it('gives the dialog the box\'s facts: the store wired, a size not yet limited to its stock, and who may tick', function () {
+        Ix::wired();
+        $ready = Px::ready(['60 cm']);
+        $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
+        Pr::giftLevel($ready['variants'][0], 300_00);
+
+        $stock = giftScreensProps(giftScreens([PromotionsPermissions::GIFT_MANAGE, InventoryPermissions::STOCK_MANAGE]), '/admin/gift-levels?search='.$code);
+        $gifts = giftScreensProps(giftScreens(), '/admin/gift-levels?search='.$code);
+
+        expect([$stock['sizes'][0]['wired'], $stock['sizes'][0]['stockDependent'], $stock['levels'][0]['wired'], $stock['levels'][0]['stockDependent']])->toBe([true, false, true, false])
+            ->and([$stock['mayManageStock'], $gifts['mayManageStock']])->toBe([true, false]);
+    });
+
+    it('limits the size to its stock in the level\'s own save, ticked by someone who manages stock', function () {
+        Ix::wired();
+        [$gift] = Px::ready(['60 cm'])['variants'];
+
+        $saved = giftScreens([PromotionsPermissions::GIFT_MANAGE, InventoryPermissions::STOCK_MANAGE])->post('/admin/gift-levels', giftScreensForm($gift, ['make_stock_dependent' => true]));
+
+        expect(AdminBrowser::flashed($saved, 'status'))->toBe('Gift level created.')
+            ->and(DB::table('inventory.stock')->where('variant_id', $gift)->value('stock_dependent'))->toBeTrue();
+    });
+
+    it('limits the size on an edit too, and refuses that edit to someone who may not manage stock', function () {
+        Ix::wired();
+        [$gift] = Px::ready(['60 cm'])['variants'];
+        $level = Pr::giftLevel($gift, 300_00);
+
+        $refused = giftScreens()->post("/admin/gift-levels/{$level}", giftScreensForm($gift, ['amount' => '350', 'make_stock_dependent' => true]));
+
+        expect([$refused->getStatusCode(), DB::table('promotions.gift_levels')->where('id', $level)->value('amount_minor')])->toBe([302, 300_00])
+            ->and(DB::table('inventory.stock')->where('variant_id', $gift)->value('stock_dependent'))->not->toBeTrue();
+
+        $saved = giftScreens([PromotionsPermissions::GIFT_MANAGE, InventoryPermissions::STOCK_MANAGE])->post("/admin/gift-levels/{$level}", giftScreensForm($gift, ['amount' => '350', 'make_stock_dependent' => true]));
+
+        expect([AdminBrowser::flashed($saved, 'status'), DB::table('promotions.gift_levels')->where('id', $level)->value('amount_minor')])->toBe(['Gift level saved.', 350_00])
+            ->and(DB::table('inventory.stock')->where('variant_id', $gift)->value('stock_dependent'))->toBeTrue();
+    });
+
+    it('refuses the tick from someone who may not manage stock, saving nothing', function () {
+        Ix::wired();
+        [$gift] = Px::ready(['60 cm'])['variants'];
+
+        $refused = giftScreens()->post('/admin/gift-levels', giftScreensForm($gift, ['make_stock_dependent' => true]));
+
+        expect([$refused->getStatusCode(), DB::table('promotions.gift_levels')->count()])->toBe([302, 0])
+            ->and(DB::table('inventory.stock')->where('variant_id', $gift)->value('stock_dependent'))->not->toBeTrue();
+    });
 });

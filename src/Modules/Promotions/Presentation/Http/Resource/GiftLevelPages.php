@@ -5,31 +5,28 @@ declare(strict_types=1);
 namespace Modules\Promotions\Presentation\Http\Resource;
 
 use DateTimeImmutable;
-use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Dto\FoundVariantDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Promotions\Application\Query\GiftLevelRow;
+use Modules\Promotions\Application\Query\GiftSizeRow;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevels;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevelsHandler;
 use Modules\Promotions\Application\Query\PromotionsActions\PromotionsActionsForReader;
+use Modules\Promotions\Application\Query\SearchGiftSizes\SearchGiftSizes;
+use Modules\Promotions\Application\Query\SearchGiftSizes\SearchGiftSizesHandler;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * The gift levels screen's data (promotions.md §4.1 M4), built from Promotions' Application queries -
- * which authorize - and Catalog's size search for the picker, asked only for a manager who searched.
+ * which authorize - the size search for the gift picker among them (SearchGiftSizes), asked only for a
+ * manager who searched.
  */
 final readonly class GiftLevelPages
 {
-    /** How many sizes the picker shows for what was typed. */
-    private const int FOUND = 20;
-
     public function __construct(
         private MarketingScreen $screen,
-        private CatalogApi $catalog,
         private PlatformApi $platform,
         private PromotionsActionsForReader $actions,
     ) {}
@@ -39,13 +36,14 @@ final readonly class GiftLevelPages
      *
      * @throws Unauthorized
      */
-    public function list(?string $storeCode, ?string $search, ListGiftLevelsHandler $levels): GiftLevelsPage
+    public function list(?string $storeCode, ?string $search, ListGiftLevelsHandler $levels, SearchGiftSizesHandler $sizes): GiftLevelsPage
     {
         [$store, $offered] = $this->screen->store($storeCode);
         $rows = $levels->handle(new ListGiftLevels($store->id));
         // Highest first (owner's Q10): the order an order is matched in (§1.7).
         usort($rows, static fn (GiftLevelRow $a, GiftLevelRow $b): int => $b->amount->minorUnits <=> $a->amount->minorUnits);
-        $mayManage = $this->actions->forStore($store->storeId())->mayManageGifts;
+        $actions = $this->actions->forStore($store->storeId());
+        $mayManage = $actions->mayManageGifts;
         $exponent = $store->currencyExponent;
         $now = new DateTimeImmutable;
         $photos = $this->thumbs(array_map(static fn (GiftLevelRow $row): ?string => $row->photoMediaId, $rows));
@@ -71,32 +69,37 @@ final readonly class GiftLevelPages
                     default => 'ENDED',
                 },
                 $row->photoMediaId === null ? null : ($photos[strtolower($row->photoMediaId)] ?? null),
+                $row->stockDependent,
+                $row->wired,
             ), $rows),
-            $search === null || ! $mayManage ? [] : $this->sizes($store->storeId(), $search),
+            $search === null || ! $mayManage ? [] : $this->sizes($store->id, $search, $sizes),
             $store->currencyCode,
             $exponent,
             $mayManage,
+            $actions->mayManageStock,
             ...$this->screen->shown($store),
             stores: $this->screen->options($offered),
         );
     }
 
     /**
-     * The store's sizes matching what was typed, by product name or size code - archived ones left out -
-     * with their photos' thumbnails, in one read.
+     * The store's gift sizes matching what was typed - Promotions' own search (SearchGiftSizes, which
+     * authorizes), with their photos' thumbnails in one read.
      *
      * @return list<SizeChoiceData>
      */
-    private function sizes(StoreId $store, string $search): array
+    private function sizes(string $storeId, string $search, SearchGiftSizesHandler $searchSizes): array
     {
-        $found = $this->catalog->searchVariants($store, $search, anyReady: true, limit: self::FOUND, notArchived: true, withTotal: false)->rows;
-        $thumbs = $this->thumbs(array_map(static fn (FoundVariantDto $row): ?string => $row->photoMediaId, $found));
+        $found = $searchSizes->handle(new SearchGiftSizes($storeId, $search));
+        $thumbs = $this->thumbs(array_map(static fn (GiftSizeRow $row): ?string => $row->photoMediaId, $found));
 
-        return array_map(fn (FoundVariantDto $row): SizeChoiceData => new SizeChoiceData(
+        return array_map(fn (GiftSizeRow $row): SizeChoiceData => new SizeChoiceData(
             $row->variantId,
             $this->screen->name($row->productNameAr, $row->productNameEn),
             $row->code,
             $row->photoMediaId === null ? null : ($thumbs[strtolower($row->photoMediaId)] ?? null),
+            $row->stockDependent,
+            $row->wired,
         ), $found);
     }
 

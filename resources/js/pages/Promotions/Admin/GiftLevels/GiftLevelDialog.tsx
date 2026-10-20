@@ -7,7 +7,8 @@ import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { SearchField } from '@/components/SearchField';
 import { Toggle } from '@/components/promotions/fields';
-import { FieldLegend, FieldSet } from '@/components/ui/field';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { isolate } from '@/lib/bidi';
 import { toLatinDigits } from '@/lib/digits';
 import { isoOf, isSaved, momentBox, momentFrom, noMoment, type MomentInput } from '@/lib/moments';
@@ -30,14 +31,15 @@ type Props = {
     level?: GiftLevelData;
 };
 
-type Gift = { id: string; productName: string | null; code: string | null; photo: string | null };
+/** The gift chosen, with the stock tick box's two facts (Q11 (c)). */
+type Gift = { id: string; productName: string | null; code: string | null; photo: string | null; stockDependent: boolean; wired: boolean };
 
 export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
     const t = useTranslator();
     const zone = page.storeTimezone;
     const [starts, setStarts] = useState<MomentInput>(level?.startsAt ? momentFrom(level.startsAt, zone) : noMoment());
     const [ends, setEnds] = useState<MomentInput>(level?.endsAt ? momentFrom(level.endsAt, zone) : noMoment());
-    const [gift, setGift] = useState<Gift | null>(level === undefined ? null : { id: level.variantId, productName: level.productName, code: level.variantCode, photo: level.photo });
+    const [gift, setGift] = useState<Gift | null>(level === undefined ? null : { id: level.variantId, productName: level.productName, code: level.variantCode, photo: level.photo, stockDependent: level.stockDependent, wired: level.wired });
     const [text, setText] = useState('');
     const [searching, setSearching] = useState(false);
     const first = useRef(true);
@@ -46,6 +48,7 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
         amount: level?.amountText ?? '',
         for_public: level?.forPublic ?? true,
         for_company: level?.forCompany ?? true,
+        make_stock_dependent: false,
     });
     const errors: Partial<Record<string, string>> = form.errors;
     const decimals = page.exponent;
@@ -86,7 +89,7 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
 
     function save() {
         checks.submit(() => {
-            form.transform((data) => ({ ...data, gift_variant: gift?.id ?? '', starts_at: sent(starts, level?.startsAt), ends_at: sent(ends, level?.endsAt) }));
+            form.transform((data) => ({ ...data, make_stock_dependent: stockBox && data.make_stock_dependent, gift_variant: gift?.id ?? '', starts_at: sent(starts, level?.startsAt), ends_at: sent(ends, level?.endsAt) }));
             const done = { preserveScroll: true, onSuccess: () => onOpenChange(false) };
 
             if (level === undefined) {
@@ -97,7 +100,13 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
         });
     }
 
-    const pick = (size: SizeChoiceData) => setGift({ id: size.id, productName: size.productName, code: size.code, photo: size.photo });
+    const pick = (size: SizeChoiceData) => {
+        setGift({ id: size.id, productName: size.productName, code: size.code, photo: size.photo, stockDependent: size.stockDependent, wired: size.wired });
+        // A new size starts unticked: the box is about the size chosen.
+        form.setData('make_stock_dependent', false);
+    };
+    // Offered only where it would change something: a wired store, a size not yet limited to its stock.
+    const stockBox = gift !== null && gift.wired && !gift.stockDependent;
 
     return (
         <PanelDialog
@@ -192,6 +201,34 @@ export function GiftLevelDialog({ open, onOpenChange, page, level }: Props) {
                         </p>
                     ) : null}
                 </FieldSet>
+
+                {stockBox ? (
+                    <Field orientation="horizontal" className="items-start gap-3" data-test="stock-box">
+                        <Checkbox
+                            id="make_stock_dependent"
+                            checked={form.data.make_stock_dependent}
+                            // Out of reach without the stock job, yet still focusable, so its reason is heard
+                            // (aria-disabled, never `disabled`; as the role editor's boxes).
+                            aria-disabled={page.mayManageStock ? undefined : true}
+                            onCheckedChange={(on) => (page.mayManageStock ? form.setData('make_stock_dependent', on === true) : undefined)}
+                            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                            aria-describedby={page.mayManageStock ? 'stock-line' : 'stock-line stock-reason'}
+                        />
+                        <div className="grid gap-1">
+                            <FieldLabel htmlFor="make_stock_dependent" className="text-label-14 font-normal text-ink">
+                                {t('promotions::admin_gifts.form.stock_box')}
+                            </FieldLabel>
+                            <FieldDescription id="stock-line" className="text-copy-13 text-ink-muted">
+                                {t('promotions::admin_gifts.form.stock_line')}
+                            </FieldDescription>
+                            {page.mayManageStock ? null : (
+                                <FieldDescription id="stock-reason" className="text-copy-13 text-ink-muted" data-test="stock-reason">
+                                    {t('promotions::admin_gifts.form.stock_reason')}
+                                </FieldDescription>
+                            )}
+                        </div>
+                    </Field>
+                ) : null}
 
                 <FieldSet>
                     <FieldLegend className="text-label-14 text-ink">{t('promotions::admin_gifts.form.who')}</FieldLegend>

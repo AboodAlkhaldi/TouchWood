@@ -23,6 +23,7 @@ use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Application\Query\GiftLevelRow;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevels;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevelsHandler;
+use Modules\Promotions\Application\Query\SearchGiftSizes\SearchGiftSizesHandler;
 use Modules\Promotions\Domain\Exception\GiftLevelClash;
 use Modules\Promotions\Domain\Exception\GiftLevelNotFound;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
@@ -50,7 +51,7 @@ final readonly class GiftLevelsController
     ) {}
 
     /** M4. */
-    public function index(Request $request, GiftLevelPages $pages, ListGiftLevelsHandler $levels): Response
+    public function index(Request $request, GiftLevelPages $pages, ListGiftLevelsHandler $levels, SearchGiftSizesHandler $sizes): Response
     {
         $search = self::query($request, 'search');
         $length = $search === null ? 0 : mb_strlen($search);
@@ -60,6 +61,7 @@ final readonly class GiftLevelsController
             // As the box sends it: 2 to 100 characters; anything else searches nothing.
             $length >= 2 && $length <= 100 ? $search : null,
             $levels,
+            $sizes,
         )->toArray(), self::WORDS);
     }
 
@@ -126,6 +128,8 @@ final readonly class GiftLevelsController
             $request->boolean('for_company'),
             CouponForm::moment($request, 'starts_at'),
             CouponForm::moment($request, 'ends_at'),
+            // The stock tick box (Q11 (c)): also limit the size's normal sales to its stock, in the save.
+            $request->boolean('make_stock_dependent'),
         );
     }
 
