@@ -163,14 +163,16 @@ describe('delivered', function () {
         Cx::setting(SalesSettings::RETURN_WINDOW_DAYS, 30);
         fulfilledPaid($order);
         fulfilledShip($order);
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-22 15:30:45'));
+        // Two days ahead of now, never behind it (lesson 221), at 15:30:45.
+        $delivered = CarbonImmutable::now()->addDays(2)->setTime(15, 30, 45);
+        CarbonImmutable::setTestNow($delivered);
         $before = app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points;
 
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
 
         $row = fulfilledRow($order);
         expect([$row?->status, $row?->shipment_status])->toBe(['COMPLETED', 'DELIVERED'])
-            ->and(CarbonImmutable::parse((string) $row?->return_deadline_at)->format('Y-m-d H:i'))->toBe('2026-11-21 15:30')
+            ->and(CarbonImmutable::parse((string) $row?->return_deadline_at)->format('Y-m-d H:i'))->toBe($delivered->addDays(30)->format('Y-m-d H:i'))
             ->and(CarbonImmutable::parse((string) $row?->return_deadline_at)->format('s'))->toBe('00')
             ->and($earns)->toBeGreaterThan(0)
             ->and(app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points)->toBe($before + $earns)
