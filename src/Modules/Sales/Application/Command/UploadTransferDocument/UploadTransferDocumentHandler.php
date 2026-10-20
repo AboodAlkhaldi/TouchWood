@@ -19,6 +19,7 @@ use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
+use Shared\Domain\Error\DomainError;
 
 /**
  * A company's bank-transfer document on its own order (sales.md §1.9; b2b.md amendment 12(c)): **up to
@@ -48,15 +49,19 @@ final readonly class UploadTransferDocumentHandler
      * @return string the document's media id
      *
      * @throws Unauthorized|InvalidSalesAttribute|OrderNotFound|TooManyFiles
+     * @throws DomainError Platform's own refusals of the file (`platform.media_too_large`, `…unsupported_media_type`,
+     *                     `…invalid_media_attribute` — an empty file)
      */
     public function handle(UploadTransferDocument $command): string
     {
-        [$orderId, $store, $customerId] = $this->access->authorize(self::PERMISSION, $command->orderId);
+        // The file first: whether an id is an order is never told apart by a bad file's answer.
         $type = is_file($command->path) ? (string) (new finfo(FILEINFO_MIME_TYPE))->file($command->path) : '';
 
         if (! in_array($type, self::TYPES, true)) {
             throw new InvalidSalesAttribute('file', 'a PDF, JPEG or PNG');
         }
+
+        [$orderId, $store, $customerId] = $this->access->authorize(self::PERMISSION, $command->orderId);
 
         return $this->db->transaction(function () use ($orderId, $store, $customerId, $command): string {
             $order = $this->orders->lock($orderId);

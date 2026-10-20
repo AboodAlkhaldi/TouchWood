@@ -441,8 +441,9 @@ Payments' (stage 7).
   bank transfer, while it holds less than is due; at most 3, numbered 1–3 in the order they came; PDF,
   JPEG or PNG judged by the file's content, not its name; private; in the order's history. Platform
   keeps every one an order holds (`TransferDocumentsUsage`: each use blocks the delete). Staff open them
-  from the order (step S11).
-
+  from the order (step S11). The order stays locked while the file is stored, as B2B's documents are; a
+  placement rolled back afterwards removes the stored file (Platform). The file's name the customer gave
+  stays with it after anonymizing — an order is a financial record (§1.12).
 ### 1.10 Store settings
 
 Declared by Sales, per store (owner, 2026-10-10: "a flat shipping fee per store until stage 7"):

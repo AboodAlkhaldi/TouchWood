@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocument;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
@@ -43,15 +45,15 @@ beforeEach(function () {
 afterEach(fn () => File::deleteDirectory(Bx::uploads()));
 
 /** A company's order placed to be paid by bank transfer (or staff contact); acting as the company. */
-function transferOrder(string $way = 'BANK_TRANSFER'): string
+function transferOrder(string $way = 'BANK_TRANSFER', string $storeCode = 'sa'): string
 {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
     $b2b->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
     app()->instance(B2BApi::class, $b2b);
-    $ready = Cx::ready('company');
+    $ready = Cx::ready('company', $storeCode);
 
-    return Cx::place(Cx::start($ready['address'], $way)->id)->id;
+    return Cx::place(Cx::start($ready['address'], $way, storeCode: $storeCode)->id, $storeCode)->id;
 }
 
 function transferUpload(string $order, ?string $path = null): string
@@ -115,4 +117,41 @@ it('keeps a document while an order holds it', function () {
     expect(array_map(fn ($use): array => [$use->subjectType, $use->subjectId, $use->blocksDelete], $uses))->toBe([['sales.order', $order, true]])
         ->and(app(TransferDocumentsUsage::class)->usesOf(strtolower((string) Str::ulid())))->toBe([])
         ->and(fn () => DB::table('platform.media')->where('id', $media)->delete())->toThrow(QueryException::class);
+});
+
+describe('what the review asked for', function () {
+    it('answers a bad file the same whatever the order', function () {
+        $order = transferOrder();
+        Fx::actAsCustomer(Cx::customer());
+        File::ensureDirectoryExists(Bx::uploads());
+        $path = Bx::uploads().'/'.uniqid('', true).'-words.pdf';
+        file_put_contents($path, 'plain words');
+
+        expect(Pr::thrown(fn () => transferUpload($order, $path), InvalidSalesAttribute::class)->attribute)->toBe('file')
+            ->and(Pr::thrown(fn () => transferUpload(strtolower((string) Str::ulid()), $path), InvalidSalesAttribute::class)->attribute)->toBe('file');
+    });
+
+    it('reads what the order holds, paid less refunded', function () {
+        $order = transferOrder();
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor'), 'refunded_minor' => 1]);
+
+        expect(transferUpload($order))->not->toBe('');
+    });
+
+    it('takes a document on an order of a store switched off since', function () {
+        $order = transferOrder(storeCode: 'eg');
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        expect(transferUpload($order))->not->toBe('');
+    });
+
+    it('holds the table rules in the database too', function (Closure $write, string $refusal) {
+        $order = transferOrder();
+        $media = transferUpload($order);
+
+        expect(fn () => $write($order, $media))->toThrow(QueryException::class, $refusal);
+    })->with([
+        'a fourth place' => [fn (string $order, string $media) => DB::table('sales.transfer_documents')->insert(['order_id' => $order, 'store_id' => DB::table('sales.orders')->where('id', $order)->value('store_id'), 'media_id' => $media, 'position' => 4, 'uploaded_at' => now()]), 'transfer_documents_position'],
+        'another store' => [fn (string $order, string $media) => DB::table('sales.transfer_documents')->insert(['order_id' => $order, 'store_id' => Fx::storeId('eg'), 'media_id' => $media, 'position' => 2, 'uploaded_at' => now()]), 'transfer_documents_order'],
+    ]);
 });
