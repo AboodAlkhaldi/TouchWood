@@ -12,6 +12,7 @@ return [
         'search_placeholder' => 'Search by code…',
         'all' => 'All',
         'no_end' => 'No end',
+        'until' => 'Until',
         'empty_title' => 'No coupons yet',
         'empty_body' => 'Make a code customers can type at checkout.',
         'none_match' => 'No coupons match.',
