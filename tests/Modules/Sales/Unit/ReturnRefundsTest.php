@@ -50,7 +50,9 @@ it('refunds nothing for the gift, and the shipping with the return that brings e
 it('carries the shipping once only, and never while a bought piece is still out', function () {
     $lines = refundLines();
 
-    expect(ReturnRefunds::of($lines, ['a' => 3], ['b' => 1], true, 25_00, 3_75)['shipping'])->toBeFalse()
+    // The gift kept: every bought piece back is enough.
+    expect(ReturnRefunds::of($lines, [], ['a' => 3, 'b' => 1], false, 25_00, 3_75)['shipping'])->toBeTrue()
+        ->and(ReturnRefunds::of($lines, ['a' => 3], ['b' => 1], true, 25_00, 3_75)['shipping'])->toBeFalse()
         ->and(ReturnRefunds::of($lines, ['a' => 2], ['b' => 1], false, 25_00, 3_75)['shipping'])->toBeFalse()
         ->and(ReturnRefunds::of($lines, ['a' => 3], ['b' => 1], false, 25_00, 3_75)['refund'])->toBe(50_00 - 2_50 + 7_12 + 25_00 + 3_75);
 });
