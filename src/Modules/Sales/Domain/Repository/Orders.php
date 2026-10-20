@@ -49,6 +49,9 @@ interface Orders
     /** What the order was paid and refunded moved by these amounts (§1.9) — a void moves them back. */
     public function moveMoney(string $orderId, int $paid, int $refunded): void;
 
+    /** A completed return's refund comes off what is due (§1.4: `order_total` less the refunds owed for completed returns). */
+    public function lowerDue(string $orderId, int $refund): void;
+
     /** Whether staff let the order ship before what it holds covers what is due (§1.4). */
     public function allowShipUnpaid(string $orderId, bool $allow): void;
 

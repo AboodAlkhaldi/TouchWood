@@ -41,6 +41,29 @@ interface Returns
 
     public function close(string $returnId, DateTimeImmutable $at): void;
 
+    /**
+     * The return's lines: each order line's size, whether it is the gift, the pieces asked and — once
+     * received — those that came and those going back into stock.
+     *
+     * @return array<string, array{variantId: string, gift: bool, asked: int, received: ?int, restocked: ?int}> by order line id
+     */
+    public function lines(string $returnId): array;
+
+    /**
+     * @param  array<string, array{int, int}>  $lines  order line id => [received, restocked]
+     */
+    public function receive(string $returnId, array $lines, DateTimeImmutable $at): void;
+
+    /**
+     * What a completion refunds by (§1.8): the order's lines and their shares, the pieces of each received
+     * in returns completed already, whether one carried the shipping, the shipping fee and its VAT share.
+     *
+     * @return array{lines: array<string, array{quantity: int, total: int, coupon: int, points: int, vat: int, gift: bool}>, before: array<string, int>, shippingRefunded: bool, shippingFee: int, shippingVat: int}
+     */
+    public function forRefund(string $orderId): array;
+
+    public function complete(string $returnId, int $refundDue, bool $shippingRefunded, DateTimeImmutable $at): void;
+
     /** @return int how many photos the return holds */
     public function photos(string $returnId): int;
 

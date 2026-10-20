@@ -193,6 +193,11 @@ final readonly class DatabaseOrders implements Orders
         $this->db->update('UPDATE sales.orders SET paid_minor = paid_minor + ?, refunded_minor = refunded_minor + ? WHERE id = ?', [$paid, $refunded, $orderId]);
     }
 
+    public function lowerDue(string $orderId, int $refund): void
+    {
+        $this->db->update('UPDATE sales.orders SET due_minor = due_minor - ? WHERE id = ?', [$refund, $orderId]);
+    }
+
     public function allowShipUnpaid(string $orderId, bool $allow): void
     {
         $this->db->table('sales.orders')->where('id', $orderId)->update(['may_ship_unpaid' => $allow]);

@@ -21,7 +21,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 ## What is here
 
 - **`Infrastructure/SalesServiceProvider`** — loads the migrations and the words, declares the
-  permissions through Access and the settings through Platform; binds `SalesApi` to the placeholder.
+  permissions through Access and the settings through Platform; binds `SalesApi` to `DatabaseSalesApi` (S10b).
 - **`Application/SalesPermissions`**, **`Application/SalesSettings`**.
 - **`Infrastructure/Persistence/SalesSchema`** and its migration — the `sales` schema, on the
   connection's search path so a fresh migration wipes it.
@@ -81,8 +81,12 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   the commands `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto` (the customer's), `AcceptReturn`,
   `RefuseReturn`, `CloseReturn` (staff's); `Public/Enums/ReturnReason`. `SalesFilesUsage` keeps a photo a
   return holds too.
+- **Returns received and completed** (S10b): `ReceiveReturn` (Inventory's `returned` last, for the pieces
+  going back), `CompleteReturn` (`Domain/Service/ReturnRefunds` — running totals, the shipping with the
+  last bought piece; `due` lowered; Loyalty's `orderReturned`; `ReturnCompleted`);
+  `Infrastructure/Eloquent/DatabaseSalesApi` answers `SalesApi` (the placeholder `NothingSoldYet` removed).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, and
-`tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, and
+`tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

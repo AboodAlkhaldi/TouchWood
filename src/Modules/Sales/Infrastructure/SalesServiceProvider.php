@@ -27,8 +27,8 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseMoneyRecords;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseOrders;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
-use Modules\Sales\Infrastructure\External\NothingSoldYet;
 use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
@@ -40,14 +40,14 @@ use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
  * Sales (sales.md). Registered after Access and Platform: it declares its permissions through
- * Access's public catalog and its settings through Platform. Its public contract is answered by a
- * placeholder until its returns are built (step S10), so the modules built against it (Feedback) run.
+ * Access's public catalog and its settings through Platform. Its public contract (§2.1) reads its own
+ * deliveries and completed returns.
  */
 final class SalesServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(SalesApi::class, NothingSoldYet::class);
+        $this->app->bind(SalesApi::class, DatabaseSalesApi::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);

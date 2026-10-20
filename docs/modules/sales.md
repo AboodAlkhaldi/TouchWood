@@ -414,6 +414,19 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
   with no history row of its own (no such kind in §5).
 - The deadline is kept to the minute; a request is checked in whole seconds, so the deadline's own second
   is still in time.
+
+**As built (step S10b — receiving and completing)** — my assumptions, stated for the owner to reject:
+- `ReceiveReturn` names **every line of the return once**: how many came (0 to all asked) and how many of
+  those go back into stock; only those going back are told to Inventory (`returned`, last; not called when
+  none go back).
+- `CompleteReturn` refunds by `Domain/Service/ReturnRefunds` (the running totals above). The shipping's VAT
+  share is the order's VAT less what its lines carry. The refund comes off `due`; the money itself is
+  paid back by hand (`RecordRefund`, §1.9) — until then the order shows `REFUND_DUE`. It answers the
+  refund, so staff see it. Loyalty is told the pieces' goods shares and points shares; `ReturnCompleted`
+  goes to the outbox. A return of which nothing came completes, refunding nothing.
+- `SalesApi` (§2.1) now reads Sales's own rows (`Infrastructure/Eloquent/DatabaseSalesApi`; the placeholder
+  is gone): the latest delivery by delivery time (then line); `returned` when any piece of the product came
+  back in a completed return of any of the customer's orders.
 - Staff accept or refuse a waiting return; close an accepted one; the customer withdraws a waiting one;
   any other move is `InvalidOrderChange`.
 
