@@ -15,6 +15,6 @@ interface Quotes
     /** The quote, whoever's it is; null when there is none. */
     public function find(string $quoteId): ?Quote;
 
-    /** @return int how many were deleted */
+    /** Those expired and never placed. @return int how many were deleted */
     public function deleteExpiredBefore(DateTimeImmutable $at): int;
 }

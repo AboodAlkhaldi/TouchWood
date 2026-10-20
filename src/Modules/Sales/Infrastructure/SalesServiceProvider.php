@@ -11,13 +11,17 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Domain\Repository\OrderNumbers;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
+use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
+use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomerCarts;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
@@ -36,6 +40,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(SalesApi::class, NothingSoldYet::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
+        $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);
     }
 
     public function boot(): void
@@ -51,6 +56,8 @@ final class SalesServiceProvider extends ServiceProvider
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
         // An anonymized account's carts deleted (§1.12).
         Event::listen(CustomerAnonymized::class, [ForgetCustomerCarts::class, 'handle']);
+        // A store opened later gets its own order numbers from 1001 (§1.3).
+        Event::listen(StoreCreated::class, [CreateOrderSequence::class, 'handle']);
 
         // Carts no one touched for 90 days, emptied each night (§1.1). Scheduled work is queued as a
         // job, never command() or call() (owner's decision, 2026-09-18).

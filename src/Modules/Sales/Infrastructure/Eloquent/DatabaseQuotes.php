@@ -7,6 +7,7 @@ namespace Modules\Sales\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Modules\Sales\Domain\Model\Quote;
 use Modules\Sales\Domain\Repository\Quotes;
 use stdClass;
@@ -63,6 +64,10 @@ final readonly class DatabaseQuotes implements Quotes
 
     public function deleteExpiredBefore(DateTimeImmutable $at): int
     {
-        return $this->db->table('sales.quotes')->where('expires_at', '<', Moment::of($at))->delete();
+        // A placed quote stays with its order: placing again answers the order placed from it (§1.3).
+        return $this->db->table('sales.quotes')
+            ->where('expires_at', '<', Moment::of($at))
+            ->whereNotExists(fn (Builder $orders) => $orders->selectRaw('1')->from('sales.orders')->whereColumn('sales.orders.quote_id', 'sales.quotes.id'))
+            ->delete();
     }
 }

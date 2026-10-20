@@ -614,6 +614,16 @@ by (`store_id`, `status`, `requested_at`); by `order_id`. Carts by `guest_id`, b
 `updated_at` — the 90-day job. Quotes by `expires_at`. Outbox by (`available_at`, `id`) WHERE
 `dispatched_at IS NULL`.
 
+**As built (step S6a)** — my assumptions, stated for the owner to reject: `order_history.kind` is one
+of `PLACED`, `APPROVED`, `REJECTED`, `CANCELLED`, `EDITED`, `SHORT_FLAGGED`, `SHORT_CLEARED`,
+`TICKED_REDUCED`, `SHIP_UNPAID_ALLOWED`, `SHIPPED`, `DELIVERED`, `CAME_BACK`, `PAYMENT_RECORDED`,
+`REFUND_RECORDED`, `MONEY_VOIDED`, `TRANSFER_DOCUMENT_UPLOADED`, `RETURN_REQUESTED`, `RETURN_WITHDRAWN`,
+`RETURN_ACCEPTED`, `RETURN_REFUSED`, `RETURN_RECEIVED`, `RETURN_CLOSED`, `RETURN_COMPLETED`; two CHECKs
+beyond the row above — `orders.locale IN ('ar','en')` and `return_deadline_at` only once delivered; the
+quotes' nightly deletion leaves a placed quote with its order (placing again answers that order, §1.3).
+The order number's format (`SA-1001`) is provisional: it must later match the company's current format
+(owner, 2026-10-19).
+
 ---
 
 ## 6 · Events

@@ -43,7 +43,14 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Infrastructure/Eloquent/DatabaseQuotes`; the commands `StartCheckout` (a signed-in customer's cart
   in the store) and `DeleteExpiredQuotes` (the system's, nightly through
   `Infrastructure/Queue/DeleteExpiredQuotesJob`); `Public/Enums/{WayToPay,OrderAudience}`.
+- **The order's tables** (S6a): `sales.orders`, `order_lines`, `order_edits`, `order_ticks`,
+  `order_history` (edits and history append-only, by trigger), each machine's rules a CHECK;
+  `Domain/Service/OrderShares` (the coupon's, points' and VAT's shares a line, and a piece's part by
+  running totals — §1.8); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
+  (`Infrastructure/Eloquent/OrderNumberSequences`, made for a store opened later by
+  `Infrastructure/Listener/CreateOrderSequence`).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, and
+`tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.
