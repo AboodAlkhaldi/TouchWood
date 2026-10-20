@@ -600,6 +600,47 @@ describe('through Sync', function () {
             ->and(array_map(fn (string $size): ?int => Ix::stock('sa', $size)?->in_stock, $sizes))->toBe([3, 3, 3, null, null, null, 7]);
     });
 
+    it('reports a price or a stock null or left out as a bad value naming it, and takes the other when good (§2.4 As built)', function () {
+        ['variants' => $sizes, 'codes' => $codes] = odooProduct(['10 cm', '20 cm', '30 cm', '40 cm']);
+        $body = '{"items": ['
+            .'{"code": "'.$codes[0].'", "price": null, "available": 3},'
+            .'{"code": "'.$codes[1].'", "price": "10.00"},'
+            .'{"code": "'.$codes[2].'"},'
+            .'{"code": "'.$codes[3].'", "price": "120.00", "available": 7}'
+            .'], "missing": [], "next": null}';
+        Http::fake(['odoo.test/*' => Http::sequence()->push(odooAnswer())->push($body)]);
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+        $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        $entries = DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->whereNull('closed_at')->get(['variant_id', 'detail'])
+            ->mapWithKeys(fn ($row): array => [(string) $row->variant_id => json_decode((string) $row->detail, true)])->all();
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE')
+            ->and($entries)->toEqual([
+                $sizes[0] => ['price' => null, 'stock' => 3, 'refused' => 'price', 'missing' => ['price']],
+                $sizes[1] => ['price' => '10.00', 'stock' => null, 'refused' => 'stock', 'missing' => ['stock']],
+                $sizes[2] => ['price' => null, 'stock' => null, 'refused' => 'both', 'missing' => ['price', 'stock']],
+            ])
+            // The other value of the item is still taken when it is good.
+            ->and(array_map(fn (string $size): ?int => Rx::retail('sa', $size)?->amount_minor, $sizes))->toBe([null, 1000, null, 12000])
+            ->and(array_map(fn (string $size): ?int => Ix::stock('sa', $size)?->in_stock, $sizes))->toBe([3, null, null, 7]);
+    });
+
+    it('keeps "may be missing" for another provider: a null value is not sent, not a bad value (§2.1)', function () {
+        ['variants' => [$size], 'codes' => [$code]] = odooProduct(['10 cm']);
+        $fake = FakeProvider::bind();
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+        $fake->values = [new ProviderValue($code, '15.00', null)];
+        $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        expect(DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->count())->toBe(0)
+            ->and(Rx::retail('sa', $size)?->amount_minor)->toBe(1500);
+    });
+
     it('skips an object sent by any provider as a bad value, never failing the read', function () {
         ['variants' => [$size, $good], 'codes' => [$code, $other]] = odooProduct(['10 cm', '20 cm']);
         $fake = FakeProvider::bind();

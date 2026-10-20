@@ -363,8 +363,12 @@ final readonly class RunReadHandler
                 }
             }
 
+            // A value the provider was bound to send and did not (its adapter names it): refused as well.
+            $missing = array_values(array_intersect(['price', 'stock'], $value->missing));
+            $refused = array_values(array_intersect(['price', 'stock'], [...$refused, ...$missing]));
+
             if ($refused !== []) {
-                $bad[$variant->id] = [...self::detail($value), 'refused' => count($refused) === 2 ? 'both' : $refused[0]];
+                $bad[$variant->id] = [...self::detail($value), 'refused' => count($refused) === 2 ? 'both' : $refused[0], ...($missing === [] ? [] : ['missing' => $missing])];
             }
         }
 

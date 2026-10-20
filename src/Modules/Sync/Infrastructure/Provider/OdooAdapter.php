@@ -399,7 +399,14 @@ final class OdooAdapter implements ProviderAdapter
             }
 
             /** @var array<string, mixed> $item */
-            $values[] = new ProviderValue($code, $item['price'] ?? null, $item['available'] ?? null);
+            $price = $item['price'] ?? null;
+            $available = $item['available'] ?? null;
+
+            // Every item carries both (§2.4's answer): one null or left out is a bad value for that code - the
+            // other still taken when it is good - never "not sent".
+            $missing = array_values(array_filter(['price' => $price === null ? 'price' : null, 'stock' => $available === null ? 'stock' : null]));
+
+            $values[] = new ProviderValue($code, $price, $available, $missing);
         }
 
         return $values;

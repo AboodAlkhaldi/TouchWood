@@ -289,8 +289,11 @@ code does it:
   `price` and `available` are passed on as they came, for Pricing, Inventory and the read to check (§1.4,
   §1.5): **a price that is not text or a number, or an `available` that is not a whole number** - `false`,
   a list, an object - is a **`BAD_VALUE` for that code alone** (`refused`: price, stock or both), and the read
-  goes on (§1.7). A `price` or `available` that is `null` or left out is taken as **not sent**: that value of
-  the size is left as it is (§2.1: either may be missing).
+  goes on (§1.7). **A `price` or `available` that is `null` or left out breaks the answer's contract** (every
+  item carries both): a **`BAD_VALUE` for that code**, naming it (`missing`: price, stock or both, beside
+  `refused`); the item's other value is still taken when it is good, and the read goes on. (§2.1's "either may
+  be missing" stays for other providers: the adapter names what its own contract makes required, in
+  `ProviderValue::missing`.)
 - **Call 3 yields only the codes asked**: any other code the answer carries is left out, never reported.
   Its `next` is not followed (500 codes fit one page). The codes are **trimmed, then each asked once**,
   before they are cut into calls of 500 (`" 7 "` and `"7"` are one code, §1.1 rule 5); **a code holding a
