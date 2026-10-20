@@ -11,6 +11,7 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\SalesPermissions;
@@ -30,6 +31,7 @@ use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
+use Modules\Sales\Infrastructure\Media\TransferDocumentsUsage;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Public\Contracts\SalesApi;
@@ -59,6 +61,8 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(PermissionCatalog::class)->declare('sales', ...SalesPermissions::definitions());
         // The flat shipping fee, free shipping from and the return window (§1.10), on Platform's settings page.
         $this->app->make(SettingsRegistry::class)->define('sales', ...SalesSettings::definitions());
+        // A bank-transfer document an order holds is never deleted (§1.9, §5).
+        $this->app->make(MediaUsages::class)->register('sales', TransferDocumentsUsage::class);
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);

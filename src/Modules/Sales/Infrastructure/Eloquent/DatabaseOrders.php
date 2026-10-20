@@ -96,7 +96,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -111,6 +111,7 @@ final readonly class DatabaseOrders implements Orders
             $row->short_of_stock_at === null ? null : CarbonImmutable::parse((string) $row->short_of_stock_at),
             (string) $row->currency_code,
             (bool) $row->may_ship_unpaid,
+            (string) $row->way_to_pay,
         ) : null;
     }
 
@@ -176,6 +177,16 @@ final readonly class DatabaseOrders implements Orders
     public function allowShipUnpaid(string $orderId, bool $allow): void
     {
         $this->db->table('sales.orders')->where('id', $orderId)->update(['may_ship_unpaid' => $allow]);
+    }
+
+    public function transferDocuments(string $orderId): array
+    {
+        return array_values(array_map('strval', $this->db->table('sales.transfer_documents')->where('order_id', $orderId)->orderBy('position')->pluck('media_id')->all()));
+    }
+
+    public function addTransferDocument(string $orderId, string $storeId, string $mediaId, int $position, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.transfer_documents')->insert(['order_id' => $orderId, 'store_id' => $storeId, 'media_id' => $mediaId, 'position' => $position, 'uploaded_at' => Moment::of($at)]);
     }
 
     public function forgetEmail(string $customerId): void

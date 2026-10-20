@@ -40,6 +40,7 @@ final readonly class OrderState
         public ?DateTimeImmutable $shortOfStockAt,
         public string $currencyCode,
         public bool $mayShipUnpaid,
+        public string $wayToPay,
     ) {}
 
     public function isWaiting(): bool
