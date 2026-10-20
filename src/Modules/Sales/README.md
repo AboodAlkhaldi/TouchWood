@@ -37,7 +37,13 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `EmptyOldCarts` (the system's, nightly through `Infrastructure/Queue/EmptyOldCartsJob`);
   `Application/Cart/GuestCartMover` behind `Infrastructure/Listener/MoveGuestCart` (synchronous, never
   failing a sign-in) and `ForgetCustomerCarts` (queued).
+- **The quote** (S5): `Application/Quote/QuoteBuilder` (§1.2's twelve steps, in order; a refused
+  coupon or points carried, never failing it) and `QuoteView` (the itemised answer, kept whole as the
+  row's `result`); `Domain/Model/Quote`, `Domain/Repository/Quotes` with SQL in
+  `Infrastructure/Eloquent/DatabaseQuotes`; the commands `StartCheckout` (a signed-in customer's cart
+  in the store) and `DeleteExpiredQuotes` (the system's, nightly through
+  `Infrastructure/Queue/DeleteExpiredQuotesJob`); `Public/Enums/{WayToPay,OrderAudience}`.
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

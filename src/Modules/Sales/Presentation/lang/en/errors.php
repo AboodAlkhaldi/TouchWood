@@ -93,5 +93,6 @@ return [
         'reason' => 'reason',
         'amount' => 'amount',
         'locale' => 'language',
+        'points' => 'points',
     ],
 ];

@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Sales\Domain\Repository;
+
+use DateTimeImmutable;
+use Modules\Sales\Domain\Model\Quote;
+
+/** The checkout's quotes (sales.md §1.2): written once, read by their id, deleted once expired. */
+interface Quotes
+{
+    public function add(Quote $quote): void;
+
+    /** The quote, whoever's it is; null when there is none. */
+    public function find(string $quoteId): ?Quote;
+
+    /** @return int how many were deleted */
+    public function deleteExpiredBefore(DateTimeImmutable $at): int;
+}
