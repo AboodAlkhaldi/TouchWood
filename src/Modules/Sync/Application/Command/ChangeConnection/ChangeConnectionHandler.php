@@ -57,7 +57,7 @@ final readonly class ChangeConnectionHandler
         $store = $this->stores->of($command->storeId);
 
         $provider = $this->input->provider($command->provider);
-        $address = $this->input->address($command->address);
+        $address = $this->input->address($provider, $command->address);
         $settings = $this->input->settings($provider, $command->settings);
         $key = $command->key === null || $command->key === '' ? null : $this->input->secret($command->key, 'key');
         $secret = $command->secret === null || $command->secret === '' ? null : $this->input->secret($command->secret, 'secret');

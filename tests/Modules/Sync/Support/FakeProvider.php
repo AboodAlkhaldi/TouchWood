@@ -65,6 +65,12 @@ final class FakeProvider implements ProviderAdapter
         return $this->ready;
     }
 
+    /** Any address the shared rule takes: the pretend provider has no shape of its own. */
+    public function address(string $address): string
+    {
+        return $address;
+    }
+
     /** @var (callable(): mixed)|null run once, during the next test - what happens while the provider answers */
     public $whileTesting = null;
 

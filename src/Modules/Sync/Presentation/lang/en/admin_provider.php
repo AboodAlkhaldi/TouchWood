@@ -25,7 +25,7 @@ return [
     'fields' => [
         'provider' => 'Provider',
         'address' => 'Address',
-        'address_placeholder' => 'https://odoo.example.com',
+        'address_placeholder' => 'https://odoo.example.com/touchwood/v1',
         'key' => 'Key',
         'secret' => 'Secret',
         'settings' => 'The provider\'s settings',

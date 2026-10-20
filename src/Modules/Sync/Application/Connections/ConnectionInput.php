@@ -28,9 +28,17 @@ final readonly class ConnectionInput
         return ProviderKind::tryFrom(strtoupper(trim($provider))) ?? throw new InvalidSyncInput('provider');
     }
 
-    public function address(string $address): string
+    /**
+     * HTTPS with a host and nothing else of a person's, then the provider's own shape (Odoo's: no query or
+     * fragment, its path ending in `/touchwood/v1`, sync.md §2.4) - each refused by its own rule's words.
+     */
+    public function address(ProviderKind $provider, string $address): string
     {
         $address = trim($address);
+
+        if (preg_match('#\Ahttps://#i', $address) !== 1) {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_HTTPS);
+        }
 
         // A name or a password in the address would be audited and shown: the key is for that.
         if (mb_strlen($address) > self::MOST_ADDRESS || preg_match('#\Ahttps://[^\s/?\#@]+([/?\#][^\s]*)?\z#i', $address) !== 1) {
@@ -38,7 +46,7 @@ final readonly class ConnectionInput
         }
 
         // The table holds the scheme as written in lower case (its CHECK, `connections_address`).
-        return 'https://'.substr($address, strlen('https://'));
+        return $this->adapters->for($provider)->address('https://'.substr($address, strlen('https://')));
     }
 
     /**

@@ -9,6 +9,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
@@ -28,6 +29,7 @@ use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Report\SyncReportCount;
 use Modules\Sync\Application\SyncPermissions as P;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
+use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -374,6 +376,25 @@ describe('the Provider page (Y3)', function () {
             ->and([AdminBrowser::flashed($wired, 'status'), AdminBrowser::flashed($changed, 'status'), AdminBrowser::flashed($unwired, 'status')])->toBe(['Store wired', 'Connection changed', 'Store unwired'])
             ->and(DB::table('sync.connections')->count())->toBe(0);
     });
+
+    it('refuses an Odoo address by the rule it breaks, under the Address box, in the panel\'s language, before any call (§2.4)', function (string $address, string $english, string $arabic) {
+        // Odoo's own adapter in place of the pretend one; nothing may reach the network.
+        app()->forgetInstance(OdooAdapter::class);
+        Http::fake();
+        $form = ['store' => 'sa', 'provider' => 'ODOO', 'address' => $address, 'key' => 'k', 'secret' => 's'];
+
+        expect(syncScreensErrors(syncScreensSuper()->post('/admin/sync/provider/wire', $form)))->toBe(['form' => [$english], 'address' => [$english]])
+            ->and(syncScreensErrors(syncScreensAs(Fx::staff(StaffStatus::Active, superAdmin: true), 'ar')->post('/admin/sync/provider/wire', $form)))->toBe(['form' => [$arabic], 'address' => [$arabic]])
+            ->and(DB::table('sync.connections')->count())->toBe(0);
+        Http::assertNothingSent();
+    })->with([
+        'not HTTPS' => ['http://odoo.test/touchwood/v1', 'The address must start with https://.', 'يجب أن يبدأ العنوان بـ https://.'],
+        'a query' => ['https://odoo.test/touchwood/v1?db=tw', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'a fragment' => ['https://odoo.test/touchwood/v1#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
+        'another path' => ['https://odoo.test/api', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
+        'no path' => ['https://odoo.test', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
+        'another version' => ['https://odoo.test/touchwood/v2', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
+    ]);
 
     it('says the provider\'s reason when its test fails, saving nothing', function () {
         FakeProvider::bound()->failure = 'Odoo answered 401.';

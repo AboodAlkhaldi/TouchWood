@@ -66,7 +66,7 @@ final readonly class WireStoreHandler
         $connection = new Connection(
             $store->value,
             $provider,
-            $this->input->address($command->address),
+            $this->input->address($provider, $command->address),
             $this->input->settings($provider, $command->settings),
             $this->input->secret($command->key, 'key'),
             $this->input->secret($command->secret, 'secret'),

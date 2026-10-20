@@ -25,7 +25,7 @@ return [
     'fields' => [
         'provider' => 'المزوّد',
         'address' => 'العنوان',
-        'address_placeholder' => 'https://odoo.example.com',
+        'address_placeholder' => 'https://odoo.example.com/touchwood/v1',
         'key' => 'المفتاح',
         'secret' => 'السرّ',
         'settings' => 'إعدادات المزوّد',

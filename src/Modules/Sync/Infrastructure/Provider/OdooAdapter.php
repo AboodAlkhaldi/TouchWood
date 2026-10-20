@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Sleep;
 use JsonException;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapter;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
@@ -55,6 +56,9 @@ final class OdooAdapter implements ProviderAdapter
     /** A `429`'s `Retry-After` is waited this long at most (§2.4). */
     public const int MOST_RETRY_AFTER = 60;
 
+    /** Odoo's path: the store's address ends in it (§2.4). */
+    public const string PATH = '/touchwood/v1';
+
     /** @var array<string, float> per store, when its last call ended - milliseconds */
     private array $lastCallEnded = [];
 
@@ -72,6 +76,26 @@ final class OdooAdapter implements ProviderAdapter
     public function ready(): bool
     {
         return true;
+    }
+
+    /**
+     * `https://<the account's address>/touchwood/v1` (§2.4): no query or fragment, the path ending in
+     * `/touchwood/v1`, a closing slash dropped. The shared rule has checked HTTPS and the host already.
+     */
+    public function address(string $address): string
+    {
+        if (strpbrk($address, '?#') !== false) {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_QUERY);
+        }
+
+        $address = rtrim($address, '/');
+        $path = parse_url($address, PHP_URL_PATH);
+
+        if (! is_string($path) || ! str_ends_with($path, self::PATH)) {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH);
+        }
+
+        return $address;
     }
 
     /** `GET /items?limit=1` (§2.4 call 4). */
@@ -135,7 +159,15 @@ final class OdooAdapter implements ProviderAdapter
     private function named(Connection $connection, array $codes): Generator
     {
         foreach (array_chunk(array_values(array_unique($codes)), self::MOST_CODES) as $some) {
-            yield from self::values($this->get($connection, ['codes' => implode(',', $some)], self::READ_SECONDS));
+            $asked = array_fill_keys(array_map(trim(...), $some), true);
+
+            // Only the codes asked: another the answer carries is left out, not reported (§2.4). Its `next`
+            // is not followed - a call of 500 codes fits one page.
+            foreach (self::values($this->get($connection, ['codes' => implode(',', $some)], self::READ_SECONDS)) as $value) {
+                if (isset($asked[trim($value->code)])) {
+                    yield $value;
+                }
+            }
         }
     }
 

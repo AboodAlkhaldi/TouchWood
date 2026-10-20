@@ -134,7 +134,7 @@ describe('wiring', function () {
     it('wires to Odoo only when its adapter\'s test call works: a refused token saves nothing (SyncOdooAdapterTest)', function () {
         Http::fake(['odoo.test/*' => Http::response(['error' => 'bad token'], 401)]);
 
-        expect(fn () => syncWire())->toThrow(ConnectionFailed::class, 'Odoo refused the token (401).')
+        expect(fn () => syncWire('https://odoo.test/touchwood/v1'))->toThrow(ConnectionFailed::class, 'Odoo refused the token (401).')
             ->and(DB::table('sync.connections')->count())->toBe(0);
         Http::assertSentCount(1);
     });

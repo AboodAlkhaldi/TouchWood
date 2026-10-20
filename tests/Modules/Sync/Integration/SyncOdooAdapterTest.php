@@ -20,6 +20,7 @@ use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ProviderKind;
@@ -214,6 +215,17 @@ describe('the calls (§2.4)', function () {
             ->and(array_column($values, 0))->toBe(['10001', '10501', '11001']);
     });
 
+    it('yields only the codes asked in a codes call: another the answer carries is left out, and its next not followed', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer([
+            ['code' => '101', 'price' => '10.00', 'available' => 1],
+            ['code' => '999', 'price' => '99.00', 'available' => 9],
+            ['code' => 102, 'price' => '20.00', 'available' => 2],
+        ], 'p2'))]);
+
+        expect(odooRead(['101', '102']))->toBe([['101', '10.00', 1], ['102', '20.00', 2]])
+            ->and(odooAsked())->toBe(['/touchwood/v1/items?codes=101,102']);
+    });
+
     it('asks nothing for no codes', function () {
         Http::fake();
 
@@ -364,6 +376,35 @@ describe('failures: a short reason, never the body, the address or the key (§2.
     });
 });
 
+describe('the address (§2.4)', function () {
+    it('takes Odoo\'s address ending in /touchwood/v1, a closing slash dropped', function (string $given, string $kept) {
+        expect(odooAdapter()->address($given))->toBe($kept);
+    })->with([
+        'as written' => ['https://odoo.test/touchwood/v1', 'https://odoo.test/touchwood/v1'],
+        'a closing slash' => ['https://odoo.test/touchwood/v1/', 'https://odoo.test/touchwood/v1'],
+        'a deeper path and a port' => ['https://odoo.test:8443/acme/touchwood/v1', 'https://odoo.test:8443/acme/touchwood/v1'],
+    ]);
+
+    it('refuses a query, a fragment or another path, each by its own rule', function (string $given, string $rule) {
+        try {
+            odooAdapter()->address($given);
+            $refused = null;
+        } catch (InvalidSyncInput $error) {
+            $refused = [$error->attribute, $error->context()['rule'] ?? null];
+        }
+
+        expect($refused)->toBe(['address', $rule]);
+    })->with([
+        'a query' => ['https://odoo.test/touchwood/v1?db=tw', 'address_query'],
+        'an empty query' => ['https://odoo.test/touchwood/v1?', 'address_query'],
+        'a fragment' => ['https://odoo.test/touchwood/v1#x', 'address_query'],
+        'no path' => ['https://odoo.test', 'address_path'],
+        'another path' => ['https://odoo.test/api', 'address_path'],
+        'its path not at the end' => ['https://odoo.test/touchwood/v1/items', 'address_path'],
+        'another case' => ['https://odoo.test/TouchWood/v1', 'address_path'],
+    ]);
+});
+
 describe('through Sync', function () {
     beforeEach(function () {
         seed(PlatformSeeder::class);
@@ -387,6 +428,18 @@ describe('through Sync', function () {
             ->and(DB::table('sync.reads')->where('store_id', Fx::storeId('sa'))->pluck('kind')->all())->toBe(['NOW'])
             ->and(odooAsked())->toBe(['/touchwood/v1/items?limit=1', '/touchwood/v1/items?limit=1']);
         Http::assertSent(fn (Request $request): bool => $request->header('Authorization') === ['Bearer '.ODOO_TOKEN]);
+    });
+
+    it('keeps Odoo\'s address with its closing slash dropped, and refuses another path before any call', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer())]);
+
+        expect(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', 'https://odoo.test/api', ODOO_TOKEN, 'notice-secret')))->toThrow(InvalidSyncInput::class);
+        Http::assertNothingSent();
+
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE.'/', ODOO_TOKEN, 'notice-secret'));
+
+        expect(DB::table('sync.connections')->value('address'))->toBe(ODOO_BASE)
+            ->and(odooAsked())->toBe(['/touchwood/v1/items?limit=1']);
     });
 
     it('reads a store end to end: prices and stock written, a code sent twice reported as a bad value', function () {
