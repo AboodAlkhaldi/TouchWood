@@ -6,7 +6,6 @@ namespace Modules\Catalog\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
-use LogicException;
 use Modules\Catalog\Application\Listing\ListingRows;
 use Modules\Catalog\Domain\Repository\ListLocks;
 use Modules\Catalog\Public\Contracts\ListingFacts;
@@ -55,7 +54,39 @@ final readonly class DatabaseListingFacts implements ListingFacts
 
     public function salesRanks(StoreId $store, array $ranks): void
     {
-        throw new LogicException("Sales' ranks are kept from stage 6, in a table of their own (catalog.md §5.2): nothing receives them yet.");
+        $rows = [];
+        $now = CarbonImmutable::now();
+
+        foreach ($ranks as $productId => $rank) {
+            $id = strtolower(trim((string) $productId));
+
+            if (Ulids::valid($id) && $rank >= 1) {
+                $rows[$id] = ['store_id' => $store->value, 'product_id' => $id, 'rank' => $rank, 'updated_at' => $now];
+            }
+        }
+
+        // The store's whole ranking at once (amendment 30): a product left out has no rank there now. Inside the
+        // products' lock, as every change the shop's lists read takes it — which also replaces the cached
+        // pages' version (DatabaseListLocks).
+        $this->db->transaction(function () use ($store, $rows): void {
+            $this->locks->lock(ListLocks::PRODUCTS);
+            $this->db->table('catalog.sales_ranks')->where('store_id', $store->value)->delete();
+            $known = $rows === [] ? [] : $this->db->table('catalog.products')->whereIn('id', array_keys($rows))->pluck('id')->map(strval(...))->all();
+            $kept = array_values(array_intersect_key($rows, array_flip($known)));
+
+            foreach (array_chunk($kept, 1000) as $chunk) {
+                $this->db->table('catalog.sales_ranks')->insert($chunk);
+            }
+
+            // The listing's rows of the store take their rank now; a row rewritten later takes it from the table.
+            $this->db->update(
+                'UPDATE catalog.listing AS l SET sales_rank = r.rank FROM (SELECT l2.store_id, l2.locale, l2.product_id, sr.rank'
+                .' FROM catalog.listing AS l2 LEFT JOIN catalog.sales_ranks AS sr ON sr.store_id = l2.store_id AND sr.product_id = l2.product_id'
+                .' WHERE l2.store_id = ?) AS r'
+                .' WHERE l.store_id = r.store_id AND l.locale = r.locale AND l.product_id = r.product_id AND l.sales_rank IS DISTINCT FROM r.rank',
+                [$store->value],
+            );
+        });
     }
 
     public function ratings(array $ratings): void

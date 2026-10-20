@@ -36,6 +36,7 @@ use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
 use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
+use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
@@ -82,6 +83,8 @@ final class SalesServiceProvider extends ServiceProvider
             $schedule->job(EmptyOldCartsJob::class)->timezone('Asia/Riyadh')->dailyAt('03:15')->onOneServer();
             // Quotes past their expiry (§5).
             $schedule->job(DeleteExpiredQuotesJob::class)->timezone('Asia/Riyadh')->dailyAt('03:30')->onOneServer();
+            // The shop's Best-Selling ranks (§1.13).
+            $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
         });
     }
 }

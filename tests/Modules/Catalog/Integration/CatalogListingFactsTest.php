@@ -100,10 +100,9 @@ describe('the listing\'s facts', function () {
         expect(catalogFacts('sa', $sixty))->toBe(['orderable' => false, 'ending_soon' => false, 'price_minor' => null, 'price_before_minor' => null, 'currency' => null]);
     });
 
-    it('takes a price before only above the price now, in its currency, and no sales ranks until stage 6', function () {
+    it('takes a price before only above the price now, in its currency (sales ranks: CatalogSalesRanksTest)', function () {
         expect(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(100, 'SAR')))->toThrow(InvalidArgumentException::class)
-            ->and(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(200, 'EGP')))->toThrow(InvalidArgumentException::class)
-            ->and(fn () => app(ListingFacts::class)->salesRanks(StoreId::fromString(Fx::storeId('sa')), ['x' => 1]))->toThrow(LogicException::class);
+            ->and(fn () => new ListingPrice(Money::of(100, 'SAR'), Money::of(200, 'EGP')))->toThrow(InvalidArgumentException::class);
     });
 });
 
