@@ -6,4 +6,5 @@ declare(strict_types=1);
 return [
     'generate_media_variants' => "Making an image's sizes",
     'requeue_stuck_media_variants' => 'Queuing images left waiting again',
+    'relay_outbox' => 'Sending the waiting order and payment events',
 ];
