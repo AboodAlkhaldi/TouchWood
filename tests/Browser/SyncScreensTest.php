@@ -35,6 +35,7 @@ use Modules\Sync\Application\Command\WireStore\WireStore;
 use Modules\Sync\Application\Command\WireStore\WireStoreHandler;
 use Modules\Sync\Application\SyncPermissions as P;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
+use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -339,6 +340,18 @@ it('says a skipped discount deleted since as Discount removed, with no link (Q37
         ->and(browserSoon($page, "document.querySelector('[data-test=\"entry-{$unnamed}\"]')?.textContent.includes('Past the ceiling') && document.querySelector('[data-test=\"entry-{$unnamed}\"] [data-test=\"discount-removed\"]') === null"))->toBeTrue();
 });
 
+it('draws the Provider form with no "being built" note now that Odoo\'s adapter is built (Q38)', function () {
+    // Odoo's own adapter in place of the pretend one: it says it is ready.
+    app()->forgetInstance(OdooAdapter::class);
+    $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
+    $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.getElementById('provider-address') !== null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"not-ready\"]') === null && ! document.body.innerText.includes('being built')"))->toBeTrue()
+        // Odoo asks for nothing beside the address, the key and the secret (§2.4).
+        ->and(browserSoon($page, "document.querySelector('[id^=\"provider-setting-\"]') === null"))->toBeTrue();
+});
+
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {
     $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
     $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
@@ -351,7 +364,7 @@ it('refuses the Provider form as typed, says the failed test under the form and 
     // As typed: an address that is not HTTPS, said under its box.
     $page->type('#provider-address', 'http://odoo.test');
 
-    expect(browserSoon($page, "document.getElementById('provider-address-error')?.textContent === 'Address must start with https://.'"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('provider-address-error')?.textContent === 'The address must start with https://.'"))->toBeTrue();
 
     $page->type('#provider-address', 'https://odoo.test/api')->type('#provider-setting-database', 'tw');
 
@@ -400,6 +413,25 @@ it('refuses the Provider form as typed, says the failed test under the form and 
     $page->click('[data-test="change-connection"]');
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.querySelector('[data-test=\"form-error\"]') === null"))->toBeTrue();
+});
+
+it('refuses a new address with the key left empty, under the Key box, and tests nothing (owner, 2026-10-20)', function () {
+    syncBrowserAsSuperAdmin(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'k', 's', ['database' => 'tw'])));
+    $tested = count(FakeProvider::bound()->tested);
+    $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
+    $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"change-connection\"]') !== null"))->toBeTrue();
+
+    $page->click('[data-test="change-connection"]');
+
+    expect(browserSoon($page, "document.getElementById('provider-address') !== null"))->toBeTrue();
+
+    $page->type('#provider-address', 'https://odoo2.test/api')->click('[data-test="connection-submit"]');
+
+    expect(browserSoon($page, "document.getElementById('provider-key-error')?.textContent === 'Type the key again: the address changed.'"))->toBeTrue()
+        ->and(count(FakeProvider::bound()->tested))->toBe($tested)
+        ->and(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->value('address'))->toBe('https://odoo.test/api');
 });
 
 it('draws the Sync Report right to left in Arabic, its digits Latin', function () {

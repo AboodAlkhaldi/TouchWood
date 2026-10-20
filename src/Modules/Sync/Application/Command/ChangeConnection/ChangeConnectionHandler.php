@@ -27,7 +27,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Changing a store's connection** (sync.md §1.2): the same form, tested the same way before anything
- * is saved; a key or a secret left empty is kept. Saved, a full read is queued, and the change audited -
+ * is saved; a key or a secret left empty is kept - **unless the address changes**: then both are typed
+ * again, so the stored ones are never sent to a new address (owner, 2026-10-20). Saved, a full read is queued, and the change audited -
  * a new key or secret only as replaced, never its value. Only what the form holds is written: the
  * connection's state and its last read stay the reads' (step 4).
  */
@@ -57,18 +58,23 @@ final readonly class ChangeConnectionHandler
         $store = $this->stores->of($command->storeId);
 
         $provider = $this->input->provider($command->provider);
-        $address = $this->input->address($command->address);
+        $address = $this->input->address($provider, $command->address);
         $settings = $this->input->settings($provider, $command->settings);
         $key = $command->key === null || $command->key === '' ? null : $this->input->secret($command->key, 'key');
         $secret = $command->secret === null || $command->secret === '' ? null : $this->input->secret($command->secret, 'secret');
 
-        // Tested before any lock is taken, so nothing waits while the provider answers.
-        $tested = $this->changed($this->connections->find($store) ?? throw new NotWired, $provider, $address, $settings, $key, $secret);
+        // Tested before any lock is taken, so nothing waits while the provider answers - and never with the
+        // stored key or secret at an address they were not given for.
+        $stored = $this->connections->find($store) ?? throw new NotWired;
+        self::typedAgainForNewAddress($stored, $address, $key, $secret);
+        $tested = $this->changed($stored, $provider, $address, $settings, $key, $secret);
         $this->adapters->for($provider)->test($tested);
 
         $this->db->transaction(function () use ($store, $provider, $address, $settings, $key, $secret, $tested): void {
             // The row as it is now: unwired meanwhile, or changed by someone else, is seen here.
             $before = $this->connections->lockFor($store) ?? throw new NotWired;
+            // Its address changed by someone else meanwhile: the same rule against the row as it is now.
+            self::typedAgainForNewAddress($before, $address, $key, $secret);
             $after = $this->changed($before, $provider, $address, $settings, $key, $secret);
 
             // Another change landed while this one was tested: what is saved is tested again.
@@ -80,6 +86,27 @@ final readonly class ChangeConnectionHandler
             $this->reads->queue($store, ReadKind::Now);
             $this->platform->recordAudit(new AuditEntryDto('sync.connection.changed', 'sync.connection', $store->value, $store->value, self::changes($before, $after)));
         });
+    }
+
+    /**
+     * A new address - as stored, its closing slash trimmed - takes a key and a secret typed again: each left
+     * empty is refused under its own box, before any call (owner, 2026-10-20).
+     *
+     * @throws InvalidSyncInput
+     */
+    private static function typedAgainForNewAddress(Connection $stored, string $address, #[\SensitiveParameter] ?string $key, #[\SensitiveParameter] ?string $secret): void
+    {
+        if ($stored->address === $address) {
+            return;
+        }
+
+        if ($key === null) {
+            throw new InvalidSyncInput('key', rule: InvalidSyncInput::KEY_AGAIN);
+        }
+
+        if ($secret === null) {
+            throw new InvalidSyncInput('secret', rule: InvalidSyncInput::SECRET_AGAIN);
+        }
     }
 
     /**

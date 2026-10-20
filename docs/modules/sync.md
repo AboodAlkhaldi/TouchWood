@@ -4,8 +4,8 @@
 the one wanted — **one way, per store**: each size's **base (retail) price** and **stock**, by product
 code. It is built from handoff §12.2 (rewritten 2026-10-01, narrowed 2026-10-13), the changelog row of
 2026-10-07 (handoff §0.1), inventory.md and pricing.md, and the owner's answers of 2026-10-13 (§9.2).
-Everything on our side is built against a **pretend provider** in the tests; only the adapter that
-calls Odoo waits for the provider's team (§9.1).
+Everything on our side is built against a **pretend provider** in the tests; the adapter that calls
+Odoo is built to §2.4 (2026-10-20) and tested against a faked HTTP API (§9.1 #1: no test copy).
 
 ## What Sync does not own
 
@@ -49,15 +49,21 @@ calls Odoo waits for the provider's team (§9.1).
 
 A Super Admin opens a store's **Provider** page and enters: the **provider** (Odoo, the one adapter),
 its **address**, the **key**, the **notification secret** (§1.3), and the fields the adapter asks for
-(which wait for the provider's team, §9.1). The key and the secret are **kept encrypted in our
-database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never shown again** — the page
-shows only that they are set and when; a new value replaces the old one.
+(none for Odoo: the address, the key and the secret are all it needs, §2.4). The key and the secret are
+**kept encrypted in our database with the app's key** (owner, 2026-10-07 and 2026-10-13) and **never
+shown again** — the page shows only that they are set and when; a new value replaces the old one.
 
 - **Saving tests the connection first**: one small read. If it fails, nothing is saved and the reason
   is shown (`sync.connection_failed`). *(§9.2 #10)*
 - Once saved, the store is wired **at that second**, and **a full read is queued at once** (§1.3). The
   provider's prices replace the store's own, and its stock numbers replace ours through the ledger.
-- **Changing the key or the secret** is the same form, tested the same way.
+- **Changing the key or the secret** is the same form, tested the same way. A key or a secret left empty is
+  kept - **unless the address changes** (as stored, its closing slash trimmed): then **both are typed again**,
+  each left empty refused under its own box ("Type the key again: the address changed." · "Type the secret
+  again: the address changed.", both languages) before any call, so the stored ones are never sent to a new
+  address (owner, 2026-10-20). *As built (2026-10-20): `ChangeConnection` checks it against the stored row
+  before the test call, and again under the row's lock before saving (`InvalidSyncInput`, `key` or `secret`,
+  rule `key_again` / `secret_again`).*
 
 ### 1.3 When we read
 
@@ -185,7 +191,9 @@ prices and stock stay as they are, now editable by hand.
   a number)`. A `ConnectionFailed`'s reason is shown to staff: a short sentence (what failed, a status
   code), never the provider's response or an address with a key in it.
 
-`OdooAdapter` waits for the custom API's spec (§2.4, the owner's answers of 2026-10-19: §9.1); `FakeProvider` serves the tests.
+`OdooAdapter` is built to §2.4 (2026-10-20) - its choices are written there, under **As built**. Each
+provider's adapter also checks its own **address** (`address()`, before any call): Odoo's is §2.4's.
+`FakeProvider` serves the other tests.
 
 ### 2.2 What Sync gives other modules
 
@@ -258,6 +266,56 @@ call 3 - so our nightly read reports them as not known to the provider (§1.6).
 (at most 60 seconds) and asks once more; anything else - or a second `429`, or a timeout - fails the
 read, which is **retried after 1, 5 and 15 minutes**, then reported as failed until a later read
 succeeds (§1.7); the reason shown is a short sentence with the status code (§2.1).
+
+**As built (2026-10-20)** - `OdooAdapter`, over Laravel's HTTP client; what this text left open, as the
+code does it:
+
+- **The address**, checked when a connection is wired or changed, before any call, each refused by its own
+  words under the Address box (`InvalidSyncInput`, `address`, its `rule`; both languages): HTTPS
+  (`address_https`, every provider: "The address must start with https://.", the same words on the form, on
+  the server and in the adapter); one the HTTP client can call - a valid web address, its port 1-65535, no
+  "\" in its host (`address_malformed`, every provider); no query or fragment (`address_query`); a path
+  ending in `/touchwood/v1` (`address_path`), compared as written. A closing slash is dropped, and the
+  address kept without it.
+- **The test** (call 4) waits **10 seconds** at most, not 30: it runs in the Super Admin's save (§9.3 #21).
+  A `429` there **fails at once**, never waited out.
+- **A `429`** in a read waits `Retry-After`; when it is **missing, not a number of seconds, or above 60**,
+  it waits **60 seconds**. Then it asks **once more**; a second `429` fails the read.
+- **No redirect is followed**: the token would go with it. A `3xx` - or any status this text does not
+  name, such as `404` - fails the read, said with its status ("Odoo answered 404."). A status of 400 or more
+  whose transfer then fails (a body too slow) is judged by its status the same way - a `429` waited out -
+  and its body never read.
+- **Pages**: **`next: false`** is the last page, as `null` is (Odoo writes an empty field as `false`). A
+  `next` already passed as `after` in the same read, or **a page with no items that still names a `next`**,
+  **fails the read** (their pages would go round for ever); **an empty `next`**, or one that is not text or a
+  number, is **malformed** and fails it. A read asks **200 pages at most** (200,000 items): past them it fails
+  ("Odoo's items run past 200 pages.").
+- **A `code` sent as a number** (`123`) is taken as its digits (`"123"`), a long one exactly as written. An
+  item with no code, an empty code, or one not text or a number makes the answer **malformed**. The
+  `price` and `available` are passed on as they came, for Pricing, Inventory and the read to check (§1.4,
+  §1.5): **a price that is not text or a number, or an `available` that is not a whole number** - `false`,
+  a list, an object - is a **`BAD_VALUE` for that code alone** (`refused`: price, stock or both), and the read
+  goes on (§1.7). **A `price` or `available` that is `null` or left out breaks the answer's contract** (every
+  item carries both): a **`BAD_VALUE` for that code**, naming it (`missing`: price, stock or both, beside
+  `refused`); the item's other value is still taken when it is good, and the read goes on. (§2.1's "either may
+  be missing" stays for other providers: the adapter names what its own contract makes required, in
+  `ProviderValue::missing`.)
+- **Call 3 yields only the codes asked**: any other code the answer carries is left out, never reported.
+  Its `next` is not followed (500 codes fit one page). The codes are **trimmed, then each asked once**,
+  before they are cut into calls of 500 (`" 7 "` and `"7"` are one code, §1.1 rule 5); **a code holding a
+  comma is not asked** - the list cannot name it - and the full and hourly reads still cover it.
+- **The pace** - at least 1 second from the end of a store's call to its next - is kept by the adapter,
+  **within one worker** (one adapter a worker, so a store's next read in that worker keeps it too). A
+  store's reads already run one at a time (§1.3); its test, in a web request, may come within the second
+  of a read's call in a worker.
+- **The reasons** shown to staff, in English, each a short sentence with its status where there is one:
+  "Odoo refused the token (401)." · "Odoo refused the request (400)." · "Odoo failed (5xx)." · "Odoo answered
+  <status>." · "Odoo answered 429 (too many calls)." (the test) · "Odoo answered 429 (too many calls) twice." ·
+  "Odoo did not answer within 30 seconds." (10 for the test) · "Odoo could not be reached within 10 seconds."
+  (reaching it - the same 10 seconds in a read and the test) · "Odoo could not be reached." · "Odoo could not
+  be asked: the address or the key holds a character that cannot be sent." · "Odoo's items run past 200
+  pages." · "Odoo's answer is not as agreed: <what>." - the body, the address and the key never, and the
+  HTTP client's own error is never kept with it (not in the logs, not in the failed jobs).
 
 **Their notice - theirs to ours** (§1.3, accepted 2026-10-19, §9.1 #9): when a variant's price or
 available stock changes, `POST https://<our address>/sync/notify/<store id>`, body `{"codes": ["123"]}`
@@ -357,7 +415,8 @@ controllers and page data, the menu's two entries and the words; the pages are p
   the Provider form puts it under its own box (`errors["settings.<name>"]`).
 - `SyncActionsForReader` also answers `mayViewOffers` (any of Pricing's three jobs), so a link to an offer
   or a discount is drawn only for whoever may open it (pricing.md §4.3.1).
-- The provider's adapter answers `ready()` (Q38): Odoo's is false until §2.4's adapter is written.
+- The provider's adapter answers `ready()` (Q38): Odoo's is true since its adapter was built to §2.4 (2026-10-20), so the
+  Provider page has no "being built" note and a Super Admin wires a store - its test call first (§1.2).
 - **A code twice in one read** (§2.4): the read's values are gathered by code before anything is written, so
   both are skipped however far apart they come; the size's `BAD_VALUE` keeps both (`detail.twice`). A code we
   do not have stays `UNKNOWN_CODE`, once (a `BAD_VALUE` names a size of ours, §5). The entry keeps the first five
@@ -443,12 +502,13 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
 #### Y3 · Provider - `/admin/sync/provider?store=` (Super Admins)
 
 - **Subtitle**: "Where this store's prices and stock come from."
-- **Until the Odoo connection is built** (Q38): a `Note` - "The Odoo connection is being built. Wiring a
-  store works once it is ready." The form is drawn; its test is refused with the adapter's reason.
+- **Until a provider's connection is built** (Q38): a `Note` - "The Odoo connection is being built. Wiring a
+  store works once it is ready." The form is drawn; its test is refused with the adapter's reason. Odoo's is
+  built (2026-10-20, §2.1): the note is not shown.
 - **A store not wired** - a `Card` **Wire Store**: **Provider** (`NativeSelect`: Odoo) · **Address** ("https://
-  odoo.example.com"; as typed: "Address must start with https://." · "Address needs a host." · "Address
+  odoo.example.com/touchwood/v1"; Odoo's own rules said by the server under the box, §2.4 As built; as typed: "Address must start with https://." · "Address needs a host." · "Address
   can't hold spaces, a name or a password." · 500 characters) · **the provider's settings** - its own fields
-  (none for Odoo yet), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
+  (none for Odoo, §2.4), each refused by its own name (Q34) · **Key** and **Secret** (`PasswordInput`, 1,000
   characters). **Test and Wire Store** (main): `loading` "Testing…" while the test read runs (up to 10
   seconds); a failure under the form - "Failed to read the provider: <its reason>" - saves nothing; success
   → "Store wired", the page shows the wired store, a Now read is queued.
@@ -459,7 +519,8 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
   `X-TouchWood-Signature` (an HMAC-SHA256 of "timestamp.body" with the secret, hexadecimal) and the body
   `{"codes": [...]}`, 1 to 1,000 codes.
 - **Change Connection** (main): the card turns into the form, filled, **Key** and **Secret** empty ("Leave
-  empty to keep the current key."); **Test and Save Connection** tests again → "Connection changed" and a
+  empty to keep the current key. A new address needs it typed again." - the secret's alike); a new address
+  with either left empty is refused under that box (§1.2; owner, 2026-10-20); **Test and Save Connection** tests again → "Connection changed" and a
   Now read is queued; **Cancel** returns.
 - ⋯ **Unwire Store…** (destructive, last): `DestructiveActionDialog` - "Unwire Store" · "12 sizes stop being
   orderable: with no provider every size counts on its stock, and these have none free." (or "No size stops
@@ -515,7 +576,7 @@ Every error extends `SyncError` → `DomainError` ("sync.*"), with both language
 | `EntryNotDismissable` | CONFLICT | Dismissing a failed read's entry: it closes when a read works again (§9.3 #23) |
 | `EntryNotRetryable` | CONFLICT | Retry on an Offer Stopped or an Off or Draft entry, which a read never closes (Q27): staff open the offer or the product instead (screens step 6's review, 2026-10-19) |
 | `StoreOff` | FORBIDDEN | A Sync read or action - the report, a read, Sync now, Retry, Dismiss, the Provider page and its changes - in a store that is off, by someone who may not switch stores (pricing.md §4.3.1 Q1, shared by every stage 5 screen; screens step 6's review, 2026-10-19). The system's own reads of an off store go on (§1.1 rule 8) |
-| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field |
+| `InvalidSyncInput` | INVALID | A store that does not exist, an address that is not HTTPS, an empty key or secret, a provider we do not have — named by its field; an address also by the rule it broke (`address_https`, `address_query`, `address_path`; §2.4 As built) |
 
 A notification with a bad signature or an old timestamp is answered `401` with no body: it is not a
 staff error.

@@ -6,6 +6,7 @@ namespace Modules\Sync\Domain\Provider;
 
 use DateTimeImmutable;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 
@@ -26,6 +27,14 @@ interface ProviderAdapter
      * above its form, and its test refuses with its reason (sync.md §4.1 Y3, Q38).
      */
     public function ready(): bool;
+
+    /**
+     * The address as this provider takes it - its own shape checked, and written as it is kept - once the
+     * address is HTTPS with a host (sync.md §1.2, §2.4). Checked before any call.
+     *
+     * @throws InvalidSyncInput naming the address and the rule it broke
+     */
+    public function address(string $address): string;
 
     /**
      * One small read, to know the connection works.

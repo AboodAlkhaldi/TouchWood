@@ -18,14 +18,14 @@ return [
     'change' => [
         'submit' => 'اختبار وحفظ الاتصال',
         'cancel' => 'إلغاء',
-        'keep_key' => 'اتركه فارغًا لإبقاء المفتاح الحالي.',
-        'keep_secret' => 'اتركه فارغًا لإبقاء السرّ الحالي.',
+        'keep_key' => 'اتركه فارغًا لإبقاء المفتاح الحالي. العنوان الجديد يتطلّب كتابته مرة أخرى.',
+        'keep_secret' => 'اتركه فارغًا لإبقاء السرّ الحالي. العنوان الجديد يتطلّب كتابته مرة أخرى.',
     ],
 
     'fields' => [
         'provider' => 'المزوّد',
         'address' => 'العنوان',
-        'address_placeholder' => 'https://odoo.example.com',
+        'address_placeholder' => 'https://odoo.example.com/touchwood/v1',
         'key' => 'المفتاح',
         'secret' => 'السرّ',
         'settings' => 'إعدادات المزوّد',

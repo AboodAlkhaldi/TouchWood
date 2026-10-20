@@ -109,6 +109,10 @@ it('has an Arabic and an English title and detail for every error, none empty, w
     expect($placeholders($en['invalid_sync_input']['detail']))->toBe([':attribute'])
         ->and($placeholders($en['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
         ->and($placeholders($ar['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
+        // The address, by each rule it may break (§2.4), and a key or a secret typed again for a new address
+        // (owner, 2026-10-20), in both languages.
+        ->and(array_keys($en['invalid_sync_input']['rules']))->toBe(['setting', 'address_https', 'address_malformed', 'address_query', 'key_again', 'secret_again', 'address_path'])
+        ->and(array_keys($ar['invalid_sync_input']['rules']))->toBe(array_keys($en['invalid_sync_input']['rules']))
         ->and(array_keys($en['fields']))->toBe(['address', 'after', 'key', 'kind', 'provider', 'secret', 'section', 'settings', 'store'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));
 });
@@ -116,5 +120,6 @@ it('has an Arabic and an English title and detail for every error, none empty, w
 it('carries the field an invalid input names, and the reason a test read failed, for the message', function () {
     expect((new InvalidSyncInput('address'))->context())->toBe(['attribute' => 'address'])
         ->and((new InvalidSyncInput('settings', 'database'))->context())->toBe(['attribute' => 'settings', 'setting' => 'database', 'rule' => 'setting'])
+        ->and((new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH))->context())->toBe(['attribute' => 'address', 'rule' => 'address_path'])
         ->and((new ConnectionFailed('Timed out'))->context())->toBe(['reason' => 'Timed out']);
 });

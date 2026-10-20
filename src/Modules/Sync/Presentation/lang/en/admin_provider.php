@@ -18,14 +18,14 @@ return [
     'change' => [
         'submit' => 'Test and Save Connection',
         'cancel' => 'Cancel',
-        'keep_key' => 'Leave empty to keep the current key.',
-        'keep_secret' => 'Leave empty to keep the current secret.',
+        'keep_key' => 'Leave empty to keep the current key. A new address needs it typed again.',
+        'keep_secret' => 'Leave empty to keep the current secret. A new address needs it typed again.',
     ],
 
     'fields' => [
         'provider' => 'Provider',
         'address' => 'Address',
-        'address_placeholder' => 'https://odoo.example.com',
+        'address_placeholder' => 'https://odoo.example.com/touchwood/v1',
         'key' => 'Key',
         'secret' => 'Secret',
         'settings' => 'The provider\'s settings',
@@ -33,7 +33,7 @@ return [
 
     // Checked as typed; the server decides.
     'checks' => [
-        'address_https' => 'Address must start with https://.',
+        'address_https' => 'The address must start with https://.',
         'address_host' => 'Address needs a host.',
         'address_plain' => 'Address can\'t hold spaces, a name or a password.',
         'address_long' => 'Address can be at most 500 characters.',
