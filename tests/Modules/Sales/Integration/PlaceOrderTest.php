@@ -227,6 +227,23 @@ describe('what changed since the quote', function () {
         nothingPlaced();
     });
 
+    it('refuses when the coupon still fits the lowered ceiling but the coupon and the points do not', function () {
+        ['address' => $address, 'customer' => $customer] = Cx::ready();
+        Pr::ceiling(100);
+        Pr::coupon('SUMMER-15');
+        Lx::programme();
+        Lx::deliver($customer, 1_000_00);
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $quote = Cx::start($address, usePoints: true);
+        expect($quote->couponDiscount->minorUnits)->toBe(37_50)
+            ->and($quote->pointsDiscount->minorUnits)->toBeGreaterThan(2_50);
+        // 16% of 250.00 is 40.00: room for the coupon's 37.50, not for it and the points.
+        Pr::ceiling(16);
+
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toBe('ceiling');
+        nothingPlaced();
+    });
+
     it('refuses when the coupon was switched off, as Promotions says', function () {
         ['address' => $address] = Cx::ready();
         Pr::ceiling(50);

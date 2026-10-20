@@ -185,6 +185,8 @@ final readonly class PlaceOrderHandler
     {
         $audience = $this->rules->audience($store, $customerId);
 
+        // Unreachable today — an account's type never changes, and a company no longer approved may not
+        // order at all — kept so a quote is never placed for another audience than it was priced for.
         if ($audience !== $view->audience) {
             throw new QuoteChanged('audience');
         }
