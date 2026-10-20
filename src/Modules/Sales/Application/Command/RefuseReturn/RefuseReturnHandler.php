@@ -20,8 +20,8 @@ use Shared\Application\Unauthorized;
 
 /**
  * **Staff refuse a return** asked for (sales.md §1.8), with words the customer sees (my assumption, stated
- * for the owner to reject) — kept on the return only, audited as written. The order locked first; in its
- * history.
+ * for the owner to reject) — kept on the return only; the audit says only that they were written
+ * (`personal`). The order locked first; in its history.
  */
 final readonly class RefuseReturnHandler
 {

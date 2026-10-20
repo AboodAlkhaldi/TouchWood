@@ -54,12 +54,42 @@ final class ReturnInputs
             }
 
             if ($line['quantity'] < 1 || $line['quantity'] > self::MOST_PIECES) {
-                throw new InvalidSalesAttribute('quantity', 'at least 1');
+                throw new InvalidSalesAttribute('quantity', 'from 1 to '.self::MOST_PIECES);
             }
 
             $asked[$id] = $line['quantity'];
         }
 
         return $asked !== [] ? $asked : throw new InvalidSalesAttribute('lines', 'at least one line');
+    }
+
+    /**
+     * The pieces that came back: for each order line once, how many came and how many of those go back
+     * into stock.
+     *
+     * @param  list<array{orderLineId: string, received: int, restocked: int}>  $lines
+     * @return array<string, array{int, int}> order line id => [received, restocked]
+     *
+     * @throws InvalidSalesAttribute
+     */
+    public static function received(array $lines): array
+    {
+        $counts = [];
+
+        foreach ($lines as $line) {
+            $id = strtolower(trim($line['orderLineId']));
+
+            if (! Ulids::valid($id) || isset($counts[$id])) {
+                throw new InvalidSalesAttribute('lines', 'every line of the return, once');
+            }
+
+            if ($line['received'] < 0 || $line['received'] > self::MOST_PIECES || $line['restocked'] < 0 || $line['restocked'] > $line['received']) {
+                throw new InvalidSalesAttribute('quantity', 'none to all that came, and no more back into stock');
+            }
+
+            $counts[$id] = [$line['received'], $line['restocked']];
+        }
+
+        return $counts !== [] ? $counts : throw new InvalidSalesAttribute('lines', 'every line of the return, once');
     }
 }

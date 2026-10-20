@@ -62,7 +62,8 @@ final readonly class RequestReturnHandler
             $now = CarbonImmutable::now();
             $deadline = $this->returns->deadline($order->id);
 
-            if ($order->status !== OrderState::COMPLETED || $deadline === null || $now > $deadline) {
+            // In whole seconds: the deadline's own second is still in time (times are kept to the second).
+            if ($order->status !== OrderState::COMPLETED || $deadline === null || $now->startOfSecond() > $deadline) {
                 throw new ReturnNotAllowed;
             }
 

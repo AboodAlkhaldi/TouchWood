@@ -64,7 +64,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(PermissionCatalog::class)->declare('sales', ...SalesPermissions::definitions());
         // The flat shipping fee, free shipping from and the return window (§1.10), on Platform's settings page.
         $this->app->make(SettingsRegistry::class)->define('sales', ...SalesSettings::definitions());
-        // A bank-transfer document an order holds is never deleted (§1.9, §5).
+        // A bank-transfer document an order holds, and a photo a return holds, are never deleted (§1.8, §1.9, §5).
         $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).

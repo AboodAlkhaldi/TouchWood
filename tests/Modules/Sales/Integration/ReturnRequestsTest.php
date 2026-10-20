@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -117,6 +119,14 @@ function returnRow(string $return): ?stdClass
     return DB::table('sales.returns')->where('id', $return)->first();
 }
 
+/** @return array<string, mixed> a return's row as completed, by hand */
+function returnCompletedRow(int $refund): array
+{
+    $at = CarbonImmutable::now();
+
+    return ['status' => 'COMPLETED', 'decided_by' => Fx::staff(), 'decided_at' => $at, 'received_at' => $at, 'completed_at' => $at, 'refund_due_minor' => $refund];
+}
+
 function returnPhoto(string $return, string $name = 'pieces.png'): string
 {
     File::ensureDirectoryExists(Bx::uploads());
@@ -138,7 +148,10 @@ describe('asking', function () {
         expect([$row?->status, $row?->reason, $row?->reason_other, $row?->order_id])->toBe(['REQUESTED', 'OTHER', 'The colour is not the one shown', $order])
             ->and(DB::table('sales.return_lines')->where('return_id', $return)->orderBy('quantity')->pluck('quantity', 'order_line_id')->all())
             ->toEqualCanonicalizing([$lines['first'] => 1, $lines['gift'] => 1])
-            ->and(DB::table('sales.order_history')->where('order_id', $order)->where('kind', 'RETURN_REQUESTED')->value('detail'))->toContain($return);
+            ->and(DB::table('sales.order_history')->where('order_id', $order)->where('kind', 'RETURN_REQUESTED')->value('detail'))->toContain($return)
+            // The customer's words stay on the return.
+            ->and(json_encode(DB::table('sales.order_history')->where('order_id', $order)->pluck('detail')->all()))->not->toContain('The colour')
+            ->and(json_encode(DB::table('platform.audit_entries')->where('subject_id', $order)->pluck('changes')->all()))->not->toContain('The colour');
     });
 
     it('never claims a piece twice: asked in a return waiting or accepted', function () {
@@ -176,11 +189,51 @@ describe('asking', function () {
         }],
     ]);
 
+    it('counts a received return by the pieces that came, so those that never came may be asked again', function (string $status) {
+        ['order' => $order, 'lines' => $lines] = returnable();
+        $return = returnAsk($order, [$lines['first'] => 2]);
+        $at = CarbonImmutable::now();
+        DB::table('sales.return_lines')->where('return_id', $return)->update(['received_quantity' => 1, 'restocked_quantity' => 1]);
+        DB::table('sales.returns')->where('id', $return)->update([
+            'status' => $status, 'decided_by' => Fx::staff(), 'decided_at' => $at, 'received_at' => $at,
+            ...($status === 'COMPLETED' ? ['completed_at' => $at, 'refund_due_minor' => 0] : []),
+        ]);
+
+        expect(returnAsk($order, [$lines['first'] => 1]))->toBeString()
+            ->and(fn () => returnAsk($order, [$lines['first'] => 1]))->toThrow(ReturnNotAllowed::class);
+    })->with(['RECEIVED', 'COMPLETED']);
+
+    it('lets an off store customers ask and add photos, and its own staff decide', function () {
+        $ready = Cx::ready(storeCode: 'eg');
+        $order = Cx::place(Cx::start($ready['address'], storeCode: 'eg')->id, 'eg')->id;
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['eg']));
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+        // Made while the store is on: an off store's code no longer names it here.
+        $staff = Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['eg']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsCustomer($ready['customer']);
+
+        $return = returnAsk($order, [(string) DB::table('sales.order_lines')->where('order_id', $order)->value('id') => 1]);
+        returnPhoto($return);
+        Fx::actAsStaff($staff);
+        app(AcceptReturnHandler::class)->handle(new AcceptReturn($return));
+
+        expect(returnRow($return)?->status)->toBe('ACCEPTED')
+            ->and(DB::table('sales.return_photos')->where('return_id', $return)->count())->toBe(1);
+    });
+
     it('asks within the window, to the minute, and only of a delivered order', function () {
         ['order' => $order, 'lines' => $lines] = returnable();
         $deadline = CarbonImmutable::parse((string) DB::table('sales.orders')->where('id', $order)->value('return_deadline_at'));
 
         CarbonImmutable::setTestNow($deadline);
+        expect(returnAsk($order, [$lines['first'] => 1]))->toBeString();
+
+        // Within the deadline's own second.
+        CarbonImmutable::setTestNow($deadline->addMilliseconds(999));
         expect(returnAsk($order, [$lines['first'] => 1]))->toBeString();
 
         CarbonImmutable::setTestNow($deadline->addSecond());
@@ -312,7 +365,10 @@ describe('photos', function () {
         expect(DB::table('sales.return_photos')->where('return_id', $return)->orderBy('position')->pluck('media_id')->all())->toBe($media)
             ->and(DB::table('platform.media')->whereIn('id', $media)->pluck('visibility')->unique()->all())->toBe(['PRIVATE'])
             ->and(fn () => returnPhoto($return))->toThrow(ReturnNotAllowed::class)
-            ->and(app(SalesFilesUsage::class)->usesOf($media[0])[0]->subjectId ?? null)->toBe($return);
+            ->and(array_map(fn ($use): array => [$use->subjectType, $use->subjectId, $use->blocksDelete], app(SalesFilesUsage::class)->usesOf($media[0])))
+            ->toBe([['sales.return', $return, true]])
+            ->and(fn () => DB::table('sales.return_photos')->insert(['return_id' => $return, 'media_id' => $media[0], 'position' => 4]))
+            ->toThrow(QueryException::class, '"return_photos_position"');
     });
 
     it('takes a photo only of a JPEG or PNG, only while the return waits, only on the customer own', function () {
@@ -338,7 +394,7 @@ describe('the tables', function () {
         ['order' => $order, 'lines' => $lines] = returnable();
         $return = returnAsk($order, [$lines['first'] => 1]);
 
-        expect(fn () => $write($return, $lines))->toThrow(QueryException::class, $constraint);
+        expect(fn () => $write($return, $lines))->toThrow(QueryException::class, '"'.$constraint.'"');
     })->with([
         'refused without words' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['status' => 'REFUSED', 'decided_by' => Fx::staff(), 'decided_at' => now()]), 'returns_refused'],
         'decided with no time' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['status' => 'ACCEPTED']), 'returns_decided'],
@@ -348,5 +404,16 @@ describe('the tables', function () {
         'more received than asked' => [fn (string $r) => DB::table('sales.return_lines')->where('return_id', $r)->update(['received_quantity' => 2, 'restocked_quantity' => 0]), 'return_lines_received'],
         'more restocked than received' => [fn (string $r) => DB::table('sales.return_lines')->where('return_id', $r)->update(['received_quantity' => 1, 'restocked_quantity' => 2]), 'return_lines_restocked'],
         'received without restocked' => [fn (string $r) => DB::table('sales.return_lines')->where('return_id', $r)->update(['received_quantity' => 1]), 'return_lines_received_paired'],
+        'decided by nobody' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['status' => 'ACCEPTED', 'decided_at' => now()]), 'returns_decided_paired'],
+        'withdrawn still waiting' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['withdrawn_at' => now()]), 'returns_withdrawn'],
+        'received still waiting' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['received_at' => now()]), 'returns_received'],
+        'closed still waiting' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['closed_at' => now()]), 'returns_closed'],
+        'completed still waiting' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['completed_at' => now()]), 'returns_completed'],
+        'a refund below 0' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(returnCompletedRow(-1)), 'returns_refund_due'],
+        'the shipping refunded twice' => [function (string $r, array $lines) {
+            DB::table('sales.returns')->where('id', $r)->update([...returnCompletedRow(0), 'shipping_refunded' => true]);
+            $second = returnAsk((string) DB::table('sales.returns')->where('id', $r)->value('order_id'), [$lines['second'] => 1]);
+            DB::table('sales.returns')->where('id', $second)->update([...returnCompletedRow(0), 'shipping_refunded' => true]);
+        }, 'returns_one_shipping_refund'],
     ]);
 });

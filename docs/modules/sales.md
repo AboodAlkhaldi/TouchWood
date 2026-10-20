@@ -410,7 +410,10 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
 - **Photos only while the return waits for staff** (`REQUESTED`); a fourth is `ReturnNotAllowed`.
 - Each move is in the order's history (`RETURN_…`, the return's id; the customer's reason as its code,
   never their words) and, when staff make it, audited on the order; staff's refusal words are kept on the
-  return only, audited as written.
+  return only — the audit says only that they were written (`personal`). A photo is kept on the return
+  with no history row of its own (no such kind in §5).
+- The deadline is kept to the minute; a request is checked in whole seconds, so the deadline's own second
+  is still in time.
 - Staff accept or refuse a waiting return; close an accepted one; the customer withdraws a waiting one;
   any other move is `InvalidOrderChange`.
 
