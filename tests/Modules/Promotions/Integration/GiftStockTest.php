@@ -169,6 +169,8 @@ describe('the dialog reads', function () {
         giftStockStaff();
         app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, true)));
         $code = (string) DB::table('catalog.variants')->where('id', $mug)->value('code');
+        $penCode = (string) DB::table('catalog.variants')->where('id', $pen)->value('code');
+        $ticked = app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(Fx::storeId('sa'), $penCode));
         DB::table('catalog.variants')->where('id', $pen)->update(['is_archived' => true]);
 
         $byCode = app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(Fx::storeId('sa'), $code));
@@ -176,6 +178,7 @@ describe('the dialog reads', function () {
 
         expect(array_map(fn ($row): array => [$row->variantId, $row->code, $row->stockDependent, $row->wired, $row->productNameEn !== null], $byCode))
             ->toBe([[$mug, $code, false, true, true]])
+            ->and(array_map(fn ($row): array => [$row->variantId, $row->stockDependent], $ticked))->toBe([[$pen, true]])
             ->and(array_column(array_map(fn ($row): array => (array) $row, $byName), 'variantId'))->toBe([$mug]);
     });
 
@@ -191,6 +194,6 @@ describe('the dialog reads', function () {
         Rx::switchOn('sa', $product['variants']);
         giftStockStaff();
 
-        expect(app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(Fx::storeId('sa'), '')))->toHaveCount(SearchGiftSizesHandler::MOST);
+        expect(app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(Fx::storeId('sa'), '')))->toHaveCount(20);
     });
 });
