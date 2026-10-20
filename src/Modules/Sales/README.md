@@ -59,8 +59,12 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `OrderInputs`; the commands `ApproveOrder`, `RejectOrder`, `CancelOrder`, `CancelOwnOrder` (answers
   whether a refund is due), `ClearShortFlag`; `Infrastructure/Listener/FlagShortOrders` (queued, on
   Inventory's `HoldsShort`); `Public/Enums/CancelReason`.
+- **Money** (S7b): `sales.payments` / `sales.refunds` (a trigger keeps each record, voided once at most);
+  `Domain/Repository/MoneyRecords` with SQL in `Infrastructure/Eloquent/DatabaseMoneyRecords`;
+  `Application/Order/MoneyRecording` (one recorder for payments and refunds — pressing twice records once);
+  the commands `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` (answer 42), `AllowShipUnpaid`.
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

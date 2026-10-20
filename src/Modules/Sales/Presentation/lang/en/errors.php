@@ -94,5 +94,10 @@ return [
         'amount' => 'amount',
         'locale' => 'language',
         'points' => 'points',
+        'way' => 'way',
+        'reference' => 'reference',
+        'note' => 'note',
+        'date' => 'date',
+        'request' => 'form',
     ],
 ];

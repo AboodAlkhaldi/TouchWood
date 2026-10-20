@@ -16,10 +16,12 @@ use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Domain\Repository\MoneyRecords;
 use Modules\Sales\Domain\Repository\OrderNumbers;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseMoneyRecords;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseOrders;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
@@ -46,6 +48,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);
         $this->app->bind(Orders::class, DatabaseOrders::class);
+        $this->app->bind(MoneyRecords::class, DatabaseMoneyRecords::class);
     }
 
     public function boot(): void
