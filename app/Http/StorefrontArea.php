@@ -24,6 +24,13 @@ final class StorefrontArea
     /** Which store this URL belongs to, and the language it is read in. */
     public const string STORE = 'store';
 
+    /**
+     * Where that middleware leaves the store it found, on the request: there only once the address named
+     * a store this request may see. The shop's error page reads it to know the frame can be drawn
+     * (ProblemDetails; frontend.md §2.6).
+     */
+    public const string RESOLVED_STORE = 'store';
+
     /** The store and the language as the page reads them - Platform's half of a shop page. */
     public const string SHOP = 'storefront.shop';
 

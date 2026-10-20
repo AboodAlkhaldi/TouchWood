@@ -28,21 +28,25 @@ use Throwable;
  *
  * JSON requests get an RFC 7807 problem document with the same shape from every module.
  * Page requests get the error page for the matching status - inside the signed-in admin panel,
- * the panel's own (frontend.md §2.6). The category-to-status table below exists nowhere else.
+ * the panel's own, and in a store's shop, the shop's (frontend.md §2.6). The category-to-status
+ * table below exists nowhere else.
  */
 final class ProblemDetails
 {
     private const string CONTENT_TYPE = 'application/problem+json';
 
     /**
-     * The statuses the admin panel answers a page request with in its own frame (frontend.md §2.6):
-     * every category's (§7.1). Anything else - a session expired (419), too many requests, a bug -
-     * keeps Laravel's page, which needs nothing the failing request may not have.
+     * The statuses the admin panel and the shop answer a page request with in their own frames
+     * (frontend.md §2.6): every category's (§7.1). Anything else - a session expired (419), too many
+     * requests, a bug - keeps Laravel's page, which needs nothing the failing request may not have.
      */
-    private const array PANEL_PAGE_STATUSES = [403, 404, 409, 413, 415, 422];
+    private const array PAGE_STATUSES = [403, 404, 409, 413, 415, 422];
 
     /** The admin panel's error page, beside its Home and Coming Soon (resources/js/pages/Admin). */
     private const string PANEL_PAGE = 'Admin/Error';
+
+    /** The shop's error page, in the shop's frame (resources/js/pages/Storefront). */
+    private const string SHOP_PAGE = 'Storefront/Error';
 
     public static function register(Exceptions $exceptions): void
     {
@@ -65,11 +69,11 @@ final class ProblemDetails
 
         $exceptions->render(fn (HttpExceptionInterface $error, Request $request): ?Response => $request->expectsJson()
             ? self::httpProblem($error->getStatusCode(), $error->getHeaders())
-            : self::panelPage(
+            : self::errorPage(
                 $request,
                 $error->getStatusCode(),
                 self::translate("errors.http.{$error->getStatusCode()}", [], (string) (Response::$statusTexts[$error->getStatusCode()] ?? 'Error')),
-                self::pageSentence($error->getStatusCode()),
+                null,
             ));
 
         // Anything else reaching here is a bug. It has already been reported with the
@@ -106,19 +110,20 @@ final class ProblemDetails
         $key = self::translationKey($error->type());
         $replace = array_map(fn (string|int|float|bool|null $value): string => (string) $value, $error->context());
         $categoryKey = 'errors.category.'.strtolower($error->category()->value);
-        $title = self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error')));
+        $ownTitle = self::translate("{$key}.title", $replace, '');
+        $title = $ownTitle !== '' ? $ownTitle : self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error'));
 
         // A page shows the translated title: Laravel's error pages print the exception's message,
-        // and a DomainError's message is written for developers. In the panel, its own page says the
-        // error's own sentence under it, as a form says it (FormErrors: a rule's words, a field named
-        // in words) - "This read isn't available." - or, with none written, the status's; never the
-        // message. A page refused on permission reads as a page, not an action: "You don't have
-        // access to this page." (owner, 2026-10-20) - an action refused keeps its own words, in its
-        // screen (FormErrors).
+        // and a DomainError's message is written for developers. In the panel and in the shop, their own
+        // page says the error's own sentence under it, as a form says it (FormErrors: a rule's words, a
+        // field named in words) - "This read isn't available." - or, with none written, the status's in
+        // that area's words; never the message. A page refused on permission reads as a page, not an
+        // action: "You don't have access to this page." (owner, 2026-10-20) - an action refused keeps its
+        // own words, in its screen (FormErrors).
         if (! $request->expectsJson()) {
-            $sentence = $error instanceof Unauthorized ? self::pageSentence($status) : FormErrors::sentence($error) ?? self::pageSentence($status);
+            $own = $error instanceof Unauthorized ? null : FormErrors::sentence($error);
 
-            return self::panelPage($request, $status, $title, $sentence)
+            return self::errorPage($request, $status, $title, $own, titleIsOwn: $ownTitle !== '')
                 ?? app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
         }
 
@@ -137,22 +142,47 @@ final class ProblemDetails
     }
 
     /**
-     * **The admin panel's error page** (frontend.md §2.6): in the panel's frame - its sidebar, its trail -
-     * in the page's language, the error's translated title and one sentence, and a way back to Home.
+     * The error page of the area the request was answered in (frontend.md §2.6), or null for Laravel's.
      *
-     * Only for a page asked for by somebody signed in to the panel: the frame names them and lists what
-     * they may open, so a request that never reached the panel's own middleware - an address no route
-     * answers, the sign-in pages - keeps Laravel's page. A form sent is answered in its own screen
-     * (FormErrors) and never reaches here; anything not a plain read keeps Laravel's page too.
+     * **The admin panel's**: in the panel's frame - its sidebar, its trail - in the page's language, the
+     * error's translated title and one sentence, and a way back to Home. Only for a page asked for by
+     * somebody signed in to the panel: the frame names them and lists what they may open, so a request
+     * that never reached the panel's own middleware - the sign-in pages - keeps Laravel's page.
+     *
+     * **The shop's**: in the shop's frame - its header, Catalog's menu - in the page's language (the
+     * address's), the error's own title or, for 409, 413, 415 and 422, a shopper's (owner, 2026-10-20), a
+     * shopper's sentence ending with the fix, and a way back to the store's home; a page refused (403) says
+     * the not-found page's title and sentence (owner, 2026-10-20). Only under
+     * a store the address named and this request may see: an unknown store, or an off one to anybody but
+     * a staff viewer, has no frame to draw and keeps Laravel's page (§1.6: nobody learns it exists).
+     *
+     * A form sent is answered in its own screen (FormErrors) and never reaches here; anything not a plain
+     * read keeps Laravel's page too.
+     *
+     * @param  string|null  $own  the error's own sentence, or null to say its status's in the area's words
+     * @param  bool  $titleIsOwn  whether $title is the error's own, rather than its status's or category's
      */
-    private static function panelPage(Request $request, int $status, string $title, string $sentence): ?Response
+    private static function errorPage(Request $request, int $status, string $title, ?string $own, bool $titleIsOwn = false): ?Response
     {
-        if (! in_array($status, self::PANEL_PAGE_STATUSES, true) || ! $request->isMethodSafe() || ! self::inSignedInPanel($request)) {
+        if (! in_array($status, self::PAGE_STATUSES, true) || ! $request->isMethodSafe()) {
+            return null;
+        }
+
+        [$page, $heading, $sentence, $words] = match (true) {
+            self::inSignedInPanel($request) => [self::PANEL_PAGE, $title, $own ?? self::pageSentence($status), ['admin']],
+            // A page refused in the shop says what a missing one says, so the two can't be told apart - its
+            // status still 403 (owner, 2026-10-20). The panel's says "You don't have access to this page."
+            self::inShop($request) && $status === 403 => [self::SHOP_PAGE, self::translate('errors.http.404', [], 'Page Not Found'), self::shopSentence(404), [...StorefrontArea::WORDS, 'errors']],
+            self::inShop($request) => [self::SHOP_PAGE, $titleIsOwn ? $title : self::shopTitle($status, $title), $own ?? self::shopSentence($status), [...StorefrontArea::WORDS, 'errors']],
+            default => [null, '', '', []],
+        };
+
+        if ($page === null) {
             return null;
         }
 
         return app(Page::class)
-            ->render(self::PANEL_PAGE, ['status' => $status, 'title' => $title, 'detail' => $sentence], ['admin'])
+            ->render($page, ['status' => $status, 'title' => $heading, 'detail' => $sentence], $words)
             ->toResponse($request)
             ->setStatusCode($status);
     }
@@ -178,12 +208,53 @@ final class ProblemDetails
     }
 
     /**
+     * Whether the request was answered inside a store's shop, so the frame's shared data - the store and
+     * its language (Platform's half), whoever is here (Access's) - is already there: its route passes the
+     * shop's store, shop and page middleware (StorefrontArea), the address named a store this request may
+     * see, and both halves were shared before it failed.
+     */
+    private static function inShop(Request $request): bool
+    {
+        $route = $request->route();
+
+        if (! $route instanceof Route || $request->attributes->get(StorefrontArea::RESOLVED_STORE) === null) {
+            return false;
+        }
+
+        $middleware = $route->gatherMiddleware();
+
+        return in_array(StorefrontArea::STORE, $middleware, true)
+            && in_array(StorefrontArea::SHOP, $middleware, true)
+            && in_array(StorefrontArea::PAGE, $middleware, true)
+            && Inertia::getShared('shop') !== null
+            && Inertia::getShared('shopper') !== null;
+    }
+
+    /**
      * The status's own sentence, for an error that wrote none - on the panel's page, and as a JSON
-     * problem's detail. Each of PANEL_PAGE_STATUSES has one, and so every category's status (§7.1).
+     * problem's detail. Each of PAGE_STATUSES has one, and so every category's status (§7.1).
      */
     private static function pageSentence(int $status): string
     {
         return self::translate("errors.page.{$status}", [], '');
+    }
+
+    /**
+     * The same on the shop's page, in a shopper's words rather than the panel's - "This page isn't
+     * available." (owner, 2026-10-20). Each of PAGE_STATUSES has one.
+     */
+    private static function shopSentence(int $status): string
+    {
+        return self::translate("errors.shop.sentence.{$status}", [], self::pageSentence($status));
+    }
+
+    /**
+     * The shop's heading for an error that wrote no title of its own: a shopper's for 409, 413, 415 and 422 -
+     * "Something Changed", not the panel's "Conflict" (owner, 2026-10-20) - else the status's, as the panel's.
+     */
+    private static function shopTitle(int $status, string $fallback): string
+    {
+        return self::translate("errors.shop.title.{$status}", [], $fallback);
     }
 
     /**

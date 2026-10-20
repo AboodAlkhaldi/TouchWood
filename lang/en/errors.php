@@ -58,4 +58,27 @@ return [
         415 => 'Couldn\'t open this page: what was sent isn\'t a kind it takes.',
         422 => 'Couldn\'t open this page: something in its address isn\'t valid.',
     ],
+
+    // The shop's error page (frontend.md §2.6): the same, in a shopper's words rather than the panel's
+    // (owner, 2026-10-20), and its way back - the store's home. Its page ships this file.
+    'shop' => [
+        'back' => 'Back to the Store',
+        // A shopper's headings where the panel's would read as the system's (owner, 2026-10-20); 404 keeps
+        // the status's, "Page Not Found".
+        'title' => [
+            409 => 'Something Changed',
+            413 => 'File Too Large',
+            415 => 'File Type Not Accepted',
+            422 => 'Check the Details',
+        ],
+        // Each ends with the fix (frontend.md §1.10). A page refused (403) says the 404's title and sentence,
+        // so a refused page can't be told from a missing one (owner, 2026-10-20).
+        'sentence' => [
+            404 => 'This page isn\'t available. Check the address, or go back to the store.',
+            409 => 'Couldn\'t open this page: it changed while it loaded. Reload it and try again.',
+            413 => 'Couldn\'t upload the file: it\'s too large. Choose a smaller file.',
+            415 => 'Couldn\'t upload the file: this type isn\'t accepted. Choose another file.',
+            422 => 'Couldn\'t continue: some details aren\'t valid. Check them and try again.',
+        ],
+    ],
 ];

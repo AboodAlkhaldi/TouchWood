@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Platform\Presentation\Http\Controller\ChooseStoreController;
+use Modules\Platform\Presentation\Http\Controller\ShopNotFoundController;
 use Modules\Platform\Presentation\Http\Controller\StoreHomeController;
 use Modules\Platform\Presentation\Http\Controller\StoreWithoutLanguageController;
 
@@ -34,4 +35,17 @@ Route::prefix('{store}/{locale}')
     ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
         Route::get('/', StoreHomeController::class)->name('storefront.home');
+
+        // An address under a store that no page answers, read: the shop's own not-found page (owner,
+        // 2026-10-20; frontend.md §2.6) - after every other route, whichever module's. {store} never
+        // matches a reserved path (/admin, /build, /api...), so this never catches one.
+        Route::fallback(ShopNotFoundController::class)->where('fallbackPlaceholder', ShopNotFoundController::PATHS);
     });
+
+// Anything but a read sent to such an address stays not found, as before - Laravel's own page, no session
+// opened. Without this, the read above would turn it into "method not allowed".
+Route::prefix('{store}/{locale}')->group(function (): void {
+    Route::match(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{fallbackPlaceholder}', ShopNotFoundController::class)
+        ->where('fallbackPlaceholder', ShopNotFoundController::PATHS)
+        ->fallback();
+});

@@ -132,7 +132,10 @@ links every entry to its route. *(Step 5; owner, 2026-10-18:)* each store's coun
 own reader - so the list, the count and the Home card never disagree - after every change of stock,
 holds, thresholds, wiring or the store's default, when a store switches sizes off (catalog.md amendment
 22), when a size or a product is archived or restored, and each night for every store. One recount waits per store and runs 30 seconds after the change, so the
-count is about half a minute behind the list at most; a store not counted yet is counted live once.
+count is about half a minute behind the list at most; a store not counted yet is counted live once. *(Owner, 2026-10-20:)* the stores counted live
+ask whether they are wired **once between them** (`StoreWiring::wiredStores`), not once each - asked in that
+request, never kept (sync.md §1.8); a Super Admin's frame with no count kept read 3 such queries, now 1
+(`AdminFrameQueryBudgetTest`).
 
 **A size given only as a gift** — one the store does not sell (Promotions may give any ready size) —
 (accepted with #106): staff may set its stock like any other, and once it has a stock row it is on the Low

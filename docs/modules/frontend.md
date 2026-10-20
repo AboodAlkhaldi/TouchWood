@@ -790,9 +790,7 @@ three more he accepted on 2026-10-20):**
   (`errors.page.{status}`) as its `detail`, never its developers' message (platform.md §7.4).
 - **Words added:** `errors.http` 409, 413, 415, 422 (also the JSON problem's title for those statuses);
   `errors.page.*`; `admin.error.back`.
-- **Not built:** the **storefront's** error pages. A shop page is drawn in `StorefrontLayout` with the
-  shop's own shared data and its way back is the store's home, so it is not the same path; Catalog's own
-  not-found shop page (`Catalog/Storefront/NotFound`, catalog.md §4.5) is unchanged.
+- **The storefront's:** built in step 9, below.
 - **Tests:** `tests/Shared/Feature/PanelErrorPageTest.php` (both languages; each status's sentence, 403,
   404, 409, 413, 415 and 422; the page's 403 and the action's; a rule's words; a mistyped address signed
   in and signed out, and sent a POST; the sign-in pages' addresses; a visit inside the panel and a partial
@@ -800,6 +798,82 @@ three more he accepted on 2026-10-20):**
   `tests/Shared/Feature/ProblemDetailsTest.php` (JSON's fallback sentence); Sync's not-found read and a
   field named in words in `tests/Modules/Sync/Feature/SyncScreensTest.php`, and the not-found read in
   `tests/Browser/SyncScreensTest.php`.
+
+**As built - the shop's (stage 5's screens, step 9; the owner's follow-up of 2026-10-20), the same way:**
+
+- **Where:** the same `app/Http/ProblemDetails` answers a page request (not JSON) in a store's shop with
+  the Inertia page `Storefront/Error` (`resources/js/pages/Storefront/Error.tsx`) in `StorefrontLayout` -
+  the header, the country and language switches, Catalog's menu and search box, whoever is signed in or the
+  staff view - with the HTTP status. The same statuses (**403, 404, 409, 413, 415, 422**), a module's
+  `DomainError` or Laravel's own, a visit made inside the shop or a full load alike.
+- **What it says:** the error's own translated **title** as the page's heading when it wrote one ("Check
+  the quantity prices"); otherwise, for **409, 413, 415 and 422, a shopper's** (owner, 2026-10-20;
+  `errors.shop.title.{status}`) - "Something Changed" / "تغيّر شيء ما", "File Too Large" / "الملف كبير
+  جدًا", "File Type Not Accepted" / "نوع الملف غير مقبول", "Check the Details" / "تحقّق من التفاصيل" -
+  where the panel keeps "Conflict", "Too Large", "Unsupported" and "Invalid Request"; for 404 the status's,
+  "Page Not Found". Headings are Title Case, as §1.10's writing rules write every heading. Under it **one
+  sentence**: the error's own, as the panel's page says it (`FormErrors::sentence`); when it has none
+  written, its status's **in a shopper's words**, not the panel's (`errors.shop.sentence.{status}`), each
+  ending with the fix (§1.10; owner, 2026-10-20):
+
+  | Status | English | Arabic |
+  |---|---|---|
+  | 404 | This page isn't available. Check the address, or go back to the store. | هذه الصفحة غير متاحة. تحقّق من العنوان، أو عُد إلى المتجر. |
+  | 409 | Couldn't open this page: it changed while it loaded. Reload it and try again. | تعذّر فتح هذه الصفحة: تغيّرت أثناء تحميلها. أعد تحميلها وحاول مجددًا. |
+  | 413 | Couldn't upload the file: it's too large. Choose a smaller file. | تعذّر رفع الملف: حجمه كبير جدًا. اختر ملفًا أصغر. |
+  | 415 | Couldn't upload the file: this type isn't accepted. Choose another file. | تعذّر رفع الملف: نوعه غير مقبول. اختر ملفًا آخر. |
+  | 422 | Couldn't continue: some details aren't valid. Check them and try again. | تعذّر المتابعة: بعض التفاصيل غير صالحة. تحقّق منها وحاول مجددًا. |
+
+  **A page refused (403) says what a missing one says** (owner, 2026-10-20): the 404's title and sentence,
+  "Page Not Found" and "This page isn't available. …", whatever refused it (`Unauthorized` or another
+  error's own words), so a refused page can't be told from a missing one, as large sites do for private
+  pages. Its HTTP status stays 403. The panel's 403 keeps "You don't have access to this page."; there are
+  no shopper's 403 words. Never the developers' message, debug on or off.
+  One button goes back: **Back to the Store** (`errors.shop.back`), to the store's home in the page's
+  language (`/{store}/{locale}`). The page ships the frame's words (`StorefrontArea::WORDS`) and `errors`.
+- **Language:** the address's (`/sa/ar/…` Arabic, right to left), as every shop page.
+- **A mistyped shop address (owner, 2026-10-20):** `/{store}/{locale}/…` that no page answers reaches
+  Platform's last shop route, `ShopNotFoundController` (a fallback in Platform's `routes.php`, behind the
+  shop's middleware, `StorefrontArea::MIDDLEWARE`), and gets the shop's not-found page. `{store}` never
+  matches a reserved path (`ReservedPaths`: `/admin`, `/build`, `/storage`, `/api`, `/up`), so the panel,
+  the built assets, stored files and the API are never caught; a language not supported (`/sa/fr/…`) is
+  not either. Anything but a read sent to such an address is answered not found by Laravel's own page, as
+  before - a second fallback, without the shop's middleware, so it never becomes "method not allowed". A
+  read of an address only a form posts to (GET `/sa/en/account/register`) is now the shop's not-found page
+  rather than "method not allowed".
+- **What the method fallbacks also change (found by the review of step 9; not changed, for the owner to
+  review at the end):** Laravel counts a fallback as an answer for its verbs, so it no longer looks for the
+  address under another verb. On a page that exists under `/{store}/{locale}/…` or `/admin/…`:
+  - **POST or PUT to a page that only reads** (PUT `/sa/en/sign-in`, POST `/admin/audit`) is answered **404,
+    not 405**;
+  - **OPTIONS to such a page** (`/admin/audit`) is answered **404, not 200 with `Allow`**;
+  - and **a verb Laravel does not route** (outside `Router::$verbs`, such as TRACE) sent to a mistyped
+    address is answered **405**, its `Allow` naming every verb, where it was 404.
+
+  The store's home itself (`/sa/en`, no segment after the language) is outside the shop's fallbacks and keeps
+  405 for a POST and 200 with `Allow: GET,HEAD` for OPTIONS. Checked by sending each request on 2026-10-20.
+- **Only when the frame can be drawn:** the route passes the shop's store, shop and page middleware
+  (`StorefrontArea::STORE`, `SHOP`, `PAGE`), the address named a store this request may see (the store
+  ResolveStore leaves on the request, `StorefrontArea::RESOLVED_STORE`), both halves of the shop's data were
+  shared, and the request is a read (GET or HEAD). Everything else keeps Laravel's own page: **an unknown
+  store, and a switched-off one** to anybody but a staff viewer (nobody learns it exists, platform.md §1.6),
+  the country page, a form sent, and the statuses not listed.
+- **Unchanged:** JSON (a problem document, its fallback sentence still the panel's `errors.page.{status}`,
+  platform.md §7.4); every shop page that is there.
+- **One not-found sentence in the shop (owner, 2026-10-20):** Catalog's own not-found shop page for a
+  product, category or brand that is not there (`Catalog/Storefront/NotFound`, catalog.md §4.5) keeps its
+  page, title and button, and says the same sentence from the same key, `errors.shop.sentence.404` - "This
+  page isn't available. Check the address, or go back to the store." - in place of its own "This page is not in this store."
+  (`catalog::shop.not_found.text`, removed); its page ships `errors` for it.
+- **Words added:** `errors.shop.back`, `errors.shop.title.*` (409, 413, 415, 422), `errors.shop.sentence.*`,
+  both languages.
+- **Tests:** `tests/Shared/Feature/ShopErrorPageTest.php` (a mistyped address and `abort(404)` in both
+  languages, with the frame's words and the way back; each status's sentence in both languages; a rule's
+  words; an Inertia visit and HEAD; no developer message with debug off or on; a form sent, a POST and a
+  DELETE to a mistyped address; JSON; an unknown and a switched-off store; the reserved paths; the pages
+  that are there; a signed-in customer, with the name, the account's list and the lines; a Super Admin's
+  staff view of a switched-off store, the store marked off); the browser check in `tests/Browser/StorefrontFrameTest.php` (English, then Arabic right
+  to left, and Back to the Store).
 
 ### 2.7 What the design shows that the system does differently
 
