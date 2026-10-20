@@ -62,7 +62,8 @@ final readonly class MarkDeliveredHandler
 
             $now = CarbonImmutable::now();
             $days = $this->platform->setting(SalesSettings::RETURN_WINDOW_DAYS, StoreId::fromString($order->storeId))->int();
-            $deadline = $now->addDays($days);
+            // To the minute (answer 34).
+            $deadline = $now->startOfMinute()->addDays($days);
             $this->orders->deliver($order->id, $now, $deadline);
             $this->changes->record($order, 'DELIVERED', $staffId, $now, OrderUndoing::status($order, OrderState::COMPLETED)
                 ->changed('return_deadline_at', null, $deadline->toAtomString()));

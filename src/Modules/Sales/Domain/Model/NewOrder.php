@@ -47,6 +47,8 @@ final readonly class NewOrder
         public int $vatRateBasisPoints,
         public int $orderTotal,
         public ?string $giftLevelId,
+        /** Whether the store was wired to a provider when the order was placed — as Inventory's hold fixed it. */
+        public bool $wired,
         public DateTimeImmutable $placedAt,
         public array $lines,
     ) {}

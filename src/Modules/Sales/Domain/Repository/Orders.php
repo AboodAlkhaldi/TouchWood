@@ -74,6 +74,13 @@ interface Orders
     public function cameBack(string $orderId, string $cameBackId, DateTimeImmutable $at): void;
 
     /**
+     * The sizes with a line counting on the store's stock as placed — the gift's included (§1.5).
+     *
+     * @return list<string>
+     */
+    public function countingOnStock(string $orderId): array;
+
+    /**
      * The sizes ticked "reduced in the provider" (§1.5).
      *
      * @return list<string>

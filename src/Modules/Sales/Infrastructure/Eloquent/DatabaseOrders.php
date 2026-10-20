@@ -66,6 +66,7 @@ final readonly class DatabaseOrders implements Orders
             'refunded_minor' => 0,
             'may_ship_unpaid' => false,
             'gift_level_id' => $order->giftLevelId,
+            'wired' => $order->wired,
             'placed_at' => Moment::of($order->placedAt),
         ]);
 
@@ -90,13 +91,14 @@ final readonly class DatabaseOrders implements Orders
             'coupon_share_minor' => $line->couponShare,
             'points_share_minor' => $line->pointsShare,
             'vat_share_minor' => $line->vatShare,
+            'counts_on_stock' => $line->countsOnStock,
         ], $order->lines));
     }
 
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -113,6 +115,7 @@ final readonly class DatabaseOrders implements Orders
             (bool) $row->may_ship_unpaid,
             (string) $row->way_to_pay,
             (int) $row->goods_total_minor,
+            (bool) $row->wired,
         ) : null;
     }
 
@@ -220,6 +223,12 @@ final readonly class DatabaseOrders implements Orders
         $this->db->table('sales.orders')->where('id', $orderId)->update([
             'status' => OrderState::UNDELIVERED, 'shipment_status' => 'CAME_BACK', 'came_back_at' => Moment::of($at), 'came_back_id' => $cameBackId, 'due_minor' => 0,
         ]);
+    }
+
+    public function countingOnStock(string $orderId): array
+    {
+        return array_values(array_map('strval', $this->db->table('sales.order_lines')->where('order_id', $orderId)->where('counts_on_stock', true)
+            ->distinct()->orderBy('variant_id')->pluck('variant_id')->all()));
     }
 
     public function ticked(string $orderId): array

@@ -53,6 +53,8 @@ final readonly class OrderState
         public bool $mayShipUnpaid,
         public string $wayToPay,
         public int $goodsTotal,
+        /** Wired to a provider when placed (§1.5): ticks and a parcel that came back go by it. */
+        public bool $wired,
     ) {}
 
     public function isWaiting(): bool

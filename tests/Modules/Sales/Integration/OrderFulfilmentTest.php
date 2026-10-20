@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Sales\Application\Command\AllowShipUnpaid\AllowShipUnpaid;
 use Modules\Sales\Application\Command\AllowShipUnpaid\AllowShipUnpaidHandler;
@@ -26,6 +28,7 @@ use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotShippable;
 use Modules\Sales\Public\Events\OrderDelivered;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
@@ -51,9 +54,9 @@ beforeEach(function () {
 /**
  * An order placed (2 of the first size, 1 of the second), approved; staff who fulfil, acting.
  *
- * @return array{order: string, variants: list<string>, customer: string}
+ * @return array{order: string, variants: list<string>, customer: string, earns: int}
  */
-function fulfilled(bool $withPoints = false, bool $withGift = false, bool $approve = true, bool $wired = false): array
+function fulfilled(bool $withPoints = false, bool $withGift = false, bool $approve = true, bool $wired = false, bool $dependent = false): array
 {
     $ready = Cx::ready();
 
@@ -72,14 +75,20 @@ function fulfilled(bool $withPoints = false, bool $withGift = false, bool $appro
         Ix::wired();
     }
 
-    $order = Cx::place(Cx::start($ready['address'], usePoints: $withPoints)->id)->id;
+    // The first size's normal sales made to depend on its stock (a wired store's switch).
+    if ($dependent) {
+        app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
+    }
+
+    $quote = Cx::start($ready['address'], usePoints: $withPoints);
+    $order = Cx::place($quote->id)->id;
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
 
     if ($approve) {
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     }
 
-    return ['order' => $order, 'variants' => $ready['variants'], 'customer' => $ready['customer']];
+    return ['order' => $order, 'variants' => $ready['variants'], 'customer' => $ready['customer'], 'earns' => $quote->earningPreview];
 }
 
 /** Paid in full, by hand. */
@@ -149,12 +158,12 @@ describe('shipping', function () {
 
 describe('delivered', function () {
     it('completes the order, fixes its return window, earns its points and tells of it', function () {
-        ['order' => $order, 'customer' => $customer] = fulfilled();
         Lx::programme();
+        ['order' => $order, 'customer' => $customer, 'earns' => $earns] = fulfilled();
         Cx::setting(SalesSettings::RETURN_WINDOW_DAYS, 30);
         fulfilledPaid($order);
         fulfilledShip($order);
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-22 15:30:00'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-22 15:30:45'));
         $before = app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points;
 
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
@@ -162,7 +171,9 @@ describe('delivered', function () {
         $row = fulfilledRow($order);
         expect([$row?->status, $row?->shipment_status])->toBe(['COMPLETED', 'DELIVERED'])
             ->and(CarbonImmutable::parse((string) $row?->return_deadline_at)->format('Y-m-d H:i'))->toBe('2026-11-21 15:30')
-            ->and(app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points)->toBeGreaterThan($before)
+            ->and(CarbonImmutable::parse((string) $row?->return_deadline_at)->format('s'))->toBe('00')
+            ->and($earns)->toBeGreaterThan(0)
+            ->and(app(LoyaltyApi::class)->balance($customer, Fx::storeId('sa'))->points)->toBe($before + $earns)
             ->and(DB::table('public.outbox_messages')->where('type', OrderDelivered::class)->where('payload->orderId', $order)->count())->toBe(1)
             ->and(Fx::audits('sales.order.delivered', $order))->toBe(1)
             ->and(fn () => app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order)))->toThrow(InvalidOrderChange::class);
@@ -263,5 +274,94 @@ describe('reduced in the provider', function () {
 
         expect(fulfilledBackExtra($variants[0]))->toBe($sizeBack)
             ->and(fulfilledBackExtra($variants[1]))->toBe($giftBack + 1);
+    });
+});
+
+describe('what the review asked for', function () {
+    it('audits the carrier and the tracking number as written only, and keeps them out of the history', function () {
+        ['order' => $order] = fulfilled();
+        fulfilledPaid($order);
+
+        fulfilledShip($order, 'Aramex', 'AWB-555-777');
+
+        $audit = (string) DB::table('platform.audit_entries')->where('action', 'sales.order.shipped')->where('subject_id', $order)->value('changes');
+        $history = (string) DB::table('sales.order_history')->where('order_id', $order)->where('kind', 'SHIPPED')->value('detail');
+        expect($audit)->toContain('tracking_number')
+            ->and($audit)->not->toContain('AWB-555-777')
+            ->and($audit)->not->toContain('Aramex')
+            ->and($history)->not->toContain('AWB-555-777')
+            ->and($history)->not->toContain('Aramex')
+            ->and(fulfilledRow($order)?->tracking_number)->toBe('AWB-555-777');
+    });
+
+    it('keeps on the order the facts its hold was placed with', function (bool $wired, bool $dependent, array $counts) {
+        ['order' => $order, 'variants' => $variants] = fulfilled(withGift: true, wired: $wired, dependent: $dependent);
+
+        $lines = DB::table('sales.order_lines')->where('order_id', $order)->orderBy('is_gift')->orderBy('variant_id')->get()
+            ->map(fn ($line): array => [array_search($line->variant_id, $variants, true), (bool) $line->is_gift, (bool) $line->counts_on_stock])->all();
+
+        expect((bool) fulfilledRow($order)?->wired)->toBe($wired)
+            ->and($lines)->toEqualCanonicalizing($counts);
+    })->with([
+        'no provider' => [false, false, [[0, false, true], [1, false, true], [1, true, true]]],
+        'wired' => [true, false, [[0, false, false], [1, false, false], [1, true, true]]],
+        'wired, the first size stock-dependent' => [true, true, [[0, false, true], [1, false, false], [1, true, true]]],
+    ]);
+
+    it('ticks a stock-dependent size, and on a delivered order', function () {
+        ['order' => $order, 'variants' => $variants] = fulfilled(wired: true, dependent: true);
+        fulfilledPaid($order);
+        fulfilledShip($order);
+        app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+
+        app(TickReducedInProviderHandler::class)->handle(new TickReducedInProvider($order, [$variants[0]]));
+
+        expect(DB::table('sales.order_ticks')->where('order_id', $order)->pluck('variant_id')->all())->toBe([$variants[0]]);
+    });
+
+    it('frees what an unticked stock-dependent size still holds when its parcel comes back, and counts none of it back', function () {
+        ['order' => $order, 'variants' => $variants] = fulfilled(wired: true, dependent: true);
+        fulfilledPaid($order);
+        fulfilledShip($order);
+        $held = (int) Ix::stock('sa', $variants[0])?->held;
+        $back = fulfilledBackExtra($variants[0]);
+
+        app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, [['variantId' => $variants[0], 'quantity' => 2]]));
+
+        expect($held)->toBe(2)
+            ->and((int) Ix::stock('sa', $variants[0])?->held)->toBe(0)
+            ->and(fulfilledBackExtra($variants[0]))->toBe($back);
+    });
+
+    it('goes by the facts of the order as placed when the store was wired since', function () {
+        ['order' => $order, 'variants' => $variants] = fulfilled();
+        fulfilledPaid($order);
+        fulfilledShip($order);
+        Ix::wired();
+
+        app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, [['variantId' => $variants[0], 'quantity' => 2]]));
+
+        expect(fulfilledInStock($variants[0]))->toBe(100)
+            ->and(fn () => app(TickReducedInProviderHandler::class)->handle(new TickReducedInProvider($order, [$variants[0]])))->toThrow(InvalidOrderChange::class);
+    });
+
+    it('ships a size held in two parts as one', function () {
+        ['order' => $order, 'variants' => $variants] = fulfilled();
+        fulfilledPaid($order);
+        $line = DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $variants[0])->where('is_gift', false)->first();
+        DB::table('sales.order_lines')->where('id', $line?->id)->update(['quantity' => 1, 'total_minor' => 100_00, 'vat_share_minor' => 0]);
+        DB::table('sales.order_lines')->insert([...(array) $line, 'id' => strtolower((string) Str::ulid()), 'quantity' => 1, 'total_minor' => 100_00, 'vat_share_minor' => 0]);
+
+        fulfilledShip($order);
+
+        expect(fulfilledInStock($variants[0]))->toBe(98);
+    });
+
+    it('names the size when a piece put back is no size', function () {
+        ['order' => $order] = fulfilled();
+        fulfilledPaid($order);
+        fulfilledShip($order);
+
+        expect(Pr::thrown(fn () => app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, [['variantId' => 'box', 'quantity' => 1]])), InvalidSalesAttribute::class)->attribute)->toBe('variant');
     });
 });

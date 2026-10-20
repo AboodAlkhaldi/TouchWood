@@ -8,7 +8,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Inventory\Public\Contracts\InventoryApi;
-use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\CallerPermission;
@@ -31,8 +30,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  * shipping included, is a refund due, settled by hand), the points used come back (nothing was earned),
  * the coupon's use stays counted. Inventory: `release` first frees what the order still holds (a wired
  * store's lines not yet ticked); then `returned` gets **only the pieces put back whose stock was taken** —
- * every piece in a store with no provider, the ticked sizes in a wired store — so nothing is counted back
- * twice. The order's lock first, Loyalty, then Inventory last. Publishes nothing yet (§6). Audited.
+ * every piece of an order placed with no provider, the ticked sizes of one placed wired (as its hold fixed
+ * it, whatever the store is now) — so nothing is counted back twice. The order's lock first, Loyalty, then Inventory last. Publishes nothing yet (§6). Audited.
  */
 final readonly class MarkCameBackHandler
 {
@@ -44,7 +43,6 @@ final readonly class MarkCameBackHandler
         private OrderUndoing $changes,
         private LoyaltyApi $loyalty,
         private InventoryApi $inventory,
-        private StoreWiring $wiring,
         private ConnectionInterface $db,
     ) {}
 
@@ -53,10 +51,10 @@ final readonly class MarkCameBackHandler
      */
     public function handle(MarkCameBack $command): void
     {
-        [$orderId, $store, $staffId] = $this->access->authorize(self::PERMISSION, $command->orderId);
+        [$orderId, , $staffId] = $this->access->authorize(self::PERMISSION, $command->orderId);
         $asked = self::putBack($command->putBack);
 
-        $this->db->transaction(function () use ($orderId, $store, $staffId, $asked): void {
+        $this->db->transaction(function () use ($orderId, $staffId, $asked): void {
             $order = $this->orders->lock($orderId) ?? throw new OrderNotFound;
 
             if (! $order->isShipped()) {
@@ -76,8 +74,8 @@ final readonly class MarkCameBackHandler
                 }
             }
 
-            // In a wired store, only what was taken: the sizes ticked "reduced in the provider".
-            $taken = $this->wiring->isWired($store) ? $this->orders->ticked($order->id) : null;
+            // Wired when placed, only what was taken: the sizes ticked "reduced in the provider".
+            $taken = $order->wired ? $this->orders->ticked($order->id) : null;
             $back = array_values(array_filter($asked, static fn (HoldLineDto $line): bool => $taken === null || in_array($line->variantId, $taken, true)));
 
             $now = CarbonImmutable::now();
@@ -109,7 +107,11 @@ final readonly class MarkCameBackHandler
             $variantId = strtolower(trim($line['variantId']));
             $gift = $line['gift'] ?? false;
 
-            if (! Ulids::valid($variantId) || $line['quantity'] < 1) {
+            if (! Ulids::valid($variantId)) {
+                throw new InvalidSalesAttribute('variant', 'a size of the parcel');
+            }
+
+            if ($line['quantity'] < 1) {
                 throw new InvalidSalesAttribute('quantity', 'pieces of the parcel');
             }
 

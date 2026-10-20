@@ -26,7 +26,8 @@ use Shared\Application\Unauthorized;
  * is less than is due without "may ship unpaid" (§1.4); **an order flagged "stock was reduced" ships**
  * (answer 36). Inventory's `ship` takes the stock off — **once per order**, under the order's lock, after
  * the shipment is written (stage 5: a repeated partial shipment would be taken twice), last in the
- * transaction (its store lock, then Catalog's); never refused for the stock (answer 41). Audited.
+ * transaction (its store lock, then Catalog's); never refused for the stock (answer 41). Audited — the
+ * carrier and the tracking number, typed by staff, as written only: they stay on the order's row.
  */
 final readonly class ShipOrderHandler
 {
@@ -71,7 +72,7 @@ final readonly class ShipOrderHandler
             $now = CarbonImmutable::now();
             $this->orders->ship($order->id, $carrier, $tracking, $now);
             $this->changes->record($order, 'SHIPPED', $staffId, $now, AuditChanges::none()
-                ->changed('shipment_status', $order->shipmentStatus, OrderState::SHIPPED)->changed('carrier', null, $carrier)->changed('tracking_number', null, $tracking), ['carrier' => $carrier]);
+                ->changed('shipment_status', $order->shipmentStatus, OrderState::SHIPPED)->personal('carrier')->personal('tracking_number'));
 
             // Last, once: the stock taken off.
             $this->inventory->ship($order->id, array_map(
