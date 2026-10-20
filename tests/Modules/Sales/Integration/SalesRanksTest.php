@@ -42,17 +42,14 @@ beforeEach(function () {
     seed(CatalogSeeder::class);
 });
 
-/**
- * Catalog's side recorded: each store's ranking as pushed.
- *
- * @return ArrayObject<string, array<string, int>>
- */
-function ranksPushed(): ArrayObject
+/** Catalog's side recorded: `ranks` holds each store's ranking as pushed, by store id. */
+function ranksPushed(): stdClass
 {
-    $pushed = new ArrayObject;
+    $pushed = new stdClass;
+    $pushed->ranks = [];
     $facts = Mockery::mock(ListingFacts::class);
     $facts->shouldReceive('salesRanks')->andReturnUsing(function (StoreId $store, array $ranks) use ($pushed): void {
-        $pushed[$store->value] = $ranks;
+        $pushed->ranks[$store->value] = $ranks;
     });
     app()->instance(ListingFacts::class, $facts);
 
@@ -76,8 +73,8 @@ it('ranks a store products by the pieces sold, the gift left out', function () {
 
     expect(ranksRun())->toBe(DB::table('platform.stores')->count())
         ->and(DB::table('sales.order_lines')->where('is_gift', true)->count())->toBe(2)
-        ->and($pushed[Fx::storeId('sa')])->toBe([$other['product'] => 1, $ready['product'] => 2])
-        ->and($pushed[Fx::storeId('eg')])->toBe([]);
+        ->and($pushed->ranks[Fx::storeId('sa')])->toBe([$other['product'] => 1, $ready['product'] => 2])
+        ->and($pushed->ranks[Fx::storeId('eg')])->toBe([]);
 });
 
 it('leaves out an order cancelled, rejected or undelivered; a tie goes to the newer product', function (Closure $end) {
@@ -96,7 +93,7 @@ it('leaves out an order cancelled, rejected or undelivered; a tie goes to the ne
     // 3 pieces each.
     $newerFirst = [$ready['product'], $other['product']];
     rsort($newerFirst);
-    expect(array_keys($pushed[Fx::storeId('sa')]))->toBe($newerFirst);
+    expect(array_keys($pushed->ranks[Fx::storeId('sa')]))->toBe($newerFirst);
 })->with([
     'cancelled' => [fn (string $order) => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Out of stock'))],
     'rejected' => [fn (string $order) => app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Not for us'))],
@@ -116,11 +113,11 @@ it('counts only the last 90 days', function () {
 
     CarbonImmutable::setTestNow($placed->addDays(90));
     ranksRun();
-    expect($pushed[Fx::storeId('sa')])->toBe([$ready['product'] => 1]);
+    expect($pushed->ranks[Fx::storeId('sa')])->toBe([$ready['product'] => 1]);
 
     CarbonImmutable::setTestNow($placed->addDays(90)->addSecond());
     ranksRun();
-    expect($pushed[Fx::storeId('sa')])->toBe([]);
+    expect($pushed->ranks[Fx::storeId('sa')])->toBe([]);
 });
 
 it('runs for the system only', function () {

@@ -50,10 +50,13 @@ function rankedProduct(array $stores = ['sa']): string
 /** @return list<?int> the product's rank in each language's row of the store */
 function rankedRows(string $productId, string $store = 'sa'): array
 {
-    return DB::table('catalog.listing')->where('store_id', Fx::storeId($store))->where('product_id', $productId)->orderBy('locale')
-        ->pluck('sales_rank')->map(fn ($rank): ?int => $rank === null ? null : (int) $rank)->all();
+    return array_values(DB::table('catalog.listing')->where('store_id', Fx::storeId($store))->where('product_id', $productId)->orderBy('locale')
+        ->pluck('sales_rank')->map(fn ($rank): ?int => $rank === null ? null : (int) $rank)->all());
 }
 
+/**
+ * @param  array<string, int>  $ranks
+ */
 function rankedPush(array $ranks, string $store = 'sa'): void
 {
     app(ListingFacts::class)->salesRanks(StoreId::fromString(Fx::storeId($store)), $ranks);
