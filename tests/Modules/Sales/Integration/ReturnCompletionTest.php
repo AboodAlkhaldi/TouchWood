@@ -176,7 +176,9 @@ describe('completing', function () {
         expect($refund)->toBe($goods + intdiv((int) $line?->vat_share_minor, 2))
             ->and(DB::table('sales.returns')->where('id', $return)->value('shipping_refunded'))->toBeFalse()
             // The gift went back into stock, as the gift.
-            ->and((int) Ix::stock('sa', $sold['variants'][1])?->in_stock)->toBe($giftStock + 1);
+            ->and((int) Ix::stock('sa', $sold['variants'][1])?->in_stock)->toBe($giftStock + 1)
+            ->and(DB::table('inventory.return_lines')->where('return_id', $return)->get(['variant_id', 'gift', 'quantity'])->map(fn ($row): array => [$row->variant_id, (bool) $row->gift, (int) $row->quantity])->all())
+            ->toBe([[$sold['variants'][1], true, 1]]);
     });
 
     it('stays exact when two received returns complete the other way round, the shipping with the last', function () {
