@@ -100,5 +100,7 @@ return [
         'date' => 'date',
         'request' => 'form',
         'file' => 'file',
+        'carrier' => 'carrier',
+        'tracking_number' => 'tracking number',
     ],
 ];

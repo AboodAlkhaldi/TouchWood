@@ -22,6 +22,17 @@ final readonly class OrderState
 
     public const string NOT_SHIPPED = 'NOT_SHIPPED';
 
+    public const string SHIPPED = 'SHIPPED';
+
+    public const string COMPLETED = 'COMPLETED';
+
+    public const string UNDELIVERED = 'UNDELIVERED';
+
+    public function isShipped(): bool
+    {
+        return $this->shipmentStatus === self::SHIPPED;
+    }
+
     public function isApproved(): bool
     {
         return $this->status === self::APPROVED;
@@ -41,6 +52,7 @@ final readonly class OrderState
         public string $currencyCode,
         public bool $mayShipUnpaid,
         public string $wayToPay,
+        public int $goodsTotal,
     ) {}
 
     public function isWaiting(): bool

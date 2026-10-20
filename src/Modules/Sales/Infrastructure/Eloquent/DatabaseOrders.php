@@ -96,7 +96,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -112,6 +112,7 @@ final readonly class DatabaseOrders implements Orders
             (string) $row->currency_code,
             (bool) $row->may_ship_unpaid,
             (string) $row->way_to_pay,
+            (int) $row->goods_total_minor,
         ) : null;
     }
 
@@ -187,6 +188,50 @@ final readonly class DatabaseOrders implements Orders
     public function addTransferDocument(string $orderId, string $storeId, string $mediaId, int $position, DateTimeImmutable $at): void
     {
         $this->db->table('sales.transfer_documents')->insert(['order_id' => $orderId, 'store_id' => $storeId, 'media_id' => $mediaId, 'position' => $position, 'uploaded_at' => Moment::of($at)]);
+    }
+
+    public function pieces(string $orderId): array
+    {
+        $rows = $this->db->table('sales.order_lines')->where('order_id', $orderId)
+            ->groupBy('variant_id', 'is_gift')->orderBy('variant_id')->orderBy('is_gift')
+            ->selectRaw('variant_id, is_gift, SUM(quantity) AS quantity')->get();
+
+        return array_values(array_map(static fn (stdClass $row): array => [
+            'variantId' => (string) $row->variant_id, 'quantity' => (int) $row->quantity, 'gift' => (bool) $row->is_gift,
+        ], $rows->all()));
+    }
+
+    public function ship(string $orderId, string $carrier, ?string $trackingNumber, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'shipment_status' => OrderState::SHIPPED, 'shipped_at' => Moment::of($at), 'carrier' => $carrier, 'tracking_number' => $trackingNumber,
+        ]);
+    }
+
+    public function deliver(string $orderId, DateTimeImmutable $at, DateTimeImmutable $returnDeadline): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'status' => OrderState::COMPLETED, 'shipment_status' => 'DELIVERED', 'delivered_at' => Moment::of($at), 'return_deadline_at' => Moment::of($returnDeadline),
+        ]);
+    }
+
+    public function cameBack(string $orderId, string $cameBackId, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([
+            'status' => OrderState::UNDELIVERED, 'shipment_status' => 'CAME_BACK', 'came_back_at' => Moment::of($at), 'came_back_id' => $cameBackId, 'due_minor' => 0,
+        ]);
+    }
+
+    public function ticked(string $orderId): array
+    {
+        return array_values(array_map('strval', $this->db->table('sales.order_ticks')->where('order_id', $orderId)->orderBy('variant_id')->pluck('variant_id')->all()));
+    }
+
+    public function tick(string $orderId, string $storeId, array $variantIds, string $by, DateTimeImmutable $at): void
+    {
+        $this->db->table('sales.order_ticks')->insertOrIgnore(array_map(static fn (string $variantId): array => [
+            'order_id' => $orderId, 'store_id' => $storeId, 'variant_id' => $variantId, 'ticked_by' => $by, 'ticked_at' => Moment::of($at),
+        ], $variantIds));
     }
 
     public function forgetEmail(string $customerId): void

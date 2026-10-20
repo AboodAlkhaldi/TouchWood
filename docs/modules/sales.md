@@ -254,6 +254,18 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   the coupon's use stays counted (promotions.md §2.1). The order is `UNDELIVERED`; the customer sees
   Cancelled, then Refunded.
 
+**As built (step S8)** — my assumptions, stated for the owner to reject:
+- **Shipping** needs the order approved and not yet shipped; the carrier is 1–100 characters, the
+  tracking number optional (up to 100). Inventory's `ship` is called once per order, last, after the
+  shipment is written under the order's lock (stage 5: a repeated partial shipment would be taken twice).
+- **"Reduced in the provider"** is ticked only in a wired store, on an approved or completed order, for
+  its gift and its sizes whose stock counts there; once each.
+- **Delivered**: the return deadline is the delivery plus the store's window then; `OrderDelivered` goes
+  into the outbox; Loyalty's `earn` comes last.
+- **Came back**: staff name the pieces put back, a size and gift at a time, never more than the parcel
+  held; none for a parcel lost for good. In a wired store only the ticked sizes are given back to
+  Inventory. Loyalty, then Inventory's `release` and `returned`, last.
+
 ### 1.6 Cancellation
 
 - **The customer cancels until the order ships** — once shipped it can only be returned (handoff
