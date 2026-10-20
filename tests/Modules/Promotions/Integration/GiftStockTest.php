@@ -6,6 +6,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\InventoryPermissions;
@@ -19,6 +20,7 @@ use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevels;
 use Modules\Promotions\Application\Query\ListGiftLevels\ListGiftLevelsHandler;
 use Modules\Promotions\Application\Query\SearchGiftSizes\SearchGiftSizes;
 use Modules\Promotions\Application\Query\SearchGiftSizes\SearchGiftSizesHandler;
+use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -103,6 +105,48 @@ describe('the tick box', function () {
             ->and(DB::table('promotions.gift_levels')->where('id', $level)->value('variant_id'))->toBe($mug);
     });
 
+    it('switches the size when a change only ticks the box', function () {
+        Ix::wired();
+        [$pen] = giftStockSizes();
+        giftStockStaff();
+        $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
+        $audits = DB::table('platform.audit_entries')->where('subject_id', $level)->count();
+
+        app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($level, giftStockFields($pen, true)));
+
+        expect(giftStockCounts($pen))->toBeTrue()
+            ->and(DB::table('platform.audit_entries')->where('subject_id', $level)->count())->toBe($audits);
+    });
+
+    it('calls Inventory last, the level already written', function () {
+        Ix::wired();
+        [$pen] = giftStockSizes();
+        giftStockStaff();
+        $seen = null;
+        $inventory = Mockery::mock(InventoryApi::class);
+        $inventory->shouldReceive('makeStockDependent')->andReturnUsing(function () use (&$seen): array {
+            $seen = DB::table('promotions.gift_levels')->count();
+
+            return [];
+        });
+        app()->instance(InventoryApi::class, $inventory);
+
+        app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, true)));
+
+        expect($seen)->toBe(1);
+    });
+
+    it('refuses a size archived since the level was saved by the gift own field', function () {
+        Ix::wired();
+        [$pen] = giftStockSizes();
+        giftStockStaff();
+        $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
+        DB::table('catalog.variants')->where('id', $pen)->update(['is_archived' => true]);
+
+        expect(fn () => app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($level, giftStockFields($pen, true))))
+            ->toThrow(InvalidPromotionAttribute::class);
+    });
+
     it('refuses the tick to a reader without Inventory switch job, and saves nothing', function (Closure $save) {
         Ix::wired();
         [$pen, $mug] = giftStockSizes();
@@ -182,11 +226,21 @@ describe('the dialog reads', function () {
             ->and(array_column(array_map(fn ($row): array => (array) $row, $byName), 'variantId'))->toBe([$mug]);
     });
 
-    it('searches for whoever may manage gift levels in the store only', function () {
+    it('searches for whoever may manage gift levels in the store only', function (bool $viewOnly) {
         giftStockSizes();
-        Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::VIEW], ['sa']));
+        Fx::actAsStaff($viewOnly ? Fx::staffWith([PromotionsPermissions::VIEW], ['sa']) : Fx::staffWith([PromotionsPermissions::GIFT_MANAGE], ['eg']));
 
         expect(fn () => app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(Fx::storeId('sa'), 'Drawer')))->toThrow(Unauthorized::class);
+    })->with([
+        'a reader who may only view' => [true],
+        'a manager of another store' => [false],
+    ]);
+
+    it('finds nothing in a store there is not', function () {
+        giftStockSizes();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(SearchGiftSizesHandler::class)->handle(new SearchGiftSizes(strtolower((string) Str::ulid()), 'Drawer')))->toBe([]);
     });
 
     it('shows at most 20 sizes', function () {

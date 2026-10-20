@@ -53,6 +53,12 @@ final readonly class ChangeGiftLevelHandler
         $terms = $command->fields->terms($store->currencyCode);
         $storeId = StoreId::fromString($store->id);
 
+        // Ticked, the size is asked about even when it stays the same: one archived since the level was
+        // saved is refused here, by the gift's own field, before Inventory would refuse it in the save.
+        if ($command->fields->makeStockDependent) {
+            $this->checks->variant($terms->variantId);
+        }
+
         $this->change->run($store, function () use ($storeId, $terms, $command): array {
             $level = $this->levels->lock($storeId, $command->levelId) ?? throw new GiftLevelNotFound;
 

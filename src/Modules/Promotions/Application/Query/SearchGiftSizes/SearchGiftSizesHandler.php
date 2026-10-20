@@ -9,6 +9,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\FoundVariantDto;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\StoreWiring;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Modules\Promotions\Application\Query\GiftSizeRow;
 use Modules\Promotions\Application\Query\MarketingReader;
@@ -18,7 +19,7 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * The gift-level dialog's size search (promotions.md M4): the store's ready sizes matching the text,
+ * The gift-level dialog's size search (promotions.md M4): every ready product's sizes matching the text,
  * archived ones left out, 20 at most, each with whether its normal sales already depend on its stock and
  * whether the store is wired — so the screen never reads Catalog or Inventory itself. For whoever may
  * create or change a gift level there.
@@ -36,6 +37,7 @@ final readonly class SearchGiftSizesHandler
         private CatalogApi $catalog,
         private InventoryApi $inventory,
         private StoreWiring $wiring,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -53,6 +55,11 @@ final readonly class SearchGiftSizesHandler
 
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
         $this->reader->open($store);
+
+        // A store there is not has no sizes (a reader covering every store may name one).
+        if ($this->platform->store($store) === null) {
+            return [];
+        }
 
         $text = trim($query->text);
         $found = $this->catalog->searchVariants($store, $text === '' ? null : mb_substr($text, 0, 100), anyReady: true, limit: self::MOST, notArchived: true, withTotal: false)->rows;

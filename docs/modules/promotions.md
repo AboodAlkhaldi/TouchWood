@@ -369,7 +369,7 @@ call. A store switched off is read by Super Admins alone, as it is changed (§1.
 customer id), `ListGiftLevels` (every level, highest first, the gift named through Catalog in two
 bulk reads, whether it gives its gift now — and, for the tick box of M4, whether the size already counts
 on stock here and whether the store is wired, from Inventory, 2026-10-20), `SearchGiftSizes` (the
-dialog's size search under `promotions.gift.manage`: the store's ready sizes by product name or code,
+dialog's size search under `promotions.gift.manage`: every ready product's sizes by product name or code,
 archived ones left out, 20 at most, each with the same two facts — so the screen reads neither Catalog
 nor Inventory itself) and, for the customer, `ViewMyCoupons` (the coupons given
 to me there that I can use now — on, started, not ended, uses left in all and for me — soonest to end
