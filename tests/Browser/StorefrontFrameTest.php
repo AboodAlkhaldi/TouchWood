@@ -100,7 +100,7 @@ it('answers a mistyped shop address with the shop\'s own not-found page, in the 
     // Back to the Store - never Laravel's bare page.
     $page = visit('/sa/en/no-such-page');
 
-    expect(browserSoon($page, "document.querySelector('[data-test=\"error-sentence\"]')?.textContent === \"This page isn't available.\" && document.querySelector('h1')?.textContent === 'Page Not Found'"))->toBeTrue()
+    expect(browserSoon($page, "document.querySelector('[data-test=\"error-sentence\"]')?.textContent === \"This page isn't available. Check the address, or go back to the store.\" && document.querySelector('h1')?.textContent === 'Page Not Found'"))->toBeTrue()
         // In the shop's frame: its country switch is there.
         ->and(browserSoon($page, "document.querySelector('[data-test=\"country-switch\"]') !== null && document.documentElement.dir === 'ltr'"))->toBeTrue();
 
@@ -111,6 +111,6 @@ it('answers a mistyped shop address with the shop\'s own not-found page, in the 
 
     $arabic = visit('/sa/ar/no/such/page');
 
-    expect(browserSoon($arabic, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"error-sentence\"]')?.textContent === 'هذه الصفحة غير متاحة.'"))->toBeTrue()
+    expect(browserSoon($arabic, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"error-sentence\"]')?.textContent === 'هذه الصفحة غير متاحة. تحقّق من العنوان، أو عُد إلى المتجر.'"))->toBeTrue()
         ->and(browserSoon($arabic, "document.querySelector('[data-test=\"error-back\"]')?.getAttribute('href') === '/sa/ar' && document.querySelector('[data-test=\"error-back\"]')?.textContent === 'العودة إلى المتجر'"))->toBeTrue();
 });

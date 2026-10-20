@@ -110,7 +110,8 @@ final class ProblemDetails
         $key = self::translationKey($error->type());
         $replace = array_map(fn (string|int|float|bool|null $value): string => (string) $value, $error->context());
         $categoryKey = 'errors.category.'.strtolower($error->category()->value);
-        $title = self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error')));
+        $ownTitle = self::translate("{$key}.title", $replace, '');
+        $title = $ownTitle !== '' ? $ownTitle : self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error'));
 
         // A page shows the translated title: Laravel's error pages print the exception's message,
         // and a DomainError's message is written for developers. In the panel and in the shop, their own
@@ -122,7 +123,7 @@ final class ProblemDetails
         if (! $request->expectsJson()) {
             $own = $error instanceof Unauthorized ? null : FormErrors::sentence($error);
 
-            return self::errorPage($request, $status, $title, $own)
+            return self::errorPage($request, $status, $title, $own, titleIsOwn: $ownTitle !== '')
                 ?? app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
         }
 
@@ -149,7 +150,9 @@ final class ProblemDetails
      * that never reached the panel's own middleware - the sign-in pages - keeps Laravel's page.
      *
      * **The shop's**: in the shop's frame - its header, Catalog's menu - in the page's language (the
-     * address's), the same title and a shopper's sentence, and a way back to the store's home. Only under
+     * address's), the error's own title or, for 409, 413, 415 and 422, a shopper's (owner, 2026-10-20), a
+     * shopper's sentence ending with the fix, and a way back to the store's home; a page refused (403) says
+     * the not-found page's title and sentence (owner, 2026-10-20). Only under
      * a store the address named and this request may see: an unknown store, or an off one to anybody but
      * a staff viewer, has no frame to draw and keeps Laravel's page (§1.6: nobody learns it exists).
      *
@@ -157,17 +160,21 @@ final class ProblemDetails
      * read keeps Laravel's page too.
      *
      * @param  string|null  $own  the error's own sentence, or null to say its status's in the area's words
+     * @param  bool  $titleIsOwn  whether $title is the error's own, rather than its status's or category's
      */
-    private static function errorPage(Request $request, int $status, string $title, ?string $own): ?Response
+    private static function errorPage(Request $request, int $status, string $title, ?string $own, bool $titleIsOwn = false): ?Response
     {
         if (! in_array($status, self::PAGE_STATUSES, true) || ! $request->isMethodSafe()) {
             return null;
         }
 
-        [$page, $sentence, $words] = match (true) {
-            self::inSignedInPanel($request) => [self::PANEL_PAGE, $own ?? self::pageSentence($status), ['admin']],
-            self::inShop($request) => [self::SHOP_PAGE, $own ?? self::shopSentence($status), [...StorefrontArea::WORDS, 'errors']],
-            default => [null, '', []],
+        [$page, $heading, $sentence, $words] = match (true) {
+            self::inSignedInPanel($request) => [self::PANEL_PAGE, $title, $own ?? self::pageSentence($status), ['admin']],
+            // A page refused in the shop says what a missing one says, so the two can't be told apart - its
+            // status still 403 (owner, 2026-10-20). The panel's says "You don't have access to this page."
+            self::inShop($request) && $status === 403 => [self::SHOP_PAGE, self::translate('errors.http.404', [], 'Page Not Found'), self::shopSentence(404), [...StorefrontArea::WORDS, 'errors']],
+            self::inShop($request) => [self::SHOP_PAGE, $titleIsOwn ? $title : self::shopTitle($status, $title), $own ?? self::shopSentence($status), [...StorefrontArea::WORDS, 'errors']],
+            default => [null, '', '', []],
         };
 
         if ($page === null) {
@@ -175,7 +182,7 @@ final class ProblemDetails
         }
 
         return app(Page::class)
-            ->render($page, ['status' => $status, 'title' => $title, 'detail' => $sentence], $words)
+            ->render($page, ['status' => $status, 'title' => $heading, 'detail' => $sentence], $words)
             ->toResponse($request)
             ->setStatusCode($status);
     }
@@ -239,6 +246,15 @@ final class ProblemDetails
     private static function shopSentence(int $status): string
     {
         return self::translate("errors.shop.sentence.{$status}", [], self::pageSentence($status));
+    }
+
+    /**
+     * The shop's heading for an error that wrote no title of its own: a shopper's for 409, 413, 415 and 422 -
+     * "Something Changed", not the panel's "Conflict" (owner, 2026-10-20) - else the status's, as the panel's.
+     */
+    private static function shopTitle(int $status, string $fallback): string
+    {
+        return self::translate("errors.shop.title.{$status}", [], $fallback);
     }
 
     /**

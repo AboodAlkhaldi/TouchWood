@@ -1056,7 +1056,9 @@ With the frontend milestone:
   admin address no route answers too, through Platform's last route (`PanelNotFoundController`), and a
   page refused on permission says "You don't have access to this page.". **The storefront's built too**
   (2026-10-20, step 9): a page read in a store's shop gets the shop's own error page, in the shop's frame, with
-  a shopper's sentence ("This page isn't available.") and Back to the Store; a mistyped address under a store
+  a shopper's sentence ("This page isn't available. Check the address, or go back to the store.") and Back
+  to the Store - a page refused (403) saying the same, so it can't be told from a missing one (owner,
+  2026-10-20); a mistyped address under a store
   through Platform's last shop route (`ShopNotFoundController`). An unknown or switched-off store keeps
   Laravel's page (§1.6).
 

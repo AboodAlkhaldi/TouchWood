@@ -124,11 +124,11 @@ it('answers a mistyped shop address with the shop\'s not-found page, in the addr
             ->and($response->getContent())->toContain('lang="'.$locale.'"');
     }
 })->with([
-    'English' => ['en', 'Page Not Found', 'This page isn\'t available.', 'Back to the Store'],
-    'Arabic' => ['ar', 'الصفحة غير موجودة', 'هذه الصفحة غير متاحة.', 'العودة إلى المتجر'],
+    'English' => ['en', 'Page Not Found', 'This page isn\'t available. Check the address, or go back to the store.', 'Back to the Store'],
+    'Arabic' => ['ar', 'الصفحة غير موجودة', 'هذه الصفحة غير متاحة. تحقّق من العنوان، أو عُد إلى المتجر.', 'العودة إلى المتجر'],
 ]);
 
-it('says each status\'s sentence in a shopper\'s words for an error that wrote none, never its developers\' message', function (string $locale, string $path, int $status, string $title, string $sentence) {
+it('says each status\'s title and sentence in a shopper\'s words for an error that wrote none - the panel keeping its own titles - never its developers\' message', function (string $locale, string $path, int $status, string $title, string $sentence) {
     $response = get("/sa/{$locale}{$path}");
 
     $response->assertStatus($status)->assertInertia(fn (AssertableInertia $page) => $page
@@ -140,16 +140,17 @@ it('says each status\'s sentence in a shopper\'s words for an error that wrote n
     expect($response->getContent())->not->toContain('Developer note')
         ->and($response->getContent())->not->toContain('testing.nothing_written');
 })->with([
-    'refused' => ['en', '/_test/not-yours', 403, 'Not Allowed', 'You can\'t open this page.'],
-    'a conflict' => ['en', '/_test/conflict', 409, 'Conflict', 'Couldn\'t open this page: it changed while it loaded. Reload it and try again.'],
-    'too large' => ['en', '/_test/too-large', 413, 'Too Large', 'Couldn\'t open this page: the request is too large.'],
-    'an unsupported kind' => ['en', '/_test/unsupported', 415, 'Unsupported', 'Couldn\'t open this page: the request isn\'t in a form it accepts.'],
-    'an invalid request' => ['en', '/_test/invalid', 422, 'Invalid Request', 'Couldn\'t open this page: its address isn\'t valid. Check the link and try again.'],
-    'refused, in Arabic' => ['ar', '/_test/not-yours', 403, 'غير مسموح', 'لا يمكنك فتح هذه الصفحة.'],
-    'a conflict, in Arabic' => ['ar', '/_test/conflict', 409, 'تعارض', 'تعذّر فتح هذه الصفحة: تغيّرت أثناء تحميلها. أعد تحميلها وحاول مجددًا.'],
-    'too large, in Arabic' => ['ar', '/_test/too-large', 413, 'الحجم كبير جدًا', 'تعذّر فتح هذه الصفحة: الطلب كبير جدًا.'],
-    'an unsupported kind, in Arabic' => ['ar', '/_test/unsupported', 415, 'غير مدعوم', 'تعذّر فتح هذه الصفحة: الطلب ليس بصيغة تقبلها.'],
-    'an invalid request, in Arabic' => ['ar', '/_test/invalid', 422, 'طلب غير صالح', 'تعذّر فتح هذه الصفحة: عنوانها غير صالح. تحقّق من الرابط وحاول مجددًا.'],
+    // A page refused says what a missing one says, its status still 403 (owner, 2026-10-20).
+    'refused' => ['en', '/_test/not-yours', 403, 'Page Not Found', 'This page isn\'t available. Check the address, or go back to the store.'],
+    'a conflict' => ['en', '/_test/conflict', 409, 'Something Changed', 'Couldn\'t open this page: it changed while it loaded. Reload it and try again.'],
+    'too large' => ['en', '/_test/too-large', 413, 'File Too Large', 'Couldn\'t upload the file: it\'s too large. Choose a smaller file.'],
+    'an unsupported kind' => ['en', '/_test/unsupported', 415, 'File Type Not Accepted', 'Couldn\'t upload the file: this type isn\'t accepted. Choose another file.'],
+    'an invalid request' => ['en', '/_test/invalid', 422, 'Check the Details', 'Couldn\'t continue: some details aren\'t valid. Check them and try again.'],
+    'refused, in Arabic' => ['ar', '/_test/not-yours', 403, 'الصفحة غير موجودة', 'هذه الصفحة غير متاحة. تحقّق من العنوان، أو عُد إلى المتجر.'],
+    'a conflict, in Arabic' => ['ar', '/_test/conflict', 409, 'تغيّر شيء ما', 'تعذّر فتح هذه الصفحة: تغيّرت أثناء تحميلها. أعد تحميلها وحاول مجددًا.'],
+    'too large, in Arabic' => ['ar', '/_test/too-large', 413, 'الملف كبير جدًا', 'تعذّر رفع الملف: حجمه كبير جدًا. اختر ملفًا أصغر.'],
+    'an unsupported kind, in Arabic' => ['ar', '/_test/unsupported', 415, 'نوع الملف غير مقبول', 'تعذّر رفع الملف: نوعه غير مقبول. اختر ملفًا آخر.'],
+    'an invalid request, in Arabic' => ['ar', '/_test/invalid', 422, 'تحقّق من التفاصيل', 'تعذّر المتابعة: بعض التفاصيل غير صالحة. تحقّق منها وحاول مجددًا.'],
 ]);
 
 it('says the error\'s own sentence when it wrote one, as a form says it', function (string $locale, string $title, string $sentence) {
@@ -169,7 +170,7 @@ it('answers a visit made inside the shop, and a HEAD request, with the error pag
     $response->assertNotFound()->assertHeader('X-Inertia', 'true');
 
     expect($response->json('component'))->toBe('Storefront/Error')
-        ->and($response->json('props.detail'))->toBe('This page isn\'t available.')
+        ->and($response->json('props.detail'))->toBe('This page isn\'t available. Check the address, or go back to the store.')
         ->and($response->json('props.shop.code'))->toBe('sa');
 
     $head = head('/sa/en/no-such-page');
@@ -320,7 +321,7 @@ it('draws the shop\'s error page in a Super Admin\'s staff view of a switched-of
     $browser->get('/eg/en/no-such-page')->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Storefront/Error')
         ->where('status', 404)
-        ->where('detail', 'This page isn\'t available.')
+        ->where('detail', 'This page isn\'t available. Check the address, or go back to the store.')
         ->where('shop.code', 'eg')
         ->where('shop.available', fn (Collection $stores): bool => $stores->contains(fn (array $store): bool => $store['code'] === 'eg' && $store['isActive'] === false))
         ->where('staffView.name', fn (string $name): bool => $name !== '')

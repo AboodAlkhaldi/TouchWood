@@ -70,7 +70,6 @@ return [
     ],
     'not_found' => [
         'title' => 'Page Not Found',
-        'text' => 'This page is not in this store.',
         'back' => 'Back to the Store',
     ],
 ];

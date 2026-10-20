@@ -107,9 +107,13 @@ final readonly class ShopPagesController
         return new JsonResponse(['products' => array_map(static fn ($card): array => $card->toArray(), $cards)]);
     }
 
+    /**
+     * Its sentence is the shop's one not-found sentence, "This page isn't available." (errors.shop.sentence.404,
+     * owner 2026-10-20), so it ships the shop error page's file too.
+     */
     private function notFound(Request $request): Response
     {
-        return $this->page->render('Catalog/Storefront/NotFound', [], self::WORDS)->toResponse($request)->setStatusCode(404);
+        return $this->page->render('Catalog/Storefront/NotFound', [], [...self::WORDS, 'errors'])->toResponse($request)->setStatusCode(404);
     }
 
     /** The current address, the shopper's choices kept: a permanent move (catalog.md §1.1). */

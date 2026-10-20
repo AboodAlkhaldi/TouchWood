@@ -6,6 +6,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
@@ -156,6 +157,9 @@ describe('the addresses', function () {
         get($url($category, $p['product'], $empty, $draft))->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Catalog/Storefront/NotFound')
             ->has('frame.catalog.menu')
+            // The shop's one not-found sentence, as its error page says it (owner, 2026-10-20).
+            ->where('translations', fn (Collection $words): bool => $words->get('errors.shop.sentence.404') === 'This page isn\'t available. Check the address, or go back to the store.'
+                && ! $words->has('catalog::shop.not_found.text'))
         );
     })->with([
         'a slug that never existed' => [fn (): string => '/sa/en/products/no-such-product'],

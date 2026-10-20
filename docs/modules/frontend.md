@@ -806,13 +806,29 @@ three more he accepted on 2026-10-20):**
   the header, the country and language switches, Catalog's menu and search box, whoever is signed in or the
   staff view - with the HTTP status. The same statuses (**403, 404, 409, 413, 415, 422**), a module's
   `DomainError` or Laravel's own, a visit made inside the shop or a full load alike.
-- **What it says:** the error's translated **title** as the page's heading (`errors.http.{status}`, or the
-  error's own), and under it **one sentence**: the error's own, as the panel's page says it
-  (`FormErrors::sentence`); when it has none written, its status's **in a shopper's words**, not the
-  panel's (`errors.shop.sentence.{status}`): 404 "This page isn't available." / "هذه الصفحة غير متاحة.";
-  403 "You can't open this page." **[PROVISIONAL: what a refusal on permission means to a shopper - the
-  owner's to decide]**; 409, 413, 415, 422 "Couldn't open this page: …" with the fix. A read refused by
-  `Unauthorized` says the 403 sentence, as in the panel. Never the developers' message, debug on or off.
+- **What it says:** the error's own translated **title** as the page's heading when it wrote one ("Check
+  the quantity prices"); otherwise, for **409, 413, 415 and 422, a shopper's** (owner, 2026-10-20;
+  `errors.shop.title.{status}`) - "Something Changed" / "تغيّر شيء ما", "File Too Large" / "الملف كبير
+  جدًا", "File Type Not Accepted" / "نوع الملف غير مقبول", "Check the Details" / "تحقّق من التفاصيل" -
+  where the panel keeps "Conflict", "Too Large", "Unsupported" and "Invalid Request"; for 404 the status's,
+  "Page Not Found". Headings are Title Case, as §1.10's writing rules write every heading. Under it **one
+  sentence**: the error's own, as the panel's page says it (`FormErrors::sentence`); when it has none
+  written, its status's **in a shopper's words**, not the panel's (`errors.shop.sentence.{status}`), each
+  ending with the fix (§1.10; owner, 2026-10-20):
+
+  | Status | English | Arabic |
+  |---|---|---|
+  | 404 | This page isn't available. Check the address, or go back to the store. | هذه الصفحة غير متاحة. تحقّق من العنوان، أو عُد إلى المتجر. |
+  | 409 | Couldn't open this page: it changed while it loaded. Reload it and try again. | تعذّر فتح هذه الصفحة: تغيّرت أثناء تحميلها. أعد تحميلها وحاول مجددًا. |
+  | 413 | Couldn't upload the file: it's too large. Choose a smaller file. | تعذّر رفع الملف: حجمه كبير جدًا. اختر ملفًا أصغر. |
+  | 415 | Couldn't upload the file: this type isn't accepted. Choose another file. | تعذّر رفع الملف: نوعه غير مقبول. اختر ملفًا آخر. |
+  | 422 | Couldn't continue: some details aren't valid. Check them and try again. | تعذّر المتابعة: بعض التفاصيل غير صالحة. تحقّق منها وحاول مجددًا. |
+
+  **A page refused (403) says what a missing one says** (owner, 2026-10-20): the 404's title and sentence,
+  "Page Not Found" and "This page isn't available. …", whatever refused it (`Unauthorized` or another
+  error's own words), so a refused page can't be told from a missing one, as large sites do for private
+  pages. Its HTTP status stays 403. The panel's 403 keeps "You don't have access to this page."; there are
+  no shopper's 403 words. Never the developers' message, debug on or off.
   One button goes back: **Back to the Store** (`errors.shop.back`), to the store's home in the page's
   language (`/{store}/{locale}`). The page ships the frame's words (`StorefrontArea::WORDS`) and `errors`.
 - **Language:** the address's (`/sa/ar/…` Arabic, right to left), as every shop page.
@@ -843,10 +859,14 @@ three more he accepted on 2026-10-20):**
   store, and a switched-off one** to anybody but a staff viewer (nobody learns it exists, platform.md §1.6),
   the country page, a form sent, and the statuses not listed.
 - **Unchanged:** JSON (a problem document, its fallback sentence still the panel's `errors.page.{status}`,
-  platform.md §7.4); Catalog's own not-found shop page for a product, category or brand that is not there
-  (`Catalog/Storefront/NotFound`, catalog.md §4.5) - "This page is not in this store."; every shop page
-  that is there.
-- **Words added:** `errors.shop.back`, `errors.shop.sentence.*`, both languages.
+  platform.md §7.4); every shop page that is there.
+- **One not-found sentence in the shop (owner, 2026-10-20):** Catalog's own not-found shop page for a
+  product, category or brand that is not there (`Catalog/Storefront/NotFound`, catalog.md §4.5) keeps its
+  page, title and button, and says the same sentence from the same key, `errors.shop.sentence.404` - "This
+  page isn't available. Check the address, or go back to the store." - in place of its own "This page is not in this store."
+  (`catalog::shop.not_found.text`, removed); its page ships `errors` for it.
+- **Words added:** `errors.shop.back`, `errors.shop.title.*` (409, 413, 415, 422), `errors.shop.sentence.*`,
+  both languages.
 - **Tests:** `tests/Shared/Feature/ShopErrorPageTest.php` (a mistyped address and `abort(404)` in both
   languages, with the frame's words and the way back; each status's sentence in both languages; a rule's
   words; an Inertia visit and HEAD; no developer message with debug off or on; a form sent, a POST and a

@@ -9,8 +9,8 @@ import type { SharedProps } from '@/types/page';
 | The shop's error page (frontend.md §2.6): a page of a store's shop somebody went to and could not have - an
 | address that is no page, say - in the shop's own frame, its header and Catalog's menu still there, in the
 | page's language. The error's translated title heads it; under it, shadcn's Empty (Geist's Empty State) says
-| the error's own sentence or, when it wrote none, its status's in a shopper's words - "This page isn't
-| available." - never a message written for developers. The way back is the store's home.
+| the error's own sentence or, when it wrote none, its status's in a shopper's words, ending with the fix -
+| "This page isn't available. Check the address, or go back to the store." - never a message written for developers. The way back is the store's home.
 |
 | Rendered by app/Http/ProblemDetails, which knows no module, so its data is typed here rather than generated
 | from a module's page class (frontend.md §1.6): the three values it sends, already translated.
