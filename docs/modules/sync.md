@@ -266,23 +266,35 @@ code does it:
 
 - **The address**, checked when a connection is wired or changed, before any call, each refused by its own
   words under the Address box (`InvalidSyncInput`, `address`, its `rule`; both languages): HTTPS
-  (`address_https`, every provider); no query or fragment (`address_query`); a path ending in `/touchwood/v1`
-  (`address_path`), compared as written. A closing slash is dropped, and the address kept without it.
+  (`address_https`, every provider: "The address must start with https://.", the same words on the form, on
+  the server and in the adapter); one the HTTP client can call - a valid web address, its port 1-65535, no
+  "\" in its host (`address_malformed`, every provider); no query or fragment (`address_query`); a path
+  ending in `/touchwood/v1` (`address_path`), compared as written. A closing slash is dropped, and the
+  address kept without it.
 - **The test** (call 4) waits **10 seconds** at most, not 30: it runs in the Super Admin's save (§9.3 #21).
   A `429` there **fails at once**, never waited out.
 - **A `429`** in a read waits `Retry-After`; when it is **missing, not a number of seconds, or above 60**,
   it waits **60 seconds**. Then it asks **once more**; a second `429` fails the read.
 - **No redirect is followed**: the token would go with it. A `3xx` - or any status this text does not
-  name, such as `404` - fails the read, said with its status ("Odoo answered 404.").
-- **Pages**: a `next` already passed as `after` in the same read **fails the read** (their pages would go
-  round for ever); **an empty `next`**, or one that is not text or a number, is **malformed** and fails it.
+  name, such as `404` - fails the read, said with its status ("Odoo answered 404."). A status of 400 or more
+  whose transfer then fails (a body too slow) is judged by its status the same way - a `429` waited out -
+  and its body never read.
+- **Pages**: **`next: false`** is the last page, as `null` is (Odoo writes an empty field as `false`). A
+  `next` already passed as `after` in the same read, or **a page with no items that still names a `next`**,
+  **fails the read** (their pages would go round for ever); **an empty `next`**, or one that is not text or a
+  number, is **malformed** and fails it. A read asks **200 pages at most** (200,000 items): past them it fails
+  ("Odoo's items run past 200 pages.").
 - **A `code` sent as a number** (`123`) is taken as its digits (`"123"`), a long one exactly as written. An
   item with no code, an empty code, or one not text or a number makes the answer **malformed**. The
   `price` and `available` are passed on as they came, for Pricing, Inventory and the read to check (§1.4,
-  §1.5).
+  §1.5): **a price that is not text or a number, or an `available` that is not a whole number** - `false`,
+  a list, an object - is a **`BAD_VALUE` for that code alone** (`refused`: price, stock or both), and the read
+  goes on (§1.7). A `price` or `available` that is `null` or left out is taken as **not sent**: that value of
+  the size is left as it is (§2.1: either may be missing).
 - **Call 3 yields only the codes asked**: any other code the answer carries is left out, never reported.
-  Its `next` is not followed (500 codes fit one page). Codes are compared with spaces around them trimmed
-  (§1.1 rule 5).
+  Its `next` is not followed (500 codes fit one page). The codes are **trimmed, then each asked once**,
+  before they are cut into calls of 500 (`" 7 "` and `"7"` are one code, §1.1 rule 5); **a code holding a
+  comma is not asked** - the list cannot name it - and the full and hourly reads still cover it.
 - **The pace** - at least 1 second from the end of a store's call to its next - is kept by the adapter,
   **within one worker** (one adapter a worker, so a store's next read in that worker keeps it too). A
   store's reads already run one at a time (§1.3); its test, in a web request, may come within the second
@@ -290,8 +302,11 @@ code does it:
 - **The reasons** shown to staff, in English, each a short sentence with its status where there is one:
   "Odoo refused the token (401)." · "Odoo refused the request (400)." · "Odoo failed (5xx)." · "Odoo answered
   <status>." · "Odoo answered 429 (too many calls)." (the test) · "Odoo answered 429 (too many calls) twice." ·
-  "Odoo did not answer within 30 seconds." (10 for the test) · "Odoo could not be reached." · "Odoo's answer
-  is not as agreed: <what>." - the body, the address and the key never.
+  "Odoo did not answer within 30 seconds." (10 for the test) · "Odoo could not be reached within 10 seconds."
+  (reaching it - the same 10 seconds in a read and the test) · "Odoo could not be reached." · "Odoo could not
+  be asked: the address or the key holds a character that cannot be sent." · "Odoo's items run past 200
+  pages." · "Odoo's answer is not as agreed: <what>." - the body, the address and the key never, and the
+  HTTP client's own error is never kept with it (not in the logs, not in the failed jobs).
 
 **Their notice - theirs to ours** (§1.3, accepted 2026-10-19, §9.1 #9): when a variant's price or
 available stock changes, `POST https://<our address>/sync/notify/<store id>`, body `{"codes": ["123"]}`

@@ -110,7 +110,7 @@ it('has an Arabic and an English title and detail for every error, none empty, w
         ->and($placeholders($en['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
         ->and($placeholders($ar['invalid_sync_input']['rules']['setting']))->toBe([':setting'])
         // The address, by each rule it may break, in both languages (§2.4).
-        ->and(array_keys($en['invalid_sync_input']['rules']))->toBe(['setting', 'address_https', 'address_query', 'address_path'])
+        ->and(array_keys($en['invalid_sync_input']['rules']))->toBe(['setting', 'address_https', 'address_malformed', 'address_query', 'address_path'])
         ->and(array_keys($ar['invalid_sync_input']['rules']))->toBe(array_keys($en['invalid_sync_input']['rules']))
         ->and(array_keys($en['fields']))->toBe(['address', 'after', 'key', 'kind', 'provider', 'secret', 'section', 'settings', 'store'])
         ->and(array_keys($ar['fields']))->toBe(array_keys($en['fields']));

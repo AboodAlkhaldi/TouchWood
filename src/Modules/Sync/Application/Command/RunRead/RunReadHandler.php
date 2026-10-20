@@ -335,9 +335,19 @@ final readonly class RunReadHandler
                 continue;
             }
 
+            $refused = [];
+
             if ($value->price !== null) {
-                // The provider's text as it came; a number written as one (sync.md §1.4).
-                $priceIn[$variant->id] = is_int($value->price) || is_float($value->price) ? (string) $value->price : $value->price;
+                // The provider's text as it came; a number written as one (sync.md §1.4). Anything else - a
+                // `false` for an empty field, a list, an object - is no price: that code alone is skipped and
+                // reported, and the read goes on (§1.7).
+                $price = self::priceText($value->price);
+
+                if ($price === null) {
+                    $refused[] = 'price';
+                } else {
+                    $priceIn[$variant->id] = $price;
+                }
             }
 
             if ($value->stock !== null) {
@@ -345,12 +355,16 @@ final readonly class RunReadHandler
 
                 // Not a whole number: skipped; below 0: kept as 0. Both reported (§1.5 #2, §9.2 #11).
                 if ($number === null || $number < 0) {
-                    $bad[$variant->id] = [...self::detail($value), 'refused' => 'stock'];
+                    $refused[] = 'stock';
                 }
 
                 if ($number !== null) {
                     $stockIn[$variant->id] = max(0, $number);
                 }
+            }
+
+            if ($refused !== []) {
+                $bad[$variant->id] = [...self::detail($value), 'refused' => count($refused) === 2 ? 'both' : $refused[0]];
             }
         }
 
@@ -466,10 +480,23 @@ final readonly class RunReadHandler
         return array_map(static fn (array $change): array => [...$change, 'code' => $codeOf[$change['variantId']] ?? null], $changes);
     }
 
-    /** The provider's text kept in a report, 100 characters at most. */
-    private static function cut(?string $text): ?string
+    /** The provider's text kept in a report, 100 characters at most; anything but text is not kept here. */
+    private static function cut(mixed $text): ?string
     {
-        return $text === null ? null : mb_substr(mb_scrub($text, 'UTF-8'), 0, 100);
+        return is_string($text) ? mb_substr(mb_scrub($text, 'UTF-8'), 0, 100) : null;
+    }
+
+    /**
+     * A price as Pricing takes one (sync.md §1.4): the provider's text, or a number written as text - or
+     * null when it is neither (a `false`, a list, an object, a number that is not finite).
+     */
+    private static function priceText(mixed $price): ?string
+    {
+        return match (true) {
+            is_string($price) => $price,
+            is_int($price), is_float($price) && is_finite($price) => (string) $price,
+            default => null,
+        };
     }
 
     /** A whole number as the provider may write it - 5, 5.0, "5" - or null when it is not one. */
@@ -492,6 +519,8 @@ final readonly class RunReadHandler
     {
         $plain = static fn (mixed $given): string|int|float|bool|null => match (true) {
             is_string($given) => self::cut($given),
+            // A float that is not finite cannot be kept as JSON: named by its type, as a list is.
+            is_float($given) && ! is_finite($given) => 'float',
             is_scalar($given), $given === null => $given,
             default => get_debug_type($given),
         };

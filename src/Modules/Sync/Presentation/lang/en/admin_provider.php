@@ -33,7 +33,7 @@ return [
 
     // Checked as typed; the server decides.
     'checks' => [
-        'address_https' => 'Address must start with https://.',
+        'address_https' => 'The address must start with https://.',
         'address_host' => 'Address needs a host.',
         'address_plain' => 'Address can\'t hold spaces, a name or a password.',
         'address_long' => 'Address can be at most 500 characters.',

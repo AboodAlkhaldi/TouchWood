@@ -8,9 +8,12 @@ use DateTimeImmutable;
 use Generator;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
+use Illuminate\Http\Client\HttpClientException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Sleep;
+use InvalidArgumentException;
 use JsonException;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
@@ -53,6 +56,12 @@ final class OdooAdapter implements ProviderAdapter
     /** The Super Admin's test waits this long at most: it runs in a web request (§9.3 #21). */
     public const int TEST_SECONDS = 10;
 
+    /** Reaching Odoo - before any answer - takes this long at most, in a read and the test alike. */
+    public const int CONNECT_SECONDS = 10;
+
+    /** Pages a read asks at most: 200,000 items (§2.4 As built) - past them, the read fails. */
+    public const int MOST_PAGES = 200;
+
     /** A `429`'s `Retry-After` is waited this long at most (§2.4). */
     public const int MOST_RETRY_AFTER = 60;
 
@@ -89,9 +98,16 @@ final class OdooAdapter implements ProviderAdapter
         }
 
         $address = rtrim($address, '/');
-        $path = parse_url($address, PHP_URL_PATH);
+        $parts = parse_url($address);
 
-        if (! is_string($path) || ! str_ends_with($path, self::PATH)) {
+        // Not one the HTTP client can call (a bad port, a "\" in its host): said as such, not as its path.
+        if (! is_array($parts) || ! isset($parts['host'])) {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_MALFORMED);
+        }
+
+        $path = $parts['path'] ?? '';
+
+        if (! str_ends_with($path, self::PATH)) {
             throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH);
         }
 
@@ -131,16 +147,28 @@ final class OdooAdapter implements ProviderAdapter
     {
         $after = null;
         $asked = [];
+        $pages = 0;
 
         do {
-            $answer = $this->get($connection, [...$query, 'limit' => (string) self::PAGE, ...($after === null ? [] : ['after' => $after])], self::READ_SECONDS);
+            // A read has an end: past 200 pages (200,000 items), it fails rather than ask on for ever.
+            if (++$pages > self::MOST_PAGES) {
+                throw new ConnectionFailed('Odoo\'s items run past '.self::MOST_PAGES.' pages.');
+            }
 
-            yield from self::values($answer);
+            $answer = $this->get($connection, [...$query, 'limit' => (string) self::PAGE, ...($after === null ? [] : ['after' => $after])], self::READ_SECONDS);
+            $values = self::values($answer);
+
+            yield from $values;
 
             $after = self::next($answer);
 
             if ($after !== null) {
-                // A page asked before: their pages would go round for ever.
+                // A page with nothing on it still naming a next one, or a page asked before: their pages would
+                // go round for ever.
+                if ($values === []) {
+                    throw self::malformed('an empty page names a next one');
+                }
+
                 if (isset($asked[$after])) {
                     throw self::malformed('its pages repeat');
                 }
@@ -158,8 +186,15 @@ final class OdooAdapter implements ProviderAdapter
      */
     private function named(Connection $connection, array $codes): Generator
     {
-        foreach (array_chunk(array_values(array_unique($codes)), self::MOST_CODES) as $some) {
-            $asked = array_fill_keys(array_map(trim(...), $some), true);
+        // Trimmed, then each once, before the calls are cut: " 7 " and "7" are one code (§1.1 rule 5). A code
+        // holding a comma cannot be named in the list: it is not asked - the full and hourly reads cover it.
+        $codes = array_values(array_unique(array_filter(
+            array_map(trim(...), $codes),
+            static fn (string $code): bool => $code !== '' && ! str_contains($code, ','),
+        )));
+
+        foreach (array_chunk($codes, self::MOST_CODES) as $some) {
+            $asked = array_fill_keys($some, true);
 
             // Only the codes asked: another the answer carries is left out, not reported (§2.4). Its `next`
             // is not followed - a call of 500 codes fits one page.
@@ -183,7 +218,7 @@ final class OdooAdapter implements ProviderAdapter
     {
         // The address rule refuses another already (`ConnectionInput`); the token never leaves on plain HTTP.
         if (! str_starts_with(strtolower($connection->address), 'https://')) {
-            throw new ConnectionFailed('Odoo\'s address must start with https://.');
+            throw new ConnectionFailed('The address must start with https://.');
         }
 
         $waited = false;
@@ -226,12 +261,21 @@ final class OdooAdapter implements ProviderAdapter
                 ->acceptJson()
                 // A redirect would carry the token to another address, or to plain HTTP.
                 ->withoutRedirecting()
-                ->connectTimeout(min($seconds, self::TEST_SECONDS))
+                ->connectTimeout(min($seconds, self::CONNECT_SECONDS))
                 ->timeout($seconds)
                 ->get('items?'.self::query($query));
+        } catch (RequestException $error) {
+            // A status of 400 or more whose transfer then failed (a body too slow): judged by its status like
+            // any answer - a 429 waited out - and its body, which its message holds, never read.
+            return $error->response;
         } catch (ConnectionException $error) {
-            // Its message holds the address: never passed on.
-            throw new ConnectionFailed(self::timedOut($error) ? "Odoo did not answer within {$seconds} seconds." : 'Odoo could not be reached.');
+            // Its message holds the address: never passed on, nor chained.
+            throw new ConnectionFailed(self::timedOut($error, $seconds) ?? 'Odoo could not be reached.');
+        } catch (HttpClientException) {
+            throw new ConnectionFailed('Odoo could not be reached.');
+        } catch (InvalidArgumentException) {
+            // A request that cannot be written - a control character in the key, say: never the key itself.
+            throw new ConnectionFailed('Odoo could not be asked: the address or the key holds a character that cannot be sent.');
         } finally {
             $this->lastCallEnded[$connection->storeId] = self::now();
         }
@@ -278,12 +322,22 @@ final class OdooAdapter implements ProviderAdapter
         return preg_match('/\A\d{1,9}\z/', $said) === 1 ? min((int) $said, self::MOST_RETRY_AFTER) : self::MOST_RETRY_AFTER;
     }
 
-    /** Guzzle's cURL error 28, or a message saying so. */
-    private static function timedOut(ConnectionException $error): bool
+    /**
+     * The sentence for a timeout, naming the time that ran out - reaching Odoo, or its answer - or null when
+     * the failure was not one (cURL's error 28, or a message saying so).
+     */
+    private static function timedOut(ConnectionException $error, int $seconds): ?string
     {
         $message = strtolower($error->getMessage());
 
-        return str_contains($message, 'curl error 28') || str_contains($message, 'timed out');
+        if (! str_contains($message, 'curl error 28') && ! str_contains($message, 'timed out')) {
+            return null;
+        }
+
+        // cURL says "Connection timed out" or "Resolving timed out" while reaching it, "Operation timed out" after.
+        return str_contains($message, 'connection timed out') || str_contains($message, 'resolving timed out')
+            ? 'Odoo could not be reached within '.min($seconds, self::CONNECT_SECONDS).' seconds.'
+            : "Odoo did not answer within {$seconds} seconds.";
     }
 
     /** What a status that is not `200` says, with its code (§2.4 errors). */
@@ -363,7 +417,8 @@ final class OdooAdapter implements ProviderAdapter
         $next = $answer['next'] ?? null;
 
         return match (true) {
-            $next === null => null,
+            // Odoo writes an empty field as `false`: the last page, as null is.
+            $next === null, $next === false => null,
             is_int($next) => (string) $next,
             is_string($next) && $next !== '' => $next,
             default => throw self::malformed('its next page is not text'),

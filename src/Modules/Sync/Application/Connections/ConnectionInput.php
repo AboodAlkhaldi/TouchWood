@@ -46,7 +46,17 @@ final readonly class ConnectionInput
         }
 
         // The table holds the scheme as written in lower case (its CHECK, `connections_address`).
-        return $this->adapters->for($provider)->address('https://'.substr($address, strlen('https://')));
+        $address = 'https://'.substr($address, strlen('https://'));
+
+        // One the HTTP client can call: a host it reads (no "\" in it), a port from 1 (parse_url refuses one past 65535).
+        $parts = parse_url($address);
+        $port = is_array($parts) ? ($parts['port'] ?? 443) : 0;
+
+        if (filter_var($address, FILTER_VALIDATE_URL) === false || ! is_array($parts) || ($parts['host'] ?? '') === '' || $port < 1) {
+            throw new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_MALFORMED);
+        }
+
+        return $this->adapters->for($provider)->address($address);
     }
 
     /**

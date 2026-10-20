@@ -393,6 +393,7 @@ describe('the Provider page (Y3)', function () {
         'a fragment' => ['https://odoo.test/touchwood/v1#top', 'Odoo\'s address can\'t hold a query (?) or a fragment (#).', 'لا يجوز أن يحوي عنوان Odoo استعلامًا (?) أو جزءًا (#).'],
         'another path' => ['https://odoo.test/api', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
         'no path' => ['https://odoo.test', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
+        'a bad port' => ['https://odoo.test:99999/touchwood/v1', 'The address can\'t be called: check its host and its port.', 'لا يمكن الاتصال بهذا العنوان: تحقّق من اسم المضيف والمنفذ.'],
         'another version' => ['https://odoo.test/touchwood/v2', 'Odoo\'s address must end in /touchwood/v1.', 'يجب أن ينتهي عنوان Odoo بـ /touchwood/v1.'],
     ]);
 

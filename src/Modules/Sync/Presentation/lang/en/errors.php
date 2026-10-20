@@ -48,6 +48,7 @@ return [
             'setting' => 'The provider\'s setting ":setting" is not valid.',
             // The address, by the rule it broke (sync.md §2.4).
             'address_https' => 'The address must start with https://.',
+            'address_malformed' => 'The address can\'t be called: check its host and its port.',
             'address_query' => 'Odoo\'s address can\'t hold a query (?) or a fragment (#).',
             'address_path' => 'Odoo\'s address must end in /touchwood/v1.',
         ],

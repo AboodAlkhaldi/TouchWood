@@ -6,6 +6,9 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterval;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use GuzzleHttp\Exception\ResponseTransferException;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
@@ -26,10 +29,12 @@ use Modules\Sync\Domain\ValueObject\ConnectionState;
 use Modules\Sync\Domain\ValueObject\ProviderKind;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
+use Modules\Sync\Infrastructure\Queue\ReadStoreJob;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
+use Tests\Modules\Sync\Support\FakeProvider;
 
 use function Pest\Laravel\seed;
 
@@ -57,9 +62,23 @@ afterEach(function () {
     Sleep::fake(false);
 });
 
-function odooConnection(string $address = ODOO_BASE, string $store = 'store-1'): Connection
+function odooConnection(string $address = ODOO_BASE, string $store = 'store-1', string $key = ODOO_TOKEN): Connection
 {
-    return new Connection($store, ProviderKind::Odoo, $address, [], ODOO_TOKEN, 'notice-secret', ConnectionState::Ok, null, null, 'staff-1');
+    return new Connection($store, ProviderKind::Odoo, $address, [], $key, 'notice-secret', ConnectionState::Ok, null, null, 'staff-1');
+}
+
+/**
+ * A ready product sold in KSA with these sizes; each size's id and code.
+ *
+ * @param  list<string>  $sizes
+ * @return array{variants: list<string>, codes: list<string>}
+ */
+function odooProduct(array $sizes): array
+{
+    $ready = Px::ready($sizes);
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
+
+    return ['variants' => $ready['variants'], 'codes' => array_map(static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code'), $ready['variants'])];
 }
 
 function odooAdapter(): OdooAdapter
@@ -226,6 +245,13 @@ describe('the calls (§2.4)', function () {
             ->and(odooAsked())->toBe(['/touchwood/v1/items?codes=101,102']);
     });
 
+    it('trims and asks each code once before cutting the calls, and never asks a code holding a comma', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer([['code' => '7', 'price' => '1.00', 'available' => 1]]))]);
+
+        expect(odooRead([' 7 ', '7', '1,2', '', '8']))->toBe([['7', '1.00', 1]])
+            ->and(odooAsked())->toBe(['/touchwood/v1/items?codes=7,8']);
+    });
+
     it('asks nothing for no codes', function () {
         Http::fake();
 
@@ -255,11 +281,37 @@ describe('the answer', function () {
         'next not text' => ['{"items": [], "next": {"page": 2}}', 'its next page is not text'],
     ]);
 
+    it('takes a next of false as the last page, as null (Odoo writes an empty field as false)', function () {
+        Http::fake(['odoo.test/*' => Http::response('{"items": [{"code": "1", "price": "1.00", "available": 1}], "next": false}')]);
+
+        expect(odooRead())->toBe([['1', '1.00', 1]]);
+        Http::assertSentCount(1);
+    });
+
+    it('fails an empty page that still names a next one', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer([], 'p2'))]);
+
+        expect(odooFails(fn () => odooRead()))->toBe("Odoo's answer is not as agreed: an empty page names a next one.");
+        Http::assertSentCount(1);
+    });
+
+    it('fails a read past 200 pages (200,000 items)', function () {
+        $pages = 0;
+        Http::fake(['odoo.test/*' => function () use (&$pages) {
+            $pages++;
+
+            return Http::response(odooAnswer([['code' => (string) $pages, 'price' => '1.00', 'available' => 1]], 'p'.$pages));
+        }]);
+
+        expect(odooFails(fn () => odooRead()))->toBe("Odoo's items run past 200 pages.")
+            ->and($pages)->toBe(200);
+    });
+
     it('fails pages that repeat rather than read for ever', function () {
         Http::fake(['odoo.test/*' => Http::sequence()
-            ->push(odooAnswer([], 'a'))
-            ->push(odooAnswer([], 'b'))
-            ->push(odooAnswer([], 'a'))]);
+            ->push(odooAnswer([['code' => '1']], 'a'))
+            ->push(odooAnswer([['code' => '2']], 'b'))
+            ->push(odooAnswer([['code' => '3']], 'a'))]);
 
         expect(odooFails(fn () => odooRead()))->toBe("Odoo's answer is not as agreed: its pages repeat.");
     });
@@ -271,7 +323,7 @@ describe('the pace (§2.4; §9.1 #8)', function () {
         Http::fake(['odoo.test/*' => function (Request $request) use (&$at) {
             $at[] = Carbon::now()->getPreciseTimestamp(3);
 
-            return Http::response(odooAnswer([], count($at) < 4 ? 'p'.count($at) : null));
+            return Http::response(odooAnswer([['code' => (string) count($at)]], count($at) < 4 ? 'p'.count($at) : null));
         }]);
 
         odooAdapter()->test(odooConnection());
@@ -304,6 +356,19 @@ describe('too many calls (429)', function () {
         expect(odooRead())->toBe([['101', '10.00', 1]]);
         Http::assertSentCount(2);
         Sleep::assertSequence([Sleep::for(7)->seconds()]);
+    });
+
+    it('takes a Retry-After of 0 and still keeps the second between calls', function () {
+        $at = [];
+        Http::fake(['odoo.test/*' => function () use (&$at) {
+            $at[] = Carbon::now()->getPreciseTimestamp(3);
+
+            return count($at) === 1 ? Http::response('', 429, ['Retry-After' => '0']) : Http::response(odooAnswer([['code' => '1', 'price' => '1.00', 'available' => 1]]));
+        }]);
+
+        expect(odooRead())->toBe([['1', '1.00', 1]])
+            ->and($at)->toHaveCount(2)
+            ->and($at[1] - $at[0])->toBeGreaterThanOrEqual(1000.0);
     });
 
     it('fails on a second 429', function () {
@@ -364,10 +429,55 @@ describe('failures: a short reason, never the body, the address or the key (§2.
             ->and(odooFails(fn () => odooRead()))->toBe('Odoo could not be reached.');
     });
 
+    it('names the time that ran out: reaching Odoo (10 seconds), or its answer', function () {
+        Http::fake(['odoo.test/*' => Http::sequence()
+            ->pushFailedConnection('cURL error 28: Connection timed out after 10002 milliseconds for '.ODOO_BASE.'/items?limit=1000')
+            ->pushFailedConnection('cURL error 28: Resolving timed out after 10000 milliseconds for '.ODOO_BASE.'/items?limit=1')]);
+
+        expect(odooFails(fn () => odooRead()))->toBe('Odoo could not be reached within 10 seconds.')
+            ->and(odooFails(fn () => odooAdapter()->test(odooConnection())))->toBe('Odoo could not be reached within 10 seconds.');
+    });
+
+    it('judges a status whose transfer then failed by its status, its body never read - a 429 waited out too', function () {
+        $failed = fn (int $status, array $headers = []) => fn (Request $request) => Create::rejectionFor(new ResponseTransferException(
+            'Transfer failed, body: secret '.ODOO_TOKEN,
+            $request->toPsrRequest(),
+            new Psr7Response($status, $headers, 'secret '.ODOO_TOKEN),
+        ));
+        Http::fake(['odoo.test/*' => $failed(503)]);
+        $reason = odooFails(fn () => odooRead());
+
+        expect($reason)->toBe('Odoo failed (503).')
+            ->and(odooFails(fn () => odooAdapter()->test(odooConnection())))->toBe('Odoo failed (503).');
+    });
+
+    it('waits out a 429 whose transfer failed, then asks once more', function () {
+        $calls = 0;
+        Http::fake(['odoo.test/*' => function (Request $request) use (&$calls) {
+            return ++$calls === 1
+                ? Create::rejectionFor(new ResponseTransferException('Transfer failed', $request->toPsrRequest(), new Psr7Response(429, ['Retry-After' => '4'], 'slow')))
+                : Http::response(odooAnswer([['code' => '1', 'price' => '1.00', 'available' => 1]]));
+        }]);
+
+        expect(odooRead())->toBe([['1', '1.00', 1]])
+            ->and($calls)->toBe(2);
+        Sleep::assertSlept(fn (CarbonInterval $wait): bool => (int) $wait->totalSeconds === 4);
+    });
+
+    it('says a key that cannot be sent without the key', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer())]);
+        $key = "token-with\nSECRET-line";
+
+        $reason = odooFails(fn () => odooAdapter()->test(odooConnection(key: $key)));
+
+        expect($reason)->toBe('Odoo could not be asked: the address or the key holds a character that cannot be sent.')
+            ->and(str_contains((string) $reason, 'SECRET'))->toBeFalse();
+    });
+
     it('calls nothing at an address that is not HTTPS', function () {
         Http::fake();
 
-        expect(odooFails(fn () => odooAdapter()->test(odooConnection('http://odoo.test/touchwood/v1'))))->toBe('Odoo\'s address must start with https://.');
+        expect(odooFails(fn () => odooAdapter()->test(odooConnection('http://odoo.test/touchwood/v1'))))->toBe('The address must start with https://.');
         Http::assertNothingSent();
     });
 
@@ -402,6 +512,8 @@ describe('the address (§2.4)', function () {
         'another path' => ['https://odoo.test/api', 'address_path'],
         'its path not at the end' => ['https://odoo.test/touchwood/v1/items', 'address_path'],
         'another case' => ['https://odoo.test/TouchWood/v1', 'address_path'],
+        'a port past 65535' => ['https://odoo.test:99999/touchwood/v1', 'address_malformed'],
+        'a port not a number' => ['https://odoo.test:abc/touchwood/v1', 'address_malformed'],
     ]);
 });
 
@@ -440,6 +552,66 @@ describe('through Sync', function () {
 
         expect(DB::table('sync.connections')->value('address'))->toBe(ODOO_BASE)
             ->and(odooAsked())->toBe(['/touchwood/v1/items?limit=1']);
+    });
+
+    it('refuses an address the HTTP client cannot call, by its own rule, before any call', function (string $address) {
+        Http::fake();
+
+        try {
+            app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', $address, ODOO_TOKEN, 'notice-secret'));
+            $refused = null;
+        } catch (InvalidSyncInput $error) {
+            $refused = $error->context();
+        }
+
+        expect($refused)->toBe(['attribute' => 'address', 'rule' => 'address_malformed'])
+            ->and(DB::table('sync.connections')->count())->toBe(0);
+        Http::assertNothingSent();
+    })->with([
+        'a backslash in the host' => ['https://odoo.test\\evil/touchwood/v1'],
+        'a port past 65535' => ['https://odoo.test:99999/touchwood/v1'],
+        'a port not a number' => ['https://odoo.test:abc/touchwood/v1'],
+        'port 0' => ['https://odoo.test:0/touchwood/v1'],
+    ]);
+
+    it('skips a price or a stock that is not one - false, a list, an object - as a bad value for that code alone, and reads on', function () {
+        ['variants' => $sizes, 'codes' => $codes] = odooProduct(['10 cm', '20 cm', '30 cm', '40 cm', '50 cm', '60 cm', '70 cm']);
+        $body = '{"items": ['
+            .'{"code": "'.$codes[0].'", "price": false, "available": 3},'
+            .'{"code": "'.$codes[1].'", "price": [1, 2], "available": 3},'
+            .'{"code": "'.$codes[2].'", "price": {"amount": "1.00"}, "available": 3},'
+            .'{"code": "'.$codes[3].'", "price": "10.00", "available": false},'
+            .'{"code": "'.$codes[4].'", "price": "10.00", "available": [1]},'
+            .'{"code": "'.$codes[5].'", "price": false, "available": {"n": 1}},'
+            .'{"code": "'.$codes[6].'", "price": "120.00", "available": 7}'
+            .'], "missing": [], "next": false}';
+        Http::fake(['odoo.test/*' => Http::sequence()->push(odooAnswer())->push($body)]);
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+        $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        $refused = DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->whereNull('closed_at')->get(['variant_id', 'detail'])
+            ->mapWithKeys(fn ($row): array => [(string) $row->variant_id => json_decode((string) $row->detail, true)['refused'] ?? null])->all();
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE')
+            ->and($refused)->toEqual([$sizes[0] => 'price', $sizes[1] => 'price', $sizes[2] => 'price', $sizes[3] => 'stock', $sizes[4] => 'stock', $sizes[5] => 'both'])
+            ->and(array_map(fn (string $size): ?int => Rx::retail('sa', $size)?->amount_minor, $sizes))->toBe([null, null, null, 1000, 1000, null, 12000])
+            ->and(array_map(fn (string $size): ?int => Ix::stock('sa', $size)?->in_stock, $sizes))->toBe([3, 3, 3, null, null, null, 7]);
+    });
+
+    it('skips an object sent by any provider as a bad value, never failing the read', function () {
+        ['variants' => [$size, $good], 'codes' => [$code, $other]] = odooProduct(['10 cm', '20 cm']);
+        $fake = FakeProvider::bind();
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+        $fake->values = [new ProviderValue($code, new stdClass, new stdClass), new ProviderValue($other, 12.5, 2)];
+        $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
+
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        expect(DB::table('sync.reads')->where('id', $read)->value('state'))->toBe('DONE')
+            ->and(json_decode((string) DB::table('sync.report_entries')->where('kind', 'BAD_VALUE')->where('variant_id', $size)->value('detail'), true))->toBe(['price' => 'stdClass', 'stock' => 'stdClass', 'refused' => 'both'])
+            ->and(Rx::retail('sa', $good)?->amount_minor)->toBe(1250);
     });
 
     it('reads a store end to end: prices and stock written, a code sent twice reported as a bad value', function () {
@@ -483,13 +655,22 @@ describe('through Sync', function () {
         app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
         $read = (string) DB::table('sync.reads')->where('state', 'QUEUED')->value('id');
 
-        expect(fn () => Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read))))->toThrow(ConnectionFailed::class, 'Odoo failed (503).');
+        $failure = null;
 
-        // The job's last attempt: as ReadStoreJob passes it.
-        Fx::asSystem(fn () => app(RunReadHandler::class)->failed($read, (new ConnectionFailed('Odoo failed (503).'))->getMessage()));
+        try {
+            Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+        } catch (Throwable $error) {
+            $failure = $error;
+        }
 
-        expect(DB::table('sync.connections')->value('last_error'))->toBe('The provider could not be read: Odoo failed (503).')
-            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->not->toContain(ODOO_TOKEN);
+        // The job's last attempt, with the very failure the read raised.
+        Fx::asSystem(fn () => (new ReadStoreJob($read))->failed($failure));
+
+        expect($failure)->toBeInstanceOf(ConnectionFailed::class)
+            ->and($failure?->getPrevious())->toBeNull()
+            ->and(DB::table('sync.connections')->value('last_error'))->toBe('The provider could not be read: Odoo failed (503).')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('The provider could not be read: Odoo failed (503).')
+            ->and(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->whereNull('closed_at')->count())->toBe(1);
     });
 });
 

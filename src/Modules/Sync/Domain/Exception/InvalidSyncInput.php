@@ -21,6 +21,9 @@ final class InvalidSyncInput extends SyncError
     /** An address that does not start with `https://`. */
     public const string ADDRESS_HTTPS = 'address_https';
 
+    /** An address the HTTP client cannot call: a port that is not one (1-65535), a host it cannot read. */
+    public const string ADDRESS_MALFORMED = 'address_malformed';
+
     /** An address with a query (`?`) or a fragment (`#`), where the provider's takes none (Odoo's, §2.4). */
     public const string ADDRESS_QUERY = 'address_query';
 

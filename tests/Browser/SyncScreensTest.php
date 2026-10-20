@@ -364,7 +364,7 @@ it('refuses the Provider form as typed, says the failed test under the form and 
     // As typed: an address that is not HTTPS, said under its box.
     $page->type('#provider-address', 'http://odoo.test');
 
-    expect(browserSoon($page, "document.getElementById('provider-address-error')?.textContent === 'Address must start with https://.'"))->toBeTrue();
+    expect(browserSoon($page, "document.getElementById('provider-address-error')?.textContent === 'The address must start with https://.'"))->toBeTrue();
 
     $page->type('#provider-address', 'https://odoo.test/api')->type('#provider-setting-database', 'tw');
 
