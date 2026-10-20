@@ -11,6 +11,8 @@ use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Promotions\Application\Command\ChangeSegment\ChangeSegment;
 use Modules\Promotions\Application\Command\ChangeSegment\ChangeSegmentHandler;
+use Modules\Promotions\Application\Command\ChangeSegmentMembers\ChangeSegmentMembers;
+use Modules\Promotions\Application\Command\ChangeSegmentMembers\ChangeSegmentMembersHandler;
 use Modules\Promotions\Application\Command\CreateSegment\CreateSegment;
 use Modules\Promotions\Application\Command\CreateSegment\CreateSegmentHandler;
 use Modules\Promotions\Application\Command\DeleteSegment\DeleteSegment;
@@ -477,5 +479,65 @@ describe('who may', function () {
         app(RefreshSegmentHandler::class)->handle(new RefreshSegment($egypt));
 
         expect(DB::table('promotions.segments')->where('id', $egypt)->value('refreshed_at'))->not->toBeNull();
+    });
+});
+
+describe('changing members by hand', function () {
+    it('adds and takes off by a manager\'s one save, keeping everyone else, audited', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        $lina = Fx::customer('lina@example.test');
+        segmentManager();
+        $segment = segmentCreate('STATIC', rule: null);
+        app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$sara, $omar]));
+
+        // Two managers' saves one after the other: each keeps what the other did.
+        app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers(strtoupper($segment), [strtoupper($lina)], []));
+        app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($segment, [], [$omar]));
+        $last = DB::table('platform.audit_entries')->where('action', 'promotions.segment.members_set')->orderByDesc('id')->first();
+
+        expect(segmentMembers($segment))->toBe(sortedIds([$sara, $lina]))
+            ->and(json_decode((string) $last?->changes, true)['members'] ?? null)->toBe([3, 2])
+            ->and(json_decode((string) $last?->changes, true)['removed'] ?? null)->toBe([null, 1]);
+
+        // Nothing to do: nothing changed, nothing audited.
+        $audits = DB::table('platform.audit_entries')->where('action', 'promotions.segment.members_set')->count();
+        app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($segment, [$sara], [$omar]));
+        expect(DB::table('platform.audit_entries')->where('action', 'promotions.segment.members_set')->count())->toBe($audits);
+    });
+
+    it('checks only the customers added: a member who is no longer one never blocks a save', function () {
+        $sara = Fx::customer('sara@example.test');
+        $gone = Fx::customer('gone@example.test');
+        $omar = Fx::customer('omar@example.test');
+        segmentManager();
+        $segment = segmentCreate('STATIC', rule: null);
+        app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, [$sara, $gone]));
+        DB::table('access.customers')->where('id', $gone)->update(['anonymized_at' => now()]);
+
+        app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($segment, [$omar], []));
+
+        expect(segmentMembers($segment))->toBe(sortedIds([$sara, $gone, $omar]))
+            ->and(Pr::thrown(fn () => app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($segment, [Fx::customer('egypt@example.test', 'eg')], [$sara])), InvalidPromotionAttribute::class)->attribute)->toBe('members')
+            ->and(segmentMembers($segment))->toBe(sortedIds([$sara, $gone, $omar]));
+    });
+
+    it('takes off an id both added and taken off, and refuses a segment a rule fills or another store\'s', function () {
+        $sara = Fx::customer('sara@example.test');
+        segmentManager();
+        $static = segmentCreate('STATIC', rule: null);
+        $dynamic = segmentCreate();
+
+        app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($static, [$sara], [$sara]));
+
+        expect(segmentMembers($static))->toBe([])
+            ->and(Pr::thrown(fn () => app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($dynamic, [$sara], [])), InvalidPromotionAttribute::class)->attribute)->toBe('segment_type')
+            ->and(Pr::thrown(fn () => app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($static, ['nobody'], [])), InvalidPromotionAttribute::class)->attribute)->toBe('members');
+
+        Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['ae']));
+        expect(fn () => app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($static, [$sara], [])))->toThrow(SegmentNotFound::class);
+
+        Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::VIEW], ['sa']));
+        expect(fn () => app(ChangeSegmentMembersHandler::class)->handle(new ChangeSegmentMembers($static, [$sara], [])))->toThrow(Unauthorized::class);
     });
 });

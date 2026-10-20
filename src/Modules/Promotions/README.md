@@ -85,7 +85,9 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
   the store (`CodeTaken`, the unique index the backstop); never changed. A change locks the coupon's row
   first, so an order being placed never reads it half changed; the total of uses below those made is
   `CouponInUse`. A used coupon is never deleted (`CouponInUse`).
-- **Segments** (`Application/Command/{Create,Change,Delete}Segment`, `SetSegmentMembers`,
+- **Segments** (`Application/Command/{Create,Change,Delete}Segment`, `SetSegmentMembers` (the whole
+  list), `ChangeSegmentMembers` (a manager's adds and removals merged under the segment's lock, only the
+  added checked),
   `RefreshSegment`, all under `promotions.segment.manage`, audited `promotions.segment.created`,
   `…updated`, `…deleted`, `…members_set`, `…refreshed`; `RefreshSegments` the system's, nightly at
   01:00 through `Infrastructure/Queue/RefreshSegmentsJob`, one segment's failure logged and the rest

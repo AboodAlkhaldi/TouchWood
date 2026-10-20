@@ -182,7 +182,10 @@ describe('gift levels', function () {
             ->and([$rows[1]->variantArchived, $rows[3]->variantArchived])->toBe([false, true])
             // Archived, but still Catalog's: its code and product are still named.
             ->and($rows[3]->variantCode)->not->toBeNull()
-            ->and($rows[3]->productNameAr)->not->toBeNull();
+            ->and($rows[3]->productNameAr)->not->toBeNull()
+            // The level's own store, and its gift's photo: its product's first.
+            ->and($rows[0]->storeId)->toBe(Fx::storeId('sa'))
+            ->and($rows[1]->photoMediaId)->toBe((string) DB::table('catalog.product_photos')->where('product_id', DB::table('catalog.variants')->where('id', $pen)->value('product_id'))->orderBy('position')->value('media_id'));
     });
 
     it('reads every level in the same queries however many there are', function () {
