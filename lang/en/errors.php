@@ -50,7 +50,8 @@ return [
     // The admin panel's error page says the error's own sentence under its title; an error that wrote
     // none - an address that names nothing, say - says its status's (frontend.md §2.6).
     'page' => [
-        403 => 'This page isn\'t one of your jobs. Ask an administrator for it.',
+        // A page refused on permission reads as a page, not an action (owner, 2026-10-20).
+        403 => 'You don\'t have access to this page.',
         404 => 'There\'s nothing at this address: it was removed, or the link is wrong.',
         409 => 'Couldn\'t open this page: something changed meanwhile. Reload it and try again.',
         413 => 'Couldn\'t open this page: what was sent is too large.',

@@ -269,6 +269,17 @@ describe('the Sync Report (Y1)', function () {
         syncScreens()->get('/admin/sync?store=ae')->assertForbidden();
     });
 
+    it('names a kind that is not one in words on the panel\'s error page, as a form names a field (frontend.md §2.6)', function (string $locale, string $sentence) {
+        // Wired: a store not wired shows only its Reads, and reads no kind (Q35).
+        syncScreensWired();
+        syncScreensAs(Fx::staffWith([P::REPORT_VIEW], ['sa']), $locale)->get('/admin/sync?store=sa&kind=bogus')
+            ->assertStatus(422)
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/Error')->where('detail', $sentence));
+    })->with([
+        'English' => ['en', 'The kind of entry is not valid.'],
+        'Arabic' => ['ar', 'قيمة نوع البند غير صالحة.'],
+    ]);
+
     it('queues Sync Now, Retry Read, and dismisses an entry - each said in a toast - and says a refusal on the screen', function () {
         syncScreensWired();
         $browser = syncScreens();

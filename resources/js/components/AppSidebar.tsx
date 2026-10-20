@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/cn';
 import { figure } from '@/lib/digits';
-import { entryHere } from '@/lib/menu-here';
+import { entryHere, pathOf } from '@/lib/menu-here';
 import { useTranslator } from '@/lib/t';
 import type { MenuEntry, MenuGroup, SharedProps } from '@/types/page';
 
@@ -84,7 +84,7 @@ export function AppSidebar() {
 
     // The path only, so a search or a filter in the query string does not un-light the entry the
     // person is standing on.
-    const here = page.url.split('?')[0] ?? page.url;
+    const here = pathOf(page.url);
     const lit = entryHere(menu, here);
     const current = lit?.group;
 

@@ -8,6 +8,7 @@ use Modules\Platform\Presentation\Http\Controller\AuditController;
 use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
 use Modules\Platform\Presentation\Http\Controller\FailedJobsController;
 use Modules\Platform\Presentation\Http\Controller\MediaController;
+use Modules\Platform\Presentation\Http\Controller\PanelNotFoundController;
 use Modules\Platform\Presentation\Http\Controller\SettingsController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
 
@@ -59,4 +60,17 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('failed-jobs/{job}', [FailedJobsController::class, 'show'])->name('platform.admin.failed_jobs.show');
         Route::post('failed-jobs/{job}/retry', [FailedJobsController::class, 'retry'])->name('platform.admin.failed_jobs.retry');
         Route::post('failed-jobs/{job}/delete', [FailedJobsController::class, 'delete'])->name('platform.admin.failed_jobs.delete');
+
+        // A panel address no screen answers, read behind the door: the panel's own not-found page (owner,
+        // 2026-10-20; frontend.md §2.6) - after every other route, whichever module's. Somebody signed
+        // out is sent to sign in first, as for any panel page. Never the sign-in pages' addresses.
+        Route::fallback(PanelNotFoundController::class)->where('fallbackPlaceholder', PanelNotFoundController::PATHS);
     });
+
+// Anything but a read sent to such an address stays not found, as before - Laravel's own page, no session
+// opened. Without this, the read above would turn it into "method not allowed".
+Route::prefix(AdminArea::PREFIX)->group(function (): void {
+    Route::match(['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], '{fallbackPlaceholder}', PanelNotFoundController::class)
+        ->where('fallbackPlaceholder', PanelNotFoundController::PATHS)
+        ->fallback();
+});

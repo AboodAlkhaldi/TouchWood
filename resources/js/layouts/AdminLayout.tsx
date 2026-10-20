@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { entryHere } from '@/lib/menu-here';
+import { entryHere, pathOf } from '@/lib/menu-here';
 import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
@@ -60,7 +60,7 @@ type Props = {
 export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: Props) {
     const page = usePage<SharedProps>();
     const { menu, sidebarOpen } = page.props;
-    const here = page.url.split('?')[0] ?? page.url;
+    const here = pathOf(page.url);
     const t = useTranslator();
 
     const trail: Crumb[] = [...(breadcrumbs ?? defaultTrail(menu, here)), { label: title }];

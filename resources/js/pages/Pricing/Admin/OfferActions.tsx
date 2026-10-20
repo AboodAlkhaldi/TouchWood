@@ -28,15 +28,14 @@ const OFFER_MENUS = '[data-test^="offer-actions-"]';
 
 /**
  * Where focus may go back once End or Remove closes, besides the opener's ⋯: the next offer's ⋯, the one
- * before, then the screen's Add Offer - on Offers, or in the opener's own store on a product's Stores tab.
+ * before, then Add Offer - all in the opener's own list: on a product's Stores tab its store's section
+ * (ProductPrices, one per store), never the next store's; on Offers the page.
  */
 function nearOpener(trigger: HTMLElement | null): HTMLElement[] {
-    const menus = Array.from(document.querySelectorAll<HTMLElement>(OFFER_MENUS));
+    const list: ParentNode = trigger?.closest('[data-test^="pricing-section-"]') ?? document;
+    const menus = Array.from(list.querySelectorAll<HTMLElement>(OFFER_MENUS));
     const at = trigger === null ? -1 : menus.indexOf(trigger);
-    const add =
-        document.querySelector<HTMLElement>('[data-test="add-offer"]') ??
-        trigger?.closest('[data-test^="pricing-section-"]')?.querySelector<HTMLElement>('[data-test^="section-add-offer-"]') ??
-        null;
+    const add = list.querySelector<HTMLElement>('[data-test="add-offer"], [data-test^="section-add-offer-"]');
 
     return [at === -1 ? undefined : menus[at + 1], at === -1 ? undefined : menus[at - 1], add].filter((element): element is HTMLElement => element !== undefined && element !== null);
 }

@@ -9,6 +9,17 @@ import type { MenuEntry, MenuGroup } from '@/types/page';
 | only it is lit (the owner, 2026-10-19). Run by tests/Frontend/menu-here.test.ts.
 */
 
+/**
+ * The path a page's address stands for: no search or filter after it (a filter does not un-light the entry
+ * the person is on), no hash, and no slash at its end - /admin/sync/ is the Sync Report itself, not a page
+ * under it, so its trail is not "Sync Report / Sync Report".
+ */
+export function pathOf(url: string): string {
+    const path = url.split(/[?#]/)[0] ?? url;
+
+    return path.length > 1 ? path.replace(/\/+$/, '') || '/' : path;
+}
+
 /** Whether the person is on this entry's screen, or on one underneath it. */
 export function holds(here: string, entry: Pick<MenuEntry, 'href'>): boolean {
     return here === entry.href || here.startsWith(`${entry.href}/`);

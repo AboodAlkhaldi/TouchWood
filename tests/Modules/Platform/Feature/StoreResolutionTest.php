@@ -180,10 +180,13 @@ describe('reserved paths', function () {
     it('keeps reserved paths out of every storefront route, not only at the top level', function (string $path, int $status) {
         Route::middleware('web')->prefix('{store}/{locale}')->middleware('store')->get('/_probe/{slug}', fn () => 'storefront');
 
-        get($path)->assertStatus($status);
+        $response = get($path)->assertStatus($status);
+
+        expect($response->getContent() === 'storefront')->toBe($status === 200);
     })->with([
         'a store' => ['/sa/ar/_probe/hinges', 200],
-        'admin below the top level' => ['/admin/ar/_probe/login', 404],
+        // The panel's own: an address no screen answers sends somebody signed out to sign in (owner, 2026-10-20).
+        'admin below the top level' => ['/admin/ar/_probe/login', 302],
         'api below the top level' => ['/api/en/_probe/orders', 404],
     ]);
 

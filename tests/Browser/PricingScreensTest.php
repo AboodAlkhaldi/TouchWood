@@ -402,3 +402,32 @@ it('draws the product page\'s Pricing section in two store cards, each with boxe
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('eg', $size), fn (?int $minor): bool => $minor === 160000))->toBe(160000)
         ->and(pricingBrowserRetail('sa', $size))->toBe(12000);
 });
+
+it('gives focus back inside the store\'s own card when its last offer is removed on a product\'s Stores tab', function () {
+    $ready = pricingBrowserProduct(['sa', 'eg']);
+    [$size] = $ready['sizes'];
+    pricingBrowserPrice('sa', [$size => '120.00']);
+    pricingBrowserPrice('eg', [$size => '1500.00']);
+    $later = now()->addDays(3)->utc()->format('Y-m-d H:i:s').'+00';
+    $sales = [];
+
+    foreach (['sa', 'eg'] as $store) {
+        $sales[$store] = Fx::asSystem(fn (): string => app(AddSaleHandler::class)->handle(new AddSale(Fx::storeId($store), null, [$size], '10', null, $later, null)));
+    }
+
+    $page = pricingBrowser();
+    $page->navigate("/admin/products/{$ready['product']}?tab=stores", BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelectorAll('[data-test^=\"offer-actions-\"]').length === 2"))->toBeTrue();
+
+    // The card drawn first: removing its one offer, the next ⋯ on the page is the other store's.
+    $first = (string) $page->script("() => document.querySelector('[data-test^=\"pricing-section-\"]').getAttribute('data-test').slice('pricing-section-'.length)");
+    $other = $first === 'sa' ? 'eg' : 'sa';
+    $page->click("[data-test=\"offer-actions-{$sales[$first]}\"]")
+        ->click('[data-test="remove-offer"]')
+        ->click('[data-test="confirm-remove-offer"]');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$first]}\"]') === null && document.querySelector('[role=\"alertdialog\"]') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.activeElement?.getAttribute('data-test') === 'section-add-offer-{$first}'"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"offer-actions-{$sales[$other]}\"]') !== null"))->toBeTrue();
+});

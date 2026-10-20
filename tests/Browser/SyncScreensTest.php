@@ -195,10 +195,10 @@ function syncBrowserWired(): array
     return [...$ready, 'unknown' => $unknown, 'read' => (string) $added[0]];
 }
 
-/** A Discount Skipped entry for the size, naming a category discount deleted since. */
-function syncBrowserDiscountGone(string $size): void
+/** A Discount Skipped entry for the size, naming a category discount deleted since - or, with $named false, none. Its id. */
+function syncBrowserDiscountGone(string $size, bool $named = true): int
 {
-    DB::table('sync.report_entries')->insert(['store_id' => Fx::storeId('ae'), 'kind' => 'DISCOUNT_SKIPPED', 'code' => null, 'variant_id' => $size, 'sale_id' => null, 'detail' => json_encode(['discount' => strtolower((string) Str::ulid())]), 'opened_at' => now(), 'seen_at' => now()]);
+    return (int) DB::table('sync.report_entries')->insertGetId(['store_id' => Fx::storeId('ae'), 'kind' => 'DISCOUNT_SKIPPED', 'code' => null, 'variant_id' => $size, 'sale_id' => null, 'detail' => json_encode($named ? ['discount' => strtolower((string) Str::ulid())] : (object) []), 'opened_at' => now(), 'seen_at' => now()]);
 }
 
 it('shows the status line and Problems, dismisses an entry, and queues Sync Now', function () {
@@ -327,13 +327,16 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
     expect(browserSoon($page, "window.location.pathname === '/admin'"))->toBeTrue();
 });
 
-it('says a skipped discount deleted since as Discount removed, with no link (Q37)', function () {
+it('says a skipped discount deleted since as Discount removed, with no link (Q37), and nothing of one for an entry naming none', function () {
     $wired = syncBrowserWired();
-    syncBrowserDiscountGone($wired['size']);
+    $gone = syncBrowserDiscountGone($wired['size']);
+    // A size the store no longer has, so the two entries never share one.
+    $unnamed = syncBrowserDiscountGone(strtolower((string) Str::ulid()), named: false);
     $page = syncBrowserReader();
     $page->navigate('/admin/sync?store=ae&kind=discount_skipped', BROWSER_SLOW_PAGE_LOAD);
 
-    expect(browserSoon($page, "document.querySelector('[data-test=\"discount-removed\"]')?.textContent === 'Discount removed' && document.querySelector('[data-test=\"discount-link\"]') === null"))->toBeTrue();
+    expect(browserSoon($page, "document.querySelector('[data-test=\"entry-{$gone}\"] [data-test=\"discount-removed\"]')?.textContent === 'Discount removed' && document.querySelector('[data-test=\"discount-link\"]') === null"))->toBeTrue()
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"entry-{$unnamed}\"]')?.textContent.includes('Past the ceiling') && document.querySelector('[data-test=\"entry-{$unnamed}\"] [data-test=\"discount-removed\"]') === null"))->toBeTrue();
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {

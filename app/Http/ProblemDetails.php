@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Shared\Application\CorrelationId;
+use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
 use Symfony\Component\HttpFoundation\Response;
@@ -107,27 +108,31 @@ final class ProblemDetails
         $categoryKey = 'errors.category.'.strtolower($error->category()->value);
         $title = self::translate("{$key}.title", $replace, self::translate($categoryKey, [], (string) (Response::$statusTexts[$status] ?? 'Error')));
 
-        // A refusal naming the rule it broke says that rule's words where the module wrote them (FormErrors).
-        $rule = FormErrors::ruleKey($key, $error->context());
-
         // A page shows the translated title: Laravel's error pages print the exception's message,
         // and a DomainError's message is written for developers. In the panel, its own page says the
-        // error's own sentence under it - "This read isn't available." - or, with none written, the
-        // status's; never the message.
+        // error's own sentence under it, as a form says it (FormErrors: a rule's words, a field named
+        // in words) - "This read isn't available." - or, with none written, the status's; never the
+        // message. A page refused on permission reads as a page, not an action: "You don't have
+        // access to this page." (owner, 2026-10-20) - an action refused keeps its own words, in its
+        // screen (FormErrors).
         if (! $request->expectsJson()) {
-            $sentence = self::translate("{$key}.detail", $replace, self::pageSentence($status));
+            $sentence = $error instanceof Unauthorized ? self::pageSentence($status) : FormErrors::sentence($error) ?? self::pageSentence($status);
 
-            return self::panelPage($request, $status, $title, $rule === null ? $sentence : self::translate($rule, $replace, $sentence))
+            return self::panelPage($request, $status, $title, $sentence)
                 ?? app(ExceptionHandler::class)->render($request, new HttpException($status, $title, $error));
         }
+
+        // A refusal naming the rule it broke says that rule's words where the module wrote them (FormErrors).
+        // With none written, the status's sentence, as the panel's page says it - never the developers'
+        // message (owner, 2026-10-20).
+        $rule = FormErrors::ruleKey($key, $error->context());
+        $detail = self::translate("{$key}.detail", $replace, self::pageSentence($status));
 
         return self::problem(
             $error->type(),
             $status,
             $title,
-            $rule === null
-                ? self::translate("{$key}.detail", $replace, $error->getMessage())
-                : self::translate($rule, $replace, self::translate("{$key}.detail", $replace, $error->getMessage())),
+            $rule === null ? $detail : self::translate($rule, $replace, $detail),
         );
     }
 
@@ -172,7 +177,10 @@ final class ProblemDetails
             && Inertia::getShared('menu') !== null;
     }
 
-    /** The status's own sentence, for an error page whose error wrote none (each of PANEL_PAGE_STATUSES has one). */
+    /**
+     * The status's own sentence, for an error that wrote none - on the panel's page, and as a JSON
+     * problem's detail. Each of PANEL_PAGE_STATUSES has one, and so every category's status (§7.1).
+     */
     private static function pageSentence(int $status): string
     {
         return self::translate("errors.page.{$status}", [], '');

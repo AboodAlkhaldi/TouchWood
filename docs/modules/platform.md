@@ -869,6 +869,8 @@ variant transition, an over-long file name or alt text, a malformed checksum); t
 `title` is translated into the signed-in person's **stored** locale (handoff §5.2); for a guest,
 the locale of the page they are on. `type` is the error's stable key. `detail` never contains
 stack traces, SQL, or another customer's data.
+**[Owner, 2026-10-20]** Nor the message an error carries for developers: an error with no sentence
+written says its status's (`errors.page.{status}`, the admin panel's error page's own; frontend.md §2.6).
 
 ---
 
@@ -1050,8 +1052,9 @@ With the frontend milestone:
   request shows only the status text (for example "Conflict"); JSON requests already get the
   translated title and detail. **Built for the admin panel** (2026-10-19, stage 5's screens step 8):
   a signed-in staff member's page request answered 403, 404, 409, 413, 415 or 422 gets the panel's own
-  error page with the error's title and sentence (frontend.md §2.6, as built). Still open: the
-  storefront's, and an admin address no route answers.
+  error page with the error's title and sentence (frontend.md §2.6, as built); since 2026-10-20 (owner) an
+  admin address no route answers too, through Platform's last route (`PanelNotFoundController`), and a
+  page refused on permission says "You don't have access to this page.". Still open: the storefront's.
 
 ### 9.4 Additions asked for by later modules
 

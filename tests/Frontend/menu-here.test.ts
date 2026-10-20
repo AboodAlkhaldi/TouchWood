@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { entryHere, holds } from '@/lib/menu-here';
+import { entryHere, holds, pathOf } from '@/lib/menu-here';
 import type { MenuEntry, MenuGroup } from '@/types/page';
 
 /** The admin menu's addresses as the modules register them (2026-10-19), by business area. */
@@ -72,6 +72,17 @@ describe('the entry being read', () => {
         assert.equal(entryHere(MENU, '/admin/low-stock')?.entry.href, '/admin/low-stock');
         assert.equal(entryHere(MENU, '/admin/points/customers/01jbcustomer')?.entry.href, '/admin/points/customers');
         assert.equal(entryHere(MENU, '/admin/syncing'), null);
+    });
+
+    it('reads an address with a slash at its end as the page itself, not one under it (no "Sync Report / Sync Report")', () => {
+        assert.equal(pathOf('/admin/sync/'), '/admin/sync');
+        assert.equal(pathOf('/admin/sync//?store=ae'), '/admin/sync');
+        assert.equal(pathOf('/admin/sync/reads/01jbread?section=stock#top'), '/admin/sync/reads/01jbread');
+        assert.equal(pathOf('/admin/'), '/admin');
+        assert.equal(pathOf('/'), '/');
+        // The page is the entry itself, so the trail adds nothing in front of its title.
+        assert.equal(entryHere(MENU, pathOf('/admin/sync/'))?.entry.href, pathOf('/admin/sync/'));
+        assert.equal(entryHere(MENU, pathOf('/admin/sync/provider/'))?.entry.href, '/admin/sync/provider');
     });
 
     it('lights nothing on Home or a page no entry holds', () => {
