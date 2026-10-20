@@ -78,6 +78,7 @@ export type ReadsData = {
 reads: ReadRowData[],
 next: string | null,
 total: number,
+openEntries: number,
 };
 export type ReportEntryData = {
 id: number,

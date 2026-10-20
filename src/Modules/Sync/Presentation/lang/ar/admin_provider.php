@@ -56,6 +56,7 @@ return [
         'last_full_read' => 'آخر قراءة كاملة',
         'never' => 'ليس بعد',
         'notice_address' => 'عنوان الإشعارات',
+        'copy_notice' => 'نسخ عنوان الإشعارات',
         'notice_sends' => 'يرسل المزوّد:',
         'notice_timestamp' => 'X-TouchWood-Timestamp: الوقت بثواني Unix',
         'notice_signature' => 'X-TouchWood-Signature: بصمة HMAC-SHA256 لـ "timestamp.body" بالسرّ، بالنظام الست عشري',
@@ -78,7 +79,8 @@ return [
             'other' => 'سيتوقف :count مقاس عن إتاحته للطلب: بلا مزوّد يعتمد كل مقاس على مخزونه، وليس لديها مخزون متاح.',
         ],
         'stays' => 'تبقى الأسعار والمخزون التي كتبها المزوّد. ويضبطها الموظفون هنا من الآن.',
-        'type_code' => 'اكتب رمز المتجر، :code، للتأكيد.',
+        // تُقرأ: للتأكيد، اكتب رمز المتجر «sa» (ui.to_confirm_named).
+        'code_label' => 'رمز المتجر',
         'confirm' => 'فكّ ربط المتجر',
     ],
 

@@ -102,7 +102,7 @@ final readonly class SyncPages
             );
         } else {
             $page = $this->reads->handle(new ListSyncReads($store->id, $after));
-            $reads = new ReadsData(array_map($this->readRow(...), $page->reads), $page->next, $page->total);
+            $reads = new ReadsData(array_map($this->readRow(...), $page->reads), $page->next, $page->total, $page->openEntries);
         }
 
         return new SyncReportPage(

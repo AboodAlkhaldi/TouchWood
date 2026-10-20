@@ -8,7 +8,8 @@ use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
- * Reads (Y1): a page of the store's reads, the latest asked first, 50 at a time, and how many are kept.
+ * Reads (Y1): a page of the store's reads, the latest asked first, 50 at a time, how many are kept, and
+ * the open entries the Problems tab's trigger counts.
  */
 #[TypeScript]
 final class ReadsData extends Data
@@ -20,5 +21,6 @@ final class ReadsData extends Data
         public array $reads,
         public ?string $next,
         public int $total,
+        public int $openEntries,
     ) {}
 }

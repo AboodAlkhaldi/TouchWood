@@ -370,9 +370,22 @@ controllers and page data, the menu's two entries and the words; the pages are p
   worst case** (an offer stopped, a discount skipped, a bad value, an unknown code, a failed read, several
   askers): the page's sizes are read once and handed to Pricing's `salesNamed` (pricing.md §2.1), and every
   store's wiring and waiting Sync Now reads are one query - each page's own queries, for a reader of one store
-  and for a Super Admin alike: Problems 12, Reads 5, a read 8, its Stock 8, its Reported 13, Provider 5. (The
+  and for a Super Admin alike: Problems 12, Reads 6 (step 7 added the open entries' count, for the Problems tab's trigger), a read 8, its Stock 8, its Reported 13, Provider 5. (The
   frame's Low Stock count, counted live until a store's count is kept, asks Sync's `StoreWiring` binding; it is
   the frame's, not the page's, and is left out as Inventory's own test leaves it out.)
+
+**Built (stage 5's screens step 7, 2026-10-19)** - the three pages as Y1-Y3 say, from shadcn's and the panel's
+shared parts. As built: the Problems tab's trigger keeps its count while Reads is shown (`ListSyncReads` also
+answers the open entries); a Bad Value's entry names the value refused (`detail.refused`: `price`, `stock` or
+`both`) and its Detail says each - the stock not whole, below 0 (kept as 0), or more than a size can hold;
+Codes Asked is a tab only for a Notice or One Code read; a refused connection form keeps neither the key nor
+the secret, a refusal naming a box is said under that box only, and Cancel takes the refusal away.
+
+**The review of step 7 (2026-10-19)**: a read's end and its failure are each one transaction with their audit
+entry - a queued job runs in none, and the audit log refuses an entry outside one; the failure itself (the last
+attempt's, or a worker gone) is failed, reported and audited together, so none of it stays without the rest and
+a read whose failure could not be recorded is found again; each locks the connection before the read, in Unwire
+Store's order, so the two never deadlock; a read Unwire Store stopped is failed and audited once, by Unwire Store.
 
 #### Y1 · Sync Report - `/admin/sync?store=&tab=problems|reads&kind=`
 

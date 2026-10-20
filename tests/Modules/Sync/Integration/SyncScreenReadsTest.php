@@ -497,7 +497,7 @@ describe('the budget (pricing.md §4.3.1: 15 queries at most a page, its own)', 
 
         expect(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a read that grows is seen.
-            ->and($counts)->toBe(['problems' => 7, 'reads' => 5, 'read prices' => 8, 'read stock' => 8, 'read reported' => 8, 'read codes' => 4, 'provider' => 5])
+            ->and($counts)->toBe(['problems' => 7, 'reads' => 6, 'read prices' => 8, 'read stock' => 8, 'read reported' => 8, 'read codes' => 4, 'provider' => 5])
             ->and(syncShownQueries(static fn () => [$status(), $actions(), app(ViewSyncReportHandler::class)->handle(new ViewSyncReport($sa))]))->toBe($many);
     });
 });
@@ -539,11 +539,11 @@ describe('the budget\'s worst case (the review of step 6)', function () {
             'read reported' => syncShownQueries(static fn () => [$actions(), app(ViewSyncReadHandler::class)->handle(new ViewSyncRead($read, ViewSyncRead::REPORTED))]),
         ];
 
-        expect($superCounts)->toBe(['problems' => 12, 'reads' => 5, 'read reported' => 12])
+        expect($superCounts)->toBe(['problems' => 12, 'reads' => 6, 'read reported' => 12])
             ->and(DB::table('sync.report_entries')->whereNull('closed_at')->orderBy('kind')->pluck('kind')->all())->toBe(['BAD_VALUE', 'DISCOUNT_SKIPPED', 'READ_FAILED', 'SALE_STOPPED', 'UNKNOWN_CODE'])
             ->and(DB::table('sync.reads')->whereNotNull('requested_by_id')->distinct()->count('requested_by_id'))->toBe(4)
             ->and(array_filter($counts, static fn (int $count): bool => $count > 15))->toBe([])
             // Measured, so a read that grows is seen.
-            ->and($counts)->toBe(['problems' => 12, 'reads' => 5, 'read reported' => 12]);
+            ->and($counts)->toBe(['problems' => 12, 'reads' => 6, 'read reported' => 12]);
     });
 });

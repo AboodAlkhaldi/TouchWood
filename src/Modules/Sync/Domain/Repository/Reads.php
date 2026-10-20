@@ -39,12 +39,15 @@ interface Reads
     public function claim(string $readId, DateTimeImmutable $deadBefore): ?Read;
 
     /**
-     * The store's other reads running since before this time - their workers gone - failed, saying so;
-     * never `$except`, the read about to take itself back.
+     * The store's other reads running since before this time - their workers gone -; never `$except`, the
+     * read about to take itself back. Each is then failed on its own (`failIfStale`), with its report.
      *
      * @return list<string> their ids
      */
-    public function failStale(StoreId $store, DateTimeImmutable $runningSince, string $why, string $except): array;
+    public function stale(StoreId $store, DateTimeImmutable $runningSince, string $except): array;
+
+    /** Failed, saying so, if it still runs since before this time - false when it does not (finished, or taken back). */
+    public function failIfStale(string $readId, DateTimeImmutable $runningSince, string $why): bool;
 
     /** Whether the read still runs: not failed meanwhile by unwiring or a takeover. */
     public function isRunning(string $readId): bool;

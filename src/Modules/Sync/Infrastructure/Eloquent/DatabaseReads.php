@@ -125,14 +125,25 @@ final readonly class DatabaseReads implements Reads
         return new Read((string) $row->id, (string) $row->store_id, ReadKind::from((string) $row->kind), $codes, CarbonImmutable::parse((string) $row->started_at)->toDateTimeImmutable());
     }
 
-    public function failStale(StoreId $store, DateTimeImmutable $runningSince, string $why, string $except): array
+    public function stale(StoreId $store, DateTimeImmutable $runningSince, string $except): array
     {
-        $rows = $this->db->select(
-            "UPDATE sync.reads SET state = 'FAILED', error = ?, finished_at = ? WHERE store_id = ? AND state = 'RUNNING' AND started_at < ? AND id <> ? RETURNING id",
-            [$why, CarbonImmutable::now(), $store->value, $runningSince, $except],
-        );
+        return array_values(array_map('strval', $this->db->table(self::TABLE)
+            ->where('store_id', $store->value)
+            ->where('state', 'RUNNING')
+            ->where('started_at', '<', $runningSince)
+            ->where('id', '<>', $except)
+            ->orderBy('id')
+            ->pluck('id')
+            ->all()));
+    }
 
-        return array_values(array_map(static fn (stdClass $row): string => (string) $row->id, $rows));
+    public function failIfStale(string $readId, DateTimeImmutable $runningSince, string $why): bool
+    {
+        return $this->db->table(self::TABLE)->where('id', $readId)->where('state', 'RUNNING')->where('started_at', '<', $runningSince)->update([
+            'state' => 'FAILED',
+            'error' => mb_substr($why, 0, 1000),
+            'finished_at' => CarbonImmutable::now(),
+        ]) > 0;
     }
 
     public function isRunning(string $readId): bool
