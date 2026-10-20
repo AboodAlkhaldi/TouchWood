@@ -289,6 +289,133 @@ PENDING ──(rejected)──▶ REJECTED   (final)
 
 **A wishlist item:** saved ⇄ removed; removed when the account is anonymized.
 
+### 4.1 The screens (stage 6's screens)
+
+**Draft, 2026-10-20**, by the stage 6 screens session, after the backend's steps F0–F7 (#170–#187), as
+Loyalty's and Promotions' screens were (loyalty.md §4.1, promotions.md §4.1). Every **[Qn]** is a
+question for the owner, listed in §9.4 with its options and the one I recommend; **nothing here is
+built until the owner answers**, and the text is then rewritten to the answers. The use cases behind
+every button are §3's; a screen offers only what the reader may do next — asked of an Application
+query (`FeedbackActionsForReader`, new, as Promotions' `PromotionsActionsForReader`), never of the
+authorizer from the screen (`tests/Architecture/AccessDecisionsTest`) — and every handler asks again.
+
+**What every screen keeps** — as Loyalty's and Promotions', unchanged: Geist's rules on shadcn's code
+(frontend.md §1.11), every box checking itself as it is typed with the server's own rules (a review
+1–2,000 characters, a question 1–1,000, an answer 1–2,000, a reason 1–500), every number in 0-9, every
+moment through `Time` in the store's zone, names in the page's language first, typed text isolated
+inside sentences, lists paging with **Show More** (keyset: 50 for staff, 20 for a customer's own, §3),
+**its own store filter** (`?store=`) on the panel's lists, a Super Admin's off stores marked Off (§1.6).
+Words in `src/Modules/Feedback/Presentation/lang/{ar,en}/`; refusals are §7's.
+
+**Who sees what.** Reviews need `feedback.review.moderate` in the store, questions
+`feedback.question.answer`, wishlists `feedback.wishlist.view` (§3). **A reader without the job sees no
+button at all; one whom the item or the store stops sees it out of reach, with the reason in its
+tooltip** — as Promotions' answer Q16.
+
+**The menu** — Platform's `AdminMenu`; the **Support** group exists (access.md amendment 73), the
+**Customers** group too:
+
+| # | Group | Entry | Address | Icon | Offered for |
+|---|---|---|---|---|---|
+| 10 | Support | Reviews · التقييمات | `/admin/reviews` | `reviews` (Lucide `Star`, new) | `feedback.review.moderate` |
+| 20 | Support | Product Questions · أسئلة المنتجات | `/admin/questions` | `questions` (Lucide `MessageCircleQuestion`, new) | `feedback.question.answer` |
+| 30 | Customers | Favourited Products · المنتجات المفضلة | `/admin/favourites` | `favourites` (Lucide `Heart`, new) | `feedback.wishlist.view` |
+
+A waiting count beside Reviews and Product Questions **[Q8]**.
+
+**The settings.** The ratings switch (`feedback.ratings.in_lists`, admin-only) is already on Platform's
+settings screen, in its own **Feedback** card (`#settings-feedback`) — nothing new.
+
+#### F1 · Support › Reviews — `/admin/reviews?store=&status=`
+
+- **Tabs by status** **[Q1]**: **Waiting** (the default; oldest first — the next to decide on top),
+  **Published**, **Not Published** (rejected), **Unpublished** — newest first (§3).
+- **Each review, one row** **[Q5]**: the product (its card photo and name, a link to its page in this
+  store; "Archived" or "Not sold here" marked), the size bought, the stars, the text (line breaks kept;
+  long text clipped with **Show All**), the author's public name ("Sara A.", "Deleted customer" — never
+  more, §1.1), the mark (**Verified purchase** / **Returned**), the date written, and on decided tabs
+  who decided and when (`StaffNames::forReader`).
+- **Actions on a waiting row** **[Q2]**: **Approve** (at once, a toast) and **Reject…** — a dialog with an
+  optional reason, saying "With a reason, the customer sees it on their reviews page; without one, they
+  see only "Not published"." (§1.1) **[Q3]**. On a published row: **Unpublish…**, the same dialog. No
+  bulk actions **[Q4]**.
+- **Empty**: "No reviews waiting." per tab.
+
+#### F2 · Support › Product Questions — `/admin/questions?store=&status=`
+
+- **Tabs by status**: **Waiting** (default, oldest first), **Answered**, **Rejected**, **Unpublished**.
+- **Each question, one row**: the product (as F1), the question, the asker's public name, the date
+  asked; on Answered the answer, who answered and when **[Q7]**.
+- **Answer…** on a waiting row — a dialog showing the question, the answer box (1–2,000) and the line
+  "Signed "{store}'s team" in every store that sells the product." (§1.3) **[Q6]**. **Reject…** (optional
+  reason, as F1). On an answered row: **Correct Answer…** (the same dialog, filled) and **Unpublish…**.
+
+#### F3 · Customers › Favourited Products — `/admin/favourites?store=`
+
+- **One list, most saved first** (§1.4, answer 8): the product (card photo, name, link; "Not sold here"
+  marked, answer 20) and **Saved by** — how many customers saved it in this store. Show More (§3: a page
+  may come back short with a next). **[Q9]**
+
+#### F4 · A customer's wishlist, on the staff customer page — `/admin/customers/{customer}`
+
+- **A section of Access's customer page** (`CustomerPageSections`, access.md amendment 72, as Loyalty's
+  points) **[Q10]**: one block per store the reader covers with `feedback.wishlist.view`, each saved
+  product with its date saved and "Not sold now" marked; nothing for a reader without the job, and for
+  a customer the reader may not see (§3).
+
+#### F5 · The product page's Feedback — the shop's `/{store}/{locale}/{slug}`
+
+The page is **Catalog's** (`Catalog/Storefront/Product.tsx`, the Catalog-screens session's); its data
+already carries Feedback's three sections (`feedback.reviews`, `feedback.questions`,
+`feedback.wishlist`, catalog.md amendment 26(b)). **These screens draw them** — Feedback's own
+components, placed by the page in the slots below, agreed with the Catalog-screens session **[Q11]**:
+
+- **Under the title**: the stars, the average ("4.3") and the count ("(12 reviews)"), a link down to the
+  reviews — nothing when there are none **[Q22]**.
+- **Beside Add to Cart**: the **Save** heart (filled once saved) **[Q17]**; a guest who presses it is sent
+  to sign in and comes back **[Q18]**.
+- **Reviews**, under the description: the average and count again, then each approved review — stars,
+  author, "Verified purchase" or "Returned", the size bought, the date **[Q23]**, the text — newest
+  first, 10 then **Show More** (`after[feedback.reviews]`). No breakdown by stars **[Q12]**, no sort or
+  filter **[Q13]**. **Write a Review…** when `canWrite` **[Q14]**.
+- **Questions**, after the reviews: each answered question — the asker, the question, the answer signed
+  "{store}'s team", the date answered — newest answer first, 10 then Show More. **Ask a Question…** for
+  a signed-in customer (`canAsk`); a guest reads "Sign in to ask" **[Q16]**.
+
+#### F6 · Writing a review, asking a question — dialogs on the product page
+
+- **Write a Review**: five stars to pick (required), the text (1–2,000), Submit. Then **"Thanks — your
+  review shows once the store approves it."** and the button gives way to "You reviewed this product"
+  **[Q15]**. Refusals are §7's: not a verified purchase (the button is not offered then), already
+  reviewed.
+- **Ask a Question**: the question (1–1,000), Submit; then "Thanks — the answer shows here and in your
+  account." A sixth waiting question is refused with §7's words.
+
+#### F7 · Stars on the shop's product cards, and Best Rated
+
+- On Catalog's lists (category, brand, search) **where the store's switch is on**: each card's stars and
+  count (`ShopCardData.rating`, `ratingCount`, catalog.md amendment 25), and **Best Rated** among the
+  sorts (`ShopFiltersData.ratingSort`). The lists are Catalog's pages; these screens add the drawing
+  **[Q21]**.
+
+#### F8 · The shop account's Feedback pages
+
+Pages of the account beside its tabs (Access's `CustomerAccountPages`, as My Points and My Coupons),
+**always offered** **[Q19]**:
+
+- **My Reviews** — each review: the product (link), the store written in, the stars, the text, the size,
+  its state in plain words — **Waiting for approval**, **Published**, **Not published** (with the
+  store's reason when one was written), **Unpublished** (with its reason) — and the mark. 20 then Show
+  More.
+- **My Questions** — each question, its store, its state (**Waiting for an answer**, **Answered** with the
+  answer, **Not published** with its reason, **Unpublished**), newest first.
+- **My Wishlist** — grouped by store **[Q20]**: each product's card (photo, name, link in that store) with
+  **Remove**; one the store no longer sells marked **Not available now** (answer 17); an off store's
+  group marked. Empty: "Nothing saved yet."
+
+**Every screen above** is checked at phone width (375 px, nothing scrolling sideways), in Arabic and
+English, light and dark; its own query count recorded by a feature test; each page under 60 KB gzipped.
+
 ---
 
 ## 5 · Tables
@@ -456,12 +583,45 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
    session, who build the shop's lists and pages.
 3. ~~**The `Support` permission group and menu section**~~ — **settled**: the owner's answer of
    2026-10-18; built with step F1 (access.md amendment 73, platform.md §9.4).
-4. **Feedback's screens** — the frontend session's, to confirm (as for Loyalty and Promotions).
+4. **Feedback's screens** — drafted in §4.1 (2026-10-20); the owner's answers to §9.4 come first.
 5. ~~**Every assumption marked above**~~ — **settled**: the variant shown, the author's name (and what
    moderators see), answers signed by the store's team, unpublishing, correcting answers, 5 waiting
    questions, 500 wishlist items, the switch starting on, the reads' pages, orders and empty answer
    (§3, step F6a) — all **accepted by the owner, 2026-10-19** ("accept all"). Where the text above
    still says "my assumption", read "accepted".
+
+### 9.4 The screens' questions, round 1 (2026-10-20)
+
+For §4.1. Each has options; **(a) is the one I recommend** unless said otherwise. Nothing is built
+until these are answered.
+
+| Q | About | Options |
+|---|---|---|
+| Q1 | Moderation pages | (a) **Two pages, Reviews and Product Questions, each with status tabs** (Waiting first). (b) One "Moderation" inbox mixing both |
+| Q2 | Approving a review | (a) **Approve right on the row, at once, with a toast**; Reject… and Unpublish… in a dialog. (b) Open each review on its own page first |
+| Q3 | A rejection's reason | (a) **Free text, optional**, with the line saying what the customer sees with and without one. (b) A few ready reasons to pick, plus free text. (c) Required |
+| Q4 | Many at once | (a) **No bulk approve or reject now** — one by one. (b) Tick boxes and "Approve selected" |
+| Q5 | What a moderator sees on a review | (a) **The product (photo, name, link in this store), the size bought, the stars, the text, the author's public name, the mark, the date; on decided tabs who decided and when.** Never the author's contact (§1.1). (b) The same plus the review's language when it differs from the page's |
+| Q6 | Answering a question | (a) **A dialog showing the question, the answer box, and "Signed {store}'s team in every store"**; Correct Answer… the same dialog filled. (b) An answer box right in the row |
+| Q7 | Who answered | (a) **Shown to staff on the Answered tab: the staff member and the time** (customers only ever see "{store}'s team", §1.3). (b) Not shown |
+| Q8 | Waiting counts in the menu | (a) **A count beside Reviews and Product Questions** (Platform's menu counts) — about one query more on every panel page. (b) No counts; the Waiting tab says them |
+| Q9 | Favourited Products | (a) **The product (photo, name, link, "Not sold here"), Saved by, most saved first, Show More.** (b) The same plus a search by product name |
+| Q10 | A customer's wishlist for staff | (a) **A section on the staff customer page, a block per store the reader covers** (as Points). (b) A page of its own under Customers |
+| Q11 | The product page | (a) **I draw Feedback's parts as components; the Catalog-screens session places them on its page** (stars under the title, the heart beside Add to Cart, Reviews then Questions under the description) — I'll agree it with them. (b) I edit their product page myself |
+| Q12 | A rating breakdown (how many 5★, 4★…) | (a) **Not now** — the average and the count only; a breakdown needs a new read. (b) Yes — a backend addition first |
+| Q13 | Sorting or filtering reviews on the product page | (a) **Newest first only**. (b) Also "Highest" and "Lowest" — a backend addition first |
+| Q14 | Where to write a review | (a) **On the product page, "Write a Review…", shown only to a customer who may** (a delivered purchase, none written); later also from the order in My Orders, with Sales's screens. (b) Only from My Orders. Note: until Sales is built nobody has a delivered purchase, so the button shows for nobody yet |
+| Q15 | After writing a review | (a) **"Thanks — your review shows once the store approves it."**, then "You reviewed this product" in place of the button; it is in My Reviews as Waiting. (b) Show the customer their own waiting review on the product page too |
+| Q16 | Asking as a guest | (a) **"Sign in to ask" with a link that brings them back.** (b) The box shown, asking to sign in on Submit |
+| Q17 | The Save heart | (a) **On the product page only, for now** — on product cards it would need each list to know what the customer saved (a new read on every list). (b) Also on every product card |
+| Q18 | A guest presses the heart | (a) **Sent to sign in, then back to the product, saved.** (b) Back to the product, not saved — they press again |
+| Q19 | The account's Feedback pages | (a) **Three pages in the account's side list — My Reviews, My Questions, My Wishlist — always offered.** (b) One "My Feedback" page with three tabs. (c) Offered only once the customer has something there — one more query on every signed-in shop page |
+| Q20 | My Wishlist | (a) **Grouped by store, each with its products, Remove, "Not available now"; the product links to its page in that store.** (b) One list, the store as a label |
+| Q21 | Stars on product cards and Best Rated | (a) **I add them to Catalog's list pages (the drawing only; the data is already there), agreed with the Catalog-screens session.** (b) The Catalog-screens session does it |
+| Q22 | How the stars read | (a) **Five stars filled to the nearest half, then "4.3" and "(12)"**. (b) Whole stars only. (c) One star and "4.3 (12)" |
+| Q23 | A review's date | (a) **The day, written out ("12 October 2026")**, as public pages do. (b) Relative ("3 days ago") |
+| Q24 | A review in another language | (a) **Shown as written, nothing more until a translate service is chosen** (§1.1). (b) A small "Written in Arabic" label |
+| Q25 | Staff answering from the shop | (a) **No — answering and moderating happen in the panel only.** (b) A "Reply" link on the shop for signed-in staff |
 
 ### 9.3 The independent review of the draft (2026-10-09/10)
 
