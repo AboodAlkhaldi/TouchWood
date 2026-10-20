@@ -94,3 +94,23 @@ it('draws the logo on a cream tile on a light page and a navy tile on a dark one
     $dark = visit('/sa/en')->inDarkMode();
     expect(browserUntil($dark, "getComputedStyle(document.querySelector('header [data-logo=\"auto\"] rect')).fill === 'rgb(2, 54, 94)'"))->toBeTrue();
 });
+
+it('answers a mistyped shop address with the shop\'s own not-found page, in the address\'s language, and goes back to the store', function () {
+    // The shop's error page (frontend.md §2.6; owner, 2026-10-20): the shop's frame, the shopper's sentence,
+    // Back to the Store - never Laravel's bare page.
+    $page = visit('/sa/en/no-such-page');
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"error-sentence\"]')?.textContent === \"This page isn't available.\" && document.querySelector('h1')?.textContent === 'Page Not Found'"))->toBeTrue()
+        // In the shop's frame: its country switch is there.
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"country-switch\"]') !== null && document.documentElement.dir === 'ltr'"))->toBeTrue();
+
+    $page->click('[data-test="error-back"]');
+
+    expect(browserSoon($page, "window.location.pathname === '/sa/en'"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+
+    $arabic = visit('/sa/ar/no/such/page');
+
+    expect(browserSoon($arabic, "document.documentElement.dir === 'rtl' && document.querySelector('[data-test=\"error-sentence\"]')?.textContent === 'هذه الصفحة غير متاحة.'"))->toBeTrue()
+        ->and(browserSoon($arabic, "document.querySelector('[data-test=\"error-back\"]')?.getAttribute('href') === '/sa/ar' && document.querySelector('[data-test=\"error-back\"]')?.textContent === 'العودة إلى المتجر'"))->toBeTrue();
+});

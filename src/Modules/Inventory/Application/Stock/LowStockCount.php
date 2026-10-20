@@ -30,7 +30,8 @@ final readonly class LowStockCount implements MenuCount
 
     /**
      * The kept counts, one query (owner, 2026-10-18). A store not counted yet is counted live, and its
-     * count queued, until that first count lands - about half a minute after it is first needed.
+     * count queued, until that first count lands - about half a minute after it is first needed. Those
+     * stores ask whether they are wired once between them, not once each (owner, 2026-10-20).
      */
     public function count(): int
     {
@@ -38,6 +39,7 @@ final readonly class LowStockCount implements MenuCount
             ?? array_map(static fn ($store): StoreId => $store->storeId(), $this->platform->allStores()));
         $kept = $this->counts->of($stores);
         $total = 0;
+        $notKept = [];
 
         foreach ($stores as $store) {
             if (isset($kept[$store->value])) {
@@ -46,7 +48,14 @@ final readonly class LowStockCount implements MenuCount
                 continue;
             }
 
-            $total += count($this->reader->low($store));
+            $notKept[] = $store;
+        }
+
+        foreach ($this->reader->lowOf($notKept) as $low) {
+            $total += count($low);
+        }
+
+        foreach ($notKept as $store) {
             $this->recounts->queue($store);
         }
 

@@ -238,3 +238,20 @@ it('shows the person block in the panel\'s language, from one read of the person
 
     expect(adminFrameParts(adminFrameQueries($browser))['person block'] ?? 0)->toBe(1);
 });
+
+it('asks whether the stores are wired once for every store whose Low Stock count is not kept yet, never once per store', function () {
+    // No count kept yet (inventory.md §4.3.2): the menu counts each store live, this once, and queues its count.
+    DB::table('inventory.low_counts')->delete();
+    $stores = DB::table('platform.stores')->count();
+
+    $queries = adminFrameQueries(adminFrameSignIn(Fx::staff(StaffStatus::Active, superAdmin: true)));
+    $wiring = array_filter($queries, fn (array $query): bool => str_contains($query['sql'], '"sync"."connections"'));
+
+    // Before 2026-10-20 one `select exists(...)` per store - 3 on the seeded stores, 25 queries in all; now
+    // Sync's every wired store in one read (StoreWiring::wiredStores), still in this request and never kept
+    // from another (sync.md §1.8) - 1, and 23 in all.
+    expect($stores)->toBe(3)
+        ->and($wiring)->toHaveCount(1)
+        ->and(array_values($wiring)[0]['sql'])->not->toContain('exists')
+        ->and($queries)->toHaveCount(23);
+});

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -19,8 +20,9 @@ use function Pest\Laravel\seed;
 | the menu, the cards, the store switcher (access.md amendment 64), and a waiting company opening its
 | page.
 |
-| No RefreshDatabase - the suite keeps its data - so other tests' waiting companies may come first;
-| what is checked is that the list leads to a company, not which one.
+| No RefreshDatabase - the suite keeps its data - so other tests' waiting companies, and this test's own
+| from earlier runs, wait too. The test makes its company the one waiting the longest, so the card names
+| it among its five, and clicks that company's row by its id, which the row's link carries.
 */
 
 beforeEach(function () {
@@ -37,7 +39,13 @@ afterEach(function () {
 });
 
 it('opens a Super Admin\'s home on All Stores with the cards, switches to one store, and opens a waiting company', function () {
-    B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+    [$company, $application] = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount());
+    $companyId = strtolower($company->id());
+    // Waiting the longest - sent before every other application still waiting - so the card names it
+    // among its five, however many earlier runs left waiting.
+    $oldest = DB::table('b2b.applications')->where('state', 'SUBMITTED')->min('submitted_at');
+    DB::table('b2b.applications')->where('id', $application->id())
+        ->update(['submitted_at' => CarbonImmutable::parse((string) $oldest)->subMinute()]);
     $email = (string) DB::table('access.staff_users')->where('id', Fx::staff(superAdmin: true))->value('email');
 
     $page = visit('/admin/sign-in')
@@ -66,7 +74,7 @@ it('opens a Super Admin\'s home on All Stores with the cards, switches to one st
     $page->assertDontSeeIn('[data-test="card-platform.system"]', 'Stores On')
         ->assertNoJavaScriptErrors();
 
-    // A waiting company opens its own page.
-    $page->click('[data-test="card-b2b.approvals"] [data-test="home-row"]');
-    expect(browserUntil($page, '/^\\/admin\\/companies\\/[0-9a-z]{26}$/.test(location.pathname)'))->toBeTrue();
+    // This test's own waiting company opens its own page: its row, found by the company's id in its link.
+    $page->click('[data-test="card-b2b.approvals"] [data-test="home-row"][href="/admin/companies/'.$companyId.'"]');
+    expect(browserUntil($page, "location.pathname === '/admin/companies/{$companyId}'"))->toBeTrue();
 });

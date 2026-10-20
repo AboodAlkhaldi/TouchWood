@@ -58,4 +58,19 @@ return [
         415 => 'Couldn\'t open this page: what was sent isn\'t a kind it takes.',
         422 => 'Couldn\'t open this page: something in its address isn\'t valid.',
     ],
+
+    // The shop's error page (frontend.md §2.6): the same, in a shopper's words rather than the panel's
+    // (owner, 2026-10-20), and its way back - the store's home. Its page ships this file.
+    'shop' => [
+        'back' => 'Back to the Store',
+        'sentence' => [
+            // [PROVISIONAL: what a refusal on permission means to a shopper - frontend.md §2.6]
+            403 => 'You can\'t open this page.',
+            404 => 'This page isn\'t available.',
+            409 => 'Couldn\'t open this page: it changed while it loaded. Reload it and try again.',
+            413 => 'Couldn\'t open this page: the request is too large.',
+            415 => 'Couldn\'t open this page: the request isn\'t in a form it accepts.',
+            422 => 'Couldn\'t open this page: its address isn\'t valid. Check the link and try again.',
+        ],
+    ],
 ];

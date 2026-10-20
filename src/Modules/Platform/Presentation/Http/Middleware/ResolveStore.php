@@ -36,7 +36,7 @@ final readonly class ResolveStore
 
     public const string COOKIE = 'tw_store';
 
-    public const string REQUEST_ATTRIBUTE = 'store';
+    public const string REQUEST_ATTRIBUTE = StorefrontArea::RESOLVED_STORE;
 
     private const int COOKIE_MINUTES = 60 * 24 * 365;
 

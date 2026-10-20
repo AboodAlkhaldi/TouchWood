@@ -1054,7 +1054,11 @@ With the frontend milestone:
   a signed-in staff member's page request answered 403, 404, 409, 413, 415 or 422 gets the panel's own
   error page with the error's title and sentence (frontend.md §2.6, as built); since 2026-10-20 (owner) an
   admin address no route answers too, through Platform's last route (`PanelNotFoundController`), and a
-  page refused on permission says "You don't have access to this page.". Still open: the storefront's.
+  page refused on permission says "You don't have access to this page.". **The storefront's built too**
+  (2026-10-20, step 9): a page read in a store's shop gets the shop's own error page, in the shop's frame, with
+  a shopper's sentence ("This page isn't available.") and Back to the Store; a mistyped address under a store
+  through Platform's last shop route (`ShopNotFoundController`). An unknown or switched-off store keeps
+  Laravel's page (§1.6).
 
 ### 9.4 Additions asked for by later modules
 

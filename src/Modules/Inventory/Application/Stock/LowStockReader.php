@@ -58,17 +58,45 @@ final readonly class LowStockReader
     }
 
     /**
+     * The low sizes of each of these stores, keyed by store id, asking whether they are wired **once for
+     * all of them** (StoreWiring::wiredStores) rather than once per store - the menu's live count of the
+     * stores not counted yet (owner, 2026-10-20). Asked now, in the caller's request and transaction, and
+     * never kept: wiring is read each time (sync.md §1.8).
+     *
+     * @param  list<StoreId>  $stores
+     * @return array<string, list<LowSize>>
+     */
+    public function lowOf(array $stores): array
+    {
+        if ($stores === []) {
+            return [];
+        }
+
+        $wired = array_fill_keys(array_map('strtolower', $this->wiring->wiredStores()), true);
+        $low = [];
+
+        foreach ($stores as $store) {
+            $low[$store->value] = $this->read($store, isset($wired[strtolower($store->value)]))->sizes;
+        }
+
+        return $low;
+    }
+
+    /**
      * The low sizes with what decided them and their products (the Low Stock list's names and order,
      * stage 5's screens step 4). The store's rows in one query, every size switched on in another.
+     *
+     * @param  bool|null  $wired  whether the store is wired, when the caller has just asked it of many
+     *                            stores at once (lowOf); null asks it here
      */
-    public function read(StoreId $store): LowRead
+    public function read(StoreId $store, ?bool $wired = null): LowRead
     {
         $rows = $this->stock->ofStore($store);
         $variantIds = array_values(array_unique([
             ...$this->catalog->switchedOnVariantIds($store),
             ...array_map('strval', array_keys($rows)),
         ]));
-        $wired = $this->wiring->isWired($store);
+        $wired ??= $this->wiring->isWired($store);
         $default = (int) $this->platform->setting(InventorySettings::LOW_STOCK_DEFAULT, $store)->value;
         $low = [];
 
