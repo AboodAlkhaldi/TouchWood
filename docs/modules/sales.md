@@ -356,16 +356,23 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
   size and mode not named goes; at least one line stays. A raised quantity adds one part of this edit; the
   order keeps each part's own price and the edit that added it.
 - **The gift**: `KEEP` keeps it as it is, even below its level now (as after a partial return, §1.8);
-  `REMOVE`; or a level the edited order reaches whose gift is in stock after the order's own pieces —
-  added when it had none, swapped when it had one.
-- **An edit's checks are checkout's** (§1.2 step 2) on every added or changed line's new total; their stock
-  is the hold's (`adjustHold` all or nothing — a refusal leaves the order as it was).
+  `REMOVE` (either in any case); or a level the edited order reaches whose gift is in stock — what is free
+  now covers the gift and the pieces of its size the edit holds beyond what the order holds already —
+  added when it had none, swapped when it had one. `KEEP` on an order with no gift keeps none.
+- **An edit's checks are checkout's** (§1.2 step 2) on every added or raised line's new total; **a lowered
+  line only within its limits** (answer 33) — a product since marked not available now may still be
+  lowered or removed, never raised; a line left as it is, or removed, is not checked. Their stock is the
+  hold's (`adjustHold` all or nothing — a refusal leaves the order as it was).
+- **An edit that leaves every line as it is** (the address or the gift only) keeps the coupon, the points
+  and each line's coupon share as they are — neither is worked out again.
+- **Each line counts on stock as the hold counts it**: with no provider when placed, every piece; wired, by
+  the size's switch today — kept parts too, since `adjustHold` works every line out again.
 - The edit keeps, with its own id: the reason (staff's words, on the edit's row only — the audit says it was
-  written), who, when, and the order's lines and totals before and after (never an email or a phone). The
-  address changed is audited as personal. Promotions' `updateCouponUse` and Loyalty's `orderEdited` are told
+  written), who, when, and the order's lines and totals before and after with the money difference (never
+  an email or a phone). The address changed is audited as personal. Promotions' `updateCouponUse` and Loyalty's `orderEdited` are told
   of every edit of an order that has a coupon or points; Inventory's `adjustHold` last.
-- `PreviewOrderEdit` works the same out without writing; both refuse an order waiting or approved only,
-  unshipped, nothing ticked (`NotEditable`).
+- `PreviewOrderEdit` works the same out without writing; both refuse an order unless it is waiting or
+  approved, unshipped, with nothing ticked (`NotEditable`).
 
 ### 1.8 Returns, refunds and their shares
 
