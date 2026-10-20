@@ -189,7 +189,8 @@ describe('a quote', function () {
     it('prices the cart, totals it, offers staff contact to an individual and keeps it whole for 15 minutes', function () {
         ['address' => $address, 'variants' => $variants, 'customer' => $customer] = quoteReady();
         quoteSetting(SalesSettings::FLAT_FEE, 25_00);
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0);
 
         $quote = quoteStart($address);
 
@@ -205,7 +206,7 @@ describe('a quote', function () {
             ->and($quote->pointsUsed)->toBe(0)
             ->and($quote->pointsRefusal)->toBeNull()
             ->and($quote->giftLevelId)->toBeNull()
-            ->and($quote->expiresAt->format('Y-m-d H:i:s'))->toBe('2026-10-20 10:15:00');
+            ->and($quote->expiresAt->format('Y-m-d H:i:s'))->toBe($t0->addMinutes(15)->format('Y-m-d H:i:s'));
 
         $kept = app(Quotes::class)->find($quote->id) ?? throw new LogicException('Not kept.');
         expect($kept->customerId)->toBe($customer)
@@ -214,7 +215,7 @@ describe('a quote', function () {
             ->and($kept->pointsAsked)->toBeNull()
             ->and($kept->wayToPay)->toBe('STAFF_CONTACT')
             ->and($kept->expiresAt->format('U.u'))->toBe($quote->expiresAt->format('U.u'))
-            ->and($kept->createdAt->format('Y-m-d H:i:s'))->toBe('2026-10-20 10:00:00')
+            ->and($kept->createdAt->format('Y-m-d H:i:s'))->toBe($t0->format('Y-m-d H:i:s'))
             ->and(QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, WayToPay::from($kept->wayToPay), $kept->expiresAt, $kept->createdAt, $kept->result)->toArray())->toBe($quote->toArray());
     });
 
@@ -232,8 +233,9 @@ describe('a quote', function () {
 
     it('expires with the prices when they end before the 15 minutes', function () {
         ['address' => $address, 'variants' => $variants] = quoteReady();
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
-        $ends = CarbonImmutable::parse('2026-10-20 10:07:00');
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0);
+        $ends = $t0->addMinutes(7);
         $real = app(PricingApi::class);
         $pricing = Mockery::mock(PricingApi::class);
         $pricing->shouldReceive('prices')->andReturnUsing(
@@ -246,7 +248,7 @@ describe('a quote', function () {
         $pricing->shouldReceive('totals')->andReturnUsing(fn (mixed ...$arguments): mixed => $real->totals(...$arguments));
         app()->instance(QuoteBuilder::class, app()->make(QuoteBuilder::class, ['pricing' => $pricing]));
 
-        expect(quoteStart($address)->expiresAt->format('H:i'))->toBe('10:07')
+        expect(quoteStart($address)->expiresAt->format('H:i'))->toBe($t0->addMinutes(7)->format('H:i'))
             ->and($variants)->toHaveCount(2);
     });
 
@@ -681,11 +683,12 @@ describe('the table', function () {
 
 it('deletes the expired quotes each night, as the system only', function () {
     ['address' => $address] = quoteReady();
-    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+    $t0 = Cx::clockAhead();
+    CarbonImmutable::setTestNow($t0);
     $old = quoteStart($address);
-    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:10:00'));
+    CarbonImmutable::setTestNow($t0->addMinutes(10));
     $fresh = quoteStart($address);
-    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:15:00.000001'));
+    CarbonImmutable::setTestNow($t0->addMinutes(15)->addMicroseconds(1));
 
     expect(fn () => app(DeleteExpiredQuotesHandler::class)->handle(new DeleteExpiredQuotes))->toThrow(Unauthorized::class);
     // A super admin passes every permission check, and still is not the system.
@@ -710,12 +713,13 @@ it('deletes the expired quotes each night, as the system only', function () {
 describe('what the review asked for', function () {
     it('keeps every part of a full quote, to the microsecond', function () {
         ['address' => $address, 'variants' => $variants] = quoteReady();
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00.123456'));
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0->addMicroseconds(123456));
         Pr::ceiling(100);
         Pr::coupon('SUMMER-15');
         app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
         $real = app(PricingApi::class);
-        $ends = CarbonImmutable::parse('2026-10-20 10:09:59.654321');
+        $ends = $t0->addMinutes(9)->addSeconds(59)->addMicroseconds(654321);
         quoteWith([
             'quoteRedemption' => fn () => new RedemptionQuote(RedemptionMode::Partial, 900, 500, quoteMoney(5_00), null),
             'giftLevels' => fn () => [new GiftOfferDto(strtolower((string) Str::ulid()), quoteMoney(100_00), $variants[1])],
@@ -734,10 +738,10 @@ describe('what the review asked for', function () {
             ->and($quote->giftVariantId)->toBe($variants[1])
             ->and($quote->couponNameEn)->toBe('Summer coupon')
             ->and($back)->toEqual($quote)
-            ->and($back->prices->validUntil?->format('H:i:s.u'))->toBe('10:09:59.654321')
+            ->and($back->prices->validUntil?->format('H:i:s.u'))->toBe($ends->format('H:i:s.u'))
             ->and($back->prices->pricedAt->format('s.u'))->toBe('00.123456')
-            ->and($back->expiresAt->format('H:i:s.u'))->toBe('10:09:59.000000')
-            ->and($back->createdAt->format('H:i:s.u'))->toBe('10:00:00.000000');
+            ->and($back->expiresAt->format('H:i:s.u'))->toBe($t0->addMinutes(9)->addSeconds(59)->format('H:i:s.u'))
+            ->and($back->createdAt->format('H:i:s.u'))->toBe($t0->format('H:i:s.u'));
     });
 
     it('carries a known coupon refused, by its names, never its id', function () {
@@ -774,7 +778,8 @@ describe('what the review asked for', function () {
 
     it('prices again once when the prices end while the quote is built, and expires when they end again', function (int $endedTimes, bool $quoted) {
         ['address' => $address] = quoteReady();
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0);
         $real = app(PricingApi::class);
         $asked = 0;
         quoteWith(['prices' => function (StoreId $store, array $lines) use ($real, &$asked, $endedTimes): CartPricesDto {
@@ -783,7 +788,7 @@ describe('what the review asked for', function () {
             return quotePricesEnding($real->prices($store, quoteLines($lines)), $asked <= $endedTimes ? CarbonImmutable::now() : null);
         }]);
 
-        $quoted ? expect(quoteStart($address)->expiresAt->format('H:i'))->toBe('10:15') : expect(fn () => quoteStart($address))->toThrow(QuoteExpired::class);
+        $quoted ? expect(quoteStart($address)->expiresAt->format('H:i'))->toBe($t0->addMinutes(15)->format('H:i')) : expect(fn () => quoteStart($address))->toThrow(QuoteExpired::class);
         expect($asked)->toBe(2);
     })->with([
         'once' => [1, true],

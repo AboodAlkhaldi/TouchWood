@@ -68,7 +68,8 @@ function nothingPlaced(): void
 describe('placing', function () {
     it('writes the order as quoted, holds its stock, tells of it, and empties the cart of it', function () {
         ['address' => $address, 'variants' => $variants, 'customer' => $customer, 'product' => $product] = Cx::ready();
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0);
         $quote = Cx::start($address);
         $name = (string) DB::table('catalog.products')->where('id', $product)->value('name_en');
 
@@ -169,12 +170,13 @@ describe('placing', function () {
 
     it('answers a placed quote with its order after it expired, and refuses one never placed', function () {
         ['address' => $address, 'variants' => $variants] = Cx::ready();
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+        $t0 = Cx::clockAhead();
+        CarbonImmutable::setTestNow($t0);
         $placedQuote = Cx::start($address);
         $placed = Cx::place($placedQuote->id);
         Cx::add($variants[0]);
         $other = Cx::start($address);
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:15:00'));
+        CarbonImmutable::setTestNow($t0->addMinutes(15));
 
         expect(Cx::place($placedQuote->id))->toEqual($placed)
             ->and(fn () => Cx::place($other->id))->toThrow(QuoteExpired::class);
