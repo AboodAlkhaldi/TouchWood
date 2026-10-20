@@ -377,15 +377,24 @@ describe('the points', function () {
     it('asks Loyalty for the points named, for the net subtotal and the buyer', function () {
         ['address' => $address, 'customer' => $customer] = quoteReady();
         $asked = [];
-        quoteWith(['quoteRedemption' => function ($request) use (&$asked) {
-            $asked[] = [$request->customerId, $request->audience, $request->pointsAsked, $request->netSubtotal->minorUnits];
+        $real = app(PricingApi::class);
+        quoteWith([
+            'quoteRedemption' => function ($request) use (&$asked) {
+                $asked[] = [$request->customerId, $request->audience, $request->pointsAsked, $request->netSubtotal->minorUnits];
 
-            return new RedemptionQuote(RedemptionMode::Partial, 0, 0, quoteMoney(0), RedemptionRefusal::ProgrammeOff);
-        }]);
+                return new RedemptionQuote(RedemptionMode::Partial, 0, 0, quoteMoney(0), RedemptionRefusal::ProgrammeOff);
+            },
+            // The prices already took 10.00 off: net below gross.
+            'prices' => function (StoreId $store, array $lines) use ($real): CartPricesDto {
+                $prices = $real->prices($store, quoteLines($lines));
+
+                return new CartPricesDto($prices->storeId, $prices->currencyCode, $prices->taxRateBasisPoints, $prices->lines, $prices->unpriced, $prices->grossSubtotal, $prices->netSubtotal->subtract(quoteMoney(10_00)), $prices->pricedAt, $prices->validUntil);
+            },
+        ]);
 
         quoteStart($address, usePoints: true, asked: 70);
 
-        expect($asked)->toBe([[$customer, LoyaltyAudience::Public, 70, 250_00]]);
+        expect($asked)->toBe([[$customer, LoyaltyAudience::Public, 70, 240_00]]);
     });
 });
 
@@ -692,6 +701,9 @@ it('deletes the expired quotes each night, as the system only', function () {
     $fresh = quoteStart($address);
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:15:00.000001'));
 
+    expect(fn () => app(DeleteExpiredQuotesHandler::class)->handle(new DeleteExpiredQuotes))->toThrow(Unauthorized::class);
+    // A super admin passes every permission check, and still is not the system.
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
     expect(fn () => app(DeleteExpiredQuotesHandler::class)->handle(new DeleteExpiredQuotes))->toThrow(Unauthorized::class);
 
     $deleted = Fx::asSystem(fn () => app(DeleteExpiredQuotesHandler::class)->handle(new DeleteExpiredQuotes));
