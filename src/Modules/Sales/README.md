@@ -49,8 +49,13 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   running totals — §1.8); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
   (`Infrastructure/Eloquent/OrderNumberSequences`, made for a store opened later by
   `Infrastructure/Listener/CreateOrderSequence`).
+- **Placing** (S6b): `Application/Quote/QuoteRules` (the rules that can change in 15 minutes, checked at
+  checkout on the cart and at placement on the quote), `Application/Order/OrderSnapshot` (the order as its
+  quote placed it), `Domain/Model/{NewOrder,NewOrderLine,PlacedOrder}`, `Domain/Repository/Orders` with
+  SQL in `Infrastructure/Eloquent/DatabaseOrders`; the command `PlaceOrder` (one transaction, locks in one
+  order, `OrderPlaced` through the outbox).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

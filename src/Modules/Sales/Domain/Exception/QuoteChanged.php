@@ -7,13 +7,16 @@ namespace Modules\Sales\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Anything of §1.3 steps 3–5 no longer as quoted; other modules' refusals at placement reach the customer here, with the reason.
+ * Anything of §1.3 step 3 no longer as quoted, or another module refusing the placement — everything
+ * rolled back, the customer sent to a new quote (§1.3). `reason` says what moved: a rule of the quote
+ * (`audience`, `way_to_pay`, `gift`, `ceiling`) or the refusing error's type (`promotions.…`,
+ * `loyalty.…`, `inventory.…`, `sales.…`).
  */
 final class QuoteChanged extends SalesError
 {
-    public function __construct()
+    public function __construct(public readonly string $reason = '')
     {
-        parent::__construct('The checkout changed since it was quoted.');
+        parent::__construct('The checkout changed since it was quoted.'.($reason === '' ? '' : " ({$reason})"));
     }
 
     public function type(): string
@@ -24,5 +27,10 @@ final class QuoteChanged extends SalesError
     public function category(): ErrorCategory
     {
         return ErrorCategory::Conflict;
+    }
+
+    public function context(): array
+    {
+        return ['reason' => $this->reason];
     }
 }

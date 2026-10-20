@@ -169,6 +169,19 @@ Built in this fixed order (handoff §10.2, §11.3):
 **Any refusal rolls everything back** and sends the customer to a new quote with the reason
 (`QuoteChanged`).
 
+**As built (step S6b)** — my assumptions, stated for the owner to reject:
+- **The locks in one order**: Sales's own first (the quote, then the cart), then Promotions' and Loyalty's,
+  Inventory's last, nothing after it (stage 5: Inventory's hold takes Catalog's lock). So **the order is
+  written before `useCoupon`, `redeem` and `hold`** — the lines' keys lock Catalog's rows — all in the
+  one transaction, as if in the order above.
+- **The re-checks run on the quote's own lines**, never the cart's (the cart may have changed since).
+- **`QuoteChanged` names what moved** (`reason`): `audience`, `way_to_pay`, `gift`, `ceiling`, or the
+  refusing error's type (`sales.not_orderable`, `promotions.…`, `loyalty.…`, `inventory.…`).
+- **Placing empties the cart of what was bought**: the quote's lines (by size and mode) leave the cart,
+  and its coupon is cleared; lines added since stay.
+- `PlaceOrder` takes the store as well as the quote's id: the permission is checked in that store, and a
+  quote of another store is `QuoteNotFound`.
+
 ### 1.4 The order's four state machines
 
 **Four independent machines** — the order, its payment, its shipment, its returns; **the customer sees

@@ -25,15 +25,11 @@ use Modules\Loyalty\Public\Enums\RedemptionMode;
 use Modules\Loyalty\Public\Enums\RedemptionRefusal;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
-use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
-use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\DeleteExpiredQuotes\DeleteExpiredQuotes;
 use Modules\Sales\Application\Command\DeleteExpiredQuotes\DeleteExpiredQuotesHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
@@ -41,6 +37,7 @@ use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Quote\QuoteBuilder;
+use Modules\Sales\Application\Quote\QuoteRules;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
@@ -61,11 +58,10 @@ use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
-use Tests\Modules\Catalog\Support\CatalogProducts as Px;
-use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
 
@@ -87,10 +83,7 @@ beforeEach(function () {
 /** A customer of the store who may order: email and phone confirmed. */
 function quoteCustomer(string $accountType = 'individual'): string
 {
-    $customerId = Fx::customer(strtolower((string) Str::ulid()).'@example.test', 'sa', $accountType);
-    DB::table('access.customers')->where('id', $customerId)->update(['email_verified_at' => CarbonImmutable::now(), 'phone' => Bx::unusedPhone(), 'phone_verified_at' => CarbonImmutable::now()]);
-
-    return $customerId;
+    return Cx::customer($accountType);
 }
 
 /**
@@ -101,32 +94,22 @@ function quoteCustomer(string $accountType = 'individual'): string
  */
 function quoteReady(string $accountType = 'individual'): array
 {
-    ['product' => $product, 'variants' => $variants] = Px::ready(['60 cm', '80 cm']);
-    Rx::switchOn('sa', $variants);
-    Rx::set('sa', [$variants[0] => '100.00', $variants[1] => '50.00']);
-    Ix::count('sa', [$variants[0] => 100, $variants[1] => 100]);
-    $customer = quoteCustomer($accountType);
-    $address = Bx::savedAddress($customer);
-    Fx::actAsCustomer($customer);
-    quoteAdd($variants[0], 2);
-    quoteAdd($variants[1], 1);
-
-    return ['customer' => $customer, 'address' => $address, 'variants' => $variants, 'product' => $product];
+    return Cx::ready($accountType);
 }
 
 function quoteAdd(string $variantId, int $quantity = 1, string $mode = 'RETAIL'): void
 {
-    app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $variantId, $mode, $quantity));
+    Cx::add($variantId, $quantity, $mode);
 }
 
 function quoteStart(string $addressId, string $way = 'STAFF_CONTACT', bool $usePoints = false, ?int $asked = null): QuoteView
 {
-    return app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId('sa'), $addressId, $usePoints, $asked, $way));
+    return Cx::start($addressId, $way, $usePoints, $asked);
 }
 
 function quoteSetting(string $key, int|bool $value): void
 {
-    Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, 'sa', $value)));
+    Cx::setting($key, $value);
 }
 
 function quoteMoney(int $minor): Money
@@ -165,8 +148,11 @@ function quoteWith(array $answers): void
     $pricingStandIn->shouldReceive('prices')->andReturnUsing($pass($pricing, 'prices'));
     $pricingStandIn->shouldReceive('totals')->andReturnUsing($pass($pricing, 'totals'));
 
+    // The rules are read again when the order is placed: the same stand-ins answer there.
+    $rules = app()->make(QuoteRules::class, ['b2b' => $b2bStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn]);
+    app()->instance(QuoteRules::class, $rules);
     app()->instance(QuoteBuilder::class, app()->make(QuoteBuilder::class, [
-        'b2b' => $b2bStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn, 'loyalty' => $loyaltyStandIn, 'pricing' => $pricingStandIn,
+        'rules' => $rules, 'promotions' => $promotionsStandIn, 'loyalty' => $loyaltyStandIn, 'pricing' => $pricingStandIn,
     ]));
 }
 

@@ -37,7 +37,18 @@ final readonly class DatabaseQuotes implements Quotes
 
     public function find(string $quoteId): ?Quote
     {
-        $row = $this->db->table('sales.quotes')->where('id', strtolower($quoteId))->first();
+        return $this->read(strtolower($quoteId), false);
+    }
+
+    public function lock(string $quoteId): ?Quote
+    {
+        return $this->read(strtolower($quoteId), true);
+    }
+
+    private function read(string $quoteId, bool $lock): ?Quote
+    {
+        $query = $this->db->table('sales.quotes')->where('id', $quoteId);
+        $row = ($lock ? $query->lockForUpdate() : $query)->first();
 
         if (! $row instanceof stdClass) {
             return null;

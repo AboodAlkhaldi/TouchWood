@@ -16,8 +16,10 @@ use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\OrderNumbers;
+use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseOrders;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 use Modules\Sales\Infrastructure\External\NothingSoldYet;
@@ -41,6 +43,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);
+        $this->app->bind(Orders::class, DatabaseOrders::class);
     }
 
     public function boot(): void
