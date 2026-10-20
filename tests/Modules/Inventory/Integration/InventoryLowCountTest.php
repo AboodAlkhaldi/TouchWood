@@ -21,6 +21,7 @@ use Modules\Inventory\Application\Command\SetLowStockThreshold\SetLowStockThresh
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\InventorySettings;
 use Modules\Inventory\Application\Stock\LowStockCount;
+use Modules\Inventory\Application\Stock\LowStockReader;
 use Modules\Inventory\Domain\Repository\LowCounts;
 use Modules\Inventory\Infrastructure\Queue\CountLowStockJob;
 use Modules\Inventory\Infrastructure\Queue\QueuedLowStockRecounts;
@@ -119,6 +120,35 @@ it('counts live a store whose first count is queued but has not run yet', functi
 
     expect(DB::table('inventory.low_counts')->where('store_id', Ix::storeId('sa'))->value('recount_queued'))->toBeTrue()
         ->and(app(LowStockCount::class)->count())->toBe(3);
+});
+
+it('counts a wired store never counted live by its provider\'s rule, as one store asked alone would (owner, 2026-10-20)', function () {
+    [$a] = lowCountSizes();
+    // 5 in stock is low (the store's default threshold is 10); with 20 returned beyond the provider's number
+    // it is not, but only where the store is wired (StockFigures::free) - so the count depends on the wiring.
+    Ix::count('sa', [$a => 5]);
+    DB::table('inventory.stock')->where('store_id', Ix::storeId('sa'))->where('variant_id', $a)->update(['returned_extra' => 20]);
+    DB::table('inventory.low_counts')->delete();
+    Queue::fake();
+    Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE], ['sa']);
+
+    // Not wired: all three low.
+    expect(app(LowStockCount::class)->count())->toBe(3);
+
+    Ix::wired();
+    $store = StoreId::fromString(Ix::storeId('sa'));
+
+    // Wired, its count not kept: the menu's live count, asking the wiring of every store at once, says what
+    // the store's own reader says asking of it alone - the count before this change - and the job keeps it.
+    expect(app(LowStockCount::class)->count())->toBe(2)
+        ->and(count(app(LowStockReader::class)->low($store)))->toBe(2)
+        ->and(app(LowStockReader::class)->lowOf([$store]))->toHaveKey($store->value)
+        ->and(lowCountKept())->toBeNull();
+
+    Fx::asSystem(fn () => app(CountLowStockHandler::class)->handle(new CountLowStock(Ix::storeId('sa'))));
+
+    expect(lowCountKept())->toBe(2)
+        ->and(app(LowStockCount::class)->count())->toBe(2);
 });
 
 it('queues one count a store however many changes come before it runs', function () {

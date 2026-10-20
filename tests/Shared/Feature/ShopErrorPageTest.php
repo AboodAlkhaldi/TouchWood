@@ -11,10 +11,23 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
+use Modules\Access\Public\Contracts\ShopperLine;
+use Modules\Access\Public\Contracts\ShopperLines;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
+use Modules\Access\Public\Dto\ShopperLineDto;
+use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\ShopperLineTone;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\AdminBrowser;
+use Tests\Modules\Access\Support\FakeBreachList;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 
 use function Pest\Laravel\delete;
 use function Pest\Laravel\get;
@@ -39,6 +52,8 @@ beforeEach(function () {
     config(['session.driver' => 'database', 'app.debug' => false]);
     Cache::flush();
     seed(PlatformSeeder::class);
+    FakeBreachList::install();
+    RecordingSecurityMessages::install();
 
     Route::prefix('{store}/{locale}')
         ->middleware(StorefrontArea::MIDDLEWARE)
@@ -252,4 +267,68 @@ it('never catches the panel, the built assets, the API or the stored files', fun
         expect($response->getContent())->not->toContain('data-page')
             ->and($response->getContent())->not->toContain('Storefront/Error');
     }
+});
+
+/** A line under the header for a company account, as B2B's is (access.md amendment 50). */
+final class ShopErrorPageTestLine implements ShopperLine
+{
+    public function lineFor(string $customerId, AccountType $accountType, bool $emailVerified): ?ShopperLineDto
+    {
+        return $accountType === AccountType::Company ? new ShopperLineDto('Finish your application', 'storefront.account', ShopperLineTone::Warn) : null;
+    }
+}
+
+it('draws the shop\'s error page for a signed-in customer with the whole frame - the name, the account\'s list and the lines - and no second error', function () {
+    app(CustomerAccountPages::class)->register(new CustomerAccountPageDto('access', 'test_company', 'storefront.sign-in', AccountType::Company));
+    app(ShopperLines::class)->register(ShopErrorPageTestLine::class);
+    $customerId = Fx::customer(accountType: 'company');
+    $browser = new AdminBrowser;
+    $browser->post('/sa/en/account/sign-in', [
+        'email' => (string) DB::table('access.customers')->where('id', $customerId)->value('email'),
+        'password' => Fx::CUSTOMER_PASSWORD,
+    ])->assertRedirect('/sa/en');
+
+    foreach (['/sa/en/no-such-page' => 404, '/sa/en/account/nothing-here' => 404, '/sa/en/_test/conflict' => 409] as $path => $status) {
+        $response = $browser->get($path);
+
+        // The frame's shared data is read while the error page is drawn: had any of it failed, a second
+        // error, this would be a 500 rather than the page's own status.
+        $response->assertStatus($status)->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Storefront/Error')
+            ->where('status', $status)
+            ->where('shopper.id', $customerId)
+            ->has('accountMenu.tabs', 5)
+            ->where('accountMenu.pages', fn (Collection $pages): bool => $pages->contains(fn (array $one): bool => $one['key'] === 'access.test_company'))
+            ->where('shopperLines', fn (Collection $lines): bool => $lines->contains(fn (array $one): bool => $one['text'] === 'Finish your application'))
+            ->where('staffView', null));
+
+        expect($response->getContent())->not->toContain('Developer note');
+    }
+});
+
+it('draws the shop\'s error page in a Super Admin\'s staff view of a switched-off store, the store marked off', function () {
+    Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+    $staffId = Fx::staff(superAdmin: true);
+    $browser = new AdminBrowser('10.12.9.'.random_int(20, 250));
+    $browser->post('/admin/sign-in', [
+        'email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'),
+        'password' => Fx::STAFF_PASSWORD,
+    ])->assertRedirect('/admin/sign-in/code');
+    $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+    $browser->post('/admin/staff-view', ['store' => 'eg'])->assertRedirect('/eg/en');
+
+    $browser->get('/eg/en/no-such-page')->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page
+        ->component('Storefront/Error')
+        ->where('status', 404)
+        ->where('detail', 'This page isn\'t available.')
+        ->where('shop.code', 'eg')
+        ->where('shop.available', fn (Collection $stores): bool => $stores->contains(fn (array $store): bool => $store['code'] === 'eg' && $store['isActive'] === false))
+        ->where('staffView.name', fn (string $name): bool => $name !== '')
+        ->where('shopper', null));
+
+    // A visitor, the same address: as if the store were never there - Laravel's page, no frame.
+    $visitor = (new AdminBrowser)->get('/eg/en/no-such-page');
+    $visitor->assertNotFound();
+
+    expect($visitor->getContent())->not->toContain('data-page');
 });

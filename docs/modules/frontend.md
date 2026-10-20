@@ -825,6 +825,17 @@ three more he accepted on 2026-10-20):**
   before - a second fallback, without the shop's middleware, so it never becomes "method not allowed". A
   read of an address only a form posts to (GET `/sa/en/account/register`) is now the shop's not-found page
   rather than "method not allowed".
+- **What the method fallbacks also change (found by the review of step 9; not changed, for the owner to
+  review at the end):** Laravel counts a fallback as an answer for its verbs, so it no longer looks for the
+  address under another verb. On a page that exists under `/{store}/{locale}/…` or `/admin/…`:
+  - **POST or PUT to a page that only reads** (PUT `/sa/en/sign-in`, POST `/admin/audit`) is answered **404,
+    not 405**;
+  - **OPTIONS to such a page** (`/admin/audit`) is answered **404, not 200 with `Allow`**;
+  - and **a verb Laravel does not route** (outside `Router::$verbs`, such as TRACE) sent to a mistyped
+    address is answered **405**, its `Allow` naming every verb, where it was 404.
+
+  The store's home itself (`/sa/en`, no segment after the language) is outside the shop's fallbacks and keeps
+  405 for a POST and 200 with `Allow: GET,HEAD` for OPTIONS. Checked by sending each request on 2026-10-20.
 - **Only when the frame can be drawn:** the route passes the shop's store, shop and page middleware
   (`StorefrontArea::STORE`, `SHOP`, `PAGE`), the address named a store this request may see (the store
   ResolveStore leaves on the request, `StorefrontArea::RESOLVED_STORE`), both halves of the shop's data were
@@ -840,7 +851,8 @@ three more he accepted on 2026-10-20):**
   languages, with the frame's words and the way back; each status's sentence in both languages; a rule's
   words; an Inertia visit and HEAD; no developer message with debug off or on; a form sent, a POST and a
   DELETE to a mistyped address; JSON; an unknown and a switched-off store; the reserved paths; the pages
-  that are there); the browser check in `tests/Browser/StorefrontFrameTest.php` (English, then Arabic right
+  that are there; a signed-in customer, with the name, the account's list and the lines; a Super Admin's
+  staff view of a switched-off store, the store marked off); the browser check in `tests/Browser/StorefrontFrameTest.php` (English, then Arabic right
   to left, and Back to the Store).
 
 ### 2.7 What the design shows that the system does differently
