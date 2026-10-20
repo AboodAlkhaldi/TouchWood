@@ -129,10 +129,10 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         expect(DB::table('inventory.stock_movements')->count())->toBe(4);
     });
 
-    it('keeps each reason going its one way (owner, 2026-10-11)', function (string $reason, int $before, int $after, bool $kept) {
+    it('keeps each reason going its one way (owner, 2026-10-11)', function (string $reason, int $before, int $after, bool $kept, ?string $note = 'a note') {
         $row = [
             'store_id' => Fx::storeId('sa'), 'variant_id' => Px::ready()['variants'][0], 'reason' => $reason, 'change' => $after - $before,
-            'before' => $before, 'after' => $after, 'note' => 'a note', 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
+            'before' => $before, 'after' => $after, 'note' => $note, 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
         ];
         $insert = fn () => DB::transaction(fn () => DB::table('inventory.stock_movements')->insert($row));
 
@@ -155,6 +155,9 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         'an offline sale never comes in' => ['OFFLINE_SALE', 2, 3, false],
         'a shipment goes out' => ['SHIPPED', 3, 2, true],
         'a shipment never comes in' => ['SHIPPED', 2, 3, false],
+        'a shipment taking nothing notes its shortfall (owner, 2026-10-19)' => ['SHIPPED', 0, 0, true],
+        'a shipment taking nothing without a note is refused' => ['SHIPPED', 0, 0, false, null],
+        'a shipment taking nothing with a blank note is refused' => ['SHIPPED', 2, 2, false, " \t\n"],
         'a correction comes in' => ['CORRECTION', 1, 2, true],
         'a correction goes out' => ['CORRECTION', 2, 1, true],
         'a correction is never nothing' => ['CORRECTION', 2, 2, false],

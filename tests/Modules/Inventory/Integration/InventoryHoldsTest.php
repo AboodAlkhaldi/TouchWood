@@ -202,22 +202,22 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
             ->and(inventoryHoldsFigures($size))->toBe([0, 0]);
     });
 
-    it('ships from a stock already at 0 without a ledger line - nothing is taken - and frees the hold', function () {
+    it('ships from a stock already at 0: nothing taken, the shortfall still noted on a 0 → 0 line, counted once (owner, 2026-10-19)', function () {
         $size = Px::ready()['variants'][0];
         Ix::count('sa', [$size => 2]);
         $order = inventoryHoldsOrder();
         inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($size, 2)], null);
         Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
 
-        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
-        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 2)]);
+        inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 2)]);
 
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
             ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 2 2 SHIPPED"])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→2 SYSTEM', 'DAMAGED_LOST 2→0 SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→2 SYSTEM', 'DAMAGED_LOST 2→0 SYSTEM', 'SHIPPED 0→0 2 more shipped than counted - recount SYSTEM']);
     });
 
-    it('notes nothing on a part all in stock, and ships the next part from 0 with no line', function () {
+    it('notes nothing on a part all in stock, and the next part shipped from 0 notes its shortfall', function () {
         $size = Px::ready()['variants'][0];
         Ix::count('sa', [$size => 4]);
         $order = inventoryHoldsOrder();
@@ -228,7 +228,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
 
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'DAMAGED_LOST 4→3 SYSTEM', 'SHIPPED 3→0 SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'DAMAGED_LOST 4→3 SYSTEM', 'SHIPPED 3→0 SYSTEM', 'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM']);
     });
 
     it('takes nothing on a wired store\'s shipment, and the tick ends a stock-dependent line\'s hold', function () {

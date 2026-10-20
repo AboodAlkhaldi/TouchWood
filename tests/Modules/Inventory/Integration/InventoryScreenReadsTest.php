@@ -369,6 +369,21 @@ describe('a size\'s history (StockHistory)', function () {
             ->and($page->lines[0]->at)->toMatch('/\A\d{4}-\d{2}-\d{2}T/');
     });
 
+    it('shows a shipment from a stock already at 0 as a 0 → 0 line with its shortfall, by its order (owner, 2026-10-19)', function () {
+        [$size] = stockProduct('Shortfall')['variants'];
+        Ix::count('sa', [$size => 2]);
+        $order = stockHold([new HoldLineDto($size, 2)]);
+        Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
+        app(InventoryApi::class)->ship($order, [new HoldLineDto($size, 2)]);
+        stockManager();
+
+        $first = app(StockHistoryHandler::class)->handle(new StockHistory(Ix::storeId('sa'), $size))->lines[0];
+
+        expect("{$first->reason} {$first->before}→{$first->after} {$first->change} {$first->who}")->toBe('SHIPPED 0→0 0 ORDER')
+            ->and($first->note)->toBe('2 more shipped than counted - recount')
+            ->and($first->orderId)->toBe($order);
+    });
+
     it('pages 50 at a time, newest first, in the same few queries', function () {
         [$size] = stockProduct('Long')['variants'];
         stockManager();

@@ -133,16 +133,18 @@ final readonly class InventoryApiImpl implements InventoryApi
                 if (! $wired && $current->countsOnStock) {
                     $before = $this->stock->lockExisting($store, [$line->variantId])[$line->variantId]->inStock ?? 0;
                     // Never refused, never below 0 (sales.md answer 41; inventory.md §9.2 #22): what there is
-                    // goes, and the pieces shipped beyond the count are named for a recount. The hold lets
-                    // go of all of them.
+                    // goes, and the pieces shipped beyond the count are named for a recount - always, so
+                    // from a stock already at 0 too, a 0 -> 0 line with its note. The hold lets go of all
+                    // of them.
                     $taken = min($before, $line->quantity);
                     $short = $line->quantity - $taken;
 
                     if ($taken > 0) {
                         $this->stock->take($store, $line->variantId, $taken);
-                        $after = $current->shipped + $line->quantity;
-                        $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $taken, $short > 0 ? self::shortNote($short) : null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
                     }
+
+                    $after = $current->shipped + $line->quantity;
+                    $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $taken, $short > 0 ? self::shortNote($short) : null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
 
                     if ($short > 0) {
                         $this->stock->free($store, $line->variantId, $short);
