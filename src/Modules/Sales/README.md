@@ -64,7 +64,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Application/Order/MoneyRecording` (one recorder for payments and refunds — pressing twice records once);
   the commands `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` (answer 42), `AllowShipUnpaid`.
 - **Transfer documents** (S7c): `sales.transfer_documents`; `UploadTransferDocument` (up to 3, PDF, JPEG or
-  PNG, private, through Platform's `uploadMediaFor`); `Infrastructure/Media/TransferDocumentsUsage` (Platform
+  PNG, private, through Platform's `uploadMediaFor`); `Infrastructure/Media/SalesFilesUsage` (Platform
   never deletes one an order holds).
 - **Fulfilment** (S8): `ShipOrder` (once per order; Inventory's `ship` last), `TickReducedInProvider` (a
   wired store's gift and stock-dependent sizes), `MarkDelivered` (the return window fixed, `OrderDelivered`,
@@ -75,8 +75,14 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   its own shipping, the gift by staff's choice) into an `EditPlan`; `SizeRecords`; the query
   `PreviewOrderEdit` and the command `EditOrder` (one transaction; every share again; Promotions, Loyalty,
   then Inventory's `adjustHold` last).
+- **Returns asked and decided** (S10a): `sales.returns`, `sales.return_lines`, `sales.return_photos`;
+  `Domain/Repository/Returns` with SQL in `Infrastructure/Eloquent/DatabaseReturns`; `Application/Return`
+  (`ReturnAccess`, `OwnReturnAccess`, `ReturnInputs`, `ReturnChanges` — the order locked, then the return);
+  the commands `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto` (the customer's), `AcceptReturn`,
+  `RefuseReturn`, `CloseReturn` (staff's); `Public/Enums/ReturnReason`. `SalesFilesUsage` keeps a photo a
+  return holds too.
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

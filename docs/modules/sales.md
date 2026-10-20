@@ -403,6 +403,17 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
   - `ReturnCompleted` written to the outbox (§6) — Feedback flips its reviews (feedback.md).
 - **A gift is kept** after a partial return below its level (promotions.md §1.7).
 
+**As built (step S10a — asking and deciding)** — my assumptions, stated for the owner to reject:
+- A request names **order lines** — a part (§1.7) or the gift — and how many pieces of each; a line of
+  another order, or more pieces than the line holds less those other returns count, is `ReturnNotAllowed`,
+  and so is an order not delivered or a request after its deadline (the deadline itself still in time).
+- **Photos only while the return waits for staff** (`REQUESTED`); a fourth is `ReturnNotAllowed`.
+- Each move is in the order's history (`RETURN_…`, the return's id; the customer's reason as its code,
+  never their words) and, when staff make it, audited on the order; staff's refusal words are kept on the
+  return only, audited as written.
+- Staff accept or refuse a waiting return; close an accepted one; the customer withdraws a waiting one;
+  any other move is `InvalidOrderChange`.
+
 **The shares** — fixed at placement and after every edit, so returning everything refunds exactly
 `order_total`, no halala lost (handoff §5.1):
 
@@ -479,7 +490,7 @@ Payments' (stage 7).
   (also the scope of Platform's `uploadMediaFor`, in the order's store) — the customer's own order paid by
   bank transfer, while it holds less than is due; at most 3, numbered 1–3 in the order they came; PDF,
   JPEG or PNG judged by the file's content, not its name; private; in the order's history. Platform
-  keeps every one an order holds (`TransferDocumentsUsage`: each use blocks the delete). Staff open them
+  keeps every one an order holds (`SalesFilesUsage`: each use blocks the delete). Staff open them
   from the order (step S11). The order stays locked while the file is stored, as B2B's documents are; a
   placement rolled back afterwards removes the stored file (Platform). The file's name the customer gave
   stays with it after anonymizing — an order is a financial record (§1.12).
