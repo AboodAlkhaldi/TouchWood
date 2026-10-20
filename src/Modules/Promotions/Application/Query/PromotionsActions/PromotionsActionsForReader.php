@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Application\Query\PromotionsActions;
 
+use Modules\Inventory\Public\InventoryPermissions;
 use Modules\Promotions\Application\PromotionsPermissions;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
@@ -26,6 +27,7 @@ final readonly class PromotionsActionsForReader
             $this->holds(PromotionsPermissions::COUPON_MANAGE, $store),
             $this->holds(PromotionsPermissions::SEGMENT_MANAGE, $store),
             $this->holds(PromotionsPermissions::GIFT_MANAGE, $store),
+            $this->holds(InventoryPermissions::STOCK_MANAGE, $store),
         );
     }
 

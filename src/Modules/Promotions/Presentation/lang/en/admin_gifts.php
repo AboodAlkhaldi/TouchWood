@@ -61,6 +61,10 @@ return [
         'who' => 'Who gets it',
         'starts' => 'Starts',
         'ends' => 'Ends',
+        // The stock tick box (Q11 (c)), shown in a wired store for a size not yet limited to its stock.
+        'stock_box' => 'Also limit this size\'s normal sales to its stock',
+        'stock_line' => 'The gift itself is always given from stock. Ticking this also makes customers able to buy this size only while it is in stock — it leaves the shop when it runs out.',
+        'stock_reason' => 'Only someone who manages stock in this store can tick this.',
         'create' => 'Create Level',
         'save' => 'Save Level',
     ],

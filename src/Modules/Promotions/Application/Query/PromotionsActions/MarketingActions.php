@@ -11,5 +11,7 @@ final readonly class MarketingActions
         public bool $mayManageCoupons,
         public bool $mayManageSegments,
         public bool $mayManageGifts,
+        /** Inventory's stock job in the store: the gift dialog's "also limit normal sales" box (Q11 (c)). */
+        public bool $mayManageStock = false,
     ) {}
 }
