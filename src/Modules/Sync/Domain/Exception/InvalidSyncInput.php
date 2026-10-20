@@ -21,6 +21,12 @@ final class InvalidSyncInput extends SyncError
     /** An address that does not start with `https://`. */
     public const string ADDRESS_HTTPS = 'address_https';
 
+    /** A key left empty while the address changes: typed again, never the stored one sent there (owner, 2026-10-20). */
+    public const string KEY_AGAIN = 'key_again';
+
+    /** A secret left empty while the address changes, as the key. */
+    public const string SECRET_AGAIN = 'secret_again';
+
     /** An address the HTTP client cannot call: a port that is not one (1-65535), a host it cannot read. */
     public const string ADDRESS_MALFORMED = 'address_malformed';
 

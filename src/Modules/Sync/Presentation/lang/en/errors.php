@@ -50,6 +50,9 @@ return [
             'address_https' => 'The address must start with https://.',
             'address_malformed' => 'The address can\'t be called: check its host and its port.',
             'address_query' => 'Odoo\'s address can\'t hold a query (?) or a fragment (#).',
+            // A key or a secret left empty while the address changes (owner, 2026-10-20).
+            'key_again' => 'Type the key again: the address changed.',
+            'secret_again' => 'Type the secret again: the address changed.',
             'address_path' => 'Odoo\'s address must end in /touchwood/v1.',
         ],
     ],

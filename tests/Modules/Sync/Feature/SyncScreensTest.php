@@ -369,7 +369,7 @@ describe('the Provider page (Y3)', function () {
 
         $refused = $browser->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => ' ']]);
         $wired = $browser->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']]);
-        $changed = $browser->post('/admin/sync/provider/change', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/v2', 'key' => '', 'secret' => '', 'settings' => ['database' => 'tw']]);
+        $changed = $browser->post('/admin/sync/provider/change', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/v2', 'key' => 'k2', 'secret' => 's2', 'settings' => ['database' => 'tw']]);
         $unwired = $browser->post('/admin/sync/provider/unwire', ['store' => 'sa']);
 
         expect(syncScreensErrors($refused))->toBe(['form' => ['The provider\'s setting "database" is not valid.'], 'settings.database' => ['The provider\'s setting "database" is not valid.']])

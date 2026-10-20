@@ -212,11 +212,11 @@ describe('wiring', function () {
 });
 
 describe('changing the connection', function () {
-    it('tests the new one first, keeps a key left empty, audits a replaced secret without it, and queues a full read', function () {
+    it('tests the new one first, keeps a key left empty at the same address, audits a replaced secret without it, and queues a full read', function () {
         $fake = FakeProvider::bind();
         syncWire();
 
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api', null, 'secret-2'));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api', null, 'secret-2'));
 
         $row = DB::table('sync.connections')->where('store_id', syncSa())->first();
         $audit = (string) DB::table('platform.audit_entries')->where('action', 'sync.connection.changed')->value('changes');
@@ -224,12 +224,12 @@ describe('changing the connection', function () {
         expect($fake->tested)->toHaveCount(2)
             ->and($fake->tested[1]->key)->toBe('key-1')
             ->and($fake->tested[1]->secret)->toBe('secret-2')
-            ->and($row?->address)->toBe('https://odoo2.test/api')
+            ->and($row?->address)->toBe('https://odoo.test/api')
             ->and(Crypt::decryptString((string) $row?->key_encrypted))->toBe('key-1')
             ->and(Crypt::decryptString((string) $row?->secret_encrypted))->toBe('secret-2')
             // The full read wiring queued still waits: asking again queues no second (§1.3).
             ->and(DB::table('sync.reads')->count())->toBe(1)
-            ->and($audit)->toContain('odoo2.test')->toContain('replaced')
+            ->and($audit)->toContain('replaced')
             ->and(str_contains($audit, 'secret-2') || str_contains($audit, 'key-1'))->toBeFalse();
     });
 
@@ -238,7 +238,7 @@ describe('changing the connection', function () {
         syncWire();
         $fake->failure = 'Refused: wrong key';
 
-        expect(fn () => app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api', 'key-2')))->toThrow(ConnectionFailed::class, 'Refused: wrong key')
+        expect(fn () => app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api', 'key-2', 'secret-2')))->toThrow(ConnectionFailed::class, 'Refused: wrong key')
             ->and(DB::table('sync.connections')->value('address'))->toBe('https://odoo.test/api')
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe('key-1')
             ->and(Fx::audits('sync.connection.changed'))->toBe(0);
@@ -250,11 +250,41 @@ describe('changing the connection', function () {
         // While the provider answers, someone else sets a new key.
         $fake->whileTesting = fn () => DB::table('sync.connections')->update(['key_encrypted' => Crypt::encryptString('key-other')]);
 
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api'));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api'));
 
         expect($fake->tested)->toHaveCount(3)
             ->and($fake->tested[2]->key)->toBe('key-other')
             ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe('key-other');
+    });
+
+    it('takes a key and a secret typed again for a new address: either left empty refused under its own box, nothing tested (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field, string $rule) {
+        $fake = FakeProvider::bind();
+        syncWire();
+
+        try {
+            app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api', $key, $secret));
+            $refused = null;
+        } catch (InvalidSyncInput $error) {
+            $refused = $error->context();
+        }
+
+        expect($refused)->toBe(['attribute' => $field, 'rule' => $rule])
+            ->and($fake->tested)->toHaveCount(1)
+            ->and(DB::table('sync.connections')->value('address'))->toBe('https://odoo.test/api');
+    })->with([
+        'both empty' => [null, null, 'key', 'key_again'],
+        'the key empty' => ['', 'secret-2', 'key', 'key_again'],
+        'the secret empty' => ['key-2', '', 'secret', 'secret_again'],
+    ]);
+
+    it('refuses a change whose address another change moved while it was tested, with the stored key never saved there', function () {
+        $fake = FakeProvider::bind();
+        syncWire();
+        $fake->whileTesting = fn () => DB::table('sync.connections')->update(['address' => 'https://odoo3.test/api']);
+
+        expect(fn () => app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api')))->toThrow(InvalidSyncInput::class)
+            ->and(DB::table('sync.connections')->value('address'))->toBe('https://odoo3.test/api')
+            ->and($fake->tested)->toHaveCount(2);
     });
 
     it('leaves the connection\'s state and last read to the reads', function () {
@@ -262,7 +292,7 @@ describe('changing the connection', function () {
         syncWire();
         $fake->whileTesting = fn () => DB::table('sync.connections')->update(['state' => 'FAILING', 'last_error' => 'Timed out']);
 
-        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo2.test/api'));
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(syncSa(), 'ODOO', 'https://odoo.test/api'));
 
         expect(DB::table('sync.connections')->value('state'))->toBe('FAILING')
             ->and(DB::table('sync.connections')->value('last_error'))->toBe('Timed out');

@@ -18,8 +18,8 @@ return [
     'change' => [
         'submit' => 'Test and Save Connection',
         'cancel' => 'Cancel',
-        'keep_key' => 'Leave empty to keep the current key.',
-        'keep_secret' => 'Leave empty to keep the current secret.',
+        'keep_key' => 'Leave empty to keep the current key. A new address needs it typed again.',
+        'keep_secret' => 'Leave empty to keep the current secret. A new address needs it typed again.',
     ],
 
     'fields' => [

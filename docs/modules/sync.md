@@ -57,7 +57,13 @@ shown again** — the page shows only that they are set and when; a new value re
   is shown (`sync.connection_failed`). *(§9.2 #10)*
 - Once saved, the store is wired **at that second**, and **a full read is queued at once** (§1.3). The
   provider's prices replace the store's own, and its stock numbers replace ours through the ledger.
-- **Changing the key or the secret** is the same form, tested the same way.
+- **Changing the key or the secret** is the same form, tested the same way. A key or a secret left empty is
+  kept - **unless the address changes** (as stored, its closing slash trimmed): then **both are typed again**,
+  each left empty refused under its own box ("Type the key again: the address changed." · "Type the secret
+  again: the address changed.", both languages) before any call, so the stored ones are never sent to a new
+  address (owner, 2026-10-20). *As built (2026-10-20): `ChangeConnection` checks it against the stored row
+  before the test call, and again under the row's lock before saving (`InvalidSyncInput`, `key` or `secret`,
+  rule `key_again` / `secret_again`).*
 
 ### 1.3 When we read
 
@@ -513,7 +519,8 @@ Store's order, so the two never deadlock; a read Unwire Store stopped is failed 
   `X-TouchWood-Signature` (an HMAC-SHA256 of "timestamp.body" with the secret, hexadecimal) and the body
   `{"codes": [...]}`, 1 to 1,000 codes.
 - **Change Connection** (main): the card turns into the form, filled, **Key** and **Secret** empty ("Leave
-  empty to keep the current key."); **Test and Save Connection** tests again → "Connection changed" and a
+  empty to keep the current key. A new address needs it typed again." - the secret's alike); a new address
+  with either left empty is refused under that box (§1.2; owner, 2026-10-20); **Test and Save Connection** tests again → "Connection changed" and a
   Now read is queued; **Cancel** returns.
 - ⋯ **Unwire Store…** (destructive, last): `DestructiveActionDialog` - "Unwire Store" · "12 sizes stop being
   orderable: with no provider every size counts on its stock, and these have none free." (or "No size stops

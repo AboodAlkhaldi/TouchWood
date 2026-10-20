@@ -12,12 +12,15 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Sync\Application\Command\ChangeConnection\ChangeConnection;
+use Modules\Sync\Application\Command\ChangeConnection\ChangeConnectionHandler;
 use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Command\WireStore\WireStore;
@@ -540,6 +543,48 @@ describe('through Sync', function () {
             ->and(DB::table('sync.reads')->where('store_id', Fx::storeId('sa'))->pluck('kind')->all())->toBe(['NOW'])
             ->and(odooAsked())->toBe(['/touchwood/v1/items?limit=1', '/touchwood/v1/items?limit=1']);
         Http::assertSent(fn (Request $request): bool => $request->header('Authorization') === ['Bearer '.ODOO_TOKEN]);
+    });
+
+    it('never sends the stored token to a new address: a key or a secret left empty is refused, nothing called (owner, 2026-10-20)', function (?string $key, ?string $secret, string $field) {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer()), 'odoo2.test/*' => Http::response(odooAnswer())]);
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+
+        try {
+            app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://odoo2.test/touchwood/v1', $key, $secret));
+            $refused = null;
+        } catch (InvalidSyncInput $error) {
+            $refused = $error->attribute;
+        }
+
+        expect($refused)->toBe($field);
+        // The wiring's own test call only.
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'odoo2.test'));
+    })->with([
+        'the key empty' => ['', 'new-secret', 'key'],
+        'the secret empty' => ['new-token', null, 'secret'],
+        'both empty' => [null, null, 'key'],
+    ]);
+
+    it('tests a new address with the key typed again, and keeps the stored ones at the same address', function () {
+        Http::fake(['odoo.test/*' => Http::response(odooAnswer()), 'odoo2.test/*' => Http::response(odooAnswer())]);
+        app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
+
+        // The same address, written with a closing slash, the boxes left empty: the stored key is sent there.
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', ODOO_BASE.'/', null, null));
+        // A new address, both typed again: the new key goes to it.
+        app(ChangeConnectionHandler::class)->handle(new ChangeConnection(Fx::storeId('sa'), 'ODOO', 'https://odoo2.test/touchwood/v1', 'new-token', 'new-secret'));
+
+        $sent = Http::recorded()->map(fn (array $pair): array => [parse_url($pair[0]->url(), PHP_URL_HOST), $pair[0]->header('Authorization')[0] ?? null])->values()->all();
+
+        expect($sent)->toBe([
+            ['odoo.test', 'Bearer '.ODOO_TOKEN],
+            ['odoo.test', 'Bearer '.ODOO_TOKEN],
+            ['odoo2.test', 'Bearer new-token'],
+        ])
+            ->and(DB::table('sync.connections')->value('address'))->toBe('https://odoo2.test/touchwood/v1')
+            ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('key_encrypted')))->toBe('new-token')
+            ->and(Crypt::decryptString((string) DB::table('sync.connections')->value('secret_encrypted')))->toBe('new-secret');
     });
 
     it('keeps Odoo\'s address with its closing slash dropped, and refuses another path before any call', function () {

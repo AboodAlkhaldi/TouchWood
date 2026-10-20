@@ -415,6 +415,25 @@ it('refuses the Provider form as typed, says the failed test under the form and 
     expect(browserSoon($page, "document.querySelector('[data-test=\"connection-form\"]') !== null && document.querySelector('[data-test=\"form-error\"]') === null"))->toBeTrue();
 });
 
+it('refuses a new address with the key left empty, under the Key box, and tests nothing (owner, 2026-10-20)', function () {
+    syncBrowserAsSuperAdmin(fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('ae'), 'ODOO', 'https://odoo.test/api', 'k', 's', ['database' => 'tw'])));
+    $tested = count(FakeProvider::bound()->tested);
+    $page = syncBrowser(Fx::staff(StaffStatus::Active, superAdmin: true));
+    $page->navigate('/admin/sync/provider?store=ae', BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"change-connection\"]') !== null"))->toBeTrue();
+
+    $page->click('[data-test="change-connection"]');
+
+    expect(browserSoon($page, "document.getElementById('provider-address') !== null"))->toBeTrue();
+
+    $page->type('#provider-address', 'https://odoo2.test/api')->click('[data-test="connection-submit"]');
+
+    expect(browserSoon($page, "document.getElementById('provider-key-error')?.textContent === 'Type the key again: the address changed.'"))->toBeTrue()
+        ->and(count(FakeProvider::bound()->tested))->toBe($tested)
+        ->and(DB::table('sync.connections')->where('store_id', Fx::storeId('ae'))->value('address'))->toBe('https://odoo.test/api');
+});
+
 it('draws the Sync Report right to left in Arabic, its digits Latin', function () {
     $wired = syncBrowserWired();
     syncBrowserDiscountGone($wired['size']);
