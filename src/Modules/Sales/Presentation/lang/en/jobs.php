@@ -8,4 +8,5 @@ return [
     'empty_old_carts' => 'Emptying carts left alone for 90 days',
     'flag_short_orders' => 'Marking orders whose stock was reduced',
     'forget_customer' => "Forgetting an anonymized account: its carts deleted, its orders' email cleared",
+    'push_sales_ranks' => "Ranking each store's best-selling products",
 ];
