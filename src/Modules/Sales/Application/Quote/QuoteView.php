@@ -6,7 +6,6 @@ namespace Modules\Sales\Application\Quote;
 
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
-use DateTimeInterface;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
@@ -25,6 +24,9 @@ use Shared\Domain\ValueObject\Money;
  */
 final readonly class QuoteView
 {
+    /** Every moment kept to the microsecond, so what is read back compares equal to what was quoted. */
+    private const string MOMENT = 'Y-m-d\TH:i:s.uP';
+
     /**
      * @param  list<int>  $couponShares  one a priced line, in their order, in minor units
      * @param  list<WayToPay>  $waysToPay
@@ -38,12 +40,16 @@ final readonly class QuoteView
         public CartPricesDto $prices,
         public ?string $couponCode,
         public ?string $couponId,
+        public ?string $couponNameAr,
+        public ?string $couponNameEn,
         public Money $couponDiscount,
         public array $couponShares,
         public bool $allowWithPoints,
         public ?string $couponRefusal,
         public bool $usePoints,
         public ?int $pointsAsked,
+        public ?string $pointsMode,
+        public int $pointsMostUsable,
         public int $pointsUsed,
         public Money $pointsDiscount,
         public ?string $pointsRefusal,
@@ -56,6 +62,7 @@ final readonly class QuoteView
         public WayToPay $wayToPay,
         public int $earningPreview,
         public DateTimeImmutable $expiresAt,
+        public DateTimeImmutable $createdAt,
     ) {}
 
     /**
@@ -64,7 +71,7 @@ final readonly class QuoteView
     public function toArray(): array
     {
         $money = static fn (Money $amount): int => $amount->minorUnits;
-        $moment = static fn (?DateTimeImmutable $at): ?string => $at?->format(DateTimeInterface::RFC3339_EXTENDED);
+        $moment = static fn (?DateTimeImmutable $at): ?string => $at?->format(self::MOMENT);
 
         return [
             'audience' => $this->audience->value,
@@ -81,8 +88,8 @@ final readonly class QuoteView
                 'pricedAt' => $moment($this->prices->pricedAt),
                 'validUntil' => $moment($this->prices->validUntil),
             ],
-            'coupon' => ['code' => $this->couponCode, 'id' => $this->couponId, 'discount' => $money($this->couponDiscount), 'shares' => $this->couponShares, 'allowWithPoints' => $this->allowWithPoints, 'refusal' => $this->couponRefusal],
-            'points' => ['use' => $this->usePoints, 'asked' => $this->pointsAsked, 'used' => $this->pointsUsed, 'discount' => $money($this->pointsDiscount), 'refusal' => $this->pointsRefusal],
+            'coupon' => ['code' => $this->couponCode, 'id' => $this->couponId, 'nameAr' => $this->couponNameAr, 'nameEn' => $this->couponNameEn, 'discount' => $money($this->couponDiscount), 'shares' => $this->couponShares, 'allowWithPoints' => $this->allowWithPoints, 'refusal' => $this->couponRefusal],
+            'points' => ['use' => $this->usePoints, 'asked' => $this->pointsAsked, 'mode' => $this->pointsMode, 'mostUsable' => $this->pointsMostUsable, 'used' => $this->pointsUsed, 'discount' => $money($this->pointsDiscount), 'refusal' => $this->pointsRefusal],
             'gift' => ['levelId' => $this->giftLevelId, 'variantId' => $this->giftVariantId],
             'shipping' => ['fee' => $money($this->shippingRuleFee), 'freeAbove' => $money($this->shippingRuleFreeAbove)],
             'totals' => [
@@ -99,9 +106,9 @@ final readonly class QuoteView
     /**
      * @param  array<string, mixed>  $result  as `toArray` wrote it
      */
-    public static function fromArray(string $id, string $storeId, string $customerId, string $addressId, WayToPay $wayToPay, DateTimeImmutable $expiresAt, array $result): self
+    public static function fromArray(string $id, string $storeId, string $customerId, string $addressId, WayToPay $wayToPay, DateTimeImmutable $expiresAt, DateTimeImmutable $createdAt, array $result): self
     {
-        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{fee: int, freeAbove: int}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int} $result */
+        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, nameAr: ?string, nameEn: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, mode: ?string, mostUsable: int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{fee: int, freeAbove: int}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int} $result */
         $currency = $result['prices']['currency'];
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
         $moment = static fn (?string $at): ?DateTimeImmutable => $at === null ? null : CarbonImmutable::parse($at);
@@ -130,12 +137,16 @@ final readonly class QuoteView
             ),
             $result['coupon']['code'],
             $result['coupon']['id'],
+            $result['coupon']['nameAr'],
+            $result['coupon']['nameEn'],
             $money($result['coupon']['discount']),
             $result['coupon']['shares'],
             $result['coupon']['allowWithPoints'],
             $result['coupon']['refusal'],
             $result['points']['use'],
             $result['points']['asked'],
+            $result['points']['mode'],
+            $result['points']['mostUsable'],
             $result['points']['used'],
             $money($result['points']['discount']),
             $result['points']['refusal'],
@@ -151,6 +162,7 @@ final readonly class QuoteView
             $wayToPay,
             $result['earningPreview'],
             $expiresAt,
+            $createdAt,
         );
     }
 }

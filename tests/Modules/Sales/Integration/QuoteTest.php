@@ -48,7 +48,9 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
+use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
+use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Public\Enums\OrderAudience;
@@ -158,10 +160,31 @@ function quoteWith(array $answers): void
     $loyaltyStandIn = Mockery::mock(LoyaltyApi::class);
     $loyaltyStandIn->shouldReceive('quoteRedemption')->andReturnUsing($pass($loyalty, 'quoteRedemption'));
     $loyaltyStandIn->shouldReceive('earningPreview')->andReturnUsing($pass($loyalty, 'earningPreview'));
+    $pricing = app(PricingApi::class);
+    $pricingStandIn = Mockery::mock(PricingApi::class);
+    $pricingStandIn->shouldReceive('prices')->andReturnUsing($pass($pricing, 'prices'));
+    $pricingStandIn->shouldReceive('totals')->andReturnUsing($pass($pricing, 'totals'));
 
     app()->instance(QuoteBuilder::class, app()->make(QuoteBuilder::class, [
-        'b2b' => $b2bStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn, 'loyalty' => $loyaltyStandIn,
+        'b2b' => $b2bStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn, 'loyalty' => $loyaltyStandIn, 'pricing' => $pricingStandIn,
     ]));
+}
+
+/**
+ * The cart's lines as Pricing is asked them.
+ *
+ * @param  array<mixed>  $lines
+ * @return list<CartLineDto>
+ */
+function quoteLines(array $lines): array
+{
+    return array_values(array_filter($lines, static fn (mixed $line): bool => $line instanceof CartLineDto));
+}
+
+/** The prices as Pricing answered them, ending when given. */
+function quotePricesEnding(CartPricesDto $prices, ?DateTimeImmutable $ends): CartPricesDto
+{
+    return new CartPricesDto($prices->storeId, $prices->currencyCode, $prices->taxRateBasisPoints, $prices->lines, $prices->unpriced, $prices->grossSubtotal, $prices->netSubtotal, $prices->pricedAt, $ends);
 }
 
 /**
@@ -205,7 +228,8 @@ describe('a quote', function () {
             ->and($kept->pointsAsked)->toBeNull()
             ->and($kept->wayToPay)->toBe('STAFF_CONTACT')
             ->and($kept->expiresAt->format('U.u'))->toBe($quote->expiresAt->format('U.u'))
-            ->and(QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, WayToPay::from($kept->wayToPay), $kept->expiresAt, $kept->result)->toArray())->toBe($quote->toArray());
+            ->and($kept->createdAt->format('Y-m-d H:i:s'))->toBe('2026-10-20 10:00:00')
+            ->and(QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, WayToPay::from($kept->wayToPay), $kept->expiresAt, $kept->createdAt, $kept->result)->toArray())->toBe($quote->toArray());
     });
 
     it('ships for free once the goods total reaches the free-above amount, and never while that is 0', function (int $freeAbove, int $shipping) {
@@ -297,6 +321,8 @@ describe('the points', function () {
             ->and($quote->pointsDiscount)->toEqual($expected->discount)
             ->and($quote->totals->pointsDiscount)->toEqual($expected->discount)
             ->and($quote->pointsRefusal)->toBeNull()
+            ->and($quote->pointsMode)->toBe($expected->mode->value)
+            ->and($quote->pointsMostUsable)->toBe($expected->mostUsable)
             ->and(app(Quotes::class)->find($quote->id)?->usePoints)->toBeTrue();
     });
 
@@ -364,13 +390,13 @@ describe('the points', function () {
 });
 
 describe('the gift', function () {
-    it('gives the highest level whose size is available as a gift after the order own pieces', function (int $giftable, ?int $level) {
+    it('gives the highest level whose size is available as a gift after the order own pieces', function (int $giftable, int $lowGiftable, ?int $level) {
         ['address' => $address, 'variants' => $variants] = quoteReady();
         $levels = [new GiftOfferDto('level-high', quoteMoney(200_00), $variants[0]), new GiftOfferDto('level-low', quoteMoney(100_00), $variants[1])];
         quoteWith([
             'giftLevels' => fn () => $levels,
             'stock' => fn (StoreId $store, array $ids) => array_combine($ids, array_map(
-                fn (string $id): StockDto => new StockDto($id, false, true, null, $id === $variants[0] ? $giftable : 0, false),
+                fn (string $id): StockDto => new StockDto($id, false, true, null, $id === $variants[0] ? $giftable : $lowGiftable, false),
                 $ids,
             )),
         ]);
@@ -380,8 +406,9 @@ describe('the gift', function () {
         expect($quote->giftLevelId)->toBe($level === null ? null : $levels[$level]->levelId)
             ->and($quote->giftVariantId)->toBe($level === null ? null : $levels[$level]->variantId);
     })->with([
-        'one left after the two bought' => [3, 0],
-        'none left after the two bought' => [2, null],
+        'one left after the two bought' => [3, 0, 0],
+        'none left of the high, one of the low after the one bought' => [2, 2, 1],
+        'none left of either' => [2, 1, null],
     ]);
 
     it('asks for the levels the goods total reaches, after the coupon', function () {
@@ -484,6 +511,7 @@ describe('who may order', function () {
     })->with([
         'not using points' => [false, 10],
         'zero' => [true, 0],
+        'more than the column holds' => [true, 2_147_483_648],
     ]);
 });
 
@@ -679,4 +707,98 @@ it('deletes the expired quotes each night, as the system only', function () {
         ->and($nightly?->timezone)->toBe('Asia/Riyadh');
     $nightly?->run(app());
     Queue::assertPushed(DeleteExpiredQuotesJob::class, 1);
+});
+
+describe('what the review asked for', function () {
+    it('keeps every part of a full quote, to the microsecond', function () {
+        ['address' => $address, 'variants' => $variants] = quoteReady();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00.123456'));
+        Pr::ceiling(100);
+        Pr::coupon('SUMMER-15');
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $real = app(PricingApi::class);
+        $ends = CarbonImmutable::parse('2026-10-20 10:09:59.654321');
+        quoteWith([
+            'quoteRedemption' => fn () => new RedemptionQuote(RedemptionMode::Partial, 900, 500, quoteMoney(5_00), null),
+            'giftLevels' => fn () => [new GiftOfferDto(strtolower((string) Str::ulid()), quoteMoney(100_00), $variants[1])],
+            'stock' => fn (StoreId $store, array $ids) => array_combine($ids, array_map(fn (string $id): StockDto => new StockDto($id, false, true, null, 9, false), $ids)),
+            'prices' => fn (StoreId $store, array $lines) => quotePricesEnding($real->prices($store, quoteLines($lines)), $ends),
+        ]);
+
+        $quote = quoteStart($address, usePoints: true, asked: 600);
+        $kept = app(Quotes::class)->find($quote->id) ?? throw new LogicException('Not kept.');
+        $back = QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, WayToPay::from($kept->wayToPay), $kept->expiresAt, $kept->createdAt, $kept->result);
+
+        expect($quote->couponShares)->not->toBe([])
+            ->and($quote->pointsUsed)->toBe(500)
+            ->and($quote->pointsMode)->toBe('PARTIAL')
+            ->and($quote->pointsMostUsable)->toBe(900)
+            ->and($quote->giftVariantId)->toBe($variants[1])
+            ->and($quote->couponNameEn)->toBe('Summer coupon')
+            ->and($back)->toEqual($quote)
+            ->and($back->prices->validUntil?->format('H:i:s.u'))->toBe('10:09:59.654321')
+            ->and($back->prices->pricedAt->format('s.u'))->toBe('00.123456')
+            ->and($back->expiresAt->format('H:i:s.u'))->toBe('10:09:59.000000')
+            ->and($back->createdAt->format('H:i:s.u'))->toBe('10:00:00.000000');
+    });
+
+    it('carries a known coupon refused, by its names, never its id', function () {
+        ['address' => $address] = quoteReady();
+        Pr::coupon('BIG-ONLY', with: ['minimum_minor' => 1_000_00]);
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'BIG-ONLY'));
+
+        $quote = quoteStart($address);
+
+        expect($quote->couponRefusal)->toBe('BELOW_MINIMUM')
+            ->and($quote->couponId)->toBeNull()
+            ->and($quote->couponNameEn)->toBe('Summer coupon')
+            ->and($quote->couponNameAr)->toBe('كوبون الصيف')
+            ->and($quote->couponDiscount->minorUnits)->toBe(0)
+            ->and($quote->allowWithPoints)->toBeFalse();
+    });
+
+    it('takes a bank transfer when it is offered', function () {
+        ['address' => $address] = quoteReady('company');
+        quoteWith(['isApproved' => fn () => true, 'bankAccount' => fn () => new BankAccountDto('SA00 0000', 'Bank', 'TouchWood')]);
+
+        $quote = quoteStart($address, 'bank_transfer');
+
+        expect($quote->wayToPay)->toBe(WayToPay::BankTransfer)
+            ->and(app(Quotes::class)->find($quote->id)?->wayToPay)->toBe('BANK_TRANSFER');
+    });
+
+    it('refuses a size Inventory gives no answer for', function () {
+        ['address' => $address, 'variants' => $variants] = quoteReady();
+        quoteWith(['stock' => fn () => [$variants[0] => new StockDto($variants[0], false, true, null, 0, false)]]);
+
+        expect(Pr::thrown(fn () => quoteStart($address), NotOrderable::class)->variantIds)->toBe([$variants[1]]);
+    });
+
+    it('prices again once when the prices end while the quote is built, and expires when they end again', function (int $endedTimes, bool $quoted) {
+        ['address' => $address] = quoteReady();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-20 10:00:00'));
+        $real = app(PricingApi::class);
+        $asked = 0;
+        quoteWith(['prices' => function (StoreId $store, array $lines) use ($real, &$asked, $endedTimes): CartPricesDto {
+            $asked++;
+
+            return quotePricesEnding($real->prices($store, quoteLines($lines)), $asked <= $endedTimes ? CarbonImmutable::now() : null);
+        }]);
+
+        $quoted ? expect(quoteStart($address)->expiresAt->format('H:i'))->toBe('10:15') : expect(fn () => quoteStart($address))->toThrow(QuoteExpired::class);
+        expect($asked)->toBe(2);
+    })->with([
+        'once' => [1, true],
+        'twice' => [2, false],
+    ]);
+
+    it('reads no cart before the store and the account are checked', function () {
+        ['address' => $address, 'customer' => $customer] = quoteReady();
+        $carts = Mockery::mock(Carts::class);
+        $carts->shouldNotReceive('find');
+        app()->instance(QuoteBuilder::class, app()->make(QuoteBuilder::class, ['carts' => $carts]));
+        DB::table('access.customers')->where('id', $customer)->update(['email_verified_at' => null]);
+
+        expect(fn () => quoteStart($address))->toThrow(MayNotOrder::class);
+    });
 });

@@ -28,8 +28,10 @@ use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
+use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Domain\Model\Cart;
+use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Public\Enums\OrderAudience;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Domain\ValueObject\Money;
@@ -62,17 +64,22 @@ final readonly class QuoteBuilder
         private PricingApi $pricing,
         private PromotionsApi $promotions,
         private LoyaltyApi $loyalty,
+        private Carts $carts,
     ) {}
 
     /**
-     * @throws MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered
+     * Prices that end while the quote is built are asked again, once; ending again, `QuoteExpired`.
+     *
+     * @throws MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
      */
-    public function build(StoreId $store, string $customerId, ?Cart $cart, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay): QuoteView
+    public function build(StoreId $store, string $customerId, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay, int $attempt = 1): QuoteView
     {
         // 1. The store is on, and who may order.
         $audience = $this->audience($store, $customerId);
 
         // 2. What may be bought — a cart with something in it first.
+        $cart = $this->carts->find($store, $customerId, null);
+
         if ($cart === null || $cart->lines === []) {
             throw new NotOrderable;
         }
@@ -103,7 +110,7 @@ final readonly class QuoteBuilder
         $couponDiscount = $couponTaken ? ($coupon->discount ?? $zero) : $zero;
 
         // 6. The points.
-        [$pointsUsed, $pointsDiscount, $pointsRefusal] = $this->points($store, $customerId, $audience, $prices, $usePoints, $pointsAsked, $couponTaken && ! $coupon->allowWithPoints, $couponDiscount);
+        [$pointsUsed, $pointsDiscount, $pointsRefusal, $pointsMode, $pointsMostUsable] = $this->points($store, $customerId, $audience, $prices, $usePoints, $pointsAsked, $couponTaken && ! $coupon->allowWithPoints, $couponDiscount);
 
         // 7. The goods total.
         $goodsTotal = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $zero)->goodsTotal;
@@ -131,11 +138,16 @@ final readonly class QuoteBuilder
         // 12. The points it would earn.
         $earning = $this->loyalty->earningPreview($store->value, $goodsTotal);
 
-        $now = CarbonImmutable::now();
+        // Whole seconds, as the table keeps them — the end rounded down, so a quote never outlives its prices.
+        $now = CarbonImmutable::now()->startOfSecond();
         $expiresAt = $now->addMinutes(self::MINUTES);
 
         if ($prices->validUntil !== null && $prices->validUntil < $expiresAt) {
-            $expiresAt = CarbonImmutable::instance($prices->validUntil);
+            $expiresAt = CarbonImmutable::instance($prices->validUntil)->startOfSecond();
+        }
+
+        if ($expiresAt <= $now) {
+            return $attempt === 1 ? $this->build($store, $customerId, $addressId, $usePoints, $pointsAsked, $wayToPay, 2) : throw new QuoteExpired;
         }
 
         return new QuoteView(
@@ -146,13 +158,17 @@ final readonly class QuoteBuilder
             $audience,
             $prices,
             $cart->couponCode,
-            $coupon?->couponId,
+            $couponTaken ? $coupon->couponId : null,
+            $coupon?->nameAr,
+            $coupon?->nameEn,
             $couponDiscount,
             $couponTaken ? array_map(static fn (Money $share): int => $share->minorUnits, $coupon->shares) : [],
             $couponTaken && $coupon->allowWithPoints,
             $coupon?->refusal?->value,
             $usePoints,
             $pointsAsked,
+            $pointsMode,
+            $pointsMostUsable,
             $pointsUsed,
             $pointsDiscount,
             $pointsRefusal,
@@ -165,6 +181,7 @@ final readonly class QuoteBuilder
             $wayToPay,
             $earning,
             $expiresAt,
+            $now,
         );
     }
 
@@ -220,8 +237,12 @@ final readonly class QuoteBuilder
             throw new NotForYourAccount;
         }
 
-        foreach ($this->inventory->stock($store, $variantIds) as $variantId => $stock) {
-            if (! $stock->orderable || ($stock->available !== null && $stock->available < ($pieces[$variantId] ?? 0))) {
+        $stocks = $this->inventory->stock($store, $variantIds);
+
+        foreach ($variantIds as $variantId) {
+            $stock = $stocks[$variantId] ?? null;
+
+            if ($stock === null || ! $stock->orderable || ($stock->available !== null && $stock->available < $pieces[$variantId])) {
                 $notOrderable[] = $variantId;
             }
         }
@@ -232,18 +253,18 @@ final readonly class QuoteBuilder
     }
 
     /**
-     * @return array{int, Money, ?string} the points used, what they take off, and why none were
+     * @return array{int, Money, ?string, ?string, int} the points used, what they take off, why none were, and how the buyer redeems and how many they could
      */
     private function points(StoreId $store, string $customerId, OrderAudience $audience, CartPricesDto $prices, bool $usePoints, ?int $pointsAsked, bool $couponForbids, Money $couponDiscount): array
     {
         $zero = Money::zero($prices->currencyCode);
 
         if (! $usePoints) {
-            return [0, $zero, null];
+            return [0, $zero, null, null, 0];
         }
 
         if ($couponForbids) {
-            return [0, $zero, self::NOT_WITH_COUPON];
+            return [0, $zero, self::NOT_WITH_COUPON, null, 0];
         }
 
         $quote = $this->loyalty->quoteRedemption(new RedemptionRequest(
@@ -251,16 +272,16 @@ final readonly class QuoteBuilder
         ));
 
         if ($quote->refusal !== null) {
-            return [0, $zero, $quote->refusal->value];
+            return [0, $zero, $quote->refusal->value, $quote->mode->value, $quote->mostUsable];
         }
 
         $room = $this->promotions->customerDiscountRoom($store, $prices->grossSubtotal, $prices->netSubtotal);
 
         if ($quote->discount->compareTo($room->subtract($couponDiscount)) > 0) {
-            return [0, $zero, self::PASSES_CEILING];
+            return [0, $zero, self::PASSES_CEILING, $quote->mode->value, $quote->mostUsable];
         }
 
-        return [$quote->pointsCharged, $quote->discount, null];
+        return [$quote->pointsCharged, $quote->discount, null, $quote->mode->value, $quote->mostUsable];
     }
 
     /**

@@ -119,7 +119,12 @@ Built in this fixed order (handoff §10.2, §11.3):
   room). The screens show each its own words.
 - **A refusal that fails the quote names what failed**: `NotOrderable` carries the sizes (`variants`),
   so the cart can mark each; an empty cart is `NotOrderable` with none. An off store is `MayNotOrder`
-  before anything of the cart is read.
+  before anything of the cart is read. A size Inventory gives no answer for is not orderable.
+- **The quote keeps what the checkout shows**: the coupon's names (also when refused, so the reason
+  names it) — its id only when taken —, Loyalty's mode and most usable points, the prices' moments to
+  the microsecond; the quote's own made and expiry times in whole seconds, as every table keeps them, the
+  expiry rounded down. Prices that end while the quote is built are asked again once; ending again,
+  `QuoteExpired`. At most 2,147,483,647 points may be named.
 - **Online is not offered until stage 7** (§1.9): an individual is offered "staff will contact you" only.
 - A quote is kept whole as itemised (`result`) and **expired quotes are deleted nightly at 03:30
   (Riyadh)**, after the carts' 03:15.

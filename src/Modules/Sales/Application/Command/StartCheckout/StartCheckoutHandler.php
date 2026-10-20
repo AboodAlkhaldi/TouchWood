@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Command\StartCheckout;
 
-use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 use Modules\Sales\Application\Quote\QuoteBuilder;
 use Modules\Sales\Application\Quote\QuoteView;
@@ -14,9 +13,9 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
+use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Domain\Model\Quote;
-use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\Quotes;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\ActorContext;
@@ -35,16 +34,18 @@ final readonly class StartCheckoutHandler
 {
     public const string PERMISSION = SalesPermissions::ORDER_PLACE;
 
+    /** The most points one may name: what the quote's column holds. */
+    public const int MOST_POINTS = 2_147_483_647;
+
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
-        private Carts $carts,
         private Quotes $quotes,
         private QuoteBuilder $builder,
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered
+     * @throws Unauthorized|InvalidSalesAttribute|MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
      */
     public function handle(StartCheckout $command): QuoteView
     {
@@ -64,11 +65,11 @@ final readonly class StartCheckoutHandler
         $customerId = strtolower($actor->id);
         $wayToPay = WayToPay::tryFrom(strtoupper(trim($command->wayToPay))) ?? throw new InvalidSalesAttribute('way_to_pay', 'not a way to pay');
 
-        if ($command->pointsAsked !== null && (! $command->usePoints || $command->pointsAsked < 1)) {
-            throw new InvalidSalesAttribute('points', 'a number of points from 1, when using points');
+        if ($command->pointsAsked !== null && (! $command->usePoints || $command->pointsAsked < 1 || $command->pointsAsked > self::MOST_POINTS)) {
+            throw new InvalidSalesAttribute('points', 'a number of points from 1 to '.self::MOST_POINTS.', when using points');
         }
 
-        $view = $this->builder->build($store, $customerId, $this->carts->find($store, $customerId, null), trim($command->addressId), $command->usePoints, $command->pointsAsked, $wayToPay);
+        $view = $this->builder->build($store, $customerId, trim($command->addressId), $command->usePoints, $command->pointsAsked, $wayToPay);
 
         $this->quotes->add(new Quote(
             $view->id,
@@ -81,7 +82,7 @@ final readonly class StartCheckoutHandler
             $view->wayToPay->value,
             $view->toArray(),
             $view->expiresAt,
-            CarbonImmutable::now(),
+            $view->createdAt,
         ));
 
         return $view;
