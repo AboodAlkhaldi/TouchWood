@@ -2,20 +2,25 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
-use Modules\Sales\Infrastructure\External\NothingSoldYet;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /*
-| Sales's public contract, declared before Sales is built (sales.md §2.1; feedback.md §2.1): it resolves,
-| and until the build answers that nothing was delivered and no return completed.
+| Sales's public contract (sales.md §2.1; feedback.md §2.1), answered from its own deliveries and completed
+| returns since step S10 — the purchases and returns themselves in ReturnCompletionTest.
 */
 
-it('resolves the contract to the placeholder, which knows no purchase and no return', function () {
-    $sales = app(SalesApi::class);
-    $id = strtolower((string) Str::ulid());
+uses(RefreshDatabase::class);
 
-    expect($sales)->toBeInstanceOf(NothingSoldYet::class)
+it('resolves the contract to Sales own reads, which know no purchase and no return of an unknown or malformed id', function (string $id) {
+    $sales = app(SalesApi::class);
+
+    expect($sales)->toBeInstanceOf(DatabaseSalesApi::class)
         ->and($sales->deliveredPurchase($id, $id))->toBeNull()
         ->and($sales->returnedProducts($id))->toBeNull();
-});
+})->with([
+    'unknown' => [strtolower((string) Str::ulid())],
+    'malformed' => ['not-an-id'],
+]);

@@ -447,7 +447,8 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
 ### 9.2 Still open
 
 1. ~~**What Feedback needs from Sales**~~ — **settled**: declared on `main` with step F0 (#170,
-   sales.md §2.1), answered by the placeholder `NothingSoldYet` until Sales's build replaces it.
+   sales.md §2.1), answered by the placeholder `NothingSoldYet` until Sales's build replaced it (step S10b,
+   `DatabaseSalesApi`).
 2. ~~**The Catalog additions**~~ — **settled**: built with Feedback, catalog.md amendments 24 (which
    products a store sells), 25 (ratings in the listing and the weighted sort) and 26 (product cards,
    the product page's sections). Was: **The Catalog additions** — bulk reads, ratings in the listing (and how the rating sort places

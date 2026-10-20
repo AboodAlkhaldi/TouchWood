@@ -19,7 +19,7 @@ use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocum
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Exception\TooManyFiles;
-use Modules\Sales\Infrastructure\Media\TransferDocumentsUsage;
+use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
@@ -112,10 +112,10 @@ it('keeps a document while an order holds it', function () {
     $order = transferOrder();
     $media = transferUpload($order);
 
-    $uses = app(TransferDocumentsUsage::class)->usesOf($media);
+    $uses = app(SalesFilesUsage::class)->usesOf($media);
 
     expect(array_map(fn ($use): array => [$use->subjectType, $use->subjectId, $use->blocksDelete], $uses))->toBe([['sales.order', $order, true]])
-        ->and(app(TransferDocumentsUsage::class)->usesOf(strtolower((string) Str::ulid())))->toBe([])
+        ->and(app(SalesFilesUsage::class)->usesOf(strtolower((string) Str::ulid())))->toBe([])
         ->and(fn () => DB::table('platform.media')->where('id', $media)->delete())->toThrow(QueryException::class);
 });
 

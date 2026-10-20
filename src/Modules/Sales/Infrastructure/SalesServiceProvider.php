@@ -21,35 +21,38 @@ use Modules\Sales\Domain\Repository\MoneyRecords;
 use Modules\Sales\Domain\Repository\OrderNumbers;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Quotes;
+use Modules\Sales\Domain\Repository\Returns;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseCarts;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseMoneyRecords;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseOrders;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
-use Modules\Sales\Infrastructure\External\NothingSoldYet;
 use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
-use Modules\Sales\Infrastructure\Media\TransferDocumentsUsage;
+use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
  * Sales (sales.md). Registered after Access and Platform: it declares its permissions through
- * Access's public catalog and its settings through Platform. Its public contract is answered by a
- * placeholder until its returns are built (step S10), so the modules built against it (Feedback) run.
+ * Access's public catalog and its settings through Platform. Its public contract (§2.1) reads its own
+ * deliveries and completed returns.
  */
 final class SalesServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(SalesApi::class, NothingSoldYet::class);
+        $this->app->bind(SalesApi::class, DatabaseSalesApi::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);
         $this->app->bind(Orders::class, DatabaseOrders::class);
+        $this->app->bind(Returns::class, DatabaseReturns::class);
         $this->app->bind(MoneyRecords::class, DatabaseMoneyRecords::class);
     }
 
@@ -61,8 +64,8 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(PermissionCatalog::class)->declare('sales', ...SalesPermissions::definitions());
         // The flat shipping fee, free shipping from and the return window (§1.10), on Platform's settings page.
         $this->app->make(SettingsRegistry::class)->define('sales', ...SalesSettings::definitions());
-        // A bank-transfer document an order holds is never deleted (§1.9, §5).
-        $this->app->make(MediaUsages::class)->register('sales', TransferDocumentsUsage::class);
+        // A bank-transfer document an order holds, and a photo a return holds, are never deleted (§1.8, §1.9, §5).
+        $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);

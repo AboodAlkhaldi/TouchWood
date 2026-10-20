@@ -12,7 +12,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 
 | Step | What | Where |
 |---|---|---|
-| F0 — the contract Feedback reads | `SalesApi` (`deliveredPurchase`, `returnedProducts`), `ReturnCompleted`, answered by the placeholder `Infrastructure/External/NothingSoldYet` until S10 | `Public`, built with Feedback |
+| F0 — the contract Feedback reads | `SalesApi` (`deliveredPurchase`, `returnedProducts`), `ReturnCompleted`, answered by the placeholder `Infrastructure/External/NothingSoldYet` until S10b replaced it with `DatabaseSalesApi` | `Public`, built with Feedback |
 | S1 — foundation | The `sales` schema; the fourteen permissions of §3 (every customer's cart and orders and every guest's cart, per store; the staff jobs under Orders; `sales.settings.update` admin-only; the system's reserved `sales.system.run`); the three store settings of §1.10 (flat fee 0, free from 0 — never free —, return window 14 days); the errors of §7 in both languages; `OrderPlaced`, `OrderCancelled`, `OrderDelivered`; stage 7's `ShippingApi` and `PaymentsApi` (with `PaymentAudience`, `PaymentSucceeded`, `PaymentFailed`), provisional and unbound; the owner's answers 41–44 in the spec | below |
 | S2 — the outbox | `Shared/Infrastructure/Outbox` (platform.md §5.6; a recorded exception to Shared's ceiling, answer 43): `Outbox::record` in the change's transaction; `OutboxRelay` every minute from one server (queued as Platform's `RelayOutboxJob`) — claimed under `FOR UPDATE SKIP LOCKED` and leased before dispatch, retried 1, 2, 4 … minutes up to an hour, never dropped, logged from the tenth attempt, dispatched rows kept 30 days; `ProcessedEvents::once` for idempotent consumers; tables `public.outbox_messages`, `public.processed_events` | `src/Shared/Infrastructure/Outbox`, `database/migrations` |
 | S3 — what Sales reads of Catalog and Access | catalog.md amendment 29: `storeVariants` (many sizes in a store in one read) and `productsOpenTo` (which products the category switches leave open to a shopper); access.md amendment 74: `GuestIdentity` (`current`, `ensure` — the guest cart's id, its cookie Access's) | `src/Modules/Catalog/Public`, `src/Modules/Access/Public` |
@@ -21,7 +21,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 ## What is here
 
 - **`Infrastructure/SalesServiceProvider`** — loads the migrations and the words, declares the
-  permissions through Access and the settings through Platform; binds `SalesApi` to the placeholder.
+  permissions through Access and the settings through Platform; binds `SalesApi` to `DatabaseSalesApi` (S10b).
 - **`Application/SalesPermissions`**, **`Application/SalesSettings`**.
 - **`Infrastructure/Persistence/SalesSchema`** and its migration — the `sales` schema, on the
   connection's search path so a fresh migration wipes it.
@@ -64,7 +64,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Application/Order/MoneyRecording` (one recorder for payments and refunds — pressing twice records once);
   the commands `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` (answer 42), `AllowShipUnpaid`.
 - **Transfer documents** (S7c): `sales.transfer_documents`; `UploadTransferDocument` (up to 3, PDF, JPEG or
-  PNG, private, through Platform's `uploadMediaFor`); `Infrastructure/Media/TransferDocumentsUsage` (Platform
+  PNG, private, through Platform's `uploadMediaFor`); `Infrastructure/Media/SalesFilesUsage` (Platform
   never deletes one an order holds).
 - **Fulfilment** (S8): `ShipOrder` (once per order; Inventory's `ship` last), `TickReducedInProvider` (a
   wired store's gift and stock-dependent sizes), `MarkDelivered` (the return window fixed, `OrderDelivered`,
@@ -75,8 +75,18 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   its own shipping, the gift by staff's choice) into an `EditPlan`; `SizeRecords`; the query
   `PreviewOrderEdit` and the command `EditOrder` (one transaction; every share again; Promotions, Loyalty,
   then Inventory's `adjustHold` last).
+- **Returns asked and decided** (S10a): `sales.returns`, `sales.return_lines`, `sales.return_photos`;
+  `Domain/Repository/Returns` with SQL in `Infrastructure/Eloquent/DatabaseReturns`; `Application/Return`
+  (`ReturnAccess`, `OwnReturnAccess`, `ReturnInputs`, `ReturnChanges` — the order locked, then the return);
+  the commands `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto` (the customer's), `AcceptReturn`,
+  `RefuseReturn`, `CloseReturn` (staff's); `Public/Enums/ReturnReason`. `SalesFilesUsage` keeps a photo a
+  return holds too.
+- **Returns received and completed** (S10b): `ReceiveReturn` (Inventory's `returned` last, for the pieces
+  going back), `CompleteReturn` (`Domain/Service/ReturnRefunds` — running totals, the shipping with the
+  last bought piece; `due` lowered; Loyalty's `orderReturned`; `ReturnCompleted`);
+  `Infrastructure/Eloquent/DatabaseSalesApi` answers `SalesApi` (the placeholder `NothingSoldYet` removed).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, and
-`tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, and
+`tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

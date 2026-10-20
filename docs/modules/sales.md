@@ -403,6 +403,35 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
   - `ReturnCompleted` written to the outbox (§6) — Feedback flips its reviews (feedback.md).
 - **A gift is kept** after a partial return below its level (promotions.md §1.7).
 
+**As built (step S10a — asking and deciding)** — my assumptions, stated for the owner to reject:
+- A request names **order lines** — a part (§1.7) or the gift — and how many pieces of each; a line of
+  another order, or more pieces than the line holds less those other returns count, is `ReturnNotAllowed`,
+  and so is an order not delivered or a request after its deadline (the deadline itself still in time).
+- **Photos only while the return waits for staff** (`REQUESTED`); a fourth is `ReturnNotAllowed`.
+- Each move is in the order's history (`RETURN_…`, the return's id; the customer's reason as its code,
+  never their words) and, when staff make it, audited on the order; staff's refusal words are kept on the
+  return only — the audit says only that they were written (`personal`). A photo is kept on the return
+  with no history row of its own (no such kind in §5).
+- The deadline is kept to the minute; a request is checked in whole seconds, so the deadline's own second
+  is still in time.
+
+**As built (step S10b — receiving and completing)** — my assumptions, stated for the owner to reject:
+- `ReceiveReturn` names **every line of the return once**: how many came (0 to all asked) and how many of
+  those go back into stock; only those going back are told to Inventory (`returned`, last; not called when
+  none go back).
+- `CompleteReturn` refunds by `Domain/Service/ReturnRefunds` (the running totals above). The shipping's VAT
+  share is the order's VAT less what its lines carry. The refund comes off `due`; the money itself is
+  paid back by hand (`RecordRefund`, §1.9) — an order holding more than it is now due shows `REFUND_DUE`
+  until then. It answers the refund, so staff see it. Each piece's goods share moves as **one** share
+  (total less coupon and points shares), never the three rounded apart — so no return's goods go below 0 —
+  in whole numbers of any size. Loyalty is told the pieces' goods shares and points shares; `ReturnCompleted`
+  goes to the outbox. A return of which nothing came completes, refunding nothing.
+- `SalesApi` (§2.1) now reads Sales's own rows (`Infrastructure/Eloquent/DatabaseSalesApi`; the placeholder
+  is gone): the latest delivery by delivery time (then line); `returned` when any piece of the product came
+  back in a completed return of any of the customer's orders.
+- Staff accept or refuse a waiting return; close an accepted one; the customer withdraws a waiting one;
+  any other move is `InvalidOrderChange`.
+
 **The shares** — fixed at placement and after every edit, so returning everything refunds exactly
 `order_total`, no halala lost (handoff §5.1):
 
@@ -479,7 +508,7 @@ Payments' (stage 7).
   (also the scope of Platform's `uploadMediaFor`, in the order's store) — the customer's own order paid by
   bank transfer, while it holds less than is due; at most 3, numbered 1–3 in the order they came; PDF,
   JPEG or PNG judged by the file's content, not its name; private; in the order's history. Platform
-  keeps every one an order holds (`TransferDocumentsUsage`: each use blocks the delete). Staff open them
+  keeps every one an order holds (`SalesFilesUsage`: each use blocks the delete). Staff open them
   from the order (step S11). The order stays locked while the file is stored, as B2B's documents are; a
   placement rolled back afterwards removes the stored file (Platform). The file's name the customer gave
   stays with it after anonymizing — an order is a financial record (§1.12).
@@ -543,7 +572,7 @@ reject.
 #104), with `ReturnCompleted` — on 2026-10-19: `Public/Contracts/SalesApi`,
 `Public/Dto/DeliveredPurchaseDto`, `ReturnedProductsDto`, `Public/Events/ReturnCompleted`, bound until
 the build to `Infrastructure/External/NothingSoldYet` (nothing delivered, no return) so Feedback runs
-before Sales exists; Sales's build replaces the binding.
+before Sales exists; Sales's build replaces the binding. **Replaced in step S10b** by `Infrastructure/Eloquent/DatabaseSalesApi`.
 
 | Method | Answers |
 |---|---|
