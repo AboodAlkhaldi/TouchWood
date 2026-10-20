@@ -96,7 +96,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -109,6 +109,8 @@ final readonly class DatabaseOrders implements Orders
             (int) $row->paid_minor,
             (int) $row->refunded_minor,
             $row->short_of_stock_at === null ? null : CarbonImmutable::parse((string) $row->short_of_stock_at),
+            (string) $row->currency_code,
+            (bool) $row->may_ship_unpaid,
         ) : null;
     }
 
@@ -164,6 +166,16 @@ final readonly class DatabaseOrders implements Orders
     public function clearShort(string $orderId): bool
     {
         return $this->db->table('sales.orders')->where('id', $orderId)->whereNotNull('short_of_stock_at')->update(['short_of_stock_at' => null]) > 0;
+    }
+
+    public function moveMoney(string $orderId, int $paid, int $refunded): void
+    {
+        $this->db->update('UPDATE sales.orders SET paid_minor = paid_minor + ?, refunded_minor = refunded_minor + ? WHERE id = ?', [$paid, $refunded, $orderId]);
+    }
+
+    public function allowShipUnpaid(string $orderId, bool $allow): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update(['may_ship_unpaid' => $allow]);
     }
 
     public function forgetEmail(string $customerId): void

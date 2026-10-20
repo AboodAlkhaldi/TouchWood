@@ -422,6 +422,21 @@ Payments' (stage 7).
   From stage 7, Payments keeps its gateway transactions and tells Sales of each payment through
   `PaymentSucceeded` / `PaymentFailed`; Sales records it here.
 
+**As built (step S7b)** — my assumptions, stated for the owner to reject:
+- **The ways staff record by hand** are `BANK_TRANSFER` and `OTHER` (with a note); `ONLINE` is Payments'
+  own, from stage 7. The amount is typed as a decimal in the order's own currency, never more decimals
+  than it has; the reference is optional, up to 100 characters.
+- **"The date"** is the day the money moved — a column `happened_on`, not after today — apart from when
+  it was recorded (`recorded_at`).
+- **Pressing twice records once**: the same form id answers the record it made; a form id of another
+  order is refused.
+- A payment may be recorded on any order (money can arrive late); what is held above what is due shows
+  as a refund due (§1.4).
+- **"May ship unpaid"** is switched on or off by staff on an approved, unshipped order
+  (`sales.order.fulfil`); each switch is in the history and audited. The words of a void are audited as
+  written only (§1.12).
+- The bank-transfer documents are step S7c.
+
 ### 1.10 Store settings
 
 Declared by Sales, per store (owner, 2026-10-10: "a flat shipping fee per store until stage 7"):

@@ -43,6 +43,12 @@ interface Orders
     /** The flag cleared; false when there was none. */
     public function clearShort(string $orderId): bool;
 
+    /** What the order was paid and refunded moved by these amounts (§1.9) — a void moves them back. */
+    public function moveMoney(string $orderId, int $paid, int $refunded): void;
+
+    /** Whether staff let the order ship before what it holds covers what is due (§1.4). */
+    public function allowShipUnpaid(string $orderId, bool $allow): void;
+
     /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
     public function forgetEmail(string $customerId): void;
 

@@ -22,6 +22,11 @@ final readonly class OrderState
 
     public const string NOT_SHIPPED = 'NOT_SHIPPED';
 
+    public function isApproved(): bool
+    {
+        return $this->status === self::APPROVED;
+    }
+
     public function __construct(
         public string $id,
         public string $storeId,
@@ -33,6 +38,8 @@ final readonly class OrderState
         public int $paid,
         public int $refunded,
         public ?DateTimeImmutable $shortOfStockAt,
+        public string $currencyCode = '',
+        public bool $mayShipUnpaid = false,
     ) {}
 
     public function isWaiting(): bool
