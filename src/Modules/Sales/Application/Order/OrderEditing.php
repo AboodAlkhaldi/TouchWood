@@ -30,12 +30,13 @@ use Shared\Domain\ValueObject\StoreId;
  * A staff edit worked out (sales.md §1.7 steps 1–6) — reads only; preview and confirm both run it, confirm
  * under the order's lock. The wanted lines are the order's whole: a size and mode not named goes. **A raised
  * quantity adds a part** priced today (a wholesale one by today's band for the line's new total, on the
- * added pieces); **a lowered one takes pieces off the newest part first**. Added and changed lines follow
+ * added pieces); **a lowered one takes pieces off the newest part first**. Added and raised lines follow
  * checkout's rules on their new totals — orderable, in their mode, within their limits, wholesale only for
- * a company, their category open — their stock checked by the hold. **The order's own rules hold**: its
- * VAT rate, its ceiling (`orderDiscountRoom`), its shipping fee and free-above; the coupon can only stay or
- * shrink; the points give way first. The gift: staff keep it, remove it, or take a level the edited order
- * reaches whose gift is in stock after the order's own pieces.
+ * a company, their category open — their stock checked by the hold; a lowered line only its limits.
+ * **The order's own rules hold**: its VAT rate, its ceiling (`orderDiscountRoom`), its shipping fee and
+ * free-above; the coupon can only stay or shrink; the points give way first; and an edit that leaves every
+ * line as it is (the address or the gift only) keeps both as they are. The gift: staff keep it, remove it,
+ * or take a level the edited order reaches whose gift is in stock beyond what the edit itself holds.
  */
 final readonly class OrderEditing
 {
@@ -87,15 +88,18 @@ final readonly class OrderEditing
 
         $kept = [];
         $added = [];
-        $changed = [];
+        $raised = [];
+        $lowered = [];
 
         foreach (array_unique([...array_keys($parts), ...array_keys($want)]) as $key) {
             $quantity = $want[$key]->quantity ?? 0;
             $lines = $parts[$key] ?? [];
             $now = array_sum(array_map(static fn ($line): int => $line->quantity, $lines));
 
-            if ($quantity !== $now && $quantity > 0) {
-                $changed[] = $want[$key];
+            if ($quantity > $now) {
+                $raised[] = $want[$key];
+            } elseif ($quantity < $now) {
+                $lowered[] = $want[$key] ?? null;
             }
 
             // Lowered: off the newest part first; a part left with none goes.
@@ -119,8 +123,27 @@ final readonly class OrderEditing
         $position = array_flip(array_map(static fn ($line): string => $line->id, $order->lines));
         usort($kept, static fn (array $a, array $b): int => $position[$a['line']->id] <=> $position[$b['line']->id]);
 
-        if ($changed !== []) {
-            $this->rules->lines($store, $changed, $audience, false);
+        if ($raised !== []) {
+            $this->rules->lines($store, $raised, $audience, false);
+        }
+
+        // A lowered line only within its limits; a removed one (null) not at all.
+        $lowered = array_values(array_filter($lowered));
+
+        if ($lowered !== []) {
+            $this->rules->limits($store, $lowered);
+        }
+
+        $linesKept = $raised === [] && $lowered === [] && count($kept) === count(array_filter($order->lines, static fn ($line): bool => ! $line->isGift));
+
+        // Each size's pieces counted on stock as the hold counts them: every one with no provider when placed;
+        // wired, by the size's switch today.
+        $sizes = array_values(array_unique(array_map(static fn (CartLineDto $line): string => $line->variantId, $wanted)));
+        $stock = $order->wired ? $this->inventory->stock($store, $sizes) : [];
+        $counts = [];
+
+        foreach ($sizes as $variantId) {
+            $counts[$variantId] = ! $order->wired || ($stock[$variantId]->countsOnStock ?? false);
         }
 
         // 2. The prices: the kept parts as sold, the added pieces today; the order's own VAT rate.
@@ -140,7 +163,11 @@ final readonly class OrderEditing
         $couponDiscount = $zero;
         $couponShares = array_map(static fn (): Money => Money::zero($currency), $prices->lines);
 
-        if ($order->couponId !== null) {
+        // Every line as it was: the coupon and points stay as they are (§1.7), each line its own share.
+        if ($linesKept) {
+            $couponDiscount = Money::of($order->couponDiscount, $currency);
+            $couponShares = array_map(static fn (array $part): Money => Money::of($part['line']->couponShare, $currency), $kept);
+        } elseif ($order->couponId !== null) {
             $coupon = $this->promotions->couponAfterEdit(new EditedCouponRequest(
                 $order->id, $order->couponId, $prices, PromotionsAudience::from($order->audience), $room, Money::of($order->couponDiscount, $currency),
             ));
@@ -155,7 +182,10 @@ final readonly class OrderEditing
         $pointsUsed = 0;
         $pointsDiscount = $zero;
 
-        if ($order->pointsUsed > 0) {
+        if ($linesKept) {
+            $pointsUsed = $order->pointsUsed;
+            $pointsDiscount = Money::of($order->pointsDiscount, $currency);
+        } elseif ($order->pointsUsed > 0) {
             $points = $this->loyalty->pointsAfterEdit(new EditedPointsRequest($order->id, $order->storeId, $prices->netSubtotal, $room->subtract($couponDiscount)));
             $pointsUsed = $points->pointsStillCharged;
             $pointsDiscount = $points->discount;
@@ -168,24 +198,27 @@ final readonly class OrderEditing
         $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $shipping);
 
         // The gift, staff's choice.
-        $options = $this->giftOptions($store, $audience, $goods, $wanted);
+        $options = $this->giftOptions($store, $audience, $goods, $order, $wanted, $counts);
         [$giftLevelId, $giftVariantId] = $this->gift($order, $gift, $options);
 
         $address = $addressId === null ? null : $this->rules->address($store, $order->customerId, $addressId);
 
         return new EditPlan(
             $order, $kept, $added, $prices, $couponDiscount, $couponShares, $pointsUsed, $pointsDiscount, $shipping, $totals,
-            $giftLevelId, $giftVariantId, $options, $address, Money::of($order->paid - $order->refunded, $currency)->subtract($totals->orderTotal),
+            $giftLevelId, $giftVariantId, $options, $address, $counts, Money::of($order->paid - $order->refunded, $currency)->subtract($totals->orderTotal),
         );
     }
 
     /**
-     * The levels the edited order reaches, highest first, whose gift is in stock after its own pieces.
+     * The levels the edited order reaches, highest first, whose gift is in stock: what is free now (the
+     * order's own hold already off it) covers the gift and the pieces of its size the edit holds beyond
+     * what the order holds now — its bought pieces counted on stock, and its gift if of that size.
      *
      * @param  list<CartLineDto>  $wanted
+     * @param  array<string, bool>  $counts
      * @return list<GiftOfferDto>
      */
-    private function giftOptions(StoreId $store, OrderAudience $audience, Money $goods, array $wanted): array
+    private function giftOptions(StoreId $store, OrderAudience $audience, Money $goods, OrderForEdit $order, array $wanted, array $counts): array
     {
         $levels = $this->promotions->giftLevels($store, PromotionsAudience::from($audience->value), $goods);
 
@@ -195,10 +228,12 @@ final readonly class OrderEditing
 
         $stock = $this->inventory->stock($store, array_values(array_unique(array_map(static fn ($level): string => $level->variantId, $levels))));
 
-        return array_values(array_filter($levels, static function ($level) use ($stock, $wanted): bool {
-            $own = array_sum(array_map(static fn (CartLineDto $line): int => $line->variantId === $level->variantId ? $line->quantity : 0, $wanted));
+        return array_values(array_filter($levels, static function ($level) use ($stock, $wanted, $counts, $order): bool {
+            $size = $level->variantId;
+            $wantedNow = ($counts[$size] ?? false) ? array_sum(array_map(static fn (CartLineDto $line): int => $line->variantId === $size ? $line->quantity : 0, $wanted)) : 0;
+            $heldNow = array_sum(array_map(static fn ($line): int => $line->variantId === $size && ($line->isGift || $line->countsOnStock) ? $line->quantity : 0, $order->lines));
 
-            return ($stock[$level->variantId]->availableAsGift ?? 0) - $own >= 1;
+            return ($stock[$size]->availableAsGift ?? 0) >= 1 + $wantedNow - $heldNow;
         }));
     }
 
@@ -210,6 +245,8 @@ final readonly class OrderEditing
      */
     private function gift(OrderForEdit $order, string $choice, array $options): array
     {
+        $choice = in_array(strtoupper(trim($choice)), [self::KEEP, self::REMOVE], true) ? strtoupper(trim($choice)) : $choice;
+
         if ($choice === self::REMOVE) {
             return [null, null];
         }

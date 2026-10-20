@@ -37,7 +37,6 @@ use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Service\OrderShares;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A staff edit confirmed (sales.md §1.7): worked out again under the order's lock, in one transaction —
@@ -149,7 +148,6 @@ final readonly class EditOrderHandler
         $keepGift = $existingGift !== null && $plan->giftVariantId === $existingGift->variantId && $plan->giftLevelId === $order->giftLevelId;
         $newSizes = [...array_map(static fn ($line): string => $line->variantId, $plan->added), ...($plan->giftVariantId !== null && ! $keepGift ? [$plan->giftVariantId] : [])];
         $records = $this->sizes->of($newSizes);
-        $stock = $order->wired && $plan->added !== [] ? $this->inventory->stock(StoreId::fromString($order->storeId), array_map(static fn ($line): string => $line->variantId, $plan->added)) : [];
         $lines = [];
 
         foreach ($prices->lines as $index => $priced) {
@@ -161,7 +159,7 @@ final readonly class EditOrderHandler
                 $lines[] = new NewOrderLine(
                     $line->id, $line->productId, $line->variantId, false, $line->nameAr, $line->nameEn, $line->variantValues, $line->code,
                     $line->saleMode, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
-                    $share['coupon']->minorUnits, $share['points']->minorUnits, $share['vat']->minorUnits, $line->countsOnStock, $line->editId,
+                    $share['coupon']->minorUnits, $share['points']->minorUnits, $share['vat']->minorUnits, $plan->countsOnStock[$line->variantId] ?? true, $line->editId,
                 );
 
                 continue;
@@ -172,8 +170,8 @@ final readonly class EditOrderHandler
                 strtolower((string) Str::ulid()), $record['productId'], $priced->variantId, false, $record['nameAr'], $record['nameEn'], $record['values'], $record['code'],
                 $priced->mode->value, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
                 $share['coupon']->minorUnits, $share['points']->minorUnits, $share['vat']->minorUnits,
-                // As the hold counts it: with no provider when placed, every piece; wired, the size's switch.
-                $order->wired ? ($stock[$priced->variantId]->countsOnStock ?? false) : true,
+                // As the hold counts it (EditPlan::$countsOnStock), kept parts too.
+                $plan->countsOnStock[$priced->variantId] ?? true,
                 $editId,
             );
         }
@@ -235,7 +233,8 @@ final readonly class EditOrderHandler
                 'variantId' => $line->variantId, 'mode' => $line->saleMode, 'quantity' => $line->quantity, 'unit' => $line->unit, 'gift' => $line->isGift,
             ], $lines),
             'couponDiscount' => $plan->couponDiscount->minorUnits, 'pointsDiscount' => $plan->pointsDiscount->minorUnits,
-            'orderTotal' => $plan->totals->orderTotal->minorUnits, 'giftLevelId' => $plan->giftLevelId, 'addressChanged' => $plan->address !== null,
+            'orderTotal' => $plan->totals->orderTotal->minorUnits, 'difference' => $plan->difference->minorUnits, 'giftLevelId' => $plan->giftLevelId,
+            'addressChanged' => $plan->address !== null,
         ];
     }
 }

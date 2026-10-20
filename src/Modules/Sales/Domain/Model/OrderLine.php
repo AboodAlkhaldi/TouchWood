@@ -30,6 +30,7 @@ final readonly class OrderLine
         public int $unit,
         public int $listUnit,
         public int $total,
+        public int $couponShare,
         public bool $countsOnStock,
     ) {}
 }

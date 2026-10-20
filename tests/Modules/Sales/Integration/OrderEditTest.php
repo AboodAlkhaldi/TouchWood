@@ -7,6 +7,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\EditOrder\EditOrder;
@@ -24,6 +25,7 @@ use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Shared\Domain\Error\DomainError;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -178,6 +180,43 @@ describe('the lines', function () {
         'a size not sold here' => [fn (array $v) => [[$v[0], 2], [Px::ready(['10 cm'])['variants'][0], 1]], NotOrderable::class],
     ]);
 
+    it('checks a lowered line only against its limits, a raised one against all of checkout', function () {
+        ['order' => $order, 'variants' => $variants, 'product' => $product] = edited();
+        $listing = fn (array $changes) => DB::table('catalog.store_products')->where('product_id', $product)->where('store_id', Fx::storeId('sa'))->update($changes);
+        $listing(['not_available_now' => true]);
+
+        // Not available now: lowered, kept as is, or removed — never raised.
+        expect(Pr::thrown(fn () => editTo($order, [[$variants[0], 3], [$variants[1], 1]]), NotOrderable::class)->variantIds)->toBe([$variants[0]]);
+        editTo($order, [[$variants[0], 1], [$variants[1], 1]]);
+        expect((int) editedRow($order)?->gross_subtotal_minor)->toBe(150_00);
+
+        // Within its limits only: a minimum of 2 and a most of 3 — the second size's 1, unchanged, not checked.
+        $listing(['not_available_now' => false, 'retail_minimum' => 2, 'retail_maximum' => 3]);
+        editTo($order, [[$variants[0], 3], [$variants[1], 1]]);
+        editTo($order, [[$variants[0], 2], [$variants[1], 1]]);
+
+        expect(Pr::thrown(fn () => editTo($order, [[$variants[0], 1], [$variants[1], 1]]), NotOrderable::class)->variantIds)->toBe([$variants[0]])
+            ->and(Pr::thrown(fn () => editTo($order, [[$variants[0], 4], [$variants[1], 1]]), NotOrderable::class)->variantIds)->toBe([$variants[0]])
+            ->and((int) editedRow($order)?->gross_subtotal_minor)->toBe(250_00);
+    });
+
+    it('counts a wired order lines on stock as its hold does, kept parts too, by the size switch today', function () {
+        $ready = Cx::ready();
+        Ix::wired();
+        $order = Cx::place(Cx::start($ready['address'])->id)->id;
+        $variants = $ready['variants'];
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_EDIT], ['sa']));
+        $counts = fn (string $size): array => array_map(fn ($flag): bool => (bool) $flag, DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $size)->pluck('counts_on_stock')->all());
+        expect($counts($variants[0]))->toBe([false]);
+
+        app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$variants[0]]);
+        editTo($order, [[$variants[0], 3], [$variants[1], 1]]);
+
+        expect($counts($variants[0]))->toBe([true, true])
+            ->and($counts($variants[1]))->toBe([false])
+            ->and((int) Ix::stock('sa', $variants[0])?->held)->toBe(3);
+    });
+
     it('holds every piece or none: an edit Inventory cannot hold changes nothing', function () {
         ['order' => $order, 'variants' => $variants] = edited();
         $before = editedLines($order);
@@ -214,7 +253,39 @@ describe('the order own rules', function () {
         expect($before)->toBe(10_00)
             ->and((int) $row?->coupon_discount_minor)->toBe(7_50)
             ->and((int) $row?->points_discount_minor)->toBe(2_50)
-            ->and((int) DB::table('sales.order_lines')->where('order_id', $order)->sum('points_share_minor'))->toBe((int) $row?->points_discount_minor);
+            ->and((int) DB::table('sales.order_lines')->where('order_id', $order)->sum('points_share_minor'))->toBe((int) $row?->points_discount_minor)
+            // Loyalty settled the same edit: 7.50 of the points' discount given back.
+            ->and((int) DB::table('loyalty.order_returns')->where('order_id', $order)->value('returned_discount_minor'))->toBe(7_50);
+    });
+
+    it('keeps the coupon and points as they are when every line stays (the address only)', function () {
+        ['order' => $order, 'variants' => $variants, 'customer' => $customer] = edited(withCoupon: true, withPoints: true, ceiling: 20);
+        $before = editedRow($order);
+        $shares = DB::table('sales.order_lines')->where('order_id', $order)->orderBy('id')->pluck('coupon_share_minor')->all();
+        // The coupon now 10% and the ceiling 5%: an edit of the lines would trim both.
+        DB::table('promotions.coupons')->update(['percent' => 10]);
+        Pr::ceiling(5);
+
+        editTo($order, [[$variants[0], 2], [$variants[1], 1]], Bx::savedAddress($customer, 'sa', 'Home', 'Olaya Street'));
+
+        $row = editedRow($order);
+        expect([(int) $row?->coupon_discount_minor, (int) $row?->points_used, (int) $row?->points_discount_minor, (int) $row?->order_total_minor])
+            ->toBe([(int) $before?->coupon_discount_minor, (int) $before?->points_used, (int) $before?->points_discount_minor, (int) $before?->order_total_minor])
+            ->and(DB::table('sales.order_lines')->where('order_id', $order)->orderBy('id')->pluck('coupon_share_minor')->all())->toBe($shares)
+            ->and((string) $row?->address)->toContain('Olaya Street');
+    });
+
+    it('ships free above the amount the order was placed under', function () {
+        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+        Cx::setting(SalesSettings::FREE_ABOVE, 200_00);
+        ['order' => $order, 'variants' => $variants] = edited();
+        Cx::setting(SalesSettings::FREE_ABOVE, 0);
+
+        editTo($order, [[$variants[0], 2]]);
+        expect((int) editedRow($order)?->shipping_fee_minor)->toBe(0);
+
+        editTo($order, [[$variants[0], 1]]);
+        expect((int) editedRow($order)?->shipping_fee_minor)->toBe(25_00);
     });
 
     it('keeps the shipping rule the order was placed under', function () {
@@ -284,6 +355,36 @@ describe('the gift', function () {
             ->and(DB::table('sales.order_lines')->where('order_id', $order)->where('is_gift', true)->value('variant_id'))->toBe($variants[1]);
     });
 
+    it('keeps no gift when the order had none, and reads keep and remove in any case', function () {
+        ['order' => $order, 'variants' => $variants] = edited();
+        Pr::giftLevel($variants[1], 100_00);
+
+        editTo($order, [[$variants[0], 2], [$variants[1], 1]], gift: 'keep');
+        expect(array_filter(editedLines($order), fn ($line) => $line[3]))->toBe([])
+            ->and(editedRow($order)?->gift_level_id)->toBeNull();
+
+        editTo($order, [[$variants[0], 2], [$variants[1], 1]], gift: ' remove ');
+        expect(array_filter(editedLines($order), fn ($line) => $line[3]))->toBe([]);
+    });
+
+    it('offers a gift of a size the order buys when one more is free beyond what the order holds', function (int $inStock, bool $offered) {
+        ['order' => $order, 'variants' => $variants] = edited();
+        // The order holds its one of the second size; what else there is, is free.
+        Ix::count('sa', [$variants[1] => $inStock]);
+        $level = Pr::giftLevel($variants[1], 100_00);
+
+        $options = array_map(fn ($option): string => $option->levelId, editPreview($order, [[$variants[0], 2], [$variants[1], 1]])->giftOptions);
+        expect($options)->toBe($offered ? [$level] : []);
+
+        if ($offered) {
+            editTo($order, [[$variants[0], 2], [$variants[1], 1]], gift: $level);
+            expect((int) Ix::stock('sa', $variants[1])?->held)->toBe(2);
+        }
+    })->with([
+        'one free' => [2, true],
+        'none free' => [1, false],
+    ]);
+
     it('refuses a level the edited order does not reach', function () {
         ['order' => $order, 'variants' => $variants] = edited(withGift: true);
         $level = (string) DB::table('promotions.gift_levels')->value('id');
@@ -305,6 +406,7 @@ describe('what may be edited', function () {
         ])],
         'ticked' => [fn (string $order, array $v) => DB::table('sales.order_ticks')->insert(['order_id' => $order, 'store_id' => Fx::storeId('sa'), 'variant_id' => $v[0], 'ticked_by' => Fx::staff(), 'ticked_at' => CarbonImmutable::now()])],
         'cancelled' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update(['status' => 'CANCELLED', 'cancelled_at' => CarbonImmutable::now(), 'cancel_reason' => 'CHANGED_MIND', 'due_minor' => 0])],
+        'rejected' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update(['status' => 'REJECTED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'decision_reason' => 'No stock', 'due_minor' => 0])],
     ]);
 
     it('edits an approved order', function () {

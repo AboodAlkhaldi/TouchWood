@@ -121,6 +121,34 @@ final readonly class QuoteRules
     }
 
     /**
+     * Only each line's own limits — its minimum and most in its mode (§1.7: a lowered line of an order).
+     *
+     * @param  list<CartLineDto>  $lines
+     *
+     * @throws NotOrderable
+     */
+    public function limits(StoreId $store, array $lines): void
+    {
+        $variants = $this->catalog->storeVariants($store, array_values(array_unique(array_map(static fn (CartLineDto $line): string => $line->variantId, $lines))));
+        $notOrderable = [];
+
+        foreach ($lines as $line) {
+            $variant = $variants[$line->variantId] ?? null;
+            [$least, $most] = $line->mode === SaleMode::Wholesale
+                ? [$variant?->wholesaleMinimum, $variant?->wholesaleMaximum]
+                : [$variant?->retailMinimum, $variant?->retailMaximum];
+
+            if ($variant === null || $line->quantity < ($least ?? 1) || ($most !== null && $line->quantity > $most)) {
+                $notOrderable[] = $line->variantId;
+            }
+        }
+
+        if ($notOrderable !== []) {
+            throw new NotOrderable(array_values(array_unique($notOrderable)));
+        }
+    }
+
+    /**
      * One of the customer's addresses in this store, its format still accepted.
      *
      * @throws AddressNotUsable

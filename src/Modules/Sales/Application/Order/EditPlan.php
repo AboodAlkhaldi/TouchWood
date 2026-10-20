@@ -28,6 +28,7 @@ final readonly class EditPlan
      * @param  list<CartLineDto>  $added
      * @param  list<Money>  $couponShares  one a priced line, in their order
      * @param  list<GiftOfferDto>  $giftOptions  the levels the edited order reaches whose gift is in stock
+     * @param  array<string, bool>  $countsOnStock  a size's bought pieces counted on stock, as the hold counts them
      */
     public function __construct(
         public OrderForEdit $order,
@@ -44,6 +45,7 @@ final readonly class EditPlan
         public ?string $giftVariantId,
         public array $giftOptions,
         public ?AddressDto $address,
+        public array $countsOnStock,
         public Money $difference,
     ) {}
 }
