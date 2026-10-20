@@ -193,6 +193,10 @@ describe('the lines', function () {
         // Within its limits only: a minimum of 2 and a most of 3 — the second size's 1, unchanged, not checked.
         $listing(['not_available_now' => false, 'retail_minimum' => 2, 'retail_maximum' => 3]);
         editTo($order, [[$variants[0], 3], [$variants[1], 1]]);
+        // Lowered, yet still above a most of 1.
+        $listing(['retail_minimum' => 1, 'retail_maximum' => 1]);
+        expect(Pr::thrown(fn () => editTo($order, [[$variants[0], 2], [$variants[1], 1]]), NotOrderable::class)->variantIds)->toBe([$variants[0]]);
+        $listing(['retail_minimum' => 2, 'retail_maximum' => 3]);
         editTo($order, [[$variants[0], 2], [$variants[1], 1]]);
 
         expect(Pr::thrown(fn () => editTo($order, [[$variants[0], 1], [$variants[1], 1]]), NotOrderable::class)->variantIds)->toBe([$variants[0]])
