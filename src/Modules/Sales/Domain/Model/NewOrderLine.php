@@ -35,5 +35,7 @@ final readonly class NewOrderLine
         public int $vatShare,
         /** Whether the line counts on the store's stock, as Inventory's hold line fixed it at placement. */
         public bool $countsOnStock,
+        /** The edit that added this part; none for a part placed with the order. */
+        public ?string $editId = null,
     ) {}
 }

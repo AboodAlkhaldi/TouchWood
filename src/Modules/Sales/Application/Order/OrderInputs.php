@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Order;
 
+use Modules\Pricing\Public\Dto\CartLineDto;
+use Modules\Sales\Application\Cart\CartInputs;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Public\Enums\CancelReason;
 
@@ -19,6 +21,21 @@ final class OrderInputs
         $text = trim($words);
 
         return $text !== '' && mb_strlen($text) <= self::MOST ? $text : throw new InvalidSalesAttribute('reason', 'words from 1 to '.self::MOST.' characters');
+    }
+
+    /**
+     * An edit's wanted lines: a size, its mode, its quantity — the order's whole, gift aside.
+     *
+     * @param  list<array{variantId: string, mode: string, quantity: int}>  $lines
+     * @return list<CartLineDto>
+     *
+     * @throws InvalidSalesAttribute
+     */
+    public static function lines(array $lines): array
+    {
+        return array_map(static fn (array $line): CartLineDto => new CartLineDto(
+            CartInputs::variant($line['variantId']), CartInputs::mode($line['mode']), CartInputs::quantity($line['quantity']),
+        ), $lines);
     }
 
     /**

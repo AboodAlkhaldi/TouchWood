@@ -62,13 +62,14 @@ final readonly class QuoteRules
 
     /**
      * Each line sold here in its mode, within its limits, open to the account, in stock — the pieces of a
-     * size counted over both its modes; a wholesale line only for a company.
+     * size counted over both its modes; a wholesale line only for a company. An edit's stock is the hold's
+     * to check (§1.7 step 7): `$stock` false leaves it out.
      *
      * @param  list<CartLineDto>  $lines
      *
      * @throws NotForYourAccount|NotOrderable
      */
-    public function lines(StoreId $store, array $lines, OrderAudience $audience): void
+    public function lines(StoreId $store, array $lines, OrderAudience $audience, bool $stock = true): void
     {
         if ($lines === []) {
             throw new NotOrderable;
@@ -104,13 +105,41 @@ final readonly class QuoteRules
             throw new NotForYourAccount;
         }
 
-        $stocks = $this->inventory->stock($store, $variantIds);
+        $stocks = $stock ? $this->inventory->stock($store, $variantIds) : [];
 
-        foreach ($variantIds as $variantId) {
-            $stock = $stocks[$variantId] ?? null;
+        foreach ($stock ? $variantIds : [] as $variantId) {
+            $held = $stocks[$variantId] ?? null;
 
-            if ($stock === null || ! $stock->orderable || ($stock->available !== null && $stock->available < $pieces[$variantId])) {
+            if ($held === null || ! $held->orderable || ($held->available !== null && $held->available < $pieces[$variantId])) {
                 $notOrderable[] = $variantId;
+            }
+        }
+
+        if ($notOrderable !== []) {
+            throw new NotOrderable(array_values(array_unique($notOrderable)));
+        }
+    }
+
+    /**
+     * Only each line's own limits — its minimum and most in its mode (§1.7: a lowered line of an order).
+     *
+     * @param  list<CartLineDto>  $lines
+     *
+     * @throws NotOrderable
+     */
+    public function limits(StoreId $store, array $lines): void
+    {
+        $variants = $this->catalog->storeVariants($store, array_values(array_unique(array_map(static fn (CartLineDto $line): string => $line->variantId, $lines))));
+        $notOrderable = [];
+
+        foreach ($lines as $line) {
+            $variant = $variants[$line->variantId] ?? null;
+            [$least, $most] = $line->mode === SaleMode::Wholesale
+                ? [$variant?->wholesaleMinimum, $variant?->wholesaleMaximum]
+                : [$variant?->retailMinimum, $variant?->retailMaximum];
+
+            if ($variant === null || $line->quantity < ($least ?? 1) || ($most !== null && $line->quantity > $most)) {
+                $notOrderable[] = $line->variantId;
             }
         }
 

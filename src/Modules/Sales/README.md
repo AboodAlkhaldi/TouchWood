@@ -70,8 +70,13 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   wired store's gift and stock-dependent sizes), `MarkDelivered` (the return window fixed, `OrderDelivered`,
   the points earned), `MarkCameBack` (undelivered, nothing due, the points used back, only the pieces whose
   stock was taken put back).
+- **Edits** (S9): `Application/Order/OrderEditing` (an edit worked out, §1.7 steps 1–6: parts kept at their
+  prices, added parts at today's, the order's own ceiling, coupon only shrinking, points giving way first,
+  its own shipping, the gift by staff's choice) into an `EditPlan`; `SizeRecords`; the query
+  `PreviewOrderEdit` and the command `EditOrder` (one transaction; every share again; Promotions, Loyalty,
+  then Inventory's `adjustHold` last).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.
