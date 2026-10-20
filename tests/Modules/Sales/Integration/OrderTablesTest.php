@@ -187,7 +187,7 @@ it('never changes an edit or the history', function (string $table, Closure $row
     $order = orderRow();
     $row($order);
 
-    expect(fn () => DB::statement(sprintf($sql, $table)))->toThrow(QueryException::class, 'append-only');
+    expect(fn () => DB::statement(sprintf($sql, $table)))->toThrow(QueryException::class, $table.' is append-only');
 })->with([
     'an edit changed' => ['sales.order_edits', fn (string $order) => orderEdit($order), "UPDATE %s SET reason = 'x'"],
     'an edit deleted' => ['sales.order_edits', fn (string $order) => orderEdit($order), 'DELETE FROM %s'],
