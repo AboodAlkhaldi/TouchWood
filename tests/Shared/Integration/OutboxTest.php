@@ -127,17 +127,20 @@ it('leaves a message whose time has not come', function () {
 
 it('keeps a failing message, waits longer each time up to an hour, and logs it from the tenth attempt', function () {
     $log = Log::spy();
+    // Pinned before the message is written, and ahead of the real time: a moment fixed in the past would
+    // leave the message written after it, never due (lesson 221).
+    $start = CarbonImmutable::now()->addHour()->startOfHour();
+    CarbonImmutable::setTestNow($start);
     $event = outboxEvent();
     DB::transaction(fn () => app(Outbox::class)->record($event));
     Event::listen(OrderPlaced::class, static fn () => throw new RuntimeException('The listener is away.'));
-    CarbonImmutable::setTestNow('2026-10-20 10:00:00');
 
     outboxRelay();
     $row = outboxRow($event->eventId);
 
     expect([$row['attempts'], $row['dispatched_at']])->toBe([1, null])
         ->and((string) $row['last_error'])->toContain('The listener is away.')
-        ->and(CarbonImmutable::parse((string) $row['available_at'])->equalTo(CarbonImmutable::parse('2026-10-20 10:01:00')))->toBeTrue()
+        ->and(CarbonImmutable::parse((string) $row['available_at'])->equalTo($start->addMinute()))->toBeTrue()
         ->and(array_map(OutboxRelay::wait(...), [1, 2, 3, 4, 5, 6, 7, 8, 20]))->toBe([1, 2, 4, 8, 16, 32, 60, 60, 60]);
 
     $log->shouldNotHaveReceived('error');

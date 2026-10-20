@@ -74,6 +74,15 @@ final class CheckoutFixtures
         return app(PlaceOrderHandler::class)->handle(new PlaceOrder(Fx::storeId($storeCode), $quoteId));
     }
 
+    /**
+     * A moment to pin the clock at: the next whole hour, never behind the real time — what a test made
+     * before pinning stays in the past (lesson 221: a fixed date breaks the next day).
+     */
+    public static function clockAhead(): CarbonImmutable
+    {
+        return CarbonImmutable::now()->addHour()->startOfHour();
+    }
+
     public static function setting(string $key, int|bool $value): void
     {
         Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, 'sa', $value)));
