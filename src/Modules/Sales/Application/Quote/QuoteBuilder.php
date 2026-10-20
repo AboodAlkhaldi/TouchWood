@@ -6,17 +6,10 @@ namespace Modules\Sales\Application\Quote;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
-use Modules\Access\Public\Contracts\AccessApi;
-use Modules\Access\Public\Enums\AccountType;
-use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\Catalog\Public\Contracts\CatalogApi;
-use Modules\Catalog\Public\Enums\SaleMode;
-use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
 use Modules\Loyalty\Public\Enums\Audience as LoyaltyAudience;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
@@ -30,13 +23,11 @@ use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
-use Modules\Sales\Domain\Model\Cart;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Public\Enums\OrderAudience;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
-use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * A checkout's quote (sales.md §1.2), built in its fixed order (handoff §10.2, §11.3): who may order,
@@ -57,10 +48,7 @@ final readonly class QuoteBuilder
 
     public function __construct(
         private PlatformApi $platform,
-        private AccessApi $access,
-        private B2BApi $b2b,
-        private CatalogApi $catalog,
-        private InventoryApi $inventory,
+        private QuoteRules $rules,
         private PricingApi $pricing,
         private PromotionsApi $promotions,
         private LoyaltyApi $loyalty,
@@ -75,26 +63,18 @@ final readonly class QuoteBuilder
     public function build(StoreId $store, string $customerId, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay, int $attempt = 1): QuoteView
     {
         // 1. The store is on, and who may order.
-        $audience = $this->audience($store, $customerId);
+        $audience = $this->rules->audience($store, $customerId);
 
         // 2. What may be bought — a cart with something in it first.
         $cart = $this->carts->find($store, $customerId, null);
-
-        if ($cart === null || $cart->lines === []) {
-            throw new NotOrderable;
-        }
-
-        $this->checkLines($store, $cart, $audience);
+        $lines = array_map(static fn ($line): CartLineDto => new CartLineDto($line->variantId, $line->mode, $line->quantity), $cart === null ? [] : $cart->lines);
+        $this->rules->lines($store, $lines, $audience);
 
         // 3. The delivery address.
-        $address = Ulids::valid($addressId) ? $this->access->address($addressId) : null;
-
-        if ($address === null || $address->customerId !== $customerId || $address->storeId !== $store->value || ! $address->isComplete) {
-            throw new AddressNotUsable;
-        }
+        $this->rules->address($store, $customerId, $addressId);
 
         // 4. The prices.
-        $prices = $this->pricing->prices($store, array_map(static fn ($line): CartLineDto => new CartLineDto($line->variantId, $line->mode, $line->quantity), $cart->lines));
+        $prices = $this->pricing->prices($store, $lines);
 
         if ($prices->unpriced !== []) {
             throw new NotOrderable($prices->unpriced);
@@ -103,8 +83,9 @@ final readonly class QuoteBuilder
         $zero = Money::zero($prices->currencyCode);
 
         // 5. The coupon — the ceiling applied by Promotions; refused, the quote carries why.
-        $coupon = $cart->couponCode === null ? null : $this->promotions->applyCoupon(new CouponRequest(
-            $store->value, $cart->couponCode, $customerId, PromotionsAudience::from($audience->value), $prices,
+        $couponCode = $cart?->couponCode;
+        $coupon = $couponCode === null ? null : $this->promotions->applyCoupon(new CouponRequest(
+            $store->value, $couponCode, $customerId, PromotionsAudience::from($audience->value), $prices,
         ));
         $couponTaken = $coupon !== null && $coupon->isTaken();
         $couponDiscount = $couponTaken ? ($coupon->discount ?? $zero) : $zero;
@@ -116,7 +97,7 @@ final readonly class QuoteBuilder
         $goodsTotal = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $zero)->goodsTotal;
 
         // 8. The gift.
-        [$giftLevelId, $giftVariantId] = $this->gift($store, $audience, $goodsTotal, $cart);
+        [$giftLevelId, $giftVariantId] = $this->rules->gift($store, $audience, $goodsTotal, $lines);
 
         // 9. The shipping — the store's flat fee until stage 7, free from its free-above amount.
         $fee = Money::of($this->platform->setting(SalesSettings::FLAT_FEE, $store)->int(), $prices->currencyCode);
@@ -127,9 +108,7 @@ final readonly class QuoteBuilder
         $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $shipping);
 
         // 11. The ways to pay.
-        $ways = $audience === OrderAudience::Company
-            ? ($this->b2b->bankAccount($store->value) === null ? [WayToPay::StaffContact] : [WayToPay::BankTransfer, WayToPay::StaffContact])
-            : [WayToPay::StaffContact];
+        $ways = $this->rules->waysToPay($store, $audience);
 
         if (! in_array($wayToPay, $ways, true)) {
             throw new WayToPayNotOffered;
@@ -157,7 +136,7 @@ final readonly class QuoteBuilder
             strtolower($addressId),
             $audience,
             $prices,
-            $cart->couponCode,
+            $couponCode,
             $couponTaken ? $coupon->couponId : null,
             $coupon?->nameAr,
             $coupon?->nameEn,
@@ -183,73 +162,6 @@ final readonly class QuoteBuilder
             $expiresAt,
             $now,
         );
-    }
-
-    /** @throws MayNotOrder */
-    private function audience(StoreId $store, string $customerId): OrderAudience
-    {
-        if (! ($this->platform->store($store)->isActive ?? false) || ! $this->access->customerMayOrder($customerId)) {
-            throw new MayNotOrder;
-        }
-
-        if ($this->access->customer($customerId)?->accountType !== AccountType::Company) {
-            return OrderAudience::Public;
-        }
-
-        return $this->b2b->isApproved($customerId, $store->value) ? OrderAudience::Company : throw new MayNotOrder;
-    }
-
-    /**
-     * Each line sold here in its mode, within its limits, open to the account, in stock — the pieces of a
-     * size counted over both its modes.
-     *
-     * @throws NotForYourAccount|NotOrderable
-     */
-    private function checkLines(StoreId $store, Cart $cart, OrderAudience $audience): void
-    {
-        $variantIds = array_values(array_unique(array_map(static fn ($line): string => $line->variantId, $cart->lines)));
-        $variants = $this->catalog->storeVariants($store, $variantIds);
-        $notOrderable = [];
-        $pieces = [];
-
-        foreach ($cart->lines as $line) {
-            if ($line->mode === SaleMode::Wholesale && $audience !== OrderAudience::Company) {
-                throw new NotForYourAccount;
-            }
-
-            $variant = $variants[$line->variantId] ?? null;
-            [$least, $most] = $line->mode === SaleMode::Wholesale
-                ? [$variant?->wholesaleMinimum, $variant?->wholesaleMaximum]
-                : [$variant?->retailMinimum, $variant?->retailMaximum];
-
-            if ($variant === null || ! $variant->isActive || ! $variant->orderable || $variant->notAvailableNow
-                || ! in_array($line->mode, $variant->saleModes, true) || $line->quantity < ($least ?? 1) || ($most !== null && $line->quantity > $most)) {
-                $notOrderable[] = $line->variantId;
-            }
-
-            $pieces[$line->variantId] = ($pieces[$line->variantId] ?? 0) + $line->quantity;
-        }
-
-        $productIds = array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, $variants)));
-        $open = $this->catalog->productsOpenTo($store, $audience === OrderAudience::Company ? ShopperKind::Company : ShopperKind::Individual, $productIds);
-
-        if (array_diff($productIds, $open) !== []) {
-            throw new NotForYourAccount;
-        }
-
-        $stocks = $this->inventory->stock($store, $variantIds);
-
-        foreach ($variantIds as $variantId) {
-            $stock = $stocks[$variantId] ?? null;
-
-            if ($stock === null || ! $stock->orderable || ($stock->available !== null && $stock->available < $pieces[$variantId])) {
-                $notOrderable[] = $variantId;
-            }
-        }
-
-        if ($notOrderable !== []) {
-            throw new NotOrderable(array_values(array_unique($notOrderable)));
-        }
     }
 
     /**
@@ -282,31 +194,5 @@ final readonly class QuoteBuilder
         }
 
         return [$quote->pointsCharged, $quote->discount, null, $quote->mode->value, $quote->mostUsable];
-    }
-
-    /**
-     * The highest level reached whose size is available as a gift after the order's own pieces of it.
-     *
-     * @return array{?string, ?string} the level and its size
-     */
-    private function gift(StoreId $store, OrderAudience $audience, Money $goodsTotal, Cart $cart): array
-    {
-        $levels = $this->promotions->giftLevels($store, PromotionsAudience::from($audience->value), $goodsTotal);
-
-        if ($levels === []) {
-            return [null, null];
-        }
-
-        $stock = $this->inventory->stock($store, array_values(array_unique(array_map(static fn ($level): string => $level->variantId, $levels))));
-
-        foreach ($levels as $level) {
-            $own = array_sum(array_map(static fn ($line): int => $line->variantId === $level->variantId ? $line->quantity : 0, $cart->lines));
-
-            if (($stock[$level->variantId]->availableAsGift ?? 0) - $own >= 1) {
-                return [$level->levelId, $level->variantId];
-            }
-        }
-
-        return [null, null];
     }
 }

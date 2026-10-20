@@ -15,6 +15,9 @@ interface Quotes
     /** The quote, whoever's it is; null when there is none. */
     public function find(string $quoteId): ?Quote;
 
-    /** @return int how many were deleted */
+    /** As `find`, its row locked until the transaction ends — placing it (§1.3 step 1). */
+    public function lock(string $quoteId): ?Quote;
+
+    /** Those expired and never placed. @return int how many were deleted */
     public function deleteExpiredBefore(DateTimeImmutable $at): int;
 }

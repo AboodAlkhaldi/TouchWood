@@ -169,6 +169,29 @@ Built in this fixed order (handoff §10.2, §11.3):
 **Any refusal rolls everything back** and sends the customer to a new quote with the reason
 (`QuoteChanged`).
 
+**As built (step S6b)** — my assumptions, stated for the owner to reject:
+- **The locks in one order**: Sales's own first (the quote, then the cart), then Promotions' and Loyalty's,
+  Inventory's last (stage 5: its hold takes Inventory's store lock, then Catalog's) — after it only new
+  rows are written, no existing row locked. The order is written before the other modules are called, and
+  `recordOrder` comes before `hold`; all in one transaction, so the outcome is the order above. A deadlock
+  with a Catalog write meanwhile is tried again, up to 3 times (a new number each time; gaps allowed).
+- **The re-checks run on the quote's own lines**, never the cart's (the cart may have changed since).
+- **`QuoteChanged` names what moved** (`reason`): a rule of the quote (`audience`, `way_to_pay`, `gift`,
+  `ceiling`), something gone since (`store`, `customer`, `lines`, `phone`), or the refusing error's type —
+  only these refusals: `sales.may_not_order`, `sales.not_for_your_account`, `sales.not_orderable`,
+  `sales.address_not_usable`, `promotions.coupon_refused`, `promotions.coupon_changed`,
+  `loyalty.redemption_refused`, `loyalty.redemption_changed`, `loyalty.points_programme_off`,
+  `inventory.not_enough_stock` (its sizes passed on as `variants`). Any other error is a fault and goes
+  on as itself.
+- **Placing empties the cart of what was bought**: each quoted line's pieces leave the cart (a line
+  raised since keeps the rest; one with none left goes), and the coupon is cleared when it is still the
+  one quoted; lines added since stay.
+- **The order keeps the coupon's code as Promotions keeps codes**: upper case, Latin digits.
+- **Anonymizing** (§1.12) is one queued listener, `ForgetCustomer`: the carts deleted and the orders' email
+  cleared; the name, phone and address stay.
+- `PlaceOrder` takes the store as well as the quote's id: the permission is checked in that store, and a
+  quote of another store is `QuoteNotFound`.
+
 ### 1.4 The order's four state machines
 
 **Four independent machines** — the order, its payment, its shipment, its returns; **the customer sees
@@ -613,6 +636,22 @@ by `store_id` WHERE `paid_minor - refunded_minor < due_minor` — unpaid; by `st
 by (`store_id`, `status`, `requested_at`); by `order_id`. Carts by `guest_id`, by `customer_id`, by
 `updated_at` — the 90-day job. Quotes by `expires_at`. Outbox by (`available_at`, `id`) WHERE
 `dispatched_at IS NULL`.
+
+**As built (step S6a)** — my assumptions, stated for the owner to reject: `order_history.kind` is one
+of `PLACED`, `APPROVED`, `REJECTED`, `CANCELLED`, `EDITED`, `SHORT_FLAGGED`, `SHORT_CLEARED`,
+`TICKED_REDUCED`, `SHIP_UNPAID_ALLOWED`, `SHIPPED`, `DELIVERED`, `CAME_BACK`, `PAYMENT_RECORDED`,
+`REFUND_RECORDED`, `MONEY_VOIDED`, `TRANSFER_DOCUMENT_UPLOADED`, `RETURN_REQUESTED`, `RETURN_WITHDRAWN`,
+`RETURN_ACCEPTED`, `RETURN_REFUSED`, `RETURN_RECEIVED`, `RETURN_CLOSED`, `RETURN_COMPLETED`. Beyond the
+rows above: CHECK `orders.locale IN ('ar','en')`; CHECK a return deadline exactly when delivered, never
+before the delivery; CHECK a line's unit, list and total prices `>= 0`; FKs `orders.cancelled_by` →
+`access.staff_users` and (`order_history.edit_id`, `order_id`) → `order_edits`; indexes on order lines by
+variant, edits by order and history by (order, id); `order_history.id` an identity column. A store's
+number sequence missing (a listener before Sales's failed) is made at its next number. The quotes' nightly
+deletion leaves a placed quote with its order (placing again answers that order, §1.3), and skips one
+being placed at that moment. **The history and the edits never hold the customer's email** — they cannot
+be changed, and anonymizing clears the order's copy (§1.12).
+The order number's format (`SA-1001`) is provisional: it must later match the company's current format
+(owner, 2026-10-19).
 
 ---
 

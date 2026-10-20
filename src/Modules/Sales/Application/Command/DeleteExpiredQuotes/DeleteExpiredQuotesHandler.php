@@ -14,8 +14,8 @@ use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 
 /**
- * Quotes past their expiry go, nightly (sales.md §5) — the system's only. Until orders exist (step S6)
- * none is placed; from then a placed quote stays with its order.
+ * Quotes past their expiry go, nightly (sales.md §5) — the system's only; a placed one stays with its
+ * order.
  */
 final readonly class DeleteExpiredQuotesHandler
 {

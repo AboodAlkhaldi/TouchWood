@@ -16,7 +16,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 | S1 — foundation | The `sales` schema; the fourteen permissions of §3 (every customer's cart and orders and every guest's cart, per store; the staff jobs under Orders; `sales.settings.update` admin-only; the system's reserved `sales.system.run`); the three store settings of §1.10 (flat fee 0, free from 0 — never free —, return window 14 days); the errors of §7 in both languages; `OrderPlaced`, `OrderCancelled`, `OrderDelivered`; stage 7's `ShippingApi` and `PaymentsApi` (with `PaymentAudience`, `PaymentSucceeded`, `PaymentFailed`), provisional and unbound; the owner's answers 41–44 in the spec | below |
 | S2 — the outbox | `Shared/Infrastructure/Outbox` (platform.md §5.6; a recorded exception to Shared's ceiling, answer 43): `Outbox::record` in the change's transaction; `OutboxRelay` every minute from one server (queued as Platform's `RelayOutboxJob`) — claimed under `FOR UPDATE SKIP LOCKED` and leased before dispatch, retried 1, 2, 4 … minutes up to an hour, never dropped, logged from the tenth attempt, dispatched rows kept 30 days; `ProcessedEvents::once` for idempotent consumers; tables `public.outbox_messages`, `public.processed_events` | `src/Shared/Infrastructure/Outbox`, `database/migrations` |
 | S3 — what Sales reads of Catalog and Access | catalog.md amendment 29: `storeVariants` (many sizes in a store in one read) and `productsOpenTo` (which products the category switches leave open to a shopper); access.md amendment 74: `GuestIdentity` (`current`, `ensure` — the guest cart's id, its cookie Access's) | `src/Modules/Catalog/Public`, `src/Modules/Access/Public` |
-| S4 — the cart | Tables `sales.carts`, `sales.cart_lines`; `AddCartLine` (permissive: any size, either mode, 1 to 1,000,000, the same size and mode once; a signed-in individual never wholesale — answer 32; a guest's first line creates the guest), `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` (a customer's only; a guest is told to sign in); a guest's carts move or merge at sign-in, the lines the account may not buy leaving with why (`GuestCartMover`, `MoveGuestCart`); an anonymized account's carts deleted (`ForgetCustomerCarts`); carts untouched for 90 days emptied each night (`EmptyOldCarts`) | below |
+| S4 — the cart | Tables `sales.carts`, `sales.cart_lines`; `AddCartLine` (permissive: any size, either mode, 1 to 1,000,000, the same size and mode once; a signed-in individual never wholesale — answer 32; a guest's first line creates the guest), `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` (a customer's only; a guest is told to sign in); a guest's carts move or merge at sign-in, the lines the account may not buy leaving with why (`GuestCartMover`, `MoveGuestCart`); an anonymized account's carts deleted (`ForgetCustomer`, which from S6b also clears its orders' email); carts untouched for 90 days emptied each night (`EmptyOldCarts`) | below |
 
 ## What is here
 
@@ -36,14 +36,26 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `CartInputs`; the commands `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon`,
   `EmptyOldCarts` (the system's, nightly through `Infrastructure/Queue/EmptyOldCartsJob`);
   `Application/Cart/GuestCartMover` behind `Infrastructure/Listener/MoveGuestCart` (synchronous, never
-  failing a sign-in) and `ForgetCustomerCarts` (queued).
+  failing a sign-in) and `ForgetCustomer` (queued: the carts deleted, and the orders' email cleared — §1.12).
 - **The quote** (S5): `Application/Quote/QuoteBuilder` (§1.2's twelve steps, in order; a refused
   coupon or points carried, never failing it) and `QuoteView` (the itemised answer, kept whole as the
   row's `result`); `Domain/Model/Quote`, `Domain/Repository/Quotes` with SQL in
   `Infrastructure/Eloquent/DatabaseQuotes`; the commands `StartCheckout` (a signed-in customer's cart
   in the store) and `DeleteExpiredQuotes` (the system's, nightly through
   `Infrastructure/Queue/DeleteExpiredQuotesJob`); `Public/Enums/{WayToPay,OrderAudience}`.
+- **The order's tables** (S6a): `sales.orders`, `order_lines`, `order_edits`, `order_ticks`,
+  `order_history` (edits and history append-only, by trigger), each machine's rules a CHECK;
+  `Domain/Service/OrderShares` (the coupon's, points' and VAT's shares a line, and a piece's part by
+  running totals — §1.8); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
+  (`Infrastructure/Eloquent/OrderNumberSequences`, made for a store opened later by
+  `Infrastructure/Listener/CreateOrderSequence`).
+- **Placing** (S6b): `Application/Quote/QuoteRules` (the rules that can change in 15 minutes, checked at
+  checkout on the cart and at placement on the quote), `Application/Order/OrderSnapshot` (the order as its
+  quote placed it), `Domain/Model/{NewOrder,NewOrderLine,PlacedOrder}`, `Domain/Repository/Orders` with
+  SQL in `Infrastructure/Eloquent/DatabaseOrders`; the command `PlaceOrder` (one transaction, locks in one
+  order, `OrderPlaced` through the outbox).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, and
+`tests/Modules/Sales/Unit/OrderSharesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.
