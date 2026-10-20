@@ -21,6 +21,7 @@ use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
+use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -63,37 +64,40 @@ function ranksRun(): int
 
 it('ranks a store products by the pieces sold, the gift left out', function () {
     $ready = Cx::ready();
+    // The gift is a size of the first product: counted, it would put that product first.
     Pr::giftLevel($ready['variants'][1], 100_00);
-    // Each order: two of the first size, one of the second, the gift of the second (not sold).
     Cx::place(Cx::start($ready['address'])->id);
     $other = Cx::ready();
-    Cx::add($other['variants'][0], 5);
     Cx::place(Cx::start($other['address'])->id);
+    $more = Cx::ready();
+    Cx::add($more['variants'][0], 5);
+    Cx::place(Cx::start($more['address'])->id);
     $pushed = ranksPushed();
 
+    // 3, 3 and 8 pieces sold, each order with a gift of the first product's: a tie between the first two goes to the newer.
     expect(ranksRun())->toBe(DB::table('platform.stores')->count())
-        ->and(DB::table('sales.order_lines')->where('is_gift', true)->count())->toBe(2)
-        ->and($pushed->ranks[Fx::storeId('sa')])->toBe([$other['product'] => 1, $ready['product'] => 2])
+        ->and(DB::table('sales.order_lines')->where('is_gift', true)->count())->toBe(3)
+        ->and($pushed->ranks[Fx::storeId('sa')])->toBe([$more['product'] => 1, $other['product'] => 2, $ready['product'] => 3])
         ->and($pushed->ranks[Fx::storeId('eg')])->toBe([]);
 });
 
-it('leaves out an order cancelled, rejected or undelivered; a tie goes to the newer product', function (Closure $end) {
+it('leaves out an order cancelled, rejected or undelivered', function (Closure $end) {
     $ready = Cx::ready();
     Cx::place(Cx::start($ready['address'])->id);
     $other = Cx::ready();
     Cx::place(Cx::start($other['address'])->id);
-    Cx::add($other['variants'][0], 5);
-    $lost = Cx::place(Cx::start($other['address'])->id)->id;
+    // A larger order of the older product, which would rank it first.
+    Fx::actAsCustomer($ready['customer']);
+    Cx::add($ready['variants'][0], 5);
+    $lost = Cx::place(Cx::start($ready['address'])->id)->id;
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_CANCEL, SalesPermissions::ORDER_FULFIL], ['sa']));
     $end($lost);
     $pushed = ranksPushed();
 
     ranksRun();
 
-    // 3 pieces each.
-    $newerFirst = [$ready['product'], $other['product']];
-    rsort($newerFirst);
-    expect(array_keys($pushed->ranks[Fx::storeId('sa')]))->toBe($newerFirst);
+    // 3 pieces each: the newer product first.
+    expect($pushed->ranks[Fx::storeId('sa')])->toBe([$other['product'] => 1, $ready['product'] => 2]);
 })->with([
     'cancelled' => [fn (string $order) => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Out of stock'))],
     'rejected' => [fn (string $order) => app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Not for us'))],
@@ -120,8 +124,10 @@ it('counts only the last 90 days', function () {
     expect($pushed->ranks[Fx::storeId('sa')])->toBe([]);
 });
 
-it('runs for the system only', function () {
+it('runs for the system only, never for system work a person started', function () {
     Fx::actAsStaff(Fx::staff());
+    expect(fn () => app(PushSalesRanksHandler::class)->handle(new PushSalesRanks))->toThrow(Unauthorized::class);
 
+    Fx::actAs(Actor::system(Actor::staff(Fx::staff())));
     expect(fn () => app(PushSalesRanksHandler::class)->handle(new PushSalesRanks))->toThrow(Unauthorized::class);
 });
