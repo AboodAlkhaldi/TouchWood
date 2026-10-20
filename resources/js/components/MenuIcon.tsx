@@ -6,6 +6,7 @@ import {
     Coins,
     Contact,
     FileText,
+    Gift,
     Image,
     UserRound,
     LayoutDashboard,
@@ -69,6 +70,7 @@ const ICONS = {
     // weighs on every admin page (frontend.md §5).
     coupons: TicketPercent,
     segments: Users,
+    gifts: Gift,
 } as const;
 
 type Props = {

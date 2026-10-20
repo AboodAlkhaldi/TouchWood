@@ -98,9 +98,57 @@ id: string,
 name: string | null,
 deleted: boolean,
 };
+export type GiftLevelData = {
+id: string,
+amount: MoneyData,
+amountText: string,
+variantId: string,
+variantCode: string | null,
+productName: string | null,
+archived: boolean,
+forPublic: boolean,
+forCompany: boolean,
+startsAt: string | null,
+endsAt: string | null,
+active: boolean,
+state: string,
+photo: string | null,
+};
+export type GiftLevelsPage = {
+levels: GiftLevelData[],
+sizes: SizeChoiceData[],
+currency: string,
+exponent: number,
+mayManage: boolean,
+storeCode: string,
+storeName: string,
+storeIsActive: boolean,
+storeTimezone: string,
+stores: StoreOptionData[],
+};
+export type MemberData = {
+customer: CustomerNameData,
+addedAt: string | null,
+member: boolean,
+};
 export type MoneyData = {
 amount: string,
 currency: string,
+};
+export type MyCouponData = {
+code: string,
+name: string,
+discountKind: string,
+percent: number | null,
+cap: MoneyData | null,
+amount: MoneyData | null,
+minimum: MoneyData | null,
+endsAt: string | null,
+usesLeft: number | null,
+};
+export type MyCouponsPage = {
+coupons: MyCouponData[],
+storeTimezone: string,
 };
 export type RuleData = {
 kind: string,
@@ -115,6 +163,49 @@ id: string,
 name: string,
 audience: string,
 memberCount: number,
+};
+export type SegmentPage = {
+segment: SegmentRowData,
+members: MemberData[],
+nextMember: string | null,
+candidates: MemberData[],
+search: string | null,
+candidatesMore: boolean,
+mayManage: boolean,
+storeCode: string,
+storeName: string,
+storeIsActive: boolean,
+storeTimezone: string,
+};
+export type SegmentRowData = {
+id: string,
+name: string,
+nameAr: string,
+nameEn: string,
+type: string,
+audience: string,
+rule: string | null,
+ruleMonths: number | null,
+ruleOrders: number | null,
+memberCount: number,
+refreshedAt: string | null,
+};
+export type SegmentsListPage = {
+segments: SegmentRowData[],
+nextAt: string | null,
+nextId: string | null,
+mayManage: boolean,
+storeCode: string,
+storeName: string,
+storeIsActive: boolean,
+storeTimezone: string,
+stores: StoreOptionData[],
+};
+export type SizeChoiceData = {
+id: string,
+productName: string,
+code: string,
+photo: string | null,
 };
 export type StoreOptionData = {
 code: string,

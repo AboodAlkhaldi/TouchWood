@@ -43,11 +43,6 @@ return [
         'PUBLIC' => 'كل من لديه الرمز',
         'ASSIGNED' => 'عملاء ممنوحون',
     ],
-    'discount' => [
-        'percent' => ':percent',
-        'percent_cap' => ':percent، حتى :cap',
-        'fixed' => 'خصم :amount',
-    ],
     'target' => [
         'product' => 'منتج',
         'category' => 'فئة',

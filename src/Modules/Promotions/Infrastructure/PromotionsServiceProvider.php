@@ -6,7 +6,9 @@ namespace Modules\Promotions\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -69,9 +71,18 @@ final class PromotionsServiceProvider extends ServiceProvider
         */
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('promotions', 'coupons', 'marketing', 'promotions.admin.coupons', CouponPages::JOBS, 10, icon: 'coupons'),
+            new MenuEntryDto('promotions', 'segments', 'marketing', 'promotions.admin.segments', CouponPages::JOBS, 20, icon: 'segments'),
+            new MenuEntryDto('promotions', 'gift_levels', 'marketing', 'promotions.admin.gift_levels', CouponPages::JOBS, 30, icon: 'gifts'),
+        );
+
+        // The account's Coupons tab in the shop, always offered (§4.1 M5, owner's Q12): no extra query on
+        // every shop page, and "No coupons for you right now" when there are none.
+        $this->app->make(CustomerAccountPages::class)->register(
+            new CustomerAccountPageDto('promotions', 'coupons', 'storefront.promotions.coupons'),
         );
 
         if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
             // The panel's own file: the admin session cookie must be set before "web" opens a session,
             // so it brings its own middleware rather than sharing the shop's group.
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');

@@ -43,11 +43,6 @@ return [
         'PUBLIC' => 'Anyone with the code',
         'ASSIGNED' => 'Assigned customers',
     ],
-    'discount' => [
-        'percent' => ':percent',
-        'percent_cap' => ':percent, up to :cap',
-        'fixed' => ':amount off',
-    ],
     'target' => [
         'product' => 'Product',
         'category' => 'Category',

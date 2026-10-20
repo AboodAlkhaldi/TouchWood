@@ -139,7 +139,7 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and($props['maxFileBytes'])->toBe(10 * 1024 * 1024)
         ->and($props['phoneConfirmed'])->toBeTrue()
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
-        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company']])
+        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company'], ['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons']])
         ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
 });
 
@@ -158,7 +158,8 @@ it('refuses an individual account the page, and offers it neither the page nor a
 
     $browser->get('/sa/en/account/company')->assertForbidden();
     $browser->get('/sa/en/account')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-        ->where('accountMenu.pages', [])
+        // Only Promotions' Coupons tab, offered to every account (promotions.md §4.1 M5).
+        ->where('accountMenu.pages', [['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons']])
         ->where('shopperLines', []));
 });
 

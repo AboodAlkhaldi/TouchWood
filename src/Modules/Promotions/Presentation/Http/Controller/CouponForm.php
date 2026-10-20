@@ -65,7 +65,7 @@ final readonly class CouponForm
      *
      * @throws CouponFormProblem
      */
-    private static function money(Request $request, string $key, string $currency, int $exponent): ?int
+    public static function money(Request $request, string $key, string $currency, int $exponent): ?int
     {
         $typed = self::text($request, $key);
 
@@ -103,7 +103,7 @@ final readonly class CouponForm
     /**
      * @throws CouponFormProblem
      */
-    private static function moment(Request $request, string $key): ?DateTimeImmutable
+    public static function moment(Request $request, string $key): ?DateTimeImmutable
     {
         $typed = self::text($request, $key);
 

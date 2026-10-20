@@ -1,0 +1,73 @@
+<?php
+
+declare(strict_types=1);
+
+// Marketing › Gift Levels (promotions.md §4.1 M4).
+return [
+    'list' => [
+        'title' => 'Gift Levels',
+        'subtitle' => 'A free gift for orders from an amount',
+        'new' => 'New Level',
+        'edit' => 'Edit',
+        'turn_off' => 'Turn Off',
+        'turn_on' => 'Turn On',
+        'edit_named' => 'Edit the level from :amount',
+        'turn_off_named' => 'Turn off the level from :amount',
+        'turn_on_named' => 'Turn on the level from :amount',
+        'empty_title' => 'No gift levels yet',
+        'empty_body' => 'A gift level adds a free gift to every order that reaches its amount.',
+        'rule' => 'An order gets one gift — the highest level it reaches; out of stock, the next one down.',
+        'archived' => 'Archived',
+        'gone' => 'No longer in the catalog',
+        'always' => 'Always',
+        'no_end' => 'No end',
+        'until' => 'Until :date',
+    ],
+    'columns' => [
+        'from' => 'From',
+        'gift' => 'Gift',
+        'who' => 'Who',
+        'dates' => 'Dates',
+        'state' => 'State',
+        'actions' => 'Actions',
+    ],
+    'who' => [
+        'both' => 'Individuals and companies',
+        'individuals' => 'Individuals',
+        'companies' => 'Companies',
+    ],
+    'state' => [
+        'GIVING' => 'Giving now',
+        'NOT_STARTED' => 'Not started',
+        'ENDED' => 'Ended',
+        'OFF' => 'Off',
+    ],
+    'form' => [
+        'new_title' => 'New Gift Level',
+        'edit_title' => 'Edit Gift Level',
+        'description' => 'Orders from this amount get the size you choose, free.',
+        'amount' => 'From (:currency)',
+        'amount_hint' => 'The order\'s total that earns the gift.',
+        'gift' => 'Gift',
+        'search' => 'Search Sizes by Product Name or Code',
+        'type_two' => 'Type at least 2 characters.',
+        'searching' => 'Searching…',
+        'none' => 'No sizes found.',
+        'choose' => 'Choose',
+        'chosen' => 'Chosen',
+        'choose_named' => 'Choose :name, :code',
+        'is_chosen' => 'This is the gift now.',
+        'choose_gift' => 'Choose a gift first.',
+        'who' => 'Who gets it',
+        'starts' => 'Starts',
+        'ends' => 'Ends',
+        'create' => 'Create Level',
+        'save' => 'Save Level',
+    ],
+    'toast' => [
+        'created' => 'Gift level created.',
+        'saved' => 'Gift level saved.',
+        'on' => 'Gift level turned on.',
+        'off' => 'Gift level turned off.',
+    ],
+];

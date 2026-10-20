@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { Badge } from '@/components/ui/badge';
 import { isolate } from '@/lib/bidi';
-import { figure } from '@/lib/digits';
+import { figure, intlLocale } from '@/lib/digits';
 import { formatMoney, type Money } from '@/lib/money';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
@@ -14,6 +14,11 @@ import type { SharedProps } from '@/types/page';
 
 export function useLocale(): string {
     return usePage<SharedProps>().props.locale;
+}
+
+/** A count's words in the page's plural form: a key holding zero, one, two, few, many, other (as Inventory's). */
+export function plural(t: ReturnType<typeof useTranslator>, locale: string, key: string, count: number, values: Record<string, string | number> = {}): string {
+    return t(`${key}.${new Intl.PluralRules(intlLocale(locale)).select(count)}`, { count: figure(locale, count), ...values });
 }
 
 /** A value that is not there: Geist's em dash. */
@@ -44,20 +49,23 @@ export function CouponStateBadge({ state }: { state: string }) {
     );
 }
 
-/** What a coupon takes off, in words: "15%, up to 100.00 SAR", "25.00 SAR off". */
-export function useDiscountWords(): (kind: string, percent: number | null, amount: Money | null, cap: Money | null) => string {
+/**
+ * What a coupon takes off, in words: "15%, up to 100.00 SAR" on the panel's lists (§4.1 M1); for a
+ * shopper (`shopper`), "15% off, up to 100.00 SAR". A fixed amount says "25.00 SAR off" for both.
+ */
+export function useDiscountWords(shopper = false): (kind: string, percent: number | null, amount: Money | null, cap: Money | null) => string {
     const t = useTranslator();
     const locale = useLocale();
 
     return (kind, percent, amount, cap) => {
         if (kind === 'FIXED' && amount !== null) {
-            return t('promotions::admin_coupons.discount.fixed', { amount: isolate(formatMoney(amount, locale)) });
+            return t('promotions::discounts.fixed', { amount: isolate(formatMoney(amount, locale)) });
         }
 
         const share = `${figure(locale, percent ?? 0)}%`;
 
         return cap === null
-            ? t('promotions::admin_coupons.discount.percent', { percent: isolate(share) })
-            : t('promotions::admin_coupons.discount.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
+            ? t(shopper ? 'promotions::discounts.percent_off' : 'promotions::discounts.percent', { percent: isolate(share) })
+            : t(shopper ? 'promotions::discounts.percent_cap_off' : 'promotions::discounts.percent_cap', { percent: isolate(share), cap: isolate(formatMoney(cap, locale)) });
     };
 }
