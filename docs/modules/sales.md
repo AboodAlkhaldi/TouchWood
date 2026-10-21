@@ -562,6 +562,12 @@ job ranks each store's products by the pieces sold in that store's orders not ca
 90 days**, and pushes the ranks. My assumption for the measure and the window, stated for the owner to
 reject.
 
+**As built (step S11a)** — `PushSalesRanks` (nightly, 03:45 Riyadh, the system only): per store, the pieces
+of non-gift lines in its orders **placed** within the last 90 days (to the second) whose status is not
+`CANCELLED`, `REJECTED` or `UNDELIVERED` — returned pieces still count (my assumption) — ranked 1 the most, a
+tie to the newer product (the shop's own tie-break); **every store, on and off, gets its whole ranking**, so a
+product that sold nothing loses its rank. Catalog keeps it (catalog.md amendment 30).
+
 ---
 
 ## 2 · Public contract

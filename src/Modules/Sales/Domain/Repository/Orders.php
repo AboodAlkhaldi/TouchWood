@@ -46,6 +46,14 @@ interface Orders
     /** The flag cleared; false when there was none. */
     public function clearShort(string $orderId): bool;
 
+    /**
+     * The pieces sold of each product in a store's orders placed since `$since` that were not cancelled,
+     * rejected or undelivered — gift lines left out (§1.13).
+     *
+     * @return array<string, int> product id => pieces
+     */
+    public function piecesSold(string $storeId, DateTimeImmutable $since): array;
+
     /** What the order was paid and refunded moved by these amounts (§1.9) — a void moves them back. */
     public function moveMoney(string $orderId, int $paid, int $refunded): void;
 
