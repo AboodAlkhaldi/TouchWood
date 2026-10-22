@@ -44,6 +44,7 @@ use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Exception\InvalidSyncInput;
 use Modules\Sync\Domain\Exception\ReadNotFound;
 use Modules\Sync\Domain\Repository\Reads;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadKind;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
@@ -196,6 +197,26 @@ describe('the status line (S8, Q29, Q35)', function () {
             ->and($arabic->failure?->text)->toBe('توقفت: توقف العامل الذي يشغّلها.')
             ->and($provider->failure)->toEqual(new FailureView(null, null, 'Odoo answered 503.'));
     });
+
+    it('says the provider\'s reason kept as a code and its values in the page\'s language, and one stored before the codes as it is (stage 5 step 10)', function (string $locale, string $failed, string $late) {
+        syncShownReader();
+        app()->setLocale($locale);
+        $said = static function (string $stored): ?string {
+            DB::table('sync.connections')->update(['state' => 'FAILING', 'last_error' => $stored]);
+
+            return app(SyncStatusHandler::class)->handle(new SyncStatus(syncShownSa()))->failure?->providerSaid;
+        };
+
+        expect($said((new ProviderReason(ProviderReason::FAILED, ['status' => 503]))->stored()))->toBe($failed)
+            ->and($said((new ProviderReason(ProviderReason::NO_ANSWER_WITHIN, ['seconds' => 30]))->stored()))->toBe($late)
+            ->and($said('The provider could not be read: Odoo failed (503).'))->toBe('The provider could not be read: Odoo failed (503).')
+            // Not a reason of ours: a code unknown, or values it does not carry, shown as stored.
+            ->and($said('{"code":"ODOO_FAILED","values":{}}'))->toBe('{"code":"ODOO_FAILED","values":{}}')
+            ->and($said('{"code":"NOT_OURS","values":{}}'))->toBe('{"code":"NOT_OURS","values":{}}');
+    })->with([
+        'English' => ['en', 'Odoo failed (503).', 'Odoo did not answer within 30 seconds.'],
+        'Arabic' => ['ar', 'تعطّل Odoo (503).', 'لم يُجب Odoo خلال 30 ثانية.'],
+    ]);
 
     it('says Not Wired for a store with no connection, its reads still kept (Q35)', function () {
         syncShownRun();

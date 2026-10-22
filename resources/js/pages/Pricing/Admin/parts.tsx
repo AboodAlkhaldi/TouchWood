@@ -143,6 +143,13 @@ export function RowPhoto({ src }: { src: string | null }) {
 }
 
 /**
+ * The address's values that belong to the store left, dropped with it when another is chosen - as Inventory's
+ * Stock drops its drawer's size (inventory.md, the review of step 5): Prices' open drawer (`size`), the offer
+ * Offers names (`sale`), and a Show More cursor (`after`). The search and the filters stay.
+ */
+export const STORE_OWN = ['size', 'sale', 'after'];
+
+/**
  * What every Pricing screen draws above its rows (§4.3.1, §4.3.2): the store filter (none for one store),
  * Off for a Super Admin's off store, the discount ceiling - a link to the settings for whoever may change
  * it (Q11) - and a wired store's Note.
@@ -154,7 +161,7 @@ export function StoreFrame({ frame, wiredBody }: { frame: PricingFrameData; wire
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-end gap-3">
-                <StoreFilter stores={frame.stores} value={frame.storeCode} className="max-w-xs" />
+                <StoreFilter stores={frame.stores} value={frame.storeCode} drop={STORE_OWN} className="max-w-xs" />
                 {frame.off ? <StoreOffBadge className="mb-2" /> : null}
             </div>
             <p className="text-copy-13 text-ink-muted" data-test="ceiling">

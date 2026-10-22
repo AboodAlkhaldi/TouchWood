@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { guardHub, type HeldVisit, leaveGuard } from '@/lib/leave-guard';
+import { changedPlaces, guardHub, type HeldVisit, leaveGuard } from '@/lib/leave-guard';
 
 /** A visit as Inertia hands its `before` listeners one: its own fields, the options and callbacks asked with. */
 function visit(overrides: Record<string, unknown> = {}): HeldVisit {
@@ -114,5 +114,39 @@ describe('a page with several sets of boxes', () => {
         (made[0]?.onFinish as () => void)();
         assert.equal(inventory.before(visit({ id: 'visit-4' })), false);
         assert.deepEqual(held, ['pricing', 'inventory']);
+    });
+
+    it('counts every guard with changes in the question, and none whose boxes are gone (stage 5 step 10)', () => {
+        const hub = guardHub();
+        const places: number[] = [];
+        const dirty = { pricing: true, inventory: true, other: true, clean: false };
+        const guard = (name: keyof typeof dirty) => leaveGuard({ dirty: () => dirty[name], keeps: () => false, hold: (_visit, count) => places.push(count), visit: () => undefined, hub });
+        const pricing = guard('pricing');
+        guard('inventory');
+        const other = guard('other');
+        guard('clean');
+
+        assert.equal(changedPlaces(hub), 3);
+        assert.equal(pricing.before(visit({ id: 'visit-5' })), false);
+
+        // A card's boxes gone: off the count, and counted again once drawn again.
+        const detach = other.attach();
+        detach();
+        dirty.inventory = false;
+
+        assert.equal(pricing.before(visit({ id: 'visit-6' })), false);
+
+        other.attach();
+
+        assert.equal(pricing.before(visit({ id: 'visit-7' })), false);
+        assert.deepEqual(places, [3, 1, 2]);
+    });
+
+    it('says at least the one asking, on a guard of its own', () => {
+        const places: number[] = [];
+        const guard = leaveGuard({ dirty: () => true, keeps: () => false, hold: (_visit, count) => places.push(count), visit: () => undefined });
+
+        assert.equal(guard.before(visit()), false);
+        assert.deepEqual(places, [1]);
     });
 });

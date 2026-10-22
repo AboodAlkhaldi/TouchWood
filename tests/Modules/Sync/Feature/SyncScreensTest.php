@@ -28,6 +28,7 @@ use Modules\Sync\Application\Command\RunRead\RunRead;
 use Modules\Sync\Application\Command\RunRead\RunReadHandler;
 use Modules\Sync\Application\Report\SyncReportCount;
 use Modules\Sync\Application\SyncPermissions as P;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Symfony\Component\HttpFoundation\Response;
@@ -254,6 +255,32 @@ describe('the Sync Report (Y1)', function () {
             ->and($page['translations']['sync::admin_report.title'])->toBe('Sync Report');
     });
 
+    it('names a value the provider did not send on a Bad Value entry, with its words in the page\'s language (stage 5 step 10)', function (string $locale, string $price, string $stock) {
+        syncScreensWired();
+        $ready = Px::ready(['70 cm', '90 cm']);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $ready['product'], true)));
+        $code = static fn (string $size): string => (string) DB::table('catalog.variants')->where('id', $size)->value('code');
+        // Odoo's adapter names a value every item must carry and this one did not (sync.md §2.4 As built).
+        FakeProvider::bound()->values = [new ProviderValue($code($ready['variants'][0]), null, 3, ['price']), new ProviderValue($code($ready['variants'][1]), '10.00', null, ['stock'])];
+        $read = strtolower((string) Str::ulid());
+        DB::table('sync.reads')->insert(['id' => $read, 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'SYSTEM', 'requested_by_id' => null, 'queued_at' => now()]);
+        Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
+
+        $page = syncScreensProps(syncScreensAs(Fx::staffWith([P::REPORT_VIEW], ['sa']), $locale)->get('/admin/sync?kind=BAD_VALUE'), 'Sync/Admin/Report');
+        $missing = [];
+
+        foreach ($page['problems']['entries'] as $entry) {
+            $missing[$entry['about']['variantId'] ?? ''] = [$entry['about']['detail']['refused'] ?? null, $entry['about']['detail']['missing'] ?? null];
+        }
+
+        expect($missing)->toEqual([$ready['variants'][0] => ['price', ['price']], $ready['variants'][1] => ['stock', ['stock']]])
+            ->and($page['translations']['sync::admin_report.problems.details.missing_price'] ?? null)->toBe($price)
+            ->and($page['translations']['sync::admin_report.problems.details.missing_stock'] ?? null)->toBe($stock);
+    })->with([
+        'English' => ['en', 'Price not sent: the size keeps its price.', 'Stock not sent: the size keeps its stock.'],
+        'Arabic' => ['ar', 'لم يُرسَل السعر: يبقى سعر المقاس كما هو.', 'لم يُرسَل المخزون: يبقى مخزون المقاس كما هو.'],
+    ]);
+
     it('shows the Reads when asked; a store not wired only its Reads (Q35)', function () {
         $browser = syncScreens();
         $notWired = syncScreensProps($browser->get('/admin/sync?tab=problems'), 'Sync/Admin/Report');
@@ -403,6 +430,15 @@ describe('the Provider page (Y3)', function () {
         $refused = syncScreensSuper()->post('/admin/sync/provider/wire', ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']]);
 
         expect(syncScreensErrors($refused)['form'] ?? null)->toBe(['Failed to read the provider: Odoo answered 401.'])
+            ->and(DB::table('sync.connections')->count())->toBe(0);
+    });
+
+    it('says an adapter\'s reason kept as a code in the panel\'s language when its test fails (stage 5 step 10)', function () {
+        FakeProvider::bound()->failure = new ProviderReason(ProviderReason::NO_ANSWER_WITHIN, ['seconds' => 10]);
+        $form = ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']];
+
+        expect(syncScreensErrors(syncScreensSuper()->post('/admin/sync/provider/wire', $form))['form'] ?? null)->toBe(['Failed to read the provider: Odoo did not answer within 10 seconds.'])
+            ->and(syncScreensErrors(syncScreensAs(Fx::staff(StaffStatus::Active, superAdmin: true), 'ar')->post('/admin/sync/provider/wire', $form))['form'] ?? null)->toBe(['تعذّرت القراءة من المزوّد: لم يُجب Odoo خلال 10 ثانية.'])
             ->and(DB::table('sync.connections')->count())->toBe(0);
     });
 });

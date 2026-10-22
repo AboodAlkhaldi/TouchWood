@@ -870,7 +870,10 @@ variant transition, an over-long file name or alt text, a malformed checksum); t
 the locale of the page they are on. `type` is the error's stable key. `detail` never contains
 stack traces, SQL, or another customer's data.
 **[Owner, 2026-10-20]** Nor the message an error carries for developers: an error with no sentence
-written says its status's (`errors.page.{status}`, the admin panel's error page's own; frontend.md §2.6).
+written says its status's. **[Owner, 2026-10-20; built in stage 5 step 10]** In words of its own, not the
+admin panel's error page's: a call answers an action, not a page - `errors.json.{status}`, both languages,
+"Couldn't do that: something changed meanwhile. Reload and try again." (the page keeps `errors.page.{status}`,
+"Couldn't open this page: …"; frontend.md §2.6).
 
 ---
 

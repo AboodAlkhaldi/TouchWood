@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Modules\Sync\Domain\Exception\ConnectionFailed;
 use Modules\Sync\Domain\Model\Connection;
 use Modules\Sync\Domain\Provider\ProviderAdapter;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 
@@ -25,7 +26,7 @@ final class FakeProvider implements ProviderAdapter
      * @param  list<string>  $fields
      */
     public function __construct(
-        public ?string $failure = null,
+        public string|ProviderReason|null $failure = null,
         public array $values = [],
         public array $fields = [],
     ) {}

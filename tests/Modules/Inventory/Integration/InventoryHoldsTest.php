@@ -191,7 +191,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
 
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
             ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 3 3 SHIPPED"])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→3 SYSTEM', 'DAMAGED_LOST 3→1 SYSTEM', 'SHIPPED 1→0 2 more shipped than counted - recount SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→3 SYSTEM', 'DAMAGED_LOST 3→1 SYSTEM', 'SHIPPED 1→0 SHIPPED_BEYOND_COUNT {"count": 2} SYSTEM']);
 
         // The same shipment again counts once; a removal by hand is still refused below 0.
         inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 3)]);
@@ -214,7 +214,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
 
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
             ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 2 2 SHIPPED"])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→2 SYSTEM', 'DAMAGED_LOST 2→0 SYSTEM', 'SHIPPED 0→0 2 more shipped than counted - recount SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→2 SYSTEM', 'DAMAGED_LOST 2→0 SYSTEM', 'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 2} SYSTEM']);
     });
 
     it('ships a part sent twice twice, short both times - no shipment id; Sales calls ship once per real shipment (§2.1)', function () {
@@ -230,8 +230,8 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         expect(inventoryHoldsFigures($size))->toBe([0, 1])
             ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 3 2 OPEN"])
             ->and(array_slice(Ix::ledger('sa', $size), 2))->toBe([
-                'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM',
-                'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM',
+                'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
+                'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
             ]);
     });
 
@@ -259,8 +259,8 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
             ->and(inventoryHoldsLines($third))->toBe(["{$size} bought 1 1 SHIPPED"])
             ->and(array_slice(Ix::ledger('sa', $size), 2))->toBe([
-                'SHIPPED 1→0 1 more shipped than counted - recount SYSTEM',
-                'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM',
+                'SHIPPED 1→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
+                'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
             ]);
     });
 
@@ -283,7 +283,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         expect(inventoryHoldsFigures($size))->toBe([2, 0])
             ->and(fn () => inventoryHoldsApi()->returned($order, 'r-2', [new HoldLineDto($size, 1)]))->toThrow(QuantityInvalid::class)
             ->and(array_slice(Ix::ledger('sa', $size), 2))->toBe([
-                'SHIPPED 1→0 1 more shipped than counted - recount SYSTEM',
+                'SHIPPED 1→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
                 'RETURNED 0→2 SYSTEM',
             ]);
     });
@@ -300,8 +300,8 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
             ->and(inventoryHoldsLines($order))->toBe(["{$size} bought 2 2 SHIPPED", "{$size} gift 1 1 SHIPPED"])
             ->and(array_slice(Ix::ledger('sa', $size), 2))->toBe([
-                'SHIPPED 1→0 1 more shipped than counted - recount SYSTEM',
-                'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM',
+                'SHIPPED 1→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
+                'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM',
             ]);
     });
 
@@ -316,7 +316,7 @@ describe('shipping, the tick, cancel and expiry (§8 #2-#4)', function () {
         inventoryHoldsApi()->ship($order, [new HoldLineDto($size, 1)]);
 
         expect(inventoryHoldsFigures($size))->toBe([0, 0])
-            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'DAMAGED_LOST 4→3 SYSTEM', 'SHIPPED 3→0 SYSTEM', 'SHIPPED 0→0 1 more shipped than counted - recount SYSTEM']);
+            ->and(Ix::ledger('sa', $size))->toBe(['STOCKTAKE 0→4 SYSTEM', 'DAMAGED_LOST 4→3 SYSTEM', 'SHIPPED 3→0 SYSTEM', 'SHIPPED 0→0 SHIPPED_BEYOND_COUNT {"count": 1} SYSTEM']);
     });
 
     it('takes nothing on a wired store\'s shipment, and the tick ends a stock-dependent line\'s hold', function () {

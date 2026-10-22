@@ -191,6 +191,26 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             ->and(fn () => DB::transaction(fn () => $migration->down()))->toThrow(QueryException::class, 'stock_movements_direction');
     });
 
+    it('keeps Inventory\'s own notes as a code it knows with its values, never beside a typed note, each counting as the note a line needs (stage 5 step 10)', function () {
+        $size = Px::ready()['variants'][0];
+        $insert = static fn (array $changed): Closure => fn () => DB::transaction(fn () => DB::table('inventory.stock_movements')->insert([
+            'store_id' => Fx::storeId('sa'), 'variant_id' => $size, 'reason' => 'SHIPPED', 'change' => 0, 'before' => 0, 'after' => 0,
+            'note' => null, 'note_code' => 'SHIPPED_BEYOND_COUNT', 'note_values' => '{"count": 2}', 'reference' => (string) Str::ulid(), 'actor_type' => 'SYSTEM', 'actor_id' => null,
+            ...$changed,
+        ]));
+
+        expect($insert(['note_code' => 'RECOUNT']))->toThrow(QueryException::class, 'stock_movements_note_code')
+            ->and($insert(['note_code' => null]))->toThrow(QueryException::class, 'stock_movements_note_values')
+            ->and($insert(['note_values' => '[2]']))->toThrow(QueryException::class, 'stock_movements_note_values')
+            ->and($insert(['note' => 'typed']))->toThrow(QueryException::class, 'stock_movements_note_one');
+
+        // A shipment from 0 and a correction each say why with a code as with a note.
+        $insert([])();
+        $insert(['reason' => 'CORRECTION', 'change' => 2, 'after' => 2, 'note_code' => 'UNWIRED', 'note_values' => null])();
+
+        expect(DB::table('inventory.stock_movements')->count())->toBe(2);
+    });
+
     it('keeps a hold line\'s pieces from 1, shipped within them, an end it knows and a time only once ended, and a return\'s pieces from 1', function () {
         $size = Px::ready()['variants'][0];
         $hold = strtolower((string) Str::ulid());

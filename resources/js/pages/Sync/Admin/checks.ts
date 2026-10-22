@@ -38,7 +38,7 @@ export function wholeStock(value: unknown): number | null {
     return typeof value === 'string' && /^\s*-?\d{1,18}\s*$/.test(value) ? Number(value.trim()) : null;
 }
 
-export type BadValue = 'twice' | 'bad_price' | 'bad_stock' | 'below_zero' | 'too_large';
+export type BadValue = 'twice' | 'bad_price' | 'bad_stock' | 'below_zero' | 'too_large' | 'missing_price' | 'missing_stock';
 
 /** Why a stock number the server refused was refused: not a whole number (skipped), below 0 (kept as 0), or too large. */
 function stockRefusal(stock: unknown): BadValue {
@@ -49,22 +49,27 @@ function stockRefusal(stock: unknown): BadValue {
 
 /**
  * What a Bad Value's entry says was refused (sync.md §1.5 #2, §2.4): a code sent twice; else the value the
- * server names in `refused` - the price, the stock, or both, each with its own sentence. An entry kept from
- * before the server named it (screens step 7's review) is read as before: the stock when it is not a whole
- * number or is below 0, else the price.
+ * server names in `refused` - the price, the stock, or both, each with its own sentence; one the provider
+ * was bound to send and did not, named in `missing` (Odoo's, sync.md §2.4 As built), said as not sent. An
+ * entry kept from before the server named it (screens step 7's review) is read as before: the stock when it
+ * is not a whole number or is below 0, else the price.
  */
 export function badValuesOf(detail: Record<string, unknown>): BadValue[] {
     if (Array.isArray(detail.twice)) {
         return ['twice'];
     }
 
+    const missing = Array.isArray(detail.missing) ? detail.missing : [];
+    const price = (): BadValue => (missing.includes('price') ? 'missing_price' : 'bad_price');
+    const stock = (): BadValue => (missing.includes('stock') ? 'missing_stock' : stockRefusal(detail.stock));
+
     switch (detail.refused) {
         case 'price':
-            return ['bad_price'];
+            return [price()];
         case 'stock':
-            return [stockRefusal(detail.stock)];
+            return [stock()];
         case 'both':
-            return ['bad_price', stockRefusal(detail.stock)];
+            return [price(), stock()];
         default: {
             const number = detail.stock === null || detail.stock === undefined ? 0 : wholeStock(detail.stock);
 

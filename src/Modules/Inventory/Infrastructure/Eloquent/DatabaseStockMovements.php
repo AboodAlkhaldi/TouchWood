@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\ValueObject\LedgerLine;
+use Modules\Inventory\Domain\ValueObject\LedgerNote;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Shared\Application\ActorContext;
 use Shared\Domain\ValueObject\StoreId;
@@ -25,8 +26,10 @@ final readonly class DatabaseStockMovements implements StockMovements
         private ActorContext $actors,
     ) {}
 
-    public function record(StoreId $store, string $variantId, MovementReason $reason, int $before, int $after, ?string $note, string $reference): void
+    public function record(StoreId $store, string $variantId, MovementReason $reason, int $before, int $after, string|LedgerNote|null $note, string $reference): void
     {
+        $coded = $note instanceof LedgerNote ? $note : null;
+
         $actor = $this->actors->current();
 
         $this->db->table('inventory.stock_movements')->insert([
@@ -36,7 +39,9 @@ final readonly class DatabaseStockMovements implements StockMovements
             'change' => $after - $before,
             'before' => $before,
             'after' => $after,
-            'note' => $note,
+            'note' => $coded === null ? $note : null,
+            'note_code' => $coded?->code,
+            'note_values' => $coded === null || $coded->values === [] ? null : json_encode($coded->values, JSON_THROW_ON_ERROR),
             'reference' => $reference,
             'actor_type' => $actor->type->value,
             'actor_id' => $actor->id,
@@ -55,7 +60,7 @@ final readonly class DatabaseStockMovements implements StockMovements
         $query = $this->db->table('inventory.stock_movements as m')
             ->where('m.store_id', $store->value)
             ->where('m.variant_id', strtolower(trim($variantId)))
-            ->select(['m.id', 'm.created_at', 'm.reason', 'm.before', 'm.after', 'm.note', 'm.actor_type', 'm.actor_id', 'm.requested_by_type', 'm.requested_by_id'])
+            ->select(['m.id', 'm.created_at', 'm.reason', 'm.before', 'm.after', 'm.note', 'm.note_code', 'm.note_values', 'm.actor_type', 'm.actor_id', 'm.requested_by_type', 'm.requested_by_id'])
             // The order a shipment or a return was for: a shipment's reference names it ("ship:{order}:…");
             // a return's names the return, whose order its lines keep.
             ->selectRaw(<<<'SQL'
@@ -88,6 +93,7 @@ final readonly class DatabaseStockMovements implements StockMovements
             $row->requested_by_type === null ? null : (string) $row->requested_by_type,
             $row->requested_by_id === null ? null : (string) $row->requested_by_id,
             $row->order_id === null || $row->order_id === '' ? null : (string) $row->order_id,
+            $row->note_code === null ? null : LedgerNote::stored((string) $row->note_code, is_string($row->note_values) ? (array) json_decode($row->note_values, true) : []),
         ), $query->get()->all()));
     }
 

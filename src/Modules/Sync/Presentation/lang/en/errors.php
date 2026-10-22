@@ -7,6 +7,18 @@ return [
     'connection_failed' => [
         'title' => 'The provider could not be read',
         'detail' => 'Failed to read the provider: :reason',
+        // An adapter's reason kept as a code (ProviderReason), in provider_failures.php's words after the same sentence.
+        'rules' => (static function (): array {
+            $rules = [];
+
+            foreach (require __DIR__.'/provider_failures.php' as $code => $reason) {
+                if (is_string($code) && is_string($reason)) {
+                    $rules[strtolower($code)] = "Failed to read the provider: {$reason}";
+                }
+            }
+
+            return $rules;
+        })(),
     ],
     'already_wired' => [
         'title' => 'Already wired',

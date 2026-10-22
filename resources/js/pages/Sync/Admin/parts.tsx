@@ -283,11 +283,16 @@ export function Detail({ about, links }: { about: ReportedData; links: Links }) 
             );
         }
         case 'BAD_VALUE':
-            // What the server says was refused - the price, the stock or both, each in its own sentence.
+            // What the server says was refused - the price, the stock or both, each in its own sentence; one not
+            // sent at all said so, with no value.
             return (
                 <span className="grid gap-0.5">
                     {badValuesOf(detail).map((refused) => (
-                        <span key={refused}>{refused === 'twice' ? t(`${D}.twice`) : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}</span>
+                        <span key={refused} data-test="bad-value">
+                            {refused === 'twice' || refused === 'missing_price' || refused === 'missing_stock'
+                                ? t(`${D}.${refused}`)
+                                : t(`${D}.${refused}`, { value: sent(t, refused === 'bad_price' ? detail.price : detail.stock) })}
+                        </span>
                     ))}
                 </span>
             );

@@ -17,10 +17,14 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 final readonly class PanelNotFoundController
 {
     /**
-     * The addresses under /admin it answers: any - but never the sign-in pages' (sign-in, sign-in/…),
-     * which somebody signed out must reach as they are.
+     * The addresses under /admin it answers: any - but never those of the pages somebody signed out must
+     * reach as they are (Access's, outside the panel's door; `route:list`): signing in, a forgotten password
+     * and its reset, an invitation, an email change confirmed, the language chosen. A mistyped address under
+     * one of them is Laravel's plain not found, never a trip to sign in (stage 5 step 10).
      */
-    public const string PATHS = '(?!sign-in(?:/|$)).+';
+    public const array SIGNED_OUT = ['sign-in', 'password', 'invitation', 'email-change', 'preferences'];
+
+    public const string PATHS = '(?!(?:sign-in|password|invitation|email-change|preferences)(?:/|$)).+';
 
     public function __invoke(): never
     {

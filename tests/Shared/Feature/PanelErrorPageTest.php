@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia;
+use Modules\Platform\Presentation\Http\Controller\PanelNotFoundController;
 use Modules\Pricing\Domain\Exception\BandsInvalid;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
@@ -244,6 +245,54 @@ it('sends somebody signed out from a mistyped panel address to sign in first, an
     $response->assertNotFound();
 
     expect($response->headers->get('Location'))->toBeNull();
+});
+
+it('leaves every signed-out page\'s address alone: a mistyped one under them is plain not found, never sent to sign in (stage 5 step 10)', function (string $address) {
+    $response = (new AdminBrowser)->get($address);
+    $response->assertNotFound();
+
+    expect($response->headers->get('Location'))->toBeNull()
+        ->and($response->headers->get('X-Inertia'))->toBeNull()
+        ->and($response->getContent())->not->toContain('data-page');
+})->with([
+    'a password page' => '/admin/password/nothing',
+    'a reset with no token' => '/admin/password/reset',
+    'an invitation with more after it' => '/admin/invitation/token/code/more',
+    'an email change with more after it' => '/admin/email-change/token/more',
+    'the language chosen, read' => '/admin/preferences/x',
+]);
+
+it('still sends somebody signed out to sign in from an address that only begins like a signed-out page\'s', function () {
+    foreach (['/admin/passwords', '/admin/invitations-old', '/admin/preferencesx'] as $address) {
+        (new AdminBrowser)->get($address)->assertRedirect('/admin/sign-in');
+    }
+});
+
+it('names every panel page that is reached signed out among the addresses the fallback leaves alone', function () {
+    $signedOut = [];
+
+    foreach (Route::getRoutes()->getRoutes() as $route) {
+        $uri = $route->uri();
+
+        // This file's own test routes are not the panel's pages.
+        if (! str_starts_with($uri, 'admin/') || str_starts_with($uri, 'admin/_test/') || $route->isFallback || str_contains($uri, 'fallbackPlaceholder')) {
+            continue;
+        }
+
+        $guarded = array_filter($route->gatherMiddleware(), static fn (mixed $middleware): bool => is_string($middleware) && str_ends_with($middleware, 'RequireStaff'));
+
+        if ($guarded === []) {
+            $signedOut[] = explode('/', substr($uri, strlen('admin/')))[0];
+        }
+    }
+
+    $signedOut = array_values(array_unique($signedOut));
+    sort($signedOut);
+    $named = PanelNotFoundController::SIGNED_OUT;
+    sort($named);
+
+    expect($signedOut)->toBe($named)
+        ->and(PanelNotFoundController::PATHS)->toBe('(?!(?:'.implode('|', PanelNotFoundController::SIGNED_OUT).')(?:/|$)).+');
 });
 
 it('leaves a form sent, a mistyped address sent anything but a read, and anybody not signed in on Laravel\'s page, which says no developer message', function () {

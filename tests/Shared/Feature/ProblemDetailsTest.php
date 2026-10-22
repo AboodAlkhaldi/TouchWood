@@ -116,18 +116,30 @@ it('translates errors owned by the shared kernel', function () {
         ->assertJsonPath('title', 'غير مسموح');
 });
 
-it('falls back to the category title and the status\'s sentence when an error has no translation, never the developer message (owner, 2026-10-20)', function (string $locale, string $category, string $title, string $detail) {
+it('falls back to the category title and the status\'s own JSON sentence when an error has no translation, never the page\'s or the developer message (owner, 2026-10-20; stage 5 step 10)', function (string $locale, string $category, ?string $title, string $detail) {
     app()->setLocale($locale);
 
-    $response = getJson("/_test/category/{$category}")
-        ->assertJsonPath('title', $title)
-        ->assertJsonPath('detail', $detail);
+    $response = getJson("/_test/category/{$category}")->assertJsonPath('detail', $detail);
 
-    expect($response->getContent())->not->toContain('Developer message');
+    if ($title !== null) {
+        $response->assertJsonPath('title', $title);
+    }
+
+    expect($response->getContent())->not->toContain('Developer message')
+        ->and($response->getContent())->not->toContain(json_encode(trans('errors.page.'.$response->status()), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 })->with([
-    'a conflict' => ['en', 'CONFLICT', 'Conflict', 'Couldn\'t open this page: something changed meanwhile. Reload it and try again.'],
-    'not found' => ['en', 'NOT_FOUND', 'Not Found', 'There\'s nothing at this address: it was removed, or the link is wrong.'],
-    'an invalid request, in Arabic' => ['ar', 'INVALID', 'طلب غير صالح', 'تعذّر فتح هذه الصفحة: في عنوانها ما ليس صالحًا.'],
+    'a conflict' => ['en', 'CONFLICT', 'Conflict', 'Couldn\'t do that: something changed meanwhile. Reload and try again.'],
+    'not found' => ['en', 'NOT_FOUND', 'Not Found', 'Couldn\'t do that: what it names isn\'t there.'],
+    'forbidden' => ['en', 'FORBIDDEN', 'Not Allowed', 'Couldn\'t do that: you don\'t have access to it.'],
+    'an invalid request' => ['en', 'INVALID', 'Invalid Request', 'Couldn\'t do that: something sent isn\'t valid.'],
+    'unsupported' => ['en', 'UNSUPPORTED', 'Unsupported', 'Couldn\'t do that: what was sent isn\'t a kind it takes.'],
+    'too large' => ['en', 'TOO_LARGE', 'Too Large', 'Couldn\'t do that: what was sent is too large.'],
+    'a conflict, in Arabic' => ['ar', 'CONFLICT', null, 'تعذّر تنفيذ ذلك: تغيّر شيء في الأثناء. أعد التحميل وحاول مجددًا.'],
+    'not found, in Arabic' => ['ar', 'NOT_FOUND', null, 'تعذّر تنفيذ ذلك: ما يسمّيه غير موجود.'],
+    'forbidden, in Arabic' => ['ar', 'FORBIDDEN', null, 'تعذّر تنفيذ ذلك: ليست لديك صلاحية له.'],
+    'an invalid request, in Arabic' => ['ar', 'INVALID', 'طلب غير صالح', 'تعذّر تنفيذ ذلك: في ما أُرسل ما ليس صالحًا.'],
+    'unsupported, in Arabic' => ['ar', 'UNSUPPORTED', null, 'تعذّر تنفيذ ذلك: ما أُرسل من نوع لا يقبله.'],
+    'too large, in Arabic' => ['ar', 'TOO_LARGE', null, 'تعذّر تنفيذ ذلك: ما أُرسل كبير جدًا.'],
 ]);
 
 it('says no developer message in a JSON problem for any category', function (string $category) {

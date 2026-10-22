@@ -369,20 +369,48 @@ describe('a size\'s history (StockHistory)', function () {
             ->and($page->lines[0]->at)->toMatch('/\A\d{4}-\d{2}-\d{2}T/');
     });
 
-    it('shows a shipment from a stock already at 0 as a 0 → 0 line with its shortfall, by its order (owner, 2026-10-19)', function () {
+    it('shows a shipment from a stock already at 0 as a 0 → 0 line with its shortfall, by its order, in the page\'s language (owner, 2026-10-19)', function (string $locale, string $note) {
         [$size] = stockProduct('Shortfall')['variants'];
         Ix::count('sa', [$size => 2]);
         $order = stockHold([new HoldLineDto($size, 2)]);
         Ix::adjust('sa', $size, 'REMOVE', 2, 'DAMAGED_LOST');
         app(InventoryApi::class)->ship($order, [new HoldLineDto($size, 2)]);
         stockManager();
+        app()->setLocale($locale);
 
         $first = app(StockHistoryHandler::class)->handle(new StockHistory(Ix::storeId('sa'), $size))->lines[0];
 
         expect("{$first->reason} {$first->before}→{$first->after} {$first->change} {$first->who}")->toBe('SHIPPED 0→0 0 ORDER')
-            ->and($first->note)->toBe('2 more shipped than counted - recount')
+            ->and($first->note)->toBe($note)
             ->and($first->orderId)->toBe($order);
-    });
+    })->with([
+        'English' => ['en', 'Shipped 2 more than counted. Recount.'],
+        'Arabic' => ['ar', 'شُحن 2 أكثر من المعدود. أعد الجرد.'],
+    ]);
+
+    it('shows a note typed by staff, and a line\'s note written before the codes, as they are, and the unwiring\'s own in the page\'s language (stage 5 step 10)', function (string $locale, string $unwired) {
+        [$size] = stockProduct('Old Notes')['variants'];
+        Ix::count('sa', [$size => 3]);
+        Ix::adjust('sa', $size, 'REMOVE', 1, 'CORRECTION', 'Found one broken');
+        // A line the ledger kept from before the codes: its English text, never turned into one.
+        DB::table('inventory.stock_movements')->insert([
+            'store_id' => Ix::storeId('sa'), 'variant_id' => $size, 'reason' => 'CORRECTION', 'change' => 2, 'before' => 2, 'after' => 4,
+            'note' => 'unwired', 'reference' => 'unwired:old:'.$size, 'actor_type' => 'SYSTEM', 'actor_id' => null,
+        ]);
+        DB::table('inventory.stock_movements')->insert([
+            'store_id' => Ix::storeId('sa'), 'variant_id' => $size, 'reason' => 'CORRECTION', 'change' => 1, 'before' => 4, 'after' => 5,
+            'note_code' => 'UNWIRED', 'reference' => 'unwired:new:'.$size, 'actor_type' => 'SYSTEM', 'actor_id' => null,
+        ]);
+        stockManager();
+        app()->setLocale($locale);
+
+        $notes = array_map(static fn ($line): ?string => $line->note, app(StockHistoryHandler::class)->handle(new StockHistory(Ix::storeId('sa'), $size))->lines);
+
+        expect($notes)->toBe([$unwired, 'unwired', 'Found one broken', null]);
+    })->with([
+        'English' => ['en', 'The store was unwired: the pieces returned while it was wired are added.'],
+        'Arabic' => ['ar', 'فُكّ ربط المتجر: أُضيفت القطع المرتجعة أثناء ربطه.'],
+    ]);
 
     it('pages 50 at a time, newest first, in the same few queries', function () {
         [$size] = stockProduct('Long')['variants'];

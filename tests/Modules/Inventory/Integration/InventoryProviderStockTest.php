@@ -307,7 +307,7 @@ describe('unwiring (sync.md §1.8)', function () {
         expect($stopped)->toBe(2)
             ->and(Ix::stock('sa', $returned)?->in_stock)->toBe(2)
             ->and(Ix::stock('sa', $returned)?->returned_extra)->toBe(0)
-            ->and(Ix::ledger('sa', $returned))->toBe(['CORRECTION 0→2 unwired SYSTEM'])
+            ->and(Ix::ledger('sa', $returned))->toBe(['CORRECTION 0→2 UNWIRED SYSTEM'])
             ->and(Ix::ledger('sa', $withStock))->toBe(['STOCKTAKE 0→3 SYSTEM'])
             ->and(array_map(providerStockOrderable(...), [$atZero, $withStock, $returned, $never, $dependentAtZero, $notOn]))->toBe([false, true, true, false, false, false]);
     });

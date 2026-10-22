@@ -13,6 +13,7 @@ use Modules\Sync\Domain\Exception\ReadNotFound;
 use Modules\Sync\Domain\Exception\SizeNotFound;
 use Modules\Sync\Domain\Exception\StoreOff;
 use Modules\Sync\Domain\Exception\SyncError;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Shared\Domain\Error\ErrorCategory;
 
 /*
@@ -121,5 +122,39 @@ it('carries the field an invalid input names, and the reason a test read failed,
     expect((new InvalidSyncInput('address'))->context())->toBe(['attribute' => 'address'])
         ->and((new InvalidSyncInput('settings', 'database'))->context())->toBe(['attribute' => 'settings', 'setting' => 'database', 'rule' => 'setting'])
         ->and((new InvalidSyncInput('address', rule: InvalidSyncInput::ADDRESS_PATH))->context())->toBe(['attribute' => 'address', 'rule' => 'address_path'])
-        ->and((new ConnectionFailed('Timed out'))->context())->toBe(['reason' => 'Timed out']);
+        ->and((new ConnectionFailed('Timed out'))->context())->toBe(['reason' => 'Timed out'])
+        ->and((new ConnectionFailed(new ProviderReason(ProviderReason::FAILED, ['status' => 503])))->context())->toBe(['reason' => 'ODOO_FAILED', 'rule' => 'odoo_failed', 'status' => 503]);
+});
+
+it('keeps an adapter\'s reason as a code and exactly its values, read back from what is stored (stage 5 step 10)', function () {
+    $failed = new ConnectionFailed(new ProviderReason(ProviderReason::UNREACHABLE_WITHIN, ['seconds' => 10]));
+
+    expect($failed->reason)->toBe('{"code":"ODOO_UNREACHABLE_WITHIN","values":{"seconds":10}}')
+        ->and(ProviderReason::fromStored($failed->reason))->toEqual($failed->coded)
+        ->and(ProviderReason::fromStored((new ProviderReason(ProviderReason::NOT_JSON))->stored()))->toEqual(new ProviderReason(ProviderReason::NOT_JSON))
+        ->and(ProviderReason::fromStored('Timed out'))->toBeNull()
+        ->and(ProviderReason::fromStored('UNWIRED'))->toBeNull()
+        ->and(ProviderReason::fromStored('{"code":"ODOO_FAILED","values":{"status":"503"}}'))->toBeNull()
+        ->and(ProviderReason::fromStored('{"code":"ODOO_FAILED"}'))->toBeNull()
+        ->and(fn () => new ProviderReason(ProviderReason::FAILED))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => new ProviderReason('ODOO_SOMETHING'))->toThrow(InvalidArgumentException::class);
+});
+
+it('writes every adapter reason in both languages, its values in each sentence, and a rule for each (stage 5 step 10)', function () {
+    $root = dirname(__DIR__, 4).'/src/Modules/Sync/Presentation/lang';
+    $en = require "{$root}/en/provider_failures.php";
+    $ar = require "{$root}/ar/provider_failures.php";
+    $rules = static fn (string $locale): array => array_keys((require "{$root}/{$locale}/errors.php")['connection_failed']['rules']);
+
+    expect(array_keys($en))->toBe(array_keys(ProviderReason::CODES))
+        ->and(array_keys($ar))->toBe(array_keys(ProviderReason::CODES))
+        ->and($rules('en'))->toBe(array_map(strtolower(...), array_keys(ProviderReason::CODES)))
+        ->and($rules('ar'))->toBe($rules('en'));
+
+    foreach (ProviderReason::CODES as $code => $values) {
+        foreach ($values as $value) {
+            expect($en[$code])->toContain(":{$value}")
+                ->and($ar[$code])->toContain(":{$value}");
+        }
+    }
 });

@@ -54,8 +54,9 @@ final class ReadStoreJob implements ShouldQueue
 
     public function failed(?Throwable $error): void
     {
-        // The provider's reason is shown to staff as it came; anything else is Sync's own code (Q31),
+        // The provider's reason as stored - its adapter's code and values, written in the reader's language
+        // when shown, or its words as they came (stage 5 step 10); anything else is Sync's own code (Q31),
         // its detail left on the failed jobs screen.
-        app(RunReadHandler::class)->failed($this->readId, $error instanceof ConnectionFailed ? $error->getMessage() : ReadFailure::JobFailed->value);
+        app(RunReadHandler::class)->failed($this->readId, $error instanceof ConnectionFailed ? $error->reason : ReadFailure::JobFailed->value);
     }
 }

@@ -442,7 +442,10 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
   item that opens a dialog ending with "…".
 - **The store filter** (`StoreFilter`, `StoreChoices::forJobs`): the stores where the reader holds the
   screen's job; none drawn for one store; a store outside the list refused (403). The page opens on **the
-  first store that is on** (frontend.md §2.2, owner 2026-10-07).
+  first store that is on** (frontend.md §2.2, owner 2026-10-07). Choosing another store drops what
+  belonged to the one left, as Inventory's Stock drops its drawer's size: Prices' open drawer (`size`), the
+  offer Offers names (`sale`) and a Show More cursor (`after`); the search and the filters stay (stage 5
+  step 10).
 - **Tables** in `material-base`, small headings on `bg-surface-sunken`; a row that opens something has
   its name as the link (stretched over the row, `after:absolute after:inset-0`) - **except rows holding
   boxes**: there only the product's name is a link, so a click in a box never opens anything.
@@ -463,7 +466,10 @@ rules hold for Inventory's (inventory.md §4.3) and Sync's (sync.md §4.1) scree
   noun of the page: Save Prices, Save Counts). It is not the page's main action, which stays as it is.
 - **Leaving with changed boxes** - a link, a filter, the search, the store filter, the browser's back -
   asks first (`PanelDialog`): "Leave Without Saving" · "3 changed prices will be lost." · **Leave Page** /
-  **Stay**. Show More and the drawer keep the boxes.
+  **Stay**. Show More and the drawer keep the boxes. A page with several sets of boxes (a product's store
+  cards) asks once; when more than one set holds changes it says how many places, not the first one's
+  words: "You have unsaved changes in 3 places." / "لديك تغييرات غير محفوظة في 3 مواضع." (`ui.leave.places`,
+  stage 5 step 10).
 - **A batch** is one command (`SetRetailPrice`, `SetStock`): all saved or none. **A refusal marks its rows
   (Q2)**: the commands' errors carry the sizes they concern (`variants`), `App\Http\FormErrors` passes them
   on as one key a row - `errors["rows.<size id>"]`, the message (Inertia hands a page each key's first

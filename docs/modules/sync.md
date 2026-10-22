@@ -226,15 +226,15 @@ change nothing in Odoo. Each store is its own account, with its own address and 
 | Sign-in | Header `Authorization: Bearer <token>` - the store's token, typed with the address. One token per account, never shared (§9.1 #2) |
 | Pace | **One call at a time per store, at least 1 second apart** - within Odoo's policy of about 1 call a second, none in parallel (§9.1 #8). Each call waits **30 seconds** at most |
 
-1. **Every item** - `GET /items?limit=1000&after=<next>`: the account's items, **ordered by code**,
-   `limit` at most 1,000 (about 700 today: one call). The nightly read, Sync now, a store just wired.
+1. **Every item** - `GET /items?limit=1000&after=<next>`: the account's items, **ordered by code**. The
+   nightly read, Sync now, a store just wired.
 2. **What changed** - `GET /items?changed_since=<time>&limit=1000&after=<next>`: the items whose price or
    available stock changed at or after `<time>` (UTC, `2026-10-19T12:00:00Z`). The hourly read. We pass
    the start of our last read **less 5 minutes** - the most their clock may be off (the notice's rule) -
    so a change at the edge is read twice, never missed (a value read twice changes nothing, §1.4, §1.5).
 3. **Named codes** - `GET /items?codes=123,1234,…`: up to **500 codes** a call (a longer list is asked
-   in several calls). The notified read, a corrected code (§1.3). Codes not in the account are listed in
-   `missing`.
+   in several calls). The notified read, a corrected code (§1.3). A code not in the account is simply not
+   in `items`.
 4. **The test** - `GET /items?limit=1`: when a Super Admin saves the connection (§1.2, §9.2 #10).
 
 **The answer** - `200`, JSON:
@@ -245,7 +245,6 @@ change nothing in Odoo. Each store is its own account, with its own address and 
     { "code": "123",  "price": "120.00", "available": 7 },
     { "code": "1234", "price": "85.50",  "available": 0 }
   ],
-  "missing": [],
   "next": null
 }
 ```
@@ -255,11 +254,19 @@ change nothing in Odoo. Each store is its own account, with its own address and 
 | `code` | **Text**, exactly as kept in Odoo (`"123"`, never the number `123`); **one code per variant, never two variants with one code** in an account (§9.1 #4) |
 | `price` | **Text**, the variant's **base selling price** in the store's currency, with the currency's decimals (`"120.00"`), **without VAT and without any discount** (§9.1 #5) |
 | `available` | A **whole number**: the variant's stock **available to order** (§9.1 #6) |
-| `missing` | Call 3 only: the asked codes the account does not have; `[]` otherwise |
 | `next` | Text to pass as `after` for the next page; `null` on the last page |
 
-Other fields are ignored. **A code twice in one read**: both skipped and reported (`BAD_VALUE`) (owner, 2026-10-19). Archived variants are left out of calls 1 and 2, and listed in `missing` by
-call 3 - so our nightly read reports them as not known to the provider (§1.6).
+Other fields are ignored. **A code twice in one read**: both skipped and reported (`BAD_VALUE`) (owner, 2026-10-19). Archived variants are left out of every call - so our nightly read reports them as not
+known to the provider (§1.6).
+
+**The limit** (the file sent to Odoo's team, 2026-10-22): we ask for **up to 1,000 items per answer**;
+their team may accept it, lower it, or state their maximum - we asked them to say which. **`next` is kept even while it
+is always `null`** - about 700 products today fit one answer - so growing past one answer needs no change
+on either side.
+
+**`missing` is not part of the answer** (removed in the file of 2026-10-22): our code already ignored it - a
+code not in the account is simply not in `items`, and a read reports a code it was not sent by what it reads
+(§1.6). An answer that still carries it has it ignored, as any other field.
 
 **Errors** - `401` a wrong or missing token · `400` a bad parameter (`{"error": "<short reason>"}`) ·
 `429` too many calls, with `Retry-After` in seconds · `5xx` their fault. Our side: a `429` waits `Retry-After`
@@ -296,8 +303,11 @@ code does it:
   §1.5): **a price that is not text or a number, or an `available` that is not a whole number** - `false`,
   a list, an object - is a **`BAD_VALUE` for that code alone** (`refused`: price, stock or both), and the read
   goes on (§1.7). **A `price` or `available` that is `null` or left out breaks the answer's contract** (every
-  item carries both): a **`BAD_VALUE` for that code**, naming it (`missing`: price, stock or both, beside
-  `refused`); the item's other value is still taken when it is good, and the read goes on. (§2.1's "either may
+  item carries both): a **`BAD_VALUE` for that code**, naming it (the entry's `missing`: price, stock or
+  both, beside `refused` - not a field of the answer); the item's other value is still taken when it is good,
+  and the read goes on. **The Sync Report says it** (stage 5 step 10): "Price not sent: the size keeps its
+  price." / "لم يُرسَل السعر: يبقى سعر المقاس كما هو." · "Stock not sent: the size keeps its stock." / "لم
+  يُرسَل المخزون: يبقى مخزون المقاس كما هو." - a value sent and refused keeps its own sentence. (§2.1's "either may
   be missing" stays for other providers: the adapter names what its own contract makes required, in
   `ProviderValue::missing`.)
 - **Call 3 yields only the codes asked**: any other code the answer carries is left out, never reported.
@@ -308,25 +318,46 @@ code does it:
   **within one worker** (one adapter a worker, so a store's next read in that worker keeps it too). A
   store's reads already run one at a time (§1.3); its test, in a web request, may come within the second
   of a read's call in a worker.
-- **The reasons** shown to staff, in English, each a short sentence with its status where there is one:
-  "Odoo refused the token (401)." · "Odoo refused the request (400)." · "Odoo failed (5xx)." · "Odoo answered
-  <status>." · "Odoo answered 429 (too many calls)." (the test) · "Odoo answered 429 (too many calls) twice." ·
-  "Odoo did not answer within 30 seconds." (10 for the test) · "Odoo could not be reached within 10 seconds."
-  (reaching it - the same 10 seconds in a read and the test) · "Odoo could not be reached." · "Odoo could not
-  be asked: the address or the key holds a character that cannot be sent." · "Odoo's items run past 200
-  pages." · "Odoo's answer is not as agreed: <what>." - the body, the address and the key never, and the
-  HTTP client's own error is never kept with it (not in the logs, not in the failed jobs).
+- **The reasons** shown to staff, each a short sentence with its status where there is one. **Since stage 5
+  step 10 (owner, 2026-10-20)** they are kept as **a code and its values** (`ProviderReason`: a status, the
+  seconds, the pages) - stored as a JSON object, `{"code":"ODOO_FAILED","values":{"status":503}}`, in the same
+  columns as Sync's own codes (Q31) - and written in the page's language when shown, under "The provider
+  said:"; the audit log keeps the code and its English sentence beside it, and a refusal of the Provider form
+  says it through the error's rule (`sync::errors.connection_failed.rules.<code>`). A reason stored before the
+  codes is shown as it is. Words: `src/Modules/Sync/Presentation/lang/{ar,en}/provider_failures.php`. In
+  English: "Odoo refused the token (401)." (`ODOO_REFUSED_TOKEN`) · "Odoo refused the request (400)."
+  (`ODOO_REFUSED_REQUEST`) · "Odoo failed (5xx)." (`ODOO_FAILED`, `status`) · "Odoo answered <status>."
+  (`ODOO_ANSWERED`, `status`) · "Odoo answered 429 (too many calls)." (`ODOO_TOO_MANY_CALLS`, the test) ·
+  "Odoo answered 429 (too many calls) twice." (`ODOO_TOO_MANY_CALLS_TWICE`) · "Odoo did not answer within 30
+  seconds." (`ODOO_NO_ANSWER_WITHIN`, `seconds`: 10 for the test) · "Odoo could not be reached within 10
+  seconds." (`ODOO_UNREACHABLE_WITHIN`, `seconds`: reaching it - the same 10 seconds in a read and the test) ·
+  "Odoo could not be reached." (`ODOO_UNREACHABLE`) · "Odoo could not be asked: the address or the key holds a
+  character that cannot be sent." (`ODOO_UNSENDABLE`) · "The address must start with https://."
+  (`ODOO_NOT_HTTPS`) · "Odoo's items run past 200 pages." (`ODOO_TOO_MANY_PAGES`, `pages`) · "Odoo's answer
+  is not as agreed: <what>." - one code a what: `ODOO_NOT_JSON`, `ODOO_ITEMS_NOT_LIST`,
+  `ODOO_ITEM_WITHOUT_CODE`, `ODOO_EMPTY_PAGE_NAMES_NEXT`, `ODOO_PAGES_REPEAT`, `ODOO_NEXT_NOT_TEXT`. The body,
+  the address and the key never, and the HTTP client's own error is never kept with it (not in the logs, not
+  in the failed jobs). Another provider's own words are still kept and shown as they came.
 
 **Their notice - theirs to ours** (§1.3, accepted 2026-10-19, §9.1 #9): when a variant's price or
 available stock changes, `POST https://<our address>/sync/notify/<store id>`, body `{"codes": ["123"]}`
 (1–1,000 codes, as text), headers `X-TouchWood-Timestamp` (Unix seconds - the same number in every time
 zone) and `X-TouchWood-Signature` (hex HMAC-SHA256 of `<timestamp>.<body>` with the store's notice
 secret). Their server's **clock must be right** (synced): a notice more than 5 minutes off is refused.
+**The notice secret is generated by us, one per store**, given to their team for that store's account, and
+**typed by a Super Admin** on the Provider page with the address and the token (§1.2) - never chosen by them
+(the file sent to Odoo's team, 2026-10-22).
+
+**Notice, then read - kept, and why** (the file of 2026-10-22): a notice carries **only codes, never a
+value**; on it we read those codes' price and stock back through call 3, with our token (a full read past
+5,000 waiting codes, §1.3). So a forged
+message, or one that arrives late or twice, can never set a price or a stock: at most it makes us read the
+current values once more, which changes nothing that has not changed (§1.3, §1.4, §1.5).
 Answers: `202` taken · `401` a bad signature or time · `422` not a list of codes · `429` too many (at
 most 60 a minute per store), wait `Retry-After` and send again, or drop it - the hourly read covers it.
 
 **What we ask of their team**: build the four calls and the notice to this text, in each account;
-per store, the address and the token (to the Super Admin), and the notice secret agreed with us; a
+per store, the address and the token (to the Super Admin), and the notice secret we generate for it; a
 clock kept right; codes unique per account; a contact for the go-live and for a read that fails.
 
 ---
@@ -373,7 +404,9 @@ accepted). Every **(Qn)** is answered (owner, 2026-10-19; pricing.md §9.4). **E
 - **A failure's text (Q31)**: Sync's own reasons are kept as **a code** and written in the page's language -
   "Stopped: the store was unwired or wired again." · "Stopped: its worker went away." · "The store was
   unwired." · "Superseded: a read of the same kind is waiting." · "Failed: see the failed jobs screen." - and
-  **the provider's own reason** is shown as it came, under "The provider said:", in `dir="auto"`.
+  **the provider's own reason** is shown under "The provider said:", in `dir="auto"`: an adapter's reason
+  kept as a code and its values (Odoo's, §2.4 As built), written in the page's language (stage 5 step 10),
+  else its words as they came - a reason stored before the codes too.
 - **Toasts**: "Read queued" · "Entry dismissed" · "Store wired" · "Connection changed" · "Store unwired".
 - **Words**: `src/Modules/Sync/Presentation/lang/{ar,en}/admin_report.php`, `admin_provider.php`,
   `menu.php` (Q42). §1.6's and §3's "Leave it" becomes **Dismiss** (Q28).
@@ -645,7 +678,7 @@ already (§9.2 #9: the base price only, nothing written back).
 | 9 | What is read from the provider | **The base price only**, and stock; every sale and discount is ours, never written to the provider (§1.1) |
 | 10 (A) | Saving a connection whose test read fails | **Refused**, the reason shown (§1.2) |
 | 11 (B) | A provider stock number below 0, or not whole | **Below 0 kept as 0; not whole skipped**; both reported (§1.5) |
-| 12 (C) | Unwiring: a stock-dependent size's returned extra | **Added into its stock** (a `CORRECTION` movement, note "unwired") (§1.8) |
+| 12 (C) | Unwiring: a stock-dependent size's returned extra | **Added into its stock** (a `CORRECTION` movement, noted with Inventory's own code `UNWIRED`, written in the page's language - inventory.md §1.6, stage 5 step 10; before, the text "unwired") (§1.8) |
 | 13 (D) | The permissions' place in the role editor | **A new "Sync" group** holding View the Sync Report and Run Sync Reads; wiring stays Super Admin only (§3) |
 | 14 (E) | Notifications per store | **At most 60 a minute, up to 1,000 codes each**; one refused is answered "too many" and the hourly read covers it (§1.3) |
 | 15 (F) | How codes are compared | **Exactly as written, spaces trimmed** (`0123` ≠ `123`) (§1.1) |

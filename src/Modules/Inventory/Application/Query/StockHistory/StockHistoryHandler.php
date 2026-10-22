@@ -7,6 +7,7 @@ namespace Modules\Inventory\Application\Query\StockHistory;
 use DateTimeInterface;
 use Modules\Inventory\Application\InventoryPermissions;
 use Modules\Inventory\Application\Stock\InventoryChange;
+use Modules\Inventory\Application\Stock\Words;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Repository\StockMovements;
@@ -20,7 +21,8 @@ use Shared\Application\Unauthorized;
  * **A size's history** (`StockHistory`, inventory.md §1.6, §4.3.3, Q22), under **Manage Stock** in the
  * store: its ledger only - holds and a wired store's returned extra are kept elsewhere and are not
  * shown - newest first, 50 at a time, each line's staff named in one read of Platform's `StaffNames`
- * (Access binds it), however many. A size with no ledger there has an empty history; an id that is not
+ * (Access binds it), however many; Inventory's own notes written in the reader's language, a typed one or
+ * one from before the codes as it is (`LedgerNote`). A size with no ledger there has an empty history; an id that is not
  * one, the same. Two queries, and the names. A read: no lock, nothing written.
  */
 final readonly class StockHistoryHandler
@@ -33,6 +35,7 @@ final readonly class StockHistoryHandler
         private InventoryChange $change,
         private StockMovements $movements,
         private StaffNames $staffNames,
+        private Words $words,
     ) {}
 
     /**
@@ -50,7 +53,7 @@ final readonly class StockHistoryHandler
         $last = $lines === [] ? null : $lines[count($lines) - 1];
 
         return new HistoryPage(
-            array_map(static function (LedgerLine $line) use ($names): HistoryLine {
+            array_map(function (LedgerLine $line) use ($names): HistoryLine {
                 $staff = self::staffOf($line);
                 $name = $staff === null ? null : ($names[strtolower($staff)] ?? null);
 
@@ -60,7 +63,8 @@ final readonly class StockHistoryHandler
                     $line->before,
                     $line->after,
                     $line->after - $line->before,
-                    $line->note,
+                    // Inventory's own note in the reader's language; one typed, or written before the codes, as it is.
+                    $line->coded === null ? $line->note : $this->words->line("admin_stock.history_notes.{$line->coded->code}", $line->coded->values),
                     self::who($line),
                     $name?->name,
                     $name instanceof StaffNameDto && $name->hidden,

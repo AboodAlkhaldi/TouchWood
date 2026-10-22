@@ -14,6 +14,7 @@ use Modules\Inventory\Application\Stock\StockFacts;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Service\StockFigures;
+use Modules\Inventory\Domain\ValueObject\LedgerNote;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Inventory\Domain\ValueObject\StockRow;
@@ -139,11 +140,11 @@ final readonly class ProviderStockImpl implements ProviderStock
                 $row = $rows[$variantId] ?? null;
                 $stops += isset($switchedOn[$variantId]) && self::stops($row) ? 1 : 0;
 
-                // The pieces returned while the provider ruled are ours now: a correction, noted
-                // "unwired" (sync.md §9.2 #12).
+                // The pieces returned while the provider ruled are ours now: a correction, its note
+                // Inventory's own UNWIRED, written in the reader's language (sync.md §9.2 #12).
                 if ($row !== null && $row->returnedExtra > 0) {
                     $after = $row->inStock + $row->returnedExtra;
-                    $this->movements->record($store, $variantId, MovementReason::Correction, $row->inStock, $after, 'unwired', "unwired:{$run}:{$variantId}");
+                    $this->movements->record($store, $variantId, MovementReason::Correction, $row->inStock, $after, LedgerNote::unwired(), "unwired:{$run}:{$variantId}");
                     $this->stock->setInStock($store, $variantId, $after);
                     $this->stock->setReturnedExtra($store, $variantId, 0);
                 }
