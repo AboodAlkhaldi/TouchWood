@@ -279,9 +279,8 @@ it('names every panel page that is reached signed out among the addresses the fa
             continue;
         }
 
-        $guarded = array_filter($route->gatherMiddleware(), static fn (mixed $middleware): bool => is_string($middleware) && str_ends_with($middleware, 'RequireStaff'));
-
-        if ($guarded === []) {
+        // Behind the panel's sign-in as ProblemDetails reads it (AdminArea::SIGNED_IN), or reached signed out.
+        if (! in_array(AdminArea::SIGNED_IN, $route->gatherMiddleware(), true)) {
             $signedOut[] = explode('/', substr($uri, strlen('admin/')))[0];
         }
     }

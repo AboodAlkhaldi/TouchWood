@@ -200,7 +200,8 @@ describe('what the database refuses behind the code (§8 #13)', function () {
         ]));
 
         expect($insert(['note_code' => 'RECOUNT']))->toThrow(QueryException::class, 'stock_movements_note_code')
-            ->and($insert(['note_code' => null]))->toThrow(QueryException::class, 'stock_movements_note_values')
+            // A stocktake, which needs no note: only the values without a code are refused.
+            ->and($insert(['reason' => 'STOCKTAKE', 'note_code' => null]))->toThrow(QueryException::class, 'stock_movements_note_values')
             ->and($insert(['note_values' => '[2]']))->toThrow(QueryException::class, 'stock_movements_note_values')
             ->and($insert(['note' => 'typed']))->toThrow(QueryException::class, 'stock_movements_note_one');
 

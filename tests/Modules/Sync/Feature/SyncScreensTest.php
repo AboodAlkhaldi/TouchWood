@@ -263,7 +263,7 @@ describe('the Sync Report (Y1)', function () {
         // Odoo's adapter names a value every item must carry and this one did not (sync.md §2.4 As built).
         FakeProvider::bound()->values = [new ProviderValue($code($ready['variants'][0]), null, 3, ['price']), new ProviderValue($code($ready['variants'][1]), '10.00', null, ['stock'])];
         $read = strtolower((string) Str::ulid());
-        DB::table('sync.reads')->insert(['id' => $read, 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'SYSTEM', 'requested_by_id' => null, 'queued_at' => now()]);
+        DB::table('sync.reads')->insert(['id' => $read, 'store_id' => Fx::storeId('sa'), 'kind' => 'NOW', 'state' => 'QUEUED', 'requested_by_type' => 'STAFF', 'requested_by_id' => Fx::staff(), 'queued_at' => now()]);
         Fx::asSystem(fn () => app(RunReadHandler::class)->handle(new RunRead($read)));
 
         $page = syncScreensProps(syncScreensAs(Fx::staffWith([P::REPORT_VIEW], ['sa']), $locale)->get('/admin/sync?kind=BAD_VALUE'), 'Sync/Admin/Report');
