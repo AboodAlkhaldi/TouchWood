@@ -23,6 +23,10 @@ return [
         'saved_by' => 'Saved by',
         'product' => 'Product',
     ],
+    'wishlist' => [
+        'title' => 'Saved Products',
+        'none' => 'Nothing saved in your stores.',
+    ],
     'review_status' => [
         'PENDING' => 'Waiting',
         'APPROVED' => 'Published',

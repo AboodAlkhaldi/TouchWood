@@ -106,3 +106,15 @@ storeIsActive: boolean,
 storeTimezone: string,
 stores: StoreOptionData[],
 };
+export type WishlistItemData = {
+product: ProductCardData,
+savedAt: string,
+};
+export type WishlistSectionData = {
+stores: WishlistStoreData[],
+};
+export type WishlistStoreData = {
+name: string,
+isOpen: boolean,
+items: WishlistItemData[],
+};
