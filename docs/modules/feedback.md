@@ -320,6 +320,7 @@ tooltip** — as Promotions' answer Q16.
 | 10 | Support | Reviews · التقييمات | `/admin/reviews` | `reviews` (Lucide `Star`, new) | `feedback.review.moderate` |
 | 20 | Support | Product Questions · أسئلة المنتجات | `/admin/questions` | `questions` (Lucide `MessageCircleQuestion`, new) | `feedback.question.answer` |
 | 30 | Customers | Favourited Products · المنتجات المفضلة | `/admin/favourites` | `favourites` (Lucide `Heart`, new) | `feedback.wishlist.view` |
+| 40 | Support | Rejection Reasons · أسباب الرفض | `/admin/rejection-reasons` | `reasons` (Lucide `ListChecks`, new) | `feedback.settings.update` |
 
 **No waiting counts in the menu** (owner, Q8 (b): no query more on every page) — the Waiting tab is the default view.
 
@@ -436,6 +437,12 @@ Pages of the account beside its tabs (Access's `CustomerAccountPages`, as My Poi
   **Remove**; one the store no longer sells marked **Not available now** (answer 17); an off store's
   group marked. Empty: "Nothing saved yet."
 
+#### F9 · Support › Rejection Reasons — `/admin/rejection-reasons`
+
+- The ready reasons (§4.2 B4), one list for every store: each reason in Arabic and English, in order;
+  **Add Reason…**, **Edit…**, **Delete…**, drag or Move Up/Down to reorder. Offered to admins
+  (`feedback.settings.update`).
+
 **Every screen above** is checked at phone width (375 px, nothing scrolling sideways), in Arabic and
 English, light and dark; its own query count recorded by a feature test; each page under 60 KB gzipped.
 
@@ -446,7 +453,7 @@ English, light and dark; its own query count recorded by a feature test; each pa
 | B1 | **The star breakdown** — each star's count of a product's approved reviews, in the reviews section; and the section paged **filtered to one star** (`after` and the star) | F5 |
 | B2 | **Bulk decisions** — approve, reject (one optional reason) and unpublish many reviews or questions in one request, each decided on its own under its own lock, the answer saying which were done and which were already decided | F1, F2 |
 | B3 | **A text's language from the text** — a review's and a question's language worked out from its first letter (an Arabic letter: Arabic; otherwise English; digits, spaces, signs and emoji skipped), replacing the shop's language (§1.1); and **staff may set it**: on approving a review, on answering a question. The owner may change the method later | F1, F2, F5 |
-| B4 | **The ready reasons** — a list admins edit, in both languages, the same for reviews and questions; read by the reject and unpublish dialogs | F1, F2 |
+| B4 | **The ready reasons** — **one list for every store**, edited by admins (owner, 2026-10-24) under `feedback.settings.update`, in both languages, the same for reviews and questions; read by the reject and unpublish dialogs, edited on a small panel page (F9) | F1, F2, F9 |
 | B5 | **The Save heart on cards** — which of a list's products the signed-in customer saved in this store, in one query, through a Catalog addition for what other modules add to a card (as the product page's sections, catalog.md amendment 26) | F7 |
 | — | **Later, with a translation service**: the automatic English for an answer, and the shoppers' Translate button (owner: built last, when the owner says) | F2, F5 |
 
