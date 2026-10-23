@@ -33,7 +33,9 @@ use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
 use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Sales\Public\Events\ReturnCompleted;
 
@@ -80,6 +82,22 @@ final class FeedbackServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([RepushRatingsCommand::class]);
+        }
+
+        /*
+        | The screens (§4.1). Support: the review and question queues for the store's moderators and
+        | answerers; Customers: Favourited Products for wishlist readers. What is offered is never what is
+        | allowed: every handler behind these asks again (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('feedback', 'reviews', 'support', 'feedback.admin.reviews', FeedbackPermissions::REVIEW_MODERATE, 10, icon: 'reviews'),
+            new MenuEntryDto('feedback', 'questions', 'support', 'feedback.admin.questions', FeedbackPermissions::QUESTION_ANSWER, 20, icon: 'questions'),
+            new MenuEntryDto('feedback', 'favourites', 'customers', 'feedback.admin.favourites', FeedbackPermissions::WISHLIST_VIEW, 30, icon: 'favourites'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }
     }
 }
