@@ -6,7 +6,9 @@ namespace Modules\Feedback\Infrastructure;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
@@ -28,6 +30,7 @@ use Modules\Feedback\Infrastructure\Listener\ClearAnonymizedWishlist;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
 use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
 use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
+use Modules\Feedback\Presentation\Http\Resource\WishlistCustomerSection;
 use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
@@ -90,6 +93,11 @@ final class FeedbackServiceProvider extends ServiceProvider
             new MenuEntryDto('feedback', 'reviews', 'support', 'feedback.admin.reviews', FeedbackPermissions::REVIEW_MODERATE, 10, icon: 'reviews'),
             new MenuEntryDto('feedback', 'questions', 'support', 'feedback.admin.questions', FeedbackPermissions::QUESTION_ANSWER, 20, icon: 'questions'),
             new MenuEntryDto('feedback', 'favourites', 'customers', 'feedback.admin.favourites', FeedbackPermissions::WISHLIST_VIEW, 30, icon: 'favourites'),
+        );
+
+        // A customer's wishlist on the staff customer page, a block per store the reader covers (§4.1 F4).
+        $this->app->make(CustomerPageSections::class)->register(
+            new CustomerPageSectionDto('feedback', 'wishlist', WishlistCustomerSection::class, ['feedback::admin_support']),
         );
 
         if (! $this->app->routesAreCached()) {

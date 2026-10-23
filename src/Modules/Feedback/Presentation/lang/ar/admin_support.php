@@ -23,6 +23,10 @@ return [
         'saved_by' => 'عدد من حفظه',
         'product' => 'المنتج',
     ],
+    'wishlist' => [
+        'title' => 'المنتجات المحفوظة',
+        'none' => 'لا شيء محفوظ في متاجرك.',
+    ],
     'review_status' => [
         'PENDING' => 'بالانتظار',
         'APPROVED' => 'منشورة',
