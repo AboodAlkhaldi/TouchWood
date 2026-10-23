@@ -232,6 +232,12 @@ return [
         ],
     ],
 
+    // Inventory's own notes on a history line, kept as codes and written in the page's language (LedgerNote).
+    'history_notes' => [
+        'SHIPPED_BEYOND_COUNT' => 'Shipped :count more than counted. Recount.',
+        'UNWIRED' => 'The store was unwired: the pieces returned while it was wired are added.',
+    ],
+
     'section' => [
         'title' => 'Stock',
         'last_pieces' => 'Last Pieces',

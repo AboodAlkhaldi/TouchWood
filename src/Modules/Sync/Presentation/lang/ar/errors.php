@@ -7,6 +7,18 @@ return [
     'connection_failed' => [
         'title' => 'تعذّرت القراءة من المزوّد',
         'detail' => 'تعذّرت القراءة من المزوّد: :reason',
+        // سبب المحوّل المحفوظ رمزًا (ProviderReason)، بكلمات provider_failures.php بعد الجملة نفسها.
+        'rules' => (static function (): array {
+            $rules = [];
+
+            foreach (require __DIR__.'/provider_failures.php' as $code => $reason) {
+                if (is_string($code) && is_string($reason)) {
+                    $rules[strtolower($code)] = "تعذّرت القراءة من المزوّد: {$reason}";
+                }
+            }
+
+            return $rules;
+        })(),
     ],
     'already_wired' => [
         'title' => 'مربوط بالفعل',

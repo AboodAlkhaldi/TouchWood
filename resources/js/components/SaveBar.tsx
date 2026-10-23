@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PendingVisit } from '@inertiajs/core';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Button } from '@/components/ui/button';
+import { figure, intlLocale } from '@/lib/digits';
 import { guardHub, type HeldVisit, type LeaveGuard, leaveGuard } from '@/lib/leave-guard';
 import { useTranslator } from '@/lib/t';
+import type { SharedProps } from '@/types/page';
 
 /*
 | Rows that hold boxes (pricing.md §4.3.1; Q40): while any box is changed, a bar at the bottom of the
@@ -107,7 +109,9 @@ type LeaveWords = {
 const PAGE_GUARDS = guardHub();
 
 export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: PendingVisit) => boolean = () => false) {
-    const [held, setHeld] = useState<HeldVisit | null>(null);
+    const t = useTranslator();
+    const locale = usePage<SharedProps>().props.locale;
+    const [held, setHeld] = useState<{ visit: HeldVisit; places: number } | null>(null);
     const latest = useRef({ dirty, keeps });
     latest.current = { dirty, keeps };
     // Its decisions (lib/leave-guard.ts, tested there): made once, reading the latest state.
@@ -115,12 +119,14 @@ export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: 
     guard.current ??= leaveGuard({
         dirty: () => latest.current.dirty,
         keeps: (visit) => latest.current.keeps(visit),
-        hold: setHeld,
+        hold: (visit, places) => setHeld({ visit, places }),
         visit: (url, options) => router.visit(url, options),
         hub: PAGE_GUARDS,
     });
 
     useEffect(() => {
+        // Counted among the page's guards while its boxes are drawn.
+        const detach = guard.current?.attach();
         const stop = router.on('before', (event) => (guard.current?.before(event.detail.visit as HeldVisit) === false ? false : undefined));
         const unload = (event: BeforeUnloadEvent) => {
             if (latest.current.dirty && guard.current?.leaving() !== true) {
@@ -133,15 +139,21 @@ export function useLeaveGuard(dirty: boolean, words: LeaveWords, keeps: (visit: 
         window.addEventListener('beforeunload', unload);
 
         return () => {
+            detach?.();
             stop();
             window.removeEventListener('beforeunload', unload);
         };
     }, []);
 
+    // One place with changes says what it would lose, in its own words; several say how many places
+    // (pricing.md §4.3.1, "Leaving with changed boxes"; stage 5 step 10).
+    const places = held?.places ?? 1;
+    const description = places > 1 ? t(`ui.leave.places.${new Intl.PluralRules(intlLocale(locale)).select(places)}`, { count: figure(locale, places) }) : words.description;
+
     return (
         <LeaveDialog
-            visit={held}
-            description={words.description}
+            visit={held?.visit ?? null}
+            description={description}
             onStay={() => setHeld(null)}
             onLeave={(visit) => {
                 setHeld(null);

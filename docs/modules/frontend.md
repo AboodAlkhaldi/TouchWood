@@ -777,7 +777,12 @@ three more he accepted on 2026-10-20):**
   last route, `PanelNotFoundController` (a fallback in Platform's `admin-routes.php`, behind the panel's
   middleware and its sign-in), and gets the panel's not-found page - "Page Not Found", Back to Home.
   Somebody signed out is sent to sign in first, as for any panel page. The sign-in pages' addresses
-  (`/admin/sign-in`, `/admin/sign-in/…`) are never caught, nor anything outside `/admin`. Anything but a
+  (`/admin/sign-in`, `/admin/sign-in/…`) are never caught, nor anything outside `/admin` - and, since stage 5
+  step 10, nor any other page read signed out (`route:list`): `/admin/password/…`, `/admin/invitation/…` and
+  `/admin/email-change/…`, so a mistyped address under them is Laravel's plain not found, never a trip to
+  sign in (`PanelNotFoundController::SIGNED_OUT`, a test keeps it equal to the read routes without the
+  panel's sign-in). `/admin/preferences` is only ever sent (POST), so a read of it stays caught: the panel's
+  not-found page, or sign in first. Anything but a
   read sent to such an address (a POST) is answered not found by Laravel's own page, as before - a second
   fallback, without the panel's middleware, so it never becomes "method not allowed".
 - **Language:** the panel's, as every panel page: this browser's choice, else the person's own.
@@ -787,7 +792,8 @@ three more he accepted on 2026-10-20):**
   a form sent (a refusal there is said in its own screen, FormErrors), and the statuses not listed (419,
   429, 500, 503).
 - **JSON problems (owner, 2026-10-20):** an error with no sentence written says its status's sentence
-  (`errors.page.{status}`) as its `detail`, never its developers' message (platform.md §7.4).
+  as its `detail`, never its developers' message (platform.md §7.4) - since stage 5 step 10 its own,
+  `errors.json.{status}` ("Couldn't do that: …"), never the page's.
 - **Words added:** `errors.http` 409, 413, 415, 422 (also the JSON problem's title for those statuses);
   `errors.page.*`; `admin.error.back`.
 - **The storefront's:** built in step 9, below.
@@ -858,8 +864,8 @@ three more he accepted on 2026-10-20):**
   shared, and the request is a read (GET or HEAD). Everything else keeps Laravel's own page: **an unknown
   store, and a switched-off one** to anybody but a staff viewer (nobody learns it exists, platform.md §1.6),
   the country page, a form sent, and the statuses not listed.
-- **Unchanged:** JSON (a problem document, its fallback sentence still the panel's `errors.page.{status}`,
-  platform.md §7.4); every shop page that is there.
+- **Unchanged:** JSON (a problem document, its fallback sentence its own `errors.json.{status}` since stage 5
+  step 10, platform.md §7.4); every shop page that is there.
 - **One not-found sentence in the shop (owner, 2026-10-20):** Catalog's own not-found shop page for a
   product, category or brand that is not there (`Catalog/Storefront/NotFound`, catalog.md §4.5) keeps its
   page, title and button, and says the same sentence from the same key, `errors.shop.sentence.404` - "This

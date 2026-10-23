@@ -27,6 +27,7 @@ use Modules\Inventory\Domain\Repository\StoreProducts;
 use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Inventory\Domain\ValueObject\Hold;
 use Modules\Inventory\Domain\ValueObject\HoldLine;
+use Modules\Inventory\Domain\ValueObject\LedgerNote;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Inventory\Public\Contracts\InventoryApi;
@@ -144,7 +145,7 @@ final readonly class InventoryApiImpl implements InventoryApi
                     }
 
                     $after = $current->shipped + $line->quantity;
-                    $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $taken, $short > 0 ? self::shortNote($short) : null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
+                    $this->movements->record($store, $line->variantId, MovementReason::Shipped, $before, $before - $taken, $short > 0 ? LedgerNote::shippedBeyondCount($short) : null, "ship:{$hold->orderId}:{$current->key()}:{$after}");
 
                     if ($short > 0) {
                         $this->stock->free($store, $line->variantId, $short);
@@ -331,14 +332,6 @@ final readonly class InventoryApiImpl implements InventoryApi
         // lock first, the audit entries inside (InventoryChange). On only, never off. Unwired since the
         // question above - asked again under the lock - nothing happens.
         return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true) ?? [[], []]);
-    }
-
-    /**
-     * The ledger's note on a shipment that took the stock to 0 with pieces still to go (sales.md answer 41).
-     */
-    private static function shortNote(int $short): string
-    {
-        return "{$short} more shipped than counted - recount";
     }
 
     private function endOpen(string $orderId, string $ended): void

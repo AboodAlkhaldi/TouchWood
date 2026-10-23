@@ -230,8 +230,8 @@ it('answers JSON as before: a problem document, never the page', function () {
     getJson('/sa/en/_test/conflict')->assertStatus(409)
         ->assertHeader('Content-Type', 'application/problem+json')
         ->assertJsonPath('type', 'testing.nothing_written')
-        // The JSON's own fallback sentence is unchanged: the panel's (platform.md §7.4).
-        ->assertJsonPath('detail', 'Couldn\'t open this page: something changed meanwhile. Reload it and try again.');
+        // The JSON's own fallback sentence, never a page's (platform.md §7.4; stage 5 step 10).
+        ->assertJsonPath('detail', 'Couldn\'t do that: something changed meanwhile. Reload and try again.');
 
     getJson('/sa/en/search/suggest?q=x')->assertOk()->assertJsonStructure(['products']);
 });

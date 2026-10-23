@@ -128,10 +128,10 @@ final class ProblemDetails
         }
 
         // A refusal naming the rule it broke says that rule's words where the module wrote them (FormErrors).
-        // With none written, the status's sentence, as the panel's page says it - never the developers'
-        // message (owner, 2026-10-20).
+        // With none written, the status's own JSON sentence - "Couldn't do that: …", not the page's
+        // "Couldn't open this page: …" (stage 5 step 10) - never the developers' message (owner, 2026-10-20).
         $rule = FormErrors::ruleKey($key, $error->context());
-        $detail = self::translate("{$key}.detail", $replace, self::pageSentence($status));
+        $detail = self::translate("{$key}.detail", $replace, self::jsonSentence($status));
 
         return self::problem(
             $error->type(),
@@ -231,12 +231,22 @@ final class ProblemDetails
     }
 
     /**
-     * The status's own sentence, for an error that wrote none - on the panel's page, and as a JSON
-     * problem's detail. Each of PAGE_STATUSES has one, and so every category's status (§7.1).
+     * The status's own sentence on the panel's page, for an error that wrote none. Each of PAGE_STATUSES has
+     * one, and so every category's status (§7.1).
      */
     private static function pageSentence(int $status): string
     {
         return self::translate("errors.page.{$status}", [], '');
+    }
+
+    /**
+     * The same as a JSON problem's detail, in words of its own: a call answers an action, not a page -
+     * "Couldn't do that: …" (stage 5 step 10). Each of PAGE_STATUSES has one; any other status says its
+     * title, never the developers' message.
+     */
+    private static function jsonSentence(int $status): string
+    {
+        return self::translate("errors.json.{$status}", [], self::translate("errors.http.{$status}", [], (string) (Response::$statusTexts[$status] ?? 'Error')));
     }
 
     /**

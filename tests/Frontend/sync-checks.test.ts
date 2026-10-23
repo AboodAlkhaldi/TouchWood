@@ -46,6 +46,17 @@ describe('a Bad Value\'s refused value', () => {
         assert.deepEqual(badValuesOf({ price: '0', stock: 2.5, refused: 'both' }), ['bad_price', 'bad_stock']);
     });
 
+    it('says a value the provider was bound to send and did not as not sent, the other refused as before (stage 5 step 10)', () => {
+        assert.deepEqual(badValuesOf({ price: null, stock: 2, refused: 'price', missing: ['price'] }), ['missing_price']);
+        assert.deepEqual(badValuesOf({ price: '120', stock: null, refused: 'stock', missing: ['stock'] }), ['missing_stock']);
+        assert.deepEqual(badValuesOf({ price: null, stock: null, refused: 'both', missing: ['price', 'stock'] }), ['missing_price', 'missing_stock']);
+        // One missing, the other sent and refused: each its own sentence.
+        assert.deepEqual(badValuesOf({ price: null, stock: -3, refused: 'both', missing: ['price'] }), ['missing_price', 'below_zero']);
+        assert.deepEqual(badValuesOf({ price: '0', stock: null, refused: 'both', missing: ['stock'] }), ['bad_price', 'missing_stock']);
+        // A `missing` that is not a list is not read.
+        assert.deepEqual(badValuesOf({ price: '0', stock: 2, refused: 'price', missing: 'price' }), ['bad_price']);
+    });
+
     it('reads an entry kept from before the server named it as before: the stock not whole or below 0, else the price', () => {
         assert.deepEqual(badValuesOf({ price: '120', stock: 2.5 }), ['bad_stock']);
         assert.deepEqual(badValuesOf({ price: '120', stock: -3 }), ['below_zero']);

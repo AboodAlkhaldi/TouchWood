@@ -77,14 +77,18 @@ final class InventoryFixtures
     }
 
     /**
-     * A size's ledger in a store, oldest first, each line as "REASON before→after note actor".
+     * A size's ledger in a store, oldest first, each line as "REASON before→after note actor" - a note of
+     * Inventory's own as its code and values, "SHIPPED_BEYOND_COUNT {"count": 2}".
      *
      * @return list<string>
      */
     public static function ledger(string $storeCode, string $variantId): array
     {
         return array_values(array_map(
-            static fn (stdClass $row): string => "{$row->reason} {$row->before}→{$row->after}".($row->note === null ? '' : " {$row->note}")." {$row->actor_type}",
+            static fn (stdClass $row): string => "{$row->reason} {$row->before}→{$row->after}"
+                .($row->note === null ? '' : " {$row->note}")
+                .($row->note_code === null ? '' : " {$row->note_code}".($row->note_values === null ? '' : " {$row->note_values}"))
+                ." {$row->actor_type}",
             DB::table('inventory.stock_movements')->where('store_id', self::storeId($storeCode))->where('variant_id', $variantId)->orderBy('id')->get()->all(),
         ));
     }

@@ -211,6 +211,26 @@ it('types a price, saves it from the save bar, marks a refused row, and opens a 
         ->and(browserSoon($page, "document.querySelector('[data-test=\"size-drawer\"]')?.textContent.includes('What Reaches It')"))->toBeTrue();
 });
 
+it('drops the open drawer\'s size with the store it belongs to when another store is chosen, keeping the search (stage 5 step 10)', function () {
+    $ready = pricingBrowserProduct(['sa', 'ae']);
+    [$priced] = $ready['sizes'];
+    pricingBrowserPrice('sa', [$priced => '120.00']);
+    $page = pricingBrowser();
+    $page->navigate("/admin/prices?store=sa&q={$ready['codes'][0]}&size={$priced}", BROWSER_SLOW_PAGE_LOAD);
+
+    expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue();
+
+    // The store chosen while the address still names the size (a drawer that could not be shown, a link
+    // followed with both): the select's own change, as the filter answers it.
+    $page->select('[data-test="store-filter"]', 'ae');
+
+    expect(browserSoon($page, "new URLSearchParams(window.location.search).get('store') === 'ae'"))->toBeTrue()
+        ->and($page->script("new URLSearchParams(window.location.search).has('size')"))->toBeFalse()
+        ->and($page->script("new URLSearchParams(window.location.search).get('q')"))->toBe($ready['codes'][0])
+        ->and(browserSoon($page, "document.querySelector('[data-test=\"store-filter\"]').value === 'ae' && document.querySelector('[data-test=\"drawer-body\"]') === null"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
 it('draws Prices right to left in Arabic', function () {
     $ready = pricingBrowserProduct();
     pricingBrowserPrice('sa', [$ready['sizes'][0] => '120.00']);

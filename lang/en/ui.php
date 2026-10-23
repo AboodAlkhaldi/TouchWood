@@ -40,6 +40,15 @@ return [
         'title' => 'Leave Without Saving',
         'confirm' => 'Leave Page',
         'stay' => 'Stay',
+        // Several sets of boxes with changes - a product's store cards (stage 5 step 10): how many places.
+        'places' => [
+            'zero' => 'You have unsaved changes in :count places.',
+            'one' => 'You have unsaved changes in :count place.',
+            'two' => 'You have unsaved changes in :count places.',
+            'few' => 'You have unsaved changes in :count places.',
+            'many' => 'You have unsaved changes in :count places.',
+            'other' => 'You have unsaved changes in :count places.',
+        ],
     ],
     // A moment typed in the store's clock (pricing.md §4.3.1 "Moments", Q4; components/DateTimeField).
     'moment' => [

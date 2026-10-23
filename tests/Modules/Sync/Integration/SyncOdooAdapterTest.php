@@ -140,13 +140,24 @@ function odooCodesAsked(string $url): array
     return explode(',', is_string($query['codes'] ?? null) ? $query['codes'] : '');
 }
 
-/** The failure's reason, or null when it did not fail. */
+/**
+ * The failure's reason in English, or null when it did not fail. Every reason of Odoo's is a code and its
+ * values (ProviderReason, stage 5 step 10), never words as they came: one that is not fails the test.
+ */
 function odooFails(Closure $call): ?string
 {
     try {
         $call();
     } catch (ConnectionFailed $failed) {
-        return $failed->reason;
+        $english = trans("sync::provider_failures.{$failed->coded?->code}", $failed->coded->values ?? [], 'en');
+
+        // Stored as the code; the developers' message (the failed jobs screen) the English sentence, never JSON.
+        expect($failed->coded)->not->toBeNull('Odoo\'s reason is kept as a code')
+            ->and($failed->reason)->toBe($failed->coded?->stored())
+            ->and($failed->getMessage())->toBe("The provider could not be read: {$english}")
+            ->and($failed->getMessage())->not->toContain('{');
+
+        return $english;
     }
 
     return null;
@@ -534,7 +545,7 @@ describe('through Sync', function () {
             ->push(odooAnswer())]);
         $wire = fn () => app(WireStoreHandler::class)->handle(new WireStore(Fx::storeId('sa'), 'ODOO', ODOO_BASE, ODOO_TOKEN, 'notice-secret'));
 
-        expect(fn () => $wire())->toThrow(ConnectionFailed::class, 'Odoo refused the token (401).')
+        expect(fn () => $wire())->toThrow(ConnectionFailed::class, 'The provider could not be read: Odoo refused the token (401).')
             ->and(DB::table('sync.connections')->count())->toBe(0);
 
         $wire();
@@ -734,7 +745,7 @@ describe('through Sync', function () {
             ->and(odooAsked())->toBe(['/touchwood/v1/items?limit=1', '/touchwood/v1/items?limit=1000', '/touchwood/v1/items?limit=1000&after=p2']);
     });
 
-    it('stores the short reason when a read fails, never the body or the key', function () {
+    it('stores the short reason as a code and its values when a read fails, never the body or the key', function () {
         Http::fake(['odoo.test/*' => Http::sequence()
             ->push(odooAnswer())
             ->push(['error' => 'Body text with '.ODOO_TOKEN], 503)]);
@@ -754,9 +765,17 @@ describe('through Sync', function () {
 
         expect($failure)->toBeInstanceOf(ConnectionFailed::class)
             ->and($failure?->getPrevious())->toBeNull()
-            ->and(DB::table('sync.connections')->value('last_error'))->toBe('The provider could not be read: Odoo failed (503).')
-            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('The provider could not be read: Odoo failed (503).')
-            ->and(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->whereNull('closed_at')->count())->toBe(1);
+            ->and(DB::table('sync.connections')->value('last_error'))->toBe('{"code":"ODOO_FAILED","values":{"status":503}}')
+            ->and(DB::table('sync.reads')->where('id', $read)->value('error'))->toBe('{"code":"ODOO_FAILED","values":{"status":503}}')
+            ->and(DB::table('sync.report_entries')->where('kind', 'READ_FAILED')->whereNull('closed_at')->count())->toBe(1)
+            // The developers' message says the English sentence (the failed jobs screen), never the JSON.
+            ->and($failure?->getMessage())->toBe('The provider could not be read: Odoo failed (503).');
+
+        // The audit entry keeps the reason as stored and, beside it, its English sentence (RunReadHandler::failure).
+        $changes = (string) DB::table('platform.audit_entries')->where('action', 'sync.read.failed')->where('subject_id', $read)->value('changes');
+
+        expect($changes)->toContain('Odoo failed (503).')
+            ->and($changes)->toContain('ODOO_FAILED');
     });
 });
 

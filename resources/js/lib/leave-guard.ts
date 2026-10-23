@@ -24,6 +24,11 @@ export type LeaveGuard = {
     leave: (visit: HeldVisit) => void;
     /** Whether a visit made by `leave` is under way: the window's unload asks nothing then. */
     leaving: () => boolean;
+    /**
+     * Counts the guard among its page's - it is counted from the start - and answers how to take it off
+     * the count once its boxes are gone (an effect's cleanup: run again, it counts it again).
+     */
+    attach: () => () => void;
 };
 
 /** The fields Inertia adds to a visit of its own, which a new visit makes afresh. */
@@ -32,23 +37,38 @@ const OWN = ['id', 'url', 'cancelled', 'completed', 'interrupted'];
 /**
  * What the guards of one page share: a page with several sets of boxes - a product's store cards, each
  * with Pricing's and Inventory's - asks **once** for a visit, the first guard with changes asking, and a
- * person who chose to leave is let through by all of them (the review of stage 5's screens step 5).
+ * person who chose to leave is let through by all of them (the review of stage 5's screens step 5). The
+ * question counts every guard with changes, so it can say how many places would lose them (stage 5 step 10).
  */
-export type GuardHub = { leaving: boolean; asking: unknown };
+export type GuardHub = { leaving: boolean; asking: unknown; guards: Set<() => boolean> };
 
 export function guardHub(): GuardHub {
-    return { leaving: false, asking: null };
+    return { leaving: false, asking: null, guards: new Set() };
+}
+
+/** How many of the page's guards hold changes now: the places a visit would lose them from. */
+export function changedPlaces(hub: GuardHub): number {
+    let count = 0;
+
+    for (const dirty of hub.guards) {
+        count += dirty() ? 1 : 0;
+    }
+
+    return count;
 }
 
 export function leaveGuard(options: {
     dirty: () => boolean;
     keeps: (visit: HeldVisit) => boolean;
-    hold: (visit: HeldVisit) => void;
+    /** Holds the visit, with how many of the page's guards hold changes (at least this one). */
+    hold: (visit: HeldVisit, places: number) => void;
     visit: Visitor;
     /** Shared with the page's other guards; a guard of its own when none is given. */
     hub?: GuardHub;
 }): LeaveGuard {
     const hub = options.hub ?? guardHub();
+    const dirty = () => options.dirty();
+    hub.guards.add(dirty);
 
     return {
         before: (visit) => {
@@ -62,7 +82,7 @@ export function leaveGuard(options: {
             }
 
             hub.asking = visit.id;
-            options.hold(visit);
+            options.hold(visit, Math.max(1, changedPlaces(hub)));
 
             return false;
         },
@@ -87,5 +107,12 @@ export function leaveGuard(options: {
             });
         },
         leaving: () => hub.leaving,
+        attach: () => {
+            hub.guards.add(dirty);
+
+            return () => {
+                hub.guards.delete(dirty);
+            };
+        },
     };
 }

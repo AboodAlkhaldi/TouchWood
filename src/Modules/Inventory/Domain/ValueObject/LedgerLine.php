@@ -8,7 +8,8 @@ use DateTimeImmutable;
 
 /**
  * **One line of a size's ledger as its history shows it** (inventory.md §1.6, §4.3.3 `StockHistory`):
- * when, the reason, before and after, the note, who or what made it - the actor and whoever queued the
+ * when, the reason, before and after, the note - as typed, or Inventory's own as a code (`coded`; a line
+ * from before the codes keeps its text in `note`) -, who or what made it - the actor and whoever queued the
  * job the system ran - and, for a shipment or a return, the order it was for.
  */
 final readonly class LedgerLine
@@ -25,5 +26,6 @@ final readonly class LedgerLine
         public ?string $requestedByType,
         public ?string $requestedById,
         public ?string $orderId,
+        public ?LedgerNote $coded = null,
     ) {}
 }

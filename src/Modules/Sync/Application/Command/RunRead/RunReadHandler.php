@@ -26,6 +26,7 @@ use Modules\Sync\Domain\Repository\ReadLines;
 use Modules\Sync\Domain\Repository\ReadReports;
 use Modules\Sync\Domain\Repository\Reads;
 use Modules\Sync\Domain\Repository\ReportEntries;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Modules\Sync\Domain\ValueObject\ProviderValue;
 use Modules\Sync\Domain\ValueObject\ReadFailure;
 use Modules\Sync\Domain\ValueObject\ReadKind;
@@ -445,14 +446,21 @@ final readonly class RunReadHandler
     /**
      * A failed read as the audit log keeps it: the reason as stored - Sync's own code, or the provider's
      * words - and, for a code, its English sentence beside it (`reason`): the log shows a module's values
-     * as they are recorded, never phrased in the reader's language, and it is kept for good (Q31).
+     * as they are recorded, never phrased in the reader's language, and it is kept for good (Q31). An
+     * adapter's code and values (`ProviderReason`, stage 5 step 10) get theirs the same way.
      */
     private function failure(string $why): AuditChanges
     {
         $changes = AuditChanges::none()->changed('error', null, $why);
         $own = ReadFailure::tryFrom($why);
 
-        return $own === null ? $changes : $changes->changed('reason', null, $this->words->line("admin_report.failures.{$own->value}", [], 'en'));
+        if ($own !== null) {
+            return $changes->changed('reason', null, $this->words->line("admin_report.failures.{$own->value}", [], 'en'));
+        }
+
+        $provider = ProviderReason::fromStored($why);
+
+        return $provider === null ? $changes : $changes->changed('reason', null, $this->words->line("provider_failures.{$provider->code}", $provider->values, 'en'));
     }
 
     /**

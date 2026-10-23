@@ -59,6 +59,17 @@ return [
         422 => 'Couldn\'t open this page: something in its address isn\'t valid.',
     ],
 
+    // A JSON problem's detail for an error that wrote no sentence: a call answers an action, not a page, so
+    // its words are its own rather than the page's (stage 5 step 10).
+    'json' => [
+        403 => 'Couldn\'t do that: you don\'t have access to it.',
+        404 => 'Couldn\'t do that: what it names isn\'t there.',
+        409 => 'Couldn\'t do that: something changed meanwhile. Reload and try again.',
+        413 => 'Couldn\'t do that: what was sent is too large.',
+        415 => 'Couldn\'t do that: what was sent isn\'t a kind it takes.',
+        422 => 'Couldn\'t do that: something sent isn\'t valid.',
+    ],
+
     // The shop's error page (frontend.md §2.6): the same, in a shopper's words rather than the panel's
     // (owner, 2026-10-20), and its way back - the store's home. Its page ships this file.
     'shop' => [

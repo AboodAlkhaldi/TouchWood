@@ -91,6 +91,9 @@ return [
             'bad_stock' => 'Stock sent: :value. Not a whole number: skipped.',
             'below_zero' => 'Stock sent: :value. Kept as 0.',
             'too_large' => 'Stock sent: :value. More than a size can hold: skipped.',
+            // A value the provider was bound to send and did not (the entry's `missing`, sync.md §2.4 As built).
+            'missing_price' => 'Price not sent: the size keeps its price.',
+            'missing_stock' => 'Stock not sent: the size keeps its stock.',
             'twice' => 'The code came twice in one read: both skipped.',
             'read_failed' => 'The read failed.',
             'discount_skipped' => 'Past the ceiling at the provider\'s price.',

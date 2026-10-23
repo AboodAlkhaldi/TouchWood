@@ -63,7 +63,8 @@ Route::prefix(AdminArea::PREFIX)
 
         // A panel address no screen answers, read behind the door: the panel's own not-found page (owner,
         // 2026-10-20; frontend.md §2.6) - after every other route, whichever module's. Somebody signed
-        // out is sent to sign in first, as for any panel page. Never the sign-in pages' addresses.
+        // out is sent to sign in first, as for any panel page. Never the addresses of the pages reached signed
+        // out - signing in, a password, an invitation, an email change (PanelNotFoundController).
         Route::fallback(PanelNotFoundController::class)->where('fallbackPlaceholder', PanelNotFoundController::PATHS);
     });
 

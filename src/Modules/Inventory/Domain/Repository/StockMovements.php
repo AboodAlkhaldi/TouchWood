@@ -6,6 +6,7 @@ namespace Modules\Inventory\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Inventory\Domain\ValueObject\LedgerLine;
+use Modules\Inventory\Domain\ValueObject\LedgerNote;
 use Modules\Inventory\Domain\ValueObject\MovementReason;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -17,9 +18,10 @@ use Shared\Domain\ValueObject\StoreId;
 interface StockMovements
 {
     /**
-     * One change of a size's in stock, by whoever acts now.
+     * One change of a size's in stock, by whoever acts now - its note as staff typed it, or one of
+     * Inventory's own kept as a code and its values (`LedgerNote`).
      */
-    public function record(StoreId $store, string $variantId, MovementReason $reason, int $before, int $after, ?string $note, string $reference): void;
+    public function record(StoreId $store, string $variantId, MovementReason $reason, int $before, int $after, string|LedgerNote|null $note, string $reference): void;
 
     /** Whether a movement with this reference was recorded: work run again records nothing twice. */
     public function referenced(string $reference): bool;
