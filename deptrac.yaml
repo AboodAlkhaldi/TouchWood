@@ -222,7 +222,7 @@ deptrac:
 
     # Feedback → Platform, Access, Catalog, Sales (verified purchase)
     FeedbackPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, SalesPublic]
-    Feedback: [+FeedbackPublic]
+    Feedback: [+FeedbackPublic, AppHttp]
 
     # Sync → Platform, Catalog, Pricing, Inventory; Access only to declare its permissions (owner,
     # 2026-10-07).
