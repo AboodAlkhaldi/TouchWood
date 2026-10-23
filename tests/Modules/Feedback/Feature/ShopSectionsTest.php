@@ -76,7 +76,9 @@ it('gives a guest the rating, no reviews yet, nothing to write or ask, and no wi
     $sections = shopSections(get(shopSectionsUrl($product)));
 
     expect(array_keys($sections))->toBe(['feedback.reviews', 'feedback.questions', 'feedback.wishlist'])
-        ->and($sections['feedback.reviews'])->toBe(['average' => null, 'count' => 0, 'reviews' => [], 'next' => null, 'canWrite' => false])
+        ->and($sections['feedback.reviews'])->toBe(['average' => null, 'count' => 0, 'reviews' => [], 'next' => null, 'canWrite' => false, 'stars' => [
+            ['star' => 5, 'count' => 0], ['star' => 4, 'count' => 0], ['star' => 3, 'count' => 0], ['star' => 2, 'count' => 0], ['star' => 1, 'count' => 0],
+        ], 'star' => null])
         ->and($sections['feedback.questions'])->toBe(['questions' => [], 'next' => null, 'canAsk' => false])
         ->and($sections['feedback.wishlist'])->toBeNull();
 });
@@ -220,6 +222,43 @@ it('gives a page that is not available now no sections', function () {
     expect(shopSections($response))->toBe([])
         ->and((string) json_encode($response->viewData('page')))->toContain('"sections":{}');
 });
+
+it('breaks the approved reviews down by star, and pages one star alone as the address asks (§4.2 B1)', function () {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    $approved = fn (int $rating, int $n): string => Fb::reviewRow($product, $sixty, Fx::customer("buyer{$n}@example.test"), [
+        'status' => 'APPROVED', 'rating' => $rating, 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now(),
+        'created_at' => sprintf('2026-10-01 10:%02d:00+00', $n),
+    ]);
+    $fives = array_map(fn (int $n): string => $approved(5, $n), range(1, 11));
+    $approved(4, 20);
+    $approved(4, 21);
+    $approved(2, 22);
+    // Not approved: never counted.
+    Fb::reviewRow($product, $sixty, Fx::customer('refused@example.test'), ['status' => 'REJECTED', 'rating' => 1, 'reason' => 'Off topic', 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()]);
+    Fb::reviewRow($product, $sixty, Fx::customer('waiting@example.test'), ['rating' => 1]);
+
+    $all = shopSections(get(shopSectionsUrl($product)))['feedback.reviews'];
+    $five = shopSections(get(shopSectionsUrl($product, 'filter[feedback.reviews]=5')))['feedback.reviews'];
+    $more = shopSections(get(shopSectionsUrl($product, 'filter[feedback.reviews]=5&after[feedback.reviews]='.$five['next'])))['feedback.reviews'];
+    $none = shopSections(get(shopSectionsUrl($product, 'filter[feedback.reviews]=1')))['feedback.reviews'];
+
+    expect($all['stars'])->toBe([['star' => 5, 'count' => 11], ['star' => 4, 'count' => 2], ['star' => 3, 'count' => 0], ['star' => 2, 'count' => 1], ['star' => 1, 'count' => 0]])
+        ->and([$all['star'], count($all['reviews'])])->toBe([null, 10])
+        ->and($five['star'])->toBe(5)
+        ->and(array_column([...$five['reviews'], ...$more['reviews']], 'reviewId'))->toBe(array_reverse($fives))
+        ->and($more['next'])->toBeNull()
+        ->and($five['stars'])->toBe($all['stars'])
+        ->and([$none['reviews'], $none['next'], $none['star']])->toBe([[], null, 1]);
+});
+
+it('takes no star but 1 to 5: anything else shows every review', function (string $filter) {
+    ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+    Fb::reviewRow($product, $sixty, Fx::customer('buyer@example.test'), ['status' => 'APPROVED', 'rating' => 3, 'moderated_by' => Fx::staff(), 'moderated_at' => CarbonImmutable::now()]);
+
+    $section = shopSections(get(shopSectionsUrl($product, 'filter[feedback.reviews]='.$filter)))['feedback.reviews'];
+
+    expect([$section['star'], count($section['reviews'])])->toBe([null, 1]);
+})->with(['0', '6', 'five', '4.5', '%20']);
 
 it('reads the sections in the same number of queries for one review as for ten, with questions', function () {
     ['product' => $product, 'variants' => [$sixty]] = Fb::sold();

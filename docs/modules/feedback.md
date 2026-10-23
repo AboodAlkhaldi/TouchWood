@@ -214,6 +214,25 @@ no purchase — so a review is refused as no verified purchase until then.
 | Access | The permission catalog, and **a `Support` permission group** — the admin menu's "Support" section (handoff §14: Support › Product questions; reviews beside them) | **Built** with step F1 (access.md amendment 73; `support` in Platform's menu, platform.md §9.4) — the owner's answer of 2026-10-18 |
 | Platform | A store setting, the audit log, staff names (`StaffNames::forReader` — who answered or moderated, a Super Admin reading as "System administrator") | Exists |
 
+### 2.4 Built for the screens (§4.2, the owner's answers of 2026-10-24)
+
+The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), as built:
+
+- **B3 — a text's language from the text** (FB-a): a review's and a question's `locale` is the language
+  of its **first letter** — an Arabic letter, `ar`; any other letter, `en`; digits, spaces, signs and
+  emoji skipped; no letter at all, `en` (`FeedbackText::languageOf`) — no longer the shop's language
+  (§1.1's line kept for history: `WriteReview` and `AskQuestion` lost their `locale`). **Staff may set
+  it**: `ApproveReview(reviewId, ?locale)`, `AnswerQuestion(questionId, answer, ?locale)` and
+  `CorrectAnswer(questionId, answer, ?locale)` take `ar` or `en` (anything else `InvalidFeedbackAttribute`
+  'locale', nothing changed); a change is in the same audit entry (`locale: [old, new]`), the same
+  language changes and records nothing; correcting only the language is allowed. The owner may change
+  the method later.
+- **B1 — the star breakdown** (FB-a): the `feedback.reviews` section carries `stars` — every star, 5 to
+  1, with its count of the product's **approved** reviews (all stores, as the rating) — and `star`, the one
+  star the reviews are narrowed to: asked as `filter[feedback.reviews]=1..5` (anything else shows every
+  review), paged with `after[feedback.reviews]` as before. Read in the section's one statement (the page's
+  count unchanged, 11). Catalog's part: amendment 31 (`ShopProductVisitDto::$filters`).
+
 ---
 
 ## 3 · Use cases

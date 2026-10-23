@@ -73,6 +73,11 @@ final readonly class DatabaseReviews implements Reviews
         ]);
     }
 
+    public function setLocale(Review $review, string $locale): void
+    {
+        $this->db->table('feedback.reviews')->where('id', $review->id)->update(['locale' => $locale]);
+    }
+
     public function markReturned(string $customerId, string $productId): void
     {
         $this->db->table('feedback.reviews')

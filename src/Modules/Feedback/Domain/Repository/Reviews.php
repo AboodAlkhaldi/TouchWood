@@ -26,6 +26,9 @@ interface Reviews
 
     public function moderate(Review $review, ReviewStatus $status, ?string $reason, string $staffId, DateTimeImmutable $at): void;
 
+    /** The language staff set for the review's text (§4.2 B3). */
+    public function setLocale(Review $review, string $locale): void;
+
     /** Flips the customer's review of each product to "Returned"; one already so changes nothing. */
     public function markReturned(string $customerId, string $productId): void;
 

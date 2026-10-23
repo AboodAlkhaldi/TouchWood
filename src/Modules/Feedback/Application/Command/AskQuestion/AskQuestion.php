@@ -11,6 +11,5 @@ final readonly class AskQuestion
         public string $storeId,
         public string $productId,
         public string $body,
-        public string $locale,
     ) {}
 }

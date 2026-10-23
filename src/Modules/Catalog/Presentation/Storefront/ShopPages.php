@@ -119,11 +119,12 @@ final readonly class ShopPages
      * those modules decide and with who is looking. A page not available now carries none.
      *
      * @param  array<string, string>  $after  section key => where it goes on from ("Show more")
+     * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
      * @return array<string, mixed>|Moved|null
      *
      * @throws InvalidCatalogAttribute
      */
-    public function product(StoreId $store, string $locale, string $slug, array $after = []): array|Moved|null
+    public function product(StoreId $store, string $locale, string $slug, array $after = [], array $filters = []): array|Moved|null
     {
         $owner = $this->catalog->productOwner($locale, $slug);
 
@@ -185,7 +186,7 @@ final readonly class ShopPages
 
         $actor = $this->actors->current();
         $customerId = $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
-        $sections = $kept['page']['available'] === true ? $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after) : [];
+        $sections = $kept['page']['available'] === true ? $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters) : [];
 
         return [
             ...$kept['page'],

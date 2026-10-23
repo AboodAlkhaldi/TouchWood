@@ -79,11 +79,11 @@ describe('writing a review', function () {
         $sara = Fx::customer();
         Fb::delivered($sara, $product, $eighty);
 
-        $id = Fb::write($sara, $product, 4, "  Quiet hinges.\r\nWorth it ٥ stars  ", locale: 'ar');
+        $id = Fb::write($sara, $product, 4, "  Quiet hinges.\r\nWorth it ٥ stars  ", storeCode: 'sa');
         $row = reviewRow($id);
 
         expect([$row['status'], $row['mark'], $row['variant_id'], $row['rating'], $row['locale'], $row['store_id'], $row['moderated_by']])
-            ->toBe(['PENDING', 'VERIFIED_PURCHASE', $eighty, 4, 'ar', Fx::storeId('sa'), null])
+            ->toBe(['PENDING', 'VERIFIED_PURCHASE', $eighty, 4, 'en', Fx::storeId('sa'), null])
             ->and($row['body'])->toBe("Quiet hinges.\nWorth it 5 stars");
     });
 
@@ -131,12 +131,11 @@ describe('writing a review', function () {
         'six stars' => [fn (string $c, string $p) => Fb::write($c, $p, 6), 'rating'],
         'no text' => [fn (string $c, string $p) => Fb::write($c, $p, body: "  \n "), 'body'],
         'too much text' => [fn (string $c, string $p) => Fb::write($c, $p, body: str_repeat('ب', 2001)), 'body'],
-        'another language' => [fn (string $c, string $p) => Fb::write($c, $p, locale: 'fr'), 'locale'],
         'a store that does not sell it' => [fn (string $c, string $p) => Fb::write($c, $p, storeCode: 'eg'), 'product'],
         'a product that is not one' => [fn (string $c) => Fb::write($c, 'not-a-product'), 'product'],
         'a store that is not one' => [function (string $c, string $p) {
             Fx::actAsCustomer($c);
-            app(WriteReviewHandler::class)->handle(new WriteReview('not-a-store', $p, 5, 'Good', 'en'));
+            app(WriteReviewHandler::class)->handle(new WriteReview('not-a-store', $p, 5, 'Good'));
         }, 'store'],
         'a variant of another product' => [function (string $c, string $p) {
             ['variants' => [$other]] = Px::ready(['90 cm']);
@@ -160,11 +159,11 @@ describe('writing a review', function () {
         $eg = Fx::storeId('eg');
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
-        expect(fn () => app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId('sa'), $product, 5, 'Good', 'en')))->toThrow(Unauthorized::class);
+        expect(fn () => app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId('sa'), $product, 5, 'Good')))->toThrow(Unauthorized::class);
 
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
         Fx::actAsCustomer($sara);
-        expect(Fb::thrown(fn () => app(WriteReviewHandler::class)->handle(new WriteReview($eg, $product, 5, 'Good', 'en')), InvalidFeedbackAttribute::class)->attribute)->toBe('store');
+        expect(Fb::thrown(fn () => app(WriteReviewHandler::class)->handle(new WriteReview($eg, $product, 5, 'Good')), InvalidFeedbackAttribute::class)->attribute)->toBe('store');
     });
 });
 
@@ -187,6 +186,40 @@ describe('moderating', function () {
             ->and(reviewRow($first)['moderated_at'])->not->toBeNull()
             ->and(app(Reviews::class)->rating($product))->toBe(['sum' => 7, 'count' => 2])
             ->and(json_decode((string) $audit?->changes, true))->toBe(['status' => ['PENDING', 'APPROVED']]);
+    });
+
+    it('keeps the language the text is written in, and lets staff set it on approving, audited (§4.2 B3)', function () {
+        ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+        $sara = Fx::customer();
+        $omar = Fx::customer('omar@example.test');
+        Fb::delivered($sara, $product, $sixty);
+        Fb::delivered($omar, $product, $sixty);
+        // Latin letters, Arabic words: written in English letters, Arabic as staff read it.
+        $latin = Fb::write($sara, $product, 5, 'Mumtaz jiddan');
+        $arabic = Fb::write($omar, $product, 4, '٥ نجوم للمفصلات');
+        moderator();
+        $before = [reviewRow($latin)['locale'], reviewRow($arabic)['locale']];
+
+        app(ApproveReviewHandler::class)->handle(new ApproveReview($latin, 'ar'));
+        app(ApproveReviewHandler::class)->handle(new ApproveReview($arabic, 'ar'));
+        $audit = fn (string $id) => json_decode((string) DB::table('platform.audit_entries')->where('action', 'feedback.review.approved')->where('subject_id', $id)->value('changes'), true);
+
+        expect($before)->toBe(['en', 'ar'])
+            ->and([reviewRow($latin)['locale'], reviewRow($latin)['status']])->toBe(['ar', 'APPROVED'])
+            ->and($audit($latin))->toEqual(['status' => ['PENDING', 'APPROVED'], 'locale' => ['en', 'ar']])
+            // The same language: nothing changed, nothing audited of it.
+            ->and($audit($arabic))->toBe(['status' => ['PENDING', 'APPROVED']]);
+    });
+
+    it('refuses a language staff set but Arabic or English, approving nothing', function () {
+        ['product' => $product, 'variants' => [$sixty]] = Fb::sold();
+        $sara = Fx::customer();
+        Fb::delivered($sara, $product, $sixty);
+        $id = Fb::write($sara, $product);
+        moderator();
+
+        expect(Fb::thrown(fn () => app(ApproveReviewHandler::class)->handle(new ApproveReview($id, 'fr')), InvalidFeedbackAttribute::class)->attribute)->toBe('locale')
+            ->and(reviewRow($id)['status'])->toBe('PENDING');
     });
 
     it('rejects a waiting review with or without a reason, never counted', function () {

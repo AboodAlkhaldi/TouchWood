@@ -33,6 +33,12 @@ count: number,
 reviews: ShopReviewData[],
 next: string | null,
 canWrite: boolean,
+stars: ShopStarData[],
+star: number | null,
+};
+export type ShopStarData = {
+star: number,
+count: number,
 };
 export type ShopVariantValueData = {
 attribute: string,

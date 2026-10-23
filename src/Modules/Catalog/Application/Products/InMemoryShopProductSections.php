@@ -46,12 +46,13 @@ final class InMemoryShopProductSections implements ShopProductSections
      *
      * @param  'ar'|'en'  $locale
      * @param  array<string, string>  $after  section key => where it goes on from
+     * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
      * @return array<string, array<string, mixed>|null>
      */
-    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after): array
+    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = []): array
     {
         $parts = [];
-        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after);
+        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters);
 
         foreach ($this->sections as $key => $class) {
             $section = $this->container->make($class);

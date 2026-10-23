@@ -69,6 +69,11 @@ final readonly class DatabaseQuestions implements Questions
         $this->set($question, ['answer' => $answer], $at);
     }
 
+    public function setLocale(Question $question, string $locale, DateTimeImmutable $at): void
+    {
+        $this->set($question, ['locale' => $locale], $at);
+    }
+
     public function reject(Question $question, ?string $reason, DateTimeImmutable $at): void
     {
         $this->set($question, ['status' => QuestionStatus::Rejected->value, 'reason' => $reason], $at);

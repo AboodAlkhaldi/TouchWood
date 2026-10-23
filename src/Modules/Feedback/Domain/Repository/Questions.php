@@ -27,6 +27,9 @@ interface Questions
     /** The answer's text changed — who answered and when stay, so it does not move on the page. */
     public function correct(Question $question, string $answer, DateTimeImmutable $at): void;
 
+    /** The language staff set for the question — its answer is written in it (§4.2 B3). */
+    public function setLocale(Question $question, string $locale, DateTimeImmutable $at): void;
+
     public function reject(Question $question, ?string $reason, DateTimeImmutable $at): void;
 
     public function unpublish(Question $question, ?string $reason, DateTimeImmutable $at): void;

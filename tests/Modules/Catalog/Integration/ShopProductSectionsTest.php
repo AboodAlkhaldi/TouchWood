@@ -56,6 +56,20 @@ it('asks every section with the same visit, and carries what each answers', func
         ->and([ShopProductSectionsTestSection::$asked[2]->locale, ShopProductSectionsTestSection::$asked[2]->store->value])->toBe(['en', '01k6abcdefghjkmnpqrstvwxyz']);
 });
 
+it('gives every section the filters the address names, beside where each goes on from (amendment 31)', function () {
+    $sections = new InMemoryShopProductSections(app());
+    $sections->register('test.one', ShopProductSectionsTestSection::class);
+    ShopProductSectionsTestSection::forget();
+    $store = StoreId::fromString('01k6abcdefghjkmnpqrstvwxyz');
+
+    $sections->read($store, 'en', 'p1', 'c1', ['test.one' => 'x'], ['test.one' => '4']);
+    $sections->read($store, 'en', 'p1', 'c1', []);
+
+    expect(ShopProductSectionsTestSection::$asked[0]->filters)->toBe(['test.one' => '4'])
+        ->and(ShopProductSectionsTestSection::$asked[0]->after)->toBe(['test.one' => 'x'])
+        ->and(ShopProductSectionsTestSection::$asked[1]->filters)->toBe([]);
+});
+
 it('refuses a key not of the form {module}.{key}, a class that is not a section, and a key twice', function (Closure $register, string $message) {
     expect(fn () => $register(new InMemoryShopProductSections(app())))->toThrow(LogicException::class, $message);
 })->with([

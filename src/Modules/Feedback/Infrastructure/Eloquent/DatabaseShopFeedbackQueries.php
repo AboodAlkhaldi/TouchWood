@@ -28,16 +28,20 @@ final readonly class DatabaseShopFeedbackQueries implements ShopFeedbackQueries
         private ConnectionInterface $db,
     ) {}
 
-    public function forProduct(string $productId, StoreId $store, ?string $customerId, ?string $reviewsAfter, ?string $questionsAfter, int $limit): ShopFeedbackRows
+    public function forProduct(string $productId, StoreId $store, ?string $customerId, ?string $reviewsAfter, ?string $questionsAfter, int $limit, ?int $star = null): ShopFeedbackRows
     {
         $row = $this->db->selectOne(<<<'SQL'
             SELECT
                 (SELECT r.rating_sum FROM feedback.product_ratings r WHERE r.product_id = :product) AS rating_sum,
                 (SELECT r.rating_count FROM feedback.product_ratings r WHERE r.product_id = :product2) AS rating_count,
+                (SELECT coalesce(json_object_agg(s.rating, s.reviews), '{}'::json) FROM (
+                    SELECT b.rating, count(*) AS reviews FROM feedback.reviews b
+                    WHERE b.product_id = :product7 AND b.status = 'APPROVED' GROUP BY b.rating
+                ) s) AS stars,
                 (SELECT coalesce(json_agg(page ORDER BY page.created_at DESC, page.id DESC), '[]'::json) FROM (
                     SELECT v.id, v.customer_id, v.variant_id, v.rating, v.body, v.locale, v.mark, v.created_at
                     FROM feedback.reviews v
-                    WHERE v.product_id = :product3 AND v.status = 'APPROVED'
+                    WHERE v.product_id = :product3 AND v.status = 'APPROVED' AND (CAST(:star AS integer) IS NULL OR v.rating = :star2)
                       AND (CAST(:reviews_after AS text) IS NULL OR (v.created_at, v.id) < (SELECT a.created_at, a.id FROM feedback.reviews a WHERE a.id = :reviews_after2))
                     ORDER BY v.created_at DESC, v.id DESC
                     LIMIT :limit
@@ -54,6 +58,7 @@ final readonly class DatabaseShopFeedbackQueries implements ShopFeedbackQueries
                 EXISTS (SELECT 1 FROM feedback.reviews m WHERE m.customer_id = :customer2 AND m.product_id = :product6) AS reviewed
             SQL, [
             'product' => $productId, 'product2' => $productId, 'product3' => $productId, 'product4' => $productId, 'product5' => $productId, 'product6' => $productId,
+            'product7' => $productId, 'star' => $star, 'star2' => $star,
             'reviews_after' => $reviewsAfter, 'reviews_after2' => $reviewsAfter,
             'questions_after' => $questionsAfter, 'questions_after2' => $questionsAfter,
             'limit' => $limit, 'limit2' => $limit,
@@ -61,7 +66,7 @@ final readonly class DatabaseShopFeedbackQueries implements ShopFeedbackQueries
         ]);
 
         if (! $row instanceof stdClass) {
-            return new ShopFeedbackRows(0, 0, [], [], false, false);
+            return new ShopFeedbackRows(0, 0, [], [], false, false, []);
         }
 
         return new ShopFeedbackRows(
@@ -88,7 +93,28 @@ final readonly class DatabaseShopFeedbackQueries implements ShopFeedbackQueries
             ), self::json($row->questions)),
             $customerId !== null && (bool) $row->saved,
             $customerId !== null && (bool) $row->reviewed,
+            self::stars($row->stars),
         );
+    }
+
+    /**
+     * Every star, 5 to 1, with its approved reviews — 0 where none.
+     *
+     * @return array<int, int>
+     *
+     * @throws JsonException
+     */
+    private static function stars(mixed $text): array
+    {
+        /** @var array<array-key, int|string> $counts */
+        $counts = json_decode((string) $text, true, 512, JSON_THROW_ON_ERROR);
+        $stars = [];
+
+        foreach ([5, 4, 3, 2, 1] as $star) {
+            $stars[$star] = (int) ($counts[$star] ?? 0);
+        }
+
+        return $stars;
     }
 
     /**

@@ -37,8 +37,9 @@ final readonly class CorrectAnswerHandler
     {
         [$store] = $this->change->authorize(self::PERMISSION, fn () => $this->questions->storeOf($command->questionId), static fn (): QuestionNotFound => new QuestionNotFound);
         $answer = FeedbackText::of($command->answer, 'answer', 2000);
+        $locale = $command->locale === null ? null : FeedbackText::locale($command->locale);
 
-        $this->change->run(function () use ($store, $command, $answer): array {
+        $this->change->run(function () use ($store, $command, $answer, $locale): array {
             $question = $this->questions->lock($store, $command->questionId) ?? throw new QuestionNotFound;
 
             if ($question->status !== QuestionStatus::Answered) {
@@ -46,13 +47,25 @@ final readonly class CorrectAnswerHandler
             }
 
             $now = CarbonImmutable::now();
-            if ($question->answer === $answer) {
+            $relabelled = $locale !== null && $locale !== $question->locale;
+
+            if ($question->answer === $answer && ! $relabelled) {
                 return [null, []];
             }
 
-            $this->questions->correct($question, $answer, $now);
-            $from = ['answer' => $question->answer];
-            $to = ['answer' => $answer];
+            $from = [];
+            $to = [];
+
+            if ($question->answer !== $answer) {
+                $this->questions->correct($question, $answer, $now);
+                [$from['answer'], $to['answer']] = [$question->answer, $answer];
+            }
+
+            // The question's language as staff set it (§4.2 B3).
+            if ($relabelled) {
+                $this->questions->setLocale($question, $locale, $now);
+                [$from['locale'], $to['locale']] = [$question->locale, $locale];
+            }
 
             return [null, [FeedbackAudit::entry('question', 'answer_changed', $question->id, $store->value, $from, $to)]];
         });

@@ -12,6 +12,5 @@ final readonly class WriteReview
         public string $productId,
         public int $rating,
         public string $body,
-        public string $locale,
     ) {}
 }

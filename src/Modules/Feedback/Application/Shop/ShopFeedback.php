@@ -33,6 +33,7 @@ final class ShopFeedback
     {
         $reviewsAfter = self::after($visit->after['feedback.reviews'] ?? null);
         $questionsAfter = self::after($visit->after['feedback.questions'] ?? null);
+        $star = self::star($visit->filters['feedback.reviews'] ?? null);
         // What it holds belongs to the request that read it, as the shop's own `ShopVisit`.
         $request = app()->bound('request') ? app('request') : null;
 
@@ -41,14 +42,14 @@ final class ShopFeedback
             $this->readFor = is_object($request) ? $request : null;
         }
 
-        $key = implode('|', [$visit->store->value, $visit->locale, $visit->productId, $visit->customerId ?? '', $reviewsAfter ?? '', $questionsAfter ?? '']);
+        $key = implode('|', [$visit->store->value, $visit->locale, $visit->productId, $visit->customerId ?? '', $reviewsAfter ?? '', $questionsAfter ?? '', (string) $star]);
 
-        return $this->read[$key] ??= $this->load($visit, $reviewsAfter, $questionsAfter);
+        return $this->read[$key] ??= $this->load($visit, $reviewsAfter, $questionsAfter, $star);
     }
 
-    private function load(ShopProductVisitDto $visit, ?string $reviewsAfter, ?string $questionsAfter): ProductFeedback
+    private function load(ShopProductVisitDto $visit, ?string $reviewsAfter, ?string $questionsAfter, ?int $star): ProductFeedback
     {
-        $rows = $this->queries->forProduct(strtolower($visit->productId), $visit->store, $visit->customerId === null ? null : strtolower($visit->customerId), $reviewsAfter, $questionsAfter, self::PAGE + 1);
+        $rows = $this->queries->forProduct(strtolower($visit->productId), $visit->store, $visit->customerId === null ? null : strtolower($visit->customerId), $reviewsAfter, $questionsAfter, self::PAGE + 1, $star);
         $reviews = array_slice($rows->reviews, 0, self::PAGE);
         $questions = array_slice($rows->questions, 0, self::PAGE);
         $authors = $this->reader->authors([
@@ -77,7 +78,15 @@ final class ShopFeedback
             $visit->customerId !== null,
             $rows->saved,
             $rows->reviewed,
+            $rows->stars,
+            $star,
         );
+    }
+
+    /** The reviews' one-star filter as the address gives it (`filter[feedback.reviews]`, §4.2 B1): 1 to 5, anything else none. */
+    private static function star(?string $filter): ?int
+    {
+        return $filter !== null && preg_match('/^[1-5]$/', trim($filter)) === 1 ? (int) trim($filter) : null;
     }
 
     /**

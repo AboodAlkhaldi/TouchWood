@@ -10,6 +10,7 @@ final readonly class ShopFeedbackRows
     /**
      * @param  list<ShopReview>  $reviews
      * @param  list<ShopQuestion>  $questions
+     * @param  array<int, int>  $stars  each star (1–5) → its approved reviews
      */
     public function __construct(
         public int $ratingSum,
@@ -18,5 +19,6 @@ final readonly class ShopFeedbackRows
         public array $questions,
         public bool $saved,
         public bool $reviewed,
+        public array $stars,
     ) {}
 }

@@ -13,6 +13,7 @@ use Modules\Feedback\Application\Shop\ShopFeedback;
 use Modules\Feedback\Presentation\Http\Resource\ShopAuthorData;
 use Modules\Feedback\Presentation\Http\Resource\ShopReviewData;
 use Modules\Feedback\Presentation\Http\Resource\ShopReviewsData;
+use Modules\Feedback\Presentation\Http\Resource\ShopStarData;
 use Modules\Feedback\Presentation\Http\Resource\ShopVariantValueData;
 
 /** The product's rating and approved reviews (feedback.md §1.1, §1.2), `feedback.reviews`. */
@@ -44,6 +45,8 @@ final readonly class ReviewsSection implements ShopProductSection
             ), $read->reviews),
             $read->nextReview,
             $read->signedIn && ! $read->reviewed,
+            array_map(static fn (int $star, int $count): ShopStarData => new ShopStarData($star, $count), array_keys($read->stars), $read->stars),
+            $read->star,
         ))->toArray();
     }
 

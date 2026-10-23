@@ -73,7 +73,7 @@ final readonly class ShopPagesController
     public function product(Request $request, ShopPages $pages): Response
     {
         try {
-            $page = $pages->product($this->stores->current(), app()->getLocale(), self::slug($request), self::after($request));
+            $page = $pages->product($this->stores->current(), app()->getLocale(), self::slug($request), self::after($request), self::sectionWords($request, 'filter'));
         } catch (InvalidCatalogAttribute) {
             return $this->notFound($request);
         }
@@ -143,9 +143,20 @@ final readonly class ShopPagesController
      */
     private static function after(Request $request): array
     {
-        $after = $request->query('after');
+        return self::sectionWords($request, 'after');
+    }
 
-        return is_array($after) ? array_filter($after, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value) && $value !== '' && strlen($value) <= 64, ARRAY_FILTER_USE_BOTH) : [];
+    /**
+     * A word per section from the address — `after[{key}]`, or `filter[{key}]` (amendment 31) — at most 64
+     * characters each, anything else left out.
+     *
+     * @return array<string, string>
+     */
+    private static function sectionWords(Request $request, string $name): array
+    {
+        $words = $request->query($name);
+
+        return is_array($words) ? array_filter($words, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value) && $value !== '' && strlen($value) <= 64, ARRAY_FILTER_USE_BOTH) : [];
     }
 
     private static function text(Request $request, string $key): ?string

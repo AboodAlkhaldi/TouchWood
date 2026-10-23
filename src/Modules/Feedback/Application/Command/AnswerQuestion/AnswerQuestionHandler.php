@@ -37,8 +37,9 @@ final readonly class AnswerQuestionHandler
     {
         [$store, $staffId] = $this->change->authorize(self::PERMISSION, fn () => $this->questions->storeOf($command->questionId), static fn (): QuestionNotFound => new QuestionNotFound);
         $answer = FeedbackText::of($command->answer, 'answer', 2000);
+        $locale = $command->locale === null ? null : FeedbackText::locale($command->locale);
 
-        $this->change->run(function () use ($store, $command, $answer, $staffId): array {
+        $this->change->run(function () use ($store, $command, $answer, $staffId, $locale): array {
             $question = $this->questions->lock($store, $command->questionId) ?? throw new QuestionNotFound;
 
             if ($question->status !== QuestionStatus::Pending) {
@@ -49,6 +50,12 @@ final readonly class AnswerQuestionHandler
             $this->questions->answer($question, $answer, $staffId, $now);
             $from = ['status' => $question->status->value, 'answer' => null];
             $to = ['status' => QuestionStatus::Answered->value, 'answer' => $answer];
+
+            // The question's language as staff set it (§4.2 B3).
+            if ($locale !== null && $locale !== $question->locale) {
+                $this->questions->setLocale($question, $locale, $now);
+                [$from['locale'], $to['locale']] = [$question->locale, $locale];
+            }
 
             return [null, [FeedbackAudit::entry('question', 'answered', $question->id, $store->value, $from, $to)]];
         });

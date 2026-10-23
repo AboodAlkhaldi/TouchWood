@@ -62,9 +62,11 @@ Backend only in this stage's build; the screens are another session's.
   one statement: the rating, ten approved reviews newest first, ten answered questions newest answer
   first, saved here, reviewed), then the authors and sizes in bulk. Shapes `Presentation/Http/Resource/Shop*Data`
   (TypeScript). "Show more": `after[feedback.reviews]` / `after[feedback.questions]` on the same page.
+  The reviews' star breakdown (`stars`, 5 to 1, in the same statement) and the one-star filter
+  `filter[feedback.reviews]=1..5` (§2.4 B1; Catalog amendment 31).
 - **Reviews**: **`Command/WriteReview`** (`feedback.review.write`, a signed-in customer): the text read
   by the domain's **`FeedbackText`** (trimmed, line breaks kept, Arabic digits as 0-9, length in
-  characters); the product sold in the open store (Catalog's `productsSoldIn`); then under
+  characters; its language from its first letter, `FeedbackText::languageOf`, §2.4 B3); the product sold in the open store (Catalog's `productsSoldIn`); then under
   **`Review/ReviewLock`** — an advisory lock on (customer, product), Feedback having no row of its own
   — one review per product for ever (`AlreadyReviewed`, the unique key the backstop), the verified
   purchase from `SalesApi::deliveredPurchase` (`NotAVerifiedPurchase`), its variant checked to be the
@@ -80,5 +82,5 @@ Backend only in this stage's build; the screens are another session's.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
 `FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
-`tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`;
+`tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.
