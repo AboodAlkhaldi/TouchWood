@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
+use Modules\Sync\Domain\Exception\ConnectionFailed;
+use Modules\Sync\Domain\ValueObject\ProviderReason;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\Error\ErrorCategory;
@@ -54,6 +56,9 @@ beforeEach(function () {
 
     Route::get('/_test/category/{category}', function (string $category) {
         throw fakeDomainError('testing.not_translated', ErrorCategory::from($category));
+    });
+    Route::get('/_test/connection-failed', function () {
+        throw new ConnectionFailed(new ProviderReason(ProviderReason::FAILED, ['status' => 503]), 'Odoo failed (503).');
     });
     Route::get('/_test/thing-taken', function () {
         throw fakeDomainError('testing.thing_taken', ErrorCategory::Conflict, 'Code sa is taken.', ['code' => 'sa']);
@@ -140,6 +145,22 @@ it('falls back to the category title and the status\'s own JSON sentence when an
     'an invalid request, in Arabic' => ['ar', 'INVALID', 'طلب غير صالح', 'تعذّر تنفيذ ذلك: في ما أُرسل ما ليس صالحًا.'],
     'unsupported, in Arabic' => ['ar', 'UNSUPPORTED', null, 'تعذّر تنفيذ ذلك: ما أُرسل من نوع لا يقبله.'],
     'too large, in Arabic' => ['ar', 'TOO_LARGE', null, 'تعذّر تنفيذ ذلك: ما أُرسل كبير جدًا.'],
+]);
+
+it('says a provider\'s reason kept as a code through its rule in the page\'s language, never the stored code or the developers\' message (stage 5 step 10)', function (string $locale, string $detail) {
+    app()->setLocale($locale);
+
+    $response = getJson('/_test/connection-failed')
+        ->assertStatus(422)
+        ->assertJsonPath('type', 'sync.connection_failed')
+        ->assertJsonPath('detail', $detail);
+
+    expect($response->getContent())->not->toContain('ODOO_FAILED')
+        // The developers' message ("The provider could not be read: …"), never; the title is its own words.
+        ->and($response->getContent())->not->toContain('could not be read:');
+})->with([
+    'English' => ['en', 'Failed to read the provider: Odoo failed (503).'],
+    'Arabic' => ['ar', 'تعذّرت القراءة من المزوّد: تعطّل Odoo (503).'],
 ]);
 
 it('says no developer message in a JSON problem for any category', function (string $category) {

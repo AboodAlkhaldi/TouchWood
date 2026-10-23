@@ -22,12 +22,17 @@ final class ConnectionFailed extends SyncError
 
     public readonly ?ProviderReason $coded;
 
-    public function __construct(string|ProviderReason $reason)
+    /**
+     * @param  string|null  $sentence  a coded reason's English sentence, for the developers' message (the
+     *                                 failed jobs screen, the log) - the adapter writes it from the lang file;
+     *                                 without one, the code and its values are said as stored
+     */
+    public function __construct(string|ProviderReason $reason, ?string $sentence = null)
     {
         $this->coded = $reason instanceof ProviderReason ? $reason : null;
         $this->reason = $reason instanceof ProviderReason ? $reason->stored() : $reason;
 
-        parent::__construct("The provider could not be read: {$this->reason}");
+        parent::__construct('The provider could not be read: '.($this->coded === null ? $this->reason : ($sentence ?? $this->reason)));
     }
 
     public function type(): string

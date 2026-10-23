@@ -259,8 +259,18 @@ it('leaves every signed-out page\'s address alone: a mistyped one under them is 
     'a reset with no token' => '/admin/password/reset',
     'an invitation with more after it' => '/admin/invitation/token/code/more',
     'an email change with more after it' => '/admin/email-change/token/more',
-    'the language chosen, read' => '/admin/preferences/x',
 ]);
+
+it('keeps catching a read of the language\'s address, which is only ever sent: the panel\'s not-found page, or sign in first - never "method not allowed" (the review of step 10)', function () {
+    (new AdminBrowser)->get('/admin/preferences')->assertRedirect('/admin/sign-in');
+    (new AdminBrowser)->get('/admin/preferences/x')->assertRedirect('/admin/sign-in');
+
+    foreach (['/admin/preferences', '/admin/preferences/x'] as $address) {
+        panelErrorSignedIn('en')->get($address)->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Admin/Error')
+            ->where('status', 404));
+    }
+});
 
 it('still sends somebody signed out to sign in from an address that only begins like a signed-out page\'s', function () {
     foreach (['/admin/passwords', '/admin/invitations-old', '/admin/preferencesx'] as $address) {
@@ -280,7 +290,8 @@ it('names every panel page that is reached signed out among the addresses the fa
         }
 
         // Behind the panel's sign-in as ProblemDetails reads it (AdminArea::SIGNED_IN), or reached signed out.
-        if (! in_array(AdminArea::SIGNED_IN, $route->gatherMiddleware(), true)) {
+        // A page read signed out (a GET); one only ever sent, the language's, is left to the fallback.
+        if (! in_array(AdminArea::SIGNED_IN, $route->gatherMiddleware(), true) && in_array('GET', $route->methods(), true)) {
             $signedOut[] = explode('/', substr($uri, strlen('admin/')))[0];
         }
     }

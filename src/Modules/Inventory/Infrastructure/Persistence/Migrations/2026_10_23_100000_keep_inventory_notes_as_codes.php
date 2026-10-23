@@ -31,6 +31,20 @@ return new class extends Migration
                 ADD CONSTRAINT stock_movements_note_values CHECK (note_values IS NULL OR (note_code IS NOT NULL AND jsonb_typeof(note_values) = 'object')),
                 ADD CONSTRAINT stock_movements_note_one CHECK (note IS NULL OR note_code IS NULL)
             SQL);
+        // Each code on its own reason, with exactly the values it carries (the review of step 10): a
+        // shipment's shortfall on a SHIPPED line, its count a number; the unwiring on a CORRECTION, no values.
+        // Named to come after the checks above: PostgreSQL tests a row's checks in the order of their names.
+        DB::statement(<<<'SQL'
+            ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_paired_note CHECK (
+                CASE note_code
+                    WHEN 'SHIPPED_BEYOND_COUNT' THEN reason = 'SHIPPED'
+                        AND COALESCE(jsonb_typeof(note_values -> 'count'), '') = 'number'
+                        AND note_values - 'count' = '{}'::jsonb
+                    WHEN 'UNWIRED' THEN reason = 'CORRECTION' AND note_values IS NULL
+                    ELSE true
+                END
+            )
+            SQL);
 
         DB::statement('ALTER TABLE inventory.stock_movements DROP CONSTRAINT stock_movements_note');
         DB::statement(<<<'SQL'
@@ -75,7 +89,7 @@ return new class extends Migration
             ALTER TABLE inventory.stock_movements ADD CONSTRAINT stock_movements_note
                 CHECK (reason <> 'CORRECTION' OR (note IS NOT NULL AND btrim(note, E' \t\r\n\x0B') <> ''))
             SQL);
-        DB::statement('ALTER TABLE inventory.stock_movements DROP CONSTRAINT stock_movements_note_one, DROP CONSTRAINT stock_movements_note_values, DROP CONSTRAINT stock_movements_note_code');
+        DB::statement('ALTER TABLE inventory.stock_movements DROP CONSTRAINT stock_movements_paired_note, DROP CONSTRAINT stock_movements_note_one, DROP CONSTRAINT stock_movements_note_values, DROP CONSTRAINT stock_movements_note_code');
         DB::statement('ALTER TABLE inventory.stock_movements DROP COLUMN note_values, DROP COLUMN note_code');
     }
 };

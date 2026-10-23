@@ -322,7 +322,8 @@ code does it:
   step 10 (owner, 2026-10-20)** they are kept as **a code and its values** (`ProviderReason`: a status, the
   seconds, the pages) - stored as a JSON object, `{"code":"ODOO_FAILED","values":{"status":503}}`, in the same
   columns as Sync's own codes (Q31) - and written in the page's language when shown, under "The provider
-  said:"; the audit log keeps the code and its English sentence beside it, and a refusal of the Provider form
+  said:"; the audit log keeps the code and its English sentence beside it, the developers' message (the
+  failed jobs screen, the log) says the English sentence, never the stored JSON, and a refusal of the Provider form
   says it through the error's rule (`sync::errors.connection_failed.rules.<code>`). A reason stored before the
   codes is shown as it is. Words: `src/Modules/Sync/Presentation/lang/{ar,en}/provider_failures.php`. In
   English: "Odoo refused the token (401)." (`ODOO_REFUSED_TOKEN`) · "Odoo refused the request (400)."

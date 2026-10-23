@@ -203,7 +203,18 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             // A stocktake, which needs no note: only the values without a code are refused.
             ->and($insert(['reason' => 'STOCKTAKE', 'note_code' => null]))->toThrow(QueryException::class, 'stock_movements_note_values')
             ->and($insert(['note_values' => '[2]']))->toThrow(QueryException::class, 'stock_movements_note_values')
-            ->and($insert(['note' => 'typed']))->toThrow(QueryException::class, 'stock_movements_note_one');
+            ->and($insert(['note' => 'typed']))->toThrow(QueryException::class, 'stock_movements_note_one')
+            // Each code on its own reason, with exactly its values (the review of step 10).
+            ->and($insert(['reason' => 'CORRECTION', 'change' => 2, 'after' => 2]))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['reason' => 'RECEIVED', 'change' => 2, 'after' => 2, 'note_code' => 'UNWIRED', 'note_values' => null]))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['reason' => 'CORRECTION', 'change' => 2, 'after' => 2, 'note_code' => 'UNWIRED']))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['note_values' => null]))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['note_values' => '{"n": 2}']))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['note_values' => '{"count": "2"}']))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            ->and($insert(['note_values' => '{"count": 2, "more": 1}']))->toThrow(QueryException::class, 'stock_movements_paired_note')
+            // Neither a typed note nor a code: a correction, and a shipment that takes nothing, still refused.
+            ->and($insert(['reason' => 'CORRECTION', 'change' => 2, 'after' => 2, 'note_code' => null, 'note_values' => null]))->toThrow(QueryException::class, 'stock_movements_note')
+            ->and($insert(['note_code' => null, 'note_values' => null]))->toThrow(QueryException::class, 'stock_movements_direction');
 
         // A shipment from 0 and a correction each say why with a code as with a note.
         $insert([])();

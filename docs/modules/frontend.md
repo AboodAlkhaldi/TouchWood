@@ -778,10 +778,11 @@ three more he accepted on 2026-10-20):**
   middleware and its sign-in), and gets the panel's not-found page - "Page Not Found", Back to Home.
   Somebody signed out is sent to sign in first, as for any panel page. The sign-in pages' addresses
   (`/admin/sign-in`, `/admin/sign-in/…`) are never caught, nor anything outside `/admin` - and, since stage 5
-  step 10, nor any other page reached signed out (`route:list`): `/admin/password/…`, `/admin/invitation/…`,
-  `/admin/email-change/…` and `/admin/preferences`, so a mistyped address under them is Laravel's plain not
-  found, never a trip to sign in (`PanelNotFoundController::SIGNED_OUT`, a test keeps it equal to the routes
-  without the panel's sign-in). Anything but a
+  step 10, nor any other page read signed out (`route:list`): `/admin/password/…`, `/admin/invitation/…` and
+  `/admin/email-change/…`, so a mistyped address under them is Laravel's plain not found, never a trip to
+  sign in (`PanelNotFoundController::SIGNED_OUT`, a test keeps it equal to the read routes without the
+  panel's sign-in). `/admin/preferences` is only ever sent (POST), so a read of it stays caught: the panel's
+  not-found page, or sign in first. Anything but a
   read sent to such an address (a POST) is answered not found by Laravel's own page, as before - a second
   fallback, without the panel's middleware, so it never becomes "method not allowed".
 - **Language:** the panel's, as every panel page: this browser's choice, else the person's own.

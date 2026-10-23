@@ -438,7 +438,7 @@ describe('the Provider page (Y3)', function () {
         $form = ['store' => 'sa', 'provider' => 'ODOO', 'address' => 'https://odoo.test/api', 'key' => 'k', 'secret' => 's', 'settings' => ['database' => 'tw']];
 
         expect(syncScreensErrors(syncScreensSuper()->post('/admin/sync/provider/wire', $form))['form'] ?? null)->toBe(['Failed to read the provider: Odoo did not answer within 10 seconds.'])
-            ->and(syncScreensErrors(syncScreensAs(Fx::staff(StaffStatus::Active, superAdmin: true), 'ar')->post('/admin/sync/provider/wire', $form))['form'] ?? null)->toBe(['تعذّرت القراءة من المزوّد: لم يُجب Odoo خلال 10 ثانية.'])
+            ->and(syncScreensErrors(syncScreensAs(Fx::staff(StaffStatus::Active, superAdmin: true), 'ar')->post('/admin/sync/provider/wire', $form))['form'] ?? null)->toBe(['تعذّرت القراءة من المزوّد: لم يُجب Odoo خلال المهلة المحددة بالثواني (10).'])
             ->and(DB::table('sync.connections')->count())->toBe(0);
     });
 });

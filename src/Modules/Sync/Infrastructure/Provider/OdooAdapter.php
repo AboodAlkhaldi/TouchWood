@@ -154,7 +154,7 @@ final class OdooAdapter implements ProviderAdapter
         do {
             // A read has an end: past 200 pages (200,000 items), it fails rather than ask on for ever.
             if (++$pages > self::MOST_PAGES) {
-                throw new ConnectionFailed(new ProviderReason(ProviderReason::TOO_MANY_PAGES, ['pages' => self::MOST_PAGES]));
+                throw self::failed(new ProviderReason(ProviderReason::TOO_MANY_PAGES, ['pages' => self::MOST_PAGES]));
             }
 
             $answer = $this->get($connection, [...$query, 'limit' => (string) self::PAGE, ...($after === null ? [] : ['after' => $after])], self::READ_SECONDS);
@@ -220,7 +220,7 @@ final class OdooAdapter implements ProviderAdapter
     {
         // The address rule refuses another already (`ConnectionInput`); the token never leaves on plain HTTP.
         if (! str_starts_with(strtolower($connection->address), 'https://')) {
-            throw new ConnectionFailed(new ProviderReason(ProviderReason::NOT_HTTPS));
+            throw self::failed(new ProviderReason(ProviderReason::NOT_HTTPS));
         }
 
         $waited = false;
@@ -233,7 +233,7 @@ final class OdooAdapter implements ProviderAdapter
             }
 
             if (! $waitWhenTooMany || $waited) {
-                throw new ConnectionFailed(new ProviderReason($waited ? ProviderReason::TOO_MANY_CALLS_TWICE : ProviderReason::TOO_MANY_CALLS));
+                throw self::failed(new ProviderReason($waited ? ProviderReason::TOO_MANY_CALLS_TWICE : ProviderReason::TOO_MANY_CALLS));
             }
 
             $waited = true;
@@ -241,7 +241,7 @@ final class OdooAdapter implements ProviderAdapter
         }
 
         if ($response->status() !== 200) {
-            throw new ConnectionFailed(self::refused($response->status()));
+            throw self::failed(self::refused($response->status()));
         }
 
         return self::answer($response->body());
@@ -272,12 +272,12 @@ final class OdooAdapter implements ProviderAdapter
             return $error->response;
         } catch (ConnectionException $error) {
             // Its message holds the address: never passed on, nor chained.
-            throw new ConnectionFailed(self::timedOut($error, $seconds) ?? new ProviderReason(ProviderReason::UNREACHABLE));
+            throw self::failed(self::timedOut($error, $seconds) ?? new ProviderReason(ProviderReason::UNREACHABLE));
         } catch (HttpClientException) {
-            throw new ConnectionFailed(new ProviderReason(ProviderReason::UNREACHABLE));
+            throw self::failed(new ProviderReason(ProviderReason::UNREACHABLE));
         } catch (InvalidArgumentException) {
             // A request that cannot be written - a control character in the key, say: never the key itself.
-            throw new ConnectionFailed(new ProviderReason(ProviderReason::UNSENDABLE));
+            throw self::failed(new ProviderReason(ProviderReason::UNSENDABLE));
         } finally {
             $this->lastCallEnded[$connection->storeId] = self::now();
         }
@@ -437,6 +437,17 @@ final class OdooAdapter implements ProviderAdapter
     /** An answer not as agreed (§2.4): what was wrong with it, as its code. */
     private static function malformed(string $code): ConnectionFailed
     {
-        return new ConnectionFailed(new ProviderReason($code));
+        return self::failed(new ProviderReason($code));
+    }
+
+    /**
+     * The failure kept as its code and values, its developers' message the English sentence the screens
+     * write from the same lang file (`sync::provider_failures`) - never the stored JSON (the review of step 10).
+     */
+    private static function failed(ProviderReason $reason): ConnectionFailed
+    {
+        $sentence = trans("sync::provider_failures.{$reason->code}", $reason->values, 'en');
+
+        return new ConnectionFailed($reason, is_string($sentence) ? $sentence : null);
     }
 }
