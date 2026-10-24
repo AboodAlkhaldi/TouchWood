@@ -48,11 +48,11 @@ beforeEach(function () {
     seed(CatalogSeeder::class);
 });
 
-function ask(string $customerId, string $productId, string $body = 'Does it fit a 60 cm cabinet?', string $storeCode = 'sa', string $locale = 'en'): string
+function ask(string $customerId, string $productId, string $body = 'Does it fit a 60 cm cabinet?', string $storeCode = 'sa'): string
 {
     Fx::actAsCustomer($customerId);
 
-    return app(AskQuestionHandler::class)->handle(new AskQuestion(Fx::storeId($storeCode), $productId, $body, $locale));
+    return app(AskQuestionHandler::class)->handle(new AskQuestion(Fx::storeId($storeCode), $productId, $body));
 }
 
 /**
@@ -87,7 +87,7 @@ describe('asking', function () {
         ['product' => $product] = Fb::sold();
         $sara = Fx::customer();
 
-        $row = questionRow(ask($sara, $product, '  هل يناسب خزانة ٦٠ سم؟  ', locale: 'ar'));
+        $row = questionRow(ask($sara, $product, '  هل يناسب خزانة ٦٠ سم؟  '));
 
         expect([$row['status'], $row['body'], $row['locale'], $row['store_id'], $row['customer_id'], $row['answer']])
             ->toBe(['PENDING', 'هل يناسب خزانة 60 سم؟', 'ar', Fx::storeId('sa'), $sara, null]);
@@ -122,12 +122,11 @@ describe('asking', function () {
     })->with([
         'no text' => [fn (string $c, string $p) => ask($c, $p, '   '), 'body'],
         'too much text' => [fn (string $c, string $p) => ask($c, $p, str_repeat('س', 1001)), 'body'],
-        'another language' => [fn (string $c, string $p) => ask($c, $p, locale: 'fr'), 'locale'],
         'a store that does not sell it' => [fn (string $c, string $p) => ask($c, $p, storeCode: 'eg'), 'product'],
         'a product that is not one' => [fn (string $c) => ask($c, 'not-a-product'), 'product'],
         'a store that is not one' => [function (string $c, string $p) {
             Fx::actAsCustomer($c);
-            app(AskQuestionHandler::class)->handle(new AskQuestion('not-a-store', $p, 'Hello', 'en'));
+            app(AskQuestionHandler::class)->handle(new AskQuestion('not-a-store', $p, 'Hello'));
         }, 'store'],
     ]);
 
@@ -143,11 +142,11 @@ describe('asking', function () {
         $eg = Fx::storeId('eg');
 
         Fx::actAsStaff(Fx::staff(superAdmin: true));
-        expect(fn () => app(AskQuestionHandler::class)->handle(new AskQuestion(Fx::storeId('sa'), $product, 'Hello', 'en')))->toThrow(Unauthorized::class);
+        expect(fn () => app(AskQuestionHandler::class)->handle(new AskQuestion(Fx::storeId('sa'), $product, 'Hello')))->toThrow(Unauthorized::class);
 
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
         Fx::actAsCustomer($sara);
-        expect(Fb::thrown(fn () => app(AskQuestionHandler::class)->handle(new AskQuestion($eg, $product, 'Hello', 'en')), InvalidFeedbackAttribute::class)->attribute)->toBe('store');
+        expect(Fb::thrown(fn () => app(AskQuestionHandler::class)->handle(new AskQuestion($eg, $product, 'Hello')), InvalidFeedbackAttribute::class)->attribute)->toBe('store');
     });
 });
 
@@ -163,6 +162,54 @@ describe('answering', function () {
         expect([$row['status'], $row['answer'], $row['answered_by']])->toBe(['ANSWERED', "Yes — it fits\n60 cm and up.", $staff])
             ->and($row['answered_at'])->not->toBeNull()
             ->and(questionAudit('feedback.question.answered'))->toEqual(['status' => ['PENDING', 'ANSWERED'], 'answer' => [null, "Yes — it fits\n60 cm and up."]]);
+    });
+
+    it('keeps the language a question is written in, and lets staff set it on answering and correcting (§4.2 B3)', function () {
+        ['product' => $product] = Fb::sold();
+        $latin = ask(Fx::customer(), $product, 'Hal yunasib khizana 60?');
+        $arabic = ask(Fx::customer('omar@example.test'), $product, '؟ هل يناسب');
+        answerer();
+        $before = [questionRow($latin)['locale'], questionRow($arabic)['locale']];
+
+        app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($latin, 'نعم، يناسب.', 'ar'));
+        app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($arabic, 'نعم.'));
+        $answered = questionAudit('feedback.question.answered');
+        // Correcting only the language: the answer kept, the change audited.
+        app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($arabic, 'نعم.', 'en'));
+        // Correcting with the same language and answer: nothing.
+        app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($latin, 'نعم، يناسب.', 'ar'));
+
+        expect($before)->toBe(['en', 'ar'])
+            ->and(questionRow($latin)['locale'])->toBe('ar')
+            ->and([questionRow($arabic)['locale'], questionRow($arabic)['answer']])->toBe(['en', 'نعم.'])
+            ->and(questionAudit('feedback.question.answer_changed'))->toBe(['locale' => ['ar', 'en']])
+            ->and(DB::table('platform.audit_entries')->where('action', 'feedback.question.answer_changed')->count())->toBe(1)
+            ->and(DB::table('platform.audit_entries')->where('action', 'feedback.question.answered')->where('subject_id', $latin)->value('changes'))->toContain('locale')
+            ->and($answered)->not->toHaveKey('locale');
+    });
+
+    it('keeps who answered and when on correcting only the language, and refuses a language but Arabic or English', function () {
+        ['product' => $product] = Fb::sold();
+        $id = ask(Fx::customer(), $product);
+        $waiting = ask(Fx::customer('omar@example.test'), $product);
+        $answerer = answerer();
+
+        expect(Fb::thrown(fn () => app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($waiting, 'Yes.', 'fr')), InvalidFeedbackAttribute::class)->attribute)->toBe('locale')
+            ->and([questionRow($waiting)['status'], questionRow($waiting)['answer']])->toBe(['PENDING', null]);
+
+        app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($id, 'Yes.'));
+        $answeredAt = questionRow($id)['answered_at'];
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
+        answerer();
+        $audits = DB::table('platform.audit_entries')->count();
+
+        expect(Fb::thrown(fn () => app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'No.', 'fr')), InvalidFeedbackAttribute::class)->attribute)->toBe('locale')
+            ->and([questionRow($id)['answer'], questionRow($id)['locale']])->toBe(['Yes.', 'en'])
+            ->and(DB::table('platform.audit_entries')->count())->toBe($audits);
+
+        app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'Yes.', 'ar'));
+
+        expect([questionRow($id)['locale'], questionRow($id)['answer'], questionRow($id)['answered_by'], questionRow($id)['answered_at']])->toBe(['ar', 'Yes.', $answerer, $answeredAt]);
     });
 
     it('corrects an answer: the text only, who answered and when kept, audited from old to new', function () {

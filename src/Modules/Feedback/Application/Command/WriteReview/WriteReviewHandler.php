@@ -77,7 +77,8 @@ final readonly class WriteReviewHandler
         $productId = strtolower(trim($command->productId));
         $rating = FeedbackText::rating($command->rating);
         $body = FeedbackText::of($command->body, 'body', 2000);
-        $locale = FeedbackText::locale($command->locale);
+        // The language it is written in, whatever the shop's (§2.4 B3).
+        $locale = FeedbackText::languageOf($body);
 
         if (! Ulids::valid($productId) || ! in_array($productId, $this->catalog->productsSoldIn($store, [$productId]), true)) {
             throw new InvalidFeedbackAttribute('product', 'not sold in this store');

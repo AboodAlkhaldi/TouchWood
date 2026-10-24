@@ -62,7 +62,7 @@ it('lets one of two questions asked at once be the fifth, and refuses the other'
     ['product' => $product] = Fb::sold();
     $sara = Fx::customer();
     Fx::actAsCustomer($sara);
-    $ask = static fn (AskQuestionHandler $handler, string $body): string => $handler->handle(new AskQuestion(Fx::storeId('sa'), $product, $body, 'en'));
+    $ask = static fn (AskQuestionHandler $handler, string $body): string => $handler->handle(new AskQuestion(Fx::storeId('sa'), $product, $body));
 
     foreach (range(1, 4) as $n) {
         $ask(app(AskQuestionHandler::class), "Question {$n}");

@@ -7,8 +7,10 @@ namespace Modules\Feedback\Application\Command\ApproveReview;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\Review\Moderation;
 use Modules\Feedback\Application\StaffChange;
+use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Domain\Exception\InvalidModeration;
 use Modules\Feedback\Domain\Exception\ReviewNotFound;
+use Modules\Feedback\Domain\Model\FeedbackText;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Public\Enums\ReviewStatus;
 use Shared\Application\Unauthorized;
@@ -29,11 +31,12 @@ final readonly class ApproveReviewHandler
     ) {}
 
     /**
-     * @throws Unauthorized|ReviewNotFound|InvalidModeration
+     * @throws Unauthorized|ReviewNotFound|InvalidModeration|InvalidFeedbackAttribute
      */
     public function handle(ApproveReview $command): void
     {
         [$store, $staffId] = $this->change->authorize(self::PERMISSION, fn () => $this->reviews->storeOf($command->reviewId), static fn (): ReviewNotFound => new ReviewNotFound);
-        $this->moderation->move($store, $staffId, $command->reviewId, ReviewStatus::Pending, ReviewStatus::Approved, null);
+        $locale = $command->locale === null ? null : FeedbackText::locale($command->locale);
+        $this->moderation->move($store, $staffId, $command->reviewId, ReviewStatus::Pending, ReviewStatus::Approved, null, $locale);
     }
 }

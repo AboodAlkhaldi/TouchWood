@@ -73,7 +73,8 @@ final readonly class AskQuestionHandler
 
         $productId = strtolower(trim($command->productId));
         $body = FeedbackText::of($command->body, 'body', 1000);
-        $locale = FeedbackText::locale($command->locale);
+        // The language it is written in, whatever the shop's (§2.4 B3).
+        $locale = FeedbackText::languageOf($body);
 
         if (! Ulids::valid($productId) || ! in_array($productId, $this->catalog->productsSoldIn($store, [$productId]), true)) {
             throw new InvalidFeedbackAttribute('product', 'not sold in this store');

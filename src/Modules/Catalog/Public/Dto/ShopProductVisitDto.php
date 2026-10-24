@@ -18,6 +18,7 @@ final readonly class ShopProductVisitDto
     /**
      * @param  'ar'|'en'  $locale
      * @param  array<string, string>  $after  section key => where it goes on from
+     * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31), the section's own word
      */
     public function __construct(
         public StoreId $store,
@@ -25,5 +26,6 @@ final readonly class ShopProductVisitDto
         public string $productId,
         public ?string $customerId,
         public array $after,
+        public array $filters = [],
     ) {}
 }

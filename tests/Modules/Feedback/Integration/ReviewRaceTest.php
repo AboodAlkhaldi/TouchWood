@@ -79,7 +79,7 @@ it('flips a review a return completed against while it was being written', funct
     try {
         // The review is written, its lock still held: its transaction has not ended.
         Fx::actAsCustomer($sara);
-        $reviewId = app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId('sa'), $product, 5, 'Quiet hinges', 'en'));
+        $reviewId = app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId('sa'), $product, 5, 'Quiet hinges'));
 
         // The return settles meanwhile: it stops on the review's lock and gives up (55P03).
         $waited = null;

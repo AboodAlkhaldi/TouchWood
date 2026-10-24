@@ -55,7 +55,7 @@ A **star rating, 1 to 5, plus text** (handoff §13.1) — **no photos** (owner, 
   completing while the review is written still flips it.
 - **The variant shown belongs to the product** — a rule checked in code and tested (Catalog's
   variants carry no unique (id, product) for a composite key).
-- **Its language** — the shop's language when it was written — is kept, so a "translate" button can be
+- **Its language** — the shop's language when it was written (replaced: the language it is written in, §2.4 B3) — is kept, so a "translate" button can be
   added when a service is chosen (owner, 2026-10-09), shown only when it differs from the reader's
   (handoff §13.1).
 - **Its author** reads as their first name and the first letter of their last name, and as **"Deleted
@@ -213,6 +213,28 @@ no purchase — so a review is refused as no verified purchase until then.
 | Access | `CustomerAnonymized` | Exists — its docblock already names Feedback |
 | Access | The permission catalog, and **a `Support` permission group** — the admin menu's "Support" section (handoff §14: Support › Product questions; reviews beside them) | **Built** with step F1 (access.md amendment 73; `support` in Platform's menu, platform.md §9.4) — the owner's answer of 2026-10-18 |
 | Platform | A store setting, the audit log, staff names (`StaffNames::forReader` — who answered or moderated, a Super Admin reading as "System administrator") | Exists |
+
+### 2.4 Built for the screens (§4.2, the owner's answers of 2026-10-24)
+
+The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), as built:
+
+- **B3 — a text's language from the text** (FB-a): a review's and a question's `locale` is the language
+  of its **first letter** — an Arabic letter, `ar`; any other letter, `en`; digits, spaces, signs and
+  emoji skipped; no letter at all, `en` (`FeedbackText::languageOf`) — no longer the shop's language
+  (§1.1's line kept for history: `WriteReview` and `AskQuestion` lost their `locale`). **Staff may set
+  it**: `ApproveReview(reviewId, ?locale)`, `AnswerQuestion(questionId, answer, ?locale)` and
+  `CorrectAnswer(questionId, answer, ?locale)` take `ar` or `en` (anything else `InvalidFeedbackAttribute`
+  'locale', nothing changed); a change is in the same audit entry (`locale: [old, new]`), the same
+  language changes and records nothing; correcting only the language is allowed. The owner may change
+  the method later.
+- **B1 — the star breakdown** (FB-a): the `feedback.reviews` section carries `stars` — every star, 5 to
+  1, with its count of the product's **approved** reviews (all stores, as the rating) — and `star`, the one
+  star the reviews are narrowed to: asked as `filter[feedback.reviews]=1..5` (anything else shows every
+  review), paged with `after[feedback.reviews]` as before — **changing the filter drops `after`** (a place
+  kept from another filter would skip that star's newer reviews). Read in the section's one statement (the
+  page's count unchanged, 11), the bars counted live from the approved reviews (no per-star counters yet:
+  each product's reviews are few; `rating` is not in `reviews_by_product`, to add if volumes grow).
+  Catalog's part: amendment 31 (`ShopProductVisitDto::$filters`).
 
 ---
 

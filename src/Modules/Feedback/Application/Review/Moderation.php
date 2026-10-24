@@ -32,9 +32,9 @@ final readonly class Moderation
     /**
      * @throws ReviewNotFound|InvalidModeration
      */
-    public function move(StoreId $store, string $staffId, string $reviewId, ReviewStatus $from, ReviewStatus $to, ?string $reason): void
+    public function move(StoreId $store, string $staffId, string $reviewId, ReviewStatus $from, ReviewStatus $to, ?string $reason, ?string $locale = null): void
     {
-        $this->change->run(function () use ($store, $staffId, $reviewId, $from, $to, $reason): array {
+        $this->change->run(function () use ($store, $staffId, $reviewId, $from, $to, $reason, $locale): array {
             $review = $this->reviews->lock($store, $reviewId) ?? throw new ReviewNotFound;
 
             if ($review->status !== $from) {
@@ -43,6 +43,12 @@ final readonly class Moderation
 
             $now = CarbonImmutable::now();
             $this->reviews->moderate($review, $to, $reason, $staffId, $now);
+            // The text's language as staff set it (§2.4 B3) — only approving passes one.
+            $relabelled = $locale !== null && $locale !== $review->locale;
+
+            if ($relabelled) {
+                $this->reviews->setLocale($review, $locale);
+            }
 
             if ($to === ReviewStatus::Approved || $from === ReviewStatus::Approved) {
                 $this->reviews->countRating($review->productId, $review->rating, $to === ReviewStatus::Approved ? 1 : -1, $now);
@@ -56,7 +62,11 @@ final readonly class Moderation
                 default => 'unpublished',
             };
 
-            return [null, [FeedbackAudit::entry('review', $action, $review->id, $store->value, ['status' => $from->value, 'reason' => null], ['status' => $to->value, 'reason' => $reason])]];
+            return [null, [FeedbackAudit::entry(
+                'review', $action, $review->id, $store->value,
+                ['status' => $from->value, 'reason' => null, ...($relabelled ? ['locale' => $review->locale] : [])],
+                ['status' => $to->value, 'reason' => $reason, ...($relabelled ? ['locale' => $locale] : [])],
+            )]];
         });
     }
 }

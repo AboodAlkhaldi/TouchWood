@@ -58,11 +58,11 @@ final class FeedbackFixtures
     }
 
     /** The customer writes a review in the store, as the shop sends it. */
-    public static function write(string $customerId, string $productId, int $rating = 5, string $body = 'Solid and quiet.', string $storeCode = 'sa', string $locale = 'en'): string
+    public static function write(string $customerId, string $productId, int $rating = 5, string $body = 'Solid and quiet.', string $storeCode = 'sa'): string
     {
         Fx::actAsCustomer($customerId);
 
-        return app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId($storeCode), $productId, $rating, $body, $locale));
+        return app(WriteReviewHandler::class)->handle(new WriteReview(Fx::storeId($storeCode), $productId, $rating, $body));
     }
 
     /**
