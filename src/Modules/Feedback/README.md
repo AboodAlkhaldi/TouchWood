@@ -5,7 +5,7 @@ about products, moderated and answered by staff. The specification is
 [`docs/modules/feedback.md`](../../../docs/modules/feedback.md) (accepted 2026-10-10, the owner's answers
 of 2026-10-19 in §9.1b).
 
-The backend was built first; the screens follow (feedback.md §4.1) - the panel's below, the shop's next.
+The backend was built first; the screens follow (feedback.md §4.1) - the panel's and the shop's below.
 
 ## Panel screens (feedback.md §4.1 F1–F4, F9)
 
@@ -22,6 +22,19 @@ decision dialog with the ready reasons) and `bulk.tsx` (ticking many, the bar ov
 do comes from `Application/Query/FeedbackActions` - the screens never ask the Authorizer. Tests:
 `tests/Modules/Feedback/Feature/SupportScreensTest` (each page's props, decisions, refusals, query counts) and
 `tests/Browser/FeedbackScreensTest`.
+
+## Shop screens (feedback.md §4.1 F5–F8)
+
+| Screen | Drawing | Server side |
+|---|---|---|
+| The product page's rating, Save heart, reviews (breakdown bars as filters) and questions (F5) | `resources/js/components/feedback/shop.tsx`, placed by `Catalog/Storefront/Product.tsx` (catalog.md amendment 33) | `Presentation/Storefront/*Section` (the data), words `feedback::shop` |
+| Write a Review, Ask a Question (F6) | the dialogs in `shop.tsx` | `Presentation/Http/Controller/ShopFeedbackController` (`review`, `ask`) |
+| The Save heart; a guest sent to sign in and back with it saved (Q18 (a)) | `SaveHeart` in `shop.tsx` | `ShopFeedbackController` (`save`, `remove`, `saveAfterSignIn` - a signed address; access.md amendment 75) |
+| Stars on cards, Best Rated (F7) | `resources/js/components/shop/ProductCards.tsx`, `Catalog/Storefront/Category.tsx` | Catalog's (amendment 25) |
+| My Reviews, My Questions, My Wishlist (F8) | `resources/js/pages/Feedback/Storefront/My*.tsx` | `MyFeedbackController`, `Presentation/Http/Resource/AccountPages` |
+
+Routes: `Presentation/shop-routes.php`. Tests: `tests/Modules/Feedback/Feature/ShopScreensTest` and `tests/Browser/FeedbackShopTest`.
+The Save heart on every card (§4.2 B5, FB-c) comes after the backend's part of it.
 
 ## Build steps
 
