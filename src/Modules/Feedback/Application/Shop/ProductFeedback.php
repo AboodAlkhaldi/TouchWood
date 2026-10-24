@@ -17,7 +17,7 @@ final readonly class ProductFeedback
     /**
      * @param  list<array{review: ShopReview, author: AuthorName, variant: list<VariantValueRow>}>  $reviews
      * @param  list<array{question: ShopQuestion, author: AuthorName, store: string}>  $questions
-     * @param  array<int, int>  $stars  each star, 5 to 1, → its approved reviews (§4.2 B1)
+     * @param  array<int, int>  $stars  each star, 5 to 1, → its approved reviews (§2.4 B1)
      */
     public function __construct(
         public ?float $average,

@@ -22,6 +22,11 @@ it('takes the language of the first letter', function (string $text, string $lan
     'Latin letters, Arabic words' => ['Mumtaz jiddan', 'en'],
     'a letter with an accent' => ['Élégant', 'en'],
     'Arabic first, then English' => ['جيد good', 'ar'],
+    'Arabic after a right-to-left mark' => ["\u{200F}رائع", 'ar'],
+    'Arabic after a vowel mark' => ["\u{064E}رائع", 'ar'],
+    'a tatweel first' => ["\u{0640}رائع", 'ar'],
+    'Persian letters' => ['کیفیت خوب', 'ar'],
+    'an Arabic presentation form' => ["\u{FEFB} بأس", 'ar'],
     'no letter at all' => ['12345 !!!', 'en'],
     'empty' => ['', 'en'],
 ]);

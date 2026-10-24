@@ -83,7 +83,7 @@ final class ShopFeedback
         );
     }
 
-    /** The reviews' one-star filter as the address gives it (`filter[feedback.reviews]`, §4.2 B1): 1 to 5, anything else none. */
+    /** The reviews' one-star filter as the address gives it (`filter[feedback.reviews]`, §2.4 B1): 1 to 5, anything else none. */
     private static function star(?string $filter): ?int
     {
         return $filter !== null && preg_match('/^[1-5]$/', trim($filter)) === 1 ? (int) trim($filter) : null;

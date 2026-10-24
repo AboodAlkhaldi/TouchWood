@@ -51,7 +51,7 @@ final readonly class AnswerQuestionHandler
             $from = ['status' => $question->status->value, 'answer' => null];
             $to = ['status' => QuestionStatus::Answered->value, 'answer' => $answer];
 
-            // The question's language as staff set it (§4.2 B3).
+            // The question's language as staff set it (§2.4 B3).
             if ($locale !== null && $locale !== $question->locale) {
                 $this->questions->setLocale($question, $locale, $now);
                 [$from['locale'], $to['locale']] = [$question->locale, $locale];

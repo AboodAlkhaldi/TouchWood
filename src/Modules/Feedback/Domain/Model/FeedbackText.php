@@ -52,7 +52,7 @@ final class FeedbackText
     }
 
     /**
-     * **The language a text is written in** (§4.2 B3; owner, 2026-10-24): its first letter decides — an
+     * **The language a text is written in** (§2.4 B3; owner, 2026-10-24): its first letter decides — an
      * Arabic letter, Arabic; any other letter, English; digits, spaces, signs and emoji are skipped, and a
      * text with no letter is English. The owner may change the method later; staff may set it (`locale`).
      *
@@ -60,17 +60,17 @@ final class FeedbackText
      */
     public static function languageOf(string $text): string
     {
-        foreach (preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $character) {
-            if (preg_match('/\p{L}/u', $character) === 1) {
-                return preg_match('/\p{Arabic}/u', $character) === 1 ? 'ar' : 'en';
-            }
+        // The first letter of any script; the tatweel (U+0640, a letter of no script of its own) is Arabic,
+        // whatever the PCRE build's script tables say.
+        if (preg_match('/\p{L}/u', $text, $first) !== 1) {
+            return 'en';
         }
 
-        return 'en';
+        return $first[0] === "\u{0640}" || preg_match('/\p{Arabic}/u', $first[0]) === 1 ? 'ar' : 'en';
     }
 
     /**
-     * A language staff set (§4.2 B3): Arabic or English.
+     * A language staff set (§2.4 B3): Arabic or English.
      *
      * @throws InvalidFeedbackAttribute
      */

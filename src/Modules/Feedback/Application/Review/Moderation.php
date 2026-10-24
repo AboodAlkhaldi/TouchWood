@@ -43,7 +43,7 @@ final readonly class Moderation
 
             $now = CarbonImmutable::now();
             $this->reviews->moderate($review, $to, $reason, $staffId, $now);
-            // The text's language as staff set it (§4.2 B3).
+            // The text's language as staff set it (§2.4 B3) — only approving passes one.
             $relabelled = $locale !== null && $locale !== $review->locale;
 
             if ($relabelled) {

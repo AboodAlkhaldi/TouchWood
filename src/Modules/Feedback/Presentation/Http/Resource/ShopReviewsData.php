@@ -12,7 +12,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * amendment 26(b)): the rating — `average` to one decimal, null with no review — and its count, ten
  * approved reviews newest first, `next` for "Show more" (asked as `after[feedback.reviews]`), and
  * `canWrite` — signed in and not yet reviewed; the purchase is checked when it is sent. `stars`: each star's
- * approved reviews, 5 to 1 (§4.2 B1); `star`: the one star the reviews are narrowed to (asked as
+ * approved reviews, 5 to 1 (§2.4 B1); `star`: the one star the reviews are narrowed to (asked as
  * `filter[feedback.reviews]`), `next` going on within it.
  */
 #[TypeScript]

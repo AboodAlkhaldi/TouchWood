@@ -66,7 +66,7 @@ final readonly class DatabaseShopFeedbackQueries implements ShopFeedbackQueries
         ]);
 
         if (! $row instanceof stdClass) {
-            return new ShopFeedbackRows(0, 0, [], [], false, false, []);
+            return new ShopFeedbackRows(0, 0, [], [], false, false, self::stars('{}'));
         }
 
         return new ShopFeedbackRows(

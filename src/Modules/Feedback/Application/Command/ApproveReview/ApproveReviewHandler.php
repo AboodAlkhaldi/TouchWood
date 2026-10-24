@@ -35,8 +35,8 @@ final readonly class ApproveReviewHandler
      */
     public function handle(ApproveReview $command): void
     {
-        $locale = $command->locale === null ? null : FeedbackText::locale($command->locale);
         [$store, $staffId] = $this->change->authorize(self::PERMISSION, fn () => $this->reviews->storeOf($command->reviewId), static fn (): ReviewNotFound => new ReviewNotFound);
+        $locale = $command->locale === null ? null : FeedbackText::locale($command->locale);
         $this->moderation->move($store, $staffId, $command->reviewId, ReviewStatus::Pending, ReviewStatus::Approved, null, $locale);
     }
 }

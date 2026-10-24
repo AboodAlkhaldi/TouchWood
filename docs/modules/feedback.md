@@ -55,7 +55,7 @@ A **star rating, 1 to 5, plus text** (handoff §13.1) — **no photos** (owner, 
   completing while the review is written still flips it.
 - **The variant shown belongs to the product** — a rule checked in code and tested (Catalog's
   variants carry no unique (id, product) for a composite key).
-- **Its language** — the shop's language when it was written — is kept, so a "translate" button can be
+- **Its language** — the shop's language when it was written (replaced: the language it is written in, §2.4 B3) — is kept, so a "translate" button can be
   added when a service is chosen (owner, 2026-10-09), shown only when it differs from the reader's
   (handoff §13.1).
 - **Its author** reads as their first name and the first letter of their last name, and as **"Deleted
@@ -230,8 +230,11 @@ The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), a
 - **B1 — the star breakdown** (FB-a): the `feedback.reviews` section carries `stars` — every star, 5 to
   1, with its count of the product's **approved** reviews (all stores, as the rating) — and `star`, the one
   star the reviews are narrowed to: asked as `filter[feedback.reviews]=1..5` (anything else shows every
-  review), paged with `after[feedback.reviews]` as before. Read in the section's one statement (the page's
-  count unchanged, 11). Catalog's part: amendment 31 (`ShopProductVisitDto::$filters`).
+  review), paged with `after[feedback.reviews]` as before — **changing the filter drops `after`** (a place
+  kept from another filter would skip that star's newer reviews). Read in the section's one statement (the
+  page's count unchanged, 11), the bars counted live from the approved reviews (no per-star counters yet:
+  each product's reviews are few; `rating` is not in `reviews_by_product`, to add if volumes grow).
+  Catalog's part: amendment 31 (`ShopProductVisitDto::$filters`).
 
 ---
 

@@ -61,7 +61,7 @@ final readonly class CorrectAnswerHandler
                 [$from['answer'], $to['answer']] = [$question->answer, $answer];
             }
 
-            // The question's language as staff set it (§4.2 B3).
+            // The question's language as staff set it (§2.4 B3).
             if ($relabelled) {
                 $this->questions->setLocale($question, $locale, $now);
                 [$from['locale'], $to['locale']] = [$question->locale, $locale];

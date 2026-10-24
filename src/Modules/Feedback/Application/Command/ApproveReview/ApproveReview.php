@@ -8,7 +8,7 @@ final readonly class ApproveReview
 {
     public function __construct(
         public string $reviewId,
-        /** The text's language as staff set it on approving (§4.2 B3); null keeps the one worked out. */
+        /** The text's language as staff set it on approving (§2.4 B3); null keeps the one worked out. */
         public ?string $locale = null,
     ) {}
 }

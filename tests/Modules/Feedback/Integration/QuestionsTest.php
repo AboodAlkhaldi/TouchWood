@@ -188,6 +188,30 @@ describe('answering', function () {
             ->and($answered)->not->toHaveKey('locale');
     });
 
+    it('keeps who answered and when on correcting only the language, and refuses a language but Arabic or English', function () {
+        ['product' => $product] = Fb::sold();
+        $id = ask(Fx::customer(), $product);
+        $waiting = ask(Fx::customer('omar@example.test'), $product);
+        $answerer = answerer();
+
+        expect(Fb::thrown(fn () => app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($waiting, 'Yes.', 'fr')), InvalidFeedbackAttribute::class)->attribute)->toBe('locale')
+            ->and([questionRow($waiting)['status'], questionRow($waiting)['answer']])->toBe(['PENDING', null]);
+
+        app(AnswerQuestionHandler::class)->handle(new AnswerQuestion($id, 'Yes.'));
+        $answeredAt = questionRow($id)['answered_at'];
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
+        answerer();
+        $audits = DB::table('platform.audit_entries')->count();
+
+        expect(Fb::thrown(fn () => app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'No.', 'fr')), InvalidFeedbackAttribute::class)->attribute)->toBe('locale')
+            ->and([questionRow($id)['answer'], questionRow($id)['locale']])->toBe(['Yes.', 'en'])
+            ->and(DB::table('platform.audit_entries')->count())->toBe($audits);
+
+        app(CorrectAnswerHandler::class)->handle(new CorrectAnswer($id, 'Yes.', 'ar'));
+
+        expect([questionRow($id)['locale'], questionRow($id)['answer'], questionRow($id)['answered_by'], questionRow($id)['answered_at']])->toBe(['ar', 'Yes.', $answerer, $answeredAt]);
+    });
+
     it('corrects an answer: the text only, who answered and when kept, audited from old to new', function () {
         ['product' => $product] = Fb::sold();
         $id = ask(Fx::customer(), $product);
