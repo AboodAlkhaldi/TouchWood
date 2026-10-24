@@ -117,6 +117,7 @@ describe('the admin menu', function () {
             'marketing/gift_levels',
             'support/reviews',
             'support/questions',
+            'support/reasons',
             // Loyalty's screens (loyalty.md §4.1): the Points section's three.
             'points/customers',
             'points/redemptions',

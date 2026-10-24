@@ -6,7 +6,9 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
-import { Author, DecisionDialog, ProductCell, Stars } from '@/components/feedback/parts';
+import { BulkBar, SelectBox, useSelection } from '@/components/feedback/bulk';
+import { Author, DecisionDialog, LanguageBox, ProductCell, Stars } from '@/components/feedback/parts';
+import { useLocale } from '@/components/promotions/parts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import { useLoadMore } from '@/lib/use-load-more';
-import type { ReviewItemData, SupportListPage } from '@/types/generated/Modules/Feedback/Presentation/Http/Resource';
+import type { ReasonData, ReviewItemData, SupportListPage } from '@/types/generated/Modules/Feedback/Presentation/Http/Resource';
 
 /*
 | F1 - Support › Reviews (feedback.md §4.1): the store's reviews by status - Waiting first, oldest on top
@@ -32,14 +34,18 @@ export default function Reviews(page: SupportListPage) {
     const t = useTranslator();
     const list = useLoadMore(page.reviews, (row) => row.id);
     const status = page.status ?? 'PENDING';
+    const locale = useLocale();
+    const selection = useSelection();
+    // Many at once (owner's Q4): approve or reject the waiting, unpublish the published.
+    const bulk = !page.mayAct ? [] : status === 'PENDING' ? (['approve', 'reject'] as const) : status === 'APPROVED' ? (['unpublish'] as const) : [];
 
     return (
         <AdminLayout title={t(`${W}.reviews.title`)} subtitle={t(`${W}.reviews.subtitle`)}>
             <div className="grid gap-4">
                 <FormError />
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
                     <Tabs value={status} onValueChange={(next) => router.get(LIST, { store: page.storeCode, status: next }, { preserveState: true })}>
-                        <TabsList aria-label={t(`${W}.reviews.tabs_label`)} data-test="status-tabs">
+                        <TabsList className="max-w-full min-w-0 justify-start overflow-x-auto" aria-label={t(`${W}.reviews.tabs_label`)} data-test="status-tabs">
                             {TABS.map((each) => (
                                 <TabsTrigger key={each} value={each} data-test={`status-${each}`}>
                                     {t(`${W}.review_status.${each}`)}
@@ -49,6 +55,10 @@ export default function Reviews(page: SupportListPage) {
                     </Tabs>
                     <StoreFilter stores={page.stores} value={page.storeCode} />
                 </div>
+
+                {bulk.length > 0 && list.rows.length > 0 ? (
+                    <BulkBar all={list.rows.map((row) => row.id)} selection={selection} locale={locale} url="/admin/reviews/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
+                ) : null}
 
                 {list.rows.length === 0 ? (
                     <Empty className="material-base" data-test="reviews-empty">
@@ -60,7 +70,7 @@ export default function Reviews(page: SupportListPage) {
                     <ul className="grid gap-3" data-test="reviews">
                         {list.rows.map((review) => (
                             <li key={review.id}>
-                                <ReviewCard review={review} mayAct={page.mayAct} storeName={page.storeName} />
+                                <ReviewCard review={review} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(review.id)} onSelect={() => selection.toggle(review.id)} />
                             </li>
                         ))}
                     </ul>
@@ -72,17 +82,38 @@ export default function Reviews(page: SupportListPage) {
     );
 }
 
-function ReviewCard({ review, mayAct, storeName }: { review: ReviewItemData; mayAct: boolean; storeName: string }) {
+function ReviewCard({
+    review,
+    mayAct,
+    storeName,
+    reasons,
+    selectable,
+    selected,
+    onSelect,
+}: {
+    review: ReviewItemData;
+    mayAct: boolean;
+    storeName: string;
+    reasons: ReasonData[];
+    selectable: boolean;
+    selected: boolean;
+    onSelect: () => void;
+}) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
     const [dialog, setDialog] = useState<'reject' | 'unpublish' | null>(null);
+    // The review's language, worked out from its text; the moderator may switch it when approving (§4.2 B3).
+    const [language, setLanguage] = useState(review.locale);
     const size = review.variant.map((value) => `${value.attribute}: ${value.value}`).join(' · ');
 
     return (
         <Card className="material-base border-0 py-4" data-test={`review-${review.id}`}>
             <CardContent className="grid gap-3 px-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                    <ProductCell product={review.product} />
+                    <div className="flex items-start gap-3">
+                        {selectable ? <SelectBox checked={selected} onChange={onSelect} name={review.product.name} test={`select-${review.id}`} /> : null}
+                        <ProductCell product={review.product} />
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Stars rating={review.rating} />
                         <Badge className={tone(review.mark === 'RETURNED' ? 'amber-subtle' : 'green-subtle')}>{t(`${W}.mark.${review.mark}`)}</Badge>
@@ -102,6 +133,8 @@ function ReviewCard({ review, mayAct, storeName }: { review: ReviewItemData; may
                 </div>
                 {review.reason === null ? null : <p className="text-copy-13 text-ink-muted">{t(`${W}.item.reason`, { reason: review.reason })}</p>}
 
+                {mayAct && review.status === 'PENDING' ? <LanguageBox id={`language-${review.id}`} value={language} onChange={setLanguage} /> : null}
+
                 {mayAct && (review.status === 'PENDING' || review.status === 'APPROVED') ? (
                     <div className="flex flex-wrap justify-end gap-2">
                         {review.status === 'PENDING' ? (
@@ -113,7 +146,7 @@ function ReviewCard({ review, mayAct, storeName }: { review: ReviewItemData; may
                                     type="button"
                                     loading={busy}
                                     data-test={`approve-${review.id}`}
-                                    onClick={() => router.post(`/admin/reviews/${review.id}/approve`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
+                                    onClick={() => router.post(`/admin/reviews/${review.id}/approve`, { locale: language }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
                                 >
                                     {t(`${W}.actions.approve`)}
                                 </ActionButton>
@@ -136,6 +169,8 @@ function ReviewCard({ review, mayAct, storeName }: { review: ReviewItemData; may
                     field="reason"
                     confirm={t(`${W}.dialog.${dialog}_review`)}
                     destructive
+                    reasons={reasons}
+                    language={review.locale}
                 />
             )}
         </Card>

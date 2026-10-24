@@ -5,7 +5,23 @@ about products, moderated and answered by staff. The specification is
 [`docs/modules/feedback.md`](../../../docs/modules/feedback.md) (accepted 2026-10-10, the owner's answers
 of 2026-10-19 in §9.1b).
 
-Backend only in this stage's build; the screens are another session's.
+The backend was built first; the screens follow (feedback.md §4.1) - the panel's below, the shop's next.
+
+## Panel screens (feedback.md §4.1 F1–F4, F9)
+
+| Screen | Page | Server side |
+|---|---|---|
+| Support › Reviews (F1) | `resources/js/pages/Feedback/Admin/Reviews.tsx` | `Presentation/Http/Controller/SupportController` (`reviews`, the decisions, `bulkReviews`) |
+| Support › Product Questions (F2) | `…/Admin/Questions.tsx` | `SupportController` (`questions`, answer / correct / reject / unpublish, `bulkQuestions`) |
+| Customers › Favourited Products (F3) | `…/Admin/Favourites.tsx` | `SupportController::favourites` |
+| A customer's wishlist on the staff customer page (F4) | `resources/js/sections/customer/feedback-wishlist.tsx` | `Presentation/Http/Resource/WishlistCustomerSection` |
+| Support › Rejection Reasons (F9) | `…/Admin/Reasons.tsx` | `Presentation/Http/Controller/ReasonsController` |
+
+Shared parts: `resources/js/components/feedback/parts.tsx` (product cell, stars, author, the language box, the
+decision dialog with the ready reasons) and `bulk.tsx` (ticking many, the bar over the list). What a reader may
+do comes from `Application/Query/FeedbackActions` - the screens never ask the Authorizer. Tests:
+`tests/Modules/Feedback/Feature/SupportScreensTest` (each page's props, decisions, refusals, query counts) and
+`tests/Browser/FeedbackScreensTest`.
 
 ## Build steps
 

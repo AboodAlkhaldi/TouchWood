@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -22,8 +23,8 @@ use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 use function Pest\Laravel\seed;
 
 /*
-| Feedback's Support screens over HTTP (feedback.md §4.1 F1–F4): the review and question queues and
-| their decisions, Favourited Products, and a customer's wishlist on the staff customer page - what each
+| Feedback's Support screens over HTTP (feedback.md §4.1 F1–F4, F9): the review and question queues and
+| their decisions one by one or many at once, the ready rejection reasons, Favourited Products, and a customer's wishlist on the staff customer page - what each
 | page is given, who is refused, and the queries each reads.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
@@ -42,10 +43,11 @@ beforeEach(function () {
 
 /**
  * @param  list<string>  $permissions
+ * @param  list<string>  $stores
  */
-function supportScreens(array $permissions, array $stores = ['sa']): AdminBrowser
+function supportScreens(array $permissions, array $stores = ['sa'], RoleLevel $level = RoleLevel::Staff): AdminBrowser
 {
-    $staffId = Fx::staffWith($permissions, $stores);
+    $staffId = Fx::staffWith($permissions, $stores, $level);
     $browser = new AdminBrowser('10.9.5.'.random_int(20, 250));
 
     $browser->post('/admin/sign-in', [
@@ -81,7 +83,11 @@ function supportScreensCustomer(string $email, string $first, string $last = 'Sc
     return $id;
 }
 
-/** A question written straight into its table, waiting unless told otherwise. */
+/**
+ * A question written straight into its table, waiting unless told otherwise.
+ *
+ * @param  array<string, mixed>  $with
+ */
 function supportScreensQuestion(string $productId, string $customerId, array $with = []): string
 {
     $id = strtolower((string) Str::ulid());
@@ -162,6 +168,90 @@ describe('F1 · Reviews', function () {
     });
 });
 
+describe('F1 · Many reviews at once, their language, and the ready reasons', function () {
+    it('approves the ticked reviews, and rejects others with one reason, counting those someone else decided', function () {
+        $sold = Fb::sold();
+        $one = Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('a@example.test', 'Amal'));
+        $two = Fb::reviewRow($sold['product'], $sold['variants'][1], supportScreensCustomer('b@example.test', 'Badr'));
+        $three = Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('c@example.test', 'Carim'));
+        $browser = supportScreens([FeedbackPermissions::REVIEW_MODERATE]);
+
+        $approved = $browser->post('/admin/reviews/bulk', ['store' => 'sa', 'action' => 'approve', 'ids' => [$one, $two]]);
+        $rejected = $browser->post('/admin/reviews/bulk', ['store' => 'sa', 'action' => 'reject', 'ids' => [$two, $three], 'reason' => 'Off topic']);
+        $status = static fn (string $id): array => (array) DB::table('feedback.reviews')->where('id', $id)->first(['status', 'reason']);
+
+        expect([AdminBrowser::flashed($approved, 'status'), AdminBrowser::flashed($rejected, 'status')])
+            ->toBe(['Done: 2.', 'Done: 1. Already decided by someone else: 1.'])
+            ->and([$status($one), $status($two), $status($three)])
+            ->toBe([['status' => 'APPROVED', 'reason' => null], ['status' => 'APPROVED', 'reason' => null], ['status' => 'REJECTED', 'reason' => 'Off topic']]);
+    });
+
+    it('rejects many questions at once, and refuses them to a reader without the job', function () {
+        $sold = Fb::sold();
+        $one = supportScreensQuestion($sold['product'], supportScreensCustomer('a@example.test', 'Amal'));
+        $two = supportScreensQuestion($sold['product'], supportScreensCustomer('b@example.test', 'Badr'));
+        $refused = supportScreens([FeedbackPermissions::REVIEW_MODERATE])->post('/admin/questions/bulk', ['store' => 'sa', 'action' => 'reject', 'ids' => [$one]]);
+        $untouched = DB::table('feedback.questions')->where('id', $one)->value('status');
+
+        $done = supportScreens([FeedbackPermissions::QUESTION_ANSWER])->post('/admin/questions/bulk', ['store' => 'sa', 'action' => 'reject', 'ids' => [$one, $two], 'reason' => '']);
+
+        expect([$refused->getStatusCode(), $untouched])->toBe([302, 'PENDING'])
+            ->and(AdminBrowser::flashed($done, 'status'))->toBe('Done: 2.')
+            ->and(DB::table('feedback.questions')->whereIn('id', [$one, $two])->pluck('status')->unique()->values()->all())->toBe(['REJECTED']);
+    });
+
+    it('keeps the language the moderator chose when approving', function () {
+        $sold = Fb::sold();
+        $review = Fb::reviewRow($sold['product'], $sold['variants'][0], supportScreensCustomer('a@example.test', 'Amal'));
+
+        supportScreens([FeedbackPermissions::REVIEW_MODERATE])->post("/admin/reviews/{$review}/approve", ['locale' => 'en']);
+
+        expect(DB::table('feedback.reviews')->where('id', $review)->first(['status', 'locale']))->toEqual((object) ['status' => 'APPROVED', 'locale' => 'en']);
+    });
+
+    it('offers the ready reasons, in their order, on the review page', function () {
+        $admin = supportScreens([FeedbackPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin);
+        $admin->post('/admin/rejection-reasons', ['text_ar' => 'خارج الموضوع', 'text_en' => 'Off topic']);
+        $admin->post('/admin/rejection-reasons', ['text_ar' => 'لغة غير لائقة', 'text_en' => 'Rude words']);
+
+        $props = supportScreensProps(supportScreens([FeedbackPermissions::REVIEW_MODERATE]), '/admin/reviews', 'Feedback/Admin/Reviews');
+
+        expect(array_column($props['reasons'], 'textEn'))->toBe(['Off topic', 'Rude words']);
+    });
+});
+
+describe('F9 · Rejection Reasons', function () {
+    it('lets an admin of all stores add, change, order and delete the ready reasons', function () {
+        $admin = supportScreens([FeedbackPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin);
+        $added = $admin->post('/admin/rejection-reasons', ['text_ar' => 'خارج الموضوع', 'text_en' => 'Off topic']);
+        $admin->post('/admin/rejection-reasons', ['text_ar' => 'مكرر', 'text_en' => 'Asked twice']);
+        $ids = DB::table('feedback.reject_reasons')->orderBy('position')->pluck('id')->all();
+
+        $saved = $admin->post("/admin/rejection-reasons/{$ids[0]}", ['text_ar' => 'خارج الموضوع', 'text_en' => 'Not about the product']);
+        $ordered = $admin->post('/admin/rejection-reasons/order', ['ids' => [$ids[1], $ids[0]]]);
+        $props = supportScreensProps($admin, '/admin/rejection-reasons', 'Feedback/Admin/Reasons');
+        $removed = $admin->post("/admin/rejection-reasons/{$ids[1]}/delete");
+
+        expect([AdminBrowser::flashed($added, 'status'), AdminBrowser::flashed($saved, 'status'), AdminBrowser::flashed($ordered, 'status'), AdminBrowser::flashed($removed, 'status')])
+            ->toBe(['Reason added.', 'Reason saved.', 'Order saved.', 'Reason deleted.'])
+            ->and([array_column($props['reasons'], 'textEn'), $props['mayEdit']])->toBe([['Asked twice', 'Not about the product'], true])
+            ->and(DB::table('feedback.reject_reasons')->pluck('id')->all())->toBe([$ids[0]]);
+    });
+
+    it('shows a moderator of one store the list read-only, refuses their changes, and the page to a reader without a job', function () {
+        supportScreens([FeedbackPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin)->post('/admin/rejection-reasons', ['text_ar' => 'مكرر', 'text_en' => 'Asked twice']);
+        $moderator = supportScreens([FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+
+        $props = supportScreensProps($moderator, '/admin/rejection-reasons', 'Feedback/Admin/Reasons');
+        $refused = $moderator->post('/admin/rejection-reasons', ['text_ar' => 'جديد', 'text_en' => 'New']);
+
+        expect([count($props['reasons']), $props['mayEdit']])->toBe([1, false])
+            ->and($refused->getStatusCode())->toBe(302)
+            ->and(DB::table('feedback.reject_reasons')->count())->toBe(1);
+        supportScreens([FeedbackPermissions::WISHLIST_VIEW])->get('/admin/rejection-reasons')->assertForbidden();
+    });
+});
+
 describe('F2 · Product Questions', function () {
     it('answers a waiting question, corrects the answer, and rejects another with a reason', function () {
         $sold = Fb::sold();
@@ -205,10 +295,10 @@ describe('F4 · A customer\'s wishlist on the staff customer page', function () 
 
         $reader = supportScreensProps(supportScreens([AccessPermissions::CUSTOMER_VIEW, FeedbackPermissions::WISHLIST_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show');
         $other = supportScreensProps(supportScreens([AccessPermissions::CUSTOMER_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show');
-        $section = collect($reader['sections'])->firstWhere('key', 'wishlist');
+        $wishlist = static fn (array $props): array => array_values(array_filter((array) $props['sections'], static fn (mixed $section): bool => is_array($section) && $section['key'] === 'wishlist'));
 
-        expect($section['data']['stores'][0]['items'][0]['product']['id'] ?? null)->toBe($product)
-            ->and(collect($other['sections'])->firstWhere('key', 'wishlist'))->toBeNull();
+        expect($wishlist($reader)[0]['data']['stores'][0]['items'][0]['product']['id'] ?? null)->toBe($product)
+            ->and($wishlist($other))->toBe([]);
     });
 });
 
@@ -229,5 +319,5 @@ it('reads each Support page in a fixed few queries of its own, the same for one 
     }
 
     expect($counts())->toBe($one)
-        ->and($one)->toBe([9, 7, 6]);
+        ->and($one)->toBe([10, 8, 6]);
 });

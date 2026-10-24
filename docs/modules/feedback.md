@@ -485,8 +485,11 @@ Pages of the account beside its tabs (Access's `CustomerAccountPages`, as My Poi
 #### F9 · Support › Rejection Reasons — `/admin/rejection-reasons`
 
 - The ready reasons (§4.2 B4), one list for every store: each reason in Arabic and English, in order;
-  **Add Reason…**, **Edit…**, **Delete…**, drag or Move Up/Down to reorder. Offered to admins
-  (`feedback.settings.update`).
+  **Add Reason…**, **Edit…**, **Delete…**; reordered by dragging, or from a reason's ⋯ menu with
+  **Move to Top** / **Move to Bottom** (the owner's ordering rule). Changed only by an admin who holds
+  `feedback.settings.update` in **All stores** (the list is every store's); anyone else who moderates
+  reviews, answers questions or holds the settings job in some stores sees it read-only, with a line
+  saying who may change it.
 
 **Every screen above** is checked at phone width (375 px, nothing scrolling sideways), in Arabic and
 English, light and dark; its own query count recorded by a feature test; each page under 60 KB gzipped.

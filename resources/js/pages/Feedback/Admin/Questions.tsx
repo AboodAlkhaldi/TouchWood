@@ -5,14 +5,16 @@ import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
+import { BulkBar, SelectBox, useSelection } from '@/components/feedback/bulk';
 import { Author, DecisionDialog, ProductCell } from '@/components/feedback/parts';
+import { useLocale } from '@/components/promotions/parts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
 import { useLoadMore } from '@/lib/use-load-more';
-import type { QuestionItemData, SupportListPage } from '@/types/generated/Modules/Feedback/Presentation/Http/Resource';
+import type { QuestionItemData, ReasonData, SupportListPage } from '@/types/generated/Modules/Feedback/Presentation/Http/Resource';
 
 /*
 | F2 - Support › Product Questions (feedback.md §4.1): the store's questions by status - Waiting first,
@@ -31,14 +33,18 @@ export default function Questions(page: SupportListPage) {
     const t = useTranslator();
     const list = useLoadMore(page.questions, (row) => row.id);
     const status = page.status ?? 'PENDING';
+    const locale = useLocale();
+    const selection = useSelection();
+    // Many at once (owner's Q4): reject the waiting, unpublish the answered.
+    const bulk = !page.mayAct ? [] : status === 'PENDING' ? (['reject'] as const) : status === 'ANSWERED' ? (['unpublish'] as const) : [];
 
     return (
         <AdminLayout title={t(`${W}.questions.title`)} subtitle={t(`${W}.questions.subtitle`)}>
             <div className="grid gap-4">
                 <FormError />
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
                     <Tabs value={status} onValueChange={(next) => router.get(LIST, { store: page.storeCode, status: next }, { preserveState: true })}>
-                        <TabsList aria-label={t(`${W}.questions.tabs_label`)} data-test="status-tabs">
+                        <TabsList className="max-w-full min-w-0 justify-start overflow-x-auto" aria-label={t(`${W}.questions.tabs_label`)} data-test="status-tabs">
                             {TABS.map((each) => (
                                 <TabsTrigger key={each} value={each} data-test={`status-${each}`}>
                                     {t(`${W}.question_status.${each}`)}
@@ -48,6 +54,10 @@ export default function Questions(page: SupportListPage) {
                     </Tabs>
                     <StoreFilter stores={page.stores} value={page.storeCode} />
                 </div>
+
+                {bulk.length > 0 && list.rows.length > 0 ? (
+                    <BulkBar all={list.rows.map((row) => row.id)} selection={selection} locale={locale} url="/admin/questions/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
+                ) : null}
 
                 {list.rows.length === 0 ? (
                     <Empty className="material-base" data-test="questions-empty">
@@ -59,7 +69,7 @@ export default function Questions(page: SupportListPage) {
                     <ul className="grid gap-3" data-test="questions">
                         {list.rows.map((question) => (
                             <li key={question.id}>
-                                <QuestionCard question={question} mayAct={page.mayAct} storeName={page.storeName} />
+                                <QuestionCard question={question} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(question.id)} onSelect={() => selection.toggle(question.id)} />
                             </li>
                         ))}
                     </ul>
@@ -71,7 +81,23 @@ export default function Questions(page: SupportListPage) {
     );
 }
 
-function QuestionCard({ question, mayAct, storeName }: { question: QuestionItemData; mayAct: boolean; storeName: string }) {
+function QuestionCard({
+    question,
+    mayAct,
+    storeName,
+    reasons,
+    selectable,
+    selected,
+    onSelect,
+}: {
+    question: QuestionItemData;
+    mayAct: boolean;
+    storeName: string;
+    reasons: ReasonData[];
+    selectable: boolean;
+    selected: boolean;
+    onSelect: () => void;
+}) {
     const t = useTranslator();
     const [dialog, setDialog] = useState<Dialog | null>(null);
     const answering = dialog === 'answer' || dialog === 'correct';
@@ -79,7 +105,10 @@ function QuestionCard({ question, mayAct, storeName }: { question: QuestionItemD
     return (
         <Card className="material-base border-0 py-4" data-test={`question-${question.id}`}>
             <CardContent className="grid gap-3 px-5">
-                <ProductCell product={question.product} />
+                <div className="flex items-start gap-3">
+                    {selectable ? <SelectBox checked={selected} onChange={onSelect} name={question.product.name} test={`select-${question.id}`} /> : null}
+                    <ProductCell product={question.product} />
+                </div>
                 <p dir="auto" className="text-label-14 whitespace-pre-line text-ink">
                     {question.body}
                 </p>
@@ -137,6 +166,8 @@ function QuestionCard({ question, mayAct, storeName }: { question: QuestionItemD
                     initial={dialog === 'correct' ? (question.answer ?? '') : ''}
                     confirm={answering ? t(`${W}.dialog.save_answer`) : t(`${W}.dialog.${dialog}_question`)}
                     destructive={!answering}
+                    reasons={reasons}
+                    language={question.locale}
                 />
             )}
         </Card>
