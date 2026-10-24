@@ -139,7 +139,7 @@ export default function Category({ name, slug, path, children, products, next, f
                                 onChange={(event) => visit({ ...chosen, sort: event.target.value })}
                                 data-test="sort"
                             >
-                                {['best-selling', 'newest'].map((sort) => (
+                                {['best-selling', 'newest', ...(filters.ratingSort ? ['rating'] : [])].map((sort) => (
                                     <NativeSelectOption key={sort} value={sort}>
                                         {t(`catalog::shop.sort.${sort}`)}
                                     </NativeSelectOption>

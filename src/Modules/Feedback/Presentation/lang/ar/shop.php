@@ -20,7 +20,6 @@ return [
         'clear' => 'عرض كل التقييمات',
         'write' => 'اكتب تقييمًا…',
         'written' => 'قيّمت هذا المنتج.',
-        'more' => 'عرض المزيد',
     ],
     'mark' => [
         'VERIFIED_PURCHASE' => 'شراء موثّق',
@@ -32,8 +31,6 @@ return [
         'ask' => 'اطرح سؤالًا…',
         'sign_in' => 'سجّل الدخول لتسأل',
         'answer_by' => 'فريق :store',
-        'answered' => 'أُجيب',
-        'more' => 'عرض المزيد',
     ],
     'author' => ':first :initial.',
     'deleted_customer' => 'عميل محذوف',
@@ -80,7 +77,6 @@ return [
         ],
         'in_store' => 'في :store',
         'not_available' => 'غير متوفر حاليًا',
-        'more' => 'عرض المزيد',
     ],
     'review_status' => [
         'PENDING' => 'بانتظار الموافقة',

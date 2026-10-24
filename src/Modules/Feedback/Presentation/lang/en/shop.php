@@ -6,7 +6,7 @@ declare(strict_types=1);
 return [
     'rating' => [
         'stars' => ':rating out of 5 stars',
-        'count' => ['one' => '(:count review)', 'other' => '(:count reviews)'],
+        'count' => ['zero' => '(:count reviews)', 'one' => '(:count review)', 'two' => '(:count reviews)', 'few' => '(:count reviews)', 'many' => '(:count reviews)', 'other' => '(:count reviews)'],
         'to_reviews' => 'Go to reviews',
     ],
     'reviews' => [
@@ -20,7 +20,6 @@ return [
         'clear' => 'Show all reviews',
         'write' => 'Write a Review…',
         'written' => 'You reviewed this product.',
-        'more' => 'Show More',
     ],
     'mark' => [
         'VERIFIED_PURCHASE' => 'Verified purchase',
@@ -32,8 +31,6 @@ return [
         'ask' => 'Ask a Question…',
         'sign_in' => 'Sign in to ask',
         'answer_by' => ':store team',
-        'answered' => 'Answered',
-        'more' => 'Show More',
     ],
     'author' => ':first :initial.',
     'deleted_customer' => 'Deleted customer',
@@ -47,7 +44,7 @@ return [
         'title' => 'Write a Review',
         'description' => 'Your review shows once the store approves it.',
         'stars' => 'Your rating',
-        'star' => ['one' => ':count star', 'other' => ':count stars'],
+        'star' => ['zero' => ':count stars', 'one' => ':count star', 'two' => ':count stars', 'few' => ':count stars', 'many' => ':count stars', 'other' => ':count stars'],
         'body' => 'Your review',
         'submit' => 'Submit Review',
     ],
@@ -80,7 +77,6 @@ return [
         ],
         'in_store' => 'In :store',
         'not_available' => 'Not available now',
-        'more' => 'Show More',
     ],
     'review_status' => [
         'PENDING' => 'Waiting for approval',
