@@ -88,7 +88,9 @@ final readonly class CustomerSessionController
             return FormErrors::back($request, $error, ['email']);
         }
 
-        return redirect()->route('storefront.home');
+        // Back to where a page sent them to sign in (access.md amendment 75: Feedback's Save heart), else
+        // home. The address is one the server kept in the session, never one the request names.
+        return redirect()->intended(route('storefront.home'));
     }
 
     public function signOut(Request $request, SignOutCustomerHandler $handler): RedirectResponse

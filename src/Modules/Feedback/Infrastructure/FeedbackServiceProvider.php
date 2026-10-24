@@ -6,8 +6,10 @@ namespace Modules\Feedback\Infrastructure;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
@@ -74,7 +76,7 @@ final class FeedbackServiceProvider extends ServiceProvider
         // What its reviews name of Catalog's, asked before Catalog deletes it (catalog.md amendment 19).
         $this->app->make(CatalogUsages::class)->register('feedback', FeedbackCatalogUsage::class);
         // Its parts of a product's page in the shop (§2.3; catalog.md amendment 26(b)).
-        $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class);
+        $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class, ['feedback::shop', 'feedback::errors']);
         $this->app->make(ShopProductSections::class)->register('feedback.questions', QuestionsSection::class);
         $this->app->make(ShopProductSections::class)->register('feedback.wishlist', WishlistSection::class);
         // The Save heart on every product card (§2.4 B5; catalog.md amendment 32).
@@ -109,7 +111,15 @@ final class FeedbackServiceProvider extends ServiceProvider
             new CustomerPageSectionDto('feedback', 'wishlist', WishlistCustomerSection::class, ['feedback::admin_support']),
         );
 
+        // The shop account's My Reviews, My Questions and My Wishlist, always offered (§4.1 F8, owner's Q19).
+        $this->app->make(CustomerAccountPages::class)->register(
+            new CustomerAccountPageDto('feedback', 'reviews', 'storefront.feedback.reviews', position: 30),
+            new CustomerAccountPageDto('feedback', 'questions', 'storefront.feedback.questions', position: 31),
+            new CustomerAccountPageDto('feedback', 'wishlist', 'storefront.feedback.wishlist', position: 32),
+        );
+
         if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
             // The panel's own file: the admin session cookie must be set before "web" opens a session.
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }

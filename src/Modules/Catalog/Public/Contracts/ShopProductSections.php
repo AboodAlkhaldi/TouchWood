@@ -15,9 +15,11 @@ interface ShopProductSections
      * @param  string  $key  `{module}.{key}` — "feedback.reviews"
      * @param  class-string  $section  a class implementing ShopProductSection, resolved from the
      *                                 container on each request
+     * @param  list<string>  $words  the translation files its drawing reads, shipped with the page
+     *                               (amendment 33) - "feedback::shop"
      *
      * @throws \LogicException for a class that is not a ShopProductSection, a key not of that form, or
      *                         a key registered twice
      */
-    public function register(string $key, string $section): void;
+    public function register(string $key, string $section, array $words = []): void;
 }
