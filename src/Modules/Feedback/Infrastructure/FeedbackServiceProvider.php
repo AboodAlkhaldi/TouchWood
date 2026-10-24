@@ -96,6 +96,8 @@ final class FeedbackServiceProvider extends ServiceProvider
             new MenuEntryDto('feedback', 'reviews', 'support', 'feedback.admin.reviews', FeedbackPermissions::REVIEW_MODERATE, 10, icon: 'reviews'),
             new MenuEntryDto('feedback', 'questions', 'support', 'feedback.admin.questions', FeedbackPermissions::QUESTION_ANSWER, 20, icon: 'questions'),
             new MenuEntryDto('feedback', 'favourites', 'customers', 'feedback.admin.favourites', FeedbackPermissions::WISHLIST_VIEW, 30, icon: 'favourites'),
+            // The ready reasons, one list for every store: read by moderators, edited with the settings job everywhere (§4.2 B4).
+            new MenuEntryDto('feedback', 'reasons', 'support', 'feedback.admin.reasons', [FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::QUESTION_ANSWER, FeedbackPermissions::SETTINGS_UPDATE], 40, icon: 'reasons'),
         );
 
         // A customer's wishlist on the staff customer page, a block per store the reader covers (§4.1 F4).

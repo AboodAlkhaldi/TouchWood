@@ -26,7 +26,14 @@ final readonly class FeedbackActionsForReader
             $this->holds(FeedbackPermissions::QUESTION_ANSWER, $store),
             $this->holds(FeedbackPermissions::WISHLIST_VIEW, $store),
             $this->holds(FeedbackPermissions::SETTINGS_UPDATE, $store),
+            $this->mayEditReasons(),
         );
+    }
+
+    /** Whether the reader may edit the ready reasons - the settings job in every store (§4.2 B4). */
+    public function mayEditReasons(): bool
+    {
+        return $this->authorizer->storesWith(FeedbackPermissions::SETTINGS_UPDATE) === null;
     }
 
     private function holds(string $permission, StoreId $store): bool

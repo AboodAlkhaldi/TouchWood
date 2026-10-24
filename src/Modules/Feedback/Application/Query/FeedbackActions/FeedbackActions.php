@@ -12,5 +12,7 @@ final readonly class FeedbackActions
         public bool $mayAnswer,
         public bool $mayViewWishlists,
         public bool $mayEditSettings,
+        /** The ready reasons are one list for every store: edited only with the settings job in every store (§4.2 B4). */
+        public bool $mayEditReasons = false,
     ) {}
 }

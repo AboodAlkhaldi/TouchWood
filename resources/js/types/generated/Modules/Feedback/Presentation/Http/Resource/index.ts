@@ -24,6 +24,15 @@ answeredAt: string | null,
 reason: string | null,
 askedAt: string,
 };
+export type ReasonData = {
+id: string,
+textAr: string,
+textEn: string,
+};
+export type ReasonsPage = {
+reasons: ReasonData[],
+mayEdit: boolean,
+};
 export type ReviewItemData = {
 id: string,
 product: ProductCardData,
@@ -105,6 +114,7 @@ storeName: string,
 storeIsActive: boolean,
 storeTimezone: string,
 stores: StoreOptionData[],
+reasons: ReasonData[],
 };
 export type WishlistItemData = {
 product: ProductCardData,

@@ -11,6 +11,7 @@ import {
     Image,
     UserRound,
     LayoutDashboard,
+    ListChecks,
     MessageCircleQuestion,
     Megaphone,
     Receipt,
@@ -78,6 +79,7 @@ const ICONS = {
     reviews: Star,
     questions: MessageCircleQuestion,
     favourites: Heart,
+    reasons: ListChecks,
 } as const;
 
 type Props = {

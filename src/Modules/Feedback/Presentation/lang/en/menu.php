@@ -7,4 +7,5 @@ return [
     'reviews' => 'Reviews',
     'questions' => 'Product Questions',
     'favourites' => 'Favourited Products',
+    'reasons' => 'Rejection Reasons',
 ];

@@ -16,6 +16,9 @@ use Modules\Feedback\Application\Query\ListFavourites\ListFavourites;
 use Modules\Feedback\Application\Query\ListFavourites\ListFavouritesHandler;
 use Modules\Feedback\Application\Query\ListQuestions\ListQuestions;
 use Modules\Feedback\Application\Query\ListQuestions\ListQuestionsHandler;
+use Modules\Feedback\Application\Query\ListRejectReasons\ListRejectReasons;
+use Modules\Feedback\Application\Query\ListRejectReasons\ListRejectReasonsHandler;
+use Modules\Feedback\Application\Query\ListRejectReasons\RejectReasonRow;
 use Modules\Feedback\Application\Query\ListReviews\ListReviews;
 use Modules\Feedback\Application\Query\ListReviews\ListReviewsHandler;
 use Modules\Feedback\Application\Query\QuestionRow;
@@ -41,6 +44,7 @@ final readonly class SupportPages
         private Application $app,
         private StoreChoices $choices,
         private FeedbackActionsForReader $actions,
+        private ListRejectReasonsHandler $reasons,
     ) {}
 
     /**
@@ -159,7 +163,22 @@ final readonly class SupportPages
             $store->isActive,
             $store->timezone,
             array_map(static fn (StoreDto $option): StoreOptionData => new StoreOptionData($option->code, $option->name->in($locale), $option->isActive), $offered),
+            $mayAct ? $this->readyReasons() : [],
         );
+    }
+
+    /**
+     * The ready reasons (§4.2 B4), in their order.
+     *
+     * @return list<ReasonData>
+     */
+    public function readyReasons(): array
+    {
+        try {
+            return array_map(static fn (RejectReasonRow $row): ReasonData => new ReasonData($row->id, $row->textAr, $row->textEn), $this->reasons->handle(new ListRejectReasons));
+        } catch (Unauthorized) {
+            return [];
+        }
     }
 
     /**

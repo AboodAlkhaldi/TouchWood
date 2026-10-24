@@ -14,6 +14,10 @@ use Modules\Feedback\Application\Command\AnswerQuestion\AnswerQuestion;
 use Modules\Feedback\Application\Command\AnswerQuestion\AnswerQuestionHandler;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReview;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReviewHandler;
+use Modules\Feedback\Application\Command\BulkDecideQuestions\BulkDecideQuestions;
+use Modules\Feedback\Application\Command\BulkDecideQuestions\BulkDecideQuestionsHandler;
+use Modules\Feedback\Application\Command\BulkDecideReviews\BulkDecideReviews;
+use Modules\Feedback\Application\Command\BulkDecideReviews\BulkDecideReviewsHandler;
 use Modules\Feedback\Application\Command\CorrectAnswer\CorrectAnswer;
 use Modules\Feedback\Application\Command\CorrectAnswer\CorrectAnswerHandler;
 use Modules\Feedback\Application\Command\RejectQuestion\RejectQuestion;
@@ -24,11 +28,15 @@ use Modules\Feedback\Application\Command\UnpublishQuestion\UnpublishQuestion;
 use Modules\Feedback\Application\Command\UnpublishQuestion\UnpublishQuestionHandler;
 use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReview;
 use Modules\Feedback\Application\Command\UnpublishReview\UnpublishReviewHandler;
+use Modules\Feedback\Application\FeedbackPermissions;
+use Modules\Feedback\Application\Moderation\BulkDecision;
 use Modules\Feedback\Application\Query\ListFavourites\ListFavouritesHandler;
 use Modules\Feedback\Application\Query\ListQuestions\ListQuestionsHandler;
 use Modules\Feedback\Application\Query\ListReviews\ListReviewsHandler;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Presentation\Http\Resource\SupportPages;
+use Modules\Platform\Public\Contracts\StoreChoices;
+use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
 
 /*
@@ -70,7 +78,7 @@ final readonly class SupportController
 
     public function approve(Request $request, string $review, ApproveReviewHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new ApproveReview($review)), 'approved');
+        return self::act($request, fn () => $handler->handle(new ApproveReview($review, self::locale($request))), 'approved');
     }
 
     public function reject(Request $request, string $review, RejectReviewHandler $handler): RedirectResponse
@@ -85,12 +93,12 @@ final readonly class SupportController
 
     public function answer(Request $request, string $question, AnswerQuestionHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new AnswerQuestion($question, self::text($request, 'answer') ?? '')), 'answered');
+        return self::act($request, fn () => $handler->handle(new AnswerQuestion($question, self::text($request, 'answer') ?? '', self::locale($request))), 'answered');
     }
 
     public function correct(Request $request, string $question, CorrectAnswerHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new CorrectAnswer($question, self::text($request, 'answer') ?? '')), 'corrected');
+        return self::act($request, fn () => $handler->handle(new CorrectAnswer($question, self::text($request, 'answer') ?? '', self::locale($request))), 'corrected');
     }
 
     public function rejectQuestion(Request $request, string $question, RejectQuestionHandler $handler): RedirectResponse
@@ -101,6 +109,68 @@ final readonly class SupportController
     public function unpublishQuestion(Request $request, string $question, UnpublishQuestionHandler $handler): RedirectResponse
     {
         return self::act($request, fn () => $handler->handle(new UnpublishQuestion($question, self::text($request, 'reason'))), 'question_unpublished');
+    }
+
+    /** Approve, Reject… or Unpublish… on the reviews ticked (owner's Q4), each decided on its own. */
+    public function bulkReviews(Request $request, StoreChoices $choices, BulkDecideReviewsHandler $handler): RedirectResponse
+    {
+        return self::bulk($request, function () use ($request, $choices, $handler): BulkDecision {
+            $store = $choices->chosen(self::text($request, 'store'), FeedbackPermissions::REVIEW_MODERATE) ?? throw new Unauthorized(FeedbackPermissions::REVIEW_MODERATE);
+
+            return $handler->handle(new BulkDecideReviews($store->id, self::text($request, 'action') ?? '', self::ids($request), self::text($request, 'reason')));
+        });
+    }
+
+    /** Reject… or Unpublish… on the questions ticked (owner's Q4). */
+    public function bulkQuestions(Request $request, StoreChoices $choices, BulkDecideQuestionsHandler $handler): RedirectResponse
+    {
+        return self::bulk($request, function () use ($request, $choices, $handler): BulkDecision {
+            $store = $choices->chosen(self::text($request, 'store'), FeedbackPermissions::QUESTION_ANSWER) ?? throw new Unauthorized(FeedbackPermissions::QUESTION_ANSWER);
+
+            return $handler->handle(new BulkDecideQuestions($store->id, self::text($request, 'action') ?? '', self::ids($request), self::text($request, 'reason')));
+        });
+    }
+
+    /**
+     * A bulk decision, answered with what became of the ticked items: "8 done, 2 already decided by
+     * someone else" (§4.1 F1).
+     *
+     * @param  Closure(): BulkDecision  $work
+     */
+    private static function bulk(Request $request, Closure $work): RedirectResponse
+    {
+        try {
+            $decision = $work();
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        $done = count($decision->done);
+        $skipped = count($decision->alreadyDecided) + count($decision->notFound);
+
+        return back()->with('status', $skipped === 0
+            ? __('feedback::admin_support.toast.bulk', ['done' => $done])
+            : __('feedback::admin_support.toast.bulk_skipped', ['done' => $done, 'skipped' => $skipped]));
+    }
+
+    /**
+     * The ids ticked, at most a page.
+     *
+     * @return list<string>
+     */
+    private static function ids(Request $request): array
+    {
+        $sent = $request->input('ids');
+
+        return array_values(array_unique(array_filter(is_array($sent) ? $sent : [], static fn (mixed $id): bool => is_string($id) && preg_match('/^[0-9A-Za-z]{26}$/', $id) === 1)));
+    }
+
+    /** The language the staff member set (§4.2 B3): ar or en; none keeps the one worked out from the text. */
+    private static function locale(Request $request): ?string
+    {
+        $locale = $request->input('locale');
+
+        return in_array($locale, ['ar', 'en'], true) ? $locale : null;
     }
 
     /**
