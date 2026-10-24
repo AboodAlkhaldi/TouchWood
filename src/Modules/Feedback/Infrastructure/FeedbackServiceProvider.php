@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
+use Modules\Catalog\Public\Contracts\ShopCardFacts;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
@@ -32,6 +33,7 @@ use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
 use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
 use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
+use Modules\Feedback\Presentation\Storefront\SavedCardFact;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\SettingChanged;
@@ -70,6 +72,8 @@ final class FeedbackServiceProvider extends ServiceProvider
         $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class);
         $this->app->make(ShopProductSections::class)->register('feedback.questions', QuestionsSection::class);
         $this->app->make(ShopProductSections::class)->register('feedback.wishlist', WishlistSection::class);
+        // The Save heart on every product card (§2.4 B5; catalog.md amendment 32).
+        $this->app->make(ShopCardFacts::class)->register('feedback.saved', SavedCardFact::class);
 
         // A return completed: the reviews of what came back read "Returned" (§6).
         Event::listen(ReturnCompleted::class, [FlipReturnedReviews::class, 'handle']);

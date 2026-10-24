@@ -85,9 +85,10 @@ Backend only in this stage's build; the screens are another session's.
   through the one-item command, `Moderation/BulkDecision` naming done, already decided, not found); the ready
   reasons (B4) — `Command/{Add,Change,Remove}RejectReason`, `Command/OrderRejectReasons` through
   `Reason/ReasonsChange` (`feedback.settings.update` in All stores, the list's lock), `Query/ListRejectReasons`,
-  `Domain/Repository/RejectReasons` with SQL in `Infrastructure/Eloquent/DatabaseRejectReasons`.
+  `Domain/Repository/RejectReasons` with SQL in `Infrastructure/Eloquent/DatabaseRejectReasons`; the Save heart on
+  every card (B5) — `Presentation/Storefront/SavedCardFact`, registered as `feedback.saved` with Catalog's `ShopCardFacts`.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
 `FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `BulkDecisionsTest`, `RejectReasonsTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
-`tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
+`tests/Modules/Feedback/Feature/ShopSectionsTest`, `SavedHeartsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.

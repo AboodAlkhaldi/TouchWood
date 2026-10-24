@@ -496,10 +496,13 @@ describe('the budget (P21)', function () {
             // (as every store starts) that reads whether the customer has points there. Brought to the
             // owner with the Loyalty screens' PR. A product's page, one more since 2026-10-19 for
             // Feedback's sections (amendment 26(b)) - the limits a target, not a cap (owner, 2026-10-19).
+            // Signed in, a page of cards one more since 2026-10-24 (amendment 32, feedback.md §2.4 B5): which
+            // of its cards the customer saved here - none for a guest, none for a page with no cards (this
+            // product page has no related products).
         ])->toBe([
             'guest' => ['category' => 8, 'brand' => 8, 'product' => 9, 'search' => 9],
-            'individual' => ['category' => 14, 'brand' => 14, 'product' => 15, 'search' => 15],
-            'company' => ['category' => 14, 'brand' => 14, 'product' => 15, 'search' => 15],
+            'individual' => ['category' => 15, 'brand' => 15, 'product' => 15, 'search' => 16],
+            'company' => ['category' => 15, 'brand' => 15, 'product' => 15, 'search' => 16],
         ]);
     });
 });

@@ -18,6 +18,7 @@ final class ShopCategoryPage extends Data
      * @param  list<ShopLinkData>  $path  the categories above it, from the top
      * @param  list<ShopLinkData>  $children
      * @param  list<ShopCardData>  $products
+     * @param  array<string, array<string, array<string, mixed>>>  $cardFacts  product id => `{module}.{key}` => what that module adds to its card (amendment 32), read for this viewer, never kept
      * @param  string|null  $next  where Show More starts; null on the last page
      */
     public function __construct(
@@ -29,5 +30,6 @@ final class ShopCategoryPage extends Data
         public ?string $next,
         public ShopFiltersData $filters,
         public ShopAddressData $address,
+        public array $cardFacts = [],
     ) {}
 }

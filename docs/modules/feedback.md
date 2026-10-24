@@ -258,6 +258,11 @@ The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), a
   later would not be covered — the page is theirs to read, not to change), the list's lock first, each change audited with no store.
   `ListRejectReasons` — read by anyone who moderates reviews, answers questions or edits the list, in some
   store. The dialogs offer one, or the staff member's own words, or none (§1.1).
+- **B5 — the Save heart on cards** (FB-c): `feedback.saved`, registered with Catalog's `ShopCardFacts`
+  (catalog.md amendment 32) — each page of cards carries `cardFacts[productId]['feedback.saved'] =
+  {saved: true}` for the products the signed-in customer saved **in this store**, read in one query
+  (`Wishlist::savedAmong`); a product not saved, and every card for a guest, carry nothing. Pressing it is
+  `SaveToWishlist` / `RemoveFromWishlist` as on the product page; a guest is sent to sign in (F5).
 
 ---
 
