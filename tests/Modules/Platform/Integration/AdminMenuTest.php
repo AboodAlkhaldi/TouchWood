@@ -109,10 +109,14 @@ describe('the admin menu', function () {
             'companies/company_types',
             'companies/document_types',
             'customers/customers',
+            // Feedback's screens (feedback.md §4.1): Favourited Products, then Support's two.
+            'customers/favourites',
             // Promotions' screens (promotions.md §4.1): Marketing's Coupons.
             'marketing/coupons',
             'marketing/segments',
             'marketing/gift_levels',
+            'support/reviews',
+            'support/questions',
             // Loyalty's screens (loyalty.md §4.1): the Points section's three.
             'points/customers',
             'points/redemptions',
