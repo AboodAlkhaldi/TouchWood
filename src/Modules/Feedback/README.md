@@ -90,5 +90,5 @@ Backend only in this stage's build; the screens are another session's.
 
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
 `FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `BulkDecisionsTest`, `RejectReasonsTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
-`tests/Modules/Feedback/Feature/ShopSectionsTest`, `SavedHeartsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
+`tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`), `SavedHeartsTest` (the hearts on cards: a category page, its Show More, the search results, a product page's related cards); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.

@@ -198,7 +198,8 @@ final readonly class ShopPages
             'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path),
             'address' => $address->toArray(),
             'sections' => (object) $sections,
-            'cardFacts' => (object) $this->cardFacts->read($store, $customerId, array_map('strval', $related)),
+            // The same shape as the lists' `cardFacts`: [] when empty.
+            'cardFacts' => $this->cardFacts->read($store, $customerId, array_map('strval', $related)),
         ];
     }
 
