@@ -121,6 +121,7 @@ it('lets only an admin of every store change the list', function (Closure $actAs
         ->and(DB::table('feedback.reject_reasons')->count())->toBe(0);
 })->with([
     'an admin of one store' => [fn () => Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin))],
+    'an admin of every store, named one by one (not All stores)' => [fn () => Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::SETTINGS_UPDATE], array_values(array_map('strval', DB::table('platform.stores')->pluck('code')->all())), RoleLevel::Admin))],
     'a moderator' => [fn () => Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['sa', 'eg']))],
     'a customer' => [fn () => Fx::actAsCustomer(Fx::customer('shopper@example.test'))],
 ]);

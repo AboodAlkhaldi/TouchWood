@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Feedback\Application\Command\RemoveRejectReason;
 
-use Modules\Feedback\Application\Command\ChangeRejectReason\ChangeRejectReasonHandler;
 use Modules\Feedback\Application\FeedbackAudit;
 use Modules\Feedback\Application\Reason\ReasonInputs;
 use Modules\Feedback\Application\Reason\ReasonsChange;
@@ -35,7 +34,7 @@ final readonly class RemoveRejectReasonHandler
         $id = ReasonInputs::id($command->reasonId);
 
         $this->change->run(function () use ($id): array {
-            $reason = ChangeRejectReasonHandler::find($this->reasons->all(), $id);
+            $reason = $this->reasons->find($id) ?? throw new RejectReasonNotFound;
             $this->reasons->remove($id);
 
             return [null, [FeedbackAudit::entry('reject_reason', 'removed', $id, null, ['text_ar' => $reason->textAr, 'text_en' => $reason->textEn, 'position' => (string) $reason->position], [])]];

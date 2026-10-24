@@ -11,6 +11,7 @@ use Modules\Feedback\Application\Command\UnpublishQuestion\UnpublishQuestionHand
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\Moderation\BulkDecision;
 use Modules\Feedback\Application\Moderation\BulkInputs;
+use Modules\Feedback\Application\StaffChange;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Domain\Exception\InvalidModeration;
 use Modules\Feedback\Domain\Exception\QuestionNotFound;
@@ -39,6 +40,7 @@ final readonly class BulkDecideQuestionsHandler
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
+        private StaffChange $change,
         private Questions $questions,
         private RejectQuestionHandler $reject,
         private UnpublishQuestionHandler $unpublish,
@@ -49,15 +51,18 @@ final readonly class BulkDecideQuestionsHandler
      */
     public function handle(BulkDecideQuestions $command): BulkDecision
     {
-        $action = BulkInputs::action($command->action, self::ACTIONS);
-        $ids = BulkInputs::ids($command->questionIds);
-        $reason = $action === 'approve' ? null : FeedbackText::reason($command->reason);
+        // The job in the store first — an off store only for those who switch stores — then what was sent.
         $store = StoreId::fromString(BulkInputs::store($command->storeId));
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
 
         if ($this->actors->current()->type !== ActorType::Staff) {
             throw new Unauthorized(self::PERMISSION);
         }
+
+        $this->change->refuseOffStore(self::PERMISSION, $store);
+        $action = BulkInputs::action($command->action, self::ACTIONS);
+        $ids = BulkInputs::ids($command->questionIds);
+        $reason = FeedbackText::reason($command->reason);
 
         [$done, $decided, $missing] = [[], [], []];
 
@@ -74,7 +79,7 @@ final readonly class BulkDecideQuestionsHandler
                 match ($action) {
                     'reject' => $this->reject->handle(new RejectQuestion($id, $reason)),
                     'unpublish' => $this->unpublish->handle(new UnpublishQuestion($id, $reason)),
-                    default => throw new InvalidFeedbackAttribute('action', implode(', ', self::ACTIONS)),
+                    default => null,
                 };
                 $done[] = $id;
             } catch (InvalidModeration) {

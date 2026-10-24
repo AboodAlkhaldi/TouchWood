@@ -26,7 +26,11 @@ final class BulkInputs
         foreach ($ids as $id) {
             $id = strtolower(trim($id));
 
-            if (! Ulids::valid($id) || in_array($id, $kept, true)) {
+            if (! Ulids::valid($id)) {
+                throw new InvalidFeedbackAttribute('ids', 'ids of the queue');
+            }
+
+            if (in_array($id, $kept, true)) {
                 throw new InvalidFeedbackAttribute('ids', 'each one once');
             }
 

@@ -15,6 +15,8 @@ use Modules\Feedback\Application\Command\BulkDecideReviews\BulkDecideReviewsHand
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\Moderation\BulkDecision;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
@@ -131,6 +133,37 @@ describe('reviews', function () {
         }, 'ids'],
         'not an id' => ['approve', fn () => ['review-1'], 'ids'],
     ]);
+
+    it('keeps a switched-off store to Super Admins, asked once before any is decided', function () {
+        $ids = bulkReviews(2, 'eg');
+        $egypt = Fx::storeId('eg');
+        $moderator = Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['*']);
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsStaff($moderator);
+
+        // Even with every id unknown, the answer is the same refusal.
+        expect(fn () => app(BulkDecideReviewsHandler::class)->handle(new BulkDecideReviews($egypt, 'approve', [strtolower((string) Str::ulid())])))->toThrow(Unauthorized::class)
+            ->and(fn () => app(BulkDecideReviewsHandler::class)->handle(new BulkDecideReviews($egypt, 'approve', $ids)))->toThrow(Unauthorized::class)
+            ->and(array_unique(array_values(bulkStatuses('feedback.reviews'))))->toBe(['PENDING']);
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(app(BulkDecideReviewsHandler::class)->handle(new BulkDecideReviews($egypt, 'approve', $ids))->done)->toBe($ids);
+    });
+
+    it('refuses a reason sent with approving, deciding none', function () {
+        $ids = bulkReviews(1);
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE], ['sa']));
+
+        expect(Fb::thrown(fn () => bulkReviewsDo('approve', $ids, 'Nice'), InvalidFeedbackAttribute::class)->attribute)->toBe('reason')
+            ->and(bulkStatuses('feedback.reviews')[$ids[0]])->toBe('PENDING');
+    });
+
+    it('answers someone without the job as not allowed, whatever they sent', function () {
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::QUESTION_ANSWER], ['sa']));
+
+        expect(fn () => bulkReviewsDo('delete', ['not-an-id']))->toThrow(Unauthorized::class);
+    });
 
     it('lets only the store moderators decide, never a customer', function () {
         $ids = bulkReviews(1);

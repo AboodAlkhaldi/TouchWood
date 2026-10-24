@@ -66,13 +66,23 @@ final readonly class StaffChange
             throw new Unauthorized($permission);
         }
 
+        $this->refuseOffStore($permission, $store);
+
+        return [$store, strtolower($actor->id)];
+    }
+
+    /**
+     * An off store's rows are changed only by those who may switch stores on and off (a Super Admin).
+     *
+     * @throws Unauthorized
+     */
+    public function refuseOffStore(string $permission, StoreId $store): void
+    {
         $found = $this->platform->store($store);
 
         if ($found !== null && ! $found->isActive && $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) === []) {
             throw new Unauthorized($permission);
         }
-
-        return [$store, strtolower($actor->id)];
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Modules\Feedback\Infrastructure\Eloquent;
 
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use LogicException;
 use Modules\Feedback\Domain\Model\RejectReason;
 use Modules\Feedback\Domain\Repository\RejectReasons;
 use stdClass;
@@ -29,7 +30,22 @@ final readonly class DatabaseRejectReasons implements RejectReasons
 
     public function lock(): void
     {
-        $this->db->select("SELECT pg_advisory_xact_lock(hashtext('feedback.reject_reasons'))");
+        if ($this->db->transactionLevel() === 0) {
+            throw new LogicException("The ready reasons' lock is taken inside the change's transaction.");
+        }
+
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['feedback:reject-reasons'], false);
+    }
+
+    public function find(string $id): ?RejectReason
+    {
+        foreach ($this->all() as $reason) {
+            if ($reason->id === $id) {
+                return $reason;
+            }
+        }
+
+        return null;
     }
 
     public function add(string $id, string $textAr, string $textEn, DateTimeImmutable $at): int

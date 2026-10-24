@@ -19,6 +19,8 @@ interface RejectReasons
     /** The list's lock, inside the change's transaction. */
     public function lock(): void;
 
+    public function find(string $id): ?RejectReason;
+
     /** Added last. */
     public function add(string $id, string $textAr, string $textEn, DateTimeImmutable $at): int;
 

@@ -10,7 +10,6 @@ use Modules\Feedback\Application\Reason\ReasonInputs;
 use Modules\Feedback\Application\Reason\ReasonsChange;
 use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Domain\Exception\RejectReasonNotFound;
-use Modules\Feedback\Domain\Model\RejectReason;
 use Modules\Feedback\Domain\Repository\RejectReasons;
 use Shared\Application\Unauthorized;
 
@@ -34,7 +33,7 @@ final readonly class ChangeRejectReasonHandler
         [$textAr, $textEn] = ReasonInputs::words($command->textAr, $command->textEn);
 
         $this->change->run(function () use ($id, $textAr, $textEn): array {
-            $reason = self::find($this->reasons->all(), $id);
+            $reason = $this->reasons->find($id) ?? throw new RejectReasonNotFound;
 
             if ($reason->textAr === $textAr && $reason->textEn === $textEn) {
                 return [null, []];
@@ -44,21 +43,5 @@ final readonly class ChangeRejectReasonHandler
 
             return [null, [FeedbackAudit::entry('reject_reason', 'changed', $id, null, ['text_ar' => $reason->textAr, 'text_en' => $reason->textEn], ['text_ar' => $textAr, 'text_en' => $textEn])]];
         });
-    }
-
-    /**
-     * @param  list<RejectReason>  $reasons
-     *
-     * @throws RejectReasonNotFound
-     */
-    public static function find(array $reasons, string $id): RejectReason
-    {
-        foreach ($reasons as $reason) {
-            if ($reason->id === $id) {
-                return $reason;
-            }
-        }
-
-        throw new RejectReasonNotFound;
     }
 }

@@ -238,17 +238,24 @@ The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), a
 - **B2 — decisions on many** (FB-b): `BulkDecideReviews(storeId, action, reviewIds, ?reason)` — `approve`,
   `reject`, `unpublish` — and `BulkDecideQuestions(storeId, action, questionIds, ?reason)` — `reject`,
   `unpublish` (a question is answered one by one) — 1 to 50 ids of **one store** (the queue's page), each
-  once, one optional reason for all (none when approving). Asked under the job in that store; **each id
+  once, one optional reason for all (a reason sent with approving is refused, `InvalidFeedbackAttribute`
+  'reason'). **Asked first**, before what was sent is read: the job in that store, a staff member, and — the
+  store switched off — only someone who switches stores (a Super Admin); then **each id
   goes through the one-item command** — its own lock, transaction and audit entry — and the answer
   (`BulkDecision`) names those `done`, those `alreadyDecided` (another state reached meanwhile:
   `InvalidModeration`, never a failure of the rest) and those `notFound` (unknown, or of another store).
+  Approving many keeps each text's language as worked out (the language box is the one-by-one approve's).
+  A refusal mid-way (the store switched off, the job taken away between two items) leaves the items
+  already decided as they are — each committed on its own — and refuses the rest. Never called inside an
+  outer transaction (each item would then hold its lock to the end).
 - **B4 — the ready reasons** (FB-b; owner, 2026-10-24: one list, admins): `feedback.reject_reasons` — one
   list for every store, the same for reviews and questions, each reason in Arabic and English (1 to 500
   each) at a place from 1. `AddRejectReason` (last), `ChangeRejectReason` (the same words record nothing),
   `RemoveRejectReason` (those after move up; a decision made with it keeps its words),
   `OrderRejectReasons` (every reason once — the screen's drag and Move to Top / Bottom). **Changed only
   under `feedback.settings.update` in All stores** (a list for every store, as Catalog's shared lists —
-  my reading of the owner's answer), the list's lock first, each change audited with no store.
+  my reading of the owner's answer; an admin of every store named one by one is refused, as stores opened
+  later would not be covered — the page is theirs to read, not to change), the list's lock first, each change audited with no store.
   `ListRejectReasons` — read by anyone who moderates reviews, answers questions or edits the list, in some
   store. The dialogs offer one, or the staff member's own words, or none (§1.1).
 
