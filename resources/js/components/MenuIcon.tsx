@@ -7,9 +7,12 @@ import {
     Contact,
     FileText,
     Gift,
+    Heart,
     Image,
     UserRound,
     LayoutDashboard,
+    ListChecks,
+    MessageCircleQuestion,
     Megaphone,
     Receipt,
     RefreshCw,
@@ -18,6 +21,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     SlidersHorizontal,
+    Star,
     Store,
     Tags,
     TicketPercent,
@@ -71,6 +75,11 @@ const ICONS = {
     coupons: TicketPercent,
     segments: Users,
     gifts: Gift,
+    // Feedback's screens (feedback.md §4.1).
+    reviews: Star,
+    questions: MessageCircleQuestion,
+    favourites: Heart,
+    reasons: ListChecks,
 } as const;
 
 type Props = {

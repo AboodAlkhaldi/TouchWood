@@ -6,7 +6,9 @@ namespace Modules\Feedback\Infrastructure;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
@@ -30,10 +32,13 @@ use Modules\Feedback\Infrastructure\Listener\ClearAnonymizedWishlist;
 use Modules\Feedback\Infrastructure\Listener\FlipReturnedReviews;
 use Modules\Feedback\Infrastructure\Listener\TellCatalogOfRatingsSwitch;
 use Modules\Feedback\Presentation\Console\RepushRatingsCommand;
+use Modules\Feedback\Presentation\Http\Resource\WishlistCustomerSection;
 use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\SettingChanged;
 use Modules\Sales\Public\Events\ReturnCompleted;
 
@@ -80,6 +85,29 @@ final class FeedbackServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([RepushRatingsCommand::class]);
+        }
+
+        /*
+        | The screens (§4.1). Support: the review and question queues for the store's moderators and
+        | answerers; Customers: Favourited Products for wishlist readers. What is offered is never what is
+        | allowed: every handler behind these asks again (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('feedback', 'reviews', 'support', 'feedback.admin.reviews', FeedbackPermissions::REVIEW_MODERATE, 10, icon: 'reviews'),
+            new MenuEntryDto('feedback', 'questions', 'support', 'feedback.admin.questions', FeedbackPermissions::QUESTION_ANSWER, 20, icon: 'questions'),
+            new MenuEntryDto('feedback', 'favourites', 'customers', 'feedback.admin.favourites', FeedbackPermissions::WISHLIST_VIEW, 30, icon: 'favourites'),
+            // The ready reasons, one list for every store: read by moderators, edited with the settings job everywhere (§4.2 B4).
+            new MenuEntryDto('feedback', 'reasons', 'support', 'feedback.admin.reasons', [FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::QUESTION_ANSWER, FeedbackPermissions::SETTINGS_UPDATE], 40, icon: 'reasons'),
+        );
+
+        // A customer's wishlist on the staff customer page, a block per store the reader covers (§4.1 F4).
+        $this->app->make(CustomerPageSections::class)->register(
+            new CustomerPageSectionDto('feedback', 'wishlist', WishlistCustomerSection::class, ['feedback::admin_support']),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }
     }
 }

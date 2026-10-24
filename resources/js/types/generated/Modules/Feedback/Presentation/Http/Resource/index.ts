@@ -1,3 +1,53 @@
+export type FavouriteItemData = {
+product: ProductCardData,
+savedBy: number,
+};
+export type ProductCardData = {
+id: string,
+name: string,
+href: string | null,
+photo: string | null,
+sold: boolean,
+archived: boolean,
+removed: boolean,
+};
+export type QuestionItemData = {
+id: string,
+product: ProductCardData,
+author: ShopAuthorData,
+body: string,
+locale: string,
+status: string,
+answer: string | null,
+answeredBy: string | null,
+answeredAt: string | null,
+reason: string | null,
+askedAt: string,
+};
+export type ReasonData = {
+id: string,
+textAr: string,
+textEn: string,
+};
+export type ReasonsPage = {
+reasons: ReasonData[],
+mayEdit: boolean,
+};
+export type ReviewItemData = {
+id: string,
+product: ProductCardData,
+variant: ShopVariantValueData[],
+author: ShopAuthorData,
+rating: number,
+body: string,
+locale: string,
+status: string,
+mark: string,
+reason: string | null,
+writtenAt: string,
+decidedBy: string | null,
+decidedAt: string | null,
+};
 export type ShopAuthorData = {
 firstName: string,
 lastInitial: string,
@@ -46,4 +96,35 @@ value: string,
 };
 export type ShopWishlistData = {
 saved: boolean,
+};
+export type StoreOptionData = {
+code: string,
+name: string,
+isActive: boolean,
+};
+export type SupportListPage = {
+reviews: ReviewItemData[],
+questions: QuestionItemData[],
+favourites: FavouriteItemData[],
+status: string | null,
+next: string | null,
+mayAct: boolean,
+storeCode: string,
+storeName: string,
+storeIsActive: boolean,
+storeTimezone: string,
+stores: StoreOptionData[],
+reasons: ReasonData[],
+};
+export type WishlistItemData = {
+product: ProductCardData,
+savedAt: string,
+};
+export type WishlistSectionData = {
+stores: WishlistStoreData[],
+};
+export type WishlistStoreData = {
+name: string,
+isOpen: boolean,
+items: WishlistItemData[],
 };

@@ -141,6 +141,15 @@ final class CatalogProducts
         return ['product' => $id, 'variants' => $variants, 'width' => $width];
     }
 
+    /**
+     * Numbers the names from here on: a browser test keeps the rows of the runs before it, so it starts
+     * from the clock and every category, attribute and product it makes is new.
+     */
+    public static function numberFrom(int $start): void
+    {
+        self::$next = $start;
+    }
+
     private static function next(): int
     {
         return ++self::$next;
