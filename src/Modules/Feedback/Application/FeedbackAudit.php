@@ -17,8 +17,9 @@ final class FeedbackAudit
     /**
      * @param  array<string, string|null>  $from
      * @param  array<string, string|null>  $to
+     * @param  string|null  $storeId  null for what belongs to no store (the ready reasons)
      */
-    public static function entry(string $subject, string $action, string $id, string $storeId, array $from, array $to): AuditEntryDto
+    public static function entry(string $subject, string $action, string $id, ?string $storeId, array $from, array $to): AuditEntryDto
     {
         $changes = AuditChanges::none();
 

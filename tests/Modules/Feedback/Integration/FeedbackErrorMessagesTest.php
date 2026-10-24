@@ -11,6 +11,7 @@ use Modules\Feedback\Domain\Exception\InvalidFeedbackAttribute;
 use Modules\Feedback\Domain\Exception\InvalidModeration;
 use Modules\Feedback\Domain\Exception\NotAVerifiedPurchase;
 use Modules\Feedback\Domain\Exception\QuestionNotFound;
+use Modules\Feedback\Domain\Exception\RejectReasonNotFound;
 use Modules\Feedback\Domain\Exception\ReviewNotFound;
 use Modules\Feedback\Domain\Exception\TooManyWaitingQuestions;
 use Modules\Feedback\Domain\Exception\WishlistFull;
@@ -35,6 +36,7 @@ function feedbackErrors(): array
         'invalid moderation' => [new InvalidModeration, 'feedback.invalid_moderation', ErrorCategory::Conflict],
         'review not found' => [new ReviewNotFound, 'feedback.review_not_found', ErrorCategory::NotFound],
         'question not found' => [new QuestionNotFound, 'feedback.question_not_found', ErrorCategory::NotFound],
+        'ready reason not found' => [new RejectReasonNotFound, 'feedback.reject_reason_not_found', ErrorCategory::NotFound],
         'invalid attribute' => [new InvalidFeedbackAttribute('rating', 'above 5'), 'feedback.invalid_feedback_attribute', ErrorCategory::Invalid],
     ];
 }
@@ -64,7 +66,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(feedbackErrors()));
     sort($listed);
 
-    expect(feedbackErrorClassesInFolder())->toHaveCount(8)
+    expect(feedbackErrorClassesInFolder())->toHaveCount(9)
         ->and(feedbackErrorClassesInFolder())->toBe($listed);
 });
 

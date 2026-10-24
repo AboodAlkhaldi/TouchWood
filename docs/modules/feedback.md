@@ -235,6 +235,29 @@ The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), a
   page's count unchanged, 11), the bars counted live from the approved reviews (no per-star counters yet:
   each product's reviews are few; `rating` is not in `reviews_by_product`, to add if volumes grow).
   Catalog's part: amendment 31 (`ShopProductVisitDto::$filters`).
+- **B2 — decisions on many** (FB-b): `BulkDecideReviews(storeId, action, reviewIds, ?reason)` — `approve`,
+  `reject`, `unpublish` — and `BulkDecideQuestions(storeId, action, questionIds, ?reason)` — `reject`,
+  `unpublish` (a question is answered one by one) — 1 to 50 ids of **one store** (the queue's page), each
+  once, one optional reason for all (a reason sent with approving is refused, `InvalidFeedbackAttribute`
+  'reason'). **Asked first**, before what was sent is read: the job in that store, a staff member, and — the
+  store switched off — only someone who switches stores (a Super Admin); then **each id
+  goes through the one-item command** — its own lock, transaction and audit entry — and the answer
+  (`BulkDecision`) names those `done`, those `alreadyDecided` (another state reached meanwhile:
+  `InvalidModeration`, never a failure of the rest) and those `notFound` (unknown, or of another store).
+  Approving many keeps each text's language as worked out (the language box is the one-by-one approve's).
+  A refusal mid-way (the store switched off, the job taken away between two items) leaves the items
+  already decided as they are — each committed on its own — and refuses the rest. Never called inside an
+  outer transaction (each item would then hold its lock to the end).
+- **B4 — the ready reasons** (FB-b; owner, 2026-10-24: one list, admins): `feedback.reject_reasons` — one
+  list for every store, the same for reviews and questions, each reason in Arabic and English (1 to 500
+  each) at a place from 1. `AddRejectReason` (last), `ChangeRejectReason` (the same words record nothing),
+  `RemoveRejectReason` (those after move up; a decision made with it keeps its words),
+  `OrderRejectReasons` (every reason once — the screen's drag and Move to Top / Bottom). **Changed only
+  under `feedback.settings.update` in All stores** (a list for every store, as Catalog's shared lists —
+  my reading of the owner's answer; an admin of every store named one by one is refused, as stores opened
+  later would not be covered — the page is theirs to read, not to change), the list's lock first, each change audited with no store.
+  `ListRejectReasons` — read by anyone who moderates reviews, answers questions or edits the list, in some
+  store. The dialogs offer one, or the staff member's own words, or none (§1.1).
 
 ---
 
@@ -492,6 +515,7 @@ every kind column has a CHECK `IN (…)` (lessons 35, 162).
 | `feedback.reviews` | `id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT (the variant bought), `customer_id` → `access.customers` RESTRICT, `store_id` → `platform.stores` RESTRICT (written in), `rating`, `body`, `locale`, `status`, `mark`, `reason` NULL, `moderated_by` NULL → `access.staff_users` RESTRICT, `moderated_at` NULL, `created_at` | UNIQUE (`customer_id`, `product_id`) — one review per product, for ever (a rejected one keeps its row); CHECK `rating BETWEEN 1 AND 5`; CHECK `char_length(body) BETWEEN 1 AND 2000`; CHECK `locale IN ('ar', 'en')`; CHECK `status IN ('PENDING', 'APPROVED', 'REJECTED', 'UNPUBLISHED')`, `mark IN ('VERIFIED_PURCHASE', 'RETURNED')`; CHECK `(moderated_by IS NULL) = (moderated_at IS NULL)` and `(status = 'PENDING') = (moderated_at IS NULL)`; CHECK `reason IS NULL OR (status IN ('REJECTED', 'UNPUBLISHED') AND char_length(reason) BETWEEN 1 AND 500)`. The variant belongs to the product: a code rule, tested (§1.1) |
 | `feedback.product_ratings` | `product_id` PK → `catalog.products` RESTRICT, `rating_sum`, `rating_count`, `updated_at` | CHECK `rating_count >= 0 AND rating_sum BETWEEN rating_count AND 5 * rating_count`; kept in the same transaction as each approval or unpublishing |
 | `feedback.questions` | `id`, `product_id` → `catalog.products` RESTRICT, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` RESTRICT, `body`, `locale`, `status`, `answer` NULL, `answered_by` NULL → `access.staff_users` RESTRICT, `answered_at` NULL, `reason` NULL, `created_at`, `updated_at` | CHECK `char_length(body) BETWEEN 1 AND 1000`, `locale IN ('ar', 'en')`, `status IN ('PENDING', 'ANSWERED', 'REJECTED', 'UNPUBLISHED')`; CHECK `num_nonnulls(answer, answered_by, answered_at) IN (0, 3)` and `(status IN ('ANSWERED', 'UNPUBLISHED')) = (answer IS NOT NULL)`; CHECK `answer IS NULL OR char_length(answer) BETWEEN 1 AND 2000`; CHECK `reason IS NULL OR (status IN ('REJECTED', 'UNPUBLISHED') AND char_length(reason) BETWEEN 1 AND 500)` |
+| `feedback.reject_reasons` | `id`, `text_ar`, `text_en` (each 1–500, CHECK not blank), `position` (CHECK ≥ 1, renumbered on each change), `created_at`, `updated_at` | The ready reasons, one list for every store (§2.4 B4) |
 | `feedback.wishlist_items` | `customer_id` → `access.customers` RESTRICT, `product_id` → `catalog.products` CASCADE, `store_id` → `platform.stores` RESTRICT, `saved_at` | PK (`customer_id`, `product_id`, `store_id`). A product Catalog deletes leaves the lists (nothing to keep) |
 
 **Indexes:** reviews by (`product_id`, `status`, `created_at` DESC, `id` DESC) — a product's page; by
