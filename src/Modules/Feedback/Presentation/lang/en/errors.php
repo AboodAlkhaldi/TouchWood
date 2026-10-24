@@ -33,6 +33,10 @@ return [
         'title' => 'Question Not Found',
         'detail' => 'No such question was found in this store.',
     ],
+    'reject_reason_not_found' => [
+        'title' => 'Reason Not Found',
+        'detail' => 'No such ready reason was found.',
+    ],
     'invalid_feedback_attribute' => [
         'title' => 'Check the Details',
         'detail' => 'The :attribute isn\'t valid. Check it and try again.',
@@ -49,5 +53,10 @@ return [
         'locale' => 'language',
         'status' => 'status',
         'after' => 'place in the list',
+        'text_ar' => 'Arabic text',
+        'text_en' => 'English text',
+        'reasons' => 'ready reasons',
+        'ids' => 'chosen items',
+        'action' => 'action',
     ],
 ];

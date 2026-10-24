@@ -81,7 +81,13 @@ Backend only in this stage's build; the screens are another session's.
   took back, under the same lock, its review flipped to "Returned". **`Infrastructure/Eloquent/
   FeedbackCatalogUsage`**: Catalog refuses to delete a product or variant a review names, or a product a question is about.
 
+- **For the screens** (feedback.md §2.4): `Command/BulkDecideReviews`, `Command/BulkDecideQuestions` (B2 — each id
+  through the one-item command, `Moderation/BulkDecision` naming done, already decided, not found); the ready
+  reasons (B4) — `Command/{Add,Change,Remove}RejectReason`, `Command/OrderRejectReasons` through
+  `Reason/ReasonsChange` (`feedback.settings.update` in All stores, the list's lock), `Query/ListRejectReasons`,
+  `Domain/Repository/RejectReasons` with SQL in `Infrastructure/Eloquent/DatabaseRejectReasons`.
+
 Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `FeedbackSchemaTest`,
-`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
+`FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `BulkDecisionsTest`, `RejectReasonsTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
 `tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.
