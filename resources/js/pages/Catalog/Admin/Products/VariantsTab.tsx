@@ -14,8 +14,9 @@ import type { AttributeChoiceData, ProductPage, VariantData } from '@/types/gene
 import { MoreButton, MoreButtonOff, nameIn, useLocale } from '../parts';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
 import { ProductShell } from './shell';
-import { AttributesPanel } from './variant-attributes';
 
+// Its own chunk, as the dialogs below: the page stays within its JavaScript budget (frontend.md §5).
+const AttributesPanel = lazy(() => import('./variant-attributes').then((module) => ({ default: module.AttributesPanel })));
 const VariantDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.VariantDialog })));
 const CodeDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.CodeDialog })));
 const VariantPhotosDialog = lazy(() => import('./variant-dialogs').then((module) => ({ default: module.VariantPhotosDialog })));
@@ -74,7 +75,9 @@ export function VariantsTab({ page }: { page: ProductPage }) {
     return (
         <Card className="material-base border-0">
             <CardContent className="grid gap-4 pt-5">
-                <AttributesPanel page={page} reason={reason} />
+                <Suspense fallback={null}>
+                    <AttributesPanel page={page} reason={reason} />
+                </Suspense>
                 <Separator />
                 <div className="flex flex-wrap items-center justify-end gap-3">
                     <ActionButton
