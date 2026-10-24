@@ -34,7 +34,8 @@ use Shared\Domain\Error\DomainError;
 final readonly class ReasonsController
 {
     /** @var list<string> */
-    private const array WORDS = ['feedback::admin_reasons', 'feedback::errors', 'admin'];
+    // catalog::admin: the shared sortable list's words - its drag handle, what it announces, Move to Top / Bottom.
+    private const array WORDS = ['feedback::admin_reasons', 'feedback::errors', 'admin', 'catalog::admin'];
 
     /** The dialog's own boxes, where a refusal naming one is said. */
     private const array FIELDS = ['text_ar', 'text_en'];

@@ -53,6 +53,8 @@ return [
         'decided' => 'قرّر ذلك :name',
         'answered_by' => 'أجاب :name',
         'reason' => 'السبب: :reason',
+        'show_all' => 'عرض الكل',
+        'show_less' => 'عرض أقل',
     ],
     'actions' => [
         'approve' => 'موافقة',
@@ -76,7 +78,9 @@ return [
     ],
     'bulk' => [
         'select' => 'تحديد :name',
-        'select_all' => 'تحديد الكل في هذه الصفحة',
+        'select_all' => 'تحديد الكل',
+        'select_first' => 'تحديد أول :count',
+        'most' => 'حتى :count في المرة الواحدة',
         'selected' => 'المحدد: :count',
         'approve' => 'الموافقة على المحدد',
         'reject' => 'رفض المحدد',

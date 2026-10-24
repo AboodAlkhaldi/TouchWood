@@ -53,6 +53,8 @@ return [
         'decided' => 'Decided by :name',
         'answered_by' => 'Answered by :name',
         'reason' => 'Reason: :reason',
+        'show_all' => 'Show All',
+        'show_less' => 'Show Less',
     ],
     'actions' => [
         'approve' => 'Approve',
@@ -76,7 +78,9 @@ return [
     ],
     'bulk' => [
         'select' => 'Select :name',
-        'select_all' => 'Select all on this page',
+        'select_all' => 'Select all',
+        'select_first' => 'Select the first :count',
+        'most' => 'up to :count at a time',
         'selected' => 'Selected: :count',
         'approve' => 'Approve Selected',
         'reject' => 'Reject Selected',

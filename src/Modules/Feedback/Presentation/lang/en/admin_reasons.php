@@ -18,7 +18,6 @@ return [
     'text_ar' => 'In Arabic',
     'text_en' => 'In English',
     'save' => 'Save Reason',
-    'drag' => 'Drag to reorder',
     'toast' => [
         'added' => 'Reason added.',
         'saved' => 'Reason saved.',

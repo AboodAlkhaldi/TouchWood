@@ -6,7 +6,7 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { BulkBar, SelectBox, useSelection } from '@/components/feedback/bulk';
-import { Author, DecisionDialog, ProductCell } from '@/components/feedback/parts';
+import { Author, DecisionDialog, ProductCell, useAuthorName } from '@/components/feedback/parts';
 import { useLocale } from '@/components/promotions/parts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,7 +34,10 @@ export default function Questions(page: SupportListPage) {
     const list = useLoadMore(page.questions, (row) => row.id);
     const status = page.status ?? 'PENDING';
     const locale = useLocale();
-    const selection = useSelection();
+    const selection = useSelection(
+        list.rows.map((row) => row.id),
+        status,
+    );
     // Many at once (owner's Q4): reject the waiting, unpublish the answered.
     const bulk = !page.mayAct ? [] : status === 'PENDING' ? (['reject'] as const) : status === 'ANSWERED' ? (['unpublish'] as const) : [];
 
@@ -56,7 +59,7 @@ export default function Questions(page: SupportListPage) {
                 </div>
 
                 {bulk.length > 0 && list.rows.length > 0 ? (
-                    <BulkBar all={list.rows.map((row) => row.id)} selection={selection} locale={locale} url="/admin/questions/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
+                    <BulkBar shown={list.rows.length} selection={selection} locale={locale} url="/admin/questions/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
                 ) : null}
 
                 {list.rows.length === 0 ? (
@@ -69,7 +72,7 @@ export default function Questions(page: SupportListPage) {
                     <ul className="grid gap-3" data-test="questions">
                         {list.rows.map((question) => (
                             <li key={question.id}>
-                                <QuestionCard question={question} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(question.id)} onSelect={() => selection.toggle(question.id)} />
+                                <QuestionCard question={question} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(question.id)} full={selection.full} onSelect={() => selection.toggle(question.id)} />
                             </li>
                         ))}
                     </ul>
@@ -88,6 +91,7 @@ function QuestionCard({
     reasons,
     selectable,
     selected,
+    full,
     onSelect,
 }: {
     question: QuestionItemData;
@@ -96,9 +100,11 @@ function QuestionCard({
     reasons: ReasonData[];
     selectable: boolean;
     selected: boolean;
+    full: boolean;
     onSelect: () => void;
 }) {
     const t = useTranslator();
+    const authorName = useAuthorName();
     const [dialog, setDialog] = useState<Dialog | null>(null);
     const answering = dialog === 'answer' || dialog === 'correct';
 
@@ -106,7 +112,7 @@ function QuestionCard({
         <Card className="material-base border-0 py-4" data-test={`question-${question.id}`}>
             <CardContent className="grid gap-3 px-5">
                 <div className="flex items-start gap-3">
-                    {selectable ? <SelectBox checked={selected} onChange={onSelect} name={question.product.name} test={`select-${question.id}`} /> : null}
+                    {selectable ? <SelectBox checked={selected} full={full} onChange={onSelect} name={`${question.product.name}, ${authorName(question.author)}`} test={`select-${question.id}`} /> : null}
                     <ProductCell product={question.product} />
                 </div>
                 <p dir="auto" className="text-label-14 whitespace-pre-line text-ink">
@@ -168,6 +174,7 @@ function QuestionCard({
                     destructive={!answering}
                     reasons={reasons}
                     language={question.locale}
+                    quote={answering ? question.body : undefined}
                 />
             )}
         </Card>

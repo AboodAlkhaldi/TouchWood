@@ -7,7 +7,7 @@ import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
 import { BulkBar, SelectBox, useSelection } from '@/components/feedback/bulk';
-import { Author, DecisionDialog, LanguageBox, ProductCell, Stars } from '@/components/feedback/parts';
+import { Author, ClippedText, DecisionDialog, LanguageBox, ProductCell, Stars, useAuthorName } from '@/components/feedback/parts';
 import { useLocale } from '@/components/promotions/parts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,10 @@ export default function Reviews(page: SupportListPage) {
     const list = useLoadMore(page.reviews, (row) => row.id);
     const status = page.status ?? 'PENDING';
     const locale = useLocale();
-    const selection = useSelection();
+    const selection = useSelection(
+        list.rows.map((row) => row.id),
+        status,
+    );
     // Many at once (owner's Q4): approve or reject the waiting, unpublish the published.
     const bulk = !page.mayAct ? [] : status === 'PENDING' ? (['approve', 'reject'] as const) : status === 'APPROVED' ? (['unpublish'] as const) : [];
 
@@ -57,7 +60,7 @@ export default function Reviews(page: SupportListPage) {
                 </div>
 
                 {bulk.length > 0 && list.rows.length > 0 ? (
-                    <BulkBar all={list.rows.map((row) => row.id)} selection={selection} locale={locale} url="/admin/reviews/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
+                    <BulkBar shown={list.rows.length} selection={selection} locale={locale} url="/admin/reviews/bulk" store={page.storeCode} actions={[...bulk]} reasons={page.reasons} />
                 ) : null}
 
                 {list.rows.length === 0 ? (
@@ -70,7 +73,7 @@ export default function Reviews(page: SupportListPage) {
                     <ul className="grid gap-3" data-test="reviews">
                         {list.rows.map((review) => (
                             <li key={review.id}>
-                                <ReviewCard review={review} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(review.id)} onSelect={() => selection.toggle(review.id)} />
+                                <ReviewCard review={review} mayAct={page.mayAct} storeName={page.storeName} reasons={page.reasons} selectable={bulk.length > 0} selected={selection.has(review.id)} full={selection.full} onSelect={() => selection.toggle(review.id)} />
                             </li>
                         ))}
                     </ul>
@@ -89,6 +92,7 @@ function ReviewCard({
     reasons,
     selectable,
     selected,
+    full,
     onSelect,
 }: {
     review: ReviewItemData;
@@ -97,9 +101,11 @@ function ReviewCard({
     reasons: ReasonData[];
     selectable: boolean;
     selected: boolean;
+    full: boolean;
     onSelect: () => void;
 }) {
     const t = useTranslator();
+    const authorName = useAuthorName();
     const [busy, setBusy] = useState(false);
     const [dialog, setDialog] = useState<'reject' | 'unpublish' | null>(null);
     // The review's language, worked out from its text; the moderator may switch it when approving (§4.2 B3).
@@ -111,7 +117,7 @@ function ReviewCard({
             <CardContent className="grid gap-3 px-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                        {selectable ? <SelectBox checked={selected} onChange={onSelect} name={review.product.name} test={`select-${review.id}`} /> : null}
+                        {selectable ? <SelectBox checked={selected} full={full} onChange={onSelect} name={`${review.product.name}, ${authorName(review.author)}`} test={`select-${review.id}`} /> : null}
                         <ProductCell product={review.product} />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -120,9 +126,7 @@ function ReviewCard({
                     </div>
                 </div>
                 {size === '' ? null : <p className="text-copy-13 text-ink-muted">{size}</p>}
-                <p dir="auto" className="text-copy-14 whitespace-pre-line text-ink">
-                    {review.body}
-                </p>
+                <ClippedText text={review.body} />
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-copy-13 text-ink-muted">
                     <span className="text-label-13 text-ink">
                         <Author author={review.author} />
@@ -170,7 +174,7 @@ function ReviewCard({
                     confirm={t(`${W}.dialog.${dialog}_review`)}
                     destructive
                     reasons={reasons}
-                    language={review.locale}
+                    language={language}
                 />
             )}
         </Card>

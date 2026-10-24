@@ -65,6 +65,10 @@ it('approves two ticked reviews at once', function () {
         ->click("[data-test=\"select-{$ids[0]}\"]")
         ->click("[data-test=\"select-{$ids[1]}\"]")
         ->assertSee('Selected: 2')
+        // Cancelling the reject dialog keeps the ticks.
+        ->click('[data-test="bulk-reject"]')
+        ->click('[data-test="modal-cancel"]')
+        ->assertSee('Selected: 2')
         ->click('[data-test="bulk-approve"]');
 
     expect(browserUntil($page, "document.body.innerText.includes('Done: 2.')"))->toBeTrue()
@@ -84,6 +88,12 @@ it('adds a ready reason from its dialog, and draws every Support page at a phone
 
     expect(browserUntil($page, "document.body.innerText.includes('Reason added.')"))->toBeTrue();
     $page->assertSee($reason);
+
+    // The ⋯ menu speaks the sortable list's words, not their keys.
+    $page->click('[data-test="reason-0"] [data-test="reason-actions"]')
+        ->assertSee('Move to Top')
+        ->assertDontSee('catalog::admin')
+        ->keys('[role="menu"]', ['Escape']);
 
     $page->resize(375, 812);
 

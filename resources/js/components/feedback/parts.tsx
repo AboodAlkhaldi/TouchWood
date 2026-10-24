@@ -64,6 +64,33 @@ export function Stars({ rating }: { rating: number }) {
 }
 
 /** An author's public name (§1.1): "Sara A.", or "Deleted customer". */
+/** The author as plain words: what a tick box beside their item is named by. */
+export function useAuthorName() {
+    const t = useTranslator();
+
+    return (author: ShopAuthorData) => (author.deleted ? t(`${W}.item.deleted_customer`) : t(`${W}.item.author`, { first: author.firstName, initial: author.lastInitial }));
+}
+
+/** A long text clipped to a few lines, with Show All (§4.1 F1); a short one whole. */
+export function ClippedText({ text, test }: { text: string; test?: string }) {
+    const t = useTranslator();
+    const [whole, setWhole] = useState(false);
+    const long = text.length > 300 || text.split('\n').length > 4;
+
+    return (
+        <div className="grid justify-items-start gap-1">
+            <p dir="auto" className={`text-copy-14 whitespace-pre-line text-ink ${long && !whole ? 'line-clamp-4' : ''}`} data-test={test}>
+                {text}
+            </p>
+            {long ? (
+                <Button type="button" variant="link" size="sm" className="h-auto p-0" aria-expanded={whole} onClick={() => setWhole(!whole)} data-test="show-all">
+                    {whole ? t(`${W}.item.show_less`) : t(`${W}.item.show_all`)}
+                </Button>
+            ) : null}
+        </div>
+    );
+}
+
 export function Author({ author }: { author: ShopAuthorData }) {
     const t = useTranslator();
 
@@ -107,6 +134,8 @@ export function DecisionDialog({
     reasons = [],
     language,
     extra = {},
+    quote,
+    onDone,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -121,6 +150,10 @@ export function DecisionDialog({
     /** The item's language: the ready reasons' language, and - answering - the language box's preset. */
     language?: string;
     extra?: Record<string, unknown>;
+    /** What is being answered, shown above the box (§4.1 F2). */
+    quote?: string;
+    /** Once the decision is made - never on Cancel. */
+    onDone?: () => void;
 }) {
     const t = useTranslator();
     const [text, setText] = useState(initial);
@@ -158,7 +191,10 @@ export function DecisionDialog({
                                 preserveScroll: true,
                                 onStart: () => setBusy(true),
                                 onFinish: () => setBusy(false),
-                                onSuccess: () => onOpenChange(false),
+                                onSuccess: () => {
+                                    onDone?.();
+                                    onOpenChange(false);
+                                },
                                 onError: (errors) => setRefusal(errors[field] ?? errors.form),
                             }),
                         )
@@ -169,6 +205,11 @@ export function DecisionDialog({
             }
         >
             <div className="grid gap-4">
+                {quote === undefined ? null : (
+                    <blockquote dir="auto" className="material-small border-s-2 border-line-strong bg-surface-sunken px-3 py-2 text-copy-14 whitespace-pre-line text-ink" data-test="decision-quote">
+                        {quote}
+                    </blockquote>
+                )}
                 {answer ? <LanguageBox id="answer-language" value={locale} onChange={setLocale} /> : null}
                 {!answer && reasons.length > 0 ? (
                     <div className="grid gap-2" data-test="ready-reasons">

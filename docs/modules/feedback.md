@@ -365,7 +365,7 @@ tooltip** — as Promotions' answer Q16.
 | 10 | Support | Reviews · التقييمات | `/admin/reviews` | `reviews` (Lucide `Star`, new) | `feedback.review.moderate` |
 | 20 | Support | Product Questions · أسئلة المنتجات | `/admin/questions` | `questions` (Lucide `MessageCircleQuestion`, new) | `feedback.question.answer` |
 | 30 | Customers | Favourited Products · المنتجات المفضلة | `/admin/favourites` | `favourites` (Lucide `Heart`, new) | `feedback.wishlist.view` |
-| 40 | Support | Rejection Reasons · أسباب الرفض | `/admin/rejection-reasons` | `reasons` (Lucide `ListChecks`, new) | `feedback.settings.update` |
+| 40 | Support | Rejection Reasons · أسباب الرفض | `/admin/rejection-reasons` | `reasons` (Lucide `ListChecks`, new) | `feedback.review.moderate`, `feedback.question.answer` or `feedback.settings.update` (edited with the settings job in All stores; read-only otherwise, F9) |
 
 **No waiting counts in the menu** (owner, Q8 (b): no query more on every page) — the Waiting tab is the default view.
 
