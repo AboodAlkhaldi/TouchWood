@@ -81,7 +81,14 @@ it('puts the list in a new order, auditing each reason that moved', function () 
     app(OrderRejectReasonsHandler::class)->handle(new OrderRejectReasons([$ids[2], $ids[0], $ids[1]]));
 
     expect(array_column(reasonsRead(), 0))->toBe(['Three', 'One', 'Two'])
-        ->and(Fx::audits('feedback.reject_reason.ordered'))->toBe(3)
+        ->and(Fx::audits('feedback.reject_reason.ordered'))->toBe(3);
+
+    // Two swapped, one left where it stands: only the two moved are audited.
+    app(OrderRejectReasonsHandler::class)->handle(new OrderRejectReasons([$ids[2], $ids[1], $ids[0]]));
+
+    expect(array_column(reasonsRead(), 0))->toBe(['Three', 'Two', 'One'])
+        ->and(Fx::audits('feedback.reject_reason.ordered'))->toBe(5)
+        ->and(Fx::audits('feedback.reject_reason.ordered', $ids[2]))->toBe(1)
         ->and(Fb::thrown(fn () => app(OrderRejectReasonsHandler::class)->handle(new OrderRejectReasons([$ids[0], $ids[1]])), InvalidFeedbackAttribute::class)->attribute)->toBe('reasons')
         ->and(Fb::thrown(fn () => app(OrderRejectReasonsHandler::class)->handle(new OrderRejectReasons([...$ids, $ids[0]])), InvalidFeedbackAttribute::class)->attribute)->toBe('reasons');
 });
