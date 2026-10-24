@@ -16,10 +16,12 @@ use Modules\Feedback\Application\Query\FeedbackQueries;
 use Modules\Feedback\Application\Shop\ShopFeedback;
 use Modules\Feedback\Application\Shop\ShopFeedbackQueries;
 use Modules\Feedback\Domain\Repository\Questions;
+use Modules\Feedback\Domain\Repository\RejectReasons;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Domain\Repository\Wishlist;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseFeedbackQueries;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseQuestions;
+use Modules\Feedback\Infrastructure\Eloquent\DatabaseRejectReasons;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseReviews;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseShopFeedbackQueries;
 use Modules\Feedback\Infrastructure\Eloquent\DatabaseWishlist;
@@ -46,6 +48,7 @@ final class FeedbackServiceProvider extends ServiceProvider
     {
         $this->app->bind(Reviews::class, DatabaseReviews::class);
         $this->app->bind(Questions::class, DatabaseQuestions::class);
+        $this->app->bind(RejectReasons::class, DatabaseRejectReasons::class);
         $this->app->bind(Wishlist::class, DatabaseWishlist::class);
         $this->app->bind(FeedbackQueries::class, DatabaseFeedbackQueries::class);
         $this->app->bind(ShopFeedbackQueries::class, DatabaseShopFeedbackQueries::class);
