@@ -59,12 +59,10 @@ beforeEach(function () {
 
 /**
  * An order delivered — two of the first size at 100.00, one of the second at 50.00, a 15% coupon, points,
- * a 25.00 shipping fee, the gift if asked — and staff who manage returns, acting.
+ * a 25.00 shipping fee (or `$fee`), the gift if asked — and staff who manage returns, acting.
  *
- * @return array{order: string, customer: string, address: string, product: string, variants: list<string>, lines: array<string, string>, staff: string}
- */
-/**
  * @param  array<string, mixed>  $coupon  the coupon's columns changed
+ * @return array{order: string, customer: string, address: string, product: string, variants: list<string>, lines: array<string, string>, staff: string}
  */
 function completionOrder(bool $withGift = false, int $fee = 25_00, array $coupon = []): array
 {
