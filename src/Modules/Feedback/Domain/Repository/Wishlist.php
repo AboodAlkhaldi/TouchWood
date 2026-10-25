@@ -15,6 +15,14 @@ interface Wishlist
 
     public function holds(string $customerId, string $productId, StoreId $store): bool;
 
+    /**
+     * Which of these products the customer saved in the store (§2.4 B5), in one read.
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public function savedAmong(string $customerId, StoreId $store, array $productIds): array;
+
     public function save(string $customerId, string $productId, StoreId $store, DateTimeImmutable $at): void;
 
     /** Nothing when the item is not there. */

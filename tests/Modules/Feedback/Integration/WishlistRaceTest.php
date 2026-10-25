@@ -56,6 +56,11 @@ function wishlistRaceList(ConnectionInterface $db): Wishlist
             return $this->real->holds($customerId, $productId, $store);
         }
 
+        public function savedAmong(string $customerId, StoreId $store, array $productIds): array
+        {
+            return $this->real->savedAmong($customerId, $store, $productIds);
+        }
+
         public function save(string $customerId, string $productId, StoreId $store, DateTimeImmutable $at): void
         {
             $this->real->save($customerId, $productId, $store, $at);

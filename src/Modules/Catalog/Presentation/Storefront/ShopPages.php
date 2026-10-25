@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CategoryFilters;
@@ -58,6 +59,7 @@ final readonly class ShopPages
         private ShopPagesCache $cache,
         private PlatformApi $platform,
         private InMemoryShopProductSections $sections,
+        private InMemoryShopCardFacts $cardFacts,
         private ActorContext $actors,
     ) {}
 
@@ -86,6 +88,7 @@ final readonly class ShopPages
             $page->products->next,
             self::filters($page->filters ?? new CategoryFilters([], [], []), $filters, $page->ratingSort),
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
+            $this->facts($store, $page->products->cards),
         );
     }
 
@@ -110,6 +113,7 @@ final readonly class ShopPages
             self::cards($page->products->cards),
             $page->products->next,
             self::address('storefront.catalog.brand', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
+            $this->facts($store, $page->products->cards),
         );
     }
 
@@ -184,15 +188,18 @@ final readonly class ShopPages
         $around = $kept['category'] === null ? null : $this->visit->around($store, $locale, $kept['category']);
         $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
 
-        $actor = $this->actors->current();
-        $customerId = $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
+        $customerId = $this->customerId();
         $sections = $kept['page']['available'] === true ? $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters) : [];
+        // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
+        $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 
         return [
             ...$kept['page'],
             'path' => array_map(static fn (ShopLinkData $link): array => $link->toArray(), $path),
             'address' => $address->toArray(),
             'sections' => (object) $sections,
+            // The same shape as the lists' `cardFacts`: [] when empty.
+            'cardFacts' => $this->cardFacts->read($store, $customerId, array_map('strval', $related)),
         ];
     }
 
@@ -204,7 +211,7 @@ final readonly class ShopPages
         $found = $this->search->results($store, $locale, $this->visit->viewer(), $query, ShopSearch::RESULTS, $after);
 
         // A results page is its search's, not a page of the shop's own: kept out of search engines.
-        return new ShopSearchPage($query, $found->total, self::cards($found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true));
+        return new ShopSearchPage($query, $found->total, self::cards($found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true), $this->facts($store, $found->cards));
     }
 
     /**
@@ -278,6 +285,33 @@ final readonly class ShopPages
             $variant->widthMm,
             $variant->heightMm,
         );
+    }
+
+    /** The signed-in customer looking, if any. */
+    private function customerId(): ?string
+    {
+        $actor = $this->actors->current();
+
+        return $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
+    }
+
+    /**
+     * What the modules add to these cards for this viewer (amendment 32).
+     *
+     * @param  list<ProductCard>  $cards
+     * @return array<string, array<string, array<string, mixed>>>
+     */
+    private function facts(StoreId $store, array $cards): array
+    {
+        return $this->cardFacts->read($store, $this->customerId(), array_map(static fn (ProductCard $card): string => $card->productId, $cards));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function listOf(mixed $cards): array
+    {
+        return is_array($cards) ? array_values(array_filter($cards, 'is_array')) : [];
     }
 
     /**

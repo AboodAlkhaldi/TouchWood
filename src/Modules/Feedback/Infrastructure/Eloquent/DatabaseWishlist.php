@@ -27,6 +27,12 @@ final readonly class DatabaseWishlist implements Wishlist
         return $this->item($customerId, $productId, $store)->exists();
     }
 
+    public function savedAmong(string $customerId, StoreId $store, array $productIds): array
+    {
+        return array_values(array_map('strval', $this->db->table('feedback.wishlist_items')->where('customer_id', strtolower($customerId))->where('store_id', $store->value)
+            ->whereIn('product_id', array_map('strtolower', $productIds))->pluck('product_id')->all()));
+    }
+
     public function save(string $customerId, string $productId, StoreId $store, DateTimeImmutable $at): void
     {
         $this->db->table('feedback.wishlist_items')->insert([

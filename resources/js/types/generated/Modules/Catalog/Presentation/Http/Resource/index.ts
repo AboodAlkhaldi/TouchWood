@@ -364,6 +364,7 @@ description: Record<string, any>,
 products: ShopCardData[],
 next: string | null,
 address: ShopAddressData,
+cardFacts: Record<string, Record<string, Record<string, any>>>,
 };
 export type ShopCardData = {
 productId: string,
@@ -384,6 +385,7 @@ products: ShopCardData[],
 next: string | null,
 filters: ShopFiltersData,
 address: ShopAddressData,
+cardFacts: Record<string, Record<string, Record<string, any>>>,
 };
 export type ShopChoiceData = {
 id: string,
@@ -462,6 +464,7 @@ total: number,
 products: ShopCardData[],
 next: string | null,
 address: ShopAddressData,
+cardFacts: Record<string, Record<string, Record<string, any>>>,
 };
 export type ShopSellingData = {
 retailMinimum: number,

@@ -18,6 +18,7 @@ final class ShopBrandPage extends Data
      * @param  array<string, array<string, string>>|null  $logo  size slug => format => CDN URL
      * @param  array<string, mixed>  $description  the structured text; empty when it has none
      * @param  list<ShopCardData>  $products
+     * @param  array<string, array<string, array<string, mixed>>>  $cardFacts  product id => `{module}.{key}` => what that module adds to its card (amendment 32), read for this viewer, never kept
      */
     public function __construct(
         public string $name,
@@ -27,5 +28,6 @@ final class ShopBrandPage extends Data
         public array $products,
         public ?string $next,
         public ShopAddressData $address,
+        public array $cardFacts = [],
     ) {}
 }
