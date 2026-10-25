@@ -84,4 +84,19 @@ final readonly class DatabaseStaffReads implements StaffReads
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $this->db->table('sales.transfer_documents')
             ->where('order_id', $orderId)->orderBy('position')->get(['media_id', 'position', 'uploaded_at'])->all()));
     }
+
+    public function storesWithUnfinished(array $storeIds): array
+    {
+        if ($storeIds === []) {
+            return [];
+        }
+
+        // Unpaid, partly paid or refund due all hold other than is due (OrderStatuses::payment).
+        return array_values(array_map('strval', $this->db->table('sales.orders AS o')->whereIn('o.store_id', $storeIds)
+            ->where(fn ($unfinished) => $unfinished->whereIn('o.status', ['PENDING_APPROVAL', 'APPROVED'])
+                ->orWhereRaw('o.paid_minor - o.refunded_minor <> o.due_minor')
+                ->orWhereExists(fn ($open) => $open->from('sales.returns AS r')->whereColumn('r.order_id', 'o.id')
+                    ->whereIn('r.status', ['REQUESTED', 'ACCEPTED', 'RECEIVED'])))
+            ->distinct()->pluck('o.store_id')->all()));
+    }
 }

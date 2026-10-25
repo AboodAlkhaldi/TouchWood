@@ -18,7 +18,8 @@ final readonly class MoneyRow
         public string $way,
         public ?string $reference,
         public ?string $note,
-        public DateTimeImmutable $happenedOn,
+        /** The day it happened, Y-m-d: a date, not a moment. */
+        public string $happenedOn,
         public ?string $recordedBy,
         public DateTimeImmutable $recordedAt,
         public ?string $voidedBy,

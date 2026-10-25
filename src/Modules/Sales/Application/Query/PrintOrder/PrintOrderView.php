@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Query\PrintOrder;
 
 use DateTimeImmutable;
 use Modules\Sales\Application\Query\Own\OrderLineView;
+use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -36,7 +37,7 @@ final readonly class PrintOrderView
         public Money $vat,
         public int $vatRateBasisPoints,
         public Money $total,
-        public string $wayToPay,
+        public WayToPay $wayToPay,
         public int $exponent,
     ) {}
 }

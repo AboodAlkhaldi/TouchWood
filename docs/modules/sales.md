@@ -743,22 +743,36 @@ on them), **a customer by name only** — `CustomerName{customerId, name, delete
 anonymized — and **staff by the name the reader may see** (`StaffNames`). Every read is `sales.order.view`, in
 the order's store.
 
+- **The stores listed** (§1.12; `OrderStores`): the stores where the reader holds the job — **an off store only
+  while it holds an unfinished order** (§1.12's reading), every off store to a Super Admin (platform.md §9.10
+  #4). **`ListOrderStores()`** → `list<OrderStoreChoice{storeId, code, name, isActive}>`, the screens' store
+  filter, an off one marked by `isActive`. `ListOrders` and `ListReturns` list only these; an order or a return
+  opened by its id is shown to whoever covers its store, off or finished (a link from the history still
+  opens).
+
 - **`ListOrders(?storeId, filter, ?after)`** (handoff §14: All orders · Store orders · Unpaid orders): one store
-  (refused when not covered) or every store the reader covers; `filter` `ALL`, `UNPAID` (holding less than is
-  due) or `SHORT` (flagged short of stock); newest first, **50 a page**, `after` the last order id →
+  (refused when not covered or not listed) or every store listed; `filter` `ALL`, `UNPAID` (holding less than
+  is due — an order waiting for approval included, its total due) or `SHORT` (flagged short of stock); newest first, **50 a page**, `after` the last order id →
   `StaffOrdersPage{orders, next}`, each `StaffOrderRow{orderId, number, storeId, placedAt, customer, status,
   shipment, payment, customerStatus, total, exponent, shortOfStock, mayShipUnpaid}`.
 - **`ViewOrder(orderId)`** → `StaffOrderView`: the own view's facts (§3.1) plus the customer by name and **the
-  contact the order was placed with** (name, email, phone — to call them), the audience, may ship unpaid,
+  contact the order was placed with** (name and phone — to call them before shipping, §1.7; **the email only
+  to staff who may view the customer**, as Loyalty's names: access.md amendment 72(e) — my assumption, for the
+  owner), the audience, may ship unpaid,
   short of stock since, the decision (by, at, reason) and the cancellation (reason, words, by, at), came back
   at; `money` — `MoneyRow{recordId, kind PAYMENT/REFUND, amount, way, reference, note, happenedOn, recordedBy,
-  recordedAt, voidedBy, voidedAt, voidReason}`; `history` — `HistoryRow{kind, at, by, editId, detail}` (codes
+  recordedAt, voidedBy, voidedAt, voidReason}` (`happenedOn` a `Y-m-d` day, never a moment), payments and
+  refunds together in the order recorded; `history` — `HistoryRow{kind, at, by, editId, detail}` (codes
   and ids only); `edits` — `EditRow{editId, reason, by, at}`; `ticks` (size, by, at); `returns`; `transferDocuments`
   (media id, position, uploaded at — opened with `OpenOrderFile`). Another store's order: `OrderNotFound`.
+  **A deleted customer's order**: `customer` reads "Deleted customer" while the contact keeps the name and
+  phone placed with — the order a financial record (§1.12), its email cleared; the screen shows `customer`
+  and keeps the contact for the packing slip.
 - **`PrintOrder(orderId)`** → `PrintOrderView{storeId, number, placedAt, contactName, contactPhone, address,
   lines, grossSubtotal, netSubtotal, couponDiscount, pointsDiscount, goodsTotal, shipping, vat,
   vatRateBasisPoints, total, wayToPay, exponent}` — a packing slip's and an invoice's facts, the layout the
-  screen's.
+  screen's. Each line carries the variant's `code`, staff-only (catalog.md amendment 5(d)): an invoice handed
+  to the customer leaves it out.
 
 ## 4 · State machines
 

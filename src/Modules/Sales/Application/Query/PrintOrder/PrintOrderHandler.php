@@ -11,6 +11,7 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 
@@ -44,7 +45,7 @@ final readonly class PrintOrderHandler
             (string) $order['customer_name'], (string) $order['customer_phone'], $address, $lines,
             $money($order['gross_subtotal_minor']), $money($order['net_subtotal_minor']), $money($order['coupon_discount_minor']),
             $money($order['points_discount_minor']), $money($order['goods_total_minor']), $money($order['shipping_fee_minor']),
-            $money($order['vat_minor']), (int) $order['vat_rate_basis_points'], $money($order['order_total_minor']), (string) $order['way_to_pay'],
+            $money($order['vat_minor']), (int) $order['vat_rate_basis_points'], $money($order['order_total_minor']), WayToPay::from((string) $order['way_to_pay']),
             $this->reader->exponent($currency),
         );
     }

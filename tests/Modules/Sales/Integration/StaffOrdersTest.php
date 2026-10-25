@@ -8,14 +8,24 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Public\Events\CustomerAnonymized;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
 use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefund;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefundHandler;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
+use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
+use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrders;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
+use Modules\Sales\Application\Query\ListOrderStores\ListOrderStores;
+use Modules\Sales\Application\Query\ListOrderStores\ListOrderStoresHandler;
 use Modules\Sales\Application\Query\PrintOrder\PrintOrder;
 use Modules\Sales\Application\Query\PrintOrder\PrintOrderHandler;
 use Modules\Sales\Application\Query\Staff\HistoryRow;
@@ -24,8 +34,10 @@ use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
+use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
@@ -95,11 +107,19 @@ it('lists only the stores the reader covers, and refuses a store they do not', f
 it('filters the unpaid and the flagged short', function () {
     ['order' => $paid] = staffOrder();
     ['order' => $short] = staffOrder();
+    ['order' => $partly] = staffOrder();
+    ['order' => $refundDue] = staffOrder();
+    ['order' => $cancelled] = staffOrder();
     DB::table('sales.orders')->where('id', $paid)->update(['paid_minor' => DB::raw('due_minor')]);
     DB::table('sales.orders')->where('id', $short)->update(['short_of_stock_at' => CarbonImmutable::now()]);
+    DB::table('sales.orders')->where('id', $partly)->update(['paid_minor' => 1]);
+    DB::table('sales.orders')->where('id', $refundDue)->update(['paid_minor' => DB::raw('due_minor + 100')]);
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['sa']));
+    app(RejectOrderHandler::class)->handle(new RejectOrder($cancelled, 'Out of the delivery area'));
     staffReader();
 
-    expect(array_column(app(ListOrdersHandler::class)->handle(new ListOrders(filter: 'UNPAID'))->orders, 'orderId'))->toBe([$short])
+    // Waiting for approval, an order holds less than its total is due: listed as unpaid.
+    expect(array_column(app(ListOrdersHandler::class)->handle(new ListOrders(filter: 'UNPAID'))->orders, 'orderId'))->toEqualCanonicalizing([$short, $partly])
         ->and(array_column(app(ListOrdersHandler::class)->handle(new ListOrders(filter: 'SHORT'))->orders, 'orderId'))->toBe([$short])
         ->and(fn () => app(ListOrdersHandler::class)->handle(new ListOrders(filter: 'OLD')))->toThrow(InvalidSalesAttribute::class);
 });
@@ -132,7 +152,7 @@ it('shows staff an order: the customer by name and the contact, the money, the h
 
     expect([$view->number, $view->status, $view->payment, $view->customer->name, $view->contactName])->toBe([$number, 'APPROVED', PaymentStatus::PartlyPaid, 'Sara Ali', 'Sara Ali'])
         ->and($view->contactPhone)->not->toBe('')
-        ->and($view->decidedBy)->not->toBeNull()
+        ->and($view->decidedBy)->toBe('Staff Member')
         ->and(array_map(fn ($row): array => [$row->kind, $row->amount->minorUnits, $row->reference], $view->money))->toBe([['PAYMENT', 100_00, 'TX-1']])
         ->and(array_map(fn (HistoryRow $row): string => $row->kind, $view->history))->toBe(['PLACED', 'APPROVED', 'PAYMENT_RECORDED'])
         ->and($view->history[1]->by)->toBe($view->decidedBy)
@@ -149,7 +169,8 @@ it('shows a rejection with staff words, and prints an order', function () {
     $print = app(PrintOrderHandler::class)->handle(new PrintOrder($order));
 
     expect([$view->status, $view->customerStatus, $view->decisionReason])->toBe(['REJECTED', CustomerOrderStatus::Cancelled, 'Out of the delivery area'])
-        ->and([$print->number, $print->contactName, count($print->lines), $print->total->minorUnits])->toBe([$number, 'Sara Ali', 2, $view->total->minorUnits])
+        ->and([$print->number, $print->contactName, count($print->lines), $print->total->minorUnits, $print->wayToPay])->toBe([$number, 'Sara Ali', 2, $view->total->minorUnits, $view->wayToPay])
+        ->and($print->wayToPay)->toBeInstanceOf(WayToPay::class)
         ->and($print->vatRateBasisPoints)->toBeGreaterThanOrEqual(0);
 });
 
@@ -165,12 +186,104 @@ it('answers an order of a store the reader does not cover as none, and a custome
         ->and(fn () => app(ViewOrderHandler::class)->handle(new ViewOrder($order)))->toThrow(Unauthorized::class);
 });
 
-it('names an anonymized customer as deleted', function () {
+it('names an anonymized customer as deleted, the email gone from the order', function () {
     ['order' => $order, 'customer' => $customer] = staffOrder();
     DB::table('access.customers')->where('id', $customer)->update(['anonymized_at' => CarbonImmutable::now()]);
-    staffReader();
+    app(ForgetCustomer::class)->handle(new CustomerAnonymized((string) Str::uuid(), $customer, CarbonImmutable::now()));
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, AccessPermissions::CUSTOMER_VIEW], ['sa']));
 
     $view = app(ViewOrderHandler::class)->handle(new ViewOrder($order));
 
-    expect([$view->customer->name, $view->customer->deleted])->toBe([null, true]);
+    // The order keeps its snapshot of name and phone, a financial record (§1.12).
+    expect([$view->customer->name, $view->customer->deleted, $view->contactEmail, $view->contactName])->toBe([null, true, null, 'Sara Ali']);
+});
+
+it('shows the contact email only to staff who may view the customer', function () {
+    ['order' => $order] = staffOrder();
+    staffReader();
+    $hidden = app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail;
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, AccessPermissions::CUSTOMER_VIEW], ['sa']));
+
+    expect($hidden)->toBeNull()
+        ->and(app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail)->toBe(DB::table('sales.orders')->where('id', $order)->value('customer_email'))
+        ->and(app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail)->not->toBeNull();
+});
+
+it('lists the payments and refunds in the order recorded, a voided one with who voided it and why', function () {
+    ['order' => $order] = staffOrder();
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::PAYMENT_RECORD, SalesPermissions::ORDER_VIEW], ['sa']));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    $today = CarbonImmutable::now()->format('Y-m-d');
+    app(RecordPaymentHandler::class)->handle(new RecordPayment($order, '100.00', 'BANK_TRANSFER', 'TX-1', null, $today, (string) Str::uuid()));
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+    $twice = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, '50.00', 'BANK_TRANSFER', 'TX-2', null, $today, (string) Str::uuid()));
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+    app(RecordRefundHandler::class)->handle(new RecordRefund($order, '30.00', 'OTHER', null, 'Cash at the counter', $today, (string) Str::uuid()));
+    app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('PAYMENT', (string) $twice, 'Typed twice'));
+
+    $money = app(ViewOrderHandler::class)->handle(new ViewOrder($order))->money;
+
+    expect(array_map(fn ($row): array => [$row->kind, $row->amount->minorUnits, $row->way, $row->note, $row->happenedOn], $money))
+        ->toBe([['PAYMENT', 100_00, 'BANK_TRANSFER', null, $today], ['PAYMENT', 50_00, 'BANK_TRANSFER', null, $today], ['REFUND', 30_00, 'OTHER', 'Cash at the counter', $today]])
+        ->and([$money[0]->voidedBy, $money[1]->voidedBy, $money[1]->voidReason, $money[2]->voidedBy])->toBe([null, 'Staff Member', 'Typed twice', null])
+        ->and($money[1]->voidedAt)->not->toBeNull();
+});
+
+it('lists an off store to its own staff while it holds an unfinished order, and to a Super Admin always', function () {
+    ['order' => $order] = staffOrder('eg');
+    $egypt = Fx::storeId('eg');
+    $staff = Fx::staffWith([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_APPROVE], ['sa', 'eg']);
+    Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+    Fx::actAsStaff($staff);
+    $stores = fn (): array => array_column(app(ListOrderStoresHandler::class)->handle(new ListOrderStores), 'storeId');
+
+    $open = [$stores(), array_column(app(ListOrdersHandler::class)->handle(new ListOrders)->orders, 'orderId'), app(ListOrdersHandler::class)->handle(new ListOrders($egypt))->orders[0]->orderId];
+    // Finished: rejected with nothing paid, no return open.
+    app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Out of the delivery area'));
+
+    expect($open)->toBe([[Fx::storeId('sa'), $egypt], [$order], $order])
+        ->and($stores())->toBe([Fx::storeId('sa')])
+        ->and(app(ListOrdersHandler::class)->handle(new ListOrders)->orders)->toBe([])
+        ->and(fn () => app(ListOrdersHandler::class)->handle(new ListOrders($egypt)))->toThrow(Unauthorized::class);
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    expect($stores())->toContain($egypt)
+        ->and(array_column(app(ListOrdersHandler::class)->handle(new ListOrders($egypt))->orders, 'orderId'))->toBe([$order]);
+});
+
+it('reads a list and an order in the same number of queries however many rows', function () {
+    ['order' => $order, 'address' => $address, 'variants' => $variants, 'customer' => $customer] = staffOrder();
+    $staff = Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::PAYMENT_RECORD, SalesPermissions::ORDER_VIEW], ['sa']);
+    Fx::actAsStaff($staff);
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    $count = function (callable $read): int {
+        $read();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $read();
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+    $list = fn () => app(ListOrdersHandler::class)->handle(new ListOrders);
+    $view = fn () => app(ViewOrderHandler::class)->handle(new ViewOrder($order));
+    $pay = fn (string $amount) => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, $amount, 'BANK_TRANSFER', null, null, CarbonImmutable::now()->format('Y-m-d'), (string) Str::uuid()));
+    $pay('1.00');
+    [$oneRow, $oneMoney] = [$count($list), $count($view)];
+
+    Fx::actAsCustomer($customer);
+
+    foreach (range(1, 3) as $n) {
+        Cx::add($variants[1]);
+        Cx::place(Cx::start($address)->id);
+    }
+
+    Fx::actAsStaff($staff);
+    $pay('2.00');
+    $pay('3.00');
+
+    // Measured 2026-10-25: the list's stores (Platform's cache, Sales's off-store check only when one is off),
+    // the orders, the customers; the order's access, row, money, history, edits, ticks, documents, names, sizes
+    // - the limits a target, not a cap (owner, 2026-10-19).
+    expect([$count($list), $count($view)])->toBe([$oneRow, $oneMoney]);
 });

@@ -71,7 +71,8 @@ final readonly class ViewOrderHandler
         return new StaffOrderView(
             $orderId, (string) $order['number'], (string) $order['store_id'], CarbonImmutable::parse((string) $order['placed_at']),
             $this->reader->customers([(string) $order['customer_id']])[(string) $order['customer_id']],
-            (string) $order['customer_name'], $order['customer_email'] === null ? null : (string) $order['customer_email'], (string) $order['customer_phone'],
+            (string) $order['customer_name'],
+            $order['customer_email'] === null || ! $this->reader->mayView((string) $order['customer_id']) ? null : (string) $order['customer_email'], (string) $order['customer_phone'],
             (string) $order['audience'], (string) $order['status'], (string) $order['shipment_status'], $payment,
             OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment), WayToPay::from((string) $order['way_to_pay']),
             (bool) $order['may_ship_unpaid'], $at($order['short_of_stock_at']), $lines,
@@ -87,7 +88,7 @@ final readonly class ViewOrderHandler
             array_map(static fn (array $row): MoneyRow => new MoneyRow(
                 (string) $row['id'], (string) $row['kind'], $money($row['amount_minor']), (string) $row['way'],
                 $row['reference'] === null ? null : (string) $row['reference'], $row['note'] === null ? null : (string) $row['note'],
-                CarbonImmutable::parse((string) $row['happened_on']), $name($row['recorded_by']), CarbonImmutable::parse((string) $row['recorded_at']),
+                (string) $row['happened_on'], $name($row['recorded_by']), CarbonImmutable::parse((string) $row['recorded_at']),
                 $name($row['voided_by']), $at($row['voided_at']), $row['void_reason'] === null ? null : (string) $row['void_reason'],
             ), $records),
             array_map(static function (array $row) use ($name): HistoryRow {

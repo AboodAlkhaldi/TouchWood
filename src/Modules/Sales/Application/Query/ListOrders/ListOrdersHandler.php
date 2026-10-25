@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\ListOrders;
 
 use Carbon\CarbonImmutable;
+use Modules\Sales\Application\Query\Staff\OrderStores;
 use Modules\Sales\Application\Query\Staff\StaffOrderRow;
 use Modules\Sales\Application\Query\Staff\StaffOrdersPage;
 use Modules\Sales\Application\Query\Staff\StaffReader;
@@ -24,7 +25,8 @@ use Shared\Infrastructure\Persistence\Ulids;
 /**
  * **Staff's order lists** (sales.md §3 ListOrders; handoff §14: Sales › All orders · Store orders · Unpaid
  * orders): one store's, or every store the reader covers — all, unpaid (holding less than is due), or flagged
- * short of stock — newest first, 50 a page, each with its four machines and its customer by name.
+ * short of stock — newest first, 50 a page, each with its four machines and its customer by name. An off
+ * store is listed only while it holds an unfinished order, but to a Super Admin (§1.12: `OrderStores`).
  */
 final readonly class ListOrdersHandler
 {
@@ -38,6 +40,7 @@ final readonly class ListOrdersHandler
         private ActorContext $actors,
         private StaffReads $reads,
         private StaffReader $reader,
+        private OrderStores $stores,
     ) {}
 
     /**
@@ -56,10 +59,10 @@ final readonly class ListOrdersHandler
         if ($query->storeId !== null) {
             $store = Ulids::valid(strtolower(trim($query->storeId))) ? StoreId::fromString(strtolower(trim($query->storeId))) : throw new InvalidSalesAttribute('store', 'a store');
             $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
-            $stores = [$store->value];
+            $stores = in_array($store->value, $this->stores->ids([$store]) ?? [$store->value], true) ? [$store->value] : throw new Unauthorized(self::PERMISSION);
         } else {
             $this->authorizer->authorize(self::PERMISSION, $covered === null ? PermissionScope::allStores() : PermissionScope::store($covered[0]));
-            $stores = $covered === null ? null : array_map(static fn (StoreId $store): string => $store->value, $covered);
+            $stores = $this->stores->ids($covered);
         }
 
         $after = $query->after === null ? null : strtolower(trim($query->after));

@@ -44,4 +44,13 @@ interface StaffReads
 
     /** @return list<array<string, mixed>> the transfer documents, in their order */
     public function transferDocuments(string $orderId): array;
+
+    /**
+     * Those of these stores holding an unfinished order (§1.12): one waiting or approved, one whose payment is
+     * unpaid, partly paid or due a refund, or one with a return not yet completed, refused, withdrawn or closed.
+     *
+     * @param  list<string>  $storeIds
+     * @return list<string>
+     */
+    public function storesWithUnfinished(array $storeIds): array;
 }
