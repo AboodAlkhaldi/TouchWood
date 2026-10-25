@@ -85,11 +85,14 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   going back), `CompleteReturn` (`Domain/Service/ReturnRefunds` — running totals, the shipping with the
   last bought piece; `due` lowered; Loyalty's `orderReturned`; `ReturnCompleted`);
   `Infrastructure/Eloquent/DatabaseSalesApi` answers `SalesApi` (the placeholder `NothingSoldYet` removed).
+- **The customer's reads** (S11b-1, sales.md §3.1): `Domain/Service/OrderStatuses` (`PaymentStatus`,
+  `CustomerOrderStatus`); `Query/ListOwnOrders`, `Query/ViewOwnOrder`, `Query/ViewOwnReturn` through
+  `Query/Own/OwnReader` (`sales.order.view_own`), SQL in `Infrastructure/Eloquent/DatabaseOwnReads`.
 - **The Best-Selling ranks** (S11a): `PushSalesRanks` (nightly through `Infrastructure/Queue/PushSalesRanksJob`;
   `Orders::piecesSold`) pushes each store's whole ranking to Catalog's `ListingFacts::salesRanks` (catalog.md
   amendment 30).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, `SalesRanksTest`, and
-`tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`; the outbox's in
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, `SalesRanksTest`, `OwnOrdersTest`, and
+`tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`, `OrderStatusesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

@@ -685,6 +685,36 @@ module's data but the outbox's own rows.
 
 ---
 
+### 3.1 The reads, as built (step S11b — the customer's own)
+
+The spec names the reads, not their fields; the fields below are my assumptions, for the owner and the
+screens session to change (an addition request, as with Promotions). Every moment is a `DateTimeImmutable`,
+every amount `Money` (its currency's exponent with it); **the customer is shown order numbers, never ids** —
+a line's id is carried only to act on it (asking a return), and a return, having no number of its own, is
+known by its id (my assumption).
+
+- **The statuses** (§1.4), worked out by `Domain/Service/OrderStatuses`: `PaymentStatus` — `NOTHING_DUE`,
+  `UNPAID`, `PARTLY_PAID`, `PAID`, `REFUND_DUE`, `REFUNDED` — and the one a customer sees,
+  `CustomerOrderStatus` — `NEW`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED` (cancelled, rejected,
+  undelivered), `REFUNDED` (such an order, or a wholly returned one, paid back). Public enums.
+- **`ListOwnOrders(?after)`** (`sales.order.view_own`, every store): newest first, **20 a page**, `after` the
+  last number shown (a number not theirs ends the list) → `OwnOrdersPage{orders, next}`; each
+  `OwnOrderRow{number, storeId, placedAt, status, total, pieces}` (pieces bought, the gift left out).
+- **`ViewOwnOrder(number)`** (any case) → `OwnOrderView{number, storeId, placedAt, status, payment,
+  wayToPay, lines, grossSubtotal, netSubtotal, couponCode, couponDiscount, pointsUsed, pointsDiscount,
+  goodsTotal, shipping, vat, total, due, paid, refunded, shipment, carrier, trackingNumber, shippedAt,
+  deliveredAt, returnDeadline, address, returns, transferDocuments, mayCancel, mayReturn,
+  mayUploadTransferDocument}` — `lines`: `OrderLineView{lineId, productId, variantId, nameAr, nameEn,
+  values, code, mode, gift, quantity, unit, listUnit, total, returnable}` (the placed parts first, then each
+  edit's, the gift last; `returnable` the pieces still to ask now, 0 outside the window); `returns`:
+  `OwnReturnRow{returnId, status, requestedAt, refundDue}`. `mayCancel` while waiting or approved and
+  unshipped; `mayReturn` within the window (in whole seconds) while a piece is left; `mayUpload…` paid by
+  bank transfer, holding less than is due, under 3 documents. Another customer's number: `OrderNotFound`.
+- **`ViewOwnReturn(returnId)`** → `OwnReturnView{returnId, orderNumber, status, reason, reasonOther,
+  staffReason, requestedAt, decidedAt, receivedAt, completedAt, refundDue, lines, photos}` — `lines`:
+  `ReturnLineView{nameAr, nameEn, values, code, gift, asked, received}`; `photos` a count (the files open
+  through staff's `OpenOrderFile`). Another customer's return: `ReturnNotFound`.
+
 ## 4 · State machines
 
 ```

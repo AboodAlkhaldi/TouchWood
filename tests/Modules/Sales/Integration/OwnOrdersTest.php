@@ -1,0 +1,162 @@
+<?php
+
+declare(strict_types=1);
+
+use Carbon\CarbonImmutable;
+use Database\Seeders\CatalogSeeder;
+use Database\Seeders\PlatformSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
+use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\RefuseReturn\RefuseReturn;
+use Modules\Sales\Application\Command\RefuseReturn\RefuseReturnHandler;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturn;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturnHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\Query\ListOwnOrders\ListOwnOrders;
+use Modules\Sales\Application\Query\ListOwnOrders\ListOwnOrdersHandler;
+use Modules\Sales\Application\Query\Own\OrderLineView;
+use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
+use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
+use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturn;
+use Modules\Sales\Application\Query\ViewOwnReturn\ViewOwnReturnHandler;
+use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Exception\ReturnNotFound;
+use Modules\Sales\Public\Enums\CustomerOrderStatus;
+use Modules\Sales\Public\Enums\PaymentStatus;
+use Shared\Application\Unauthorized;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
+
+use function Pest\Laravel\seed;
+
+/*
+| A customer's own orders and returns (sales.md §3 ListOwnOrders, ViewOwnOrder, ViewOwnReturn): every store's,
+| newest first, each known by its number; the order with its lines as sold, its totals, the status they see,
+| and what they may still do; the return with its lines and staff's words. Another customer's are none.
+*/
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    seed(PlatformSeeder::class);
+    seed(CatalogSeeder::class);
+});
+
+/** @return array{customer: string, address: string, variants: list<string>, order: string, number: string} */
+function ownOrder(): array
+{
+    $ready = Cx::ready();
+    $placed = Cx::place(Cx::start($ready['address'])->id);
+
+    return [...$ready, 'order' => $placed->id, 'number' => $placed->number];
+}
+
+/** Approved, paid, shipped and delivered by staff; acting as the customer again. */
+function ownDeliver(string $order, string $customer): void
+{
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'T-1'));
+    app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+    Fx::actAsCustomer($customer);
+}
+
+it('lists the customer orders newest first, 20 a page, each by its number with the status they see', function () {
+    ['customer' => $customer, 'address' => $address, 'variants' => $variants, 'number' => $first] = ownOrder();
+    $numbers = [$first];
+
+    foreach (range(1, 20) as $n) {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        Cx::add($variants[1]);
+        $numbers[] = Cx::place(Cx::start($address)->id)->number;
+    }
+
+    $handler = app(ListOwnOrdersHandler::class);
+    $page = $handler->handle(new ListOwnOrders);
+    $more = $handler->handle(new ListOwnOrders($page->next));
+
+    expect(array_column([...$page->orders, ...$more->orders], 'number'))->toBe(array_reverse($numbers))
+        ->and([count($page->orders), $page->next, $more->next])->toBe([20, $numbers[1], null])
+        ->and($page->orders[0]->status)->toBe(CustomerOrderStatus::New)
+        ->and($more->orders[0]->pieces)->toBe(3)
+        ->and($more->orders[0]->total->minorUnits)->toBe((int) DB::table('sales.orders')->where('number', $first)->value('order_total_minor'))
+        ->and($customer)->not->toBe('');
+});
+
+it('shows the customer their order: its lines as sold, its totals, its statuses and what they may do', function () {
+    ['customer' => $customer, 'number' => $number, 'order' => $order] = ownOrder();
+
+    $waiting = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder(strtolower($number)));
+    ownDeliver($order, $customer);
+    $delivered = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
+
+    expect([$waiting->number, $waiting->status, $waiting->payment, $waiting->mayCancel, $waiting->mayReturn])->toBe([$number, CustomerOrderStatus::New, PaymentStatus::Unpaid, true, false])
+        ->and(array_map(fn (OrderLineView $line): array => [$line->quantity, $line->unit->minorUnits, $line->returnable], $waiting->lines))->toBe([[2, 100_00, 0], [1, 50_00, 0]])
+        ->and($waiting->total->minorUnits)->toBe($waiting->goodsTotal->minorUnits + $waiting->shipping->minorUnits + $waiting->vat->minorUnits)
+        ->and([$delivered->status, $delivered->payment, $delivered->mayCancel, $delivered->mayReturn, $delivered->carrier])->toBe([CustomerOrderStatus::Delivered, PaymentStatus::Paid, false, true, 'SMSA'])
+        ->and(array_map(fn (OrderLineView $line): int => $line->returnable, $delivered->lines))->toBe([2, 1])
+        ->and($delivered->returnDeadline)->not->toBeNull()
+        ->and($delivered->address)->toHaveKey('recipientName');
+});
+
+it('counts the pieces already asked back, and closes the window at its deadline', function () {
+    ['customer' => $customer, 'number' => $number, 'order' => $order] = ownOrder();
+    ownDeliver($order, $customer);
+    $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->where('quantity', 2)->value('id');
+    $return = app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'DAMAGED', null, [['orderLineId' => $line, 'quantity' => 1]]));
+
+    $view = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse((string) DB::table('sales.orders')->where('id', $order)->value('return_deadline_at'))->addSecond());
+    $late = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
+
+    expect(array_map(fn (OrderLineView $line): int => $line->returnable, $view->lines))->toBe([1, 1])
+        ->and(array_column($view->returns, 'returnId'))->toBe([$return])
+        ->and([$late->mayReturn, array_map(fn (OrderLineView $line): int => $line->returnable, $late->lines)])->toBe([false, [0, 0]]);
+});
+
+it('shows the customer their return, with staff words when refused', function () {
+    ['customer' => $customer, 'order' => $order, 'number' => $number] = ownOrder();
+    ownDeliver($order, $customer);
+    $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->where('quantity', 2)->value('id');
+    $return = app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'OTHER', 'Not the colour shown', [['orderLineId' => $line, 'quantity' => 2]]));
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['sa']));
+    app(RefuseReturnHandler::class)->handle(new RefuseReturn($return, 'Opened and used'));
+    Fx::actAsCustomer($customer);
+
+    $view = app(ViewOwnReturnHandler::class)->handle(new ViewOwnReturn(strtoupper($return)));
+
+    expect([$view->orderNumber, $view->status, $view->reason, $view->reasonOther, $view->staffReason])->toBe([$number, 'REFUSED', 'OTHER', 'Not the colour shown', 'Opened and used'])
+        ->and([$view->lines[0]->asked, $view->lines[0]->received, $view->photos])->toBe([2, null, 0])
+        ->and($view->decidedAt)->not->toBeNull()
+        ->and($view->refundDue)->toBeNull();
+});
+
+it('answers another customer order and return as none, and staff as not allowed', function () {
+    ['customer' => $customer, 'order' => $order, 'number' => $number] = ownOrder();
+    ownDeliver($order, $customer);
+    $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->value('id');
+    $return = app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'DAMAGED', null, [['orderLineId' => $line, 'quantity' => 1]]));
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['sa']));
+    app(AcceptReturnHandler::class)->handle(new AcceptReturn($return));
+    Fx::actAsCustomer(Cx::customer());
+
+    expect(fn () => app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number)))->toThrow(OrderNotFound::class)
+        ->and(fn () => app(ViewOwnReturnHandler::class)->handle(new ViewOwnReturn($return)))->toThrow(ReturnNotFound::class)
+        ->and(fn () => app(ViewOwnReturnHandler::class)->handle(new ViewOwnReturn((string) Str::ulid())))->toThrow(ReturnNotFound::class)
+        ->and(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders)->orders)->toBe([])
+        ->and(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders($number))->orders)->toBe([])
+        ->and(fn () => app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder(str_repeat('X', 25))))->toThrow(OrderNotFound::class);
+
+    Fx::actAsStaff(Fx::staff());
+    expect(fn () => app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders))->toThrow(Unauthorized::class);
+});
