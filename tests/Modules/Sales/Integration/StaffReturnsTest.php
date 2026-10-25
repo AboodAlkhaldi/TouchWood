@@ -132,6 +132,29 @@ it('lists returns newest first, one state or all, one store or every store liste
         ->and(fn () => app(ListReturnsHandler::class)->handle(new ListReturns(Fx::storeId('eg'))))->toThrow(Unauthorized::class);
 });
 
+it('pages 50 returns at a time, two asked at the same moment kept apart by their ids', function () {
+    ['returns' => [$first]] = sretDelivered();
+    $row = (array) DB::table('sales.returns')->where('id', $first)->first();
+    $moment = CarbonImmutable::now()->addDay();
+
+    // 50 more asked by hand, the newest two at the same moment.
+    foreach (range(1, 50) as $n) {
+        DB::table('sales.returns')->insert([...$row, 'id' => strtolower((string) Str::ulid()), 'requested_at' => $n >= 49 ? $moment : $moment->subMinutes(60 - $n)]);
+    }
+
+    sretReader();
+    $pages = [app(ListReturnsHandler::class)->handle(new ListReturns)];
+    $pages[] = app(ListReturnsHandler::class)->handle(new ListReturns(after: $pages[0]->next));
+    $ids = [...array_column($pages[0]->returns, 'returnId'), ...array_column($pages[1]->returns, 'returnId')];
+
+    expect([count($pages[0]->returns), count($pages[1]->returns), $pages[1]->next])->toBe([50, 2, null])
+        ->and(count(array_unique($ids)))->toBe(52)
+        ->and($pages[0]->next)->toBe($pages[0]->returns[49]->returnId)
+        ->and($ids[51])->toBe($first)
+        // The tie: the larger id first.
+        ->and(strcmp($ids[0], $ids[1]))->toBeGreaterThan(0);
+});
+
 it('shows staff a return: its lines, its photos, who decided and the words', function () {
     ['order' => $order, 'returns' => [$return]] = sretDelivered();
     $photo = sretPhoto($return);

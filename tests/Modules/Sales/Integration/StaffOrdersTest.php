@@ -202,9 +202,12 @@ it('shows the contact email only to staff who may view the customer', function (
     ['order' => $order] = staffOrder();
     staffReader();
     $hidden = app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail;
+    // Viewing customers only in another store: not this customer, whose home store is Saudi Arabia.
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, AccessPermissions::CUSTOMER_VIEW], ['sa', 'eg'], exceptions: [AccessPermissions::CUSTOMER_VIEW => ['eg']]));
+    $hidden2 = app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail;
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, AccessPermissions::CUSTOMER_VIEW], ['sa']));
 
-    expect($hidden)->toBeNull()
+    expect([$hidden, $hidden2])->toBe([null, null])
         ->and(app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail)->toBe(DB::table('sales.orders')->where('id', $order)->value('customer_email'))
         ->and(app(ViewOrderHandler::class)->handle(new ViewOrder($order))->contactEmail)->not->toBeNull();
 });
@@ -237,11 +240,18 @@ it('lists an off store to its own staff while it holds an unfinished order, and 
     Fx::actAsStaff($staff);
     $stores = fn (): array => array_column(app(ListOrderStoresHandler::class)->handle(new ListOrderStores), 'storeId');
 
+    // Waiting, though wholly paid: unfinished by its state alone.
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
     $open = [$stores(), array_column(app(ListOrdersHandler::class)->handle(new ListOrders)->orders, 'orderId'), app(ListOrdersHandler::class)->handle(new ListOrders($egypt))->orders[0]->orderId];
-    // Finished: rejected with nothing paid, no return open.
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 0]);
     app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Out of the delivery area'));
+    // Rejected but holding money: a refund due keeps it unfinished; refunded, it is finished.
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 100]);
+    $refundDue = $stores();
+    DB::table('sales.orders')->where('id', $order)->update(['refunded_minor' => 100]);
 
     expect($open)->toBe([[Fx::storeId('sa'), $egypt], [$order], $order])
+        ->and($refundDue)->toBe([Fx::storeId('sa'), $egypt])
         ->and($stores())->toBe([Fx::storeId('sa')])
         ->and(app(ListOrdersHandler::class)->handle(new ListOrders)->orders)->toBe([])
         ->and(fn () => app(ListOrdersHandler::class)->handle(new ListOrders($egypt)))->toThrow(Unauthorized::class);
@@ -282,8 +292,9 @@ it('reads a list and an order in the same number of queries however many rows', 
     $pay('2.00');
     $pay('3.00');
 
-    // Measured 2026-10-25: the list's stores (Platform's cache, Sales's off-store check only when one is off),
-    // the orders, the customers; the order's access, row, money, history, edits, ticks, documents, names, sizes
-    // - the limits a target, not a cap (owner, 2026-10-19).
-    expect([$count($list), $count($view)])->toBe([$oneRow, $oneMoney]);
+    // Measured 2026-10-25, warm: the list 2 (the orders, the customers; Platform's stores cached, Sales's
+    // off-store check one more only while a store is off); the order 11 (its row, the customer, money, history,
+    // edits, ticks, documents, returns, staff names, the lines' sizes) - targets, not caps (owner, 2026-10-19).
+    expect([$count($list), $count($view)])->toBe([$oneRow, $oneMoney])
+        ->and([$oneRow, $oneMoney])->toBe([2, 11]);
 });

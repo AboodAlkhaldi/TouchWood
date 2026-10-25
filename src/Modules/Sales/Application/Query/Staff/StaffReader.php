@@ -36,20 +36,20 @@ final readonly class StaffReader
     }
 
     /**
-     * Whether the reader may view this customer — read their email (access.md amendment 72(e), as Loyalty's
-     * `CustomerName`): every store, or the customer's home store among those where they hold the job.
+     * One customer by name, and whether the reader may view them — read their email (access.md amendment
+     * 72(e), as Loyalty's `CustomerName`): every store, or the customer's home store among those where they
+     * hold the job.
+     *
+     * @return array{CustomerName, bool}
      */
-    public function mayView(string $customerId): bool
+    public function customer(string $customerId): array
     {
+        $customer = $this->access->customers([$customerId])[$customerId] ?? null;
         $stores = $this->access->customerViewStores();
+        $mayView = $customer !== null && ($stores === null
+            || in_array(strtolower($customer->homeStoreId), array_map(static fn (StoreId $held): string => $held->value, $stores), true));
 
-        if ($stores === null) {
-            return true;
-        }
-
-        $customer = $stores === [] ? null : ($this->access->customers([$customerId])[$customerId] ?? null);
-
-        return $customer !== null && in_array(strtolower($customer->homeStoreId), array_map(static fn (StoreId $held): string => $held->value, $stores), true);
+        return [CustomerName::of($customerId, $customer), $mayView];
     }
 
     /**

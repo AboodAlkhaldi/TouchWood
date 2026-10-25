@@ -67,12 +67,13 @@ final readonly class ViewOrderHandler
         $payment = OrderStatuses::payment((int) $order['due_minor'], (int) $order['paid_minor'], (int) $order['refunded_minor']);
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
+        [$customer, $mayView] = $this->reader->customer((string) $order['customer_id']);
 
         return new StaffOrderView(
             $orderId, (string) $order['number'], (string) $order['store_id'], CarbonImmutable::parse((string) $order['placed_at']),
-            $this->reader->customers([(string) $order['customer_id']])[(string) $order['customer_id']],
+            $customer,
             (string) $order['customer_name'],
-            $order['customer_email'] === null || ! $this->reader->mayView((string) $order['customer_id']) ? null : (string) $order['customer_email'], (string) $order['customer_phone'],
+            $order['customer_email'] === null || ! $mayView ? null : (string) $order['customer_email'], (string) $order['customer_phone'],
             (string) $order['audience'], (string) $order['status'], (string) $order['shipment_status'], $payment,
             OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment), WayToPay::from((string) $order['way_to_pay']),
             (bool) $order['may_ship_unpaid'], $at($order['short_of_stock_at']), $lines,
