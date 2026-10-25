@@ -194,7 +194,7 @@ describe('the lines', function () {
             Ix::count('sa', [$unpriced => 10]);
 
             return [[$v[0], 2], [$v[1], 1], [$unpriced, 1]];
-        }, DomainError::class],
+        }, NotOrderable::class],
     ]);
 
     it('checks a lowered line only against its limits, a raised one against all of checkout', function () {

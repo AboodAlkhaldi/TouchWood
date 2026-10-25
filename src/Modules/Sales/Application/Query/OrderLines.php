@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Sales\Application\Order;
+namespace Modules\Sales\Application\Query;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Query\Own\OrderLineView;

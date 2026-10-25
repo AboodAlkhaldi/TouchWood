@@ -6,7 +6,7 @@ namespace Modules\Sales\Application\Query\ViewOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Order\OrderAccess;
-use Modules\Sales\Application\Order\OrderLines;
+use Modules\Sales\Application\Query\OrderLines;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Application\Query\Staff\EditRow;

@@ -6,7 +6,7 @@ namespace Modules\Sales\Application\Query\ViewOwnOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
-use Modules\Sales\Application\Order\OrderLines;
+use Modules\Sales\Application\Query\OrderLines;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnOrderView;
 use Modules\Sales\Application\Query\Own\OwnReader;

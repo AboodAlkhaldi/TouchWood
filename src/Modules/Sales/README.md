@@ -96,7 +96,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Query/ViewCart` (S11b-2: each line's card, today's prices, `CartLineProblem`, the subtotal).
 - **Staff's reads** (S11c-1, sales.md §3.2): `Query/ListOrders`, `Query/ViewOrder`, `Query/PrintOrder` through
   `Query/Staff/StaffReader` (customers by name, staff names, exponents), SQL in `Infrastructure/Eloquent/DatabaseStaffReads`;
-  `Order/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
+  `Query/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
   listed only while unfinished, §1.12) behind `Query/ListOrderStores`. S11c-2: `Query/ListReturns`,
   `Query/ViewReturn`, `Query/OpenOrderFile` (a transfer document or a return photo, an expiring link), SQL in
   `Infrastructure/Eloquent/DatabaseStaffReturnReads`.

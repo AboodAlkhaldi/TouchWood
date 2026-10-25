@@ -119,8 +119,8 @@ it('has a word in both languages for every value a refusal can name', function (
         expect(Lang::hasForLocale("sales::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
 })->with(function (): array {
-    // Every name a refusal is thrown with in Sales's code, and those passed through its input helpers.
-    $names = ['address', 'reference', 'note'];
+    // Every name a refusal is thrown with in Sales's code, and the two its money input passes by variable.
+    $names = ['reference', 'note'];
 
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 4).'/src/Modules/Sales', FilesystemIterator::SKIP_DOTS)) as $file) {
         preg_match_all("/InvalidSalesAttribute\\('([a-z_]+)'/", (string) file_get_contents((string) $file), $found);
