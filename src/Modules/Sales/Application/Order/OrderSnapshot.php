@@ -8,7 +8,6 @@ use DateTimeImmutable;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
-use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\StoreWiring;
@@ -32,7 +31,7 @@ use Shared\Domain\ValueObject\StoreId;
 final readonly class OrderSnapshot
 {
     public function __construct(
-        private CatalogApi $catalog,
+        private SizeRecords $sizes,
         private InventoryApi $inventory,
         private StoreWiring $wiring,
     ) {}
@@ -44,12 +43,11 @@ final readonly class OrderSnapshot
         $totals = $quote->totals;
         $currency = $prices->currencyCode;
         $variantIds = array_values(array_unique([...array_map(static fn (LinePriceDto $line): string => $line->variantId, $prices->lines), ...($quote->giftVariantId === null ? [] : [$quote->giftVariantId])]));
-        $variants = $this->catalog->variants($variantIds);
+        $sizes = $this->sizes->of($variantIds);
         // As Inventory's hold fixes them when it is placed, a moment later in the same transaction (§1.5).
         $store = StoreId::fromString($quote->storeId);
         $wired = $this->wiring->isWired($store);
         $stock = $this->inventory->stock($store, $variantIds);
-        $products = $this->catalog->products(array_values(array_unique(array_map(static fn ($variant): string => $variant->productId, $variants))));
 
         $shares = OrderShares::of(
             array_map(static fn (LinePriceDto $line): Money => $line->total, $prices->lines),
@@ -59,31 +57,22 @@ final readonly class OrderSnapshot
             $totals->shipping,
         );
 
-        $line = function (string $variantId) use ($variants, $products): array {
-            $variant = $variants[$variantId] ?? throw new QuoteChanged('lines');
-            $product = $products[$variant->productId] ?? throw new QuoteChanged('lines');
-
-            return [$variant, $product->nameAr, $product->nameEn ?? $product->nameAr, array_map(static fn ($value): array => [
-                'attributeAr' => $value->attribute->ar, 'attributeEn' => $value->attribute->en, 'valueAr' => $value->value->ar, 'valueEn' => $value->value->en,
-            ], $variant->values)];
-        };
-
         $lines = [];
 
         foreach ($prices->lines as $index => $priced) {
-            [$variant, $nameAr, $nameEn, $values] = $line($priced->variantId);
+            $size = $sizes[$priced->variantId] ?? throw new QuoteChanged('lines');
             $lines[] = new NewOrderLine(
-                strtolower((string) Str::ulid()), $variant->productId, $variant->id, false, $nameAr, $nameEn, $values, $variant->code,
+                strtolower((string) Str::ulid()), $size['productId'], $priced->variantId, false, $size['nameAr'], $size['nameEn'], $size['values'], $size['code'],
                 $priced->mode->value, $priced->kind->value, $priced->quantity, $priced->unit->minorUnits, $priced->listUnit->minorUnits, $priced->total->minorUnits,
                 $shares['lines'][$index]['coupon']->minorUnits, $shares['lines'][$index]['points']->minorUnits, $shares['lines'][$index]['vat']->minorUnits,
-                $stock[$variant->id]->countsOnStock ?? ! $wired,
+                $stock[$priced->variantId]->countsOnStock ?? ! $wired,
             );
         }
 
         if ($quote->giftVariantId !== null) {
-            [$variant, $nameAr, $nameEn, $values] = $line($quote->giftVariantId);
+            $size = $sizes[$quote->giftVariantId] ?? throw new QuoteChanged('lines');
             $lines[] = new NewOrderLine(
-                strtolower((string) Str::ulid()), $variant->productId, $variant->id, true, $nameAr, $nameEn, $values, $variant->code,
+                strtolower((string) Str::ulid()), $size['productId'], $quote->giftVariantId, true, $size['nameAr'], $size['nameEn'], $size['values'], $size['code'],
                 SaleMode::Retail->value, null, 1, 0, 0, 0, 0, 0, 0, true,
             );
         }

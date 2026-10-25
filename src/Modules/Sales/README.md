@@ -17,6 +17,8 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 | S2 — the outbox | `Shared/Infrastructure/Outbox` (platform.md §5.6; a recorded exception to Shared's ceiling, answer 43): `Outbox::record` in the change's transaction; `OutboxRelay` every minute from one server (queued as Platform's `RelayOutboxJob`) — claimed under `FOR UPDATE SKIP LOCKED` and leased before dispatch, retried 1, 2, 4 … minutes up to an hour, never dropped, logged from the tenth attempt, dispatched rows kept 30 days; `ProcessedEvents::once` for idempotent consumers; tables `public.outbox_messages`, `public.processed_events` | `src/Shared/Infrastructure/Outbox`, `database/migrations` |
 | S3 — what Sales reads of Catalog and Access | catalog.md amendment 29: `storeVariants` (many sizes in a store in one read) and `productsOpenTo` (which products the category switches leave open to a shopper); access.md amendment 74: `GuestIdentity` (`current`, `ensure` — the guest cart's id, its cookie Access's) | `src/Modules/Catalog/Public`, `src/Modules/Access/Public` |
 | S4 — the cart | Tables `sales.carts`, `sales.cart_lines`; `AddCartLine` (permissive: any size, either mode, 1 to 1,000,000, the same size and mode once; a signed-in individual never wholesale — answer 32; a guest's first line creates the guest), `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` (a customer's only; a guest is told to sign in); a guest's carts move or merge at sign-in, the lines the account may not buy leaving with why (`GuestCartMover`, `MoveGuestCart`); an anonymized account's carts deleted (`ForgetCustomer`, which from S6b also clears its orders' email); carts untouched for 90 days emptied each night (`EmptyOldCarts`) | below |
+| S5–S11 — the quote, placing, decisions, money, fulfilment, edits, returns, the Best-Selling ranks, the reads | One step each, every one in the list below (S11a–S11c the ranks and the reads: §3.1, §3.2) | below |
+| S12 — the module pass | A whole-module review: every refused value worded in both languages (tested against the code), `OrderSnapshot` reading sizes through `SizeRecords`, an unused per-piece helper removed, the spec's and this file's stale lines, the §8 scenarios still untested | below |
 
 ## What is here
 
@@ -27,8 +29,11 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   connection's search path so a fresh migration wipes it.
 - **`Domain/Exception`** — the errors of spec §7, each with its type (`sales.{snake}`), its status, and a
   title and a message in Arabic and English at `sales::errors.{snake}`.
-- **`Public/Events`** — the critical events (handoff §4.5), ids only, after commit; published through the
-  outbox once it exists (step S2).
+- **`Public/Events`** — the critical events (handoff §4.5), ids only, published through the outbox (S2) after
+  commit: `OrderPlaced`, `OrderCancelled`, `OrderDelivered`, `ReturnCompleted`.
+- **`Domain/Model`** — the machines' states (`OrderState`, `ReturnState`) and the rows a change reads
+  (`OrderLine`, `OrderForEdit`, `EditedTotals`, `MoneyRecord`, …); `Infrastructure/Eloquent/Moment` turns
+  the database's times into moments.
 - **The cart** (S4): `Domain/Model/{Cart,CartLine,RemovedLine}`, `Domain/Repository/Carts` with SQL in
   `Infrastructure/Eloquent/DatabaseCarts` (a change locks the cart's row first; the first line of a buyer
   made under the buyer's own key, so two at once make one cart); `Application/Cart/CartBuyer` (who the
@@ -45,8 +50,8 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Infrastructure/Queue/DeleteExpiredQuotesJob`); `Public/Enums/{WayToPay,OrderAudience}`.
 - **The order's tables** (S6a): `sales.orders`, `order_lines`, `order_edits`, `order_ticks`,
   `order_history` (edits and history append-only, by trigger), each machine's rules a CHECK;
-  `Domain/Service/OrderShares` (the coupon's, points' and VAT's shares a line, and a piece's part by
-  running totals — §1.8); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
+  `Domain/Service/OrderShares` (the coupon's, points' and VAT's shares a line — §1.8; a piece's part by
+  running totals is `ReturnRefunds`', S10); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
   (`Infrastructure/Eloquent/OrderNumberSequences`, made for a store opened later by
   `Infrastructure/Listener/CreateOrderSequence`).
 - **Placing** (S6b): `Application/Quote/QuoteRules` (the rules that can change in 15 minutes, checked at
@@ -91,7 +96,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Query/ViewCart` (S11b-2: each line's card, today's prices, `CartLineProblem`, the subtotal).
 - **Staff's reads** (S11c-1, sales.md §3.2): `Query/ListOrders`, `Query/ViewOrder`, `Query/PrintOrder` through
   `Query/Staff/StaffReader` (customers by name, staff names, exponents), SQL in `Infrastructure/Eloquent/DatabaseStaffReads`;
-  `Query/Own/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
+  `Order/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
   listed only while unfinished, §1.12) behind `Query/ListOrderStores`. S11c-2: `Query/ListReturns`,
   `Query/ViewReturn`, `Query/OpenOrderFile` (a transfer document or a return photo, an expiring link), SQL in
   `Infrastructure/Eloquent/DatabaseStaffReturnReads`.

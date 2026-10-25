@@ -85,40 +85,8 @@ it('refuses lists that do not line up, a coupon share above its line or below 0,
     'VAT with nothing taxable' => [fn () => OrderShares::of(orderSars([0]), orderSars([0]), orderSar(0), orderSar(1), orderSar(0)), LogicException::class],
 ]);
 
-it('gives each piece its part of a share by running totals, the last taking what is left', function () {
-    // A share of 10.00 over 3 pieces: 3.33, then 3.33, then 3.34.
-    $share = orderSar(10_00);
-    $one = OrderShares::forPieces($share, 3, 0, 1);
-    $two = OrderShares::forPieces($share, 3, 1, 1);
-    $three = OrderShares::forPieces($share, 3, 2, 1);
-
-    expect([$one->minorUnits, $two->minorUnits, $three->minorUnits])->toBe([3_33, 3_33, 3_34])
-        ->and(OrderShares::forPieces($share, 3, 0, 3)->minorUnits)->toBe(10_00)
-        ->and(OrderShares::forPieces($share, 3, 1, 2)->minorUnits)->toBe(6_67)
-        ->and(OrderShares::forPieces($share, 3, 1, 0)->minorUnits)->toBe(0);
-});
-
-it('refuses pieces out of range', function (int $pieces, int $before, int $count) {
-    expect(fn () => OrderShares::forPieces(orderSar(1_00), $pieces, $before, $count))->toThrow(InvalidArgumentException::class);
-})->with([
-    'no pieces' => [0, 0, 0],
-    'more than the line' => [3, 2, 2],
-    'before below 0' => [3, -1, 1],
-    'count below 0' => [3, 1, -1],
-]);
-
-it('refuses a share below 0 for pieces', function () {
-    expect(fn () => OrderShares::forPieces(orderSar(-1_00), 3, 0, 1))->toThrow(InvalidArgumentException::class);
-});
-
 it('takes points that use exactly what the coupon left', function () {
     $shares = OrderShares::of(orderSars([1_00, 2_00]), orderSars([50, 0]), orderSar(2_50), orderSar(0), orderSar(0));
 
     expect(orderShareMinors($shares))->toBe([[[50, 50, 0], [0, 2_00, 0]], 0]);
-});
-
-it('works past the ints a multiplication of a large share would overflow', function () {
-    $share = orderSar(9_000_000_000_000_000);
-
-    expect(OrderShares::forPieces($share, 1_000_000, 999_999, 1)->minorUnits)->toBe(9_000_000_000);
 });

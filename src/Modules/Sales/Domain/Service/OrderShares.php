@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Domain\Service;
 
-use Brick\Math\BigInteger;
-use Brick\Math\RoundingMode;
 use InvalidArgumentException;
 use LogicException;
 use Shared\Domain\ValueObject\Money;
@@ -76,22 +74,6 @@ final class OrderShares
         }
 
         return ['lines' => $lines, 'shippingVat' => $shippingVat];
-    }
-
-    /**
-     * What `$count` pieces of a line of `$pieces` carry of its share `$share`, when `$before` of its
-     * pieces were taken before (§1.8 step 4): `floor(S × (before + count) ÷ n) − floor(S × before ÷ n)`,
-     * so the last piece takes what is left and a line taken in parts lands exactly on its share.
-     */
-    public static function forPieces(Money $share, int $pieces, int $before, int $count): Money
-    {
-        if ($share->isNegative() || $pieces < 1 || $before < 0 || $count < 0 || $before + $count > $pieces) {
-            throw new InvalidArgumentException('Pieces out of range.');
-        }
-
-        $upTo = static fn (int $taken): BigInteger => BigInteger::of($share->minorUnits)->multipliedBy($taken)->dividedBy($pieces, RoundingMode::Down);
-
-        return Money::of($upTo($before + $count)->minus($upTo($before))->toInt(), $share->currencyCode);
     }
 
     /**

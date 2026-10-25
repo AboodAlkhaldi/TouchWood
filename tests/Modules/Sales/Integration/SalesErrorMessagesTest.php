@@ -118,7 +118,17 @@ it('has a word in both languages for every value a refusal can name', function (
     foreach (['ar', 'en'] as $locale) {
         expect(Lang::hasForLocale("sales::errors.fields.{$field}", $locale))->toBeTrue("no {$locale} word for {$field}");
     }
-})->with(['store', 'quantity', 'variant', 'sale_mode', 'coupon', 'address', 'way_to_pay', 'reason', 'amount', 'locale']);
+})->with(function (): array {
+    // Every name a refusal is thrown with in Sales's code, and those passed through its input helpers.
+    $names = ['address', 'reference', 'note'];
+
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 4).'/src/Modules/Sales', FilesystemIterator::SKIP_DOTS)) as $file) {
+        preg_match_all("/InvalidSalesAttribute\\('([a-z_]+)'/", (string) file_get_contents((string) $file), $found);
+        $names = [...$names, ...$found[1]];
+    }
+
+    return array_values(array_unique($names));
+});
 
 it('never shows the English written for the log', function (SalesError $error) {
     App::setLocale('ar');

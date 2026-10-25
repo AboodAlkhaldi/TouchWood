@@ -6,7 +6,7 @@ namespace Modules\Sales\Application\Query\PrintOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Order\OrderAccess;
-use Modules\Sales\Application\Query\Own\OrderLines;
+use Modules\Sales\Application\Order\OrderLines;
 use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;

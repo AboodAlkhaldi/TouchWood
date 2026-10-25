@@ -103,5 +103,8 @@ return [
         'carrier' => 'carrier',
         'tracking_number' => 'tracking number',
         'gift' => 'gift',
+        'lines' => 'pieces asked',
+        'filter' => 'filter',
+        'status' => 'status',
     ],
 ];
