@@ -1,7 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { X } from 'lucide-react';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
-import { ProductCards } from '@/components/shop/ProductCards';
+import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopTrail } from '@/components/shop/ShopTrail';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,11 +39,12 @@ function query(chosen: Chosen): Record<string, string> {
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry[1] !== null));
 }
 
-export default function Category({ name, slug, path, children, products, next, filters, address }: ShopCategoryPage) {
+export default function Category({ name, slug, path, children, products, next, filters, address, cardFacts }: ShopCategoryPage) {
     const t = useTranslator();
     const link = useLink();
     const here = link('storefront.catalog.category', { slug });
     const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
+    const facts = useCardFacts(cardFacts);
     const picked = (choices: ShopFilterChoiceData[]) => choices.filter((choice) => choice.chosen).map((choice) => choice.id);
     const chosen: Chosen = {
         brands: picked(filters.brands),
@@ -154,10 +155,10 @@ export default function Category({ name, slug, path, children, products, next, f
                                 </EmptyHeader>
                             </Empty>
                         ) : (
-                            <ProductCards cards={list.rows} />
+                            <ProductCards facts={facts} cards={list.rows} />
                         )}
 
-                        {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(here, { ...query(chosen), after: next }, ['products', 'next'])} /> : null}
+                        {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(here, { ...query(chosen), after: next }, ['products', 'next', 'cardFacts'])} /> : null}
                     </section>
                 </div>
             </div>

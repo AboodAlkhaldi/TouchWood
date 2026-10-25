@@ -40,6 +40,8 @@ return [
     ],
     // A card's stars, read aloud (feedback.md §4.1 F7).
     'card_rating' => ['zero' => ':rating out of 5 stars, :count reviews', 'one' => ':rating out of 5 stars, :count review', 'two' => ':rating out of 5 stars, :count reviews', 'few' => ':rating out of 5 stars, :count reviews', 'many' => ':rating out of 5 stars, :count reviews', 'other' => ':rating out of 5 stars, :count reviews'],
+    // A card's Save heart (feedback.md §4.1 F7; amendment 32).
+    'card_save' => ['add' => 'Save :name', 'remove' => 'Remove :name from saved'],
     'empty' => 'Nothing is listed here yet.',
     'product' => [
         'photo' => 'Photo :number of :total',

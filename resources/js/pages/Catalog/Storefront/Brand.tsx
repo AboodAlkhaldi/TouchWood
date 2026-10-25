@@ -1,5 +1,5 @@
 import { LoadMoreButton } from '@/components/LoadMoreButton';
-import { ProductCards } from '@/components/shop/ProductCards';
+import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto } from '@/components/shop/ShopPhoto';
 import { ShopTrail } from '@/components/shop/ShopTrail';
@@ -16,10 +16,11 @@ import type { ShopBrandPage, ShopCardData } from '@/types/generated/Modules/Cata
 | design has no brand page: drawn from its look (frontend.md §2.1).
 */
 
-export default function Brand({ name, slug, logo, description, products, next, address }: ShopBrandPage) {
+export default function Brand({ name, slug, logo, description, products, next, address, cardFacts }: ShopBrandPage) {
     const t = useTranslator();
     const link = useLink();
     const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
+    const facts = useCardFacts(cardFacts);
 
     return (
         <StorefrontLayout title={name} address={address}>
@@ -38,10 +39,10 @@ export default function Brand({ name, slug, logo, description, products, next, a
                         </EmptyHeader>
                     </Empty>
                 ) : (
-                    <ProductCards cards={list.rows} />
+                    <ProductCards facts={facts} cards={list.rows} />
                 )}
 
-                {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(link('storefront.catalog.brand', { slug }), { after: next }, ['products', 'next'])} /> : null}
+                {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(link('storefront.catalog.brand', { slug }), { after: next }, ['products', 'next', 'cardFacts'])} /> : null}
             </div>
         </StorefrontLayout>
     );

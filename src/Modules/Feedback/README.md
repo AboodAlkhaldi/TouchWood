@@ -34,7 +34,7 @@ do comes from `Application/Query/FeedbackActions` - the screens never ask the Au
 | My Reviews, My Questions, My Wishlist (F8) | `resources/js/pages/Feedback/Storefront/My*.tsx` | `MyFeedbackController`, `Presentation/Http/Resource/AccountPages` |
 
 Routes: `Presentation/shop-routes.php`. Tests: `tests/Modules/Feedback/Feature/ShopScreensTest` and `tests/Browser/FeedbackShopTest`.
-The Save heart on every card (§4.2 B5, FB-c) comes after the backend's part of it.
+The Save heart on every card (§4.2 B5): `CardHeart` in `ProductCards.tsx`, from the pages' `cardFacts` (catalog.md amendment 32), merged as Show More adds pages (`useCardFacts`).
 
 ## Build steps
 

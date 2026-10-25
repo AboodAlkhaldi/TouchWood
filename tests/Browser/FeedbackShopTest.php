@@ -101,6 +101,18 @@ it('writes a review, asks a question and saves the product, then shows it all in
     expect(browserUntil($page, "document.querySelector('[data-test=\"save-heart\"]')?.getAttribute('aria-pressed') === 'true'"))->toBeTrue()
         ->and(feedbackShopWide($page))->toBe('', 'the product page scrolls sideways');
 
+    // The heart on the product's card, in its brand's list (feedback.md §4.1 F7): saved already; pressed off and on.
+    $brand = (string) DB::table('catalog.brand_slugs')->where('brand_id', DB::table('catalog.products')->where('id', $product)->value('brand_id'))->where('locale', 'en')->where('is_current', true)->value('slug');
+    $heart = "document.querySelector('[data-test=\"card-heart\"]')?.getAttribute('aria-pressed')";
+    $page->navigate("/sa/en/brands/{$brand}", BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, "{$heart} === 'true'"))->toBeTrue();
+    $page->click('[data-test="card-heart"]');
+    expect(browserUntil($page, "{$heart} === 'false'"))->toBeTrue()
+        ->and(DB::table('feedback.wishlist_items')->where('customer_id', $customer)->exists())->toBeFalse();
+    $page->click('[data-test="card-heart"]');
+    expect(browserUntil($page, "{$heart} === 'true'"))->toBeTrue()
+        ->and(feedbackShopWide($page))->toBe('', 'the brand page scrolls sideways');
+
     foreach (['/sa/en/account/reviews' => 'Solid and quiet.', '/sa/en/account/questions' => 'Does it fit a 60 cm cabinet?', '/sa/en/account/wishlist' => 'Remove'] as $uri => $text) {
         $page->navigate($uri, BROWSER_PAGE_LOAD)->assertSee($text);
 

@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/react';
 import { cn } from 'cn';
 import { Note } from '@/components/Note';
 import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
-import { ProductCards } from '@/components/shop/ProductCards';
+import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { ShopTrail } from '@/components/shop/ShopTrail';
@@ -42,7 +42,7 @@ function pick(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Re
     return variantOf(variants, choices, { ...chosen, [attributeId]: valueId }) ?? variants.find((variant) => variant.values[attributeId] === valueId) ?? null;
 }
 
-export default function Product(page: ShopProductPage & { sections: FeedbackSections }) {
+export default function Product(page: ShopProductPage & { sections: FeedbackSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
     const link = useLink();
     const { name, available, variants, choices, selling, warranty, address } = page;
@@ -50,6 +50,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
     const variant = variantOf(variants, choices, chosen);
     const photos: PhotoSizes[] = variant !== null && variant.photos.length > 0 ? variant.photos : page.photos;
     const sections = page.sections ?? {};
+    const facts = useCardFacts(page.cardFacts ?? []);
     const url = link('storefront.catalog.product', { slug: page.slug });
 
     return (
@@ -171,7 +172,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                 {page.goesWith.length > 0 ? (
                     <section className="grid gap-4" data-test="goes-with">
                         <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.goes_with')}</h2>
-                        <ProductCards cards={page.goesWith} />
+                        <ProductCards cards={page.goesWith} facts={facts} />
                     </section>
                 ) : null}
 
@@ -181,7 +182,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                 {page.mayAlsoLike.length > 0 ? (
                     <section className="grid gap-4" data-test="may-also-like">
                         <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.may_also_like')}</h2>
-                        <ProductCards cards={page.mayAlsoLike} />
+                        <ProductCards cards={page.mayAlsoLike} facts={facts} />
                     </section>
                 ) : null}
             </div>
