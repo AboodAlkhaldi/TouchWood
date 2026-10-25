@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Sales\Application\Query\Own;
+
+use DateTimeImmutable;
+use Shared\Domain\ValueObject\Money;
+
+/** One of an order's returns, on the order's page (sales.md §1.8). */
+final readonly class OwnReturnRow
+{
+    public function __construct(
+        public string $returnId,
+        public string $status,
+        public DateTimeImmutable $requestedAt,
+        /** What the completed return refunds; null before. */
+        public ?Money $refundDue,
+    ) {}
+}

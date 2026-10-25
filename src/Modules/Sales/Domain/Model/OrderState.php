@@ -24,6 +24,10 @@ final readonly class OrderState
 
     public const string SHIPPED = 'SHIPPED';
 
+    public const string DELIVERED = 'DELIVERED';
+
+    public const string CAME_BACK = 'CAME_BACK';
+
     public const string COMPLETED = 'COMPLETED';
 
     public const string UNDELIVERED = 'UNDELIVERED';
