@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\Own;
 
 use DateTimeImmutable;
+use Modules\Sales\Public\Enums\ReturnReason;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -21,15 +22,19 @@ final readonly class OwnReturnView
         public string $returnId,
         public string $orderNumber,
         public string $status,
-        public string $reason,
+        public ReturnReason $reason,
         public ?string $reasonOther,
         public ?string $staffReason,
         public DateTimeImmutable $requestedAt,
         public ?DateTimeImmutable $decidedAt,
         public ?DateTimeImmutable $receivedAt,
         public ?DateTimeImmutable $completedAt,
+        public ?DateTimeImmutable $withdrawnAt,
+        public ?DateTimeImmutable $closedAt,
         public ?Money $refundDue,
         public array $lines,
         public int $photos,
+        /** The currency's exponent, to show `refundDue`. */
+        public int $exponent,
     ) {}
 }

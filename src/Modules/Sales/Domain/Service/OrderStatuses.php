@@ -46,7 +46,7 @@ final class OrderStatuses
         return match (true) {
             in_array($status, [OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED], true) => CustomerOrderStatus::Cancelled,
             $status === OrderState::PENDING_APPROVAL => CustomerOrderStatus::New,
-            $shipment === 'DELIVERED' => CustomerOrderStatus::Delivered,
+            $shipment === OrderState::DELIVERED => CustomerOrderStatus::Delivered,
             $shipment === OrderState::SHIPPED => CustomerOrderStatus::Shipped,
             default => CustomerOrderStatus::Processing,
         };

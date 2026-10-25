@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\Own;
 
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\SalesPermissions;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
@@ -17,7 +18,14 @@ final readonly class OwnReader
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
+        private PlatformApi $platform,
     ) {}
+
+    /** A currency's exponent — how many of its smallest units make one — for showing its amounts. */
+    public function exponent(string $currencyCode): int
+    {
+        return $this->platform->currency($currencyCode)->exponent ?? 2;
+    }
 
     /**
      * @return string the customer

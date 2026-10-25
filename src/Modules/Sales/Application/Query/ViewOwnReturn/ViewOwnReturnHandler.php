@@ -10,6 +10,7 @@ use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnView;
 use Modules\Sales\Application\Query\Own\ReturnLineView;
 use Modules\Sales\Domain\Exception\ReturnNotFound;
+use Modules\Sales\Public\Enums\ReturnReason;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Infrastructure\Persistence\Ulids;
@@ -37,10 +38,11 @@ final readonly class ViewOwnReturnHandler
         $at = static fn (mixed $moment): ?CarbonImmutable => $moment === null ? null : CarbonImmutable::parse((string) $moment);
 
         return new OwnReturnView(
-            (string) $return['id'], (string) $return['number'], (string) $return['status'], (string) $return['reason'],
+            (string) $return['id'], (string) $return['number'], (string) $return['status'], ReturnReason::from((string) $return['reason']),
             $return['reason_other'] === null ? null : (string) $return['reason_other'],
             $return['staff_reason'] === null ? null : (string) $return['staff_reason'],
             CarbonImmutable::parse((string) $return['requested_at']), $at($return['decided_at']), $at($return['received_at']), $at($return['completed_at']),
+            $at($return['withdrawn_at']), $at($return['closed_at']),
             $return['refund_due_minor'] === null ? null : Money::of((int) $return['refund_due_minor'], (string) $return['currency_code']),
             array_map(static function (array $line): ReturnLineView {
                 /** @var list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}> $values */
@@ -52,6 +54,7 @@ final readonly class ViewOwnReturnHandler
                 );
             }, $this->reads->returnLines($id)),
             $this->reads->returnPhotos($id),
+            $this->reader->exponent((string) $return['currency_code']),
         );
     }
 }

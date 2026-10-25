@@ -7,6 +7,7 @@ namespace Modules\Sales\Application\Query\Own;
 use DateTimeImmutable;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
+use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -22,12 +23,14 @@ final readonly class OwnOrderView
      * @param  list<OwnReturnRow>  $returns
      */
     public function __construct(
+        /** Carried to act on the order (cancel, ask a return, upload a document), never shown. */
+        public string $orderId,
         public string $number,
         public string $storeId,
         public DateTimeImmutable $placedAt,
         public CustomerOrderStatus $status,
         public PaymentStatus $payment,
-        public string $wayToPay,
+        public WayToPay $wayToPay,
         public array $lines,
         public Money $grossSubtotal,
         public Money $netSubtotal,
@@ -54,5 +57,7 @@ final readonly class OwnOrderView
         public bool $mayCancel,
         public bool $mayReturn,
         public bool $mayUploadTransferDocument,
+        /** The currency's exponent, to show the amounts. */
+        public int $exponent,
     ) {}
 }

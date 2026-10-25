@@ -41,10 +41,10 @@ final readonly class ListOwnOrdersHandler
         $page = array_slice($rows, 0, self::PAGE);
 
         return new OwnOrdersPage(
-            array_map(static fn (array $row): OwnOrderRow => new OwnOrderRow(
+            array_map(fn (array $row): OwnOrderRow => new OwnOrderRow(
                 $row['number'], $row['storeId'], $row['placedAt'],
                 OrderStatuses::customer($row['status'], $row['shipment'], OrderStatuses::payment($row['due'], $row['paid'], $row['refunded'])),
-                Money::of($row['total'], $row['currency']), $row['pieces'],
+                Money::of($row['total'], $row['currency']), $row['pieces'], $this->reader->exponent($row['currency']),
             ), $page),
             count($rows) > self::PAGE && $page !== [] ? $page[count($page) - 1]['number'] : null,
         );

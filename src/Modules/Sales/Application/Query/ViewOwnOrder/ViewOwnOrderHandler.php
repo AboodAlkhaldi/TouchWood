@@ -70,8 +70,9 @@ final readonly class ViewOwnOrderHandler
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
 
         return new OwnOrderView(
+            $id,
             (string) $order['number'], (string) $order['store_id'], CarbonImmutable::parse((string) $order['placed_at']),
-            OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment), $payment, (string) $order['way_to_pay'],
+            OrderStatuses::customer((string) $order['status'], (string) $order['shipment_status'], $payment), $payment, WayToPay::from((string) $order['way_to_pay']),
             $lines, $money($order['gross_subtotal_minor']), $money($order['net_subtotal_minor']),
             $order['coupon_code'] === null ? null : (string) $order['coupon_code'], $money($order['coupon_discount_minor']),
             (int) $order['points_used'], $money($order['points_discount_minor']), $money($order['goods_total_minor']), $money($order['shipping_fee_minor']),
@@ -88,6 +89,7 @@ final readonly class ViewOwnOrderHandler
             $inWindow && array_filter($lines, static fn (OrderLineView $line): bool => $line->returnable > 0) !== [],
             $order['way_to_pay'] === WayToPay::BankTransfer->value && (int) $order['paid_minor'] - (int) $order['refunded_minor'] < (int) $order['due_minor']
                 && $documents < UploadTransferDocumentHandler::MOST,
+            $this->reader->exponent($currency),
         );
     }
 }

@@ -19,5 +19,7 @@ final readonly class OwnOrderRow
         public Money $total,
         /** The pieces bought, the gift left out. */
         public int $pieces,
+        /** The currency's exponent, to show `total`. */
+        public int $exponent,
     ) {}
 }
