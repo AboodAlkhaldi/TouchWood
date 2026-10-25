@@ -719,15 +719,22 @@ to come) must keep it unique per customer, or these reads take the store too.
   `ReturnLineView{nameAr, nameEn, values, code, gift, asked, received}`; `photos` a count (the files open
   through staff's `OpenOrderFile`). Another customer's return: `ReturnNotFound`.
 - **`ViewCart(storeId, locale)`** (step S11b-2; `sales.cart.manage`, a guest `sales.guest_cart.manage`) →
-  `CartView{storeId, lines, couponCode, notice, subtotal, exponent}` — `lines` in the order added:
+  `CartView{storeId, lines, mayOrder, couponCode, notice, subtotal, exponent}` — `mayOrder` whether checkout
+  would take this account at all (§1.2 step 1: a guest signs in first; an unapproved company or a customer
+  who may not order cannot — said once here, not on each line); `notice` the lines that left at a sign-in
+  or a merge, named: `CartNoticeLine{variantId, name, code, values, mode, quantity, reason}` (`CartNoticeReason`
+  `WHOLESALE` / `NOT_FOR_YOUR_ACCOUNT`); `lines` in the order added:
   `CartLineView{variantId, productId, name (the page's language), slug, photo, code, values, mode, quantity,
   unit, listUnit, total (today's prices, null unpriced), problem, minimum, maximum}`. **The checkout's own
   rules marked on each line** instead of refusing (§1.2 step 2), the first that applies: `NOT_AVAILABLE`
   (switched off, not orderable, not available now, not in that mode), `NOT_FOR_YOUR_ACCOUNT` (wholesale for
   one not an approved company, or its category closed to the account), `BELOW_MINIMUM`, `ABOVE_MAXIMUM`,
   `OUT_OF_STOCK` (the pieces of a size over both modes), `NOT_PRICED` — `CartLineProblem`, a public enum.
-  `subtotal` the lines that can be ordered (null with none), before any coupon, points, shipping or VAT —
-  the quote's (§1.2). No cart yet: an empty one.
+  A guest's wholesale line is marked only by what is true for any account — the account's own rule waits
+  for the sign-in (§1.1: guests may add wholesale lines). `subtotal` the sum of those lines' totals at
+  today's prices (sale prices applied), null with none — before any coupon, points, shipping or VAT, which
+  the quote works out (§1.2). No cart yet: an empty one. One read of the cart costs the same queries
+  however many lines it holds (tested).
 
 ## 4 · State machines
 
