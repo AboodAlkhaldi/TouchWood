@@ -34,6 +34,7 @@ use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -72,7 +73,10 @@ function ownDeliver(string $order, string $customer): void
 }
 
 it('lists the customer orders newest first, 20 a page, each by its number with the status they see', function () {
-    ['customer' => $customer, 'address' => $address, 'variants' => $variants, 'number' => $first] = ownOrder();
+    ['customer' => $customer, 'address' => $address, 'variants' => $variants] = Cx::ready();
+    // The first order reaches a gift level: its gift is not a piece bought.
+    Pr::giftLevel($variants[1], 100_00);
+    $first = Cx::place(Cx::start($address)->id)->number;
     $numbers = [$first];
 
     foreach (range(1, 20) as $n) {
@@ -88,6 +92,7 @@ it('lists the customer orders newest first, 20 a page, each by its number with t
     expect(array_column([...$page->orders, ...$more->orders], 'number'))->toBe(array_reverse($numbers))
         ->and([count($page->orders), $page->next, $more->next])->toBe([20, $numbers[1], null])
         ->and($page->orders[0]->status)->toBe(CustomerOrderStatus::New)
+        ->and(DB::table('sales.order_lines')->where('is_gift', true)->count())->toBeGreaterThan(0)
         ->and($more->orders[0]->pieces)->toBe(3)
         ->and($more->orders[0]->total->minorUnits)->toBe((int) DB::table('sales.orders')->where('number', $first)->value('order_total_minor'))
         ->and($customer)->not->toBe('');
@@ -97,11 +102,21 @@ it('shows the customer their order: its lines as sold, its totals, its statuses 
     ['customer' => $customer, 'number' => $number, 'order' => $order] = ownOrder();
 
     $waiting = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder(strtolower($number)));
-    ownDeliver($order, $customer);
+    // Shipped, not yet delivered: no longer cancellable.
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'T-1'));
+    Fx::actAsCustomer($customer);
+    $shipped = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_FULFIL], ['sa']));
+    app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+    Fx::actAsCustomer($customer);
     $delivered = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
 
     expect([$waiting->number, $waiting->status, $waiting->payment, $waiting->mayCancel, $waiting->mayReturn])->toBe([$number, CustomerOrderStatus::New, PaymentStatus::Unpaid, true, false])
         ->and(array_map(fn (OrderLineView $line): array => [$line->quantity, $line->unit->minorUnits, $line->returnable], $waiting->lines))->toBe([[2, 100_00, 0], [1, 50_00, 0]])
+        ->and([$shipped->status, $shipped->mayCancel, $shipped->mayReturn])->toBe([CustomerOrderStatus::Shipped, false, false])
         ->and($waiting->total->minorUnits)->toBe($waiting->goodsTotal->minorUnits + $waiting->shipping->minorUnits + $waiting->vat->minorUnits)
         ->and([$delivered->status, $delivered->payment, $delivered->mayCancel, $delivered->mayReturn, $delivered->carrier])->toBe([CustomerOrderStatus::Delivered, PaymentStatus::Paid, false, true, 'SMSA'])
         ->and(array_map(fn (OrderLineView $line): int => $line->returnable, $delivered->lines))->toBe([2, 1])
@@ -155,8 +170,20 @@ it('answers another customer order and return as none, and staff as not allowed'
         ->and(fn () => app(ViewOwnReturnHandler::class)->handle(new ViewOwnReturn((string) Str::ulid())))->toThrow(ReturnNotFound::class)
         ->and(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders)->orders)->toBe([])
         ->and(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders($number))->orders)->toBe([])
+        ->and(fn () => app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number)))->toThrow(OrderNotFound::class)
         ->and(fn () => app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder(str_repeat('X', 25))))->toThrow(OrderNotFound::class);
 
     Fx::actAsStaff(Fx::staff());
     expect(fn () => app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders))->toThrow(Unauthorized::class);
+});
+
+it('never goes on from another customer order number', function () {
+    ['customer' => $sara, 'address' => $address, 'variants' => $variants] = ownOrder();
+    Cx::add($variants[1]);
+    Cx::place(Cx::start($address)->id);
+    ['number' => $omars] = ownOrder();
+    Fx::actAsCustomer($sara);
+
+    expect(count(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders)->orders))->toBe(2)
+        ->and(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders($omars))->orders)->toBe([]);
 });
