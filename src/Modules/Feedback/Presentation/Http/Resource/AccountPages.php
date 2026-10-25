@@ -74,6 +74,7 @@ final readonly class AccountPages
     public function wishlist(ViewMyWishlistHandler $view): MyWishlistPage
     {
         return new MyWishlistPage(array_map(fn (WishlistGroup $group): MyWishlistGroupData => new MyWishlistGroupData(
+            $group->storeId,
             strtolower($this->platform->store(StoreId::fromString($group->storeId))->code ?? ''),
             $group->storeName,
             $group->storeOpen,

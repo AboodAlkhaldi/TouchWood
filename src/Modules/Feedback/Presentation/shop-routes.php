@@ -19,12 +19,14 @@ Route::prefix('{store}/{locale}')
     ->middleware(StorefrontArea::MIDDLEWARE)
     ->group(function (): void {
         Route::post('products/{product}/save', [ShopFeedbackController::class, 'save'])->name('storefront.feedback.save');
+        Route::get('sign-in-here', [ShopFeedbackController::class, 'signInHere'])->name('storefront.feedback.sign-in-here');
 
         Route::middleware(StorefrontArea::SIGNED_IN)->group(function (): void {
             Route::post('products/{product}/reviews', [ShopFeedbackController::class, 'review'])->name('storefront.feedback.review');
             Route::post('products/{product}/questions', [ShopFeedbackController::class, 'ask'])->name('storefront.feedback.ask');
             Route::post('products/{product}/remove', [ShopFeedbackController::class, 'remove'])->name('storefront.feedback.remove');
-            Route::get('products/{product}/save-after-sign-in', [ShopFeedbackController::class, 'saveAfterSignIn'])->name('storefront.feedback.save-after-sign-in');
+            Route::get('wishlist/after-sign-in', [ShopFeedbackController::class, 'saveAfterSignIn'])->name('storefront.feedback.save-after-sign-in');
+            Route::post('account/wishlist/remove', [ShopFeedbackController::class, 'removeSaved'])->name('storefront.feedback.remove-saved');
 
             Route::get('account/reviews', [MyFeedbackController::class, 'reviews'])->name('storefront.feedback.reviews');
             Route::get('account/questions', [MyFeedbackController::class, 'questions'])->name('storefront.feedback.questions');

@@ -36,6 +36,7 @@ reviews: MyReviewData[],
 next: string | null,
 };
 export type MyWishlistGroupData = {
+storeId: string,
 storeCode: string,
 name: string,
 isOpen: boolean,
@@ -127,6 +128,7 @@ next: string | null,
 canWrite: boolean,
 stars: ShopStarData[],
 star: number | null,
+reviewed: boolean,
 };
 export type ShopStarData = {
 star: number,

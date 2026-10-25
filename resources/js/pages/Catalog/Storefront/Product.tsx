@@ -176,7 +176,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                 ) : null}
 
                 {sections['feedback.reviews'] ? <ReviewsSection reviews={sections['feedback.reviews']} url={url} productId={page.productId} /> : null}
-                {sections['feedback.questions'] ? <QuestionsSection questions={sections['feedback.questions']} url={url} productId={page.productId} /> : null}
+                {sections['feedback.questions'] ? <QuestionsSection questions={sections['feedback.questions']} url={url} productId={page.productId} star={sections['feedback.reviews']?.star ?? null} /> : null}
 
                 {page.mayAlsoLike.length > 0 ? (
                     <section className="grid gap-4" data-test="may-also-like">

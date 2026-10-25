@@ -3,7 +3,7 @@ import type { RequestPayload } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Heart, Star } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
-import { TextareaField } from '@/components/Fields';
+import { Messages, TextareaField } from '@/components/Fields';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
 import { PanelDialog } from '@/components/PanelDialog';
 import { formatDate, formatMoment, useStoreZone } from '@/components/Time';
@@ -45,17 +45,27 @@ function plural(t: ReturnType<typeof useTranslator>, locale: string, key: string
     return t(`${key}.${new Intl.PluralRules(intlLocale(locale)).select(count)}`, { count: figure(locale, count) });
 }
 
-/** Five stars, as many filled as the rating rounds to; read as "4.3 out of 5 stars". */
+/** Five stars filled to the nearest half (owner's Q22 (a)); read as "4.3 out of 5 stars". */
 export function ShopStars({ rating, className = 'size-4', label }: { rating: number; className?: string; /** Read aloud instead of Feedback's words, on a page that does not carry them. */ label?: string }) {
     const t = useTranslator();
     const locale = useLocale();
-    const filled = Math.round(rating);
+    const filled = Math.round(rating * 2) / 2;
 
     return (
         <span className="inline-flex items-center gap-0.5" role="img" aria-label={label ?? t(`${W}.rating.stars`, { rating: average(locale, rating) })}>
-            {[1, 2, 3, 4, 5].map((n) => (
-                <Star key={n} aria-hidden="true" className={`${className} ${n <= filled ? 'fill-amber-400 text-amber-400' : 'text-ink-subtle'}`} />
-            ))}
+            {[1, 2, 3, 4, 5].map((n) =>
+                n - 0.5 === filled ? (
+                    // Half: the empty star, its first half filled over it - the start side, so right in Arabic.
+                    <span key={n} className="relative inline-flex" aria-hidden="true" data-test="half-star">
+                        <Star className={`${className} text-ink-subtle`} />
+                        <span className="absolute inset-y-0 start-0 w-1/2 overflow-hidden">
+                            <Star className={`${className} fill-amber-400 text-amber-400 rtl:-scale-x-100`} />
+                        </span>
+                    </span>
+                ) : (
+                    <Star key={n} aria-hidden="true" className={`${className} ${n <= filled ? 'fill-amber-400 text-amber-400' : 'text-ink-subtle'}`} />
+                ),
+            )}
         </span>
     );
 }
@@ -113,6 +123,11 @@ export function ShopDate({ value }: { value: string }) {
     );
 }
 
+/** The reviews narrowed to one star, as the address says it (§4.2 B1); every section's Show More keeps it. */
+function starFilter(star: number | null): Record<string, Record<string, string>> {
+    return star === null ? {} : { filter: { 'feedback.reviews': String(star) } };
+}
+
 function authorName(t: ReturnType<typeof useTranslator>, author: ShopAuthorData): string {
     return author.deleted ? t(`${W}.deleted_customer`) : t(`${W}.author`, { first: author.firstName, initial: author.lastInitial });
 }
@@ -122,14 +137,14 @@ function authorName(t: ReturnType<typeof useTranslator>, author: ShopAuthorData)
  * star chosen, a review written - starts it again; the same first page again (another section's Show
  * More) leaves it as it is.
  */
-function useSectionRows<T>(rows: T[], next: string | null, key: (row: T) => string) {
+function useSectionRows<T>(rows: T[], next: string | null, key: (row: T) => string, scope = '') {
     const [shown, setShown] = useState({ rows, next });
-    const first = useRef(rows.map(key).join(' '));
+    const first = useRef(`${scope}|${rows.map(key).join(' ')}`);
     const appending = useRef(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const ids = rows.map(key).join(' ');
+        const ids = `${scope}|${rows.map(key).join(' ')}`;
 
         if (appending.current) {
             appending.current = false;
@@ -148,7 +163,7 @@ function useSectionRows<T>(rows: T[], next: string | null, key: (row: T) => stri
         }
         // Only a new answer from the server should run this.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rows, next]);
+    }, [rows, next, scope]);
 
     function more(url: string, query: RequestPayload) {
         if (loading) {
@@ -197,24 +212,24 @@ export function SaveHeart({ wishlist, productId, name }: { wishlist: ShopWishlis
 export function ReviewsSection({ reviews, url, productId }: { reviews: ShopReviewsData; url: string; productId: string }) {
     const t = useTranslator();
     const locale = useLocale();
-    const list = useSectionRows<ShopReviewData>(reviews.reviews, reviews.next, (row) => row.reviewId);
+    const list = useSectionRows<ShopReviewData>(reviews.reviews, reviews.next, (row) => row.reviewId, String(reviews.star ?? ''));
     const [writing, setWriting] = useState(false);
     const [wrote, setWrote] = useState(false);
-    const filter = (star: number | null) => (star === null ? {} : { filter: { 'feedback.reviews': String(star) } });
-    const choose = (star: number | null) => router.get(url, filter(star), { only: ['sections'], preserveState: true, preserveScroll: true });
+    const reviewed = wrote || reviews.reviewed;
+    const choose = (star: number | null) => router.get(url, starFilter(star), { only: ['sections'], preserveState: true, preserveScroll: true });
     const total = reviews.stars.reduce((sum, each) => sum + each.count, 0);
 
     return (
         <section id="reviews" className="grid scroll-mt-24 gap-4" data-test="reviews">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-heading-20 text-ink">{t(`${W}.reviews.title`)}</h2>
-                {reviews.canWrite && !wrote ? (
+                {reviews.canWrite && !reviewed ? (
                     <Button type="button" variant="outline" onClick={() => setWriting(true)} data-test="write-review">
                         {t(`${W}.reviews.write`)}
                     </Button>
                 ) : null}
             </div>
-            {wrote ? (
+            {reviewed ? (
                 <p className="text-copy-14 text-ink-muted" data-test="review-written">
                     {t(`${W}.reviews.written`)}
                 </p>
@@ -294,7 +309,7 @@ export function ReviewsSection({ reviews, url, productId }: { reviews: ShopRevie
                                 ))}
                             </ul>
                         )}
-                        {list.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(url, { ...filter(reviews.star), after: { 'feedback.reviews': list.next } })} /> : null}
+                        {list.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(url, { ...starFilter(reviews.star), after: { 'feedback.reviews': list.next } })} /> : null}
                     </div>
                 </div>
             )}
@@ -314,7 +329,7 @@ export function ReviewsSection({ reviews, url, productId }: { reviews: ShopRevie
 }
 
 /** The answered questions (§4.1 F5): the asker, the question, the answer signed by the store's team, newest answer first. */
-export function QuestionsSection({ questions, url, productId }: { questions: ShopQuestionsData; url: string; productId: string }) {
+export function QuestionsSection({ questions, url, productId, star }: { questions: ShopQuestionsData; url: string; productId: string; /** The reviews' star filter, kept by Show More. */ star: number | null }) {
     const t = useTranslator();
     const link = useLink();
     const { shopper } = usePage<SharedProps>().props;
@@ -330,7 +345,7 @@ export function QuestionsSection({ questions, url, productId }: { questions: Sho
                         {t(`${W}.questions.ask`)}
                     </Button>
                 ) : shopper === null || shopper === undefined ? (
-                    <Link href={link('storefront.sign-in')} className="text-label-14 text-ink underline underline-offset-4" data-test="sign-in-to-ask">
+                    <Link href={link('storefront.feedback.sign-in-here', { back: url })} className="text-label-14 text-ink underline underline-offset-4" data-test="sign-in-to-ask">
                         {t(`${W}.questions.sign_in`)}
                     </Link>
                 ) : null}
@@ -359,7 +374,7 @@ export function QuestionsSection({ questions, url, productId }: { questions: Sho
                     ))}
                 </ul>
             )}
-            {list.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(url, { after: { 'feedback.questions': list.next } })} /> : null}
+            {list.next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(url, { ...starFilter(star), after: { 'feedback.questions': list.next } })} /> : null}
 
             {asking ? <AskQuestionDialog productId={productId} onClose={() => setAsking(false)} /> : null}
         </section>
@@ -375,9 +390,17 @@ function WriteReviewDialog({ productId, onClose, onDone }: { productId: string; 
     const [body, setBody] = useState('');
     const [busy, setBusy] = useState(false);
     const checks = useChecks([
-        { id: 'review-rating', label: t(`${W}.write.stars`), value: rating === 0 ? '' : String(rating), rules: { required: true } },
+        { id: 'review-rating', focus: 'rate-1', label: t(`${W}.write.stars`), value: rating === 0 ? '' : String(rating), rules: { required: true } },
         { id: 'review-body', label: t(`${W}.write.body`), value: body, rules: { required: true, length: { max: 2000 } } },
     ]);
+
+    const stars = checks.box('review-rating');
+
+    function pick(n: number) {
+        setRating(n);
+        stars.onType();
+        document.getElementById(`rate-${n}`)?.focus();
+    }
 
     function submit() {
         checks.submit(() =>
@@ -403,18 +426,33 @@ function WriteReviewDialog({ productId, onClose, onDone }: { productId: string; 
                     <legend id="review-rating" className="mb-2 text-label-14 text-ink">
                         {t(`${W}.write.stars`)}
                     </legend>
-                    <div className="flex gap-1" role="radiogroup" aria-labelledby="review-rating">
+                    <div
+                        className="flex gap-1"
+                        role="radiogroup"
+                        aria-labelledby="review-rating"
+                        aria-describedby={stars.message ? 'review-rating-error' : undefined}
+                        aria-invalid={stars.message ? true : undefined}
+                        onKeyDown={(event) => {
+                            // The radio pattern: one stop, the arrows move - forward is left in Arabic.
+                            const rtl = getComputedStyle(event.currentTarget).direction === 'rtl';
+                            const step = { ArrowRight: rtl ? -1 : 1, ArrowDown: 1, ArrowLeft: rtl ? 1 : -1, ArrowUp: -1 }[event.key];
+
+                            if (step !== undefined) {
+                                event.preventDefault();
+                                pick(Math.min(5, Math.max(1, (rating || (step > 0 ? 0 : 6)) + step)));
+                            }
+                        }}
+                    >
                         {[1, 2, 3, 4, 5].map((n) => (
                             <button
                                 key={n}
+                                id={`rate-${n}`}
                                 type="button"
                                 role="radio"
                                 aria-checked={rating === n}
+                                tabIndex={rating === n || (rating === 0 && n === 1) ? 0 : -1}
                                 aria-label={plural(t, locale, `${W}.write.star`, n)}
-                                onClick={() => {
-                                    setRating(n);
-                                    checks.box('review-rating').onType();
-                                }}
+                                onClick={() => pick(n)}
                                 className="rounded-md p-1 hover:bg-surface-sunken"
                                 data-test={`rate-${n}`}
                             >
@@ -422,6 +460,7 @@ function WriteReviewDialog({ productId, onClose, onDone }: { productId: string; 
                             </button>
                         ))}
                     </div>
+                    <Messages id="review-rating" error={stars.message} check={stars} />
                 </fieldset>
                 <TextareaField id="review-body" dir="auto" rows={5} label={t(`${W}.write.body`)} value={body} check={checks.box('review-body')} onChange={(event) => setBody(event.target.value)} data-test="review-body" />
             </div>

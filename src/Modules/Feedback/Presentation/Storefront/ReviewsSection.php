@@ -47,6 +47,7 @@ final readonly class ReviewsSection implements ShopProductSection
             $read->signedIn && ! $read->reviewed,
             array_map(static fn (int $star, int $count): ShopStarData => new ShopStarData($star, $count), array_keys($read->stars), $read->stars),
             $read->star,
+            $read->signedIn && $read->reviewed,
         ))->toArray();
     }
 

@@ -1,20 +1,20 @@
 import { useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { AccountProduct } from '@/components/feedback/account';
 import { ActionButton } from '@/components/ActionButton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { AccountLayout } from '@/layouts/AccountLayout';
+import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { MyWishlistGroupData, MyWishlistPage, WishlistItemData } from '@/types/generated/Modules/Feedback/Presentation/Http/Resource';
-import type { SharedProps } from '@/types/page';
 
 /*
 | F8 - My Wishlist (feedback.md §4.1), grouped by store (Q20): each product's card, linked in that store,
 | with Remove; one the store no longer sells marked "Not available now" (answer 17); a closed store's
-| group marked too. Remove is sent to the product's own store.
+| group marked too. Remove names the store the product was saved in, so it works in a closed one too.
 */
 
 const W = 'feedback::shop';
@@ -51,7 +51,7 @@ function StoreGroup({ group }: { group: MyWishlistGroupData }) {
             <CardContent className="px-5">
                 <ul className="grid gap-3">
                     {group.items.map((item) => (
-                        <Item key={item.product.id} item={item} storeCode={group.storeCode} />
+                        <Item key={item.product.id} item={item} storeId={group.storeId} />
                     ))}
                 </ul>
             </CardContent>
@@ -59,9 +59,9 @@ function StoreGroup({ group }: { group: MyWishlistGroupData }) {
     );
 }
 
-function Item({ item, storeCode }: { item: WishlistItemData; storeCode: string }) {
+function Item({ item, storeId }: { item: WishlistItemData; storeId: string }) {
     const t = useTranslator();
-    const { locale } = usePage<SharedProps>().props;
+    const link = useLink();
     const [busy, setBusy] = useState(false);
 
     return (
@@ -76,7 +76,7 @@ function Item({ item, storeCode }: { item: WishlistItemData; storeCode: string }
                 variant="outline"
                 loading={busy}
                 aria-label={t(`${W}.save.remove`, { name: item.product.name })}
-                onClick={() => router.post(`/${storeCode}/${locale}/products/${item.product.id}/remove`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
+                onClick={() => router.post(link('storefront.feedback.remove-saved'), { store: storeId, product: item.product.id }, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) })}
                 data-test="remove"
             >
                 {t(`${W}.my.wishlist.remove`)}

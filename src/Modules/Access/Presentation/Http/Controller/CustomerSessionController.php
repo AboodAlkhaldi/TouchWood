@@ -67,8 +67,9 @@ final readonly class CustomerSessionController
             return FormErrors::back($request, $error, ['email']);
         }
 
-        // Signed in already (owner, 2026-09-20): they land in the store, with the link on its way.
-        return redirect()->route('storefront.home')->with('status', __('access::auth.registered'));
+        // Signed in already (owner, 2026-09-20): they land in the store, with the link on its way - or where a
+        // page sent them to sign in (amendment 75).
+        return redirect()->intended(route('storefront.home'))->with('status', __('access::auth.registered'));
     }
 
     public function signIn(SignInRequest $request, SignInCustomerHandler $handler): RedirectResponse
@@ -88,8 +89,8 @@ final readonly class CustomerSessionController
             return FormErrors::back($request, $error, ['email']);
         }
 
-        // Back to where a page sent them to sign in (access.md amendment 75: Feedback's Save heart), else
-        // home. The address is one the server kept in the session, never one the request names.
+        // Back to where a page sent them to sign in (access.md amendment 75: Feedback's Save heart, "Sign in to
+        // ask"), else home. Kept in the session, a path on this site only - never another host.
         return redirect()->intended(route('storefront.home'));
     }
 

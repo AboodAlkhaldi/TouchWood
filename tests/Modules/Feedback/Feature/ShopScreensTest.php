@@ -155,7 +155,7 @@ describe('F5, F6 · The product page', function () {
         $back = $browser->get((string) $signedIn->headers->get('Location'));
 
         expect($pressed->headers->get('Location'))->toEndWith('/sa/en/sign-in')
-            ->and((string) $signedIn->headers->get('Location'))->toContain("/products/{$product}/save-after-sign-in")
+            ->and((string) $signedIn->headers->get('Location'))->toEndWith('/sa/en/wishlist/after-sign-in')
             ->and($back->headers->get('Location'))->toEndWith($page)
             ->and(DB::table('feedback.wishlist_items')->where('customer_id', $sara)->where('product_id', $product)->exists())->toBeTrue();
     });
@@ -168,15 +168,17 @@ describe('F5, F6 · The product page', function () {
         // fixtures act as the system in this process; in a real request each starts fresh).
         Fx::customer('layla@example.test');
 
-        $forged = $browser->get("/sa/en/products/{$product}/save-after-sign-in?back=/sa/en");
+        // No heart pressed in this session: the address alone saves nothing, whoever sent the link.
+        $forged = $browser->get('/sa/en/wishlist/after-sign-in');
         $guest = (new AdminBrowser('10.9.8.'.random_int(20, 250)));
         $guest->post("/sa/en/products/{$product}/save", ['back' => '//evil.example/x']);
         $intended = (string) $guest->post('/sa/en/account/sign-in', ['email' => 'layla@example.test', 'password' => Fx::CUSTOMER_PASSWORD])->headers->get('Location');
 
         expect($forged->headers->get('Location'))->toEndWith('/sa/en')
             ->and(DB::table('feedback.wishlist_items')->where('customer_id', $sara)->exists())->toBeFalse()
-            ->and($intended)->toContain('save-after-sign-in')
-            ->and(urldecode($intended))->not->toContain('evil.example');
+            ->and($intended)->toEndWith('/sa/en/wishlist/after-sign-in')
+            // The heart pressed with an address of another host: saved, and back to this store's home.
+            ->and((string) $guest->get($intended)->headers->get('Location'))->toEndWith('/sa/en');
     });
 });
 
