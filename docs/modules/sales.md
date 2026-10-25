@@ -718,6 +718,16 @@ to come) must keep it unique per customer, or these reads take the store too.
   exponent}` — `lines`:
   `ReturnLineView{nameAr, nameEn, values, code, gift, asked, received}`; `photos` a count (the files open
   through staff's `OpenOrderFile`). Another customer's return: `ReturnNotFound`.
+- **`ViewCart(storeId, locale)`** (step S11b-2; `sales.cart.manage`, a guest `sales.guest_cart.manage`) →
+  `CartView{storeId, lines, couponCode, notice, subtotal, exponent}` — `lines` in the order added:
+  `CartLineView{variantId, productId, name (the page's language), slug, photo, code, values, mode, quantity,
+  unit, listUnit, total (today's prices, null unpriced), problem, minimum, maximum}`. **The checkout's own
+  rules marked on each line** instead of refusing (§1.2 step 2), the first that applies: `NOT_AVAILABLE`
+  (switched off, not orderable, not available now, not in that mode), `NOT_FOR_YOUR_ACCOUNT` (wholesale for
+  one not an approved company, or its category closed to the account), `BELOW_MINIMUM`, `ABOVE_MAXIMUM`,
+  `OUT_OF_STOCK` (the pieces of a size over both modes), `NOT_PRICED` — `CartLineProblem`, a public enum.
+  `subtotal` the lines that can be ordered (null with none), before any coupon, points, shipping or VAT —
+  the quote's (§1.2). No cart yet: an empty one.
 
 ## 4 · State machines
 
