@@ -773,6 +773,18 @@ the order's store.
   vatRateBasisPoints, total, wayToPay, exponent}` — a packing slip's and an invoice's facts, the layout the
   screen's. Each line carries the variant's `code`, staff-only (catalog.md amendment 5(d)): an invoice handed
   to the customer leaves it out.
+- **`ListReturns(?storeId, ?status, ?after)`** (handoff §14: Returns): one store (refused when not covered or not
+  listed) or every store listed; one state (`REQUESTED` … `CLOSED`, any case) or all; newest asked first, **50 a
+  page**, `after` the last return id → `StaffReturnsPage{returns, next}`, each `StaffReturnRow{returnId, orderId,
+  orderNumber, storeId, customer, status, requestedAt, refundDue, exponent}`.
+- **`ViewReturn(returnId)`** → `StaffReturnView{returnId, orderId, orderNumber, storeId, customer, status, reason,
+  reasonOther, staffReason, requestedAt, decidedBy, decidedAt, withdrawnAt, receivedAt, closedAt, completedAt,
+  refundDue, shippingRefunded, lines, photos, exponent}`; each line `{orderLineId, variantId, nameAr, nameEn,
+  values, code, gift, asked, received, restocked}`; `photos` `{mediaId, position}`. Another store's return:
+  `ReturnNotFound`.
+- **`OpenOrderFile(mediaId)`** → `OrderFile{mediaId, url, expiresAt}`: a transfer document or a return photo,
+  through Platform's expiring link, to staff who view the orders of its store; any other file, or one of a store
+  not covered: `OrderNotFound` (Platform asks the module to check its reader first: catalog.md §2.4).
 
 ## 4 · State machines
 
