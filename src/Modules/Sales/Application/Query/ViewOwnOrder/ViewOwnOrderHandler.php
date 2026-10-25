@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Query\ViewOwnOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
+use Modules\Sales\Application\Query\Own\OrderLines;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnOrderView;
 use Modules\Sales\Application\Query\Own\OwnReader;
@@ -13,7 +14,6 @@ use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
-use Modules\Sales\Domain\Repository\Returns;
 use Modules\Sales\Domain\Service\OrderStatuses;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
@@ -31,7 +31,7 @@ final readonly class ViewOwnOrderHandler
     public function __construct(
         private OwnReader $reader,
         private OwnReads $reads,
-        private Returns $returnsRepository,
+        private OrderLines $lines,
     ) {}
 
     /**
@@ -48,21 +48,8 @@ final readonly class ViewOwnOrderHandler
         $at = static fn (mixed $moment): ?CarbonImmutable => $moment === null ? null : CarbonImmutable::parse((string) $moment);
 
         $deadline = $at($order['return_deadline_at']);
-        // In whole seconds, as RequestReturn reads the window.
-        $inWindow = $order['status'] === OrderState::COMPLETED && $deadline !== null && CarbonImmutable::now()->startOfSecond() <= $deadline;
-        $counted = $inWindow ? $this->returnsRepository->returnable($id) : [];
-        $lines = array_map(static function (array $line) use ($money, $counted): OrderLineView {
-            /** @var list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}> $values */
-            $values = json_decode((string) $line['variant_values'], true, 512, JSON_THROW_ON_ERROR);
-            $held = $counted[(string) $line['id']] ?? null;
-
-            return new OrderLineView(
-                (string) $line['id'], (string) $line['product_id'], (string) $line['variant_id'], (string) $line['name_ar'], (string) $line['name_en'],
-                $values, (string) $line['code'], (string) $line['sale_mode'], (bool) $line['is_gift'], (int) $line['quantity'],
-                $money($line['unit_minor']), $money($line['list_unit_minor']), $money($line['total_minor']),
-                $held === null ? 0 : max(0, $held['quantity'] - $held['counted']),
-            );
-        }, $this->reads->lines($id));
+        // The lines as sold, each with the pieces still to ask back now; the window in whole seconds.
+        [$lines, $inWindow] = $this->lines->of($order);
 
         $payment = OrderStatuses::payment((int) $order['due_minor'], (int) $order['paid_minor'], (int) $order['refunded_minor']);
         $documents = $this->reads->transferDocuments($id);

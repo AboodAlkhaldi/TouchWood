@@ -89,11 +89,17 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `CustomerOrderStatus`); `Query/ListOwnOrders`, `Query/ViewOwnOrder`, `Query/ViewOwnReturn` through
   `Query/Own/OwnReader` (`sales.order.view_own`), SQL in `Infrastructure/Eloquent/DatabaseOwnReads`;
   `Query/ViewCart` (S11b-2: each line's card, today's prices, `CartLineProblem`, the subtotal).
+- **Staff's reads** (S11c-1, sales.md §3.2): `Query/ListOrders`, `Query/ViewOrder`, `Query/PrintOrder` through
+  `Query/Staff/StaffReader` (customers by name, staff names, exponents), SQL in `Infrastructure/Eloquent/DatabaseStaffReads`;
+  `Query/Own/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
+  listed only while unfinished, §1.12) behind `Query/ListOrderStores`. S11c-2: `Query/ListReturns`,
+  `Query/ViewReturn`, `Query/OpenOrderFile` (a transfer document or a return photo, an expiring link), SQL in
+  `Infrastructure/Eloquent/DatabaseStaffReturnReads`.
 - **The Best-Selling ranks** (S11a): `PushSalesRanks` (nightly through `Infrastructure/Queue/PushSalesRanksJob`;
   `Orders::piecesSold`) pushes each store's whole ranking to Catalog's `ListingFacts::salesRanks` (catalog.md
   amendment 30).
 
 Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSettingsTest`,
-`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, `SalesRanksTest`, `OwnOrdersTest`, `CartViewTest`, and
+`SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, `SalesRanksTest`, `OwnOrdersTest`, `CartViewTest`, `StaffOrdersTest`, `StaffReturnsTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`, `OrderStatusesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.

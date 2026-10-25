@@ -15,6 +15,8 @@ use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\Query\Own\OwnReads;
+use Modules\Sales\Application\Query\Staff\StaffReads;
+use Modules\Sales\Application\Query\Staff\StaffReturnReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Repository\Carts;
@@ -30,6 +32,8 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseOwnReads;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReads;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReturnReads;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
 use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
@@ -58,6 +62,8 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(Returns::class, DatabaseReturns::class);
         $this->app->bind(MoneyRecords::class, DatabaseMoneyRecords::class);
         $this->app->bind(OwnReads::class, DatabaseOwnReads::class);
+        $this->app->bind(StaffReads::class, DatabaseStaffReads::class);
+        $this->app->bind(StaffReturnReads::class, DatabaseStaffReturnReads::class);
     }
 
     public function boot(): void
