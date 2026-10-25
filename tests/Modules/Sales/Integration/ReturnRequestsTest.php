@@ -415,5 +415,10 @@ describe('the tables', function () {
             $second = returnAsk((string) DB::table('sales.returns')->where('id', $r)->value('order_id'), [$lines['second'] => 1]);
             DB::table('sales.returns')->where('id', $second)->update([...returnCompletedRow(0), 'shipping_refunded' => true]);
         }, 'returns_one_shipping_refund'],
+        'a return of another store\'s order' => [fn (string $r) => DB::table('sales.returns')->where('id', $r)->update(['store_id' => Fx::storeId('eg')]), 'returns_order'],
+        'a return line of another order' => [function (string $r) {
+            ['lines' => $other] = returnable();
+            DB::table('sales.return_lines')->where('return_id', $r)->update(['order_line_id' => $other['first']]);
+        }, 'return_lines_order_line'],
     ]);
 });

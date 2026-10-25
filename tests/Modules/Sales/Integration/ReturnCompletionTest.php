@@ -32,7 +32,9 @@ use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Public\Contracts\SalesApi;
 use Modules\Sales\Public\Events\ReturnCompleted;
+use Shared\Infrastructure\Outbox\OutboxRelay;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
@@ -61,12 +63,15 @@ beforeEach(function () {
  *
  * @return array{order: string, customer: string, address: string, product: string, variants: list<string>, lines: array<string, string>, staff: string}
  */
-function completionOrder(bool $withGift = false): array
+/**
+ * @param  array<string, mixed>  $coupon  the coupon's columns changed
+ */
+function completionOrder(bool $withGift = false, int $fee = 25_00, array $coupon = []): array
 {
     $ready = Cx::ready();
-    Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+    Cx::setting(SalesSettings::FLAT_FEE, $fee);
     Pr::ceiling(100);
-    Pr::coupon('SUMMER-15');
+    Pr::coupon('SUMMER-15', with: $coupon);
     app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
     Lx::programme();
     Lx::deliver($ready['customer'], 1_000_00);
@@ -361,5 +366,41 @@ describe('what Sales tells Feedback', function () {
         expect($sales->returnedProducts($gift)?->productIds)->toBe([])
             ->and($sales->returnedProducts($none)?->productIds)->toBe([])
             ->and($sales->deliveredPurchase($sold['customer'], $sold['product'])?->returned)->toBeFalse();
+    });
+});
+
+describe('what the module pass added (§8)', function () {
+    it('refunds a whole order to its total however its money was made up', function (int $fee, array $coupon) {
+        $sold = completionOrder(fee: $fee, coupon: $coupon);
+        ['order' => $order, 'lines' => $lines] = $sold;
+        $total = (int) completionOrderRow($order)?->order_total_minor;
+
+        $return = completionAccepted($sold, [$lines['first'] => 2, $lines['second'] => 1]);
+        completionReceive($return, [$lines['first'] => [2, 2], $lines['second'] => [1, 1]]);
+
+        expect(completionComplete($return))->toBe($total)
+            ->and((int) completionOrderRow($order)?->due_minor)->toBe(0);
+    })->with([
+        'free shipping' => [0, []],
+        'a coupon taking every line to 0' => [25_00, ['percent' => 100]],
+    ]);
+
+    it('marks the customer\'s review returned once the return completes, through the outbox', function () {
+        $sold = completionOrder();
+        ['lines' => $lines, 'customer' => $customer, 'product' => $product] = $sold;
+        $review = Fb::write($customer, $product);
+        Fx::actAsStaff($sold['staff']);
+        $return = completionAccepted($sold, [$lines['first'] => 1]);
+        completionReceive($return, [$lines['first'] => [1, 1]]);
+        completionComplete($return);
+        $before = (string) DB::table('feedback.reviews')->where('id', $review)->value('mark');
+
+        // One message an order a run, in their order: placed, delivered, then the return completed.
+        foreach (range(1, 3) as $run) {
+            app(OutboxRelay::class)->run();
+        }
+
+        expect([$before, (string) DB::table('feedback.reviews')->where('id', $review)->value('mark')])->toBe(['VERIFIED_PURCHASE', 'RETURNED'])
+            ->and(DB::table('public.outbox_messages')->whereNull('dispatched_at')->count())->toBe(0);
     });
 });
