@@ -573,40 +573,6 @@ of non-gift lines in its orders **placed** within the last 90 days (to the secon
 tie to the newer product (the shop's own tie-break); **every store, on and off, gets its whole ranking**, so a
 product that sold nothing loses its rank. Catalog keeps it (catalog.md amendment 30).
 
-### 1.14 Orders from the previous shop (owner, 2026-10-26 — **proposed, not built**)
-
-The customers' accounts move from the company's previous shop into this one at the migration stage, and
-each must still see **the orders they placed there**. The previous shop's data is untidy, and its order
-numbers are in another format. The owner chose to keep those orders **apart from this shop's orders and
-view only** (way A, §9.1c 48) — an archive drawer beside the live cabinet:
-
-- **Their own two tables** (§5, proposed): `sales.previous_orders` and `sales.previous_order_lines`. No
-  rule of this shop's orders applies to them — no state machine, money, stock hold, coupon, points, edit,
-  cancellation or return; nothing in Sales, Inventory, Promotions, Loyalty, the reports or Best-Selling
-  reads them, except the two reads below and Feedback's verified purchase.
-- **Only what the previous shop really holds is kept**, and **only the order's existence is required**:
-  its number as written there, its customer (matched to an account at import) and, when known, its date.
-  Every other fact is optional — the store, the status as written, the total and currency, and the lines
-  (a name as written, a code, a quantity, a price). What the screens show of them is decided once the
-  owner has seen the data (§9.2 #10): at the least, "an order from our previous shop" with its number and
-  date.
-- **The customer sees them in My orders**, in the same list by date, marked **"From our previous shop"**;
-  opening one shows what is kept, read only — no cancel, return, payment, document or review button. A
-  customer's other previous orders are none of theirs, as their orders here.
-- **Staff see them on the customer's page** in the panel, view only, under `sales.order.view` in the
-  customer's home store (the previous shop's store, when known).
-- **Reviews** (§9.1c 48.1): a previous order's line **matched at import to one of this shop's products**
-  (by its code) counts as a **verified purchase** of that product — as a delivered order here, through
-  `SalesApi::deliveredPurchase` — when the import maps its old status to a finished one; a line not matched
-  counts for nothing. Its mark is "Verified purchase", as any other.
-- **Points**: none (§9.1c 48.2).
-- **The import is the migration stage's** (§9.1c 48.4): a one-off command run by the system on the
-  company's own machine, from the previous shop's exported files (xlsx, §9.1c 48.3), each row once
-  (the previous shop's own id kept, so a second run adds nothing twice). The data never leaves the
-  company's machine; the spec needs only the files' **column names**, not their rows (§9.2 #10).
-- **An anonymized customer's** previous orders keep no name, email, phone or address — none is kept at
-  all; the order and its lines stay, as this shop's orders do (§1.12).
-
 ---
 
 ## 2 · Public contract
@@ -1116,11 +1082,8 @@ refusing anything but one void.
 46. **Every "as built" assumption** in §1–§3 and §5 is accepted as written (the owner read them all).
 47. **The contact email** on staff's order view only for staff who may view the customer; the phone for
     every reader (§3.2).
-48. **The previous shop's orders** are kept apart, view only (§1.14, way A — not this shop's orders
-    flagged): (1) a matched product's line counts as a verified purchase, since many of the previous
-    shop's products are this shop's; (2) no points; (3) exported as xlsx files — the previous shop's
-    data is untidy, so what is shown is decided on seeing it, at the least that an order existed;
-    (4) imported at the migration stage, with the tables and reads made now so the migration fits.
+48. **No data from the previous shop** — none of its orders appears here; a customer starts with no
+    order history (whether their accounts and sign-ins move over is the migration stage's to decide).
 
 ### 9.2 Still open
 
@@ -1154,10 +1117,6 @@ refusing anything but one void.
 9. **Answer 41's change to Inventory** — `ship` taking a store with no provider to 0 and recording the
    shortfall instead of refusing — the stage 5 session's to build (their answer, 2026-10-19), before
    Sales's shipping step (S8). Both built (S8; `InventoryApi::ship`).
-10. **The previous shop's data (§1.14)** — the owner sends the **column names** of its order, order-line
-    and customer tables (no rows, nothing personal), and how its statuses read; then the mapping, what
-    the screens show and the tables' final columns are written here, and the tables, the two reads and
-    the verified purchase are built in stage 6; the import itself at the migration stage.
 
 ### 9.3 The independent reviews of the draft (2026-10-10)
 
