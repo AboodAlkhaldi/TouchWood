@@ -81,7 +81,7 @@ final class SalesServiceProvider extends ServiceProvider
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
         // An anonymized account's carts deleted (§1.12).
         Event::listen(CustomerAnonymized::class, [ForgetCustomer::class, 'handle']);
-        // A store opened later gets its own order numbers from 1001 (§1.3).
+        // A store opened later gets its own order numbers from 1, shown SA-0001 (§1.3).
         Event::listen(StoreCreated::class, [CreateOrderSequence::class, 'handle']);
         // Stock removed under placed orders: those still open and unshipped flagged "stock was reduced" (§1.11).
         Event::listen(HoldsShort::class, [FlagShortOrders::class, 'handle']);
