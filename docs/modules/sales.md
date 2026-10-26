@@ -1018,6 +1018,7 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 | B6 | **Buy again** — one command adding an own order's lines still available to the cart, answering those it could not add, with why | S8 |
 | B7 | **The edit's product search** — a store's sizes by name or code, with their values, today's price and the stock available | P4 |
 | B8 | **Prices in the shop** — on the cards (now, before, for the viewer's side, and the lowest among the sizes for "From"; a guest's wholesale "from") and on the product page (each size's price and old price; wholesale bands), without VAT; Catalog keeps the listing prices Pricing pushes (catalog.md amendment 15) | S1 |
+| B9 | **What may be ticked "reduced in the provider"** — the staff view says whether the order was placed wired (`orders.wired`) and, for each line, whether it counts on stock (`order_lines.counts_on_stock`, the gift always) | P2 |
 
 ---
 
