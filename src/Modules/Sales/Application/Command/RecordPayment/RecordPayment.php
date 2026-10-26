@@ -9,7 +9,6 @@ final readonly class RecordPayment
 {
     public function __construct(
         public string $orderId,
-        public string $amount,
         public string $way,
         public ?string $reference,
         public ?string $note,

@@ -6,6 +6,7 @@ namespace Modules\Sales\Infrastructure\Eloquent;
 
 use Illuminate\Database\ConnectionInterface;
 use Modules\Sales\Application\Query\Staff\StaffReads;
+use Shared\Domain\Text\LatinDigits;
 use stdClass;
 
 /** `StaffReads` in SQL (sales.md §3, §5). */
@@ -15,7 +16,7 @@ final readonly class DatabaseStaffReads implements StaffReads
         private ConnectionInterface $db,
     ) {}
 
-    public function orders(?array $storeIds, string $filter, ?string $afterOrderId, int $limit): array
+    public function orders(?array $storeIds, string $filter, ?string $afterOrderId, int $limit, ?string $q = null, ?string $customerId = null): array
     {
         $query = $this->db->table('sales.orders AS o')
             ->orderByDesc('o.placed_at')->orderByDesc('o.id')->limit($limit)
@@ -26,10 +27,27 @@ final readonly class DatabaseStaffReads implements StaffReads
             $query->whereIn('o.store_id', $storeIds);
         }
 
-        if ($filter === self::UNPAID) {
-            $query->whereRaw('o.paid_minor - o.refunded_minor < o.due_minor');
-        } elseif ($filter === self::SHORT) {
-            $query->whereNotNull('o.short_of_stock_at');
+        match ($filter) {
+            self::UNPAID => $query->whereRaw('o.paid_minor - o.refunded_minor < o.due_minor'),
+            self::SHORT => $query->whereNotNull('o.short_of_stock_at'),
+            self::WAITING_APPROVAL => $query->where('o.status', 'PENDING_APPROVAL'),
+            self::TO_SHIP => $query->where('o.status', 'APPROVED')->where('o.shipment_status', 'NOT_SHIPPED'),
+            self::SHIPPED => $query->where('o.shipment_status', 'SHIPPED'),
+            self::TRANSFERS_TO_CHECK => $query->where('o.way_to_pay', 'BANK_TRANSFER')->whereRaw('o.paid_minor - o.refunded_minor < o.due_minor')
+                ->whereExists(fn ($documents) => $documents->from('sales.transfer_documents AS d')->whereColumn('d.order_id', 'o.id')),
+            default => $query,
+        };
+
+        if ($customerId !== null) {
+            $query->where('o.customer_id', $customerId);
+        }
+
+        if ($q !== null) {
+            // Any part of the number or the name as placed, any case, its digits read as Latin; a phone by its digits.
+            $text = '%'.addcslashes(mb_strtolower(LatinDigits::of($q)), '%_\\').'%';
+            $digits = preg_replace('/\D/', '', LatinDigits::of($q)) ?? '';
+            $query->where(fn ($found) => $found->whereRaw('lower(o.number) LIKE ?', [$text])->orWhereRaw('lower(o.customer_name) LIKE ?', [$text])
+                ->when($digits !== '', fn ($phone) => $phone->orWhereRaw("regexp_replace(o.customer_phone, '\\D', '', 'g') LIKE ?", ['%'.$digits.'%'])));
         }
 
         if ($afterOrderId !== null) {
@@ -43,6 +61,12 @@ final readonly class DatabaseStaffReads implements StaffReads
         }
 
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $query->get()->all()));
+    }
+
+    public function carriers(string $storeId, int $limit): array
+    {
+        return array_values(array_map('strval', $this->db->table('sales.orders')->where('store_id', $storeId)->whereNotNull('carrier')
+            ->groupBy('carrier')->orderByRaw('max(shipped_at) DESC NULLS LAST')->orderBy('carrier')->limit($limit)->pluck('carrier')->all()));
     }
 
     public function order(string $orderId): ?array

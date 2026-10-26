@@ -24,7 +24,8 @@ final readonly class OrderLines
 
     /**
      * @param  array<string, mixed>  $order  the order's row
-     * @return array{list<OrderLineView>, bool} the lines, and whether the return window is open now
+     * @return array{list<OrderLineView>, bool, list<string>} the lines, whether the return window is open now,
+     *                                                        and the sizes whose stock counted when it was placed (§1.5)
      */
     public function of(array $order): array
     {
@@ -33,6 +34,10 @@ final readonly class OrderLines
         $inWindow = $order['status'] === OrderState::COMPLETED && $deadline !== null && CarbonImmutable::now()->startOfSecond() <= $deadline;
         $counted = $inWindow ? $this->returns->returnable((string) $order['id']) : [];
         $money = static fn (mixed $minor): Money => Money::of((int) $minor, $currency);
+
+        $rows = $this->reads->lines((string) $order['id']);
+        $counting = array_values(array_unique(array_map(static fn (array $line): string => (string) $line['variant_id'],
+            array_filter($rows, static fn (array $line): bool => (bool) $line['counts_on_stock']))));
 
         return [array_map(static function (array $line) use ($money, $counted): OrderLineView {
             /** @var list<array{attributeAr: string, attributeEn: string, valueAr: string, valueEn: string}> $values */
@@ -45,6 +50,6 @@ final readonly class OrderLines
                 $money($line['unit_minor']), $money($line['list_unit_minor']), $money($line['total_minor']),
                 $held === null ? 0 : max(0, $held['quantity'] - $held['counted']),
             );
-        }, $this->reads->lines((string) $order['id'])), $inWindow];
+        }, $rows), $inWindow, $counting];
     }
 }

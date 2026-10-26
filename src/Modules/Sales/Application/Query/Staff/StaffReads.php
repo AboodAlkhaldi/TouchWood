@@ -19,16 +19,38 @@ interface StaffReads
     /** Flagged short of stock. */
     public const string SHORT = 'SHORT';
 
+    /** Waiting for staff's decision. */
+    public const string WAITING_APPROVAL = 'WAITING_APPROVAL';
+
+    /** Approved, not shipped. */
+    public const string TO_SHIP = 'TO_SHIP';
+
+    /** Shipped, not yet delivered nor come back. */
+    public const string SHIPPED = 'SHIPPED';
+
+    /** Paid by bank transfer, a document uploaded, still holding less than is due. */
+    public const string TRANSFERS_TO_CHECK = 'TRANSFERS_TO_CHECK';
+
+    public const array FILTERS = [self::ALL, self::UNPAID, self::SHORT, self::WAITING_APPROVAL, self::TO_SHIP, self::SHIPPED, self::TRANSFERS_TO_CHECK];
+
     /**
-     * Orders of these stores (null: every store), newest first, after the order with that id.
+     * Orders of these stores (null: every store), newest first, after the order with that id; `$q` an order
+     * number, a customer's name (as placed) or a phone's digits, any part of it; `$customerId` one customer's.
      *
      * @param  list<string>|null  $storeIds
      * @return list<array<string, mixed>>
      */
-    public function orders(?array $storeIds, string $filter, ?string $afterOrderId, int $limit): array;
+    public function orders(?array $storeIds, string $filter, ?string $afterOrderId, int $limit, ?string $q = null, ?string $customerId = null): array;
 
     /** @return array<string, mixed>|null */
     public function order(string $orderId): ?array;
+
+    /**
+     * The carriers the store's orders were shipped with, each once, the most lately shipped with first.
+     *
+     * @return list<string>
+     */
+    public function carriers(string $storeId, int $limit): array;
 
     /** @return list<array<string, mixed>> payments and refunds, oldest first, each with `kind` PAYMENT or REFUND */
     public function money(string $orderId): array;

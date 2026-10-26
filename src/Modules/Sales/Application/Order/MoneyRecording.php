@@ -14,6 +14,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Exception\RefundTooLarge;
@@ -25,8 +26,9 @@ use Shared\Domain\ValueObject\MoneyException;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * A payment or a refund staff record by hand (sales.md §1.9): the amount in the order's own currency,
- * the way — a bank transfer, or "other" with a note (online is stage 7's, through Payments) — a
+ * A payment or a refund staff record by hand (sales.md §1.9): **a payment is always the whole balance
+ * still owed** — due less what is held, filled in by Sales, never typed (owner, 2026-10-27: no partial
+ * payments) — refused when nothing is owed; a refund's amount is typed, in the order's own currency; the way — a bank transfer, or "other" with a note (online is stage 7's, through Payments) — a
  * reference, the day the money moved (not after today in the store's own time), and the form's request
  * id: **pressing twice records once**. What staff type — the reference, the note — is audited as written
  * only. A refund never above what the order holds (paid less refunded). Under the order's lock;
@@ -47,13 +49,14 @@ final readonly class MoneyRecording
     ) {}
 
     /**
-     * The order and the staff member as `OrderAccess::authorize` answered them, under `PERMISSION`.
+     * The order and the staff member as `OrderAccess::authorize` answered them, under `PERMISSION`. A
+     * payment's amount is the balance owed under the order's lock (`$amount` null); a refund's is given.
      *
      * @return string the record's id — the one already made, for a form sent twice
      *
-     * @throws InvalidSalesAttribute|OrderNotFound|RefundTooLarge
+     * @throws InvalidSalesAttribute|InvalidOrderChange|OrderNotFound|RefundTooLarge
      */
-    public function record(string $kind, string $orderId, string $staffId, string $amount, string $way, ?string $reference, ?string $note, string $happenedOn, string $requestId): string
+    public function record(string $kind, string $orderId, string $staffId, ?string $amount, string $way, ?string $reference, ?string $note, string $happenedOn, string $requestId): string
     {
         $way = strtoupper(trim($way));
         $reference = self::optional($reference, 100, 'reference');
@@ -77,8 +80,11 @@ final readonly class MoneyRecording
             }
 
             $currency = $this->platform->currency($order->currencyCode) ?? throw new LogicException("The order's currency {$order->currencyCode} is not known.");
-            $money = self::amount($amount, $order->currencyCode, $currency->exponent);
             $day = self::day($happenedOn, $this->platform->store(StoreId::fromString($order->storeId))->timezone ?? 'UTC');
+            // A payment: the whole balance still owed, worked out under the lock; nothing owed, nothing to record.
+            $money = $kind === MoneyRecord::PAYMENT
+                ? ($order->due - $order->held() > 0 ? Money::of($order->due - $order->held(), $order->currencyCode) : throw new InvalidOrderChange)
+                : self::amount($amount ?? '', $order->currencyCode, $currency->exponent);
 
             if ($kind === MoneyRecord::REFUND && $money->minorUnits > $order->held()) {
                 throw new RefundTooLarge;

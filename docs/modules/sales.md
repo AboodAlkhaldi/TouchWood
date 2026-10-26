@@ -494,8 +494,12 @@ Payments' (stage 7).
 
 **As built (step S7b)** — my assumptions, stated for the owner to reject:
 - **The ways staff record by hand** are `BANK_TRANSFER` and `OTHER` (with a note); `ONLINE` is Payments'
-  own, from stage 7. The amount is typed as a decimal in the order's own currency, never more decimals
-  than it has; the reference is optional, up to 100 characters.
+  own, from stage 7. **A payment is always the whole balance still owed** — due less what is held, filled
+  in by Sales under the order's lock, never typed; refused (`InvalidOrderChange`) when nothing is owed —
+  **no partial payments** (owner, 2026-10-27, §9.1c 49): an edit that raises a paid order's total leaves a
+  balance, paid as one payment more, as is what a refund leaves short. A refund's amount is typed as a
+  decimal in the order's own currency, never more decimals than it has, up to what the order holds. The
+  reference is optional, up to 100 characters.
 - **"The date"** is the day the money moved — a column `happened_on`, not after today in the store's own
   time, with no earliest day — apart from when it was recorded (`recorded_at`). One record holds at most
   1,000,000,000,000 in the smallest unit.
@@ -755,11 +759,25 @@ the order's store.
   opened by its id is shown to whoever covers its store, off or finished (a link from the history still
   opens).
 
-- **`ListOrders(?storeId, filter, ?after)`** (handoff §14: All orders · Store orders · Unpaid orders): one store
-  (refused when not covered or not listed) or every store listed; `filter` `ALL`, `UNPAID` (holding less than
-  is due — an order waiting for approval included, its total due) or `SHORT` (flagged short of stock); newest first, **50 a page**, `after` the last order id →
+- **`ListOrders(?storeId, filter, ?after, ?q, ?customerId)`** (handoff §14: All orders · Store orders · Unpaid
+  orders): one store (refused when not covered or not listed) or every store listed; `filter` `ALL`, `UNPAID`
+  (holding less than is due — an order waiting for approval included, its total due), `SHORT` (flagged short
+  of stock), `WAITING_APPROVAL`, `TO_SHIP` (approved, not shipped), `SHIPPED` (shipped, not yet delivered nor
+  come back) or `TRANSFERS_TO_CHECK` (paid by bank transfer, a document uploaded, still holding less than is
+  due); **`q`** one box — any part of the order number or of the customer's name as placed (any case, its
+  digits read as Latin), or of the phone by its digits alone — 2 to 100 characters, shorter none;
+  **`customerId`** one customer's orders (the customer page's "See all"); every part with the others; no
+  counts (owner: tabs without badges); newest first, **50 a page**, `after` the last order id →
   `StaffOrdersPage{orders, next}`, each `StaffOrderRow{orderId, number, storeId, placedAt, customer, status,
   shipment, payment, customerStatus, total, exponent, shortOfStock, mayShipUnpaid}`.
+- **`ListCarriers(storeId)`** (`sales.order.fulfil` in the store) → `list<string>`: the carriers the store's
+  orders were shipped with, each once, the most lately shipped with first, at most 20 — the Ship dialog's
+  suggestions; the carrier is still typed freely (§1.5).
+- **`ListCustomerOrders(customerId)`** → `list<StaffOrderRow>`: the customer's 10 latest orders in the stores
+  listed to the reader — the staff customer page's **`sales.orders`** section (access.md amendment 72(a)):
+  `CustomerOrdersSectionData{orders: list<CustomerOrderData{orderId, number, storeId, placedAt, status,
+  shipment, payment, customerStatus, total {amount, currency}, shortOfStock, mayShipUnpaid}>}`; no section
+  for a reader who views no orders.
 - **`ViewOrder(orderId)`** → `StaffOrderView`: the own view's facts (§3.1) plus the customer by name and **the
   contact the order was placed with** (name and phone — to call them before shipping, §1.7; **the email only
   to staff who may view the customer**, as Loyalty's names: access.md amendment 72(e); owner, 2026-10-26,
@@ -769,7 +787,10 @@ the order's store.
   recordedAt, voidedBy, voidedAt, voidReason}` (`happenedOn` a `Y-m-d` day, never a moment), payments and
   refunds together in the order recorded; `history` — `HistoryRow{kind, at, by, editId, detail}` (codes
   and ids only); `edits` — `EditRow{editId, reason, by, at}`; `ticks` (size, by, at); `returns`; `transferDocuments`
-  (media id, position, uploaded at — opened with `OpenOrderFile`). Another store's order: `OrderNotFound`.
+  (media id, position, uploaded at — opened with `OpenOrderFile`); **`wired`** — placed in a store wired to a
+  provider — and **`tickable`**, the sizes that may be ticked "reduced in the provider": a wired order's sizes
+  whose stock counted when it was placed, and its gift (§1.5; empty when not wired). Another store's order:
+  `OrderNotFound`.
   **A deleted customer's order**: `customer` reads "Deleted customer" while the contact keeps the name and
   phone placed with — the order a financial record (§1.12), its email cleared; the screen shows `customer`
   and keeps the contact for the packing slip.
@@ -1291,6 +1312,10 @@ refusing anything but one void.
     every reader (§3.2).
 48. **No data from the previous shop** — none of its orders appears here; a customer starts with no
     order history (whether their accounts and sign-ins move over is the migration stage's to decide).
+49. **No partial payments** (2026-10-27): a payment is the whole balance owed, filled in, not typed (§1.9).
+    With the Sales screens' answers relayed by their session (their spec PR lists their own picks): the
+    order lists' four filters, one search box, one customer's orders, the carriers used before, the
+    customer page's orders, a wired order's tickable sizes (§3.2).
 
 ### 9.2 Still open
 

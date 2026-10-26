@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\ListOrders;
 
-use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Query\Staff\OrderStores;
 use Modules\Sales\Application\Query\Staff\StaffOrderRow;
 use Modules\Sales\Application\Query\Staff\StaffOrdersPage;
@@ -12,20 +11,19 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
-use Modules\Sales\Domain\Service\OrderStatuses;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * **Staff's order lists** (sales.md §3 ListOrders; handoff §14: Sales › All orders · Store orders · Unpaid
- * orders): one store's, or every store the reader covers — all, unpaid (holding less than is due), or flagged
- * short of stock — newest first, 50 a page, each with its four machines and its customer by name. An off
+ * orders): one store's, or every store the reader covers — all, unpaid (holding less than is due), flagged
+ * short of stock, waiting for approval, to ship, shipped, or bank transfers to check (§3.2) — searched by an
+ * order number, a customer's name or a phone, one customer's alone if asked — newest first, 50 a page, each with its four machines and its customer by name. An off
  * store is listed only while it holds an unfinished order, but to a Super Admin (§1.12: `OrderStores`).
  */
 final readonly class ListOrdersHandler
@@ -54,7 +52,14 @@ final readonly class ListOrdersHandler
             throw new Unauthorized(self::PERMISSION);
         }
 
-        $filter = in_array($query->filter, [StaffReads::ALL, StaffReads::UNPAID, StaffReads::SHORT], true) ? $query->filter : throw new InvalidSalesAttribute('filter', 'ALL, UNPAID or SHORT');
+        $filter = in_array($query->filter, StaffReads::FILTERS, true) ? $query->filter : throw new InvalidSalesAttribute('filter', implode(', ', StaffReads::FILTERS));
+        $q = $query->q === null ? '' : trim($query->q);
+        $q = mb_strlen($q) > 100 ? throw new InvalidSalesAttribute('search', 'at most 100 characters') : (mb_strlen($q) < 2 ? null : $q);
+        $customerId = $query->customerId === null ? null : strtolower(trim($query->customerId));
+
+        if ($customerId !== null && ! Ulids::valid($customerId)) {
+            return new StaffOrdersPage([], null);
+        }
 
         if ($query->storeId !== null) {
             $store = Ulids::valid(strtolower(trim($query->storeId))) ? StoreId::fromString(strtolower(trim($query->storeId))) : throw new InvalidSalesAttribute('store', 'a store');
@@ -71,22 +76,12 @@ final readonly class ListOrdersHandler
             return new StaffOrdersPage([], null);
         }
 
-        $rows = $this->reads->orders($stores, $filter, $after, self::PAGE + 1);
+        $rows = $this->reads->orders($stores, $filter, $after, self::PAGE + 1, $q, $customerId);
         $page = array_slice($rows, 0, self::PAGE);
         $customers = $this->reader->customers(array_map(static fn (array $row): string => (string) $row['customer_id'], $page));
 
         return new StaffOrdersPage(
-            array_map(function (array $row) use ($customers): StaffOrderRow {
-                $payment = OrderStatuses::payment((int) $row['due_minor'], (int) $row['paid_minor'], (int) $row['refunded_minor']);
-
-                return new StaffOrderRow(
-                    (string) $row['id'], (string) $row['number'], (string) $row['store_id'], CarbonImmutable::parse((string) $row['placed_at']),
-                    $customers[(string) $row['customer_id']], (string) $row['status'], (string) $row['shipment_status'], $payment,
-                    OrderStatuses::customer((string) $row['status'], (string) $row['shipment_status'], $payment),
-                    Money::of((int) $row['order_total_minor'], (string) $row['currency_code']), $this->reader->exponent((string) $row['currency_code']),
-                    $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'],
-                );
-            }, $page),
+            array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customers[(string) $row['customer_id']]), $page),
             count($rows) > self::PAGE && $page !== [] ? (string) $page[count($page) - 1]['id'] : null,
         );
     }

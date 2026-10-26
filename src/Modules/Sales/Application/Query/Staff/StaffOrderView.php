@@ -82,5 +82,9 @@ final readonly class StaffOrderView
         public array $returns,
         public array $transferDocuments,
         public int $exponent,
+        /** Placed in a store wired to a provider (§1.5): its sizes may be ticked "reduced in the provider". */
+        public bool $wired = false,
+        /** @var list<string> the sizes that may be ticked: a wired order's sizes whose stock counted, and its gift */
+        public array $tickable = [],
     ) {}
 }
