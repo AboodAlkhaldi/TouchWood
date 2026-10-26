@@ -2,7 +2,8 @@
 
 **Status:** **ACCEPTED by the owner, 2026-10-10** (merged as #110) — sections 1–9 written 2026-10-10
 from the owner's answers of 2026-10-07 to 2026-10-10 (§9.1), rewritten after two independent reviews
-and a final check (§9.3). The picks marked "my assumption" were accepted with it.
+and a final check (§9.3). The picks marked "my assumption" were accepted with it, and **every "as built"
+assumption written during the build was accepted by the owner on 2026-10-26** (§9.1c, 46).
 **Tier:** 1. **Stage:** 6 (handoff §17), the last of the stage's modules to be built (Loyalty →
 Promotions → Feedback → Sales).
 **Depends on:** every module above it except Feedback and Sync (handoff §4.4) — Platform, Access, B2B,
@@ -761,8 +762,8 @@ the order's store.
   shipment, payment, customerStatus, total, exponent, shortOfStock, mayShipUnpaid}`.
 - **`ViewOrder(orderId)`** → `StaffOrderView`: the own view's facts (§3.1) plus the customer by name and **the
   contact the order was placed with** (name and phone — to call them before shipping, §1.7; **the email only
-  to staff who may view the customer**, as Loyalty's names: access.md amendment 72(e) — my assumption, for the
-  owner), the audience, may ship unpaid,
+  to staff who may view the customer**, as Loyalty's names: access.md amendment 72(e); owner, 2026-10-26,
+  §9.1c 47), the audience, may ship unpaid,
   short of stock since, the decision (by, at, reason) and the cancellation (reason, words, by, at), came back
   at; `money` — `MoneyRow{recordId, kind PAYMENT/REFUND, amount, way, reference, note, happenedOn, recordedBy,
   recordedAt, voidedBy, voidedAt, voidReason}` (`happenedOn` a `Y-m-d` day, never a moment), payments and
@@ -1074,6 +1075,15 @@ refusing anything but one void.
     order line's English name falls back to the Arabic one. **A customer without a phone never
     orders** — `customerMayOrder` asks for a verified phone (handoff §7.4) — so `orders.customer_phone`
     stays required.
+
+### 9.1c The owner's answers, 2026-10-26 (after the build)
+
+45. **Order numbers** start at 1, four digits at least: `SA-0001` (answer 35 changed; §1.3).
+46. **Every "as built" assumption** in §1–§3 and §5 is accepted as written (the owner read them all).
+47. **The contact email** on staff's order view only for staff who may view the customer; the phone for
+    every reader (§3.2).
+48. **No data from the previous shop** — none of its orders appears here; a customer starts with no
+    order history (whether their accounts and sign-ins move over is the migration stage's to decide).
 
 ### 9.2 Still open
 
