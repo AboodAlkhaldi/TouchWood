@@ -6,7 +6,7 @@ namespace Modules\Sales\Domain\Repository;
 
 use Shared\Domain\ValueObject\StoreId;
 
-/** Each store's own order numbers, from 1 (sales.md §1.3; answer 35), shown four digits at least: `SA-0001`. */
+/** Each store's own order numbers, from 1 (sales.md §1.3; answer 35), shown four digits at least after the store's code (0001). */
 interface OrderNumbers
 {
     /** The store's next number; a number taken by a placement that then fails is never given again. */
