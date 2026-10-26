@@ -106,6 +106,7 @@ describe('the admin menu', function () {
             'sync/provider',
             // Sales's screens (sales.md §4.1): Orders.
             'orders/orders',
+            'orders/returns',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

@@ -103,10 +103,11 @@ final class SalesServiceProvider extends ServiceProvider
             $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
         });
 
-        // The screens (§4.1): the Sales group's Orders, for staff who view the store's orders. What is offered
+        // The screens (§4.1): the Sales group's Orders and Returns, for staff who view the store's orders. What is offered
         // is never what is allowed: every handler behind it asks again (handoff §19).
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('sales', 'orders', 'orders', 'sales.admin.orders', SalesPermissions::ORDER_VIEW, 10, icon: 'orders'),
+            new MenuEntryDto('sales', 'returns', 'orders', 'sales.admin.returns', SalesPermissions::ORDER_VIEW, 20, icon: 'returns'),
         );
 
         if (! $this->app->routesAreCached()) {

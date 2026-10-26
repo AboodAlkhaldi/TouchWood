@@ -1,0 +1,74 @@
+<?php
+
+declare(strict_types=1);
+
+// Sales › Returns and a return's page (sales.md §4.1 P5, P6).
+return [
+    'returns' => [
+        'title' => 'Returns',
+        'subtitle' => 'What customers asked to send back, newest first',
+        'tabs_label' => 'Returns by state',
+        'empty' => 'No returns here.',
+        'order' => 'Order',
+        'requested' => 'Asked',
+        'customer' => 'Customer',
+        'state' => 'State',
+        'refund' => 'Refund',
+    ],
+    'tab' => [
+        'REQUESTED' => 'Requested',
+        'ACCEPTED' => 'Accepted',
+        'RECEIVED' => 'Received',
+        'COMPLETED' => 'Completed',
+        'CLOSED_ALL' => 'Closed',
+    ],
+    'reason' => [
+        'DAMAGED' => 'Damaged',
+        'WRONG_ITEM' => 'Wrong item',
+        'NOT_AS_DESCRIBED' => 'Not as described',
+        'CHANGED_MIND' => 'Changed their mind',
+        'OTHER' => 'Other',
+    ],
+    'show' => [
+        'title' => 'Return for :number',
+        'order' => 'Order :number',
+        'why' => 'Why',
+        'staff_reason' => 'Your reason: :reason',
+        'lines' => 'Pieces',
+        'asked' => 'Asked',
+        'received' => 'Came',
+        'restocked' => 'Back in stock',
+        'photos' => 'Photos',
+        'photo' => 'Photo :position',
+        'refund' => 'Refund',
+        'shipping_refunded' => 'Shipping refunded too',
+        'decided' => 'Decided by :name',
+        'moments' => 'When',
+    ],
+    'action' => [
+        'accept' => 'Accept',
+        'refuse' => 'Refuse…',
+        'receive' => 'Mark Received…',
+        'close' => 'Close',
+        'complete' => 'Complete…',
+        'record_refund' => 'Record Refund…',
+    ],
+    'dialog' => [
+        'refuse_title' => 'Refuse Return',
+        'refuse_body' => 'The customer sees your reason.',
+        'reason' => 'Reason',
+        'receive_title' => 'Mark Received',
+        'receive_body' => 'How many of each came, and how many go back into stock. A damaged piece may be left out.',
+        'came' => 'Came',
+        'back' => 'Back to stock',
+        'complete_title' => 'Complete Return',
+        'complete_body' => 'The refund is worked out from the pieces received: their goods, their share of VAT, and the shipping when it is the last piece. You then record the refund.',
+    ],
+    'toast' => [
+        'accepted' => 'Return accepted.',
+        'refused' => 'Return refused.',
+        'received' => 'Return marked received.',
+        'closed' => 'Return closed.',
+        'completed' => 'Return completed. Record the refund.',
+    ],
+];

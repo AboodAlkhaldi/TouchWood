@@ -5,6 +5,15 @@ declare(strict_types=1);
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturn;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturnHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\SalesPermissions;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -17,8 +26,8 @@ use function Pest\Laravel\seed;
 /*
 | Sales's order screens in a real browser (sales.md §4.1 P1–P3). The feature tests beside these prove what the
 | pages are handed and what each change does; these prove a person can use them: an order approved, paid in
-| full, shipped and delivered from its page; the list, the order and the packing slip at a phone's width with
-| nothing scrolling sideways.
+| full, shipped and delivered from its page; a return accepted, received and completed, its refund recorded; the
+| lists, an order, its packing slip and a return at a phone's width with nothing scrolling sideways.
 |
 | Deliberately no RefreshDatabase, as the other browser tests: every row here is new, from the clock.
 */
@@ -105,4 +114,39 @@ it('draws the list, an order and its packing slip at a phone\'s width with nothi
 
         expect(salesOrderScreensWide($page))->toBe('', "{$uri} scrolls sideways");
     }
+});
+
+it('accepts, receives and completes a return, records its refund, and draws it at a phone\'s width', function () {
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $ready = Cx::ready();
+        $order = Cx::place(Cx::start($ready['address'])->id)->id;
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+        Fx::actAsCustomer($ready['customer']);
+        $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->where('is_gift', false)->value('id');
+        $return = app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'DAMAGED', null, [['orderLineId' => $line, 'quantity' => 1]]));
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $page = salesOrderScreensPanel();
+    $page->resize(375, 812);
+    $page->navigate("/admin/returns/{$return}", BROWSER_PAGE_LOAD)->click('[data-test="accept"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Return accepted.')"))->toBeTrue();
+    $page->click('[data-test="receive"]')->click('[data-test="confirm-receive"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Return marked received.')"))->toBeTrue();
+    $page->click('[data-test="complete"]')->click('[data-test="confirm-complete"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Record the refund.')"))->toBeTrue()
+        ->and(salesOrderScreensWide($page))->toBe('', 'a return scrolls sideways');
+    $page->click('[data-test="record-refund"]')->click('[data-test="confirm-refund"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Refund recorded.')"))->toBeTrue();
+
+    $page->navigate('/admin/returns?tab=COMPLETED', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"return-card-{$return}\"]");
+    expect(salesOrderScreensWide($page))->toBe('', 'the returns list scrolls sideways');
 });

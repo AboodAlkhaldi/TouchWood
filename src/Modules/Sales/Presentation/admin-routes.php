@@ -5,10 +5,11 @@ declare(strict_types=1);
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Sales\Presentation\Http\Controller\OrdersController;
+use Modules\Sales\Presentation\Http\Controller\ReturnsController;
 
 /*
 | Sales's screens in the admin panel (sales.md §4.1): Orders and an order's page, its packing slip, its
-| transfer receipts, and every change the page makes.
+| transfer receipts and every change the page makes; Returns and a return's page.
 |
 | Mounted into the area App\Http\AdminArea names, as the other modules' screens are. Who may open any of
 | these is Sales's answer, never the routing's. Named sales.admin.*, which the panel's route list carries
@@ -34,4 +35,12 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('orders/{order}/refund', [OrdersController::class, 'refund'])->name('sales.admin.orders.refund');
         Route::post('orders/{order}/void', [OrdersController::class, 'void'])->name('sales.admin.orders.void');
         Route::post('orders/{order}/clear-short', [OrdersController::class, 'clearShort'])->name('sales.admin.orders.clear-short');
+
+        Route::get('returns', [ReturnsController::class, 'index'])->name('sales.admin.returns');
+        Route::get('returns/{return}', [ReturnsController::class, 'show'])->name('sales.admin.returns.show');
+        Route::post('returns/{return}/accept', [ReturnsController::class, 'accept'])->name('sales.admin.returns.accept');
+        Route::post('returns/{return}/refuse', [ReturnsController::class, 'refuse'])->name('sales.admin.returns.refuse');
+        Route::post('returns/{return}/receive', [ReturnsController::class, 'receive'])->name('sales.admin.returns.receive');
+        Route::post('returns/{return}/close', [ReturnsController::class, 'close'])->name('sales.admin.returns.close');
+        Route::post('returns/{return}/complete', [ReturnsController::class, 'complete'])->name('sales.admin.returns.complete');
     });

@@ -232,7 +232,7 @@ function today(zone: string): string {
  * Record Payment… and Record Refund… (§1.9). A payment is the whole amount still owed, shown and never typed
  * (the owner's R3-1, §4.2 B1); a refund any amount up to what the order holds.
  */
-export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string }) {
+export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** A refund's amount to start with: a completed return's. */ initial?: string }) {
     const t = useTranslator();
     const requestId = useRequestId(open);
     const [typed, setTyped] = useState('');
@@ -254,13 +254,13 @@ export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone }: Ope
 
     useEffect(() => {
         if (open) {
-            setTyped('');
+            setTyped(initial);
             setWay('BANK_TRANSFER');
             setReference('');
             setNote('');
             setDay(today(zone));
         }
-    }, [open, zone]);
+    }, [open, zone, initial]);
 
     return (
         <PanelDialog
