@@ -498,11 +498,13 @@ describe('the budget (P21)', function () {
             // Feedback's sections (amendment 26(b)) - the limits a target, not a cap (owner, 2026-10-19).
             // Signed in, a page of cards one more since 2026-10-24 (amendment 32, feedback.md §2.4 B5): which
             // of its cards the customer saved here - none for a guest, none for a page with no cards (this
-            // product page has no related products).
+            // product page has no related products). Signed in, a product's page one more since 2026-10-26
+            // (owner's Q14): whether the product was delivered to the customer, for Write a Review - asked
+            // only while they have not reviewed it.
         ])->toBe([
             'guest' => ['category' => 8, 'brand' => 8, 'product' => 9, 'search' => 9],
-            'individual' => ['category' => 15, 'brand' => 15, 'product' => 15, 'search' => 16],
-            'company' => ['category' => 15, 'brand' => 15, 'product' => 15, 'search' => 16],
+            'individual' => ['category' => 15, 'brand' => 15, 'product' => 16, 'search' => 16],
+            'company' => ['category' => 15, 'brand' => 15, 'product' => 16, 'search' => 16],
         ]);
     });
 });
