@@ -6,6 +6,7 @@ namespace Modules\Feedback\Application\Shop;
 
 use Modules\Catalog\Public\Dto\ShopProductVisitDto;
 use Modules\Feedback\Application\Query\FeedbackReader;
+use Modules\Sales\Public\Contracts\SalesApi;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
@@ -27,6 +28,7 @@ final class ShopFeedback
     public function __construct(
         private readonly ShopFeedbackQueries $queries,
         private readonly FeedbackReader $reader,
+        private readonly SalesApi $sales,
     ) {}
 
     public function of(ShopProductVisitDto $visit): ProductFeedback
@@ -80,6 +82,9 @@ final class ShopFeedback
             $rows->reviewed,
             $rows->stars,
             $star,
+            // As writing one asks (WriteReview): one read more, only for a signed-in customer yet to review it.
+            $visit->customerId !== null && ! $rows->reviewed
+                && $this->sales->deliveredPurchase(strtolower($visit->customerId), strtolower($visit->productId)) !== null,
         );
     }
 

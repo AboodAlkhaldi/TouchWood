@@ -164,6 +164,7 @@ it('never shows one customer\'s own state to another or to a guest, though the p
     $layla = Fx::customer('layla@example.test');
     DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $product, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
     Fb::reviewRow($product, $sixty, $sara);
+    Fb::delivered($layla, $product, $sixty);
     $state = static fn (array $sections): array => [$sections['feedback.reviews']['canWrite'], $sections['feedback.wishlist']];
 
     Fx::actAsCustomer($sara);
@@ -199,6 +200,10 @@ it('tells a signed-in customer what they may do and whether they saved it here',
     Fx::actAsCustomer($sara);
     $sections = fn (): array => shopSections(get(shopSectionsUrl($product)));
 
+    // Never delivered to her: no Write a Review (owner's Q14), though she may ask.
+    Fb::sales();
+    $unbought = $sections();
+    Fb::delivered($sara, $product, $sixty);
     // Saved in another store: not saved here (answer 17).
     DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $product, 'store_id' => Fx::storeId('ae'), 'saved_at' => CarbonImmutable::now()]);
     $before = $sections();
@@ -207,7 +212,8 @@ it('tells a signed-in customer what they may do and whether they saved it here',
     Fb::reviewRow($product, $sixty, $sara);
     $after = $sections();
 
-    expect([$before['feedback.reviews']['canWrite'], $before['feedback.questions']['canAsk'], $before['feedback.wishlist']])->toBe([true, true, ['saved' => false]])
+    expect([$unbought['feedback.reviews']['canWrite'], $unbought['feedback.questions']['canAsk']])->toBe([false, true])
+        ->and([$before['feedback.reviews']['canWrite'], $before['feedback.questions']['canAsk'], $before['feedback.wishlist']])->toBe([true, true, ['saved' => false]])
         // Written, though still waiting: no second one (§1.1).
         ->and([$after['feedback.reviews']['canWrite'], $after['feedback.wishlist']])->toBe([false, ['saved' => true]]);
 });
