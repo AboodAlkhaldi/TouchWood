@@ -17,9 +17,12 @@ interface ShopProductSections
      *                                 container on each request
      * @param  list<string>  $words  the translation files its drawing reads, shipped with the page
      *                               (amendment 33) - "feedback::shop"
+     * @param  bool  $evenUnavailable  read on a "Not available now" page too (amendment 34) - the Save
+     *                                 heart, so a saved product can be kept or removed there; every
+     *                                 other section is left off that page
      *
      * @throws \LogicException for a class that is not a ShopProductSection, a key not of that form, or
      *                         a key registered twice
      */
-    public function register(string $key, string $section, array $words = []): void;
+    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false): void;
 }

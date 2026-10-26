@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -118,4 +120,21 @@ it('writes a review, asks a question and saves the product, then shows it all in
 
         expect(feedbackShopWide($page))->toBe('', "{$uri} scrolls sideways");
     }
+});
+
+it('keeps the Save heart on a page that is not available now, saved as it was', function () {
+    ['product' => $product] = Fb::sold();
+    $customer = Fx::customer(strtolower((string) Str::ulid()).'@example.test');
+    DB::table('feedback.wishlist_items')->insert(['customer_id' => $customer, 'product_id' => $product, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
+    Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $product)));
+    $page = feedbackShopCustomer($customer);
+
+    $page->navigate('/sa/en/products/'.feedbackShopSlug($product), BROWSER_PAGE_LOAD)
+        ->assertPresent('[data-test="not-available"]')
+        ->assertDontSee('Reviews');
+
+    expect((string) $page->script("document.querySelector('[data-test=\"save-heart\"]')?.getAttribute('aria-pressed')"))->toBe('true');
+    $page->click('[data-test="save-heart"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"save-heart\"]')?.getAttribute('aria-pressed') === 'false'"))->toBeTrue()
+        ->and(DB::table('feedback.wishlist_items')->where('customer_id', $customer)->exists())->toBeFalse();
 });

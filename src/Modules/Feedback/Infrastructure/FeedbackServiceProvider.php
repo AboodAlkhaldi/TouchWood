@@ -78,7 +78,7 @@ final class FeedbackServiceProvider extends ServiceProvider
         // Its parts of a product's page in the shop (§2.3; catalog.md amendment 26(b)).
         $this->app->make(ShopProductSections::class)->register('feedback.reviews', ReviewsSection::class, ['feedback::shop', 'feedback::errors']);
         $this->app->make(ShopProductSections::class)->register('feedback.questions', QuestionsSection::class);
-        $this->app->make(ShopProductSections::class)->register('feedback.wishlist', WishlistSection::class);
+        $this->app->make(ShopProductSections::class)->register('feedback.wishlist', WishlistSection::class, evenUnavailable: true);
         // The Save heart on every product card (§2.4 B5; catalog.md amendment 32).
         $this->app->make(ShopCardFacts::class)->register('feedback.saved', SavedCardFact::class);
 

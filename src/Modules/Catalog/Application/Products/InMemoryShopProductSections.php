@@ -22,11 +22,14 @@ final class InMemoryShopProductSections implements ShopProductSections
     /** @var list<string> */
     private array $words = [];
 
+    /** @var array<string, true> the keys read on a "Not available now" page too (amendment 34) */
+    private array $evenUnavailable = [];
+
     public function __construct(
         private readonly Container $container,
     ) {}
 
-    public function register(string $key, string $section, array $words = []): void
+    public function register(string $key, string $section, array $words = [], bool $evenUnavailable = false): void
     {
         if (preg_match('/^[a-z]+\.[a-z_]+$/', $key) !== 1) {
             throw new LogicException("The shop product section key \"{$key}\" is not {module}.{key}.");
@@ -42,6 +45,10 @@ final class InMemoryShopProductSections implements ShopProductSections
 
         $this->sections[$key] = $section;
         $this->words = array_values(array_unique([...$this->words, ...$words]));
+
+        if ($evenUnavailable) {
+            $this->evenUnavailable[$key] = true;
+        }
     }
 
     /**
@@ -61,14 +68,19 @@ final class InMemoryShopProductSections implements ShopProductSections
      * @param  'ar'|'en'  $locale
      * @param  array<string, string>  $after  section key => where it goes on from
      * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
+     * @param  bool  $available  false on a "Not available now" page: only the sections registered for it are read (amendment 34)
      * @return array<string, array<string, mixed>|null>
      */
-    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = []): array
+    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true): array
     {
         $parts = [];
         $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters);
 
         foreach ($this->sections as $key => $class) {
+            if (! $available && ! isset($this->evenUnavailable[$key])) {
+                continue;
+            }
+
             $section = $this->container->make($class);
 
             // Checked when it was registered; resolved from the container, so asked again.

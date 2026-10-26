@@ -28,8 +28,8 @@ import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/g
 | Not available now (P18): its name, photos and description, a Note, nothing to choose.
 |
 | Other modules' sections (amendment 26(b)) are drawn in their slots: Feedback's rating under the name,
-| its Save heart after the choices, its reviews and answered questions after Goes With (feedback.md §4.1
-| F5, Q11).
+| its Save heart after the choices - on a "Not available now" page too (amendment 34) - its reviews and
+| answered questions after Goes With (feedback.md §4.1 F5, Q11).
 */
 
 /** The variant these choices make, or none. */
@@ -139,7 +139,8 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                             </section>
                         ) : null}
 
-                        {available ? <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} /> : null}
+                        {/* On a "Not available now" page too (amendment 34): a saved product kept or removed there. */}
+                        <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />
 
                         {variant !== null ? <Details variant={variant} /> : null}
                     </div>
