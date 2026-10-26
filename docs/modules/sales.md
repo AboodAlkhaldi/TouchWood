@@ -813,6 +813,212 @@ RETURN     REQUESTED ─▶ ACCEPTED ─▶ RECEIVED ─▶ COMPLETED
 
 Edits: `PENDING_APPROVAL` or `APPROVED`, not shipped, no line ticked "reduced in the provider".
 
+
+### 4.1 The screens (stage 6's screens)
+
+**Written 2026-10-27** by the stage 6 screens session, after the backend (S1–S12, tagged `v0.8.0`), as
+Loyalty's, Promotions' and Feedback's screens were (loyalty.md §4.1, promotions.md §4.1, feedback.md
+§4.1). The owner answered three rounds of questions, 2026-10-26 and 2026-10-27 (§9.4), and the text below
+is written to those answers. Where an answer needs the backend, §4.2 lists it. The use cases behind every
+button are §3's; a screen offers only what the reader may do next — asked of an Application query
+(`SalesActionsForReader`, new, as the other modules'), never of the authorizer from the screen — and every
+handler asks again.
+
+**What every screen keeps** — as the other modules': Geist's rules on shadcn's code (frontend.md §1.11),
+every box checking itself as it is typed with the server's own rules (§1.6–§1.9: a reason 1–500, a carrier
+1–100, a reference up to 100), every number in 0-9, every moment through `Time` in the store's zone, money
+through `formatMoney` in the order's own currency and decimals, names in the page's language first, typed
+text isolated inside sentences, lists paging with **Show More** (keyset: 50 for staff, 20 for a customer's
+own, §3), **the store filter** (`?store=`) on the panel's lists — an off store listed while it holds an
+unfinished order (§1.12) and marked **Off** — and every page at a phone's width with nothing scrolling
+sideways. **A reader without the job sees no button at all; one whom the order's state stops sees it out of
+reach, with the reason** (Feedback's rule). Words in `src/Modules/Sales/Presentation/lang/{ar,en}/`;
+refusals are §7's, each in its own words.
+
+**Prices are kept and shown without VAT** (handoff, 2026-10-07): the shop says so once, at checkout, where
+VAT is added (§9.4 R2-1). **No order shows "paid x of y"** (§9.4 R3-1): Record Payment takes only the whole
+amount still owed (§4.2 B1).
+
+#### The shop
+
+**S1 · Prices** — on the product page and on every card (§4.2 B8):
+- **A size's price**; on a sale, **the old price struck through beside it and a percent badge** ("−15%",
+  R2-2). The badge takes the system's tones for now; **a single style for every flag, tag and badge —
+  sales, labels, campaigns' looks — is settled before launch** (owner, 2026-10-27; §9.2).
+- **A card** shows **"From 85.00"**, the lowest price among its sizes this viewer sees, when they differ;
+  the price itself when they do not (R2-4). **A guest's card** shows the retail price and, when it also
+  sells wholesale, **"Wholesale from 70.00"** under it (R2-5).
+- **Wholesale bands** on the product page, under the Wholesale choice (companies and guests): "From 20
+  pieces: 85.00 · From 100 pieces: 78.00", the band that applies to the quantity typed highlighted (R2-3).
+
+**S2 · Add to Cart** — on the product page only, never on a card (R1-9):
+- **Retail or Wholesale** — a choice above the quantity, each with its own minimum and maximum, for a
+  viewer who may buy both (a company; a guest, who fills a cart but signs in to order — §1.1); an
+  individual sees retail only (R1-7).
+- **The quantity box** starts at the minimum and stays within the minimum and maximum (R1-8).
+- **Add to Cart works before a size is chosen**: pressed, it points at the choices — "Choose a size" — and
+  adds nothing (R2-6). A size out of stock says **Out of stock** and is not added (R1-2); a "Not available
+  now" page has no Add to Cart (catalog.md §1.4).
+- **Added**: a message, "Added to cart · 2 pieces", with **View Cart**, for a few seconds (R2-7), and the
+  header's cart count goes up (R1-6).
+
+**S3 · The header's cart** — a cart icon beside the account's, with **the count of pieces** in it (R1-10).
+
+**S4 · The cart** — `/{store}/{locale}/cart` (`ViewCart`, §3.1):
+- **Each line**: photo, name, size, a Retail / Wholesale badge, unit price (old struck on a sale), the
+  quantity's − and + within its minimum and maximum, the line's total, **Remove** (R1-11).
+- **A line with a problem** says so on the line, with its one fix (R2-10): below the minimum → **Set to
+  20**; above the maximum → **Set to 100**; out of stock, not available, not for your account or not
+  priced → **Remove**.
+- **Lines that left at a sign-in** (wholesale for an individual, a category hidden from the account): a
+  notice at the top naming each and why, with Close (R2-8).
+- **The coupon box** (signed in): the code kept on the cart; checkout shows it applied, or refused with
+  the reason, and lets it be changed (R1-15). A guest's box says **"Sign in to use a coupon"** (§1.1).
+- **Free shipping**: "Add 120.00 more for free shipping", with a bar — nothing when the store has no
+  free-above amount (R1-12). **The gift**: "Spend 80.00 more for a free gift" — the next level (R1-13).
+  **Points**: "You'll earn 45 points with this order" (R1-14).
+- **The summary**: subtotal, "Shipping: 25.00 (free above 300.00)", and a line that the coupon, points and
+  VAT are worked out at checkout (R2-12).
+- **Checkout** is out of reach while a line has a problem — "Fix the marked lines first" (R2-11) — and for
+  a customer who may not order yet, with **one note saying what is missing and a link to fix it** (email
+  or phone to verify, a company not yet approved, §1.2 step 1; R1-17). **A guest** pressing Checkout signs
+  in or registers and comes straight back to the cart, the guest's cart joined to the account's
+  (access.md amendment 75's return; R1-16).
+- **Empty**: "Your cart is empty", Continue Shopping, and **the store's best-selling products** under it
+  (R2-9, R3).
+
+**S5 · Checkout** — `/{store}/{locale}/checkout`, **one page** (R1-18), its quote worked out by
+`StartCheckout` (§1.2) each time something on it changes:
+1. **Delivery address** — the account's default in this store chosen first; any other of its addresses
+   in this store; **a new one added right there** with the account's own address form (R1-19).
+2. **Coupon and points** — the coupon as the cart left it (applied, or refused with its reason); **"Use my
+   points"**, as many as allowed, with an optional box to use fewer (R1-20); points refused or skipped
+   say why (§1.2 steps 5–6).
+3. **Way to pay** — an individual sees **"Our team will contact you to arrange payment"** as information,
+   not a choice (R2-13); a company chooses **Bank transfer** or **Staff will contact you**, nothing chosen
+   first (R2-14), bank transfer offered only while the store's account is filled in. **Bank transfer shows
+   the store's bank details with copy buttons** (R1-24). Online payment is not shown until stage 7 (R1-23).
+4. **The summary** (R2-15) — Subtotal · Sale savings · Coupon · Points · Shipping · VAT (15%) · **Total**,
+   **a line with nothing in it not shown** (no "Points: 0"), **the free gift as its own line at 0.00**
+   when there is one, the points this order earns, and here — once — **"Prices exclude VAT; VAT is added
+   above"** (R2-1).
+5. **Place order · 1,240.00** — a spinner while it goes; pressed twice, placed once (§1.3; R2-17). No
+   terms tick until Content writes the terms (R1-25).
+- **The 15 minutes**: no timer; an expired quote is worked out again by itself (R2-16). **Anything that
+  changed** — at the new quote or at placing (`QuoteChanged`) — keeps the customer on checkout, shows what
+  changed with the new totals, and asks them to press Place order again (R1-21, R1-22).
+
+**S6 · Order placed** — `/{store}/{locale}/orders/{number}/placed` (R1-26, R2-18): the order number; "Our
+team will review your order and contact you to arrange payment and delivery." For a bank transfer: the
+bank details again and **an Upload Transfer Receipt box** — "Upload your transfer receipt so we can
+confirm your payment" (up to 3 files, §1.9). A link to the order.
+
+**S7 · My Orders** — an account page beside its tabs, always offered (Access's `CustomerAccountPages`):
+newest first, 20 then Show More; each order's number, date, status badge, total and pieces; no filter
+(R1-27).
+
+**S8 · An order** — `/{store}/{locale}/account/orders/{number}` (`ViewOwnOrder`, §3.1):
+- **The status** a customer sees (§1.4) — New blue · Processing amber · Shipped purple · Delivered green ·
+  Cancelled gray · Refunded gray (R2-19) — and **a timeline**: Placed → Approved → Shipped → Delivered,
+  or Cancelled / Refunded (R1-28).
+- **Payment, in plain words** (R2-20, R3-1): **Awaiting payment** · **Paid** · **Balance due: 248.00**
+  (after a change to the order — paid as one payment) · **Refund due: 80.00 — our team will contact you**
+  · **Refunded** · **Nothing to pay**. Never "paid x of y".
+- **The lines** (the gift last, at 0.00), **the totals** (no line with nothing in it), the delivery
+  address, the way to pay — a bank transfer with the store's details and **the Upload Transfer Receipt
+  box while something is owed** (up to 3, §1.9).
+- **Shipment**: the carrier and the tracking number as text (a link comes with stage 7; R1-29).
+- **Cancel…** — the reason list or "Other" with words, and "Our team will contact you about the refund"
+  when paid (R1-30). Out of reach once shipped, with **"Shipped orders can't be cancelled. You can ask for a
+  return after delivery."** (R2-21).
+- **Returns**: **"You can ask for a return until 9 November"**, and Ask for a Return… until then (R2-22);
+  the order's returns listed with their state, refund and the store's reason when refused, each opening
+  its page (R1-32).
+- **Buy Again** — adds every line still available to the cart, then the cart says which could not be added
+  and why (§4.2 B6; R1-33, R2-24). On the order page only.
+- **No print, no download** — the invoice comes from the accounting system by SMS (handoff §12.6; R1-34).
+
+**S9 · Ask for a return** — its own page (R1-31): each line with what may still be returned (`returnable`),
+how many pieces; a reason from the list or "Other" with words; **up to 3 photos, optional** (R2-23).
+**S10 · A return** — its state, the pieces asked and received, the refund, the store's reason when refused,
+Withdraw while it waits (`ViewOwnReturn`, §3.1).
+
+#### The panel
+
+**The menu** — the **Sales** group: **Orders** and **Returns** (R1-35); **no counts** in the menu (R1-48).
+The three settings (§1.10) are already on Platform's settings screen.
+
+**P1 · Orders** — `/admin/orders?store=&tab=&q=` (`ListOrders`, §3.2): the store filter; **tabs** — **Waiting
+for Approval** (opened first, R2-25) · To Ship · Shipped · Unpaid · Short of Stock · Transfers to Check · All
+(R1-36; §4.2 B2); **search** by order number, customer name or phone (R1-37; B3); columns — number, date,
+customer, store (all stores shown), the order's, payment's and shipment's badges, total, the short-of-stock
+mark (R1-38). **On a phone, each order a card** — number, total, customer, when, its badges (R2-34).
+
+**P2 · An order** — `/admin/orders/{id}` (`ViewOrder`, §3.2), **one page** (R1-39):
+- **The header**: the number, the four state badges, the **next step as the main button** — Approve while
+  waiting, Ship once approved, Mark Delivered once shipped — and the rest in a ⋯ menu: Edit, Reject,
+  Cancel, Allow Shipping Unpaid, Came Back, Print (R2-26). An action out of reach says why.
+- **Short of stock**: a banner — "Stock was reduced on 26 Oct — check with the customer" — with **Clear
+  flag** (R2-32). **An off store**: marked Off here and in the filter (R2-33).
+- **The customer and contact**: the name (linked when the reader may view the customer), the phone as text
+  with **Copy** and **WhatsApp** (R1-40, the owner: staff work from a computer), the email only to staff who
+  may view the customer (answer 47).
+- **Lines** (each part of an edit apart, the gift last), **totals**, the address, the way to pay.
+- **Money** (R2-27): Due · Paid · Refunded · **Balance due** or **Refund due**, then the records, payments
+  and refunds together, a voided one struck through with its reason. **Record Payment** — the amount is
+  **the whole amount still owed, shown, not typed** (R3-1; B1); the way, reference, note, the day it
+  arrived (today first). **Record Refund** — up to what the order holds. **Void…** with a reason (§1.9).
+- **Shipment**: **Ship…** — the carrier (free text, offering the carriers used before in this store, B4)
+  and an optional tracking number (R1-43); **Mark Delivered**; **Came Back…** — for each line, the pieces
+  going back to stock, or **Lost for good** (R1-44). **Allow Shipping Unpaid** on an approved, unpaid order.
+- **"Reduced in the provider"** — in a provider-linked store only: a tick on each counted size and the
+  gift, who and when (R1-46).
+- **Transfer receipts**: the files, each opening in a new tab through Platform's expiring link (R2-30).
+- **Returns** of the order, each linked. **Edits**: each with its reason, who and when; opening one shows
+  before → after (R2-29). **History**: plain sentences, newest first — "Approved by Ali · 2 hours ago",
+  "Payment recorded: 500.00 (bank transfer) by Mona" (R2-28).
+- **Approve** is one click; **Reject…** asks for the reason (R1-42); **Cancel…** too (§1.6).
+
+**P3 · Print** — `/admin/orders/{id}/print` (`PrintOrder`): **one packing slip, with the codes**, for the
+warehouse (R1-47); the browser's own print. A customer gets no copy (§S8).
+
+**P4 · Edit an order** — `/admin/orders/{id}/edit`, **its own page** (R1-49): the lines with quantity boxes
+and Remove; **Add Product** — search by name or code in the order's store, each size with its values,
+today's price and the stock available (R2-35; B7); the address — another of the customer's in that store;
+the gift — keep, swap to the level now reached, or remove (§1.7); **a reason** (required). **Preview**
+(`PreviewOrderEdit`) shows before → after, every total, and **the money in plain words** — "The customer
+will owe 248.00 more" · "A refund of 80.00 will be due" · "No change in money" (R2-37); **Confirm** stays
+out of reach until the preview matches what is on screen (R2-36).
+
+**P5 · Returns** — `/admin/returns?store=&status=` (`ListReturns`): the store filter; **tabs** —
+**Requested** (opened first, R2-38) · Accepted · Received · Completed · Closed (refused, withdrawn and closed
+together) (R1-50).
+
+**P6 · A return** — `/admin/returns/{id}` (`ViewReturn`, R1-51): the order linked; the photos, opening full
+size; each line asked / received / back in stock; the actions by its state — **Accept**, **Refuse…** (a
+reason), **Mark Received…** (each line: how many came — what was asked first — and how many go back to
+stock — what came first; R2-39), **Close**, **Complete…** — a confirm showing the refund worked out: the
+pieces, their VAT, and the shipping when it is the last piece (R2-40). Then **Record Refund**, filled in
+with the refund due, recording on the order (R1-52).
+
+**P7 · A customer's orders on the staff customer page** — a section under the others (access.md amendment
+72): their latest 10 orders, each linked, and "See all of this customer's orders" (R1-5; B5).
+
+### 4.2 What the screens need from the backend (the owner's answers, 2026-10-26 and 2026-10-27)
+
+Built by the backend session (owner, 2026-10-26: "let the backend session build them").
+
+| # | Addition | For |
+|---|---|---|
+| B1 | **Record Payment takes only the whole amount still owed** — what is due less what is held; any other amount refused. An edit that raises a paid order's total leaves a balance due, paid as one new payment (R3-1) | P2 |
+| B2 | **`ListOrders` filters** beyond `ALL`, `UNPAID`, `SHORT`: `WAITING_APPROVAL`, `TO_SHIP` (approved, not shipped), `SHIPPED`, `TRANSFERS_TO_CHECK` (a bank transfer with a document, still holding less than is due) | P1 |
+| B3 | **`ListOrders` search** — the order number, the customer's name or phone | P1 |
+| B4 | **The carriers used before in a store** — distinct, the most recent first | P2 |
+| B5 | **A customer's latest orders** for staff — a `CustomerPageSection`, in the reader's stores | P7 |
+| B6 | **Buy again** — one command adding an own order's lines still available to the cart, answering those it could not add, with why | S8 |
+| B7 | **The edit's product search** — a store's sizes by name or code, with their values, today's price and the stock available | P4 |
+| B8 | **Prices in the shop** — on the cards (now, before, for the viewer's side, and the lowest among the sizes for "From"; a guest's wholesale "from") and on the product page (each size's price and old price; wholesale bands), without VAT; Catalog keeps the listing prices Pricing pushes (catalog.md amendment 15) | S1 |
+
 ---
 
 ## 5 · Tables
@@ -1100,7 +1306,8 @@ refusing anything but one void.
    before delivery in Loyalty's table rules (loyalty.md) — made on those specs' branches with this one.
    **Inventory's** `release` then `returned` for a parcel that came back — PR #109, the stage 5
    session's.
-5. **Sales's screens** — the frontend session's, to confirm.
+5. ~~**Sales's screens**~~ — **written** (§4.1, the owner's answers §9.4), built by the stage 6 screens
+   session with the backend's additions (§4.2).
 6. **Every assumption marked above** — merging carts by adding quantities; 90-day carts; order numbers
    from a sequence that may leave gaps; a tracking number optional; shipping refunded with the last
    bought piece; a refusal's reason required; up to 3 transfer documents; the
@@ -1117,6 +1324,8 @@ refusing anything but one void.
 9. **Answer 41's change to Inventory** — `ship` taking a store with no provider to 0 and recording the
    shortfall instead of refusing — the stage 5 session's to build (their answer, 2026-10-19), before
    Sales's shipping step (S8). Both built (S8; `InventoryApi::ship`).
+10. **One style for every flag, tag and badge** — sales, labels, campaigns' looks — the owner's, to be
+    settled before launch (§9.4, R2-2); the screens use the system's tones until then.
 
 ### 9.3 The independent reviews of the draft (2026-10-10)
 
@@ -1165,3 +1374,33 @@ rule** (the owner's answer 30 — Promotions' `orderDiscountRoom` and Loyalty's 
 minor points — the coupon's shares' wording, best-selling without rejected or undelivered orders,
 completed returns counting the pieces received, the paired and shipping CHECKs, a retry after 15
 minutes, the off store's filter, the handoff row's order, a lost parcel, the merged PRs cited.
+
+### 9.4 The screens' questions (2026-10-26 and 2026-10-27)
+
+Asked in three rounds by the stage 6 screens session; each answer is in §4.1 where it is used (R1-n is
+round 1's question n, R2-n round 2's, R3 round 3's). **Everything not named below took the recommended
+option (a).**
+
+- **Round 1** (52 questions): checkout built now, online payment and shipping rates in stage 7 (R1-3, the
+  owner correcting (b) to (a)); shop prices drawn now from what Pricing already pushes (R1-1); a card per
+  colour discussed and left as it is (R1-9); the cart count in pieces (R1-10); checkout the common one
+  page (R1-18); the transfer receipt only with bank transfer, companies only (R1-24); Buy Again built now
+  (R1-33); one Orders page with tabs, and Returns (R1-35); the backend's additions built by the backend
+  session (R1-36); the phone as text with WhatsApp — staff work from a computer (R1-40); one staff packing
+  slip with codes, nothing for the customer (R1-47); no counts in the menu (R1-48); the edit on its own
+  page (R1-49); tabs for status lists, a filter for the store (R1-50). The Home dashboard follows the Sales
+  screens; downloadable reports stay with Ops, stage 8.
+- **Round 2** (40 questions): "Excl. VAT" said only at checkout (R2-1); a sale's percent badge, and
+  **one style for every flag, tag and badge — campaigns' looks included — settled before launch**
+  (R2-2); a guest's card retail with "Wholesale from" (R2-5); Add to Cart pressed before a size asks for it
+  (R2-6); best sellers under an empty cart (R2-9, R3); no summary line with nothing in it (R2-15); the
+  short-of-stock banner (R2-32); orders as cards on a phone (R2-34); the money after an edit in plain
+  words (R2-37).
+- **Round 3**: **no order is ever paid in parts** — Record Payment takes only the whole amount still
+  owed; an order that grows after it was paid shows "Balance due" and is paid once more, whole (R3-1);
+  best sellers under an empty cart.
+- **The screens session's picks, for the owner to change** (answering the backend session's detail
+  questions, 2026-10-27): a company account's card shows the retail price with "Wholesale from", as a
+  guest's; Buy Again from an order in any state, a line added at its old quantity and marked in the cart
+  when outside its limits now, one no longer available left out with why; the edit's search leaving out
+  sizes already on the order; search from 2 characters; no counts on the tabs.
