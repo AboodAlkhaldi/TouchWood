@@ -212,15 +212,20 @@ it('tells a signed-in customer what they may do and whether they saved it here',
         ->and([$after['feedback.reviews']['canWrite'], $after['feedback.wishlist']])->toBe([false, ['saved' => true]]);
 });
 
-it('gives a page that is not available now no sections', function () {
+it('gives a page that is not available now the Save heart alone (catalog.md amendment 34)', function () {
     ['product' => $product] = Fb::sold();
+    $sara = Fx::customer();
+    DB::table('feedback.wishlist_items')->insert(['customer_id' => $sara, 'product_id' => $product, 'store_id' => Fx::storeId('sa'), 'saved_at' => CarbonImmutable::now()]);
     Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $product)));
 
-    $response = get(shopSectionsUrl($product));
+    Fx::actAsCustomer($sara);
+    $saras = shopSections(get(shopSectionsUrl($product)));
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+    $guests = shopSections(get(shopSectionsUrl($product)));
 
-    // An empty object for the page, not a list nor nothing at all.
-    expect(shopSections($response))->toBe([])
-        ->and((string) json_encode($response->viewData('page')))->toContain('"sections":{}');
+    // No reviews, no questions: what is saved can still be kept or removed there.
+    expect($saras)->toBe(['feedback.wishlist' => ['saved' => true]])
+        ->and($guests)->toBe(['feedback.wishlist' => null]);
 });
 
 it('breaks the approved reviews down by star, and pages one star alone as the address asks (§4.2 B1)', function () {

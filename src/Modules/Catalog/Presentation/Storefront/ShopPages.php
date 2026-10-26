@@ -189,7 +189,8 @@ final readonly class ShopPages
         $path = $around === null || $around['self'] === null ? [] : [...$around['path'], $around['self']];
 
         $customerId = $this->customerId();
-        $sections = $kept['page']['available'] === true ? $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters) : [];
+        // Not available now: only the sections read on such a page too - the Save heart (amendment 34).
+        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 
