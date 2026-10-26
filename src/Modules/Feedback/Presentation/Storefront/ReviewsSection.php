@@ -44,7 +44,7 @@ final readonly class ReviewsSection implements ShopProductSection
                 $row['review']->writtenAt->format(DateTimeInterface::ATOM),
             ), $read->reviews),
             $read->nextReview,
-            $read->signedIn && ! $read->reviewed,
+            $read->signedIn && ! $read->reviewed && $read->purchased,
             array_map(static fn (int $star, int $count): ShopStarData => new ShopStarData($star, $count), array_keys($read->stars), $read->stars),
             $read->star,
             $read->signedIn && $read->reviewed,

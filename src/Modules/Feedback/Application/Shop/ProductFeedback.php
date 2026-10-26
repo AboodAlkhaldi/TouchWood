@@ -32,5 +32,7 @@ final readonly class ProductFeedback
         public array $stars = [],
         /** The one star the reviews are narrowed to, if any. */
         public ?int $star = null,
+        /** The signed-in customer had the product delivered (Sales's verified purchase); asked only while they may still review it. */
+        public bool $purchased = false,
     ) {}
 }
