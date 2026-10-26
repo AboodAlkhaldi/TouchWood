@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
@@ -26,6 +28,7 @@ use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
@@ -58,6 +61,8 @@ function solOrder(bool $wired = false): array
     // Wired after the stock was counted, before the order is placed (its hold remembers).
     if ($wired) {
         Ix::wired();
+        // The first size's normal sales made to depend on its stock (a wired store's switch): it counts.
+        app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
     }
 
     $placed = Cx::place(Cx::start($ready['address'])->id);
@@ -99,6 +104,8 @@ it('lists the orders waiting, to ship and shipped, and the bank transfers to che
     Cx::add($company['variants'][0]);
     $noDocument = Cx::place(Cx::start($company['address'], 'BANK_TRANSFER')->id, 'sa')->id;
     app(UploadTransferDocumentHandler::class)->handle(new UploadTransferDocument($transfer, Bx::pdf(), 'transfer.pdf'));
+    // A document on an order paid another way is no transfer to check.
+    DB::table('sales.transfer_documents')->insert([...(array) DB::table('sales.transfer_documents')->where('order_id', $transfer)->first(), 'order_id' => $waiting]);
     solStaff();
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($toShip));
     solShip($shipped, 'SMSA');
@@ -134,6 +141,10 @@ it('searches an order number, a customer name or a phone in one box, with the st
         ->and($search('501234'))->toBe([$first])
         ->and($search('٥٥٩٩٩'))->toBe([$second])
         ->and($search('%%'))->toBe([])
+        ->and($search('__'))->toBe([])
+        // A phone typed the local way, its leading zero dropped; letters with digits search no phone.
+        ->and($search('050 123 4567'))->toBe([$first])
+        ->and($search('a5'))->toBe([])
         // Shorter than 2: no search at all.
         ->and($search('s'))->toEqualCanonicalizing([$first, $second])
         ->and($search('sara', 'SHIPPED'))->toBe([])
@@ -155,9 +166,9 @@ it('lists the carriers a store shipped with, each once, the latest first, to sta
     ['order' => $third] = solOrder();
     solStaff();
     solShip($first, 'SMSA');
-    $this->travel(1)->minutes();
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
     solShip($second, 'Aramex');
-    $this->travel(1)->minutes();
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
     solShip($third, 'SMSA');
 
     expect(app(ListCarriersHandler::class)->handle(new ListCarriers(Fx::storeId('sa'))))->toBe(['SMSA', 'Aramex'])
@@ -170,9 +181,11 @@ it('lists the carriers a store shipped with, each once, the latest first, to sta
 
 it('shows a customer\'s latest orders on the staff customer page, none to a reader without the job', function () {
     ['order' => $first, 'customer' => $customer, 'address' => $address, 'variants' => $variants] = solOrder();
+    ['order' => $someoneElses] = solOrder();
+    Fx::actAsCustomer($customer);
 
     foreach (range(1, 10) as $n) {
-        $this->travel(1)->minutes();
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
         Cx::add($variants[1]);
         Cx::place(Cx::start($address)->id);
     }
@@ -182,6 +195,7 @@ it('shows a customer\'s latest orders on the staff customer page, none to a read
 
     expect(count($section['orders'] ?? []))->toBe(10)
         ->and(array_column($section['orders'] ?? [], 'orderId'))->not->toContain($first)
+        ->and(array_column($section['orders'] ?? [], 'orderId'))->not->toContain($someoneElses)
         ->and(array_keys($section['orders'][0] ?? []))->toBe(['orderId', 'number', 'storeId', 'placedAt', 'status', 'shipment', 'payment', 'customerStatus', 'total', 'shortOfStock', 'mayShipUnpaid'])
         ->and($section['orders'][0]['total']['currency'] ?? null)->toBe('SAR');
 
@@ -194,11 +208,14 @@ it('shows a customer\'s latest orders on the staff customer page, none to a read
 
 it('names a wired order\'s sizes that may be ticked, and none of an order placed with no provider', function (bool $wired) {
     ['order' => $order, 'variants' => $variants] = solOrder($wired);
+    // The second size's normal sales did not depend on its stock when placed: never tickable.
+    DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $variants[1])->where('is_gift', false)->update(['counts_on_stock' => false]);
     solStaff();
 
     $view = app(ViewOrderHandler::class)->handle(new ViewOrder($order));
 
     expect($view->wired)->toBe($wired)
         ->and($view->tickable)->toEqualCanonicalizing($wired ? array_values(array_map('strval', DB::table('sales.order_lines')->where('order_id', $order)->where('counts_on_stock', true)->pluck('variant_id')->unique()->all())) : [])
-        ->and($wired ? array_diff($view->tickable, $variants) : [])->toBe([]);
+        ->and($view->tickable)->not->toContain($variants[1])
+        ->and($wired ? $view->tickable : [$variants[0]])->toBe([$variants[0]]);
 })->with(['wired' => [true], 'no provider' => [false]]);

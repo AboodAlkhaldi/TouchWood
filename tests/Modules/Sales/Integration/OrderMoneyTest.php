@@ -69,7 +69,7 @@ function moneyDue(string $order): int
 /** What an edit raising the total leaves owed, by hand. */
 function moneyRaise(string $order, int $by): void
 {
-    DB::table('sales.orders')->where('id', $order)->update(['due_minor' => DB::raw("due_minor + {$by}"), 'order_total_minor' => DB::raw("order_total_minor + {$by}")]);
+    DB::table('sales.orders')->where('id', $order)->incrementEach(['due_minor' => $by, 'order_total_minor' => $by]);
 }
 
 function moneyRefund(string $order, string $amount, ?string $request = null): string
@@ -174,6 +174,18 @@ describe('recording', function () {
             ->and((int) DB::table('sales.payments')->where('id', $second)->value('amount_minor'))->toBe(30_00)
             ->and(moneyHeld($order))->toBe([$due + 30_00, 0])
             ->and(DB::table('sales.payments')->count())->toBe(2);
+    });
+
+    it('refuses a payment when what is owed is no longer the balance the screen showed', function () {
+        $order = moneyOrder();
+        $shown = number_format(moneyDue($order) / 100, 2, '.', '');
+        moneyRaise($order, 50_00);
+        $pay = fn (string $shown) => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-1', null, '2026-10-19', (string) Str::uuid(), $shown));
+
+        expect(fn () => $pay($shown))->toThrow(InvalidOrderChange::class)
+            ->and(moneyHeld($order))->toBe([0, 0])
+            ->and($pay(number_format(moneyDue($order) / 100, 2, '.', '')))->not->toBe('')
+            ->and(moneyHeld($order))->toBe([moneyDue($order), 0]);
     });
 
     it('takes what is owed again after a refund left the order short', function () {

@@ -31,7 +31,7 @@ final readonly class OrdersCustomerSection implements CustomerPageSection
 
         return (new CustomerOrdersSectionData(array_map(static fn (StaffOrderRow $row): CustomerOrderData => new CustomerOrderData(
             $row->orderId, $row->number, $row->storeId, $row->placedAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.vP'),
-            $row->status, $row->shipment, $row->payment->value, $row->customerStatus->value, MoneyData::of($row->total, $row->exponent),
+            $row->status, $row->shipment, $row->payment->value, $row->customerStatus->value, new MoneyData($row->total->toDecimal($row->exponent), $row->total->currencyCode),
             $row->shortOfStock, $row->mayShipUnpaid,
         ), $orders)))->toArray();
     }

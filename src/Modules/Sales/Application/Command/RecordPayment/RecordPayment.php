@@ -14,5 +14,7 @@ final readonly class RecordPayment
         public ?string $note,
         public string $happenedOn,
         public string $requestId,
+        /** The balance the screen showed (optional): refused when what is owed is no longer it. */
+        public ?string $shown = null,
     ) {}
 }

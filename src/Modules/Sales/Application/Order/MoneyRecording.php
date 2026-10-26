@@ -56,7 +56,7 @@ final readonly class MoneyRecording
      *
      * @throws InvalidSalesAttribute|InvalidOrderChange|OrderNotFound|RefundTooLarge
      */
-    public function record(string $kind, string $orderId, string $staffId, ?string $amount, string $way, ?string $reference, ?string $note, string $happenedOn, string $requestId): string
+    public function record(string $kind, string $orderId, string $staffId, ?string $amount, string $way, ?string $reference, ?string $note, string $happenedOn, string $requestId, ?string $shown = null): string
     {
         $way = strtoupper(trim($way));
         $reference = self::optional($reference, 100, 'reference');
@@ -71,7 +71,7 @@ final readonly class MoneyRecording
             throw new InvalidSalesAttribute('note', 'what the other way was');
         }
 
-        return $this->db->transaction(function () use ($kind, $orderId, $staffId, $amount, $way, $reference, $note, $happenedOn, $request): string {
+        return $this->db->transaction(function () use ($kind, $orderId, $staffId, $amount, $way, $reference, $note, $happenedOn, $request, $shown): string {
             $order = $this->orders->lock($orderId) ?? throw new OrderNotFound;
             $made = $this->records->byRequest($kind, $request);
 
@@ -85,6 +85,12 @@ final readonly class MoneyRecording
             $money = $kind === MoneyRecord::PAYMENT
                 ? ($order->due - $order->held() > 0 ? Money::of($order->due - $order->held(), $order->currencyCode) : throw new InvalidOrderChange)
                 : self::amount($amount ?? '', $order->currencyCode, $currency->exponent);
+
+            // The balance the screen showed, when it says: an edit or a refund meanwhile changed it - shown again,
+            // never recorded against a transfer of another amount.
+            if ($shown !== null && ! self::amount($shown, $order->currencyCode, $currency->exponent)->equals($money)) {
+                throw new InvalidOrderChange;
+            }
 
             if ($kind === MoneyRecord::REFUND && $money->minorUnits > $order->held()) {
                 throw new RefundTooLarge;

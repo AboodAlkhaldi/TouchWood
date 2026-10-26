@@ -30,6 +30,6 @@ final readonly class RecordPaymentHandler
     {
         [$orderId, , $staffId] = $this->access->authorize(self::PERMISSION, $command->orderId);
 
-        return $this->money->record(MoneyRecord::PAYMENT, $orderId, $staffId, null, $command->way, $command->reference, $command->note, $command->happenedOn, $command->requestId);
+        return $this->money->record(MoneyRecord::PAYMENT, $orderId, $staffId, null, $command->way, $command->reference, $command->note, $command->happenedOn, $command->requestId, $command->shown);
     }
 }

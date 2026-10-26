@@ -497,7 +497,9 @@ Payments' (stage 7).
   own, from stage 7. **A payment is always the whole balance still owed** — due less what is held, filled
   in by Sales under the order's lock, never typed; refused (`InvalidOrderChange`) when nothing is owed —
   **no partial payments** (owner, 2026-10-27, §9.1c 49): an edit that raises a paid order's total leaves a
-  balance, paid as one payment more, as is what a refund leaves short. A refund's amount is typed as a
+  balance, paid as one payment more, as is what a refund leaves short. `RecordPayment` may carry the balance
+  the screen showed (`shown`): refused (`InvalidOrderChange`) when what is owed is no longer it — an edit or
+  a refund meanwhile — so a transfer is never recorded against another amount (my assumption). A refund's amount is typed as a
   decimal in the order's own currency, never more decimals than it has, up to what the order holds. The
   reference is optional, up to 100 characters.
 - **"The date"** is the day the money moved — a column `happened_on`, not after today in the store's own
@@ -765,7 +767,9 @@ the order's store.
   of stock), `WAITING_APPROVAL`, `TO_SHIP` (approved, not shipped), `SHIPPED` (shipped, not yet delivered nor
   come back) or `TRANSFERS_TO_CHECK` (paid by bank transfer, a document uploaded, still holding less than is
   due); **`q`** one box — any part of the order number or of the customer's name as placed (any case, its
-  digits read as Latin), or of the phone by its digits alone — 2 to 100 characters, shorter none;
+  digits read as Latin), or — when the box holds a phone (digits, spaces, `+ - ( )`, 4 digits at least) —
+  of the phone by its digits, leading zeros dropped (`0501234567` finds `+966501234567`) — 2 to 100
+  characters, shorter none;
   **`customerId`** one customer's orders (the customer page's "See all"); every part with the others; no
   counts (owner: tabs without badges); newest first, **50 a page**, `after` the last order id →
   `StaffOrdersPage{orders, next}`, each `StaffOrderRow{orderId, number, storeId, placedAt, customer, status,

@@ -43,11 +43,14 @@ final readonly class DatabaseStaffReads implements StaffReads
         }
 
         if ($q !== null) {
-            // Any part of the number or the name as placed, any case, its digits read as Latin; a phone by its digits.
-            $text = '%'.addcslashes(mb_strtolower(LatinDigits::of($q)), '%_\\').'%';
-            $digits = preg_replace('/\D/', '', LatinDigits::of($q)) ?? '';
+            // Any part of the number or the name as placed, any case, its digits read as Latin. A phone only when the
+            // box holds a phone (digits, spaces, + - and brackets; 4 digits at least), by its digits, leading zeros
+            // dropped: 0501234567 typed finds +966501234567 kept.
+            $latin = LatinDigits::of($q);
+            $text = '%'.addcslashes(mb_strtolower($latin), '%_\\').'%';
+            $digits = preg_match('/^[0-9\s()+-]+$/', $latin) === 1 ? ltrim(preg_replace('/[^0-9]/', '', $latin) ?? '', '0') : '';
             $query->where(fn ($found) => $found->whereRaw('lower(o.number) LIKE ?', [$text])->orWhereRaw('lower(o.customer_name) LIKE ?', [$text])
-                ->when($digits !== '', fn ($phone) => $phone->orWhereRaw("regexp_replace(o.customer_phone, '\\D', '', 'g') LIKE ?", ['%'.$digits.'%'])));
+                ->when(strlen($digits) >= 4, fn ($phone) => $phone->orWhereRaw("regexp_replace(o.customer_phone, '[^0-9]', '', 'g') LIKE ?", ['%'.$digits.'%'])));
         }
 
         if ($afterOrderId !== null) {
