@@ -10,7 +10,7 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * A store opened after Sales's tables were migrated — the launch stores the seeder creates included —
- * gets its own order numbers from 1001 (sales.md §1.3, §6). A store that has them keeps them.
+ * gets its own order numbers from 1 (sales.md §1.3, §6). A store that has them keeps them.
  */
 final readonly class CreateOrderSequence
 {

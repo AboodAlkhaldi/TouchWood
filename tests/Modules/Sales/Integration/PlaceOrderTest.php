@@ -84,8 +84,8 @@ describe('placing', function () {
 
         $order = DB::table('sales.orders')->where('id', $placed->id)->first();
         $customerRow = DB::table('access.customers')->where('id', $customer)->first();
-        expect($placed->number)->toBe('SA-1001')
-            ->and($order?->number)->toBe('SA-1001')
+        expect($placed->number)->toBe('SA-0001')
+            ->and($order?->number)->toBe('SA-0001')
             ->and($order?->quote_id)->toBe($quote->id)
             ->and($order?->status)->toBe('PENDING_APPROVAL')
             ->and($order?->shipment_status)->toBe('NOT_SHIPPED')
@@ -153,7 +153,7 @@ describe('placing', function () {
             ->and((int) $lines->sum('vat_share_minor'))->toBe($quote->totals->vat->minorUnits)
             ->and($lines->where('is_gift', true)->pluck('variant_id')->all())->toBe([$variants[1]])
             ->and((int) DB::table('promotions.coupon_uses')->where('order_id', $placed->id)->value('discount_minor'))->toBe($quote->couponDiscount->minorUnits)
-            ->and(DB::table('promotions.coupon_uses')->where('order_id', $placed->id)->value('order_number'))->toBe('SA-1001')
+            ->and(DB::table('promotions.coupon_uses')->where('order_id', $placed->id)->value('order_number'))->toBe('SA-0001')
             ->and((int) DB::table('loyalty.orders')->where('order_id', $placed->id)->value('points_redeemed'))->toBe($quote->pointsUsed)
             ->and(DB::table('inventory.hold_lines')->where('gift', true)->pluck('variant_id')->all())->toBe([$variants[1]])
             ->and(DB::table('sales.carts')->value('coupon_code'))->toBeNull();
@@ -169,7 +169,7 @@ describe('placing', function () {
         $next = Cx::place(Cx::start($address)->id);
 
         expect($again)->toEqual($first)
-            ->and($next->number)->toBe('SA-1002')
+            ->and($next->number)->toBe('SA-0002')
             ->and(DB::table('sales.orders')->count())->toBe(2)
             ->and(DB::table('public.outbox_messages')->count())->toBe(2)
             ->and(DB::table('inventory.holds')->count())->toBe(2);
@@ -289,11 +289,10 @@ describe('what changed since the quote', function () {
         expect(fn () => Cx::place($refused->id))->toThrow(QuoteChanged::class);
         Ix::count('sa', [$ready['variants'][0] => 100]);
 
-        // The sequence gave 1001 to the refused one, rolled back with it or not: never given twice.
+        // The sequence gave 1 to the refused one, rolled back with it or not: never given twice.
         $placed = Cx::place(Cx::start($ready['address'])->id);
 
-        expect($placed->number)->toMatch('/^SA-\d+$/')
-            ->and((int) substr($placed->number, 3))->toBeGreaterThan(1001);
+        expect($placed->number)->toBe('SA-0002');
     });
 
     it('keeps the snapshot as placed though the catalog changes after', function () {

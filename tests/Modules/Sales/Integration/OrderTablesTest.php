@@ -23,7 +23,7 @@ use function Pest\Laravel\seed;
 /*
 | The order's tables (sales.md §5): each of the four machines' rules a CHECK, so a row no command would
 | write is refused by the database too; a line's shares within its total, the gift free and one an
-| order; an edit and the history never changed; one number sequence a store, from 1001 (answer 35).
+| order; an edit and the history never changed; one number sequence a store, from 1 (answer 35).
 */
 
 uses(RefreshDatabase::class);
@@ -204,13 +204,13 @@ it('refuses a history kind no command writes', function () {
 });
 
 describe('the numbers', function () {
-    it('numbers each store on its own from 1001, the seeded stores and one opened later', function () {
+    it('numbers each store on its own from 1, the seeded stores and one opened later', function () {
         $numbers = app(OrderNumbers::class);
         $sa = StoreId::fromString(Fx::storeId('sa'));
         $eg = StoreId::fromString(Fx::storeId('eg'));
         $kw = Rx::kuwait();
 
-        expect([$numbers->next($sa), $numbers->next($sa), $numbers->next($eg), $numbers->next(StoreId::fromString($kw))])->toBe([1001, 1002, 1001, 1001]);
+        expect([$numbers->next($sa), $numbers->next($sa), $numbers->next($eg), $numbers->next(StoreId::fromString($kw))])->toBe([1, 2, 1, 1]);
     });
 
     it('makes a store numbers once, and writes only a store id into the SQL', function () {
@@ -219,7 +219,7 @@ describe('the numbers', function () {
         $numbers->next($store);
         $numbers->create($store);
 
-        expect($numbers->next($store))->toBe(1002)
+        expect($numbers->next($store))->toBe(2)
             ->and(fn () => OrderNumberSequences::name('x; DROP TABLE sales.orders'))->toThrow(InvalidArgumentException::class);
     });
 });
@@ -259,15 +259,31 @@ it('ticks a size of an order once', function () {
     expect(fn () => DB::table('sales.order_ticks')->insert($tick))->toThrow(QueryException::class, 'order_ticks_pkey');
 });
 
-it('gives a store whose numbers went missing its numbers back, from 1001', function () {
+it('gives a store whose numbers went missing its numbers back, from 1', function () {
     $store = StoreId::fromString(Fx::storeId('sa'));
     DB::statement('DROP SEQUENCE '.OrderNumberSequences::name($store->value));
 
-    expect(app(OrderNumbers::class)->next($store))->toBe(1001)
-        ->and(app(OrderNumbers::class)->next($store))->toBe(1002);
+    expect(app(OrderNumbers::class)->next($store))->toBe(1)
+        ->and(app(OrderNumbers::class)->next($store))->toBe(2);
 });
 
-it('makes every store numbers from 1001 the way the migration does', function () {
+it('starts again at 1 a store whose numbers began at 1001 before, unless it has orders', function () {
+    $orderedIn = orderRow();
+    $sa = Fx::storeId('sa');
+    $eg = Fx::storeId('eg');
+
+    foreach ([$sa, $eg] as $store) {
+        DB::statement('DROP SEQUENCE '.OrderNumberSequences::name($store));
+        DB::statement('CREATE SEQUENCE '.OrderNumberSequences::name($store).' START WITH 1001');
+    }
+
+    (require base_path('src/Modules/Sales/Infrastructure/Persistence/Migrations/2026_10_26_100000_restart_order_numbers_at_one.php'))->up();
+
+    expect(DB::table('sales.orders')->where('id', $orderedIn)->value('store_id'))->toBe($sa)
+        ->and([app(OrderNumbers::class)->next(StoreId::fromString($sa)), app(OrderNumbers::class)->next(StoreId::fromString($eg))])->toBe([1001, 1]);
+});
+
+it('makes every store numbers from 1 the way the migration does', function () {
     $stores = DB::table('platform.stores')->pluck('id')->map(fn ($id): string => (string) $id)->all();
 
     foreach ($stores as $id) {
@@ -277,6 +293,6 @@ it('makes every store numbers from 1001 the way the migration does', function ()
     OrderNumberSequences::createForStores(DB::connection());
 
     expect(array_map(fn (string $id): int => (int) DB::selectOne('SELECT nextval(?::regclass) AS n', [OrderNumberSequences::name($id)])->n, $stores))
-        ->toBe(array_fill(0, count($stores), 1001))
+        ->toBe(array_fill(0, count($stores), 1))
         ->and(count($stores))->toBe(3);
 });

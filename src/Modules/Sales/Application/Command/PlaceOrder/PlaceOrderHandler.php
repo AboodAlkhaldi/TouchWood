@@ -156,7 +156,8 @@ final readonly class PlaceOrderHandler
 
             // 2. The number, taken first: Promotions and Loyalty record it.
             $code = $this->platform->store($store)->code ?? throw new QuoteChanged('store');
-            $number = strtoupper($code).'-'.$this->numbers->next($store);
+            // Four digits at least (SA-0001 … SA-9999, then SA-10000): answer 35 as changed 2026-10-26.
+            $number = sprintf('%s-%04d', strtoupper($code), $this->numbers->next($store));
             $orderId = strtolower((string) Str::ulid());
 
             try {

@@ -51,7 +51,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 - **The order's tables** (S6a): `sales.orders`, `order_lines`, `order_edits`, `order_ticks`,
   `order_history` (edits and history append-only, by trigger), each machine's rules a CHECK;
   `Domain/Service/OrderShares` (the coupon's, points' and VAT's shares a line — §1.8; a piece's part by
-  running totals is `ReturnRefunds`', S10); `Domain/Repository/OrderNumbers` as one sequence a store from 1001
+  running totals is `ReturnRefunds`', S10); `Domain/Repository/OrderNumbers` as one sequence a store from 1 (shown `SA-0001`)
   (`Infrastructure/Eloquent/OrderNumberSequences`, made for a store opened later by
   `Infrastructure/Listener/CreateOrderSequence`).
 - **Placing** (S6b): `Application/Quote/QuoteRules` (the rules that can change in 15 minutes, checked at

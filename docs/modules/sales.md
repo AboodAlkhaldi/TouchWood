@@ -137,12 +137,13 @@ Built in this fixed order (handoff §10.2, §11.3):
    as it is** — before the quote's expiry is checked, so a retry after 15 minutes still gets its order — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
    The order keeps its quote's id (unique), the backstop.
 2. **The order's public number** — the store's code in capitals and the store's own sequence,
-   **`SA-10428`** (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2), **each store's
-   sequence starting at 1001** — four digits, `SA-1001` (owner, 2026-10-19, answer 35) — taken first,
+   (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2), **each store's sequence starting
+   at 1, shown four digits at least** — `SA-0001` … `SA-9999`, then `SA-10000` (owner, 2026-10-26,
+   answer 35 as changed; the old shop's numbers are in another format, so none clash) — taken first,
    because Promotions and Loyalty record it. **A database sequence per store**, created by the
    migration for the stores that exist and by a `StoreCreated` listener for each store opened later: a
-   placement that fails leaves a gap rather than making every placement in the store wait on a lock.
-   My assumption, stated for the owner to reject. The internal id is never shown (handoff §5.3).
+   placement that fails leaves a gap rather than making every placement in the store wait on a lock
+   (accepted, owner 2026-10-26). The internal id is never shown (handoff §5.3).
 3. **Every rule of the quote that can change in 15 minutes, again**: the store still on;
    `customerMayOrder` and, for a company, `isApproved` (a company suspended meanwhile cannot order,
    handoff §8.2); every line still orderable in its mode and within its minimum and maximum (Catalog —
@@ -696,8 +697,8 @@ every amount `Money`, with its currency's `exponent` beside it; **the customer i
 ids** — the order's id and its lines' ids are carried only to act on them (cancel, ask a return, upload a
 document), the store, product and size ids only to link and resolve names; a return, having no number of
 its own, is known by its id (my assumption). **An order is found by the customer and its number**, which is
-unique today because a number carries its store's code (`SA-1001`); the company's own format (provisional,
-to come) must keep it unique per customer, or these reads take the store too.
+unique because a number carries its store's code (`SA-0001`); a later format must keep it unique per
+customer, or these reads take the store too.
 
 - **The statuses** (§1.4), worked out by `Domain/Service/OrderStatuses`: `PaymentStatus` — `NOTHING_DUE`,
   `UNPAID`, `PARTLY_PAID`, `PAID`, `REFUND_DUE`, `REFUNDED` — and the one a customer sees,
@@ -865,8 +866,8 @@ number sequence missing (a listener before Sales's failed) is made at its next n
 deletion leaves a placed quote with its order (placing again answers that order, §1.3), and skips one
 being placed at that moment. **The history and the edits never hold the customer's email** — they cannot
 be changed, and anonymizing clears the order's copy (§1.12).
-The order number's format (`SA-1001`) is provisional: it must later match the company's current format
-(owner, 2026-10-19).
+The order number's format is the owner's (2026-10-26): the store's code and its own number from 1, four
+digits at least (`SA-0001`).
 
 ---
 
@@ -1044,7 +1045,8 @@ refusing anything but one void.
 33. **Edits**: every changed line within its minimum and maximum; staff may add a gift a level now
     reached (§1.7).
 34. **The return window is fixed at delivery** — delivery plus the days, to the minute (§1.8).
-35. **Order numbers start at 1001**: `SA-1001` (§1.3).
+35. **Order numbers start at 1, four digits at least**: `SA-0001` (§1.3; changed by the owner 2026-10-26 from
+    1001).
 36. **Stock reduced under placed orders only marks them** — following inventory.md §1.5 (2026-10-11),
     newer than this spec (§1.11).
 37. **Placement asks the gift and the discount room again** — a change is `QuoteChanged` (§1.3).

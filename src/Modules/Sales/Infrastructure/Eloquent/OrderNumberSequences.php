@@ -11,14 +11,14 @@ use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
- * `OrderNumbers` as one PostgreSQL sequence a store, from 1001 (sales.md §1.3, §5; answer 35): taken
+ * `OrderNumbers` as one PostgreSQL sequence a store, from 1 (sales.md §1.3, §5; answer 35 as changed 2026-10-26): taken
  * outside any lock, so a placement that fails leaves a gap rather than making every placement in the
  * store wait. Made by the migration for the stores there were, and by `CreateOrderSequence` for each
  * store opened later.
  */
 final readonly class OrderNumberSequences implements OrderNumbers
 {
-    public const int FIRST = 1001;
+    public const int FIRST = 1;
 
     public function __construct(
         private ConnectionInterface $db,
