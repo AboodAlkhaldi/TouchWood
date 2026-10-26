@@ -13,8 +13,10 @@ use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Staff\StaffReads;
@@ -100,5 +102,16 @@ final class SalesServiceProvider extends ServiceProvider
             // The shop's Best-Selling ranks (§1.13).
             $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
         });
+
+        // The screens (§4.1): the Sales group's Orders, for staff who view the store's orders. What is offered
+        // is never what is allowed: every handler behind it asks again (handoff §19).
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('sales', 'orders', 'orders', 'sales.admin.orders', SalesPermissions::ORDER_VIEW, 10, icon: 'orders'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
     }
 }
