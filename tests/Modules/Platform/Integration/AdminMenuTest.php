@@ -104,6 +104,8 @@ describe('the admin menu', function () {
             // Sync's screens (sync.md §4.1.2, stage 5's screens step 6), its own group after Pricing's.
             'sync/report',
             'sync/provider',
+            // Sales's screens (sales.md §4.1): Orders.
+            'orders/orders',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

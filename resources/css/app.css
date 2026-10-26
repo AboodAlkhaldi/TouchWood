@@ -311,3 +311,17 @@
     width: 22px;
     height: 22px;
 }
+
+/*
+| Printing a panel page (sales.md §4.1 P3, the packing slip): the frame - the sidebar and the top bar with its
+| trail - stays off the paper; the page's own content prints. The slip lives in the frame like every panel
+| page, so the frame's code is everyone's shared download (tests/Architecture/JavaScriptBudgetTest).
+*/
+@media print {
+    [data-slot='sidebar'],
+    [data-slot='sidebar-gap'],
+    [data-slot='sidebar-container'],
+    [data-slot='sidebar-inset'] > header {
+        display: none !important;
+    }
+}

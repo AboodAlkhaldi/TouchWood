@@ -196,6 +196,7 @@ final readonly class OrderPages
         $money = fn (Money $amount): MoneyData => $this->money($amount, $order->storeId, $order->exponent);
 
         return new PrintPage(
+            $orderId,
             $order->number,
             $store?->name->in($this->locale()) ?? '',
             self::moment($order->placedAt),

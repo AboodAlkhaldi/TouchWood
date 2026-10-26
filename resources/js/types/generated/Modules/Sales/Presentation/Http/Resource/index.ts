@@ -148,6 +148,7 @@ stores: SalesStoreData[],
 tabs: string[],
 };
 export type PrintPage = {
+id: string,
 number: string,
 storeName: string,
 placedAt: string,
