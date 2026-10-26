@@ -141,14 +141,14 @@ export default function Show(order: OrderPage) {
                     </Note>
                 ) : null}
 
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                    <div className="grid content-start gap-4">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                    <div className="grid min-w-0 content-start gap-4">
                         <Lines order={order} />
                         <Totals order={order} />
                         <MoneyCard order={order} onRecord={() => setDialog('payment')} onRefund={() => setDialog('refund')} onVoid={(record) => setDialog({ void: record })} />
                         <History order={order} />
                     </div>
-                    <div className="grid content-start gap-4">
+                    <div className="grid min-w-0 content-start gap-4">
                         <Contact order={order} />
                         <Shipment order={order} />
                         {order.transferDocuments.length > 0 ? <Files order={order} /> : null}
@@ -170,7 +170,7 @@ export default function Show(order: OrderPage) {
 
 function Section({ title, test, children, action }: { title: string; test: string; children: React.ReactNode; action?: React.ReactNode }) {
     return (
-        <Card className="gap-3 py-4" data-test={test}>
+        <Card className="min-w-0 gap-3 py-4" data-test={test}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 px-5">
                 <CardTitle className="text-heading-16 text-ink">{title}</CardTitle>
                 {action}

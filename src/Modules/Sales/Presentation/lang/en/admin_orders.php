@@ -229,8 +229,6 @@ return [
     'print' => [
         'title' => 'Packing slip :number',
         'print' => 'Print',
-        'back' => 'Back to the order',
-        'phone' => 'Phone',
     ],
     'toast' => [
         'approved' => 'Order approved.',

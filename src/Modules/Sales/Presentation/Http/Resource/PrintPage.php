@@ -16,6 +16,7 @@ final class PrintPage extends Data
      * @param  list<OrderLineData>  $lines
      */
     public function __construct(
+        public string $id,
         public string $number,
         public string $storeName,
         public string $placedAt,
