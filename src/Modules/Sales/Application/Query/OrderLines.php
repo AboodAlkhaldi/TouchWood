@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Modules\Sales\Application\Query\Own;
+namespace Modules\Sales\Application\Query;
 
 use Carbon\CarbonImmutable;
+use Modules\Sales\Application\Query\Own\OrderLineView;
+use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Returns;
 use Shared\Domain\ValueObject\Money;

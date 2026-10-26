@@ -551,13 +551,16 @@ edit adds or frees (inventory.md §1.4), so a successful edit does not show that
   withdrawn or closed, or one whose payment is `UNPAID`, `PARTLY_PAID` or `REFUND_DUE` — my reading,
   stated for the owner to reject. Its shop and new orders are gone with it; its customers may still
   cancel, ask a return and upload a transfer document for orders already placed (answer 39).
-- Carts, quotes, orders and returns belong to a store; one repository per kind names the store in every
-  call (loyalty.md §1.12); store-binding composite keys (§5). The nightly jobs are the passes across
-  stores.
+- Carts, quotes, orders and returns belong to a store; one repository per kind (loyalty.md §1.12). **As
+  built** (S12): a cart's, a quote's and a list's calls name the store; a change to one order or return
+  takes its id alone — the row's store is read under its lock and authorized once (`OrderAccess`,
+  `ReturnAccess`), and the store-binding composite keys (§5) tie every row written for it to that store.
+  The nightly jobs are the passes across stores.
 
 ### 1.13 Best-selling
 
-Catalog's "Best-Selling" sort waits for Sales (catalog.md §2.2: `ListingFacts::salesRanks`). **A nightly
+Catalog's "Best-Selling" sort is fed by Sales (catalog.md §2.2: `ListingFacts::salesRanks`; built in S11a,
+catalog.md amendment 30). **A nightly
 job ranks each store's products by the pieces sold in that store's orders not cancelled, rejected or undelivered over the last
 90 days**, and pushes the ranks. My assumption for the measure and the window, stated for the owner to
 reject.
@@ -604,7 +607,7 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 | Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); `release` and `returned` for a parcel that came back on `main` (#109, `906fca62`) |
 | Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
-| Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read are Catalog additions** — to agree with the Catalog-screens session, who own §1.13 |
+| Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read** — Catalog additions, built in S3 (catalog.md amendment 29) |
 | Access | `customerMayOrder`, `customer`, `addresses`, `address`, `GuestBecameCustomer`, `CustomerAnonymized` | Exist |
 | B2B | `isApproved`, `bankAccount` | Exist |
 | Platform | `store` (`isActive`), `allStores`, `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
@@ -616,7 +619,7 @@ convention (e.g. `catalog.attribute_kind_locked`): `promotions.coupon_refused`,
 `promotions.coupon_changed`, `loyalty.redemption_changed`, `loyalty.redemption_refused`,
 `loyalty.points_programme_off`, `inventory.not_enough_stock`, `inventory.hold_not_editable`,
 `inventory.no_hold`, `pricing.duplicate_lines`; and, confirmed against the modules' code before the
-build, `inventory.stock_below_zero` (until answer 41's change), `inventory.ship_more_than_held`,
+build, `inventory.stock_below_zero` (no longer thrown by `ship` since answer 41's change, built), `inventory.ship_more_than_held`,
 `inventory.already_held`, `inventory.quantity_invalid`, `loyalty.order_not_settleable`.
 
 ### 2.4 What Sales defines for stage 7 to fill
@@ -669,14 +672,14 @@ order's or cart's store — Promotions and Loyalty build their scope from it, lo
 | `StartCheckout`, `PlaceOrder` | Command | `sales.order.place` |
 | `CancelOwnOrder`, `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto`, `UploadTransferDocument` | Command | `sales.order.manage_own` (also the scope of `uploadMediaFor`) |
 | `ListOwnOrders`, `ViewOwnOrder`, `ViewOwnReturn` | Query | `sales.order.view_own` |
-| `ListOrders` (all, unpaid, flagged short — handoff §14: Sales › All orders · Store orders · Unpaid orders), `ViewOrder`, `ListReturns`, `ViewReturn`, `OpenOrderFile` (return photos, transfer documents), `PrintOrder` | Query | `sales.order.view` |
+| `ListOrders` (all, unpaid, flagged short — handoff §14: Sales › All orders · Store orders · Unpaid orders), `ViewOrder`, `ListReturns`, `ViewReturn`, `OpenOrderFile` (return photos, transfer documents), `PrintOrder`, `ListOrderStores` (the screens' store filter, §1.12) | Query | `sales.order.view` |
 | `ApproveOrder`, `RejectOrder` | Command | `sales.order.approve` |
 | `PreviewOrderEdit`, `EditOrder`, `ClearShortFlag` | Query, Command, Command | `sales.order.edit` |
 | `CancelOrder` | Command | `sales.order.cancel` |
 | `ShipOrder`, `TickReducedInProvider`, `AllowShipUnpaid`, `MarkDelivered`, `MarkCameBack` | Command | `sales.order.fulfil` |
 | `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` | Command | `sales.payment.record` |
 | `AcceptReturn`, `RefuseReturn`, `ReceiveReturn`, `CloseReturn`, `CompleteReturn` | Command | `sales.return.manage` |
-| `UpdateSalesSettings` (through Platform's settings page) | Command | `sales.settings.update` |
+| Platform's `UpdateSetting`, on its settings page (Sales declares the three settings, no command of its own) | Command | `sales.settings.update` |
 | `EmptyOldCarts`, `DeleteExpiredQuotes`, `PushSalesRanks` | Command, scheduled | `sales.system.run` |
 | `MoveGuestCart`, `ForgetCustomer`, `FlagShortOrders`, `CreateOrderSequence`, `RecordGatewayPayment` (stage 7) | Listeners | — (the events of §6, run as the system) |
 
@@ -1097,10 +1100,11 @@ refusing anything but one void.
    Payments.
 8. **An off store's unfinished orders in the other modules** — whether Inventory's, Promotions' and
    Loyalty's calls accept an order of a store that is off (Sales's edits, returns, cancellations):
-   unverified, checked at build.
+   checked at build and tested (`OrderDecisionsTest`, `ReturnRequestsTest`: an off store's staff decide,
+   its customers cancel and ask returns).
 9. **Answer 41's change to Inventory** — `ship` taking a store with no provider to 0 and recording the
    shortfall instead of refusing — the stage 5 session's to build (their answer, 2026-10-19), before
-   Sales's shipping step (S8), which waits for it.
+   Sales's shipping step (S8). Both built (S8; `InventoryApi::ship`).
 
 ### 9.3 The independent reviews of the draft (2026-10-10)
 

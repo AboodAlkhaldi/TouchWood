@@ -18,6 +18,8 @@ use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProvider;
@@ -27,6 +29,8 @@ use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotShippable;
+use Modules\Sales\Domain\Service\OrderStatuses;
+use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Events\OrderDelivered;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -365,5 +369,40 @@ describe('what the review asked for', function () {
         fulfilledShip($order);
 
         expect(Pr::thrown(fn () => app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, [['variantId' => 'box', 'quantity' => 1]])), InvalidSalesAttribute::class)->attribute)->toBe('variant');
+    });
+});
+
+describe('what the module pass added (§8)', function () {
+    it('ships an order holding more than is due without "may ship unpaid"', function () {
+        ['order' => $order] = fulfilled();
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor + 100')]);
+
+        fulfilledShip($order);
+
+        expect([fulfilledRow($order)?->shipment_status, (bool) fulfilledRow($order)?->may_ship_unpaid])->toBe(['SHIPPED', false]);
+    });
+
+    it('keeps the coupon counted when a parcel comes back, the customer seeing it cancelled and then refunded', function () {
+        $ready = Cx::ready();
+        Pr::ceiling(50);
+        Pr::coupon('SUMMER-15');
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $order = Cx::place(Cx::start($ready['address'])->id)->id;
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        fulfilledPaid($order);
+        fulfilledShip($order);
+        app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, []));
+        $seen = function () use ($order): CustomerOrderStatus {
+            $row = fulfilledRow($order);
+
+            return OrderStatuses::customer((string) $row?->status, (string) $row?->shipment_status, OrderStatuses::payment((int) $row?->due_minor, (int) $row?->paid_minor, (int) $row?->refunded_minor));
+        };
+
+        $before = $seen();
+        DB::table('sales.orders')->where('id', $order)->update(['refunded_minor' => DB::raw('paid_minor')]);
+
+        expect(DB::table('promotions.coupon_uses')->where('order_id', $order)->count())->toBe(1)
+            ->and([$before, $seen()])->toBe([CustomerOrderStatus::Cancelled, CustomerOrderStatus::Refunded]);
     });
 });

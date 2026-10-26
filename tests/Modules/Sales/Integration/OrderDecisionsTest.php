@@ -22,6 +22,8 @@ use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlag;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlagHandler;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
@@ -403,5 +405,36 @@ describe('what the review asked for', function () {
 
         expect(decidedRow($order)?->short_of_stock_at)->toBeNull()
             ->and(decidedHistory($order))->toBe(['PLACED', 'SHORT_FLAGGED']);
+    });
+});
+
+describe('what the module pass added (§8)', function () {
+    it('keeps the coupon counted on a cancelled or rejected order', function (Closure $undo) {
+        $ready = Cx::ready();
+        Pr::ceiling(50);
+        Pr::coupon('SUMMER-15');
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $order = Cx::place(Cx::start($ready['address'])->id)->id;
+        decidedStaff([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_CANCEL]);
+
+        $undo($order);
+
+        expect(decidedRow($order)?->status)->toBeIn(['CANCELLED', 'REJECTED'])
+            ->and(DB::table('promotions.coupon_uses')->where('order_id', $order)->count())->toBe(1);
+    })->with([
+        'cancelled' => [fn (string $order) => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'The customer called'))],
+        'rejected' => [fn (string $order) => app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Out of the delivery area'))],
+    ]);
+
+    it('keeps who approved an order and when, once it is cancelled', function () {
+        ['order' => $order] = decidedOrder();
+        $staff = decidedStaff([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_CANCEL]);
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        $decidedAt = decidedRow($order)?->decided_at;
+
+        app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'The customer called'));
+
+        expect([decidedRow($order)?->status, decidedRow($order)?->decided_by, decidedRow($order)?->decided_at])->toBe(['CANCELLED', $staff, $decidedAt])
+            ->and($decidedAt)->not->toBeNull();
     });
 });

@@ -15,8 +15,12 @@ use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NotEnoughStock;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLineHandler;
+use Modules\Sales\Application\Command\PlaceOrder\PlaceOrder;
+use Modules\Sales\Application\Command\PlaceOrder\PlaceOrderHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\SalesSettings;
@@ -27,11 +31,14 @@ use Modules\Sales\Domain\Service\OrderShares;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Application\Actor;
+use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
@@ -225,7 +232,80 @@ describe('what changed since the quote', function () {
         'a size ran short' => [fn (array $ready) => Ix::count('sa', [$ready['variants'][0] => 1]), 'sales.not_orderable'],
         'the address went' => [fn (array $ready) => DB::table('access.addresses')->where('id', $ready['address'])->delete(), 'sales.address_not_usable'],
         'a gift is now reached' => [fn (array $ready) => Pr::giftLevel($ready['variants'][1], 100_00), 'gift'],
+        'a size not available now' => [fn (array $ready) => DB::table('catalog.store_variants')->where('variant_id', $ready['variants'][0])->update(['not_available_now' => true]), 'sales.not_orderable'],
+        'its category now hidden from the account' => [function (array $ready) {
+            $hidden = Px::category('Trade only');
+            DB::table('catalog.products')->where('id', $ready['product'])->update(['category_id' => $hidden]);
+            DB::table('catalog.store_category_audiences')->insert(['store_id' => Fx::storeId('sa'), 'category_id' => $hidden, 'for_individuals' => false, 'for_companies' => true, 'created_at' => now(), 'updated_at' => now()]);
+        }, 'sales.not_for_your_account'],
     ]);
+
+    it('refuses once the store was switched off', function () {
+        ['address' => $address] = Cx::ready(storeCode: 'eg');
+        $store = Fx::storeId('eg');
+        $quote = Cx::start($address, storeCode: 'eg');
+        $customer = app(ActorContext::class)->current();
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAs($customer);
+
+        expect(Pr::thrown(fn () => app(PlaceOrderHandler::class)->handle(new PlaceOrder($store, $quote->id)), QuoteChanged::class)->reason)->toBe('sales.may_not_order');
+        nothingPlaced();
+    });
+
+    it('refuses once the company was suspended in the store', function () {
+        ['address' => $address] = Cx::ready('company');
+        $approved = true;
+        $b2b = Mockery::mock(B2BApi::class);
+        $b2b->shouldReceive('isApproved')->andReturnUsing(function () use (&$approved) {
+            return $approved;
+        });
+        $b2b->shouldReceive('bankAccount')->andReturn(null);
+        app()->instance(B2BApi::class, $b2b);
+        $quote = Cx::start($address);
+        $approved = false;
+
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toBe('sales.may_not_order');
+        nothingPlaced();
+    });
+
+    it('refuses once the points were spent on another order', function () {
+        ['address' => $address, 'customer' => $customer] = Cx::ready();
+        Pr::ceiling(100);
+        Lx::programme();
+        Lx::deliver($customer, 1_000_00);
+        $quote = Cx::start($address, usePoints: true);
+        $elsewhere = Lx::quote($customer, null, 10_000_00);
+        Lx::place($customer, $elsewhere, 10_000_00);
+
+        expect(Pr::thrown(fn () => Cx::place($quote->id), QuoteChanged::class)->reason)->toStartWith('loyalty.redemption_')
+            ->and(DB::table('sales.orders')->count())->toBe(0)
+            ->and(DB::table('inventory.holds')->count())->toBe(0);
+    });
+
+    it('skips the number a refused placement took', function () {
+        $ready = Cx::ready();
+        $refused = Cx::start($ready['address']);
+        Ix::count('sa', [$ready['variants'][0] => 1]);
+        expect(fn () => Cx::place($refused->id))->toThrow(QuoteChanged::class);
+        Ix::count('sa', [$ready['variants'][0] => 100]);
+
+        // The sequence gave 1001 to the refused one, rolled back with it or not: never given twice.
+        $placed = Cx::place(Cx::start($ready['address'])->id);
+
+        expect($placed->number)->toMatch('/^SA-\d+$/')
+            ->and((int) substr($placed->number, 3))->toBeGreaterThan(1001);
+    });
+
+    it('keeps the snapshot as placed though the catalog changes after', function () {
+        $ready = Cx::ready();
+        $placed = Cx::place(Cx::start($ready['address'])->id);
+        $before = DB::table('sales.order_lines')->where('order_id', $placed->id)->orderBy('id')->get(['name_ar', 'name_en', 'code', 'variant_values', 'unit_minor', 'total_minor'])->all();
+        DB::table('catalog.products')->where('id', $ready['product'])->update(['name_en' => 'Renamed', 'name_ar' => 'اسم آخر']);
+        Rx::set('sa', [$ready['variants'][0] => '10.00', $ready['variants'][1] => '5.00']);
+
+        expect(DB::table('sales.order_lines')->where('order_id', $placed->id)->orderBy('id')->get(['name_ar', 'name_en', 'code', 'variant_values', 'unit_minor', 'total_minor'])->all())->toEqual($before)
+            ->and(array_column($before, 'name_en'))->not->toContain('Renamed');
+    });
 
     it('refuses when the ceiling was lowered under the coupon', function () {
         ['address' => $address] = Cx::ready();

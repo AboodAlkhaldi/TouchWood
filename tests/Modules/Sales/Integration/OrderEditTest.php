@@ -178,6 +178,23 @@ describe('the lines', function () {
         'a size twice' => [fn (array $v) => [[$v[0], 1], [$v[0], 2]], InvalidSalesAttribute::class],
         'wholesale to an individual' => [fn (array $v) => [[$v[0], 2], [$v[1], 1, 'WHOLESALE']], NotForYourAccount::class],
         'a size not sold here' => [fn (array $v) => [[$v[0], 2], [Px::ready(['10 cm'])['variants'][0], 1]], NotOrderable::class],
+        'an added size in a category hidden from the account' => [function (array $v) {
+            $hidden = Px::category('Trade only');
+            ['variants' => [$closed]] = Px::ready(['90 cm'], $hidden);
+            DB::table('catalog.store_category_audiences')->insert(['store_id' => Fx::storeId('sa'), 'category_id' => $hidden, 'for_individuals' => false, 'for_companies' => true, 'created_at' => now(), 'updated_at' => now()]);
+            Rx::switchOn('sa', [$closed]);
+            Rx::set('sa', [$closed => '30.00']);
+            Ix::count('sa', [$closed => 10]);
+
+            return [[$v[0], 2], [$v[1], 1], [$closed, 1]];
+        }, NotForYourAccount::class],
+        'an added size with no price' => [function (array $v) {
+            ['variants' => [$unpriced]] = Px::ready(['90 cm']);
+            Rx::switchOn('sa', [$unpriced]);
+            Ix::count('sa', [$unpriced => 10]);
+
+            return [[$v[0], 2], [$v[1], 1], [$unpriced, 1]];
+        }, NotOrderable::class],
     ]);
 
     it('checks a lowered line only against its limits, a raised one against all of checkout', function () {
@@ -427,5 +444,43 @@ describe('what may be edited', function () {
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_EDIT], ['eg']));
 
         expect(fn () => editTo($order, [[$variants[0], 1]]))->toThrow(OrderNotFound::class);
+    });
+});
+
+describe('what the module pass added (§8)', function () {
+    it('lets a second edit raise the lines back, the coupon held to the first edit\'s trim', function () {
+        ['order' => $order, 'variants' => $variants] = edited(withCoupon: true);
+        editTo($order, [[$variants[0], 2]]);
+
+        editTo($order, [[$variants[0], 2], [$variants[1], 1]]);
+
+        expect((int) editedRow($order)?->coupon_discount_minor)->toBe(30_00)
+            ->and((int) editedRow($order)?->gross_subtotal_minor)->toBe(250_00);
+    });
+
+    it('takes the coupon off once an edit leaves the order under its minimum', function () {
+        $ready = Cx::ready();
+        Pr::ceiling(100);
+        Pr::coupon('SUMMER-15', with: ['minimum_minor' => 200_00]);
+        app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+        $order = Cx::place(Cx::start($ready['address'])->id)->id;
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_EDIT], ['sa']));
+        $before = (int) editedRow($order)?->coupon_discount_minor;
+
+        editTo($order, [[$ready['variants'][1], 1]]);
+
+        expect($before)->toBe(37_50)
+            ->and((int) editedRow($order)?->coupon_discount_minor)->toBe(0)
+            ->and((int) DB::table('sales.order_lines')->where('order_id', $order)->sum('coupon_share_minor'))->toBe(0);
+    });
+
+    it('leaves the short-of-stock flag in place after an edit: only staff clear it', function () {
+        ['order' => $order, 'variants' => $variants] = edited();
+        $flagged = CarbonImmutable::now()->subHour();
+        DB::table('sales.orders')->where('id', $order)->update(['short_of_stock_at' => $flagged]);
+
+        editTo($order, [[$variants[0], 1], [$variants[1], 1]]);
+
+        expect(editedRow($order)?->short_of_stock_at)->not->toBeNull();
     });
 });
