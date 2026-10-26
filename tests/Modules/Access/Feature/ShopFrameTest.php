@@ -113,8 +113,9 @@ function shopFrameHolds(Collection $list, array $entry): bool
 it('gives an individual account its tabs and nothing a company account is given', function () {
     shopFrameSignedIn('individual')->get('/sa/en/account')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->has('accountMenu.tabs', 5)
-        // Promotions' Coupons tab is offered to every account (promotions.md §4.1 M5, owner's Q12).
-        ->where('accountMenu.pages', [['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons']])
+        // Promotions' Coupons and Feedback's three pages are offered to every account (promotions.md §4.1 M5,
+        // owner's Q12; feedback.md §4.1 F8, Q19).
+        ->where('accountMenu.pages', [['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
         ->where('shopperLines', []));
 });
 

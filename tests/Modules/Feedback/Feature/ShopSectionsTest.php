@@ -78,7 +78,7 @@ it('gives a guest the rating, no reviews yet, nothing to write or ask, and no wi
     expect(array_keys($sections))->toBe(['feedback.reviews', 'feedback.questions', 'feedback.wishlist'])
         ->and($sections['feedback.reviews'])->toBe(['average' => null, 'count' => 0, 'reviews' => [], 'next' => null, 'canWrite' => false, 'stars' => [
             ['star' => 5, 'count' => 0], ['star' => 4, 'count' => 0], ['star' => 3, 'count' => 0], ['star' => 2, 'count' => 0], ['star' => 1, 'count' => 0],
-        ], 'star' => null])
+        ], 'star' => null, 'reviewed' => false])
         ->and($sections['feedback.questions'])->toBe(['questions' => [], 'next' => null, 'canAsk' => false])
         ->and($sections['feedback.wishlist'])->toBeNull();
 });

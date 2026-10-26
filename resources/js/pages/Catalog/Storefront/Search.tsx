@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
-import { ProductCards } from '@/components/shop/ProductCards';
+import { ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { Button } from '@/components/ui/button';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { useLink } from '@/lib/routes';
@@ -15,11 +15,12 @@ import type { SharedProps } from '@/types/page';
 | listings, only what this viewer may see. The design has no results page: drawn from its look.
 */
 
-export default function Search({ query, total, products, next, address }: ShopSearchPage) {
+export default function Search({ query, total, products, next, address, cardFacts }: ShopSearchPage) {
     const t = useTranslator();
     const link = useLink();
     const { frame } = usePage<SharedProps>().props;
     const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
+    const facts = useCardFacts(cardFacts);
     const short = [...query.trim()].length < 2;
     const heading = short ? t('catalog::shop.search.title') : total === 1 ? t('catalog::shop.search.one', { query }) : t('catalog::shop.search.many', { count: total, query });
 
@@ -45,10 +46,10 @@ export default function Search({ query, total, products, next, address }: ShopSe
                         </nav>
                     </div>
                 ) : (
-                    <ProductCards cards={list.rows} test="result" />
+                    <ProductCards facts={facts} cards={list.rows} test="result" />
                 )}
 
-                {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(link('storefront.catalog.search'), { q: query, after: next }, ['products', 'next'])} /> : null}
+                {next !== null ? <LoadMoreButton loading={list.loading} onClick={() => list.more(link('storefront.catalog.search'), { q: query, after: next }, ['products', 'next', 'cardFacts'])} /> : null}
             </div>
         </StorefrontLayout>
     );

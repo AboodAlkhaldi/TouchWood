@@ -9,6 +9,7 @@ use App\Http\StorefrontArea;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\Moved;
 use Modules\Catalog\Application\Query\Shop\ShopFilters;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
@@ -70,7 +71,7 @@ final readonly class ShopPagesController
         };
     }
 
-    public function product(Request $request, ShopPages $pages): Response
+    public function product(Request $request, ShopPages $pages, InMemoryShopProductSections $sections): Response
     {
         try {
             $page = $pages->product($this->stores->current(), app()->getLocale(), self::slug($request), self::after($request), self::sectionWords($request, 'filter'));
@@ -81,7 +82,8 @@ final readonly class ShopPagesController
         return match (true) {
             $page === null => $this->notFound($request),
             $page instanceof Moved => self::moved($request, 'storefront.catalog.product', $page),
-            default => $this->page->render('Catalog/Storefront/Product', $page, self::WORDS)->toResponse($request),
+            // With the words the other modules' sections draw in (amendment 33).
+            default => $this->page->render('Catalog/Storefront/Product', $page, [...self::WORDS, ...$sections->words()])->toResponse($request),
         };
     }
 

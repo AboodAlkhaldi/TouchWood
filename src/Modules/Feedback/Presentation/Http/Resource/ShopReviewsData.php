@@ -13,7 +13,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
  * approved reviews newest first, `next` for "Show more" (asked as `after[feedback.reviews]`), and
  * `canWrite` — signed in and not yet reviewed; the purchase is checked when it is sent. `stars`: each star's
  * approved reviews, 5 to 1 (§2.4 B1); `star`: the one star the reviews are narrowed to (asked as
- * `filter[feedback.reviews]`), `next` going on within it.
+ * `filter[feedback.reviews]`), `next` going on within it. `reviewed`: the signed-in customer has written one -
+ * the page says "You reviewed this product" in place of the button (§4.1 F6, Q15).
  */
 #[TypeScript]
 final class ShopReviewsData extends Data
@@ -30,5 +31,6 @@ final class ShopReviewsData extends Data
         public bool $canWrite,
         public array $stars,
         public ?int $star,
+        public bool $reviewed = false,
     ) {}
 }

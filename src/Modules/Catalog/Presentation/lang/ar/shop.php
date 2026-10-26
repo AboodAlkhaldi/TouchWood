@@ -34,7 +34,13 @@ return [
         'label' => 'الترتيب',
         'best-selling' => 'الأكثر مبيعًا',
         'newest' => 'الأحدث',
+        // Where the store's lists show ratings (amendment 25; feedback.md §4.1 F7).
+        'rating' => 'الأعلى تقييمًا',
     ],
+    // A card's stars, read aloud (feedback.md §4.1 F7).
+    'card_rating' => ['zero' => ':rating من 5 نجوم، :count تقييم', 'one' => ':rating من 5 نجوم، تقييم واحد', 'two' => ':rating من 5 نجوم، تقييمان', 'few' => ':rating من 5 نجوم، :count تقييمات', 'many' => ':rating من 5 نجوم، :count تقييمًا', 'other' => ':rating من 5 نجوم، :count تقييم'],
+    // A card's Save heart (feedback.md §4.1 F7; amendment 32).
+    'card_save' => ['add' => 'حفظ :name', 'remove' => 'إزالة :name من المحفوظات'],
     'empty' => 'لا شيء معروض هنا بعد.',
     'product' => [
         'photo' => 'الصورة :number من :total',

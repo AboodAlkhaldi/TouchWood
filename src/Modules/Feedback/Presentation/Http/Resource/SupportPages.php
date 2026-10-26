@@ -223,7 +223,7 @@ final readonly class SupportPages
     /**
      * @param  array<string, array<string, string>>|null  $photo  size slug => format => URL
      */
-    private static function thumb(?array $photo): ?string
+    public static function thumb(?array $photo): ?string
     {
         $sizes = $photo['thumb'] ?? (is_array($photo) && $photo !== [] ? reset($photo) : []);
 

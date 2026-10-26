@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { cn } from 'cn';
 import { Note } from '@/components/Note';
-import { ProductCards } from '@/components/shop/ProductCards';
+import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
+import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { ShopTrail } from '@/components/shop/ShopTrail';
@@ -25,6 +26,10 @@ import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/g
 | it on the server when there is a cart (handoff §9.1).
 |
 | Not available now (P18): its name, photos and description, a Note, nothing to choose.
+|
+| Other modules' sections (amendment 26(b)) are drawn in their slots: Feedback's rating under the name,
+| its Save heart after the choices, its reviews and answered questions after Goes With (feedback.md §4.1
+| F5, Q11).
 */
 
 /** The variant these choices make, or none. */
@@ -37,13 +42,16 @@ function pick(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Re
     return variantOf(variants, choices, { ...chosen, [attributeId]: valueId }) ?? variants.find((variant) => variant.values[attributeId] === valueId) ?? null;
 }
 
-export default function Product(page: ShopProductPage) {
+export default function Product(page: ShopProductPage & { sections: FeedbackSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
     const link = useLink();
     const { name, available, variants, choices, selling, warranty, address } = page;
     const [chosen, setChosen] = useState<Record<string, string>>(() => variants[0]?.values ?? {});
     const variant = variantOf(variants, choices, chosen);
     const photos: PhotoSizes[] = variant !== null && variant.photos.length > 0 ? variant.photos : page.photos;
+    const sections = page.sections ?? {};
+    const facts = useCardFacts(page.cardFacts ?? []);
+    const url = link('storefront.catalog.product', { slug: page.slug });
 
     return (
         <StorefrontLayout title={name} address={address}>
@@ -70,6 +78,7 @@ export default function Product(page: ShopProductPage) {
                             </span>
                         ) : null}
                         <h1 className="text-heading-32 text-ink">{name}</h1>
+                        <RatingLine reviews={sections['feedback.reviews']} />
 
                         {available ? null : (
                             <Note variant="warning" label={t('catalog::shop.product.not_available')} data-test="not-available">
@@ -130,6 +139,8 @@ export default function Product(page: ShopProductPage) {
                             </section>
                         ) : null}
 
+                        {available ? <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} /> : null}
+
                         {variant !== null ? <Details variant={variant} /> : null}
                     </div>
                 </div>
@@ -161,14 +172,17 @@ export default function Product(page: ShopProductPage) {
                 {page.goesWith.length > 0 ? (
                     <section className="grid gap-4" data-test="goes-with">
                         <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.goes_with')}</h2>
-                        <ProductCards cards={page.goesWith} />
+                        <ProductCards cards={page.goesWith} facts={facts} />
                     </section>
                 ) : null}
+
+                {sections['feedback.reviews'] ? <ReviewsSection reviews={sections['feedback.reviews']} url={url} productId={page.productId} /> : null}
+                {sections['feedback.questions'] ? <QuestionsSection questions={sections['feedback.questions']} url={url} productId={page.productId} star={sections['feedback.reviews']?.star ?? null} /> : null}
 
                 {page.mayAlsoLike.length > 0 ? (
                     <section className="grid gap-4" data-test="may-also-like">
                         <h2 className="text-heading-20 text-ink">{t('catalog::shop.product.may_also_like')}</h2>
-                        <ProductCards cards={page.mayAlsoLike} />
+                        <ProductCards cards={page.mayAlsoLike} facts={facts} />
                     </section>
                 ) : null}
             </div>

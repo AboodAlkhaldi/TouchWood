@@ -19,11 +19,14 @@ final class InMemoryShopProductSections implements ShopProductSections
     /** @var array<string, class-string<ShopProductSection>> */
     private array $sections = [];
 
+    /** @var list<string> */
+    private array $words = [];
+
     public function __construct(
         private readonly Container $container,
     ) {}
 
-    public function register(string $key, string $section): void
+    public function register(string $key, string $section, array $words = []): void
     {
         if (preg_match('/^[a-z]+\.[a-z_]+$/', $key) !== 1) {
             throw new LogicException("The shop product section key \"{$key}\" is not {module}.{key}.");
@@ -38,6 +41,17 @@ final class InMemoryShopProductSections implements ShopProductSections
         }
 
         $this->sections[$key] = $section;
+        $this->words = array_values(array_unique([...$this->words, ...$words]));
+    }
+
+    /**
+     * The translation files the sections' drawings read (amendment 33), each once.
+     *
+     * @return list<string>
+     */
+    public function words(): array
+    {
+        return $this->words;
     }
 
     /**

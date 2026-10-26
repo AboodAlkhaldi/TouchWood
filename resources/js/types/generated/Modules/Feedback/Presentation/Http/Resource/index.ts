@@ -2,6 +2,49 @@ export type FavouriteItemData = {
 product: ProductCardData,
 savedBy: number,
 };
+export type MyQuestionData = {
+id: string,
+product: ProductCardData,
+storeName: string,
+body: string,
+locale: string,
+status: string,
+answer: string | null,
+answeredAt: string | null,
+reason: string | null,
+askedAt: string,
+};
+export type MyQuestionsPage = {
+questions: MyQuestionData[],
+next: string | null,
+};
+export type MyReviewData = {
+id: string,
+product: ProductCardData,
+storeName: string,
+variant: ShopVariantValueData[],
+rating: number,
+body: string,
+locale: string,
+status: string,
+mark: string,
+reason: string | null,
+writtenAt: string,
+};
+export type MyReviewsPage = {
+reviews: MyReviewData[],
+next: string | null,
+};
+export type MyWishlistGroupData = {
+storeId: string,
+storeCode: string,
+name: string,
+isOpen: boolean,
+items: WishlistItemData[],
+};
+export type MyWishlistPage = {
+stores: MyWishlistGroupData[],
+};
 export type ProductCardData = {
 id: string,
 name: string,
@@ -85,6 +128,7 @@ next: string | null,
 canWrite: boolean,
 stars: ShopStarData[],
 star: number | null,
+reviewed: boolean,
 };
 export type ShopStarData = {
 star: number,
