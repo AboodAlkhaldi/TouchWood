@@ -5,6 +5,13 @@ declare(strict_types=1);
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\SalesPermissions;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -72,4 +79,45 @@ it('adds a piece in the cart, checks out and places the order at a phone\'s widt
 
     expect((int) DB::table('sales.order_lines')->join('sales.orders', 'sales.orders.id', '=', 'sales.order_lines.order_id')
         ->where('sales.orders.customer_id', $ready['customer'])->where('sales.order_lines.variant_id', $ready['variants'][0])->value('sales.order_lines.quantity'))->toBe(3);
+});
+
+it('draws My Orders, an order, asking a return and the return at a phone\'s width with nothing scrolling sideways', function () {
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $ready = Cx::ready();
+        $placed = Cx::place(Cx::start($ready['address'])->id);
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($placed->id));
+        DB::table('sales.orders')->where('id', $placed->id)->update(['paid_minor' => DB::raw('due_minor')]);
+        app(ShipOrderHandler::class)->handle(new ShipOrder($placed->id, 'SMSA', '123'));
+        app(MarkDeliveredHandler::class)->handle(new MarkDelivered($placed->id));
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $email = (string) DB::table('access.customers')->where('id', $ready['customer'])->value('email');
+    $page = visit('/sa/en/sign-in')
+        ->type('#email', $email)
+        ->type('#password', Fx::CUSTOMER_PASSWORD)
+        ->click('button[type="submit"]');
+    expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue();
+    $page->resize(375, 812);
+
+    $page->navigate('/sa/en/account/orders', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"my-order-{$placed->number}\"]");
+    expect(salesShopWide($page))->toBe('', 'My Orders scrolls sideways');
+
+    $page->navigate("/sa/en/account/orders/{$placed->number}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="timeline"]');
+    expect(salesShopWide($page))->toBe('', 'the order scrolls sideways');
+
+    $page->click('[data-test="ask-return"]');
+    expect(browserUntil($page, "location.pathname.endsWith('/return')"))->toBeTrue()
+        ->and(salesShopWide($page))->toBe('', 'asking a return scrolls sideways');
+    $page->click('[data-test="return-lines"] li:first-child [data-test="more"]')
+        ->select('#return-reason', 'DAMAGED')
+        ->click('[data-test="send-return"]');
+    expect(browserUntil($page, "location.pathname.includes('/account/returns/')"))->toBeTrue()
+        ->and(salesShopWide($page))->toBe('', 'the return scrolls sideways');
+    $page->assertPresent('[data-test="withdraw"]');
 });

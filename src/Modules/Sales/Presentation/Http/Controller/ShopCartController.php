@@ -40,9 +40,11 @@ final readonly class ShopCartController
         private StoreContext $stores,
     ) {}
 
-    public function cart(ViewCartHandler $view): Response
+    public function cart(Request $request, ViewCartHandler $view): Response
     {
-        return $this->page->render('Sales/Storefront/Cart', $this->pages->cart($this->stores->current()->value, app()->getLocale(), $view)->toArray(), self::WORDS);
+        $skipped = $request->session()->get(ShopOrdersController::SKIPPED);
+
+        return $this->page->render('Sales/Storefront/Cart', $this->pages->cart($this->stores->current()->value, app()->getLocale(), $view, is_array($skipped) ? array_values($skipped) : [])->toArray(), self::WORDS);
     }
 
     public function add(Request $request, AddCartLineHandler $handler): RedirectResponse

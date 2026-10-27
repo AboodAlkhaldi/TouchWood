@@ -53,6 +53,11 @@ return [
         'finish_account' => 'Finish your account',
         'sign_in_first' => 'Sign in or register to check out. Your cart comes with you.',
     ],
+    'skipped' => [
+        'title' => 'Some items could not be added again',
+        'NOT_AVAILABLE' => 'no longer available.',
+        'NOT_FOR_YOUR_ACCOUNT' => 'not sold to your account.',
+    ],
     'toast' => [
         'added' => 'Added to cart.',
         'removed' => 'Removed from your cart.',

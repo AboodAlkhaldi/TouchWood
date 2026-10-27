@@ -27,9 +27,11 @@ final readonly class CartPages
     ) {}
 
     /**
+     * @param  list<array<string, mixed>>  $skipped  Buy Again's, as it left them
+     *
      * @throws Unauthorized
      */
-    public function cart(string $storeId, string $locale, ViewCartHandler $view): CartPage
+    public function cart(string $storeId, string $locale, ViewCartHandler $view, array $skipped = []): CartPage
     {
         $locale = $locale === 'en' ? 'en' : 'ar';
         $cart = $view->handle(new ViewCart($storeId, $locale));
@@ -61,6 +63,7 @@ final readonly class CartPages
             $money($cart->subtotal),
             array_sum(array_map(static fn (CartLineView $line): int => $line->quantity, $cart->lines)),
             array_filter($cart->lines, static fn (CartLineView $line): bool => $line->problem !== null) !== [],
+            $skipped,
         );
     }
 

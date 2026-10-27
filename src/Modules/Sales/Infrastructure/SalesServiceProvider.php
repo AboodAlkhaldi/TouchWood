@@ -7,8 +7,10 @@ namespace Modules\Sales\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
@@ -91,6 +93,8 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(ShopFrameParts::class)->register('sales', SalesFramePart::class);
         // Add to Cart on a product's page (§4.1 S2).
         $this->app->make(ShopProductSections::class)->register('sales.cart', CartSection::class, ['sales::shop_add']);
+        // My Orders beside the account's own tabs, always offered (§4.1 S7).
+        $this->app->make(CustomerAccountPages::class)->register(new CustomerAccountPageDto('sales', 'orders', 'storefront.sales.orders', position: 5));
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);

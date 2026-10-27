@@ -1,5 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { Money } from '@/components/Money';
+import { Badge } from '@/components/ui/badge';
+import { tone, type Tone } from '@/lib/tones';
 import { figure, intlLocale } from '@/lib/digits';
 import type { useTranslator } from '@/lib/t';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
@@ -35,5 +37,22 @@ export function Price({ now, before, className }: { now: MoneyData; before?: Mon
                 </>
             ) : null}
         </span>
+    );
+}
+
+export const O = 'sales::shop_orders';
+
+/**
+ * The status a customer sees (§1.4; R2-19): New blue, Processing amber, Delivered green, Cancelled and Refunded
+ * gray. Shipped is purple in the spec; the tones have no purple yet, so it waits for the one style every badge
+ * takes before launch (§9.2 #10) and shows blue-subtle meanwhile.
+ */
+const STATUS_TONE: Record<string, Tone> = { NEW: 'blue', PROCESSING: 'amber', SHIPPED: 'blue-subtle', DELIVERED: 'green', CANCELLED: 'gray', REFUNDED: 'gray' };
+
+export function OrderStatus({ status, label }: { status: string; label: string }) {
+    return (
+        <Badge className={tone(STATUS_TONE[status] ?? 'gray')} data-test={`status-${status}`}>
+            {label}
+        </Badge>
     );
 }

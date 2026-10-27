@@ -197,7 +197,7 @@ export default function Show(item: ReturnPage) {
 
             {dialog === 'refuse' ? <RefuseDialog url={`${base}/refuse`} onOpenChange={close} /> : null}
             {dialog === 'receive' ? <ReceiveDialog item={item} url={`${base}/receive`} onOpenChange={close} /> : null}
-            {dialog === 'complete' ? <CompleteDialog url={`${base}/complete`} onOpenChange={close} /> : null}
+            {dialog === 'complete' ? <CompleteDialog url={`${base}/complete`} preview={item.preview} onOpenChange={close} /> : null}
             {dialog === 'refund' && item.refundDue !== null ? (
                 <MoneyDialog open onOpenChange={close} url={`/admin/orders/${item.orderId}/refund`} kind="refund" amount={item.refundDue} zone={item.storeTimezone} exponent={item.exponent} initial={item.refundDueDecimal ?? ''} />
             ) : null}
@@ -312,8 +312,8 @@ function ReceiveDialog({ item, url, onOpenChange }: { item: ReturnPage; url: str
     );
 }
 
-/** Complete…: the refund is worked out on completing; the preview of its parts comes with §4.2 B10. */
-function CompleteDialog({ url, onOpenChange }: { url: string; onOpenChange: (open: boolean) => void }) {
+/** Complete…: a confirm showing the refund worked out - the pieces, their VAT, the shipping when it is the last piece (R2-40). */
+function CompleteDialog({ url, preview, onOpenChange }: { url: string; preview: ReturnPage['preview']; onOpenChange: (open: boolean) => void }) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
 
@@ -330,7 +330,33 @@ function CompleteDialog({ url, onOpenChange }: { url: string; onOpenChange: (ope
                 </ActionButton>
             }
         >
-            {null}
+            {preview === null ? null : (
+                <dl className="grid gap-1.5 text-copy-14" data-test="refund-preview">
+                    {(
+                        [
+                            ['preview_goods', preview.goods, true],
+                            ['preview_vat', preview.vat, true],
+                            ['preview_shipping', preview.shipping, false],
+                            ['preview_shipping_vat', preview.shippingVat, false],
+                        ] as const
+                    )
+                        .filter(([, value, always]) => always || value.minor > 0)
+                        .map(([key, value]) => (
+                            <div key={key} className="flex items-baseline justify-between gap-3">
+                                <dt className="text-ink-muted">{t(`${R}.dialog.${key}`)}</dt>
+                                <dd>
+                                    <Money value={value} />
+                                </dd>
+                            </div>
+                        ))}
+                    <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2">
+                        <dt className="text-label-14 text-ink">{t(`${R}.dialog.preview_total`)}</dt>
+                        <dd>
+                            <Money value={preview.total} className="text-label-14 text-ink" />
+                        </dd>
+                    </div>
+                </dl>
+            )}
         </PanelDialog>
     );
 }

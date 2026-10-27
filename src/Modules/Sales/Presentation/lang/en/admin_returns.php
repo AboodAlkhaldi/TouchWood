@@ -62,6 +62,11 @@ return [
         'came' => 'Came',
         'back' => 'Back to stock',
         'complete_title' => 'Complete Return',
+        'preview_goods' => 'Pieces',
+        'preview_vat' => 'Their VAT',
+        'preview_shipping' => 'Shipping',
+        'preview_shipping_vat' => 'Shipping VAT',
+        'preview_total' => 'Refund',
         'complete_body' => 'The refund is worked out from the pieces received: their goods, their share of VAT, and the shipping when it is the last piece. You then record the refund.',
     ],
     'toast' => [

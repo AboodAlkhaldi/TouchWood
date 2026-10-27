@@ -19,6 +19,7 @@ final class CartPage extends Data
     /**
      * @param  list<CartLineData>  $lines
      * @param  list<CartNoticeData>  $notice
+     * @param  list<array<string, mixed>>  $skipped
      */
     public function __construct(
         public array $lines,
@@ -30,5 +31,7 @@ final class CartPage extends Data
         public int $pieces,
         /** A line with a problem: Checkout waits until it is fixed (R2-11). */
         public bool $problems,
+        /** Buy Again's lines that could not go in, and why, said once (R2-24): BuyAgainSkippedData each. */
+        public array $skipped,
     ) {}
 }

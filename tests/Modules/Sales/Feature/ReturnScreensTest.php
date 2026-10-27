@@ -129,6 +129,7 @@ it('accepts, receives, completes and records the refund on the order, saying eac
 
     $accepted = $browser->post("/admin/returns/{$return}/accept");
     $received = $browser->post("/admin/returns/{$return}/receive", ['lines' => array_values($lines)]);
+    $preview = returnScreensProps($browser, "/admin/returns/{$return}", 'Sales/Admin/Returns/Show')['preview'];
     $completed = $browser->post("/admin/returns/{$return}/complete");
     $page = returnScreensProps($browser, "/admin/returns/{$return}", 'Sales/Admin/Returns/Show');
     $refunded = $browser->post("/admin/orders/{$order}/refund", ['amount' => $page['refundDueDecimal'], 'way' => 'BANK_TRANSFER', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
@@ -137,7 +138,10 @@ it('accepts, receives, completes and records the refund on the order, saying eac
         ->toBe(['Return accepted.', 'Return marked received.', 'Return completed. Record the refund.', 'Refund recorded.'])
         ->and($page['status'])->toBe('COMPLETED')
         ->and($page['refundDue']['minor'])->toBeGreaterThan(0)
-        ->and((int) DB::table('sales.orders')->where('id', $order)->value('refunded_minor'))->toBe($page['refundDue']['minor']);
+        ->and((int) DB::table('sales.orders')->where('id', $order)->value('refunded_minor'))->toBe($page['refundDue']['minor'])
+        // The refund Complete showed is the refund it made (R2-40); none shown once completed.
+        ->and($preview['total']['minor'] ?? null)->toBe($page['refundDue']['minor'])
+        ->and($page['preview'])->toBeNull();
 });
 
 it('refuses a return with a reason, and refuses a reader without the job', function () {
@@ -148,5 +152,6 @@ it('refuses a return with a reason, and refuses a reader without the job', funct
 
     expect(AdminBrowser::formError($denied))->not->toBeNull()
         ->and(AdminBrowser::flashed($refused, 'status'))->toBe('Return refused.')
-        ->and(DB::table('sales.returns')->where('id', $return)->value('staff_reason'))->toBe('Outside the window');
+        ->and(DB::table('sales.returns')->where('id', $return)->value('staff_reason'))->toBe('Outside the window')
+        ->and(array_column(returnScreensProps(returnScreensStaff(RETURN_SCREENS_ALL), '/admin/returns?tab=CLOSED_ALL', 'Sales/Admin/Returns/Index')['returns'], 'id'))->toBe([$return]);
 });

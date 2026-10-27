@@ -16,7 +16,7 @@ import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { figure } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import type { CartLineData, CartPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { BuyAgainSkippedData, CartLineData, CartPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -41,6 +41,7 @@ export default function Cart(cart: CartPage) {
                 <h1 className="text-heading-24 text-ink">{t(`${C}.title`)}</h1>
                 <FormError />
                 {cart.notice.length > 0 ? <Notice cart={cart} /> : null}
+                {cart.skipped.length > 0 ? <Skipped lines={cart.skipped as unknown as BuyAgainSkippedData[]} /> : null}
 
                 {cart.lines.length === 0 ? (
                     <Empty className="material-base" data-test="cart-empty">
@@ -193,6 +194,27 @@ function Notice({ cart }: { cart: CartPage }) {
                         <li key={`${line.variantId}-${line.mode}`}>
                             <span className="text-ink">{line.name}</span>
                             {line.values === '' ? null : ` · ${line.values}`} · {plural(t, locale, `${C}.pieces`, line.quantity)} — {t(`${C}.notice.${line.reason}`)}
+                        </li>
+                    ))}
+                </ul>
+            </AlertDescription>
+        </Alert>
+    );
+}
+
+/** Buy Again's lines that could not go in, each with why (R2-24). */
+function Skipped({ lines }: { lines: BuyAgainSkippedData[] }) {
+    const t = useTranslator();
+    const locale = useLocale();
+
+    return (
+        <Alert data-test="buy-again-skipped">
+            <AlertTitle>{t(`${C}.skipped.title`)}</AlertTitle>
+            <AlertDescription>
+                <ul className="grid gap-1">
+                    {lines.map((line, index) => (
+                        <li key={`${line.name}-${index}`}>
+                            <span className="text-ink">{line.name}</span> · {plural(t, locale, `${C}.pieces`, line.quantity)} — {t(`${C}.skipped.${line.reason}`)}
                         </li>
                     ))}
                 </ul>

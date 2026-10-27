@@ -42,5 +42,7 @@ final class ReturnPage extends Data
         public ?string $refundDueDecimal,
         public string $storeTimezone,
         public int $exponent,
+        /** The refund Complete would make; on a received return, to staff who manage returns. */
+        public ?ReturnPreviewData $preview,
     ) {}
 }

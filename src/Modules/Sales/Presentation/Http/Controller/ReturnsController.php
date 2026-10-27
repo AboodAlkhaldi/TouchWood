@@ -21,6 +21,7 @@ use Modules\Sales\Application\Command\ReceiveReturn\ReceiveReturnHandler;
 use Modules\Sales\Application\Command\RefuseReturn\RefuseReturn;
 use Modules\Sales\Application\Command\RefuseReturn\RefuseReturnHandler;
 use Modules\Sales\Application\Query\ListReturns\ListReturnsHandler;
+use Modules\Sales\Application\Query\PreviewReturnRefund\PreviewReturnRefundHandler;
 use Modules\Sales\Application\Query\ViewReturn\ViewReturnHandler;
 use Modules\Sales\Presentation\Http\Resource\ReturnPages;
 use Shared\Domain\Error\DomainError;
@@ -45,9 +46,9 @@ final readonly class ReturnsController
         return $this->page->render('Sales/Admin/Returns/Index', $this->pages->list(self::query($request, 'store'), self::query($request, 'tab') ?? ReturnPages::TABS[0], self::query($request, 'after'), $list)->toArray(), self::WORDS);
     }
 
-    public function show(string $return, ViewReturnHandler $view): Response
+    public function show(string $return, ViewReturnHandler $view, PreviewReturnRefundHandler $previews): Response
     {
-        return $this->page->render('Sales/Admin/Returns/Show', $this->pages->view($return, $view)->toArray(), self::WORDS);
+        return $this->page->render('Sales/Admin/Returns/Show', $this->pages->view($return, $view, $previews)->toArray(), self::WORDS);
     }
 
     public function accept(Request $request, string $return, AcceptReturnHandler $handler): RedirectResponse

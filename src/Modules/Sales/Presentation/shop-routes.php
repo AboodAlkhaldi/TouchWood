@@ -6,6 +6,7 @@ use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Sales\Presentation\Http\Controller\ShopCartController;
 use Modules\Sales\Presentation\Http\Controller\ShopCheckoutController;
+use Modules\Sales\Presentation\Http\Controller\ShopOrdersController;
 
 /*
 | Sales in the shop (sales.md §4.1 S2–S4), under the store and language as every shop page is. The cart is a
@@ -30,5 +31,15 @@ Route::prefix('{store}/{locale}')
             Route::post('checkout/place', [ShopCheckoutController::class, 'place'])->name('storefront.sales.place');
             Route::get('orders/{number}/placed', [ShopCheckoutController::class, 'placed'])->name('storefront.sales.placed');
             Route::post('orders/{number}/receipts', [ShopCheckoutController::class, 'receipt'])->name('storefront.sales.receipt');
+
+            // The account's orders and returns (S7–S10).
+            Route::get('account/orders', [ShopOrdersController::class, 'orders'])->name('storefront.sales.orders');
+            Route::get('account/orders/{number}', [ShopOrdersController::class, 'order'])->name('storefront.sales.order');
+            Route::post('account/orders/{number}/cancel', [ShopOrdersController::class, 'cancel'])->name('storefront.sales.order.cancel');
+            Route::post('account/orders/{number}/buy-again', [ShopOrdersController::class, 'buyAgain'])->name('storefront.sales.order.buy-again');
+            Route::get('account/orders/{number}/return', [ShopOrdersController::class, 'askReturn'])->name('storefront.sales.order.ask-return');
+            Route::post('account/orders/{number}/return', [ShopOrdersController::class, 'requestReturn'])->name('storefront.sales.order.request-return');
+            Route::get('account/returns/{return}', [ShopOrdersController::class, 'returned'])->name('storefront.sales.return');
+            Route::post('account/returns/{return}/withdraw', [ShopOrdersController::class, 'withdraw'])->name('storefront.sales.return.withdraw');
         });
     });
