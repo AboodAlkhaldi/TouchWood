@@ -1474,7 +1474,9 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    only the shipping itself is refunded. Pricing's `totals()` changes with it (pricing.md §9.5). As built
    today, the Stage 6 session names: Pricing's `totals()`, QuoteBuilder step 10, OrderEditing,
    ReturnRefunds and PreviewReturnRefund, and their tests (QuoteTest, ReturnCompletionTest, the edit
-   tests).
+   tests); the independent review (2026-10-27) adds `Domain/Service/OrderShares` (it takes a VAT share
+   for the shipping), the `shippingVat` field of `ReturnRefundPreview` and of §5's tables, §1.8's shares
+   (item 3) and the sum under it, and handoff §10.2.
 2. **Shipping from Shipping** (shipping.md §2.1): step 9 calls `ShippingApi::quote`.
    - `SERVED`: the carriers; the customer picks one when two or more serve the place (the cheapest
      picked first — shipping.md §9.3 #2); the carrier and its fee are snapshotted.
@@ -1496,9 +1498,12 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    not paid by then is **cancelled by the system** with the reason "payment not completed": stock,
    points and the coupon's use go as §1.6 says for any cancellation. Staff see these orders like any
    other (P2).
-6. **The revive** (owner, 2026-10-19 P5): a `PaymentSucceeded` inside the grace window for an order the
-   **timer** cancelled brings it back: the hold, the points and the coupon are taken again. If any of
-   them fails, the order stays cancelled and the money is a refund due. Any other late payment (after the
+6. **The revive** (owner, 2026-10-19 P5): a `PaymentSucceeded` **paid** (the gateway's own time —
+   payments.md §1.7) inside the time or the grace window, for an order the **timer** cancelled, brings it
+   back: the hold and the points are taken again — **not the coupon**, whose use a cancellation keeps
+   counted (§1.6), so it is still the order's. If either fails, the order stays cancelled and the money
+   is a refund due. Before the timer cancels, Sales asks `PaymentsApi::refresh`: a payment `UNKNOWN` or
+   in progress **holds the cancellation** until the gateway answers. Any other late payment (after the
    grace window, or for an order cancelled by staff, by the customer or for stock) is recorded and is a
    refund due.
 7. **Recording**: `PaymentSucceeded` → an `ONLINE` payment (`reference` = the gateway's payment id,
@@ -1510,5 +1515,20 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).
+11. **The orders table** (the review found the built schema cannot hold a stage 7 order):
+    - a **`carrier_id`** (Shipping's, no key) and the carrier's names, **snapshotted at placement**; the
+      check `orders_carrier` (carrier set exactly when shipped) becomes: the **shipping carrier** is set
+      when shipped, the **ordered carrier** may be set from placement; staff may change it (S17);
+    - **"fee to be set"**: a `shipping_fee_pending` flag, with `shipping_fee_minor` 0 while it is set,
+      cleared when staff set the fee (never inferred from a 0 fee — 0 is a real fee);
+    - the free-above amount snapshotted is **the one that applied** (the carrier's or the store-wide
+      one), with which it was (`CARRIER`, `STORE`);
+    - a cancel reason **`PAYMENT_NOT_COMPLETED`** for the timer (it is no staff's and no customer's);
+    - the tracking link typed by staff (S7), beside the number.
+12. **Edits after placing** (§1.7 step 5 works shipping out again from the order's snapshot): **staff
+    set the fee** of a "fee to be set" order as an edit of its own ("Set the shipping fee"); a changed
+    **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
+    snapshotted is the one used again.
+13. **Voiding an `ONLINE` record** — payments.md §9.3 #12.
 10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
     §2.1: `options` becomes `quote`, `methods` goes, and `PaymentExpired` is consumed.

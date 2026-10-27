@@ -15,7 +15,9 @@ the usecases so we dont charge same order twice or charge on nothing or if had a
 any of these stuff we have to follow a strong methodology". §1.1 is that methodology; §8 tests every
 case of it.
 
-**Dependencies (handoff §4.4):** Payments → Platform. Access only to declare its permissions. Payments
+**Dependencies (handoff §4.4):** Payments → Platform. **[PROPOSED]** Payments → Access only to declare
+its permissions — a handoff §4.4 amendment for the owner, as Catalog, Pricing, Inventory and Sync were
+allowed (2026-10-02/07). Payments
 **never reads Sales**: Sales hands it an order id, an amount, a deadline and the customer's contact
 details, and Payments answers with events. All order decisions (cancel, revive, refund due) stay in
 Sales.
@@ -44,11 +46,20 @@ These hold for every gateway, and every one has its tests in §8.
    notes §4). The page the customer comes back to and the gateway's notice (webhook) are only **signals
    to ask**; neither is ever believed on its own. (MyFatoorah's notice signs five fields and **not the
    amount** — notes §5.)
-2. **One open invoice per order and amount.** An order waiting for online payment has **one** gateway
-   invoice, created once and **reused** for every "Pay now" until it expires — the customer is sent back
-   to the same page, so a second tab or a retry can never create a second charge (**[PROPOSED]**; it
-   follows from MyFatoorah having no way to cancel an unpaid invoice — notes §7). A new invoice is
-   created only for a new amount (a staff "further payment" request, §1.5) or after the old one expired.
+2. **One live invoice per order at a time.** An order waiting for online payment has **one** gateway
+   invoice open, **reused** for every "Pay now" until it expires — the customer is sent back to the same
+   page, so a retry or a second tab never creates **a second invoice** (**[PROPOSED]**; MyFatoorah has no
+   way to cancel an unpaid invoice — notes §7). This does **not** rule out **two successful tries on the
+   same invoice** (two tabs paying the same page — notes §4.6 does not rule it out): rule 5 records every
+   successful try, and a second one is flagged **"paid twice"** for staff — the extra money is a refund
+   due. A new invoice is created only after the open one expired, or for a staff request (§1.5) — and
+   **never while another invoice of the same order is open** (a `FURTHER` request is refused while an
+   `ORDER` attempt is open, and the reverse).
+   - **How long an invoice lives** — question §9.3 #9: (a) **15 minutes**, renewed on the next "Pay now"
+     while the order's 60 minutes last — after a cancellation no invoice of ours stays payable for more
+     than 15 minutes **[Recommended]**; (b) one invoice for the whole 60 + 5 minutes.
+   - **Our side stops offering an invoice** the moment its order is cancelled (any reason) or the
+     amount is no longer due; a payment made on it anyway is recorded and becomes a refund due.
 3. **Creating an invoice is safe to repeat.** Every create carries an **idempotency key** made once and
    stored before the call — `Idempotency-Key` on `POST /v3/payments`, available in Saudi Arabia, kept 250
    minutes by MyFatoorah (notes §6). A timeout, a crash or a double click repeats **the same key** and
@@ -57,27 +68,52 @@ These hold for every gateway, and every one has its tests in §8.
 4. **Success is final.** Once the gateway says succeeded, nothing turns it back (MyFatoorah: "the
    Success Payment Status is final" — notes §4). A failure after a success is ignored; a success after a
    failure wins.
-5. **Recorded once.** A success is recorded under the attempt's row lock, keyed by the gateway's
-   payment id, so two notices, a notice and the customer's return, or two workers record it once. Sales
-   records it once too (`processed_events`, and the gateway payment id unique on its side).
-6. **The amount and the currency are checked.** What the gateway says was paid is compared with the
-   invoice: the same currency and the same amount. A difference is **recorded as it really was** and the
-   order is **flagged for staff** (owner, 2026-10-27 P20) — never silently accepted, never thrown away.
-7. **Nothing is lost when the gateway cannot be reached.** A status call is retried 3 times, 5 seconds
+5. **Recorded once — per successful try.** Every successful try (a **transaction**, keyed by the
+   gateway's payment id, unique per gateway and mode) is recorded once, under the attempt's row lock, so
+   two notices, a notice and the customer's return, or two workers record it once. **Events and
+   `payment()` are per transaction**, so Sales records each real charge once — a second success on one
+   invoice is a second payment in Sales, never swallowed (rule 2).
+6. **The attempt is found from the gateway's answer, never from the visitor.** The return page's
+   `paymentId` and a notice only tell us **what to ask**; the attempt is the one whose **`invoice_id`**
+   is the invoice the gateway names in its answer, and the invoice's **`ExternalIdentifier`** (which we
+   set to our attempt id when creating it — signed in the notice, notes §5.4) must match. A visitor
+   coming back with someone else's `paymentId` can never get it applied to their own order.
+7. **The amount and the currency are checked.** What the gateway says was paid is compared with the
+   invoice, the amount parsed exactly as a decimal (never a floating-point number). **A different
+   amount** in the right currency is **recorded as it really was** and the order is **flagged for
+   staff** (owner, 2026-10-27 P20). **A different currency** (in LIVE the base currency must be SAR) is
+   **kept in Payments, flagged, and never sent to Sales**, so foreign money never enters an order's
+   books.
+8. **Nothing is lost when the gateway cannot be reached.** A status call is retried 3 times, 5 seconds
    apart, with a 30-second timeout (MyFatoorah's own guidance — notes §4.8); then the attempt is
-   **`UNKNOWN`** and a background check asks again (rule 8). The customer is told "we are confirming your
-   payment", never "failed".
-8. **A background check closes every loose end** (owner, 2026-10-27 P27): every few minutes it asks the
-   gateway about every attempt still open or `UNKNOWN`, and **once more after each invoice's expiry plus
-   the grace window**, so a payment whose notice was lost is still found. A nightly pass looks again at
-   the last 3 days' attempts that did not succeed (**[PROPOSED]**).
-9. **No card data ever touches our server** (owner, 2026-10-19 P3): the customer pays on **MyFatoorah's
-   hosted page** (owner, 2026-10-27 P24). We keep no card number, no CVV, no card token.
-10. **Test money is never real money** (owner, 2026-10-27): a payment made while the store's gateway is
-    in test mode is saved as **TEST** — see §1.6 and question §9.3 #3.
-11. **The customer never sends an amount.** The amount comes from Sales, from the order (handoff §2).
-12. **Every call to the gateway is logged** — the request without secrets, the answer, the time, how
-    long it took — on the attempt, for staff (owner, 2026-10-19 P15).
+   **`UNKNOWN`** and the background check asks again (rule 9). The customer is told "we are confirming
+   your payment", never "failed".
+9. **A background check closes every loose end** (owner, 2026-10-27 P27). Every few minutes it asks the
+   gateway about every attempt still `CREATING`, `OPEN` or `UNKNOWN` — **by the invoice**, which we
+   always have, never by a payment id we may never have received: `GetPaymentStatus` with the
+   `InvoiceId` key, or the invoice with its `Transactions` (notes §4.2, §4.3), going through **every
+   try**. "No invoices match this InvoiceId" means **no try yet** — never an error, never expired (notes
+   §4.2). It asks **once more after each invoice's expiry**, so a payment whose notice was lost is still
+   found, and a nightly pass looks again at the last 3 days' attempts that did not succeed
+   (**[PROPOSED]**).
+10. **No card data ever touches our server** (owner, 2026-10-19 P3): the customer pays on
+    **MyFatoorah's hosted page** (owner, 2026-10-27 P24). We keep no card number, no CVV, no card
+    token. Payments only sends a customer to a `PaymentURL` whose address is MyFatoorah's own
+    (`*.myfatoorah.com`, HTTPS).
+11. **Test money is never real money** (owner, 2026-10-27) — §1.6.
+12. **The customer never sends an amount.** The amount comes from Sales, from the order (handoff §2).
+    Payments refuses to start when the deadline has passed (`payBy`) — Sales never asks for a
+    cancelled order, and Payments does not trust that it will not.
+13. **Every call to the gateway is logged** — the request and the answer, the time, how long it took —
+    on the attempt, for staff (owner, 2026-10-19 P15). **Never logged**: the key, the secret, the
+    `Authorization` header (also kept out of exception reports); the card details a notice carries
+    are dropped before the notice is stored. The customer's name, email and phone are kept only on the
+    attempt and are **cleared when the customer is anonymized** (Access's `CustomerAnonymized` —
+    §6), in the calls and the notices too.
+14. **A key is kept until nothing needs it.** Changing a key, turning the gateway off or switching the
+    mode never strands an open attempt: the old key and secret of a mode are kept (encrypted) until that
+    mode's attempts are all closed, the background check goes on while the gateway is off, and notices
+    are still accepted for them.
 
 ### 1.2 A store's gateway
 
@@ -99,7 +135,11 @@ These hold for every gateway, and every one has its tests in §8.
   `https://apitest.myfatoorah.com`, KSA live `https://api-sa.myfatoorah.com` (notes §1.1). A store's
   country picks its live address.
 - **Switching test ↔ live** (owner, 2026-10-27, P17): the Super Admin flips it; the store then uses the
-  other key and address. Attempts already open finish in the mode they started in.
+  other key and address. Attempts already open finish in the mode they started in (rule 14). **TEST is
+  allowed only while the store is switched off** (§1.6; question §9.3 #3).
+- **Each store and mode has its own notice address** — `/payments/notice/{store}/{mode}` — sent with
+  every invoice (`IntegrationUrls.Webhook`, notes §5.1) and pasted into that mode's MyFatoorah portal,
+  so the right secret is known before the signature is checked.
 - **A store with no gateway, or a gateway switched off, goes live anyway** (owner, 2026-10-18):
   individuals are offered "staff will contact you" only and staff record the payment by hand, as Sales
   does today (sales.md §1.9). **The settings page says so** in Payments' line (platform.md §1.3, a
@@ -111,7 +151,7 @@ These hold for every gateway, and every one has its tests in §8.
 - **The methods on the KSA account** (owner, 2026-10-27): Visa, Mastercard, Mada, Apple Pay, Apple Pay
   (Mada), STC Pay. Google Pay is not on. **MyFatoorah's fee is on the vendor** for every method (owner,
   2026-10-27), so the customer pays exactly the order's total (owner, 2026-10-19 P14) — and Payments
-  checks it (§1.1 rule 6: with the fee on the customer, MyFatoorah would charge more — notes §3.5).
+  checks it (§1.1 rule 7: with the fee on the customer, MyFatoorah would charge more — notes §3.5).
 - **Who picks the method** — question §9.3 #1. The owner's lean (2026-10-27): **MyFatoorah's page shows
   every method switched on in the account** and the customer picks there; our checkout shows one "Pay
   online" choice with the methods' logos. (MyFatoorah's create call takes no `MADA` value — Mada is
@@ -128,40 +168,53 @@ Sales places the order first (it holds the stock, the coupon and the points — 
 Payments to start. **The customer pays right after placing, before any staff approval** (owner,
 2026-10-19 P1: "acts like normal shop apps").
 
-1. **`start`** — Sales passes: the order id, the amount, **the deadline** (placed + 60 minutes, Sales's
-   setting — owner, 2026-10-19 P2), the purpose (`ORDER` or `FURTHER`, §1.5), the customer's name,
-   email and phone, the language, and where to send the customer back.
-2. Payments, **in one transaction**: if the order already has an open attempt for this amount and
-   purpose, it is **returned as it is** (rule 2); otherwise a new attempt row is written — with its
-   **idempotency key** — before any call.
+1. **`start`** — Sales passes: the order id and number, the amount, **the deadline** (placed + 60
+   minutes, Sales's setting — owner, 2026-10-19 P2), the purpose (`ORDER` or `FURTHER`, §1.5), the
+   customer's name, email and phone, the language, and where to send the customer back. Refused when
+   the deadline has passed (rule 12).
+2. **The row first, committed**: if the order has an open attempt that has not expired, it is
+   **returned as it is** (rule 2). Otherwise a new attempt is written **with its idempotency key and
+   committed before any call** — so a crash during the call never loses the key and a retry never makes
+   a second invoice (rule 3). A unique index allows **one open attempt per order**, whatever its purpose.
 3. **The call**: `POST /v3/payments` with the amount (in SAR, two decimals — owner, 2026-10-27), our
-   attempt id as `Customer.Reference`, the expiry (`PaymentExpiry`, UTC — the deadline plus the grace
-   window, **65 minutes**, owner 2026-10-27 P5), the language, and our return address. The answer's
-   `InvoiceId` and `PaymentURL` are saved on the attempt. A timeout or 5xx → the call is repeated with
-   the same key (rule 3), up to 3 times; still nothing → the attempt is `UNKNOWN`, the customer sees
-   "We could not reach the payment page — try again in a minute", and the next "Pay now" repeats the same
-   key.
-4. **The customer is sent to `PaymentURL`** and pays there.
-5. **The customer comes back** to our return address with `?paymentId=` (notes §2.3): Payments asks
-   the gateway (rule 1) and sends the customer to their order page, which shows **Paid**, **Not paid —
-   Pay now**, or **We are confirming your payment** (it refreshes by itself).
-6. **The notice** (webhook v2) arrives — usually before the customer (notes §2): its signature is
-   checked (HMAC-SHA256, base64, header `MyFatoorah-Signature`, the secret of the store and mode —
-   notes §5.4); a bad signature is answered 401 and logged; a good one is **deduplicated on its
-   `Event.Reference`** (notes §5.6), then Payments asks the gateway (rule 1). The notice is answered 200
-   once stored, so MyFatoorah does not retry it.
-7. **The answer is applied** under the attempt's lock: succeeded → the transaction is recorded,
-   `PaymentSucceeded` goes to the outbox; failed → the attempt stays open (the customer may pay again on
-   the same page until it expires) and `PaymentFailed` goes to the outbox once per failed try
-   (**[PROPOSED]**: Sales only shows "the last try failed"). An invoice is paid when **any** of its tries
-   succeeded (notes §4.6).
-8. **Expiry**: at the invoice's expiry Payments asks the gateway one last time (rule 8). Nothing paid →
-   the attempt is `EXPIRED` and `PaymentExpired` goes out (Sales has already cancelled the order at 60
-   minutes; the 5 extra minutes are the grace window — §1.7).
+   attempt id as **`Order.ExternalIdentifier`** (signed in the notice — rule 6) and as
+   `Customer.Reference`, the expiry (`PaymentExpiry`, UTC — §9.3 #9), the language, our return address
+   and the store and mode's notice address. The answer's `InvoiceId` and `PaymentURL` are saved and the
+   attempt is `OPEN`.
+   - **A timeout or 5xx** → repeated with the same key (rule 3), up to 3 times; still nothing → the
+     attempt is `UNKNOWN`, the customer sees "We could not reach the payment page — try again in a
+     minute", and the next "Pay now" repeats the same key.
+   - **The gateway refuses the request** (a 4xx — for example a phone it does not accept) → the attempt
+     is `REFUSED` (closed: it frees the one-open-attempt index), the reason logged and shown to staff,
+     and the customer told to try again or contact us (**[PROPOSED]**: a refused phone is sent once more
+     without it).
+4. **The customer is sent to `PaymentURL`** (rule 10) and pays there.
+5. **The customer comes back** to our return address with `?paymentId=` (notes §2.3). Payments asks
+   the gateway about that payment (rule 1), finds the attempt **from the invoice the gateway names**
+   (rule 6), applies the answer, and sends the customer to their order page — which shows **Paid**,
+   **Not paid — Pay now**, or **We are confirming your payment** (it refreshes by itself). A
+   `paymentId` whose invoice is not this customer's attempt changes nothing and shows their own order.
+6. **The notice** (webhook v2) arrives — usually before the customer (notes §2). Its signature is
+   checked with the secret of the store and mode its address names (HMAC-SHA256, base64, header
+   `MyFatoorah-Signature` — notes §5.4). A bad signature → 401, logged, **never stored as seen**, so a
+   forged notice cannot make the real one look like a repeat. A good one is **deduplicated on its
+   `Event.Reference`** (notes §5.6), stored without its card details, answered 200, and then Payments
+   asks the gateway (rule 1). A notice for an invoice we never created (made in the portal by hand) is
+   answered 200 and ignored.
+7. **The answer is applied** under the attempt's lock, try by try: each successful try is recorded once
+   (rule 5) and `PaymentSucceeded` goes to the outbox **for that try**; the attempt is `SUCCEEDED`. A
+   second successful try on a succeeded attempt is recorded too, flagged **paid twice**, and published
+   the same way — Sales records it and the extra is a refund due. A refused try is recorded and
+   `PaymentFailed` goes out once per refused try (**[PROPOSED]**: Sales only shows "the last try
+   failed"); the attempt stays `OPEN` and the customer may try again on the same page. A try still
+   `INPROGRESS` keeps the attempt open.
+8. **Expiry**: after the invoice's expiry Payments asks one last time (rule 9). Nothing paid → the
+   attempt is `EXPIRED` and `PaymentExpired` goes out. The next "Pay now", while the order's deadline
+   lasts, opens a new invoice (rule 2).
 
-**Pay again**: the order page's "Pay now" calls `start` again — the same open invoice is returned and
-the customer goes back to the same page (rule 2). As many times as they like within the time (owner,
-2026-10-27 P18), each limited by a rate limit (§1.8).
+**Pay again**: the order page's "Pay now" calls `start` again — the open invoice is returned and the
+customer goes back to the same page (rule 2). As many times as they like within the time (owner,
+2026-10-27 P18), within the limits of §1.8.
 
 ### 1.5 A further payment — when the order's total goes up
 
@@ -175,27 +228,41 @@ the customer goes back to the same page (rule 2). As many times as they like wit
   by email/SMS. Expired → nothing is cancelled; staff may send a new one.
 - **Only for an individual's order in a store whose gateway is on**; sent by **staff who can manage
   orders** (P23).
+- **Never while the order's first payment is still open**: a `FURTHER` request is refused while an
+  `ORDER` attempt is open, and only offered once the order holds something already (rule 2). Edits
+  while the first payment is open — question §9.3 #10.
+- A `FURTHER` invoice expires after 60 minutes (`PaymentExpiry`), with the same 15-minute renewal as
+  rule 2 when the owner picks it (§9.3 #9).
 - A request that is still open when the amount changes again is **withdrawn** (it no longer matches) and
   a new one is needed (**[PROPOSED]**). Withdrawn means: no longer shown; if the customer pays it anyway
   (MyFatoorah cannot cancel an invoice — notes §7), the money is recorded and becomes a refund due if
-  too much (rule 6).
+  too much (rule 7).
 - An order whose shipping fee is "to be set" (shipping.md §1.2, `NOT_COVERED`/`OUTSIDE`) is paid
   **through staff only** (owner, 2026-10-19 S10), so no request is offered there (**[PROPOSED]** — see
   §9.3 #5).
 
 ### 1.6 Test mode
 
-(owner, 2026-10-27, P17 and the safety rule, confirmed)
+(owner, 2026-10-27, P17 and the safety rule, confirmed: test payments "never count as real money")
 
 - The Super Admin switches the store's gateway to **TEST**: the test key and `apitest.myfatoorah.com` are
   used, with MyFatoorah's test cards (notes §1.8). The whole flow can be tried: place, pay, fail, retry,
   cancel, revive.
-- **Every attempt and transaction carries its mode.** A **TEST** payment never counts as real money: it
-  is marked TEST on the order, in every list and on the receipt, and is **left out of every money figure**
+- **Real customers never meet a test page.** MyFatoorah's test cards are public, so a live store in TEST
+  would let anyone "pay" with them. **[PROPOSED]**: **TEST is allowed only while the store is switched
+  off** — the shop is then seen only by those Platform lets see an off store (platform.md §2.7: the
+  Super Admins), who test there; switching a store on while its gateway is in TEST is refused, and so
+  is switching a live store's gateway to TEST. Before launch this is exactly the owner's plan: test,
+  then switch to LIVE, then open the store.
+- **Every attempt and transaction carries its mode.** A TEST payment never counts as real money: it is
+  marked TEST on the order, in every list and on the receipt, and **left out of every money figure**
   (home cards, reports). How Sales treats an order paid in TEST — question §9.3 #3.
 - While a store is in TEST: a banner on every admin page of that store, and the settings line (§1.2).
-- In TEST, MyFatoorah converts to KWD (notes §1.9): the amount check (rule 6) compares the **pay
-  currency** value, not the base currency.
+- In TEST, MyFatoorah converts to KWD (notes §1.9): the amount check (rule 7) compares the **pay
+  currency** value; in TEST the currency rule of rule 7 is checked against that pay currency, in LIVE
+  against SAR as the base currency.
+- Test and live ids come from two separate systems, so every gateway id is unique **per gateway and
+  mode**, never per gateway alone.
 
 ### 1.7 The 60 minutes and the grace window — Payments' part
 
@@ -203,12 +270,17 @@ the customer goes back to the same page (rule 2). As many times as they like wit
 
 - The order's time to pay (60 minutes) and the grace window (5 minutes) are **Sales's settings**, and
   Sales cancels the order when the time runs out (Sales amendment, §9.2).
-- Payments' part: the invoice **expires at the end of the grace window** (`PaymentExpiry` = deadline + 5
-  minutes); and **every success is reported**, whenever it arrives — Sales decides: inside the grace
-  window and the order was cancelled **by the timer** → revived and paid; otherwise → recorded, and a
-  refund due for staff (owner, 2026-10-19 P5).
+- **Before the timer cancels, Sales asks Payments for a fresh answer** (`refresh(orderId)`, §2.1): an
+  attempt that is `UNKNOWN`, or has a try `INPROGRESS`, **holds the cancellation** until the gateway
+  answers (the background check keeps asking); a success found then is simply a paid order.
+- **The grace window is judged by when the customer paid** — the try's `TransactionDate` from the
+  gateway (notes §4.4) — **not by when we learnt of it** (**[PROPOSED]**, question §9.3 #11): a customer
+  who paid at minute 59 whose notice was lost is not punished for our delay.
+- **Every success is reported**, whenever it arrives, with its payment time. Sales decides: paid inside
+  the time or the grace window, and the order was cancelled **by the timer** → revived and paid;
+  otherwise → recorded, and a refund due for staff (owner, 2026-10-19 P5).
 - What MyFatoorah does with a payment after `PaymentExpiry` is **not in their documentation** (notes
-  §7); the owner expects the page to stop taking payment. Either way, rule 8 still asks after the
+  §7); the owner expects the page to stop taking payment. Either way, rule 9 still asks after the
   expiry, so a late success is never lost.
 
 ### 1.8 Our own limits
@@ -260,10 +332,13 @@ interface PaymentsApi
     /** Withdraws an order's open further-payment request (§1.5). */
     public function withdraw(string $orderId): void;
 
-    /** A payment as Payments recorded it — read by Sales when an event arrives with ids only. */
+    /** One successful (or refused) try as Payments recorded it — read by Sales when an event arrives with ids only. */
     public function payment(string $paymentId): ?PaymentDto;
 
-    /** The order's attempts and their calls, for staff (§1.1 rule 12). */
+    /** Asks the gateway now about the order's open attempt — Sales calls it before the timer cancels (§1.7). */
+    public function refresh(string $orderId): PaymentStateDto;
+
+    /** The order's attempts and their calls, for staff (§1.1 rule 13). */
     public function attempts(string $orderId): array; // list<PaymentAttemptDto>
 
     /** The store's bank account, null while bank transfer is off (§1.9 — from B2B). */
@@ -279,9 +354,13 @@ interface PaymentsApi
   `customerPhone`, `locale`, `returnUrl`.
 - **`PaymentStartDto`**: `paymentId` (our attempt's id), `redirectUrl` (null when the gateway could not
   be reached — §1.4 step 3), `state`.
-- **`PaymentDto`**: `paymentId`, `orderId`, `amount` (what was really paid), `expected` (what was asked),
-  `method` (as the gateway names it — Mada, Visa, Apple Pay…), `reference` (the gateway's payment id),
-  `mode` (`LIVE`, `TEST`), `succeeded`, `succeededAt`, `mismatch` (bool, §1.1 rule 6).
+- **`PaymentDto`** — **one try**, not one attempt (rule 5): `paymentId` (our transaction's id),
+  `attemptId`, `orderId`, `amount` (what was really paid), `expected` (what the invoice asked), `method`
+  (as the gateway names it — Mada, Visa, Apple Pay…), `reference` (the gateway's payment id), `mode`
+  (`LIVE`, `TEST`), `succeeded`, `paidAt` (the gateway's `TransactionDate` — §1.7), `mismatch` (bool,
+  rule 7), `paidTwice` (bool, rule 2).
+- **`PaymentStateDto`**: `state` (`NONE`, `OPEN`, `UNKNOWN`, `IN_PROGRESS`, `SUCCEEDED`, `EXPIRED`) —
+  whether Sales may cancel now (§1.7).
 - **`OnlinePaymentDto`**: `available` (bool), `mode` (`LIVE`, `TEST`, null), `methodLogos` (list), `reason`
   when not available (`NO_GATEWAY`, `GATEWAY_OFF`, `COMPANY`).
 - **`PaymentAudience`** stays (`INDIVIDUAL`, `COMPANY`). `PaymentMethodDto` and `methods()` go: the
@@ -292,7 +371,7 @@ interface PaymentsApi
 
 | Event | When |
 |---|---|
-| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | The gateway confirmed a success (§1.4 step 7) — once per transaction |
+| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | The gateway confirmed a successful **try** (§1.4 step 7) — once per try; `paymentId` names the try. **Not** published for a currency mismatch (rule 7) |
 | `PaymentFailed` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | A try was refused |
 | **`PaymentExpired`** (`eventId`, `paymentId`, `orderId`, `occurredAt`) — new | An attempt's invoice expired with nothing paid (§1.4 step 8) |
 
@@ -330,11 +409,13 @@ characters. The permissions sit in a new **Payments** group in the role editor.
 
 ```
 CREATING ─▶ OPEN ─▶ SUCCEEDED                 (any try succeeded — final)
+CREATING ─▶ REFUSED                           (the gateway refused the request — closed, §1.4 step 3)
 CREATING ─▶ UNKNOWN ─▶ OPEN                   (the create call's answer was lost; the same key again)
-OPEN ─▶ UNKNOWN ─▶ OPEN | SUCCEEDED           (a status call failed; asked again later)
+OPEN ─▶ UNKNOWN ─▶ OPEN | SUCCEEDED | EXPIRED (a status call failed; asked again later)
 OPEN ─▶ EXPIRED                               (expiry passed, the gateway confirms nothing paid)
 OPEN ─▶ WITHDRAWN                             (a further request replaced — §1.5)
 EXPIRED | WITHDRAWN ─▶ SUCCEEDED              (a late success: recorded all the same — §1.7)
+SUCCEEDED ─▶ SUCCEEDED                        (a second successful try: recorded, "paid twice" — rule 2)
 ```
 
 A failed try is a **transaction** of the attempt, not a state: the attempt stays `OPEN`.
@@ -347,7 +428,7 @@ A failed try is a **transaction** of the attempt, not a state: the attempt stays
 |---|---|
 | **Payment gateway** — `/admin/payments/gateway?store=` (Super Admins) | The gateway, mode, keys (last 6 shown), the key's expiry, the notice address to paste into MyFatoorah, on/off; the TEST banner |
 | **Payments** — `/admin/payments?store=&state=` | Every online attempt: order, amount, method, state, mode, time; filters (§3) |
-| **An attempt** — `/admin/payments/{id}` | Its tries, the gateway's ids, every call made (§1.1 rule 12), "Ask the gateway now" |
+| **An attempt** — `/admin/payments/{id}` | Its tries, the gateway's ids, every call made (§1.1 rule 13), "Ask the gateway now" |
 | **On the order** (Sales's screen) | The attempts block; "Request payment of the rest" / "Handle by hand" (§1.5); the overdue mark (§1.9) |
 | **The bank account** | Moves from B2B's settings section to Payments' (§1.9) |
 
@@ -359,11 +440,11 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 
 | Table | Columns |
 |---|---|
-| `payments.gateways` | `store_id` PK FK `platform.stores` RESTRICT · `gateway` CHECK (`MYFATOORAH`) · `active` bool · `mode` CHECK (`TEST`, `LIVE`) · `live_key_encrypted` NULL, `live_key_last6` NULL, `live_key_expires_on` NULL · `test_key_encrypted` NULL, `test_key_last6` NULL, `test_key_expires_on` NULL · `live_secret_encrypted` NULL · `test_secret_encrypted` NULL · `created_by` · `created_at`, `updated_at` |
-| `payments.attempts` | `id` ULID PK · `store_id` · `order_id` (Sales's, no key) · `order_number` · `purpose` CHECK (`ORDER`, `FURTHER`) · `mode` · `gateway` · `currency_code` · `amount_minor` · `state` CHECK (§4) · `idempotency_key` uuid UNIQUE · `invoice_id` NULL UNIQUE (per gateway) · `payment_url` NULL · `pay_by` · `expires_at` · `succeeded_at` NULL · `paid_minor` NULL · `mismatch` bool · `requested_by` NULL (staff, for FURTHER) · `created_at`, `updated_at` · **one open attempt per order and purpose** (a unique partial index on `order_id, purpose` WHERE `state IN ('CREATING','OPEN','UNKNOWN')`) |
-| `payments.transactions` | `id` bigint PK · `attempt_id` FK · `gateway_payment_id` UNIQUE (per gateway) · `status` (as the gateway says) · `succeeded` bool · `method` · `amount_minor`, `currency_code` (the pay currency) · `error_code` NULL, `error_message` NULL · `seen_at` |
-| `payments.notices` | `id` bigint PK · `store_id` · `mode` · `event_reference` UNIQUE (per gateway) · `signature_ok` bool · `received_at` · `payload` jsonb (no secrets — MyFatoorah's notice holds none) · `handled_at` NULL — kept 90 days (**[PROPOSED]**) |
-| `payments.calls` | `id` bigint PK · `attempt_id` NULL · `store_id` · `endpoint` · `request` jsonb (the key and secrets never stored) · `http_status` NULL · `response` jsonb NULL · `error` NULL · `took_ms` · `at` — kept 1 year (**[PROPOSED]**) |
+| `payments.gateways` | `store_id` PK FK `platform.stores` RESTRICT · `gateway` CHECK (`MYFATOORAH`) · `active` bool · `mode` CHECK (`TEST`, `LIVE`) · the **previous** key and secret of each mode, kept until that mode's attempts close (rule 14) · `live_key_encrypted` NULL, `live_key_last6` NULL, `live_key_expires_on` NULL · `test_key_encrypted` NULL, `test_key_last6` NULL, `test_key_expires_on` NULL · `live_secret_encrypted` NULL · `test_secret_encrypted` NULL · `created_by` · `created_at`, `updated_at` |
+| `payments.attempts` | `id` ULID PK · `store_id` · `order_id` (Sales's, no key) · `order_number` · `purpose` CHECK (`ORDER`, `FURTHER`) · `mode` · `gateway` · `currency_code` · `amount_minor` · `state` CHECK (§4) · `idempotency_key` uuid UNIQUE · `invoice_id` NULL, **unique per (`gateway`, `mode`)** · `payment_url` NULL · `pay_by` · `expires_at` · `succeeded_at` NULL · `paid_minor` NULL · `mismatch` bool · `paid_twice` bool · `refused_reason` NULL · `customer_name`, `customer_email`, `customer_phone` NULL (cleared on anonymizing) · `requested_by` NULL (staff, for FURTHER) · `created_at`, `updated_at` · **one open attempt per order** (a unique partial index on `order_id` WHERE `state IN ('CREATING','OPEN','UNKNOWN')` — rule 2) |
+| `payments.transactions` | `id` bigint PK · `attempt_id` FK · `mode` · `gateway_payment_id`, **unique per (`gateway`, `mode`)** · `status` (as the gateway says) · `succeeded` bool · `method` · `amount_minor`, `currency_code` (the pay currency), `base_currency_code` · `paid_at` NULL (the gateway's `TransactionDate`) · `mismatch` bool · `published` bool (sent to Sales — false for a currency mismatch, rule 7) · `error_code` NULL, `error_message` NULL · `seen_at` |
+| `payments.notices` | `id` bigint PK · `store_id` · `mode` · `event_reference` — **only notices whose signature checked out are stored**, unique per (`gateway`, `mode`) (§1.4 step 6); a bad one is only logged · `received_at` · `payload` jsonb (the card details and the customer's contact details removed) · `handled_at` NULL — kept 90 days (**[PROPOSED]**) |
+| `payments.calls` | `id` bigint PK · `attempt_id` NULL · `store_id` · `endpoint` · `request` jsonb (the key, the secret and the `Authorization` header never stored; the customer's contact details cleared on anonymizing — rule 13) · `http_status` NULL · `response` jsonb NULL · `error` NULL · `took_ms` · `at` — kept 1 year (**[PROPOSED]**) |
 
 Settings (Platform, declared by Payments): `payments.transfer.check_hours` (STORE, 1–720, default **72**
 — owner 2026-10-27), and the bank account's three, moved from B2B (`payments.bank.iban`,
@@ -376,7 +457,8 @@ Settings (Platform, declared by Payments): `payments.transfer.check_hours` (STOR
 | Consumed | From | Payments |
 |---|---|---|
 | `StoreCreated` | Platform | Nothing: a new store has no gateway |
-| `OrderCancelled` | Sales | An `ORDER` attempt still open is left open (the grace window, §1.7) — nothing to do; a `FURTHER` request is withdrawn (**[PROPOSED]**) |
+| `OrderCancelled` | Sales | Our side stops offering the order's open invoice (rule 2): "Pay now" is gone; the gateway may still take a payment on it until it expires, which is recorded (rule 9) and is Sales's to judge (§1.7) |
+| `CustomerAnonymized` | Access | The customer's name, email and phone cleared from attempts, calls and notices (rule 13) |
 
 Published: §2.2.
 
@@ -395,6 +477,9 @@ Every error extends `PaymentsError` → `DomainError` ("payments.*"), with both 
 | `KeyPermissionMissing` | INVALID | MyFatoorah's 401 "The token does not have the required permissions!" (notes §9) — names what to switch on |
 | `AttemptNotFound` | NOT_FOUND | An attempt that is not there, or not this customer's |
 | `AmountChanged` | CONFLICT | `start` with an amount different from the open attempt's for the same purpose — Sales must withdraw first |
+| `TestModeOnLiveStore` | CONFLICT | TEST on a store that is on, or switching on a store whose gateway is in TEST (§1.6) |
+| `PayByPassed` | CONFLICT | `start` after the order's deadline (rule 12) |
+| `OrderPaymentOpen` | CONFLICT | A `FURTHER` request while the order's first payment is open (§1.5) |
 | `InvalidPaymentsInput` | INVALID | A field out of range, named |
 
 A notice with a bad signature is answered `401` with no body: it is not a staff error. The limits of §1.8 are Laravel's rate limiting (HTTP 429), not a domain error.
@@ -433,7 +518,22 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 18. **Rate limits**: "Pay now" over the limit answered 429; the background check's cap.
 19. **Isolation and permissions**: two stores' gateways, keys and notices never cross; a notice signed
     with another store's secret refused; each use case only with its permission.
-20. **Logs**: every call logged without the key or the secret; pruned after a year.
+20. **Logs**: every call logged without the key, the secret or the `Authorization` header; card details
+    never stored; contact details cleared on anonymizing; pruned after a year.
+21. **Someone else's paymentId** on the return page: nothing applied to the visitor's order (rule 6).
+22. **Two successful tries on one invoice**: both recorded, the second flagged "paid twice", Sales gets
+    both, the extra is a refund due.
+23. **An edit while the first payment is open**: as the owner answers §9.3 #10; a `FURTHER` request
+    refused while an `ORDER` attempt is open.
+24. **Test and live ids that are the same number**: both kept, nothing crosses.
+25. **The timer at minute 60 with an `UNKNOWN` or `INPROGRESS` attempt**: the cancellation waits; paid
+    at minute 59 and learnt at minute 70 → paid, not a refund due (§1.7).
+26. **A refused create** (a 4xx): `REFUSED`, the index freed, the next "Pay now" opens a new attempt.
+27. **A key changed while attempts are open**: they still close with the old key (rule 14).
+28. **A currency mismatch**: kept in Payments, flagged, nothing sent to Sales.
+29. **A forged notice sent before the real one**: the real one still processed (only signed notices are
+    deduplicated).
+30. **TEST on a store that is on**: refused; switching a store on while in TEST refused (§1.6).
 
 ---
 
@@ -471,6 +571,13 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
    TEST and mismatch carried; **further-payment requests** on the order; the overdue transfer mark; "Pay
    now" on the order page; online never offered for a "shipping fee to be set" order; the ways to pay
    read from `availability()`; `bankAccount` read from Payments.
+   Also (the independent review, 2026-10-27): before the timer cancels, `refresh` — an `UNKNOWN` or
+   `INPROGRESS` payment holds the cancellation (§1.7); the grace window judged by the payment's own time;
+   **the revive does not take the coupon again** — a cancellation keeps its use counted (sales.md §1.6),
+   so taking it again would count it twice; the points and the stock are taken again; each successful
+   try recorded once by its gateway payment id, a second one on the same order a refund due; voiding an
+   `ONLINE` record — §9.3 #12; edits while the first payment is open — §9.3 #10; the orders table's new
+   columns and checks (sales.md §9.5).
 2. **B2B** — the bank account and its settings line move to Payments (b2b.md §2.3, amendment).
 3. **Access** — a **Payments** permission group.
 
@@ -483,9 +590,11 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 2. **Does a paid online order still wait for staff approval before it ships?** Every order passes staff
    approval today (sales.md §1.4). (a) Yes — paying first does not skip approval; staff approve, then
    ship **[Recommended]**; (b) a paid online order is approved by itself.
-3. **An order paid in TEST mode**: (a) it moves like a paid order — so the whole flow can be tested — but
-   is marked TEST everywhere, **cannot be marked shipped**, and is left out of every money figure
-   **[Recommended]**; (b) it stays unpaid in Sales and only the attempt shows the test success.
+3. **Test mode and real customers** (§1.6): (a) **TEST only while the store is switched off** — only
+   Super Admins see the shop then; their test orders move like paid ones so the whole flow can be
+   tried, are marked TEST everywhere, **cannot be marked shipped**, and are left out of every money
+   figure; going live = switch to LIVE, then switch the store on **[Recommended]**; (b) TEST on a live
+   store too — then real shoppers would meet MyFatoorah's test page, whose test cards are public.
 4. **Our limits** (§1.8): 10 "Pay now" per order per 10 minutes, 30 per customer per hour, 60 status
    calls a minute, 120 notices a minute per store — (a) as written **[Recommended]**; (b) other numbers.
 5. **An order whose shipping fee is "to be set"**, once staff set the fee: (a) paid through staff only, as
@@ -497,3 +606,18 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
    **[Recommended]**; (b) no warning.
 8. **How long we keep** the gateway call log (1 year) and the notices (90 days): (a) as written
    **[Recommended]**; (b) other.
+9. **How long an invoice lives** (rule 2): (a) **15 minutes**, renewed on the next "Pay now" while the
+   order's 60 minutes last — a cancelled order's invoice stays payable 15 minutes at most
+   **[Recommended]**; (b) one invoice for the whole 60 + 5 minutes. Either way, a payment on an invoice
+   our side no longer offers is recorded and is a refund due — MyFatoorah cannot cancel an invoice.
+10. **Staff edits while the order's first payment is open** (the 60 minutes after placing): (a)
+    **blocked** — the edit waits until the order is paid or cancelled; staff see why **[Recommended]**;
+    (b) allowed — the open invoice is withdrawn and the customer pays the new amount on a new one.
+11. **The grace window is judged by** (a) **when the customer paid** (the gateway's time)
+    **[Recommended]**; (b) when we learnt of it.
+12. **May staff void an online payment record in Sales?** (sales.md §1.9 lets staff void any record
+    today.) (a) **No** — a real gateway payment cannot be voided (a TEST one can); a mistake is fixed by
+    a refund **[Recommended]**; (b) yes, with a reason, as today.
+13. **Payments that need a person** — a mismatch, paid twice, `UNKNOWN` for more than an hour: (a) a
+    count on the menu and on the admin home until someone opens each **[Recommended]**; (b) only in the
+    Payments list.

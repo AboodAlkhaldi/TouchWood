@@ -7,9 +7,11 @@ box list. It is built from handoff §12.5, the Sales contract that waits for it 
 since Sales step S7b), and the owner's answers of 2026-10-17, 2026-10-19 and 2026-10-27 (§9.1). Points
 marked **[PROPOSED]** are mine, stated for the owner to reject; the questions are in §9.3.
 
-**Dependencies (handoff §4.4):** Shipping → Platform, Catalog. Access only to declare its permissions,
-as Pricing, Inventory and Sync do (handoff §4.4, owner 2026-10-02/07). Sales calls Shipping; Shipping
-never calls Sales.
+**Dependencies (handoff §4.4):** Shipping → Platform, Catalog. **[PROPOSED]** Shipping → Access **only
+to declare its permissions**, as the owner allowed Catalog, Pricing, Inventory and Sync (handoff §4.4,
+2026-10-02/07) — not yet allowed for Shipping: a handoff §4.4 amendment for the owner (§9.2). Sales
+calls Shipping; Shipping never calls Sales, so **Shipping never knows which orders name a carrier**
+(§1.3).
 
 ## What Shipping does not own
 
@@ -84,9 +86,15 @@ country would leave every price pointing at places of the wrong country).
   characters, exactly one `{number}` (**[PROPOSED]**).
 - **Switching a carrier off** takes it out of every new quote at once. Orders already placed keep the
   carrier and the fee they were placed with (owner, 2026-10-27 S16).
-- **Deleting** a carrier is allowed only while no order names it (**[PROPOSED]**); otherwise it is
-  switched off. Its price groups are deleted with it.
+- **A carrier is never deleted, only switched off** (**[PROPOSED]**, forced by the dependency rule:
+  Shipping cannot see Sales's orders, and an order already shipped with a carrier still needs its
+  tracking link). A switched-off carrier stays readable through `carrier()` and `trackingLink()`.
 - A store may have **no carrier**: every address in its countries is then `NOT_COVERED`.
+- **The countries a store ships to** (Platform's, set by Super Admins — §9.2) — **[PROPOSED]**: the
+  store's own country is always one of them; a country is added only once Platform has its place list
+  (otherwise its carriers could never be priced, and every address there would stay `NOT_COVERED`); a
+  country is removed, or moved to another store, only once the store has no carrier there (they are
+  switched off first) — question §9.3 #9.
 
 ### 1.4 Prices — the groups
 
@@ -112,7 +120,18 @@ The rules, checked on every save:
   served; the city's other districts are not.
 - **A city with no district list** (customers type their district) is priced as a whole only (owner,
   2026-10-27 S15).
+- **"Select all" means** (**[PROPOSED]**): for a city's districts, **the city priced whole** — so a
+  district the Super Admin adds later is covered too; for the country's cities, **every city not yet
+  priced in this carrier** — cities already in another group stay where they are and are shown with
+  their own "Move here".
+- **A city with a district list whose district is missing** (a new neighbourhood): the customer picks
+  **"Other"** and types it — it takes the **city's whole price**, or is `NOT_COVERED` when the city is
+  not priced whole (**[PROPOSED]**, question §9.3 #10).
+- **A retired place** (Platform, §9.3 #4): it leaves every picker; **its prices stay and still apply**
+  to the addresses that already use it, so nothing changes for a customer whose saved address names it.
 - A group with no places left is deleted.
+- **One save at a time per carrier**: every change of a carrier's prices locks the carrier first, so two
+  staff saving at once never break rules 3 and 4 between them; the second is told to reload.
 - Every change is **audited** (who, which carrier, which places, from what amount to what).
 
 **The fee for an address** in one carrier: the district's own price if it has one, otherwise its city's
@@ -151,7 +170,8 @@ price, otherwise the carrier does not serve it.
 
 - A store's **box list**: name, inner length, width and height (mm), the most weight it takes (g), on/off.
   Admin-set **padding** per store (mm, added on every side; **[PROPOSED]** default 10).
-- Each product size is **auto** or **manual** for packing (**[PROPOSED]** default auto). Manual sizes
+- Each product size is **auto** or **manual** for packing **in each store** (**[PROPOSED]** default
+  auto; per store, because a size is the same in every store but each store packs its own). Manual sizes
   skip the engine and the order is marked "pack by hand".
 - **The engine only suggests** (owner, 2026-10-19 S8): for each order it picks the **smallest box**
   (by volume) whose inner sizes, less the padding, take every auto size of the order **one at a time
@@ -210,7 +230,8 @@ interface ShippingApi
 
 | From | What | State |
 |---|---|---|
-| Platform | **The places** — countries (the address list), regions, cities, districts, by id, in both languages — and **each store's countries** (`PlatformApi::storeCountries`, `countryStore(countryCode)`) | **New** — platform.md amendment (§9.2) |
+| Platform | **The places** — countries (the address list), regions, cities, districts, by id, in both languages — (including `citiesOf(country)` for the country-wide "Select all") and **each store's countries**
+(`PlatformApi::storeCountries`, `countryStore(countryCode)`) | **New** — platform.md amendment (§9.2) |
 | Platform | Stores, media (logos), settings, the audit log, `MenuCount` | On `main` |
 | Catalog | `variant()` — weight and sizes, for the boxes only | On `main` |
 | Access | Declaring Shipping's permissions; a **Shipping** permission group | Allowed; access.md amendment (§9.2) |
@@ -221,7 +242,7 @@ interface ShippingApi
 
 | Use case | Permission | Scope |
 |---|---|---|
-| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `MoveCarrier` (order), `DeleteCarrier` | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
+| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `MoveCarrier` (order) — never deleted (§1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
 | `SetPriceGroup` (create, change amount, add/move/remove places — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
 | `SetCarrierFreeAbove`, the store-wide free-above setting | **`shipping.prices.manage`** | That store |
 | `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — staff who manage orders get it by default (**[PROPOSED]**) | That store |
@@ -235,7 +256,7 @@ change is audited, in both languages.
 
 ## 4 · State machines
 
-- **A carrier**: `ON` ⇄ `OFF`; deleted only while no order names it (§1.3).
+- **A carrier**: `ON` ⇄ `OFF`; never deleted (§1.3).
 - **A box**: `ON` ⇄ `OFF`.
 - No other state: prices and groups are plain rows.
 
@@ -260,10 +281,10 @@ Schema `shipping`. Every store-scoped row names its store; money in the currency
 | Table | Columns |
 |---|---|
 | `shipping.carriers` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `country_code` (one of the store's countries, checked by the handler) · `name_ar`, `name_en` (1–100) · `logo_media_id` NULL · `phone` NULL (E.164) · `website` NULL (HTTPS) · `tracking_pattern` NULL · `free_above_minor` NULL (≥ 0) · `active` bool · `position` int · `created_at`, `updated_at` · unique (`store_id`, `name_en`), (`store_id`, `name_ar`) |
-| `shipping.price_groups` | `id` ULID PK · `carrier_id` FK CASCADE · `store_id` · `amount_minor` bigint ≥ 0 · **unique (`carrier_id`, `amount_minor`)** (rule 4) · `created_at`, `updated_at` |
-| `shipping.price_places` | `id` bigint PK · `group_id` FK CASCADE · `carrier_id` (copied, for the unique key) · `city_id` (Platform's) · `district_id` NULL (Platform's) · **unique (`carrier_id`, `city_id`, `district_id`) NULLS NOT DISTINCT** (rule 3; PostgreSQL 17) |
-| `shipping.boxes` | `id` ULID PK · `store_id` · `name` · `length_mm`, `width_mm`, `height_mm`, `max_weight_g` int 1–1,000,000 · `active` · `position` |
-| `shipping.variant_packing` | `variant_id` PK (Catalog's, no key) · `manual` bool — only manual sizes have a row |
+| `shipping.price_groups` | `id` ULID PK · `carrier_id` FK CASCADE · `store_id` FK `platform.stores` RESTRICT · `amount_minor` bigint ≥ 0 · **unique (`carrier_id`, `amount_minor`)** (rule 4) · unique (`id`, `carrier_id`) for the places' composite key · `created_at`, `updated_at` |
+| `shipping.price_places` | `id` bigint PK · `store_id` · (`group_id`, `carrier_id`) **composite FK** → `price_groups (id, carrier_id)` CASCADE, so the copied carrier can never disagree with its group · `city_id` (Platform's) · `district_id` NULL (Platform's) · **unique (`carrier_id`, `city_id`, `district_id`) NULLS NOT DISTINCT** (rule 3; PostgreSQL 17) |
+| `shipping.boxes` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `name` · `length_mm`, `width_mm`, `height_mm`, `max_weight_g` int 1–1,000,000 · `active` · `position` |
+| `shipping.variant_packing` | `store_id` · `variant_id` (Catalog's, no key) · PK (`store_id`, `variant_id`) — a row only for a size packed by hand in that store |
 
 Settings (Platform, declared by Shipping): `shipping.free.above_all` (STORE, integer smallest unit, 0
 = off, 0–1,000,000,000, `shipping.prices.manage`) · `shipping.boxes.padding_mm` (STORE, 0–100,
@@ -276,7 +297,7 @@ default 10, `shipping.boxes.manage`).
 | Consumed | From | Shipping |
 |---|---|---|
 | `StoreCreated` | Platform | Nothing to create: a new store has no carriers |
-| A place retired (§9.3 #4) | Platform | Its prices stay but are no longer offered; it appears in no list |
+| — | — | A retired place needs no event: Shipping reads Platform's `retired` flag when it builds its pickers (§1.4) |
 
 Shipping publishes **no integration event**: Sales snapshots what it needs at placement.
 
@@ -290,11 +311,12 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 |---|---|---|
 | `CarrierNotFound` | NOT_FOUND | A carrier that is not there (or of another store) |
 | `CountryNotShipped` | INVALID | A carrier for a country the store does not ship to |
+| `CountryHasCarriers` | CONFLICT | Removing a ship-to country, or moving it to another store, while the store has carriers there (Platform asks Shipping through a hook it declares — §9.2) |
+| `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) |
 | `PlaceAlreadyPriced` | CONFLICT | A place already in another group of this carrier (§1.4) — names the place and its amount |
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
 | `PlaceNotInCountry` | INVALID | A city or district not in the carrier's country, or a district of another city |
 | `CityPricedWhole` | INVALID | A district of a city with no district list (§1.4) |
-| `CarrierInUse` | CONFLICT | Deleting a carrier an order names |
 | `InvalidShippingInput` | INVALID | A field out of range — named by its field and rule (`tracking_pattern_number`, `https`, …) |
 
 ---
@@ -314,8 +336,8 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 4. **Free shipping**: a carrier's own amount; the store-wide amount overriding every carrier, then
    cleared; compared with `goods_total`, the boundary included (equal is free).
 5. **No VAT on the fee**: 1,000 + 150 + 30 = 1,180 (owner's own example, through Sales and Pricing).
-6. **Snapshots**: a price changed, a carrier switched off or deleted after placement — the order keeps
-   its carrier and fee.
+6. **Snapshots**: a price changed or a carrier switched off after placement — the order keeps its
+   carrier and fee; a switched-off carrier's tracking link still works.
 7. **Tracking**: a pattern with one `{number}`; none → no link; a number with spaces trimmed and the
    link encoded.
 8. **Boxes**: smallest fit; padding; a manual size → by hand; missing weight → by hand; no boxes → no
@@ -361,7 +383,11 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
    the carrier from `carriers()` (or changes it), with a number and/or a typed link; **no VAT on
    shipping** in the totals and the returns' refunds.
 4. **Pricing** — `totals()`: shipping is outside the taxable base.
-5. **Promotions** — nothing to change: its "free shipping above an amount" already names Shipping,
+5. **The handoff** — §4.4: Shipping → Access and Payments → Access "only to declare permissions", for
+   the owner (as Catalog, Pricing, Inventory and Sync were allowed); §10.2: shipping outside the VAT;
+   §12.5: "domestic only per store" becomes "a store ships to its countries"; the free-above amount per
+   carrier with a store-wide override (§1.5).
+6. **Promotions** — nothing to change: its "free shipping above an amount" already names Shipping,
    stage 7; it is §1.5.
 
 ### 9.3 Still open — for the owner
@@ -380,5 +406,25 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
    and its prices are cleared.
 6. **Build the box part now or when the list arrives?** (a) Now, dormant until boxes are entered — the
    screens and the engine are small **[Recommended]**; (b) later, when the list arrives.
-7. **Deleting a carrier** (§1.3): (a) only while no order names it, otherwise switch it off
-   **[Recommended]**; (b) never deleted, only switched off.
+7. **A company's order to a `NOT_COVERED` or `OUTSIDE` address**: the fee is not known at placement, so
+   the transfer amount is not either. (a) It becomes "staff will contact you" like an individual's,
+   staff set the fee, then the company transfers **[Recommended]**; (b) the company may still choose
+   bank transfer and waits for the fee before transferring.
+8. **What a "fee to be set" order shows**: (a) "Shipping: to be confirmed" and the total marked "before
+   shipping" — on the checkout, the order page and staff's list **[Recommended]**; (b) the total with 0
+   shipping.
+9. **A ship-to country removed or moved to another store** (§1.3): (a) refused while the store has a
+   carrier there — switch them off first; saved addresses stay and become `OUTSIDE` or `OTHER_STORE`
+   by the rules **[Recommended]**; (b) its carriers switched off automatically.
+10. **"Other" district** in a city that has a district list (§1.4): (a) allowed, typed, priced by the
+    city's whole price if it has one, otherwise `NOT_COVERED` **[Recommended]**; (b) not allowed —
+    the customer must pick a listed district.
+11. **Free shipping on a fee staff set later** (a `NOT_COVERED` / `OUTSIDE` order): (a) no — the staff's
+    fee is final, they apply any free shipping themselves **[Recommended]**; (b) the store-wide rule
+    still applies.
+12. **An order's address changed by staff after placing** (sales.md §1.7): (a) **re-quoted at today's
+    prices** for the new place — a place no carrier serves makes it "fee to be set" **[Recommended]**;
+    (b) the fee placed with is kept.
+13. **VAT on an order shipped abroad** (`OUTSIDE`, e.g. Qatar from the KSA store — exports are often
+    0-rated): for the owner's accountant. (a) The store's VAT as usual until the accountant says
+    otherwise **[Recommended]**; (b) 0 VAT on goods for an address outside the store's country.
