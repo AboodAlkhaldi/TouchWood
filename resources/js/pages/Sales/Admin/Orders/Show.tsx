@@ -77,7 +77,15 @@ export default function Show(order: OrderPage) {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-60">
-                {a.mayApprove ? <MenuAction label={t(`${W}.action.reject`)} reason={waiting ? null : t(`${W}.why.not_waiting`)} onSelect={() => setDialog('reject')} test="reject" /> : null}
+                {a.mayEdit ? (
+                    <MenuAction
+                        label={t(`${W}.action.edit`)}
+                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : notShipped ? null : t(`${W}.why.shipped`)}
+                        onSelect={() => router.visit(`${base}/edit`)}
+                        test="edit"
+                    />
+                ) : null}
+                {a.mayApprove ?<MenuAction label={t(`${W}.action.reject`)} reason={waiting ? null : t(`${W}.why.not_waiting`)} onSelect={() => setDialog('reject')} test="reject" /> : null}
                 {a.mayCancel ? (
                     <MenuAction
                         destructive

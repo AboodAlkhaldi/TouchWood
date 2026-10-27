@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
-import { figure } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { CheckoutPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
@@ -138,12 +138,12 @@ function CouponAndPoints({ page, busy, choose }: Part) {
                     <p className="text-ink-muted">{t(`${W}.coupon.none`)}</p>
                 ) : page.couponRefusal === null ? (
                     <p className="text-ink">
-                        {t(`${W}.coupon.applied`, { code: page.couponCode })}
+                        <bdi className="text-label-14">{page.couponCode}</bdi> · {t(`${W}.coupon.applied_short`)}
                         {page.couponName === null ? null : <span className="text-ink-muted"> · {page.couponName}</span>}
                     </p>
                 ) : (
                     <p className="text-ink">
-                        {t(`${W}.coupon.refused`, { code: page.couponCode })} {t(`${W}.coupon.refusal.${page.couponRefusal}`)}
+                        <bdi className="text-label-14">{page.couponCode}</bdi> · {t(`${W}.coupon.refused_why`)} {t(`${W}.coupon.refusal.${page.couponRefusal}`)}
                     </p>
                 )}
                 {page.couponCode === null ? null : (
@@ -170,7 +170,8 @@ function CouponAndPoints({ page, busy, choose }: Part) {
                         onSubmit={(event) => {
                             event.preventDefault();
                             const typed = asked.trim();
-                            choose({ asked: typed === '' ? null : Number(typed) });
+                            // None, or 0: as many as allowed.
+                            choose({ asked: typed === '' || Number(typed) === 0 ? null : Number(typed) });
                         }}
                     >
                         <TextField
@@ -182,7 +183,7 @@ function CouponAndPoints({ page, busy, choose }: Part) {
                             label={t(`${W}.points.fewer`)}
                             helper={t(`${W}.points.fewer_helper`, { most: figure(locale, page.pointsMostUsable) })}
                             value={asked}
-                            onChange={(event) => setAsked(event.target.value.replace(/[^0-9]/g, ''))}
+                            onChange={(event) => setAsked(toLatinDigits(event.target.value).replace(/[^0-9]/g, ''))}
                             data-test="points-asked"
                         />
                         <ActionButton type="submit" variant="outline" loading={busy} data-test="apply-points">

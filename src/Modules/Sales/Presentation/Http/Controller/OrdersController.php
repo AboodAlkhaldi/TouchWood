@@ -7,6 +7,7 @@ namespace Modules\Sales\Presentation\Http\Controller;
 use App\Http\FormErrors;
 use App\Http\Page;
 use Closure;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -19,6 +20,8 @@ use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrderHandler;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlag;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlagHandler;
+use Modules\Sales\Application\Command\EditOrder\EditOrder;
+use Modules\Sales\Application\Command\EditOrder\EditOrderHandler;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
@@ -39,8 +42,12 @@ use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFile;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFileHandler;
+use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEditHandler;
 use Modules\Sales\Application\Query\PrintOrder\PrintOrderHandler;
+use Modules\Sales\Application\Query\SearchEditSizes\SearchEditSizesHandler;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
+use Modules\Sales\Presentation\Http\Resource\EditPages;
+use Modules\Sales\Presentation\Http\Resource\EditSizeData;
 use Modules\Sales\Presentation\Http\Resource\OrderPages;
 use Shared\Domain\Error\DomainError;
 
@@ -165,6 +172,70 @@ final readonly class OrdersController
         }
 
         return self::act($request, fn () => $handler->handle(new VoidMoneyRecord(self::text($request, 'kind'), self::text($request, 'record'), self::text($request, 'reason'))), 'voided');
+    }
+
+    /** P4 - editing the order, on its own page (R1-49). */
+    public function edit(string $order, ViewOrderHandler $view, EditPages $pages): Response
+    {
+        return $this->page->render('Sales/Admin/Orders/Edit', $pages->page($order, $view)->toArray(), self::WORDS);
+    }
+
+    /** Add Product's search (§4.2 B7): JSON, as it is typed. */
+    public function editSizes(Request $request, string $order, EditPages $pages, SearchEditSizesHandler $search, ViewOrderHandler $view): JsonResponse
+    {
+        try {
+            $rows = $pages->sizes($order, mb_substr(trim(self::text($request, 'q')), 0, 100), $search, $view);
+        } catch (DomainError) {
+            $rows = [];
+        }
+
+        return response()->json(array_map(static fn (EditSizeData $row): array => $row->toArray(), $rows));
+    }
+
+    /** Preview: the edit worked out, nothing written (§1.7); its refusal in its own words. */
+    public function editPreview(Request $request, string $order, EditPages $pages, PreviewOrderEditHandler $previews, ViewOrderHandler $view): JsonResponse
+    {
+        try {
+            return response()->json($pages->preview($order, self::lines($request), self::optional($request, 'address'), self::gift($request), $previews, $view)->toArray());
+        } catch (DomainError $error) {
+            return response()->json(['refused' => FormErrors::message($error)], 422);
+        }
+    }
+
+    /** Confirm: the edit as previewed, with its reason, then back to the order. */
+    public function saveEdit(Request $request, string $order, EditOrderHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new EditOrder($order, self::text($request, 'reason'), self::lines($request), self::optional($request, 'address'), self::gift($request)));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return redirect()->route('sales.admin.orders.show', ['order' => $order])->with('status', __('sales::admin_orders.toast.edited'));
+    }
+
+    /**
+     * The order's lines as sent, gift aside: `[{variantId, mode, quantity}]`.
+     *
+     * @return list<array{variantId: string, mode: string, quantity: int}>
+     */
+    private static function lines(Request $request): array
+    {
+        $sent = $request->input('lines');
+        $lines = [];
+
+        foreach (is_array($sent) ? $sent : [] as $line) {
+            if (is_array($line) && is_string($line['variantId'] ?? null) && is_string($line['mode'] ?? null) && is_numeric($line['quantity'] ?? null)) {
+                $lines[] = ['variantId' => $line['variantId'], 'mode' => $line['mode'], 'quantity' => (int) $line['quantity']];
+            }
+        }
+
+        return $lines;
+    }
+
+    private static function gift(Request $request): string
+    {
+        return self::optional($request, 'gift') ?? 'KEEP';
     }
 
     public function clearShort(Request $request, string $order, ClearShortFlagHandler $handler): RedirectResponse

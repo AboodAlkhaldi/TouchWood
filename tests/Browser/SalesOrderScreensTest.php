@@ -150,3 +150,20 @@ it('accepts, receives and completes a return, records its refund, and draws it a
     $page->navigate('/admin/returns?tab=COMPLETED', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"return-card-{$return}\"]");
     expect(salesOrderScreensWide($page))->toBe('', 'the returns list scrolls sideways');
 });
+
+it('edits an order from its page: a piece more, Preview, a reason, Confirm, at a phone\'s width', function () {
+    $order = salesOrderScreensOrder();
+    $page = salesOrderScreensPanel();
+    $page->resize(375, 812);
+
+    $page->navigate("/admin/orders/{$order}/edit", BROWSER_PAGE_LOAD)->assertPresent('[data-test="edit-lines"]');
+    expect(salesOrderScreensWide($page))->toBe('', 'the edit page scrolls sideways');
+
+    $page->click('[data-test="edit-lines"] li:first-child [data-test="more"]')
+        ->click('[data-test="preview-edit"]');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"preview-money\"]') !== null"))->toBeTrue();
+    $page->type('#edit-reason', 'One more piece')
+        ->click('[data-test="confirm-edit"]');
+    expect(browserUntil($page, "document.body.innerText.includes('Order edited.')"))->toBeTrue()
+        ->and(DB::table('sales.order_edits')->where('order_id', $order)->count())->toBe(1);
+});

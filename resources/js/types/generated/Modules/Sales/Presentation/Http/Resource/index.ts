@@ -1,8 +1,20 @@
 import type { MoneyData } from '../../../../Platform/Public/Dto';
+export type AskReturnPage = {
+number: string,
+lines: OwnLineData[],
+returnDeadline: string | null,
+storeTimezone: string,
+};
 export type BankData = {
 iban: string,
 bank: string,
 holder: string,
+};
+export type BuyAgainSkippedData = {
+name: string,
+mode: string,
+quantity: number,
+reason: string,
 };
 export type CartLineData = {
 variantId: string,
@@ -36,6 +48,7 @@ notice: CartNoticeData[],
 subtotal: MoneyData | null,
 pieces: number,
 problems: boolean,
+skipped: Record<string, any>[],
 };
 export type CheckoutAddressData = {
 id: string,
@@ -80,6 +93,60 @@ export type CustomerOrdersSectionData = {
 customerId: string,
 orders: OrderRowData[],
 };
+export type EditGiftData = {
+levelId: string,
+name: string,
+amount: MoneyData,
+};
+export type EditLineData = {
+variantId: string,
+mode: string,
+name: string,
+values: string,
+code: string,
+quantity: number,
+unit: MoneyData,
+ticked: boolean,
+};
+export type EditPage = {
+id: string,
+number: string,
+audience: string,
+lines: EditLineData[],
+gift: string | null,
+addresses: CheckoutAddressData[],
+address: string,
+total: MoneyData,
+paid: MoneyData,
+beforeSubtotal: MoneyData,
+beforeShipping: MoneyData,
+beforeVat: MoneyData,
+storeTimezone: string,
+};
+export type EditPreviewData = {
+subtotal: MoneyData,
+coupon: MoneyData | null,
+points: MoneyData | null,
+shipping: MoneyData,
+vat: MoneyData,
+total: MoneyData,
+before: MoneyData,
+money: string,
+difference: MoneyData,
+gifts: EditGiftData[],
+giftLevelId: string | null,
+};
+export type EditSizeData = {
+variantId: string,
+name: string,
+values: string,
+code: string,
+retail: MoneyData | null,
+retailBefore: MoneyData | null,
+wholesale: MoneyData | null,
+wholesaleMinimum: number | null,
+available: number | null,
+};
 export type MoneyRecordData = {
 id: string,
 kind: string,
@@ -93,6 +160,10 @@ recordedAt: string,
 voidedBy: string | null,
 voidedAt: string | null,
 voidReason: string | null,
+};
+export type MyOrdersPage = {
+orders: OwnOrderRowData[],
+next: string | null,
 };
 export type OrderActionsData = {
 mayApprove: boolean,
@@ -239,6 +310,92 @@ q: string,
 customerId: string | null,
 customerName: string | null,
 };
+export type OwnLineData = {
+id: string,
+name: string,
+values: string,
+code: string,
+mode: string,
+gift: boolean,
+quantity: number,
+unit: MoneyData,
+total: MoneyData,
+returnable: number,
+};
+export type OwnOrderPage = {
+number: string,
+placedAt: string,
+status: string,
+payment: string,
+owed: MoneyData,
+refundDue: MoneyData,
+lines: OwnLineData[],
+subtotal: MoneyData,
+savings: MoneyData | null,
+couponCode: string | null,
+coupon: MoneyData | null,
+pointsUsed: number,
+points: MoneyData | null,
+shipping: MoneyData,
+vat: MoneyData,
+total: MoneyData,
+recipientName: string,
+addressPhone: string,
+address: string,
+wayToPay: string,
+bank: BankData | null,
+receipts: number,
+mayUpload: boolean,
+shipment: string,
+carrier: string | null,
+trackingNumber: string | null,
+shippedAt: string | null,
+deliveredAt: string | null,
+returnDeadline: string | null,
+returns: OwnReturnRowData[],
+mayCancel: boolean,
+mayReturn: boolean,
+storeTimezone: string,
+};
+export type OwnOrderRowData = {
+number: string,
+placedAt: string,
+status: string,
+total: MoneyData,
+pieces: number,
+};
+export type OwnReturnLineData = {
+name: string,
+values: string,
+code: string,
+gift: boolean,
+asked: number,
+received: number | null,
+};
+export type OwnReturnPage = {
+id: string,
+orderNumber: string,
+status: string,
+reason: string,
+reasonOther: string | null,
+staffReason: string | null,
+requestedAt: string,
+decidedAt: string | null,
+receivedAt: string | null,
+completedAt: string | null,
+withdrawnAt: string | null,
+closedAt: string | null,
+refundDue: MoneyData | null,
+lines: OwnReturnLineData[],
+photos: number,
+storeTimezone: string,
+};
+export type OwnReturnRowData = {
+id: string,
+status: string,
+requestedAt: string,
+refundDue: MoneyData | null,
+};
 export type PlacedPage = {
 number: string,
 total: MoneyData,
@@ -307,10 +464,18 @@ mayRecordMoney: boolean,
 refundDueDecimal: string | null,
 storeTimezone: string,
 exponent: number,
+preview: ReturnPreviewData | null,
 };
 export type ReturnPhotoData = {
 mediaId: string,
 position: number,
+};
+export type ReturnPreviewData = {
+goods: MoneyData,
+vat: MoneyData,
+shipping: MoneyData,
+shippingVat: MoneyData,
+total: MoneyData,
 };
 export type ReturnRowData = {
 id: string,

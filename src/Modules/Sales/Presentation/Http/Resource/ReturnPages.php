@@ -15,6 +15,8 @@ use Modules\Sales\Application\Query\ListOrderStores\ListOrderStoresHandler;
 use Modules\Sales\Application\Query\ListOrderStores\OrderStoreChoice;
 use Modules\Sales\Application\Query\ListReturns\ListReturns;
 use Modules\Sales\Application\Query\ListReturns\ListReturnsHandler;
+use Modules\Sales\Application\Query\PreviewReturnRefund\PreviewReturnRefund;
+use Modules\Sales\Application\Query\PreviewReturnRefund\PreviewReturnRefundHandler;
 use Modules\Sales\Application\Query\SalesActions\SalesActionsForReader;
 use Modules\Sales\Application\Query\Staff\CustomerName;
 use Modules\Sales\Application\Query\Staff\StaffReturnRow;
@@ -30,8 +32,8 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class ReturnPages
 {
-    /** The tabs §4.1 P5 lists, one state each; Closed joins them once the backend reads the group (§4.2 B11). */
-    public const array TABS = ['REQUESTED', 'ACCEPTED', 'RECEIVED', 'COMPLETED'];
+    /** The tabs §4.1 P5 lists: one state each, then Closed - refused, withdrawn and closed together (§4.2 B11). */
+    public const array TABS = ['REQUESTED', 'ACCEPTED', 'RECEIVED', 'COMPLETED', 'CLOSED_ALL'];
 
     public function __construct(
         private Application $app,
@@ -87,7 +89,7 @@ final readonly class ReturnPages
     /**
      * @throws Unauthorized
      */
-    public function view(string $returnId, ViewReturnHandler $view): ReturnPage
+    public function view(string $returnId, ViewReturnHandler $view, PreviewReturnRefundHandler $previews): ReturnPage
     {
         $return = $view->handle(new ViewReturn($returnId));
         $store = $this->platform->store(StoreId::fromString($return->storeId));
@@ -134,7 +136,16 @@ final readonly class ReturnPages
             $return->refundDue === null ? null : self::decimal($return->refundDue->minorUnits, $return->exponent),
             $store->timezone ?? 'UTC',
             $return->exponent,
+            $return->status === 'RECEIVED' && $actions->mayManageReturns ? $this->preview($returnId, $return->storeId, $previews) : null,
         );
+    }
+
+    private function preview(string $returnId, string $storeId, PreviewReturnRefundHandler $previews): ReturnPreviewData
+    {
+        $preview = $previews->handle(new PreviewReturnRefund($returnId));
+        $money = fn (Money $amount): MoneyData => $this->money($amount, $storeId, $preview->exponent);
+
+        return new ReturnPreviewData($money($preview->goods), $money($preview->vat), $money($preview->shipping), $money($preview->shippingVat), $money($preview->total));
     }
 
     /** The refund in its decimals, as Record Refund reads it ("120.00"), to fill the dialog with. */

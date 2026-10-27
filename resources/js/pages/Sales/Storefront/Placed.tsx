@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { CircleCheck } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
@@ -17,7 +17,7 @@ import { Bank } from './Checkout';
 /*
 | S6 - the order placed (sales.md §4.1; R1-26, R2-18): its number and total, what happens next, and for a bank
 | transfer the store's details again with an Upload Transfer Receipt box - up to three files, a PDF or a photo
-| (§1.9). The link to the order comes with My Orders.
+| (§1.9); and the link to the order.
 */
 
 const W = 'sales::shop_checkout';
@@ -39,12 +39,16 @@ export default function Placed(page: PlacedPage) {
                         <CircleCheck aria-hidden="true" className="size-10 text-ink" />
                         <h1 className="text-heading-24 text-ink">{t(`${W}.placed.title`)}</h1>
                         <p className="text-label-16 text-ink">
+                            {t(`${W}.placed.number`, { number: '' })}
                             <bdi dir="ltr" className="tw-figure">
-                                {t(`${W}.placed.number`, { number: page.number })}
+                                {page.number}
                             </bdi>{' '}
                             · <Money value={page.total} />
                         </p>
                         <p className="text-copy-14 text-ink-muted">{t(`${W}.placed.next`)}</p>
+                        <Link href={link('storefront.sales.order', { number: page.number })} className="text-copy-14 text-ink underline underline-offset-4" data-test="view-order">
+                            {t(`${W}.placed.view`)}
+                        </Link>
                     </CardContent>
                 </Card>
 
