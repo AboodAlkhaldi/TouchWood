@@ -164,6 +164,13 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
     // Closed, the notice stays away: the cart again has none.
     $page->click('[data-test="close-notice"]');
     expect(browserUntil($page, "!document.querySelector('[data-test=\"cart-notice\"]')"))->toBeTrue();
+
+    // The page hides it at once; the server's answer comes after - waited for before the cart is asked again.
+    for ($tries = 0; $tries < 50 && DB::table('sales.carts')->where('id', $cart->id)->value('notice') !== null; $tries++) {
+        usleep(100_000);
+    }
+
+    expect(DB::table('sales.carts')->where('id', $cart->id)->value('notice'))->toBeNull();
     $page->navigate('/sa/en/cart');
     expect(browserUntil($page, "document.querySelector('[data-test=\"cart-summary\"]') !== null && !document.querySelector('[data-test=\"cart-notice\"]')"))->toBeTrue();
 
