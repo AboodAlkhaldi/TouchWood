@@ -1532,3 +1532,7 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
     **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
     snapshotted is the one used again.
 13. **Voiding an `ONLINE` record** — payments.md §9.3 #12.
+14. **Test orders numbered apart** (owner, 2026-10-27; payments.md §1.6, §9.4 #3): an order placed while
+    its store's gateway is in TEST takes the number `TEST-0001`, `TEST-0002`… from a counter of its own
+    per store, so the real `SA-0001` counter is untouched; the order carries `is_test`, is left out of
+    every figure, and is never marked shipped.

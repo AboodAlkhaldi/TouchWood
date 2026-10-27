@@ -277,7 +277,19 @@ customer goes back to the same page (rule 2). As many times as they like within 
   real (below), so it can never send goods out unpaid.
 - **Every attempt and transaction carries its mode.** A TEST payment never counts as real money: it is
   marked TEST on the order, in every list and on the receipt, and **left out of every money figure**
-  (home cards, reports). How Sales treats an order placed in TEST — question §9.4 #3.
+  (home cards, reports).
+- **Every order placed while the store is in TEST is a test order** (owner, 2026-10-27, §9.4 #3: (a)),
+  whatever the way to pay: numbered apart (`TEST-0001`, sales.md §9.5 #14), so real order numbers still
+  start at `SA-0001` on launch day; marked TEST everywhere; left out of every figure; **never marked
+  shipped**.
+- **Launch day** (owner, 2026-10-27, §9.4 #4: (a)): the staging database becomes the real one —
+  products, prices, stores and staff are kept, the test orders stay marked TEST. The go-live checklist
+  (§9.3 #6) holds: the LIVE key and secret entered again on the real domain; the notice address in
+  MyFatoorah's portal changed to the real domain's; **the staging site locked from the public while it
+  is used** (the owner's reminder, 2026-10-27) — **with `/payments/notice/…` left open**, or
+  MyFatoorah's notices cannot reach it; the scheduler and the queue worker running on the server (the
+  background check, the timer and the expiry all run there); `TRUSTED_PROXIES` and
+  `SESSION_SECURE_COOKIE` set for the host (handoff §15.4).
 - While a store is in TEST: a banner on every admin page of that store, and the settings line (§1.2).
 - In TEST, MyFatoorah converts to KWD (notes §1.9): the amount check (rule 7) compares the **pay
   currency** value; in TEST the currency rule of rule 7 is checked against that pay currency, in LIVE
@@ -593,6 +605,7 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 | §9.3 #3 | The first pick fails: an off store takes no orders — open again as §9.4 #1 | 2026-10-27 |
 | §9.4 #1 | The system acts as usual: TEST is a store setting on any store, said at checkout; testing on the staging subdomain; LIVE before the real domain | 2026-10-27 |
 | §9.4 #2 | (a): a banner now; the Payment problems notification with Ops | 2026-10-27 |
+| §9.4 #3, #4 | (a): orders placed in TEST numbered `TEST-0001`, never shipped; the staging database becomes the real one | 2026-10-27 |
 | — | New API keys, not the legacy one; methods on: Visa, Mastercard, Mada, Apple Pay, Apple Pay (Mada), STC Pay; fee on the vendor; SAR two decimals; no min/max | 2026-10-27 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
@@ -666,12 +679,32 @@ addition** (§1.2); **#3 open again** (§9.4 #1). The questions are kept as they
 1. **Where test mode runs** — answered: the system acts as usual, TEST on any store, said at checkout;
    testing on the staging subdomain before the real domain opens (§1.6).
 2. **Telling the Super Admins before the key expires** — answered: (a) (§1.2).
-3. **Orders placed while a store is in TEST** — open: (a) **every order placed while the store is in
+3. **Orders placed while a store is in TEST** — answered (a): (a) **every order placed while the store is in
    TEST is a test order** (whatever the way to pay): numbered apart (`TEST-0001`), so real order numbers
    still start at `SA-0001` on launch day; marked TEST everywhere, left out of every figure, and never
    marked shipped **[Recommended]**; (b) only orders paid online in TEST are test orders, numbered as
    usual — the staging orders then take `SA-0001` onwards.
-4. **The staging data on launch day** — open: (a) the staging database becomes the real one: products,
+4. **The staging data on launch day** — answered (a): (a) the staging database becomes the real one: products,
    prices, stores and staff are kept; the test orders stay, marked TEST and outside every figure; the
    keys and the MyFatoorah notice address are entered again for the real domain **[Recommended]**;
    (b) a new empty database, and everything entered again.
+
+### 9.5 Still open — found by the gap check of 2026-10-27
+
+1. **A cancellation while a payment is being checked** (`UNKNOWN`, or a try in progress). The timer waits
+   for the gateway's answer (§1.7); a customer's or staff's cancellation does not, so money paid a moment
+   later becomes a refund due. (a) **The customer's cancel waits too** ("Your payment is being checked —
+   try again in a few minutes"); **staff are warned** and may cancel anyway **[Recommended]**; (b) both
+   cancel at once, as today.
+2. **A store switched off while payments are open.** The customer's return page is a shop page, and an
+   off store's shop pages answer 404 (platform.md §1.6) — a customer who just paid would see "not found"
+   (the payment is still recorded by the notice and the background check). (a) **The return page keeps
+   working for an order already placed** in that store, showing that order's result only **[Recommended]**;
+   (b) the 404 stays.
+3. **A customer disputes the charge with their bank** (a chargeback): MyFatoorah sends a notice for it
+   (`DISPUTE_STATUS_CHANGED`, notes §5) and the money is taken back. (a) **Like refunds, staff's
+   business**: our notice address answers it without acting, staff record it in Sales by hand
+   **[Recommended]**; (b) Payments records disputes and flags the order.
+4. **A gateway switched off by the Super Admin while attempts are open**: (a) the open attempts are still
+   checked until each closes, so no paid money is lost; only new "Pay now" stops **[Recommended]**;
+   (b) everything stops at once.
