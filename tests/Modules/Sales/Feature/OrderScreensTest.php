@@ -365,6 +365,41 @@ describe('P7 · A customer\'s orders on the staff customer page', function () {
     });
 });
 
+describe('P4 · Editing an order', function () {
+    it('shows the lines to edit, previews the edit with the money in words, and confirms it with a reason', function () {
+        $order = orderScreensOrder();
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+        $page = orderScreensProps($browser, "/admin/orders/{$order}/edit", 'Sales/Admin/Orders/Edit');
+        $lines = array_map(static fn (array $line): array => ['variantId' => $line['variantId'], 'mode' => $line['mode'], 'quantity' => $line['quantity'] + 1], $page['lines']);
+        $query = http_build_query(['lines' => $lines, 'gift' => 'KEEP']);
+
+        $sizes = $browser->get("/admin/orders/{$order}/edit/sizes?q=")->assertOk()->json();
+        $preview = $browser->get("/admin/orders/{$order}/edit/preview?{$query}")->assertOk()->json();
+        $noReason = $browser->post("/admin/orders/{$order}/edit", ['lines' => $lines, 'gift' => 'KEEP', 'reason' => '']);
+        $saved = $browser->post("/admin/orders/{$order}/edit", ['lines' => $lines, 'gift' => 'KEEP', 'reason' => 'The customer asked for one more of each']);
+
+        expect(count($page['lines']))->toBe(2)
+            ->and(is_array($sizes))->toBeTrue()
+            ->and($preview['money'])->toBe('MORE')
+            ->and($preview['total']['minor'])->toBeGreaterThan($preview['before']['minor'])
+            ->and(AdminBrowser::formError($noReason))->not->toBeNull()
+            ->and($saved->headers->get('Location'))->toEndWith("/admin/orders/{$order}")
+            ->and(AdminBrowser::flashed($saved, 'status'))->toBe('Order edited.')
+            ->and((int) DB::table('sales.orders')->where('id', $order)->value('order_total_minor'))->toBe($preview['total']['minor']);
+    });
+
+    it('refuses the edit page to a reader without the job, and answers a refused preview in its own words', function () {
+        $order = orderScreensOrder();
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+
+        orderScreensStaff([SalesPermissions::ORDER_VIEW])->get("/admin/orders/{$order}/edit")->assertForbidden();
+        $refused = $browser->get("/admin/orders/{$order}/edit/preview?gift=KEEP");
+
+        expect($refused->getStatusCode())->toBe(422)
+            ->and($refused->json('refused'))->toBeString();
+    });
+});
+
 describe('P3 · The packing slip', function () {
     it('prints the lines with their codes', function () {
         $order = orderScreensOrder();

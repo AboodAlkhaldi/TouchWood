@@ -93,6 +93,57 @@ export type CustomerOrdersSectionData = {
 customerId: string,
 orders: OrderRowData[],
 };
+export type EditGiftData = {
+levelId: string,
+name: string,
+amount: MoneyData,
+};
+export type EditLineData = {
+variantId: string,
+mode: string,
+name: string,
+values: string,
+code: string,
+quantity: number,
+unit: MoneyData,
+ticked: boolean,
+};
+export type EditPage = {
+id: string,
+number: string,
+audience: string,
+lines: EditLineData[],
+gift: string | null,
+addresses: CheckoutAddressData[],
+address: string,
+total: MoneyData,
+paid: MoneyData,
+storeTimezone: string,
+};
+export type EditPreviewData = {
+subtotal: MoneyData,
+coupon: MoneyData | null,
+points: MoneyData | null,
+shipping: MoneyData,
+vat: MoneyData,
+total: MoneyData,
+before: MoneyData,
+money: string,
+difference: MoneyData,
+gifts: EditGiftData[],
+giftLevelId: string | null,
+};
+export type EditSizeData = {
+variantId: string,
+name: string,
+values: string,
+code: string,
+retail: MoneyData | null,
+retailBefore: MoneyData | null,
+wholesale: MoneyData | null,
+wholesaleMinimum: number | null,
+available: number | null,
+};
 export type MoneyRecordData = {
 id: string,
 kind: string,

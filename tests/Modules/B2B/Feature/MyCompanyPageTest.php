@@ -139,7 +139,7 @@ it('offers a company account its page from the account, and tells it on every sh
         ->and($props['maxFileBytes'])->toBe(10 * 1024 * 1024)
         ->and($props['phoneConfirmed'])->toBeTrue()
         ->and(array_column($props['companyTypes'], 'nameEn'))->toContain('Limited Liability Company')
-        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company'], ['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
+        ->and($props['accountMenu']['pages'])->toBe([['key' => 'b2b.company', 'label' => 'Company Account', 'routeName' => 'storefront.company'], ['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'sales.orders', 'label' => 'My Orders', 'routeName' => 'storefront.sales.orders'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
         ->and($props['shopperLines'])->toBe([['text' => 'Continue Company Application', 'routeName' => 'storefront.company', 'tone' => 'info']]);
 });
 
@@ -160,7 +160,7 @@ it('refuses an individual account the page, and offers it neither the page nor a
     $browser->get('/sa/en/account')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         // Only the pages offered to every account: Promotions' Coupons (promotions.md §4.1 M5) and Feedback's
         // three (feedback.md §4.1 F8).
-        ->where('accountMenu.pages', [['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
+        ->where('accountMenu.pages', [['key' => 'promotions.coupons', 'label' => 'My Coupons', 'routeName' => 'storefront.promotions.coupons'], ['key' => 'sales.orders', 'label' => 'My Orders', 'routeName' => 'storefront.sales.orders'], ['key' => 'feedback.reviews', 'label' => 'My Reviews', 'routeName' => 'storefront.feedback.reviews'], ['key' => 'feedback.questions', 'label' => 'My Questions', 'routeName' => 'storefront.feedback.questions'], ['key' => 'feedback.wishlist', 'label' => 'My Wishlist', 'routeName' => 'storefront.feedback.wishlist']])
         ->where('shopperLines', []));
 });
 

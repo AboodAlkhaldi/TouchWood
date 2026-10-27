@@ -23,6 +23,10 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('orders/files/{media}', [OrdersController::class, 'file'])->name('sales.admin.orders.file');
         Route::get('orders/{order}', [OrdersController::class, 'show'])->name('sales.admin.orders.show');
         Route::get('orders/{order}/print', [OrdersController::class, 'print'])->name('sales.admin.orders.print');
+        Route::get('orders/{order}/edit', [OrdersController::class, 'edit'])->name('sales.admin.orders.edit');
+        Route::get('orders/{order}/edit/sizes', [OrdersController::class, 'editSizes'])->name('sales.admin.orders.edit.sizes');
+        Route::get('orders/{order}/edit/preview', [OrdersController::class, 'editPreview'])->name('sales.admin.orders.edit.preview');
+        Route::post('orders/{order}/edit', [OrdersController::class, 'saveEdit'])->name('sales.admin.orders.edit.save');
         Route::post('orders/{order}/approve', [OrdersController::class, 'approve'])->name('sales.admin.orders.approve');
         Route::post('orders/{order}/reject', [OrdersController::class, 'reject'])->name('sales.admin.orders.reject');
         Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('sales.admin.orders.cancel');
