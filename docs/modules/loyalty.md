@@ -978,3 +978,21 @@ written, for the owner to review with the built screens. Each says what changing
 | P6 | **The search matches email and phone only among customers the reader may already view** (names in every store), so an email or phone typed in never reveals who owns it — the review of 2026-10-19 found that matching them everywhere would show more than answer 7's "the name only" | The search's query, in Access |
 | P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; **the owner, 2026-10-19: left as is** | One check in the handler |
 | P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |
+
+### 9.6 Stage 7 — **[PROPOSED 2026-10-28]**: points reserved while the customer pays online
+
+Waiting for the owner's acceptance of payments.md. **Online, no order exists until the money is
+confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the points it
+spends for its few minutes, and a try that does not pay must give them back as if they had never been
+used. The built `redeem` needs the order's number. Three new operations, beside `redeem` (which stays for
+placing as built):
+
+1. **`reserveRedemption(orderId, customerId, storeId, points, …)`** — at Pay, under the order's future id:
+   every check of `redeem`; refused or changed exactly as `redeem` is. **Reserved points are not
+   spendable** elsewhere while the reservation lasts; the customer's balance shows them as "held for a
+   payment".
+2. **`confirmRedemption(orderId, orderNumber)`** — when the order is created: the reservation becomes the
+   order's redemption, as `redeem` would have recorded it; `orderCancelled` and the returns then work on
+   it as built. Once.
+3. **`releaseRedemption(orderId)`** — the try did not pay: the points are free again **with their own
+   dates**, and no redemption is recorded. Once; nothing to release does nothing.

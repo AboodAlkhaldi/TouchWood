@@ -1481,8 +1481,8 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    - `SERVED`: the carriers; the customer picks one when two or more serve the place (the cheapest
      picked first — shipping.md §9.3 #2); the carrier and its fee are snapshotted.
    - `NOT_COVERED` / `OUTSIDE`: placed with **no carrier and the fee "to be set"**; the way to pay is
-     forced to "staff will contact you"; the order is marked **"Shipping fee to be set"** and is never
-     cancelled by the payment timer; staff set the fee later as an edit (§1.7).
+     forced to "staff will contact you"; the order is marked **"Shipping fee to be set"**; staff set the
+     fee later as an edit (§1.7).
    - `OTHER_STORE`: refused, naming the store.
 
    §1.10's `sales.shipping.flat_fee` and `sales.shipping.free_above` are removed.
@@ -1490,33 +1490,70 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    the one ordered — owner, 2026-10-27 S17), with the tracking number and/or a full tracking link typed
    by staff (S7). The customer sees **Track** only when there is a link (the carrier's pattern with the
    number, or the typed link).
-4. **Online payment** (payments.md §1.4): for an individual in a store whose gateway is on, "Pay online"
-   is offered (`PaymentsApi::availability`). After placing, Sales calls `start` and sends the customer to
-   MyFatoorah's page. The order page shows Paid, Not paid — Pay now, or We are confirming your payment.
-5. **The time to pay**: new settings `sales.payment.minutes_to_pay` (**60**, owner 2026-10-19 P2) and
-   `sales.payment.grace_minutes` (**5**, owner 2026-10-27), changed by Super Admins (P2). An online order
-   not paid by then is **cancelled by the system** with the reason "payment not completed": stock,
-   points and the coupon's use go as §1.6 says for any cancellation. Staff see these orders like any
-   other (P2).
-6. **The revive** (owner, 2026-10-19 P5): a `PaymentSucceeded` **paid** (the gateway's own time —
-   payments.md §1.7) inside the time or the grace window, for an order the **timer** cancelled, brings it
-   back: the hold and the points are taken again — **not the coupon**, whose use a cancellation keeps
-   counted (§1.6), so it is still the order's. If either fails, the order stays cancelled and the money
-   is a refund due. Before the timer cancels, Sales asks `PaymentsApi::refresh`: a payment `UNKNOWN` or
-   in progress **holds the cancellation** until the gateway answers. Any other late payment (after the
-   grace window, or for an order cancelled by staff, by the customer or for stock) is recorded and is a
-   refund due.
+4. **Online payment — no order until it is paid** (owner, 2026-10-28; payments.md §1.4). `PlaceOrder`
+   stays as built for "staff will contact you" and bank transfer. For an individual in a store whose
+   gateway is on (`PaymentsApi::availability`), the checkout shows **MyFatoorah's form** in its payment
+   block (`openSession` for the quote — it lives as long as the quote's 15 minutes), and **Pay** is a new
+   use case, **`PayOnline(quoteId, sessionId)`**:
+   - **One transaction**: the quote and the cart locked; **a live try on this cart** →
+     `PaymentInProgress` (the same quote and session again — a double click — answers the same try);
+     **§1.3 step 3 again**, refusing with `QuoteChanged` as built — **nothing reserved**, the customer
+     stays on checkout and sees what changed; then **the reservations** (#5) under **the order's future
+     id** (a ULID made now); then **the try** written — `sales.checkout_tries` (#11) — `LIVE`. Committed.
+   - Then `PaymentsApi::pay` (the try's id, the order's future id, the session, the quote's total — never
+     an amount from the page). The page follows payments.md §1.4 steps 5–9.
+   - **`PaymentSucceeded` for a try → the order is created** (`CompleteOnlineOrder`), once, under the
+     try's lock: §1.3 steps 2, 6, 7 and 8 from the try's quote — **the order number is taken now**, the
+     fact segments recorded, everything snapshotted, `OrderPlaced` — the reservations **confirmed** to the
+     order (#5), the cart emptied of what was bought (as built), the try `PAID`, and the `ONLINE` payment
+     recorded (#7). **The quote's own 15 minutes do not matter here** (the money was taken on it; §1.3
+     step 1 already answers a quote after its expiry), and §1.3 step 3 is **not** run again — it ran at
+     Pay and the reservations hold. **A store switched off meanwhile still gets the order**
+     (payments.md §1.10).
+   - **`PaymentFailed` or `PaymentNotTaken` for a try → the try is released** (`ReleaseTry`), once:
+     every reservation given back with **nothing counted** (#5), the try `RELEASED`, the cart untouched.
+   - **Checkout opened again while a try is live** → `PaymentsApi::refresh`: nothing in progress → the
+     try released there and then — as if Pay had never been pressed; in progress → "Your last payment is
+     being confirmed"; paid → the new order (payments.md §1.4 step 8). A second window while a try is
+     live shows no form (step 9).
+   - **A success for a try already released** (payments.md §1.7): `CompleteOnlineOrder` takes the
+     reservations **again** (all or nothing) and, if it can, creates the order as above; if it cannot,
+     **no order**, the try keeps the payment as **a refund due**, and Payments lists the attempt as needing
+     attention (it knows the success came after it reported nothing taken).
+   - **Staff never see a try as an order** (the owner, 2026-10-28: "his order won't be created and shown
+     to staff until it's paid"); tries are seen only in Payments' list.
+5. **Reservations for a try** (payments.md §9.2 #2–#4):
+   - **Stock** — `InventoryApi::hold` under the order's future id, **with no expiry**, as at placing; the
+     order keeps the same hold when it is created (same id), and `release` gives it back. To check in the
+     build: a hold again for an id Inventory released (a late success, #4).
+   - **The coupon** — Promotions' **reserve / confirm / release** (promotions.md §9.5): reserved at Pay
+     (every check of `useCoupon`, counted toward its limits while reserved), **confirmed with the order's
+     number** when the order is created, **released with nothing counted** otherwise. The built
+     `useCoupon` cannot do it: it needs the order's number and "a use never comes back".
+   - **The points** — Loyalty's **reserve / confirm / release** (loyalty.md §9.6), the same way; the
+     built `redeem` needs the order's number.
+   - **The order of the locks** stays §1.3's (Sales's own first, then Promotions, Loyalty, Inventory last).
+6. **The timers are Payments'** (payments.md §1.7): the 5-minute window from Pay and the wait for an
+   answer in flight, as Payments' settings. **No timer cancels an order** — none exists until it is paid —
+   so the planned `sales.payment.minutes_to_pay` (60) and `sales.payment.grace_minutes`, the cancel
+   reason `PAYMENT_NOT_COMPLETED` and **the revive are dropped** (owner, 2026-10-28, replacing 2026-10-19
+   P2 and P5).
 7. **Recording**: `PaymentSucceeded` → an `ONLINE` payment (`reference` = the gateway's payment id,
-   unique, so twice is once), carrying the TEST mark and the mismatch flag (payments.md §1.1 rule 6,
-   §1.6). For an order placed in TEST, see payments.md §9.4 #3.
-8. **Further payments** (payments.md §1.5; owner, 2026-10-19 P6): when an edit leaves the order holding
-   less than is due, staff choose **"Request payment"** (Payments' request, 60 minutes) or **"Handle by
-   hand"**. The customer pays from the order page.
+   unique, so twice is once), carrying the TEST mark and the mismatch flag (payments.md §1.1 rules 6, 8,
+   §1.6) — on the new order (#4) or, for a payment request, on its order. A second success on one attempt
+   is a second payment — a refund due (payments.md §1.1 rule 3).
+8. **Payment requests** (payments.md §1.5; owner, 2026-10-19 P6, 2026-10-28 Q5): when an edit leaves the
+   order holding less than is due, staff choose **"Request payment"** (open 60 minutes) or **"Handle by
+   hand"**. The customer pays on **the request's own page** — `/{store}/{locale}/orders/{number}/pay` —
+   with the same form and timers; paid → #7. **Staff edits wait while a payment is in progress on the
+   order** (`PaymentsApi::refresh` says so), with the reason shown. A customer's cancellation while a
+   request is being paid — payments.md §9.6 #5.
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).
 10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
-    §2.1: `options` becomes `quote`, `methods` goes, and `PaymentExpired` is consumed.
+    §2.1: `options` becomes `quote`; `methods` and `start` go — `openSession` and `pay` replace them; and
+    `PaymentNotTaken` is consumed.
 11. **The orders table** (the review found the built schema cannot hold a stage 7 order):
     - a **`carrier_id`** (Shipping's, no key) and the carrier's names, **snapshotted at placement**; the
       check `orders_carrier` (carrier set exactly when shipped) becomes: the **shipping carrier** is set
@@ -1525,16 +1562,25 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
       cleared when staff set the fee (never inferred from a 0 fee — 0 is a real fee);
     - the free-above amount snapshotted is **the one that applied** (the carrier's or the store-wide
       one), with which it was (`CARRIER`, `STORE`);
-    - a cancel reason **`PAYMENT_NOT_COMPLETED`** for the timer (it is no staff's and no customer's);
     - the tracking link typed by staff (S7), beside the number; **the full link is stored on the order
       when it is marked shipped** (made from the carrier's pattern then, or typed), and the carrier's
-      names at placing — so a carrier deleted later (shipping.md §1.3, owner 2026-10-28) breaks no order.
+      names at placing — so a carrier deleted later (shipping.md §1.3, owner 2026-10-28) breaks no order;
+    - **`sales.checkout_tries`** (#4): `id` ULID PK · `store_id` · `buyer` (customer or guest, as the cart)
+      · `cart_id` · `quote_id` · `order_id` (the order's future id) UNIQUE · `state` CHECK (`LIVE`,
+      `PAID`, `RELEASED`) · `refund_due_minor` NULL (#4's late success with no order) · `created_at`,
+      `ended_at` NULL · **one live try per cart** (a unique partial index on `cart_id` WHERE `state =
+      'LIVE'`).
 12. **Edits after placing** (§1.7 step 5 works shipping out again from the order's snapshot): **staff
     set the fee** of a "fee to be set" order as an edit of its own ("Set the shipping fee"); a changed
     **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
     snapshotted is the one used again.
-13. **Voiding an `ONLINE` record** — payments.md §9.3 #12.
+13. **Voiding an `ONLINE` record** (owner, 2026-10-27, payments.md §9.3 #12): **a real one is never
+    voided** — a mistake is fixed by a refund; a TEST one may be.
 14. **Test orders numbered apart** (owner, 2026-10-27; payments.md §1.6, §9.4 #3): an order placed while
-    its store's gateway is in TEST takes the number `TEST-0001`, `TEST-0002`… from a counter of its own
+    its store's gateway is in TEST — an online one when it is paid (#4) — takes the number `TEST-0001`,
+    `TEST-0002`… from a counter of its own
     per store, so the real `SA-0001` counter is untouched; the order carries `is_test`, is left out of
     every figure, and is never marked shipped.
+15. **Order numbers** (owner, 2026-10-28: "ok for the no gaps"): **an online order takes its number only
+    when it is paid** (#4), so a try that never pays leaves no gap. The rare gap of §1.3 step 2 (a
+    placement that fails after taking its number) stays, as the owner accepted on 2026-10-26.
