@@ -35,6 +35,9 @@ final readonly class ListReturnsHandler
 
     private const array STATES = [ReturnState::REQUESTED, ReturnState::ACCEPTED, ReturnState::REFUSED, ReturnState::WITHDRAWN, ReturnState::RECEIVED, ReturnState::COMPLETED, ReturnState::CLOSED];
 
+    /** The "Closed" tab: every return that ended without a refund (owner, R1-50). */
+    public const string CLOSED_ALL = 'CLOSED_ALL';
+
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
@@ -54,7 +57,13 @@ final readonly class ListReturnsHandler
             throw new Unauthorized(self::PERMISSION);
         }
 
-        $status = $query->status === null ? null : (in_array(strtoupper($query->status), self::STATES, true) ? strtoupper($query->status) : throw new InvalidSalesAttribute('status', 'a return\'s state'));
+        $asked = $query->status === null ? null : strtoupper(trim($query->status));
+        $statuses = match (true) {
+            $asked === null => null,
+            $asked === self::CLOSED_ALL => [ReturnState::REFUSED, ReturnState::WITHDRAWN, ReturnState::CLOSED],
+            in_array($asked, self::STATES, true) => [$asked],
+            default => throw new InvalidSalesAttribute('status', 'a return\'s state, or CLOSED_ALL'),
+        };
 
         if ($query->storeId !== null) {
             $store = Ulids::valid(strtolower(trim($query->storeId))) ? StoreId::fromString(strtolower(trim($query->storeId))) : throw new InvalidSalesAttribute('store', 'a store');
@@ -71,7 +80,7 @@ final readonly class ListReturnsHandler
             return new StaffReturnsPage([], null);
         }
 
-        $rows = $this->reads->returns($stores, $status, $after, self::PAGE + 1);
+        $rows = $this->reads->returns($stores, $statuses, $after, self::PAGE + 1);
         $page = array_slice($rows, 0, self::PAGE);
         $customers = $this->reader->customers(array_map(static fn (array $row): string => (string) $row['customer_id'], $page));
 
