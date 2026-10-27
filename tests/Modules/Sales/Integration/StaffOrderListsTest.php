@@ -194,13 +194,14 @@ it('shows a customer\'s latest orders on the staff customer page, none to a read
     $section = app(OrdersCustomerSection::class)->sectionFor($customer);
 
     expect(count($section['orders'] ?? []))->toBe(10)
-        ->and(array_column($section['orders'] ?? [], 'orderId'))->not->toContain($first)
-        ->and(array_column($section['orders'] ?? [], 'orderId'))->not->toContain($someoneElses)
-        ->and(array_keys($section['orders'][0] ?? []))->toBe(['orderId', 'number', 'storeId', 'placedAt', 'status', 'shipment', 'payment', 'customerStatus', 'total', 'shortOfStock', 'mayShipUnpaid'])
-        ->and($section['orders'][0]['total']['currency'] ?? null)->toBe('SAR');
+        ->and(array_column($section['orders'] ?? [], 'id'))->not->toContain($first)
+        ->and(array_column($section['orders'] ?? [], 'id'))->not->toContain($someoneElses)
+        // Each order as the panel's list draws it (§4.1 P7), its total written by the server.
+        ->and(array_keys($section['orders'][0] ?? []))->toBe(['id', 'number', 'storeCode', 'placedAt', 'customer', 'status', 'shipment', 'payment', 'total', 'shortOfStock'])
+        ->and([$section['customerId'] ?? null, $section['orders'][0]['storeCode'] ?? null, array_keys($section['orders'][0]['total'] ?? [])])->toBe([strtolower($customer), 'sa', ['text', 'minor']]);
 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['eg']));
-    expect(app(OrdersCustomerSection::class)->sectionFor($customer))->toBe(['orders' => []]);
+    expect(app(OrdersCustomerSection::class)->sectionFor($customer))->toBe(['customerId' => strtolower($customer), 'orders' => []]);
 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['sa']));
     expect(app(OrdersCustomerSection::class)->sectionFor($customer))->toBeNull();

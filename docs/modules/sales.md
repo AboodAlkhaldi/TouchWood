@@ -786,8 +786,8 @@ the order's store.
   suggestions; the carrier is still typed freely (§1.5).
 - **`ListCustomerOrders(customerId)`** → `list<StaffOrderRow>`: the customer's 10 latest orders in the stores
   listed to the reader — the staff customer page's **`sales.orders`** section (access.md amendment 72(a)):
-  `CustomerOrdersSectionData{orders: list<CustomerOrderData{orderId, number, storeId, placedAt, status,
-  shipment, payment, customerStatus, total {amount, currency}, shortOfStock, mayShipUnpaid}>}`; no section
+  `CustomerOrdersSectionData{customerId, orders: list<OrderRowData>}` — each order as the panel's list draws it,
+  its total written by the server in the store's own way (§4.1 P7; the screens' change of PR A's first shape); no section
   for a reader who views no orders.
 - **`ViewOrder(orderId)`** → `StaffOrderView`: the own view's facts (§3.1) plus the customer by name and **the
   contact the order was placed with** (name and phone — to call them before shipping, §1.7; **the email only
@@ -1066,6 +1066,8 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 | B7 | **The edit's product search** — a store's sizes by name or code, with their values, today's price and the stock available | P4 |
 | B8 | **Prices in the shop** — on the cards (now, before, for the viewer's side, and the lowest among the sizes for "From"; a guest's wholesale "from") and on the product page (each size's price and old price; wholesale bands), without VAT; Catalog keeps the listing prices Pricing pushes (catalog.md amendment 15) | S1 |
 | B9 | **What may be ticked "reduced in the provider"** — the staff view says whether the order was placed wired (`orders.wired`) and, for each line, whether it counts on stock (`order_lines.counts_on_stock`, the gift always) | P2 |
+| B10 | **A return's refund worked out before it is completed** — `PreviewReturnRefund`: the pieces' goods, their VAT share, and the shipping with its VAT when it is the last bought piece, without writing | P6 |
+| B11 | **`ListReturns` by a group of states** — Closed: refused, withdrawn and closed together | P5 |
 
 ---
 

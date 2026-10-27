@@ -80,6 +80,8 @@ const ICONS = {
     questions: MessageCircleQuestion,
     favourites: Heart,
     reasons: ListChecks,
+    // Sales's Returns (sales.md §4.1): an icon the panel already draws.
+    returns: RefreshCw,
 } as const;
 
 type Props = {

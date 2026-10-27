@@ -13,8 +13,10 @@ use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Staff\StaffReads;
@@ -80,7 +82,7 @@ final class SalesServiceProvider extends ServiceProvider
         // A bank-transfer document an order holds, and a photo a return holds, are never deleted (§1.8, §1.9, §5).
         $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
         // A customer's latest orders on the staff customer page (§3.2; access.md amendment 72(a)).
-        $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class));
+        $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class, ['sales::admin_orders'], 30));
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
@@ -100,5 +102,17 @@ final class SalesServiceProvider extends ServiceProvider
             // The shop's Best-Selling ranks (§1.13).
             $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
         });
+
+        // The screens (§4.1): the Sales group's Orders and Returns, for staff who view the store's orders. What is offered
+        // is never what is allowed: every handler behind it asks again (handoff §19).
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('sales', 'orders', 'orders', 'sales.admin.orders', SalesPermissions::ORDER_VIEW, 10, icon: 'orders'),
+            new MenuEntryDto('sales', 'returns', 'orders', 'sales.admin.returns', SalesPermissions::ORDER_VIEW, 20, icon: 'returns'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
     }
 }

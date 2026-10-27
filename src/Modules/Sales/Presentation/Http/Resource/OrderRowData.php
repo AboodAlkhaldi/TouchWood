@@ -4,28 +4,24 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\MoneyData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
-/**
- * An order on the staff customer page (sales.md §3.2): `StaffOrderRow` without the customer, its moment
- * in UTC with milliseconds; `status` and `shipment` staff's machines, `payment` and `customerStatus` the
- * enums' values.
- */
+/** An order in the panel's list (§4.1 P1): its number, store, when, who, its three states and total. */
 #[TypeScript]
-final class CustomerOrderData extends Data
+final class OrderRowData extends Data
 {
     public function __construct(
-        public string $orderId,
+        public string $id,
         public string $number,
-        public string $storeId,
+        public string $storeCode,
         public string $placedAt,
+        public OrderCustomerData $customer,
         public string $status,
         public string $shipment,
         public string $payment,
-        public string $customerStatus,
         public MoneyData $total,
         public bool $shortOfStock,
-        public bool $mayShipUnpaid,
     ) {}
 }
