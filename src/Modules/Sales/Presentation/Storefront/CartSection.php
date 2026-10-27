@@ -15,7 +15,8 @@ use Modules\Catalog\Public\Dto\ShopProductVisitDto;
  */
 final readonly class CartSection implements ShopProductSection
 {
-    public function read(ShopProductVisitDto $visit): ?array
+    /** @return array{offered: true} */
+    public function read(ShopProductVisitDto $visit): array
     {
         return ['offered' => true];
     }
