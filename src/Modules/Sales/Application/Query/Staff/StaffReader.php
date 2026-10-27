@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\Staff;
 
+use Carbon\CarbonImmutable;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Sales\Domain\Service\OrderStatuses;
+use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /** What staff's reads share: customers by name only, staff by the name the reader may see, a currency's exponent. */
@@ -33,6 +36,24 @@ final readonly class StaffReader
         }
 
         return $names;
+    }
+
+    /**
+     * A row of `StaffReads::orders` as staff's lists show it — ListOrders and the customer page's orders.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public function orderRow(array $row, CustomerName $customer): StaffOrderRow
+    {
+        $payment = OrderStatuses::payment((int) $row['due_minor'], (int) $row['paid_minor'], (int) $row['refunded_minor']);
+
+        return new StaffOrderRow(
+            (string) $row['id'], (string) $row['number'], (string) $row['store_id'], CarbonImmutable::parse((string) $row['placed_at']),
+            $customer, (string) $row['status'], (string) $row['shipment_status'], $payment,
+            OrderStatuses::customer((string) $row['status'], (string) $row['shipment_status'], $payment),
+            Money::of((int) $row['order_total_minor'], (string) $row['currency_code']), $this->exponent((string) $row['currency_code']),
+            $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'],
+        );
     }
 
     /**

@@ -146,14 +146,15 @@ it('shows staff an order: the customer by name and the contact, the money, the h
     $staff = Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::PAYMENT_RECORD, SalesPermissions::ORDER_VIEW], ['sa']);
     Fx::actAsStaff($staff);
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
-    app(RecordPaymentHandler::class)->handle(new RecordPayment($order, '100.00', 'BANK_TRANSFER', 'TX-1', null, CarbonImmutable::now()->format('Y-m-d'), (string) Str::uuid()));
+    app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'TX-1', null, CarbonImmutable::now()->format('Y-m-d'), (string) Str::uuid()));
 
     $view = app(ViewOrderHandler::class)->handle(new ViewOrder($order));
+    $due = (int) DB::table('sales.orders')->where('id', $order)->value('due_minor');
 
-    expect([$view->number, $view->status, $view->payment, $view->customer->name, $view->contactName])->toBe([$number, 'APPROVED', PaymentStatus::PartlyPaid, 'Sara Ali', 'Sara Ali'])
+    expect([$view->number, $view->status, $view->payment, $view->customer->name, $view->contactName])->toBe([$number, 'APPROVED', PaymentStatus::Paid, 'Sara Ali', 'Sara Ali'])
         ->and($view->contactPhone)->not->toBe('')
         ->and($view->decidedBy)->toBe('Staff Member')
-        ->and(array_map(fn ($row): array => [$row->kind, $row->amount->minorUnits, $row->reference], $view->money))->toBe([['PAYMENT', 100_00, 'TX-1']])
+        ->and(array_map(fn ($row): array => [$row->kind, $row->amount->minorUnits, $row->reference], $view->money))->toBe([['PAYMENT', $due, 'TX-1']])
         ->and(array_map(fn (HistoryRow $row): string => $row->kind, $view->history))->toBe(['PLACED', 'APPROVED', 'PAYMENT_RECORDED'])
         ->and($view->history[1]->by)->toBe($view->decidedBy)
         ->and(count($view->lines))->toBe(2)
@@ -217,9 +218,12 @@ it('lists the payments and refunds in the order recorded, a voided one with who 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::PAYMENT_RECORD, SalesPermissions::ORDER_VIEW], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     $today = CarbonImmutable::now()->format('Y-m-d');
-    app(RecordPaymentHandler::class)->handle(new RecordPayment($order, '100.00', 'BANK_TRANSFER', 'TX-1', null, $today, (string) Str::uuid()));
+    $due = (int) DB::table('sales.orders')->where('id', $order)->value('due_minor');
+    app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'TX-1', null, $today, (string) Str::uuid()));
     CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
-    $twice = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, '50.00', 'BANK_TRANSFER', 'TX-2', null, $today, (string) Str::uuid()));
+    // An edit raised the total by 50.00, paid as one payment more.
+    DB::table('sales.orders')->where('id', $order)->update(['due_minor' => DB::raw('due_minor + 5000'), 'order_total_minor' => DB::raw('order_total_minor + 5000')]);
+    $twice = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'TX-2', null, $today, (string) Str::uuid()));
     CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
     app(RecordRefundHandler::class)->handle(new RecordRefund($order, '30.00', 'OTHER', null, 'Cash at the counter', $today, (string) Str::uuid()));
     app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('PAYMENT', (string) $twice, 'Typed twice'));
@@ -227,7 +231,7 @@ it('lists the payments and refunds in the order recorded, a voided one with who 
     $money = app(ViewOrderHandler::class)->handle(new ViewOrder($order))->money;
 
     expect(array_map(fn ($row): array => [$row->kind, $row->amount->minorUnits, $row->way, $row->note, $row->happenedOn], $money))
-        ->toBe([['PAYMENT', 100_00, 'BANK_TRANSFER', null, $today], ['PAYMENT', 50_00, 'BANK_TRANSFER', null, $today], ['REFUND', 30_00, 'OTHER', 'Cash at the counter', $today]])
+        ->toBe([['PAYMENT', $due, 'BANK_TRANSFER', null, $today], ['PAYMENT', 50_00, 'BANK_TRANSFER', null, $today], ['REFUND', 30_00, 'OTHER', 'Cash at the counter', $today]])
         ->and([$money[0]->voidedBy, $money[1]->voidedBy, $money[1]->voidReason, $money[2]->voidedBy])->toBe([null, 'Staff Member', 'Typed twice', null])
         ->and($money[1]->voidedAt)->not->toBeNull();
 });
@@ -277,8 +281,12 @@ it('reads a list and an order in the same number of queries however many rows', 
     };
     $list = fn () => app(ListOrdersHandler::class)->handle(new ListOrders);
     $view = fn () => app(ViewOrderHandler::class)->handle(new ViewOrder($order));
-    $pay = fn (string $amount) => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, $amount, 'BANK_TRANSFER', null, null, CarbonImmutable::now()->format('Y-m-d'), (string) Str::uuid()));
-    $pay('1.00');
+    // Each payment the whole balance: a raised total (an edit's) owes one payment more.
+    $pay = function () use ($order): void {
+        app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', null, null, CarbonImmutable::now()->format('Y-m-d'), (string) Str::uuid()));
+        DB::table('sales.orders')->where('id', $order)->update(['due_minor' => DB::raw('due_minor + 100'), 'order_total_minor' => DB::raw('order_total_minor + 100')]);
+    };
+    $pay();
     [$oneRow, $oneMoney] = [$count($list), $count($view)];
 
     Fx::actAsCustomer($customer);
@@ -289,8 +297,8 @@ it('reads a list and an order in the same number of queries however many rows', 
     }
 
     Fx::actAsStaff($staff);
-    $pay('2.00');
-    $pay('3.00');
+    $pay();
+    $pay();
 
     // Measured 2026-10-25, warm: the list 2 (the orders, the customers; Platform's stores cached, Sales's
     // off-store check one more only while a store is off); the order 11 (its row, the customer, money, history,

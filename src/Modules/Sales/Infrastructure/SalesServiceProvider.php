@@ -7,7 +7,9 @@ namespace Modules\Sales\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Inventory\Public\Events\HoldsShort;
@@ -43,6 +45,7 @@ use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
+use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
@@ -76,6 +79,8 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(SettingsRegistry::class)->define('sales', ...SalesSettings::definitions());
         // A bank-transfer document an order holds, and a photo a return holds, are never deleted (§1.8, §1.9, §5).
         $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
+        // A customer's latest orders on the staff customer page (§3.2; access.md amendment 72(a)).
+        $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class));
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);

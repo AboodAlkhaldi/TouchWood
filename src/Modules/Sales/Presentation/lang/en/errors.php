@@ -106,5 +106,6 @@ return [
         'lines' => 'pieces asked',
         'filter' => 'filter',
         'status' => 'status',
+        'search' => 'search',
     ],
 ];

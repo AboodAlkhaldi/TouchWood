@@ -9,11 +9,12 @@ final readonly class RecordPayment
 {
     public function __construct(
         public string $orderId,
-        public string $amount,
         public string $way,
         public ?string $reference,
         public ?string $note,
         public string $happenedOn,
         public string $requestId,
+        /** The balance the screen showed (optional): refused when what is owed is no longer it. */
+        public ?string $shown = null,
     ) {}
 }

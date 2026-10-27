@@ -63,7 +63,8 @@ final readonly class ViewOrderHandler
             ...array_map(static fn (array $row): string => (string) $row['ticked_by'], $ticks),
         ]);
         $name = static fn (mixed $id): ?string => $id === null ? null : ($names[strtolower((string) $id)] ?? null);
-        [$lines] = $this->lines->of($order);
+        [$lines, , $counting] = $this->lines->of($order);
+        $wired = (bool) $order['wired'];
         $payment = OrderStatuses::payment((int) $order['due_minor'], (int) $order['paid_minor'], (int) $order['refunded_minor']);
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
@@ -106,6 +107,8 @@ final readonly class ViewOrderHandler
             ), $this->own->returns($orderId)),
             array_map(static fn (array $row): array => ['mediaId' => (string) $row['media_id'], 'position' => (int) $row['position'], 'uploadedAt' => CarbonImmutable::parse((string) $row['uploaded_at'])], $this->reads->transferDocuments($orderId)),
             $this->reader->exponent($currency),
+            $wired,
+            $wired ? $counting : [],
         );
     }
 }

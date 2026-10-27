@@ -99,7 +99,10 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Query/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store
   listed only while unfinished, §1.12) behind `Query/ListOrderStores`. S11c-2: `Query/ListReturns`,
   `Query/ViewReturn`, `Query/OpenOrderFile` (a transfer document or a return photo, an expiring link), SQL in
-  `Infrastructure/Eloquent/DatabaseStaffReturnReads`.
+  `Infrastructure/Eloquent/DatabaseStaffReturnReads`. For the Sales screens (2026-10-27): `ListOrders`'s
+  filters, search and customer, `Query/ListCarriers`, `Query/ListCustomerOrders` behind the customer page's
+  `Presentation/Http/Resource/OrdersCustomerSection` (`sales.orders`); payments only of the whole balance
+  (`Order/MoneyRecording`).
 - **The Best-Selling ranks** (S11a): `PushSalesRanks` (nightly through `Infrastructure/Queue/PushSalesRanksJob`;
   `Orders::piecesSold`) pushes each store's whole ranking to Catalog's `ListingFacts::salesRanks` (catalog.md
   amendment 30).

@@ -11,7 +11,7 @@ use Modules\Sales\Domain\Exception\SalesError;
 use Modules\Sales\Domain\Model\MoneyRecord;
 use Shared\Application\Unauthorized;
 
-/** Recording a payment by hand (sales.md §1.9) — through `MoneyRecording`. */
+/** Recording a payment by hand (sales.md §1.9): the whole balance still owed, never typed — through `MoneyRecording`. */
 final readonly class RecordPaymentHandler
 {
     public const string PERMISSION = SalesPermissions::PAYMENT_RECORD;
@@ -30,6 +30,6 @@ final readonly class RecordPaymentHandler
     {
         [$orderId, , $staffId] = $this->access->authorize(self::PERMISSION, $command->orderId);
 
-        return $this->money->record(MoneyRecord::PAYMENT, $orderId, $staffId, $command->amount, $command->way, $command->reference, $command->note, $command->happenedOn, $command->requestId);
+        return $this->money->record(MoneyRecord::PAYMENT, $orderId, $staffId, null, $command->way, $command->reference, $command->note, $command->happenedOn, $command->requestId, $command->shown);
     }
 }
