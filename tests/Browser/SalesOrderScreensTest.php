@@ -106,7 +106,7 @@ it('draws the list, an order and its packing slip at a phone\'s width with nothi
     $page = salesOrderScreensPanel();
     $page->resize(375, 812);
 
-    $page->navigate('/admin/orders', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"order-card-{$number}\"]");
+    $page->navigate('/admin/orders', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"order-card-{$number}\"]")->assertPresent('[data-test="order-search"]');
     expect(salesOrderScreensWide($page))->toBe('', 'the orders list scrolls sideways');
 
     foreach (["/admin/orders/{$order}", "/admin/orders/{$order}/print"] as $uri) {

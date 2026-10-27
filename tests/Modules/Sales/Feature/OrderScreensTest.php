@@ -10,12 +10,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
+use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Sales\Application\SalesPermissions;
 use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -40,7 +44,7 @@ beforeEach(function () {
 });
 
 /** An order placed in 'sa' (two of a 100.00 size, one of a 50.00), waiting for approval, paid by staff contact. */
-function orderScreensOrder(): string
+function orderScreensOrder(bool $wired = false): string
 {
     // Placed as the customer, then the real ActorContext given back, so the requests after it read who is
     // acting from their own session (as LoyaltyScreensTest's aside).
@@ -48,6 +52,12 @@ function orderScreensOrder(): string
 
     try {
         $ready = Cx::ready();
+
+        // Wired to a provider before it is placed, its first size's sales made to hang on its stock (§1.5).
+        if ($wired) {
+            Ix::wired();
+            app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
+        }
 
         return Cx::place(Cx::start($ready['address'])->id)->id;
     } finally {
@@ -134,8 +144,9 @@ describe('P1 · Orders', function () {
         expect(array_column($props['orders'], 'id'))->toBe([$second, $first])
             ->and($props['orders'][0])->toMatchArray(['status' => 'PENDING_APPROVAL', 'payment' => 'UNPAID', 'shipment' => 'NOT_SHIPPED', 'storeCode' => 'sa'])
             ->and($props['orders'][0]['total']['minor'])->toBeGreaterThan(0)
-            ->and($props['tab'])->toBe('ALL')
-            ->and($props['tabs'])->toContain('ALL', 'UNPAID', 'SHORT');
+            // Waiting for Approval opened first (R2-25).
+            ->and($props['tab'])->toBe('WAITING_APPROVAL')
+            ->and($props['tabs'])->toBe(['WAITING_APPROVAL', 'TO_SHIP', 'SHIPPED', 'UNPAID', 'SHORT', 'TRANSFERS_TO_CHECK', 'ALL']);
         orderScreensStaff([SalesPermissions::RETURN_MANAGE])->get('/admin/orders')->assertForbidden();
     });
 
@@ -145,6 +156,23 @@ describe('P1 · Orders', function () {
         $props = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW]), '/admin/orders?store=sa&tab=UNPAID', 'Sales/Admin/Orders/Index');
 
         expect([array_column($props['orders'], 'id'), $props['storeCode'], $props['tab']])->toBe([[$order], 'sa', 'UNPAID']);
+    });
+
+    it('searches by the order number, and lists one customer\'s orders on every tab', function () {
+        $found = orderScreensOrder();
+        $other = orderScreensOrder();
+        $number = (string) DB::table('sales.orders')->where('id', $found)->value('number');
+        $customer = (string) DB::table('sales.orders')->where('id', $found)->value('customer_id');
+        $browser = orderScreensStaff([SalesPermissions::ORDER_VIEW]);
+
+        $searched = orderScreensProps($browser, '/admin/orders?tab=ALL&q='.urlencode($number), 'Sales/Admin/Orders/Index');
+        $theirs = orderScreensProps($browser, "/admin/orders?tab=SHIPPED&customer={$customer}", 'Sales/Admin/Orders/Index');
+        $tooShort = orderScreensProps($browser, '/admin/orders?tab=ALL&q=S', 'Sales/Admin/Orders/Index');
+
+        expect([array_column($searched['orders'], 'id'), $searched['q']])->toBe([[$found], $number])
+            ->and([array_column($theirs['orders'], 'id'), $theirs['tab'], $theirs['customerId']])->toBe([[$found], 'ALL', $customer])
+            ->and($theirs['customerName'])->not->toBeNull()
+            ->and(array_column($tooShort['orders'], 'id'))->toBe([$other, $found]);
     });
 });
 
@@ -170,8 +198,9 @@ describe('P2 · An order', function () {
 
         $approved = $browser->post("{$base}/approve");
         $refusedShip = $browser->post("{$base}/ship", ['carrier' => 'SMSA']);
-        // An amount sent is never read: the whole balance is recorded (§4.2 B1).
-        $paid = $browser->post("{$base}/payment", ['amount' => '1.00', 'way' => 'BANK_TRANSFER', 'reference' => 'TR-1', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
+        $shown = orderScreensProps($browser, $base, 'Sales/Admin/Orders/Show')['owedDecimal'];
+        // An amount sent is never read: the whole balance is recorded (§4.2 B1), the one the page showed.
+        $paid = $browser->post("{$base}/payment", ['amount' => '1.00', 'shown' => $shown, 'way' => 'BANK_TRANSFER', 'reference' => 'TR-1', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
         $shipped = $browser->post("{$base}/ship", ['carrier' => 'SMSA', 'tracking_number' => '123']);
         $delivered = $browser->post("{$base}/deliver");
         $row = orderScreensRow($order);
@@ -181,6 +210,40 @@ describe('P2 · An order', function () {
             ->and(AdminBrowser::formError($refusedShip))->not->toBeNull()
             ->and($row)->toMatchArray(['status' => 'COMPLETED', 'shipment_status' => 'DELIVERED'])
             ->and($row['paid_minor'])->toBe($row['due_minor']);
+    });
+
+    it('refuses a payment once what is owed is no longer what the page showed', function () {
+        $order = orderScreensOrder();
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+        $shown = orderScreensProps($browser, "/admin/orders/{$order}", 'Sales/Admin/Orders/Show')['owedDecimal'];
+        // An edit raised the total meanwhile.
+        DB::table('sales.orders')->where('id', $order)->update(['due_minor' => DB::raw('due_minor + 5000'), 'order_total_minor' => DB::raw('order_total_minor + 5000')]);
+
+        $stale = $browser->post("/admin/orders/{$order}/payment", ['shown' => $shown, 'way' => 'BANK_TRANSFER', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
+
+        expect(AdminBrowser::formError($stale))->not->toBeNull()
+            ->and(orderScreensRow($order)['paid_minor'])->toBe(0);
+    });
+
+    it('offers the carriers the store shipped with before, and ticks a wired order\'s sizes reduced in the provider', function () {
+        $shipped = orderScreensOrder();
+        $wired = orderScreensOrder(wired: true);
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+        $browser->post("/admin/orders/{$shipped}/approve");
+        $browser->post("/admin/orders/{$shipped}/ship-unpaid", ['allow' => true]);
+        $browser->post("/admin/orders/{$shipped}/ship", ['carrier' => 'Aramex']);
+        $browser->post("/admin/orders/{$wired}/approve");
+
+        $page = orderScreensProps($browser, "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
+        $ticked = $browser->post("/admin/orders/{$wired}/tick", ['variants' => [$page['tickable'][0]]]);
+        $after = orderScreensProps($browser, "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
+        $viewer = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW]), "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
+
+        expect([$page['carriers'], $page['wired'], $viewer['carriers']])->toBe([['Aramex'], true, []])
+            ->and($page['tickable'])->not->toBe([])
+            ->and(AdminBrowser::flashed($ticked, 'status'))->toBe('Ticks saved.')
+            ->and(array_column($after['ticks'], 'variantId'))->toBe([$page['tickable'][0]])
+            ->and(orderScreensProps($browser, "/admin/orders/{$shipped}", 'Sales/Admin/Orders/Show')['wired'])->toBeFalse();
     });
 
     it('rejects a waiting order with a reason, and cancels another', function () {
@@ -284,6 +347,21 @@ describe('P2 · The rest of an order\'s changes, and another store\'s orders', f
             ->and($list['orders'])->toBe([])
             ->and($viewHere['actions']['mayApprove'])->toBeFalse();
         $elsewhere->get('/admin/orders?store=sa')->assertNotFound();
+    });
+});
+
+describe('P7 · A customer\'s orders on the staff customer page', function () {
+    it('lists the customer\'s latest orders under the other sections, for a reader who views orders', function () {
+        $order = orderScreensOrder();
+        $customer = (string) DB::table('sales.orders')->where('id', $order)->value('customer_id');
+
+        $props = orderScreensProps(orderScreensStaff([AccessPermissions::CUSTOMER_VIEW, SalesPermissions::ORDER_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show');
+        $sales = array_values(array_filter($props['sections'], static fn (array $section): bool => $section['module'] === 'sales'));
+        $without = orderScreensProps(orderScreensStaff([AccessPermissions::CUSTOMER_VIEW]), "/admin/customers/{$customer}", 'Access/Admin/Customers/Show');
+
+        expect(array_column($sales[0]['data']['orders'] ?? [], 'id'))->toBe([$order])
+            ->and([$sales[0]['key'], $sales[0]['data']['customerId']])->toBe(['orders', $customer])
+            ->and(array_column($without['sections'], 'module'))->not->toContain('sales');
     });
 });
 

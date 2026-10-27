@@ -779,8 +779,8 @@ the order's store.
   suggestions; the carrier is still typed freely (§1.5).
 - **`ListCustomerOrders(customerId)`** → `list<StaffOrderRow>`: the customer's 10 latest orders in the stores
   listed to the reader — the staff customer page's **`sales.orders`** section (access.md amendment 72(a)):
-  `CustomerOrdersSectionData{orders: list<CustomerOrderData{orderId, number, storeId, placedAt, status,
-  shipment, payment, customerStatus, total {amount, currency}, shortOfStock, mayShipUnpaid}>}`; no section
+  `CustomerOrdersSectionData{customerId, orders: list<OrderRowData>}` — each order as the panel's list draws it,
+  its total written by the server in the store's own way (§4.1 P7; the screens' change of PR A's first shape); no section
   for a reader who views no orders.
 - **`ViewOrder(orderId)`** → `StaffOrderView`: the own view's facts (§3.1) plus the customer by name and **the
   contact the order was placed with** (name and phone — to call them before shipping, §1.7; **the email only

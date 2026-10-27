@@ -82,7 +82,7 @@ final class SalesServiceProvider extends ServiceProvider
         // A bank-transfer document an order holds, and a photo a return holds, are never deleted (§1.8, §1.9, §5).
         $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
         // A customer's latest orders on the staff customer page (§3.2; access.md amendment 72(a)).
-        $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class));
+        $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class, ['sales::admin_orders'], 30));
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);

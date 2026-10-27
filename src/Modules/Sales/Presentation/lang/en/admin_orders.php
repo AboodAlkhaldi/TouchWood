@@ -16,6 +16,18 @@ return [
         'state' => 'State',
         'total' => 'Total',
         'short' => 'Short of stock',
+        'search' => 'Search orders',
+        'search_placeholder' => 'Order number, customer or phone',
+        'empty_search' => 'No orders match ":q".',
+        'of_customer' => 'Orders of :name',
+        'of_deleted' => 'Orders of a deleted customer',
+        'every_customer' => 'Show every customer',
+    ],
+    // P7 - a customer's orders on the staff customer page.
+    'section' => [
+        'title' => 'Orders',
+        'none' => 'No orders yet.',
+        'see_all' => 'See all of this customer\'s orders',
     ],
     'tab' => [
         'WAITING_APPROVAL' => 'Waiting for Approval',

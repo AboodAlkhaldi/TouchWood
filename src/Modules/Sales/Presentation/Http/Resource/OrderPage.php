@@ -18,6 +18,8 @@ final class OrderPage extends Data
      * @param  list<OrderHistoryData>  $history
      * @param  list<OrderEditData>  $edits
      * @param  list<OrderTickData>  $ticks
+     * @param  list<string>  $tickable
+     * @param  list<string>  $carriers
      * @param  list<OrderReturnData>  $returns
      * @param  list<OrderFileData>  $transferDocuments
      */
@@ -76,10 +78,16 @@ final class OrderPage extends Data
         public array $history,
         public array $edits,
         public array $ticks,
+        public bool $wired,
+        public array $tickable,
         public array $returns,
         public array $transferDocuments,
         public OrderActionsData $actions,
         public string $storeTimezone,
         public int $exponent,
+        /** What is owed in its decimals ("248.00"), sent back with Record Payment: refused once it is no longer so. */
+        public string $owedDecimal,
+        /** The carriers this store shipped with before, for Ship's suggestions; none for a reader who does not ship. */
+        public array $carriers,
     ) {}
 }

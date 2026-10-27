@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { FormError } from '@/components/FormError';
 import { LoadMoreButton } from '@/components/LoadMoreButton';
+import { SearchField } from '@/components/SearchField';
 import { Money } from '@/components/Money';
 import { StoreFilter } from '@/components/StoreFilter';
 import { Time } from '@/components/Time';
@@ -16,7 +18,8 @@ import type { OrderCustomerData, OrderRowData, OrdersPage } from '@/types/genera
 /*
 | P1 - Sales › Orders (sales.md §4.1): the reader's stores, or one, by tab - the work to do first - newest
 | first, 50 at a time with Show More. A table on a computer; on a phone each order a card (the owner's R2-34),
-| for a table this wide cannot fit. Opening an order is its number.
+| for a table this wide cannot fit. Opening an order is its number. One box searches by the order number, the
+| customer's name or a phone (R1-37); "See all" from a customer's page lists that customer's orders alone.
 */
 
 const LIST = '/admin/orders';
@@ -25,13 +28,45 @@ export default function Index(page: OrdersPage) {
     const t = useTranslator();
     const list = useLoadMore<OrderRowData>(page.orders, (row) => row.id);
     const allStores = page.storeCode === null;
-    const query = (extra: Record<string, string>) => ({ ...(page.storeCode === null ? {} : { store: page.storeCode }), tab: page.tab, ...extra });
+    const [q, setQ] = useState(page.q);
+    const kept = { ...(page.storeCode === null ? {} : { store: page.storeCode }), tab: page.tab, ...(page.customerId === null ? {} : { customer: page.customerId }) };
+    const query = (extra: Record<string, string>) => ({ ...kept, ...(page.q === '' ? {} : { q: page.q }), ...extra });
+    const search = (next: string) => router.get(LIST, next.trim() === '' ? kept : { ...kept, q: next.trim() }, { preserveState: true });
 
     return (
         <AdminLayout title={t(`${W}.orders.title`)} subtitle={t(`${W}.orders.subtitle`)}>
-            <div className="grid gap-4">
+            {/* One column no wider than the page: seven tabs scroll inside their bar on a phone. */}
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
                 <FormError />
+                {page.customerId === null ? null : (
+                    <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-copy-14 text-ink" data-test="customer-only">
+                        <span className="text-label-14">{page.customerName === null ? t(`${W}.orders.of_deleted`) : t(`${W}.orders.of_customer`, { name: page.customerName })}</span>
+                        <Link href={LIST} className="text-ink-muted underline underline-offset-4" data-test="every-customer">
+                            {t(`${W}.orders.every_customer`)}
+                        </Link>
+                    </p>
+                )}
                 <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] sm:items-end">
+                    <form
+                        role="search"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            search(q);
+                        }}
+                    >
+                        <SearchField
+                            id="order-search"
+                            label={t(`${W}.orders.search`)}
+                            placeholder={t(`${W}.orders.search_placeholder`)}
+                            value={q}
+                            onValueChange={setQ}
+                            onClear={() => search('')}
+                            data-test="order-search"
+                        />
+                    </form>
+                    <StoreFilter stores={page.stores} value={page.storeCode} all />
+                </div>
+                {page.customerId !== null ? null : (
                     <Tabs value={page.tab} onValueChange={(next) => router.get(LIST, { ...query({}), tab: next }, { preserveState: true })}>
                         <TabsList className="max-w-full min-w-0 justify-start overflow-x-auto" aria-label={t(`${W}.orders.tabs_label`)} data-test="order-tabs">
                             {page.tabs.map((each) => (
@@ -41,13 +76,12 @@ export default function Index(page: OrdersPage) {
                             ))}
                         </TabsList>
                     </Tabs>
-                    <StoreFilter stores={page.stores} value={page.storeCode} all />
-                </div>
+                )}
 
                 {list.rows.length === 0 ? (
                     <Empty className="material-base" data-test="orders-empty">
                         <EmptyHeader>
-                            <EmptyDescription className="text-copy-14 text-ink-muted">{t(`${W}.orders.empty`)}</EmptyDescription>
+                            <EmptyDescription className="text-copy-14 text-ink-muted">{page.q === '' ? t(`${W}.orders.empty`) : t(`${W}.orders.empty_search`, { q: page.q })}</EmptyDescription>
                         </EmptyHeader>
                     </Empty>
                 ) : (

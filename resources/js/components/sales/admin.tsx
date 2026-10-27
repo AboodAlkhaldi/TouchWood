@@ -246,7 +246,7 @@ function today(zone: string): string {
  * Record Payment… and Record Refund… (§1.9). A payment is the whole amount still owed, shown and never typed
  * (the owner's R3-1, §4.2 B1); a refund any amount up to what the order holds.
  */
-export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, exponent, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** The order currency's decimals. */ exponent: number; /** A refund's amount to start with: a completed return's. */ initial?: string }) {
+export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, exponent, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** The order currency's decimals. */ exponent: number; /** A refund's amount to start with (a completed return's); a payment's, the owed amount shown, sent back to be checked. */ initial?: string }) {
     const t = useTranslator();
     const requestId = useRequestId(open);
     const [typed, setTyped] = useState('');
@@ -287,7 +287,7 @@ export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, expon
                 <ActionButton
                     loading={busy}
                     disabledReason={checks.reason}
-                    onClick={() => checks.submit(() => send({ ...(refund ? { amount: typed } : {}), way, reference, note, happened_on: day, request_id: requestId }))}
+                    onClick={() => checks.submit(() => send({ ...(refund ? { amount: typed } : { shown: initial }), way, reference, note, happened_on: day, request_id: requestId }))}
                     data-test={`confirm-${kind}`}
                 >
                     {t(`${W}.dialog.${kind}_title`)}

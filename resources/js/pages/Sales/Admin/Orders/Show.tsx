@@ -12,6 +12,7 @@ import { CameBackDialog, MoneyDialog, ReasonDialog, ShipDialog, StateBadges, Voi
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { figure, intlLocale } from '@/lib/digits';
@@ -147,6 +148,7 @@ export default function Show(order: OrderPage) {
                     <div className="grid min-w-0 content-start gap-4">
                         <Contact order={order} />
                         <Shipment order={order} />
+                        {order.wired ? <Ticks order={order} /> : null}
                         {order.transferDocuments.length > 0 ? <Files order={order} /> : null}
                         {order.returns.length > 0 ? <Returns order={order} /> : null}
                         {order.edits.length > 0 ? <Edits order={order} /> : null}
@@ -155,9 +157,9 @@ export default function Show(order: OrderPage) {
             </div>
 
             {dialog === 'reject' || dialog === 'cancel' ? <ReasonDialog open onOpenChange={close} url={`${base}/${dialog}`} kind={dialog} /> : null}
-            {dialog === 'ship' ? <ShipDialog open onOpenChange={close} url={`${base}/ship`} /> : null}
+            {dialog === 'ship' ? <ShipDialog open onOpenChange={close} url={`${base}/ship`} carriers={order.carriers} /> : null}
             {dialog === 'came_back' ? <CameBackDialog open onOpenChange={close} url={`${base}/came-back`} lines={order.lines} /> : null}
-            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} /> : null}
+            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} initial={order.owedDecimal} /> : null}
             {dialog === 'refund' ? <MoneyDialog open onOpenChange={close} url={`${base}/refund`} kind="refund" amount={order.held} zone={order.storeTimezone} exponent={order.exponent} /> : null}
             {dialog !== null && typeof dialog === 'object' ? <VoidDialog open onOpenChange={close} url={`${base}/void`} kind={dialog.void.kind} record={dialog.void.id} /> : null}
         </AdminLayout>
@@ -439,15 +441,77 @@ function Shipment({ order }: { order: OrderPage }) {
                 ))}
             </dl>
             {order.mayShipUnpaid ? <p className="mt-2 text-copy-13 text-ink-muted">{t(`${W}.show.unpaid_ship`)}</p> : null}
-            {order.ticks.length > 0 ? (
-                <div className="mt-3 grid gap-1 border-t border-line pt-3">
-                    <p className="text-label-13 text-ink">{t(`${W}.show.ticks`)}</p>
-                    {order.ticks.map((tick) => (
-                        <p key={tick.variantId} className="text-copy-13 text-ink-muted">
-                            {order.lines.find((line) => line.variantId === tick.variantId)?.name ?? tick.variantId} · {t(`${W}.show.ticked`, { name: tick.by ?? t(`${W}.system`) })} · <Time value={tick.at} />
-                        </p>
-                    ))}
-                </div>
+        </Section>
+    );
+}
+
+/**
+ * "Reduced in the provider" (§1.5; R1-46) - a store wired to a provider when the order was placed: a tick on each
+ * size whose stock counted, and the gift; a ticked one says who and when, and stays ticked. Ticking is open while
+ * the order is approved or completed, to staff who ship.
+ */
+function Ticks({ order }: { order: OrderPage }) {
+    const t = useTranslator();
+    const [chosen, setChosen] = useState<string[]>([]);
+    const [busy, setBusy] = useState(false);
+    const ticked = new Map(order.ticks.map((tick) => [tick.variantId, tick]));
+    const open = order.actions.mayFulfil && (order.status === 'APPROVED' || order.status === 'COMPLETED');
+    const lines = order.tickable.map((variantId) => ({ variantId, line: order.lines.find((each) => each.variantId === variantId) }));
+
+    return (
+        <Section title={t(`${W}.show.ticks`)} test="ticks">
+            {open && chosen.length === 0 && ticked.size < lines.length ? <p className="mb-2 text-copy-13 text-ink-muted">{t(`${W}.show.ticks_hint`)}</p> : null}
+            <ul className="grid gap-2 text-copy-14">
+                {lines.map(({ variantId, line }) => {
+                    const tick = ticked.get(variantId);
+                    const id = `tick-${variantId}`;
+
+                    return (
+                        <li key={variantId} className="flex min-w-0 items-start gap-2">
+                            <Checkbox
+                                id={id}
+                                className="mt-0.5"
+                                checked={tick !== undefined || chosen.includes(variantId)}
+                                disabled={tick !== undefined || !open}
+                                onCheckedChange={(on) => setChosen((now) => (on === true ? [...now, variantId] : now.filter((each) => each !== variantId)))}
+                                data-test={id}
+                            />
+                            <label htmlFor={id} className="grid min-w-0 gap-0.5">
+                                <span className="text-ink">
+                                    {line?.name ?? variantId}
+                                    {line?.gift ? ` · ${t(`${W}.show.gift`)}` : ''}
+                                </span>
+                                <span className="text-copy-13 text-ink-muted">
+                                    <bdi dir="ltr">{line?.code ?? ''}</bdi>
+                                    {tick === undefined ? null : (
+                                        <>
+                                            {' · '}
+                                            {t(`${W}.show.ticked`, { name: tick.by ?? t(`${W}.system`) })} · <Time value={tick.at} />
+                                        </>
+                                    )}
+                                </span>
+                            </label>
+                        </li>
+                    );
+                })}
+            </ul>
+            {open && chosen.length > 0 ? (
+                <ActionButton
+                    className="mt-3"
+                    size="sm"
+                    loading={busy}
+                    onClick={() =>
+                        router.post(`/admin/orders/${order.id}/tick`, { variants: chosen } as never, {
+                            preserveScroll: true,
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                            onSuccess: () => setChosen([]),
+                        })
+                    }
+                    data-test="save-ticks"
+                >
+                    {t(`${W}.action.tick`)}
+                </ActionButton>
             ) : null}
         </Section>
     );

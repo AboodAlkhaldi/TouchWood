@@ -35,6 +35,7 @@ use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProvide
 use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProviderHandler;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
+use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFile;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFileHandler;
@@ -61,12 +62,12 @@ final readonly class OrdersController
 
     public function index(Request $request, ListOrdersHandler $list): Response
     {
-        return $this->page->render('Sales/Admin/Orders/Index', $this->pages->list(self::query($request, 'store'), self::query($request, 'tab') ?? OrderPages::TABS[0], self::query($request, 'after'), $list)->toArray(), self::WORDS);
+        return $this->page->render('Sales/Admin/Orders/Index', $this->pages->list(self::query($request, 'store'), self::query($request, 'tab') ?? OrderPages::TABS[0], self::query($request, 'after'), self::query($request, 'q'), self::query($request, 'customer'), $list)->toArray(), self::WORDS);
     }
 
-    public function show(string $order, ViewOrderHandler $view): Response
+    public function show(string $order, ViewOrderHandler $view, ListCarriersHandler $carriers): Response
     {
-        return $this->page->render('Sales/Admin/Orders/Show', $this->pages->order($order, $view)->toArray(), self::WORDS);
+        return $this->page->render('Sales/Admin/Orders/Show', $this->pages->order($order, $view, $carriers)->toArray(), self::WORDS);
     }
 
     public function print(string $order, PrintOrderHandler $print): Response
@@ -136,13 +137,13 @@ final readonly class OrdersController
         return self::act($request, fn () => $handler->handle(new AllowShipUnpaid($order, $allow)), $allow ? 'ship_unpaid_on' : 'ship_unpaid_off');
     }
 
-    public function payment(Request $request, string $order, RecordPaymentHandler $handler, ViewOrderHandler $view): RedirectResponse
+    public function payment(Request $request, string $order, RecordPaymentHandler $handler): RedirectResponse
     {
-        // The whole amount still owed, never a part of it (§4.2 B1, the owner's R3-1): the page shows it, the
-        // server sends it - until Record Payment works it out itself.
+        // The whole amount still owed, worked out by Record Payment (§4.2 B1, the owner's R3-1); the amount the
+        // page showed goes with it, refused once an edit or a refund changed it meanwhile.
         return self::act($request, fn () => $handler->handle(new RecordPayment(
-            $order, $this->pages->owed($order, $view), self::text($request, 'way'), self::optional($request, 'reference'), self::optional($request, 'note'),
-            self::text($request, 'happened_on'), self::requestId($request),
+            $order, self::text($request, 'way'), self::optional($request, 'reference'), self::optional($request, 'note'),
+            self::text($request, 'happened_on'), self::requestId($request), self::optional($request, 'shown'),
         )), 'payment');
     }
 
@@ -154,12 +155,12 @@ final readonly class OrdersController
         )), 'refund');
     }
 
-    public function void(Request $request, string $order, VoidMoneyRecordHandler $handler, ViewOrderHandler $view): RedirectResponse
+    public function void(Request $request, string $order, VoidMoneyRecordHandler $handler, ViewOrderHandler $view, ListCarriersHandler $carriers): RedirectResponse
     {
         // A record of this order only: the address names the order the toast is said on.
         $record = self::text($request, 'record');
 
-        if (! in_array($record, array_map(static fn ($row): string => $row->id, $this->pages->order($order, $view)->money), true)) {
+        if (! in_array($record, array_map(static fn ($row): string => $row->id, $this->pages->order($order, $view, $carriers)->money), true)) {
             abort(404);
         }
 

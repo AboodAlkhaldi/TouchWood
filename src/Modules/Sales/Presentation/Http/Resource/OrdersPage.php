@@ -24,5 +24,10 @@ final class OrdersPage extends Data
         public array $stores,
         public array $tabs,
         public ?string $storeTimezone,
+        /** The search box as sent: an order number, a customer's name or a phone. */
+        public string $q,
+        /** One customer's orders only ("See all" from the customer's page), with their name to say so. */
+        public ?string $customerId,
+        public ?string $customerName,
     ) {}
 }

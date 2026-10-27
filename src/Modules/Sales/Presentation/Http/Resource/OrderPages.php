@@ -11,6 +11,10 @@ use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Sales\Application\Query\ListCarriers\ListCarriers;
+use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
+use Modules\Sales\Application\Query\ListCustomerOrders\ListCustomerOrders;
+use Modules\Sales\Application\Query\ListCustomerOrders\ListCustomerOrdersHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrders;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
 use Modules\Sales\Application\Query\ListOrderStores\ListOrderStores;
@@ -39,8 +43,8 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class OrderPages
 {
-    /** The tabs §4.1 P1 lists; the ones §4.2 B2 adds join as the backend builds them. */
-    public const array TABS = ['ALL', 'UNPAID', 'SHORT'];
+    /** The tabs §4.1 P1 lists, in its order: Waiting for Approval opened first (R2-25). */
+    public const array TABS = ['WAITING_APPROVAL', 'TO_SHIP', 'SHIPPED', 'UNPAID', 'SHORT', 'TRANSFERS_TO_CHECK', 'ALL'];
 
     public function __construct(
         private Application $app,
@@ -52,7 +56,7 @@ final readonly class OrderPages
     /**
      * @throws Unauthorized
      */
-    public function list(?string $storeCode, string $tab, ?string $after, ListOrdersHandler $list): OrdersPage
+    public function list(?string $storeCode, string $tab, ?string $after, ?string $q, ?string $customerId, ListOrdersHandler $list): OrdersPage
     {
         $choices = $this->stores->handle(new ListOrderStores);
         $chosen = null;
@@ -68,39 +72,78 @@ final readonly class OrderPages
         }
 
         $tab = in_array($tab, self::TABS, true) ? $tab : self::TABS[0];
-        $page = $list->handle(new ListOrders($chosen?->storeId, $tab, $after));
-        $codes = [];
-
-        foreach ($choices as $choice) {
-            $codes[$choice->storeId] = strtolower($choice->code);
-        }
+        // A box too long is cut to what the search reads, never a refused page.
+        $q = mb_substr(trim($q ?? ''), 0, 100);
+        // One customer's orders: every tab, so "See all" shows them all.
+        $tab = $customerId === null ? $tab : 'ALL';
+        $page = $list->handle(new ListOrders($chosen?->storeId, $tab, $after, $q, $customerId));
+        $codes = self::codes($choices);
 
         return new OrdersPage(
-            array_map(fn (StaffOrderRow $row): OrderRowData => new OrderRowData(
-                $row->orderId,
-                $row->number,
-                $codes[$row->storeId] ?? '',
-                self::moment($row->placedAt),
-                self::customer($row->customer),
-                $row->status,
-                $row->shipment,
-                $row->payment->value,
-                $this->money($row->total, $row->storeId, $row->exponent),
-                $row->shortOfStock,
-            ), $page->orders),
+            array_map(fn (StaffOrderRow $row): OrderRowData => $this->row($row, $codes), $page->orders),
             $page->next,
             $tab,
             $chosen === null ? null : strtolower($chosen->code),
             array_map(fn (OrderStoreChoice $choice): SalesStoreData => new SalesStoreData(strtolower($choice->code), $choice->name->in($this->locale()), $choice->isActive), $choices),
             self::TABS,
             $chosen === null ? null : $this->store($chosen->storeId)?->timezone,
+            $q,
+            $customerId,
+            $customerId === null ? null : ($page->orders[0]->customer->name ?? null),
+        );
+    }
+
+    /**
+     * P7 - the customer's latest orders on the staff customer page, each as the list draws it.
+     *
+     * @throws Unauthorized
+     */
+    public function customerSection(string $customerId, ListCustomerOrdersHandler $orders): CustomerOrdersSectionData
+    {
+        $rows = $orders->handle(new ListCustomerOrders($customerId));
+        $codes = self::codes($this->stores->handle(new ListOrderStores));
+
+        return new CustomerOrdersSectionData(strtolower($customerId), array_map(fn (StaffOrderRow $row): OrderRowData => $this->row($row, $codes), $rows));
+    }
+
+    /**
+     * @param  list<OrderStoreChoice>  $choices
+     * @return array<string, string> each store's code by its id
+     */
+    private static function codes(array $choices): array
+    {
+        $codes = [];
+
+        foreach ($choices as $choice) {
+            $codes[$choice->storeId] = strtolower($choice->code);
+        }
+
+        return $codes;
+    }
+
+    /**
+     * @param  array<string, string>  $codes
+     */
+    private function row(StaffOrderRow $row, array $codes): OrderRowData
+    {
+        return new OrderRowData(
+            $row->orderId,
+            $row->number,
+            $codes[$row->storeId] ?? '',
+            self::moment($row->placedAt),
+            self::customer($row->customer),
+            $row->status,
+            $row->shipment,
+            $row->payment->value,
+            $this->money($row->total, $row->storeId, $row->exponent),
+            $row->shortOfStock,
         );
     }
 
     /**
      * @throws Unauthorized
      */
-    public function order(string $orderId, ViewOrderHandler $view): OrderPage
+    public function order(string $orderId, ViewOrderHandler $view, ListCarriersHandler $carriers): OrderPage
     {
         $order = $view->handle(new ViewOrder($orderId));
         $store = $this->store($order->storeId);
@@ -172,28 +215,36 @@ final readonly class OrderPages
             ), $order->history),
             array_map(static fn (EditRow $row): OrderEditData => new OrderEditData($row->editId, $row->reason, $row->by, self::moment($row->at)), $order->edits),
             array_map(static fn (array $tick): OrderTickData => new OrderTickData((string) $tick['variantId'], $tick['by'], self::moment($tick['at'])), $order->ticks),
+            $order->wired,
+            $order->tickable,
             array_map(static fn (OwnReturnRow $row): OrderReturnData => new OrderReturnData($row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue)), $order->returns),
             array_map(static fn (array $file): OrderFileData => new OrderFileData((string) $file['mediaId'], (int) $file['position'], self::moment($file['uploadedAt'])), $order->transferDocuments),
             new OrderActionsData($actions->mayApprove, $actions->mayEdit, $actions->mayCancel, $actions->mayFulfil, $actions->mayRecordMoney, $actions->mayManageReturns),
             $store->timezone ?? 'UTC',
             $order->exponent,
+            self::decimal($owed, $order->exponent),
+            $actions->mayFulfil ? $this->carriers($order->storeId, $carriers) : [],
         );
     }
 
     /**
-     * What the order still owes, in its own decimals as Record Payment reads it ("248.00") - the whole of it,
-     * never a part (§4.2 B1).
-     *
-     * @throws Unauthorized
+     * @return list<string>
      */
-    public function owed(string $orderId, ViewOrderHandler $view): string
+    private function carriers(string $storeId, ListCarriersHandler $carriers): array
     {
-        $order = $view->handle(new ViewOrder($orderId));
-        $owed = max(0, $order->due->minorUnits - ($order->paid->minorUnits - $order->refunded->minorUnits));
+        try {
+            return $carriers->handle(new ListCarriers($storeId));
+        } catch (Unauthorized) {
+            return [];
+        }
+    }
 
-        $digits = str_pad((string) $owed, $order->exponent + 1, '0', STR_PAD_LEFT);
+    /** An amount in its decimals ("248.00"), as Record Payment's `shown` reads it. */
+    private static function decimal(int $minor, int $exponent): string
+    {
+        $digits = str_pad((string) $minor, $exponent + 1, '0', STR_PAD_LEFT);
 
-        return $order->exponent === 0 ? $digits : substr($digits, 0, -$order->exponent).'.'.substr($digits, -$order->exponent);
+        return $exponent === 0 ? $digits : substr($digits, 0, -$exponent).'.'.substr($digits, -$exponent);
     }
 
     /**
