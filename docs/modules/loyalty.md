@@ -981,7 +981,7 @@ written, for the owner to review with the built screens. Each says what changing
 
 ### 9.6 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: points reserved while the customer pays online
 
-Waiting for the owner's acceptance of payments.md. **Online, no order exists until the money is
+Accepted by the owner on 2026-10-28 with payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the points it
 spends for its few minutes, and a try that does not pay must give them back as if they had never been
 used. The built `redeem` needs the order's number. Three new operations, beside `redeem` (which stays for

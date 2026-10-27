@@ -863,7 +863,7 @@ Platform's menu icons `coupons`, `segments`, `gifts`.
 
 ### 9.5 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: a coupon reserved while the customer pays online
 
-Waiting for the owner's acceptance of payments.md. **Online, no order exists until the money is
+Accepted by the owner on 2026-10-28 with payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the coupon
 for its few minutes, and **a try that does not pay must leave nothing counted** — "as if Pay had never
 been pressed". The built `useCoupon` cannot: it needs the order's number, and "a use never comes back".

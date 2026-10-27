@@ -77,7 +77,10 @@ These hold for every gateway, and every one has its tests in §8.
    is settled by asking about the session** (`GET /v3/sessions/{id}`: `IsUsed` and its `TransactionResult`
    — notes §0 #6), not by sending it again later: the charge is repeated only within the window, never
    after MyFatoorah's 250 minutes; **only a 4xx to the first call means refused** — a 4xx to a repeat
-   (the session already used) is answered by asking about the session.
+   (the session already used) is answered by asking about the session. **The charge is claimed before
+   the call** (the second review, 2026-10-28): under the attempt's row lock its state becomes `CHARGING`, committed,
+   and only then is the call made — a second `charge` (a double click) finds the claim and makes no
+   call; nothing can end the attempt as "never charged" once it is claimed (rule 15).
 5. **Success is final.** Once the gateway says succeeded, nothing turns it back ("the Success Payment
    Status is final" — notes §4). A failure after a success is ignored; a success after a failure wins.
 6. **Recorded once — per successful try.** Every successful transaction (keyed by the gateway's payment
@@ -93,17 +96,19 @@ These hold for every gateway, and every one has its tests in §8.
      `ExternalIdentifier` (our attempt id, set when charging — signed in the notice, notes §5.4) must
      match. A visitor bringing someone else's `paymentId` can never get it applied to their own cart or
      order.
-   - **The browser message** from the bank-code frame is accepted only from MyFatoorah's address and
-     only when its sender is exactly `MF-3DSecure` (notes §0 #8) — and even then it only makes our
-     server ask (rule 1).
+   - **The browser message** from the bank-code frame is read only when its sender is exactly
+     `MF-3DSecure` (notes §0 #8) and it comes from the address the frame opened (our own addition — the
+     address to accept is learnt in the test account) — and even then it only makes our server ask
+     (rule 1).
 8. **The amount and the currency are checked.** What the gateway says was paid is compared with the
    attempt, parsed exactly as a decimal (never a floating-point number). **A different amount** in the
    right currency is **recorded as it really was** and **flagged for staff** (owner, 2026-10-27 P20).
    **A different currency** (in LIVE the base currency must be SAR) is **kept in Payments, flagged, and
    never sent to Sales**, so foreign money never enters an order's books.
 9. **Nothing is lost when the gateway cannot be reached — and nothing polls for nothing.**
-   - A call is retried 3 times, 5 seconds apart, with a 30-second timeout (MyFatoorah's guidance — notes
-     §0 #16); then the attempt is **`UNKNOWN`** and the customer sees "We are confirming your payment",
+   - A status call is retried 3 times, 5 seconds apart, with a 30-second timeout (MyFatoorah's guidance
+     for Get Payment Details — notes §0 #16); the charge is repeated the same way only because its
+     idempotency key makes a repeat harmless (rule 4); then the attempt is **`UNKNOWN`** and the customer sees "We are confirming your payment",
      never "failed".
    - **Each attempt carries its own few checks**, booked when it is written and stopping as soon as it
      has an answer: at the end of the 5 minutes, at the end of the wait (§1.7), then 10 and 20 minutes
@@ -141,15 +146,22 @@ These hold for every gateway, and every one has its tests in §8.
     has **one** status, `InProgress` — "payment attempt not completed" — both for a customer still typing
     the bank's code and for one who walked away (notes §4; `GetPaymentStatus`, `UpdatePaymentStatus`).
     So a try is released:
-    - **at once** when nothing was sent to the gateway (the charge refused at its first call, or never
-      made);
-    - **at once on a decline** the gateway confirms (§1.4 step 6);
+    - **at once** when nothing was sent to the gateway — the charge refused at its first call, or never
+      claimed: Sales asks Payments to **abandon** the attempt, which succeeds only while no charge has
+      been claimed (rule 4), under the attempt's lock; if the charge was claimed meanwhile, nothing is
+      released (the second review, 2026-10-28);
+    - **at once on a decline** the gateway confirms (§1.4 step 6) — **provided** the first build step
+      proves that no other transaction can follow on that invoice once our page has closed the form
+      and the frame (MyFatoorah's invoices can hold several transactions — notes §4.6); until then, and
+      if it cannot be proven, a decline keeps the reservations until `PaymentExpiry` and the customer
+      is told when Pay opens again (the second review, 2026-10-28);
     - otherwise **only after the window and the wait** (§1.7), when `PaymentExpiry` has passed and the
       payment can no longer be finished.
 
     **The first build step must prove that MyFatoorah refuses to finish a payment after its
-    `PaymentExpiry`** (and after its session's expiry) — a **blocking** test in the test account: if it
-    does not, this design goes back to the owner before anything is built on it. A success reported
+    `PaymentExpiry`** (and after its session's expiry), **and whether a declined transaction can be
+    followed by another on the same invoice** — **blocking** tests in the test account: if either does
+    not hold, this design goes back to the owner before anything is built on it. A success reported
     after a release is still recorded (rule 5) and is **a refund due — never an order made by itself**
     (§1.7).
 
@@ -172,18 +184,22 @@ These hold for every gateway, and every one has its tests in §8.
   before, a banner on the gateway page and on their admin home, and a staff notification on a new topic,
   **Payment problems** (access.md amendment 78), sent as Sync's are — in the panel and by email once Ops
   sends notifications.
-- **A key MyFatoorah refuses anyway** (expired, switched off or deleted in the portal — a 401, or the
+- **A key MyFatoorah refuses anyway** — **the current key only**; a 401 on an earlier key kept for old
+  attempts (rule 14) marks just those attempts `UNKNOWN` for staff (the second review, 2026-10-28) — (expired, switched off or deleted in the portal — a 401, or the
   user who created it disabled, which "will disable the token key" — notes §0 #18): the store's online
   payment **stops by itself** (accepted, 2026-10-28) — `availability()` answers not available
   (`KEY_REJECTED`), so individuals' orders keep coming in as "staff will contact you", as in a store
   with no gateway (owner, 2026-10-18) — and the Super Admins are told at once, by the same banner and
-  topic. Open attempts stay `UNKNOWN` and keep their reservations (§1.7); once a new key is saved, the
-  checks resume with it and online payment comes back.
+  topic. Open attempts stay `UNKNOWN` and keep their reservations (§1.7); once a new key is saved,
+  online payment comes back, and the open attempts are checked again with the new key **when it is of the
+  same MyFatoorah account** (the old key no longer answering); staff see the rest.
 - **The keys and secrets are kept encrypted** with the app's key in Payments' own table, as Sync keeps
   its key (sync.md §1.2) — Platform's settings never hold a secret (platform.md §1.3). **Never shown
   again**: the page shows only **the last 6 characters** (owner, 2026-10-19 P12) and when it was set.
-- **Saving tests the key first**: one small call (the methods list — notes §3.1) to that mode's address;
-  if it fails, nothing is saved and the reason is shown (as Sync, sync.md §1.2).
+- **Saving tests the key first**, for each permission this design uses (the second review, 2026-10-28: a key's
+  permissions are per endpoint — notes §0 #18): the methods list, **opening a session** (it charges
+  nothing) and **asking for a payment that does not exist** (a "not found", never a 401). Any 401 →
+  nothing is saved and the missing permission is named (as Sync, sync.md §1.2).
 - **The addresses are fixed per gateway and mode**, not typed: MyFatoorah test
   `https://apitest.myfatoorah.com` with the script from `https://demo.myfatoorah.com`, KSA live
   `https://api-sa.myfatoorah.com` with the script from `https://sa.myfatoorah.com` (notes §0 #3, §1.1). A
@@ -245,6 +261,10 @@ These hold for every gateway, and every one has its tests in §8.
   - where STC Pay asks its code — in the form before our charge, or after it;
   - the redirection address set on the session as well as on the charge (the frame's return —
     notes §0 #8);
+  - when a session's `IsUsed` turns true — at collecting the details or at the charge — and that an
+    empty `TransactionResult` is what "nothing charged" is judged by (the second review, 2026-10-28);
+  - that MyFatoorah's test environment takes no real card, Apple Pay or STC Pay money (its docs say
+    only "virtual transactions" — test-cards);
   - the page's security rules (which addresses the frame and the script may load).
 
 ### 1.4 Paying at checkout — the try
@@ -269,7 +289,8 @@ These hold for every gateway, and every one has its tests in §8.
    and an expiry of the quote's end **plus the window and the wait** (so a Pay at the quote's last second
    still has its full time). The form is drawn in the page. **Nothing
    is reserved and nothing can be charged** — a session charges only when our server charges with it.
-   Each opening of the page has its own session; a new quote gets a new one.
+   **An unused, unexpired session of the same quote and buyer is reused** when the page is opened again
+   (the second review, 2026-10-28: refreshing checkout must not use up the limit of §1.8); a new quote gets a new one.
 1. **The customer chooses how to pay in the form and presses Pay.** For a card it is **our own button**
    (notes §0 #9): the page checks the form (`validateCardInputs`), then asks the form to collect the
    details. For **Apple Pay and STC Pay** it is their own button in the form, and "Pay pressed" is the
@@ -279,20 +300,24 @@ These hold for every gateway, and every one has its tests in §8.
 3. **Sales starts the try**, in one transaction (sales.md §9.5 #4):
    - the quote and the cart are locked; **a live try on this cart** → refused, "A payment is already in
      progress in another window" (the same quote and session again — a double click — gets the same
-     try);
+     try). **Placing a "staff will contact you" order on that cart is refused the same way** while the
+     try is live (the second review, 2026-10-28);
    - **one try per quote, and the quote must be of the cart as it is now** (rule 3);
    - **the quote is built again from the cart** — prices, stock, coupon, points, gift, shipping, every
      rule of placing (sales.md §1.2, §1.3 step 3) — **and must equal the one shown**: anything changed →
      **nothing is reserved and the customer stays on checkout**, shown what changed, and pays only after
      the cart is right (the owner, 2026-10-28: "the pay button won't let user out to pay until adjusting
      cart");
-   - **the stock, the coupon and the points are reserved** for the try (Inventory, Promotions, Loyalty
-     — sales.md §9.5 #5);
-   - the try is written: its quote, its buyer, the order's future id, **its window's end** (§1.7);
-   - **Payments' attempt is written in the same transaction** (`prepare`): the session checked (rule 7),
-     its idempotency key, its checks booked (rule 9) — **so no try ever exists without an attempt that
-     will be checked**, whatever crashes next. A refused session or a gateway switched off meanwhile
-     rolls everything back: nothing reserved.
+   - **Payments' attempt is written first, in the same transaction** (`prepare` — no call to the gateway):
+     the session checked (rule 7), its idempotency key, its checks booked (rule 9) — **so no try ever
+     exists without an attempt that will be checked**, whatever crashes next. A refused session or a
+     gateway switched off meanwhile rolls everything back: nothing reserved. (Before the reservations,
+     so nothing is locked after Inventory's store lock — sales.md §1.3's order of locks; the second review, 2026-10-28.)
+   - the try is written: its quote, its buyer, the order's future id, **its window's end** (§1.7), and
+     **a copy of the delivery address and the customer's contact details** — the order is made from the
+     try even if the customer deletes the address meanwhile (the second review, 2026-10-28);
+   - **the stock, the coupon and the points are reserved** for the try (Inventory last, as at placing —
+     sales.md §9.5 #5).
 4. **After the commit, Sales asks Payments to charge** (`charge`) the attempt it prepared — its key
    already committed (rule 4); the unique index allows **one open attempt per try** — and Payments calls
    `POST /v3/payments` with `SourceOfFund.SessionId`, the amount (in
@@ -312,9 +337,11 @@ These hold for every gateway, and every one has its tests in §8.
    the Apple Pay sheet, or STC Pay's code. **The page shows the time left.**
 6. **The answer.** The frame's message (rule 7), the return to our address, the form's own callback or
    the notice — whichever comes first — makes Payments **ask MyFatoorah** (rule 1), then:
-   - **Paid** → `PaymentSucceeded` → **Sales creates the order from the try** — the order number is
-     taken now, the reservations become the order's, the cart loses what was bought — and the page
-     shows "Order placed". Nothing is ever numbered for a try that does not pay (owner, 2026-10-28: no
+   - **Paid** → **Sales creates the order from the try** — the order number is taken now, the
+     reservations become the order's, the cart loses what was bought — and the page shows "Order
+     placed". The page's own answer completes it **at once** (Sales asks Payments, then completes);
+     `PaymentSucceeded` through the outbox (relayed once a minute) completes it if the page never came
+     back — the same completion, done once (the second review, 2026-10-28). Nothing is ever numbered for a try that does not pay (owner, 2026-10-28: no
      gaps in the order numbers).
    - **Declined** (the bank's reason — notes §9: a wrong code, insufficient funds, a card declined…) →
      `PaymentFailed` → Sales ends the try and releases everything; the customer is back on checkout
@@ -370,8 +397,16 @@ These hold for every gateway, and every one has its tests in §8.
 - **A request never expires while a payment on it is open** — its 60 minutes wait for that payment's
   answer — and **no new request is sent while any payment on the order is open** (the independent
   review, 2026-10-28).
-- **Recording a payment by hand withdraws the order's open request**; while a payment on it is in
-  progress, the record waits like an edit (below), so the same balance is never paid twice.
+- **One lock settles every race on a request** (the second review, 2026-10-28): Sales locks the order first (its own
+  rule), then Payments locks the request row. `prepare` for a request needs it `OPEN` with no open
+  attempt; **withdrawing it** (`withdraw` answers whether it could) **is refused while an attempt on it
+  is open**. So **recording a payment by hand** — which withdraws the open request first — and a staff
+  edit both wait for a payment in progress, and the same balance is never paid twice.
+- **A request's mode must be the gateway's**: an order placed in TEST never gets a LIVE request, and a
+  real order never a TEST one (the second review, 2026-10-28: real money must never land on a test order).
+- **A currency refused on a request** (`PaymentNotAccepted`) closes the request as `NOT_ACCEPTED`,
+  needing attention in the Payments list; nothing is written on the order (the money is foreign —
+  rule 8).
 - **Only for an individual's order in a store whose gateway is on**; sent by **staff who can manage
   orders** (P23).
 - **Staff edits wait while a payment is in progress on the order** (the 5 minutes and the wait at most):
@@ -400,7 +435,8 @@ These hold for every gateway, and every one has its tests in §8.
   passes, then moves the system to the real domain.
 - **A store in TEST says so to everyone** (owner, 2026-10-27): the checkout, the request page and the
   order page show "Test mode — no real money is taken", besides the admin banner below. MyFatoorah's test
-  environment takes only its public test cards, so nobody can pay real money there.
+  environment is for "virtual transactions" (its test-cards page); that no real card, Apple Pay or STC
+  Pay money can move there is **checked in the first build step** (§1.3) — its docs do not say it.
 - **The safety net if a real store is ever left in TEST**: a TEST payment never makes an order paid for
   real (below), so it can never send goods out unpaid.
 - **Every attempt and transaction carries its mode.** A TEST payment never counts as real money: it is
@@ -459,9 +495,14 @@ request is successful")
   making an order by hand is the usual "staff will contact you" order. (Making the order again by
   itself would need the stock, the coupon and the points taken twice under one id, which Inventory
   refuses — `AlreadyHeld` — and could sell goods a later try already paid for.)
-- **"Needs attention" means**: a mismatch, paid twice, a success after release, a currency refused, or
-  no answer 20 minutes after the charge — this replaces §9.3 #13's "`UNKNOWN` for more than an hour"
-  for the payments of this design.
+- **"Needs attention" means**: a mismatch, paid twice, a success after release, a currency refused, no
+  answer 20 minutes after the charge, or **a paid try Sales has not turned into an order 10 minutes
+  after the payment** (Sales's hourly look at its tries, sales.md §9.5 #4 — the second review, 2026-10-28) — this
+  replaces §9.3 #13's "`UNKNOWN` for more than an hour" for the payments of this design.
+- **Staff releasing a try by hand** (§9.6 #3): the use case `ReleaseTryByHand`, permission
+  **`payments.attempts.release`** (**[PROPOSED]**: Admins), only for an attempt `UNKNOWN` more than 20
+  minutes, with a reason, audited; the attempt ends `RELEASED_BY_STAFF` (its key no longer needed —
+  rule 14) and Sales releases the try. A success reported afterwards is a refund due (rule 15).
 
 ### 1.8 Our own limits
 
@@ -534,14 +575,17 @@ interface PaymentsApi
     /** Writes the attempt inside Sales's transaction (§1.4 step 3): the session checked, the key made, the checks booked. */
     public function prepare(PayRequestDto $request): string; // the attempt's id
 
-    /** Charges the prepared attempt, after Sales's commit (§1.4 step 4). Safe to call again. */
+    /** Charges the prepared attempt, after Sales's commit (§1.4 step 4): claimed first (rule 4). Safe to call again. */
     public function charge(string $attemptId): PaymentStartDto;
+
+    /** Ends a prepared attempt that was never charged; false when the charge was already claimed (rule 15). */
+    public function abandon(string $attemptId): bool;
 
     /** A staff request for the rest of an order (§1.5), open 60 minutes. */
     public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto;
 
-    /** Withdraws an order's open request (§1.5). */
-    public function withdraw(string $orderId): void;
+    /** Withdraws an order's open request (§1.5); false while a payment on it is open. */
+    public function withdraw(string $orderId): bool;
 
     /** The order's open request, for its page (§1.5); null when none. */
     public function openRequest(string $orderId): ?PaymentRequestStateDto;
@@ -574,7 +618,8 @@ interface PaymentsApi
   `customerPhone`, `locale`, `returnUrl`.
 - **`PaymentStartDto`**: `attemptId`, `frameUrl` (the bank-code page, null when the method needs none or
   the gateway could not be reached), `windowEndsAt`, `state`.
-- **`PaymentRequestDto`**: `orderId`, `orderNumber`, `storeId`, `amount`, `customerId`.
+- **`PaymentRequestDto`**: `orderId`, `orderNumber`, `storeId`, `amount`, `customerId`, `mode` (the
+  order's — a TEST order is `TEST`; refused when it is not the gateway's, §1.5).
   **`PaymentRequestStateDto`**: `requestId`, `orderId`, `amount`, `expiresAt`, `state` (`OPEN`, `PAID`,
   `EXPIRED`, `WITHDRAWN`), `requestedBy`.
 - **`PaymentDto`** — **one transaction**, not one attempt (rule 6): `paymentId` (our transaction's id),
@@ -597,8 +642,8 @@ interface PaymentsApi
 |---|---|
 | `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
 | `PaymentFailed` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | A transaction was declined |
-| **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `occurredAt`) — new | An attempt ended with nothing paid: the window and the wait passed, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
-| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `occurredAt`) — new | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
+| **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new (`orderId` so the outbox keeps it in order with the order's other payment events) | An attempt ended with nothing paid: the window and the wait passed, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
+| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
 
 ### 2.3 What Payments needs from other modules
 
@@ -621,6 +666,7 @@ interface PaymentsApi
 | `ReceiveAnswer` (the frame's message or the return to our address, from the page) | The buyer's session — the attempt must be theirs (rule 7) | That store |
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.view`** — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.view`** | That store |
+| `ReleaseTryByHand` (an attempt `UNKNOWN` more than 20 minutes, with a reason — §1.7) | **`payments.attempts.release`** — Admins (**[PROPOSED]**) | That store |
 | `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
@@ -633,17 +679,20 @@ characters. The permissions sit in a new **Payments** group in the role editor.
 **An attempt** (one charge with one session — one invoice):
 
 ```
-CREATING ─▶ OPEN ─▶ SUCCEEDED                  (paid — final)
-CREATING ─▶ REFUSED                            (the gateway refused the charge — §1.4 step 4)
-CREATING ─▶ UNKNOWN ─▶ OPEN                    (the charge's answer was lost; the same key again)
+CREATING ─▶ ABANDONED                          (prepared, never charged: abandoned, or found unused — rule 15)
+CREATING ─▶ CHARGING ─▶ OPEN ─▶ SUCCEEDED      (claimed, charged, paid — final)
+CHARGING ─▶ REFUSED                            (the gateway refused the first call — §1.4 step 4)
+CHARGING ─▶ UNKNOWN ─▶ OPEN                    (the charge's answer was lost; settled through the session)
 OPEN ─▶ FAILED                                 (declined — §1.4 step 6)
 OPEN ─▶ UNKNOWN ─▶ OPEN | SUCCEEDED | FAILED | EXPIRED   (a status call failed; asked again)
-OPEN ─▶ EXPIRED                                (the window passed, the gateway confirms nothing in progress)
-FAILED | EXPIRED ─▶ SUCCEEDED                  (a success reported later: recorded all the same — rule 5, §1.7)
+OPEN ─▶ EXPIRED                                (the window and the wait passed with nothing paid — PaymentExpiry passed, rule 15)
+UNKNOWN ─▶ RELEASED_BY_STAFF                   (staff, after 20 minutes — §1.7)
+FAILED | EXPIRED | RELEASED_BY_STAFF ─▶ SUCCEEDED   (a success reported later: recorded — a refund due, rule 15)
 SUCCEEDED ─▶ SUCCEEDED                         (a second successful transaction: recorded, "paid twice" — rule 3)
 ```
 
-**A request** (§1.5): `OPEN` → `PAID` | `EXPIRED` (60 minutes) | `WITHDRAWN`.
+**A request** (§1.5): `OPEN` → `PAID` | `EXPIRED` (60 minutes, never while an attempt is open) |
+`WITHDRAWN` (never while an attempt is open) | `NOT_ACCEPTED`.
 
 **A session**: `OPENED` → `USED` (an attempt charged with it) | `EXPIRED`.
 
@@ -673,8 +722,8 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 | `payments.gateways` | `store_id` PK FK `platform.stores` RESTRICT · `gateway` CHECK (`MYFATOORAH`) · `active` bool · `mode` CHECK (`TEST`, `LIVE`) · `apple_pay_domains` text[] (registered) · `created_by` · `created_at`, `updated_at` |
 | `payments.gateway_keys` | `id` ULID PK · `store_id` FK · `mode` · `key_encrypted` · `key_last6` · `key_expires_on` · `secret_encrypted` · `current` bool (one current per store and mode) · `set_by`, `set_at` · `retired_at` NULL — **every earlier key kept until the attempts made with it are closed** (rule 14), then deleted |
 | `payments.sessions` | `id` (the gateway's session id) · `store_id` · `mode` · `gateway` · `owner_id` (the quote's or the request's id) · `buyer_id` · `amount_minor` · `currency_code` · `expires_at` · `used_by` NULL (the attempt) · `created_at` · PK (`gateway`, `mode`, `id`) — rule 7 |
-| `payments.requests` | `id` ULID PK · `store_id` · `order_id` (Sales's, no key) · `order_number` · `customer_id` · `amount_minor` · `currency_code` · `state` CHECK (§4) · `expires_at` · `requested_by` (staff) · `created_at`, `updated_at` · **one open request per order** (a unique partial index WHERE `state = 'OPEN'`) |
-| `payments.attempts` | `id` ULID PK · `store_id` · `owner_kind` CHECK (`TRY`, `REQUEST`) · `owner_id` (the try's id or the request's) · `order_id` (the order's id — the future one for a try) · `session_id` · `key_id` (the key it was made with — rule 14) · `mode` · `gateway` · `currency_code` · `amount_minor` · `state` CHECK (§4) · `idempotency_key` uuid UNIQUE · `invoice_id` NULL, **unique per (`gateway`, `mode`)** · `gateway_payment_id` NULL · `frame_url` NULL · `window_ends_at` · `wait_ends_at` · `next_check_at` NULL · `succeeded_at` NULL · `paid_minor` NULL · `mismatch` bool · `paid_twice` bool · `needs_attention` bool · `refused_reason` NULL · `customer_name`, `customer_email`, `customer_phone` NULL (cleared on anonymizing) · `created_at`, `updated_at` · **one open attempt per owner** (a unique partial index on `owner_id` WHERE `state IN ('CREATING','OPEN','UNKNOWN')` — rule 3) |
+| `payments.requests` | `id` ULID PK · `store_id` · `order_id` (Sales's, no key) · `order_number` · `customer_id` · `amount_minor` · `currency_code` · `mode` · `state` CHECK (§4) · `expires_at` · `requested_by` (staff) · `created_at`, `updated_at` · **one open request per order** (a unique partial index WHERE `state = 'OPEN'`) |
+| `payments.attempts` | `id` ULID PK · `store_id` · `charge_claimed_at` NULL (rule 4) · `owner_kind` CHECK (`TRY`, `REQUEST`) · `owner_id` (the try's id or the request's) · `order_id` (the order's id — the future one for a try) · `session_id` · `key_id` (the key it was made with — rule 14) · `mode` · `gateway` · `currency_code` · `amount_minor` · `state` CHECK (§4) · `idempotency_key` uuid UNIQUE · `invoice_id` NULL, **unique per (`gateway`, `mode`)** · `gateway_payment_id` NULL · `frame_url` NULL · `window_ends_at` · `wait_ends_at` · `next_check_at` NULL · `succeeded_at` NULL · `paid_minor` NULL · `mismatch` bool · `paid_twice` bool · `needs_attention` bool · `refused_reason` NULL · `customer_name`, `customer_email`, `customer_phone` NULL (cleared on anonymizing) · `created_at`, `updated_at` · **one open attempt per owner** (a unique partial index on `owner_id` WHERE `state IN ('CREATING','CHARGING','OPEN','UNKNOWN')` — rule 3) |
 | `payments.transactions` | `id` bigint PK · `attempt_id` FK · `mode` · `gateway_payment_id`, **unique per (`gateway`, `mode`)** · `status` (as the gateway says) · `succeeded` bool · `method` · `card_brand` NULL (nothing else of the card — rule 10) · `amount_minor`, `currency_code` (the pay currency), `base_currency_code` · `paid_at` NULL (the gateway's `TransactionDate`) · `error_code` NULL, `error_message` NULL · `mismatch` bool · `published` bool (sent to Sales — false for a currency mismatch, rule 8) · `seen_at` |
 | `payments.notices` | `id` bigint PK · `store_id` · `mode` · `event_reference` — **only notices whose signature checked out are stored**, unique per (`gateway`, `mode`); a bad one is only logged · `received_at` · `payload` jsonb (the card details and the customer's contact details removed) · `handled_at` NULL — kept 90 days (owner, 2026-10-27, §9.3 #8) |
 | `payments.calls` | `id` bigint PK · `attempt_id` NULL · `store_id` · `endpoint` · `request` jsonb (the key, the secret and the `Authorization` header never stored; the customer's contact details cleared on anonymizing — rule 13) · `http_status` NULL · `response` jsonb NULL (card details removed) · `error` NULL · `took_ms` · `at` — kept 1 year (owner, 2026-10-27, §9.3 #8) |
@@ -735,9 +784,9 @@ account before going live (§9.3 #6).
    again starts a new session and try.
 3. **Something changed at Pay** (a price, the stock, the coupon, the ceiling, the gift): nothing
    reserved, nothing charged, the change named; Pay works once the cart is right.
-4. **Back during the bank step / the tab closed**: nothing charged; reopening checkout within the
-   window with nothing in progress ends the try at once — checkout as it was, no order, the coupon's use
-   not counted, the points back, the stock free.
+4. **Back before anything was charged** (the form open, Pay not reached the gateway): reopening checkout
+   ends the try at once — checkout as it was, no order, the coupon's use not counted, the points back,
+   the stock free. **Back during the bank step**: the try waits for its time (step 8), then the same.
 5. **The same, but the bank step was finished before closing**: reopening shows "being confirmed", then
    the order.
 6. **Opening the shop again** after closing a paying tab: goes where the customer goes; no payment page.
@@ -760,11 +809,12 @@ account before going live (§9.3 #6).
 17. **Failed, then succeeded**: paid; **succeeded, then a failure notice**: still paid.
 18. **The amount differs; the currency differs**: recorded and flagged; a currency mismatch kept in
     Payments, nothing sent to Sales.
-19. **A success after the try was released** (§1.7): the order created when everything can be taken
-    again; otherwise a refund due, needing attention.
+19. **A success after the try was released** (§1.7): no order made; a refund due on the try, needing
+    attention (as #37).
 20. **Two successful transactions on one attempt**: both recorded, the second "paid twice", a refund due.
-21. **Apple Pay sheet closed; STC Pay code wrong; STC Pay code timed out**: nothing charged, back to the
-    form within the window.
+21. **Apple Pay sheet closed before paying**: nothing charged, back to the form. **STC Pay code wrong or
+    timed out**: as a decline (rule 15) — the reservations kept or released by what the build's test
+    proves.
 22. **The payment request page**: only the order's customer; the same timers; paid → an `ONLINE`
     payment; expired, withdrawn, amount changed; one at a time; staff edits wait while it is paying.
 23. **A store switched off mid-payment** (§1.10): paid → the order exists, the once-only page, the main
@@ -802,6 +852,18 @@ account before going live (§9.3 #6).
     attempt's mode, not the store's mode at completion (sales.md §9.5 #14).
 42. **`ReleaseTry` after the order was created** (events out of order): changes nothing — only a live
     try is released.
+43. **Reopening checkout at the moment the charge is sent**: `abandon` loses to the claim — nothing
+    released, the payment answered normally (rule 15).
+44. **A double click making two `charge` calls**: one claim, one call, the same answer to both (rule 4).
+45. **The quote's nightly clean-up while a try is unanswered**: the quote is kept (sales.md §9.5 #11);
+    the order is still made from it.
+46. **The delivery address deleted while a try pays**: the order is made from the try's copy.
+47. **A paid try whose order could not be made** (a failure in Sales): Sales's hourly look completes it,
+    or shows it as needing attention.
+48. **A payment recorded by hand while the customer is paying a request**: one waits for the other; the
+    balance is paid once.
+49. **"Stock was reduced" naming a try**: the flag is carried to the order when it is made.
+50. **A "staff will contact you" order on a cart with a live try**: refused.
 
 ---
 
@@ -945,7 +1007,9 @@ payment MyFatoorah first said was not in progress; if it ever happens, it is a r
    MyFatoorah answers **[Recommended]**; (b) another length.
 2. **A declined card** (§1.4 step 6): (a) the try ends at once, everything released, the customer back
    on checkout with the reason, and Pay again starts a new 5 minutes **[Recommended]**; (b) the customer
-   may try another card inside the same 5 minutes, keeping the reservations.
+   may try another card inside the same 5 minutes, keeping the reservations. **Answered (a) — on the
+   condition the second review added (rule 15): only once the build's test proves a declined invoice
+   takes no further transaction.**
 3. **An answer that never comes** (MyFatoorah unreachable for long): (a) the reservations stay; after 20
    minutes the attempt needs attention; staff may release the try by hand once they have checked in
    MyFatoorah's portal that nothing was taken **[Recommended]**; (b) released by the system after a set
