@@ -217,7 +217,7 @@ final readonly class OrderPages
             array_map(static fn (array $tick): OrderTickData => new OrderTickData((string) $tick['variantId'], $tick['by'], self::moment($tick['at'])), $order->ticks),
             $order->wired,
             $order->tickable,
-            array_map(static fn (OwnReturnRow $row): OrderReturnData => new OrderReturnData($row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue)), $order->returns),
+            array_map(static fn (OwnReturnRow $row): OrderReturnData => new OrderReturnData($row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue), $row->staffReason), $order->returns),
             array_map(static fn (array $file): OrderFileData => new OrderFileData((string) $file['mediaId'], (int) $file['position'], self::moment($file['uploadedAt'])), $order->transferDocuments),
             new OrderActionsData($actions->mayApprove, $actions->mayEdit, $actions->mayCancel, $actions->mayFulfil, $actions->mayRecordMoney, $actions->mayManageReturns),
             $store->timezone ?? 'UTC',

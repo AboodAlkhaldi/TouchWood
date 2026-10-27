@@ -24,6 +24,7 @@ Route::prefix('{store}/{locale}')
         Route::post('cart/lines/remove', [ShopCartController::class, 'remove'])->name('storefront.sales.cart.remove');
         Route::get('cart/sign-in', [ShopCartController::class, 'signIn'])->name('storefront.sales.cart.sign-in');
         Route::post('cart/coupon', [ShopCartController::class, 'coupon'])->name('storefront.sales.cart.coupon');
+        Route::post('cart/notice/dismiss', [ShopCartController::class, 'dismissNotice'])->name('storefront.sales.cart.notice.dismiss');
 
         // Checkout and the order placed (S5, S6): a customer's only.
         Route::middleware(StorefrontArea::SIGNED_IN)->group(function (): void {

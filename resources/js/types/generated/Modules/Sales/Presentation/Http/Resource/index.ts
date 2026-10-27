@@ -293,6 +293,7 @@ id: string,
 status: string,
 requestedAt: string,
 refundDue: MoneyData | null,
+staffReason: string | null,
 };
 export type OrderRowData = {
 id: string,
@@ -408,6 +409,7 @@ id: string,
 status: string,
 requestedAt: string,
 refundDue: MoneyData | null,
+staffReason: string | null,
 };
 export type PlacedPage = {
 number: string,

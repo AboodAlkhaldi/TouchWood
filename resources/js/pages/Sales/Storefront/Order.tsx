@@ -324,6 +324,11 @@ function Returns({ order }: { order: OwnOrderPage }) {
                                         </>
                                     )}
                                 </span>
+                                {item.staffReason === null ? null : (
+                                    <span className="basis-full text-copy-13 text-ink-muted" data-test="return-store-reason">
+                                        {t(`${O}.return.store_reason`)}: <bdi className="text-ink">{item.staffReason}</bdi>
+                                    </span>
+                                )}
                             </Link>
                         </li>
                     ))}

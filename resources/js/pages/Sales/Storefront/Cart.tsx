@@ -179,21 +179,27 @@ function Line({ line }: { line: CartLineData }) {
     );
 }
 
-/** The lines that left at a sign-in (R2-8), each named with why; Close puts the notice away on this page. */
+/** The lines that left at a sign-in (R2-8), each named with why; Close puts the notice away for good (B17). */
 function Notice({ cart }: { cart: CartPage }) {
     const t = useTranslator();
     const locale = useLocale();
     const [open, setOpen] = useState(true);
+    const { post } = usePost();
 
     if (!open) {
         return null;
     }
 
+    const close = () => {
+        setOpen(false);
+        post('storefront.sales.cart.notice.dismiss', {});
+    };
+
     return (
         <Alert data-test="cart-notice">
             <AlertTitle className="flex items-start justify-between gap-2">
                 <span>{t(`${C}.notice.title`)}</span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} data-test="close-notice">
+                <Button type="button" variant="ghost" size="sm" onClick={close} data-test="close-notice">
                     {t(`${C}.notice.close`)}
                 </Button>
             </AlertTitle>

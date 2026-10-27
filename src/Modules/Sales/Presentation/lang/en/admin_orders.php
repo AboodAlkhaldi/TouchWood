@@ -86,6 +86,7 @@ return [
         'OTHER' => 'Other',
         'BY_STAFF' => 'Cancelled by staff',
     ],
+    'return_refused_because' => 'Refused:',
     'return_status' => [
         'REQUESTED' => 'Requested',
         'ACCEPTED' => 'Accepted',

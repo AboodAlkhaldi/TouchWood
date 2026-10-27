@@ -14,6 +14,8 @@ use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\RefuseReturn\RefuseReturn;
+use Modules\Sales\Application\Command\RefuseReturn\RefuseReturnHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
@@ -140,6 +142,32 @@ it('asks a return of a delivered order\'s pieces, shows it, and withdraws it whi
         ->and($asked->headers->get('Location'))->toEndWith("/sa/en/account/returns/{$return}")
         ->and([$shown['status'], $shown['reason'], $shown['orderNumber'], $shown['lines'][0]['asked']])->toBe(['REQUESTED', 'DAMAGED', $number, 1])
         ->and(DB::table('sales.returns')->where('id', $return)->value('status'))->toBe('WITHDRAWN');
+});
+
+it('shows the store\'s words on a refused return, on the customer\'s order and on the panel\'s (S8; B16)', function () {
+    [$id, $number, $browser] = shopOrdersScreensOrder(delivered: true);
+    $ask = shopOrdersScreensProps($browser, "/sa/en/account/orders/{$number}/return", 'Sales/Storefront/AskReturn');
+    $browser->post("/sa/en/account/orders/{$number}/return", ['reason' => 'DAMAGED', 'lines' => [['orderLineId' => $ask['lines'][0]['id'], 'quantity' => 1]]]);
+    $return = (string) DB::table('sales.returns')->where('order_id', $id)->value('id');
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $staff = Fx::staffWith([SalesPermissions::RETURN_MANAGE, SalesPermissions::ORDER_VIEW], ['sa']);
+        Fx::actAsStaff($staff);
+        app(RefuseReturnHandler::class)->handle(new RefuseReturn($return, 'Opened and used'));
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+
+    $order = shopOrdersScreensProps($browser, "/sa/en/account/orders/{$number}", 'Sales/Storefront/Order');
+    $panel = new AdminBrowser('10.9.8.'.random_int(20, 250));
+    $panel->post('/admin/sign-in', ['email' => (string) DB::table('access.staff_users')->where('id', $staff)->value('email'), 'password' => Fx::STAFF_PASSWORD])->assertRedirect('/admin/sign-in/code');
+    $panel->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+    $shown = shopOrdersScreensProps($panel, "/admin/orders/{$id}", 'Sales/Admin/Orders/Show');
+
+    expect(array_map(static fn (array $row): array => [$row['status'], $row['staffReason']], $order['returns']))->toBe([['REFUSED', 'Opened and used']])
+        ->and(array_map(static fn (array $row): array => [$row['status'], $row['staffReason']], $shown['returns']))->toBe([['REFUSED', 'Opened and used']]);
 });
 
 it('asks a return with photos, each kept with it', function () {
