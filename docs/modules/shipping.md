@@ -5,9 +5,10 @@ store take this order to this address, with which carriers, for how much?* It ho
 carriers and their prices by place, the free-shipping amounts, the tracking links, and the optional
 box list. It is built from handoff §12.5, the Sales contract that waits for it (sales.md §2.4, in code
 since Sales step S7b), and the owner's answers of 2026-10-17, 2026-10-19 and 2026-10-27 (§9.1). Points
-marked **[PROPOSED]** are mine, stated for the owner to reject; the questions are in §9.3.
+marked **[ACCEPTED 2026-10-28]** were mine; **the owner accepted every one of them on 2026-10-28** ("accept rec for
+other shippings"), except the carrier's deletion and the padding, which the owner set (§1.3, §1.7).
 
-**Dependencies (handoff §4.4):** Shipping → Platform, Catalog. **[PROPOSED]** Shipping → Access **only
+**Dependencies (handoff §4.4):** Shipping → Platform, Catalog. **[ACCEPTED 2026-10-28]** Shipping → Access **only
 to declare its permissions**, as the owner allowed Catalog, Pricing, Inventory and Sync (handoff §4.4,
 2026-10-02/07) — not yet allowed for Shipping: a handoff §4.4 amendment for the owner (§9.2). Sales
 calls Shipping; Shipping never calls Sales, so **Shipping never knows which orders name a carrier**
@@ -66,7 +67,7 @@ restated):
 | `OTHER_STORE` | The country is one **another of our stores** ships to (an Egypt address in the KSA store) | Refused: "Addresses in Egypt are served by our Egypt store — order from there." With a link to that store |
 
 - A country belongs to **one store at most** (owner, 2026-10-27 R3), so `OTHER_STORE` always names
-  exactly one store. An off store's countries still count as that store's (**[PROPOSED]**): the
+  exactly one store. An off store's countries still count as that store's (**[ACCEPTED 2026-10-28]**): the
   customer is told the place is served by a store that is closed now, rather than being offered staff
   handling for a country we have a store for.
 - **Never at address entry for `NOT_COVERED`** (owner, 2026-10-19 S10): the customer learns it at
@@ -79,19 +80,21 @@ restated):
 A carrier has (owner, 2026-10-27 S11): **its name** in Arabic and English, **a logo** (Platform media,
 public), **a phone**, **a website**, **a tracking link pattern** (optional), **on/off**, its **place in
 the list** (drag and drop, as everywhere — catalog.md amendment 16), and **its country** — one of the
-countries the store ships to, fixed once the carrier exists (**[PROPOSED]**: moving a carrier to another
+countries the store ships to, fixed once the carrier exists (**[ACCEPTED 2026-10-28]**: moving a carrier to another
 country would leave every price pointing at places of the wrong country).
 
 - **The tracking link pattern** is a web address with `{number}` where the tracking number goes
   (`https://carrier.example/track?n={number}`). Optional (owner, 2026-10-17). HTTPS only, at most 500
-  characters, exactly one `{number}` (**[PROPOSED]**).
+  characters, exactly one `{number}` (**[ACCEPTED 2026-10-28]**).
 - **Switching a carrier off** takes it out of every new quote at once. Orders already placed keep the
   carrier and the fee they were placed with (owner, 2026-10-27 S16).
-- **A carrier is never deleted, only switched off** (**[PROPOSED]**, forced by the dependency rule:
-  Shipping cannot see Sales's orders, and an order already shipped with a carrier still needs its
-  tracking link). A switched-off carrier stays readable through `carrier()` and `trackingLink()`.
+- **A carrier is deleted only while it is switched off** (owner, 2026-10-28: "switch then remove").
+  Deleting removes its price groups too, and is audited. **Old orders never need it**: Sales keeps on
+  the order its own copy of the carrier's names (at placing) and **the full tracking link** (made from
+  the pattern, or typed, when the order is marked shipped — sales.md §9.5 #11), so Shipping, which
+  cannot see Sales's orders, never has to ask whether an order still names the carrier.
 - A store may have **no carrier**: every address in its countries is then `NOT_COVERED`.
-- **The countries a store ships to** (Platform's, set by Super Admins — §9.2) — **[PROPOSED]**: the
+- **The countries a store ships to** (Platform's, set by Super Admins — §9.2) — **[ACCEPTED 2026-10-28]**: the
   store's own country is always one of them; a country is added only once Platform has its place list
   (otherwise its carriers could never be priced, and every address there would stay `NOT_COVERED`); a
   country is removed, or moved to another store, only once the store has no carrier there (they are
@@ -121,7 +124,7 @@ The rules, checked on every save:
   served; the city's other districts are not.
 - **A city with no district list** (customers type their district) is priced as a whole only (owner,
   2026-10-27 S15).
-- **"Select all" means** (**[PROPOSED]**): for a city's districts, **the city priced whole** — so a
+- **"Select all" means** (**[ACCEPTED 2026-10-28]**): for a city's districts, **the city priced whole** — so a
   district the Super Admin adds later is covered too; for the country's cities, **every city not yet
   priced in this carrier** — cities already in another group stay where they are and are shown with
   their own "Move here".
@@ -170,8 +173,9 @@ price, otherwise the carrier does not serve it.
 (handoff §12.5; owner, 2026-10-17, 2026-10-19 S8, 2026-10-27 N5)
 
 - A store's **box list**: name, inner length, width and height (mm), the most weight it takes (g), on/off.
-  Admin-set **padding** per store (mm, added on every side; **[PROPOSED]** default 10).
-- Each product size is **auto** or **manual** for packing **in each store** (**[PROPOSED]** default
+  **The padding** is a store setting (mm, added on every side, default 10 — `shipping.boxes.padding_mm`),
+  **changed in the panel by admins and staff** (owner, 2026-10-28) — whoever holds `shipping.boxes.manage`.
+- Each product size is **auto** or **manual** for packing **in each store** (**[ACCEPTED 2026-10-28]** default
   auto; per store, because a size is the same in every store but each store packs its own). Manual sizes
   skip the engine and the order is marked "pack by hand".
 - **The engine only suggests** (owner, 2026-10-19 S8): for each order it picks the **smallest box**
@@ -243,11 +247,11 @@ interface ShippingApi
 
 | Use case | Permission | Scope |
 |---|---|---|
-| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `MoveCarrier` (order) — never deleted (§1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
+| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `MoveCarrier` (order), `DeleteCarrier` (only when off — §1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
 | `SetPriceGroup` (create, change amount, add/move/remove places — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
 | `SetCarrierFreeAbove`, the store-wide free-above setting | **`shipping.prices.manage`** | That store |
-| `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — staff who manage orders get it by default (**[PROPOSED]**) | That store |
-| `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, the padding, a size's auto/manual | **`shipping.boxes.manage`** — Admins | That store |
+| `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — staff who manage orders get it by default (**[ACCEPTED 2026-10-28]**) | That store |
+| `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, the padding, a size's auto/manual | **`shipping.boxes.manage`** — Admins by default, and any staff role it is given to (owner, 2026-10-28: admins and staff) | That store |
 | `Quote`, `TrackingLink`, `SuggestBox` | — (called by Sales inside its own permission) | — |
 
 The permissions sit in a new **Shipping** group in the role editor (access.md amendment, §9.2). Every
@@ -257,7 +261,7 @@ change is audited, in both languages.
 
 ## 4 · State machines
 
-- **A carrier**: `ON` ⇄ `OFF`; never deleted (§1.3).
+- **A carrier**: `ON` ⇄ `OFF`; deleted only from `OFF` (§1.3).
 - **A box**: `ON` ⇄ `OFF`.
 - No other state: prices and groups are plain rows.
 
@@ -311,6 +315,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | Error | Category | When |
 |---|---|---|
 | `CarrierNotFound` | NOT_FOUND | A carrier that is not there (or of another store) |
+| `CarrierStillOn` | CONFLICT | Deleting a carrier that is switched on (§1.3) |
 | `CountryNotShipped` | INVALID | A carrier for a country the store does not ship to |
 | `CountryHasCarriers` | CONFLICT | Removing a ship-to country, or moving it to another store, while the store has carriers there (Platform asks Shipping through a hook it declares — §9.2) |
 | `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) |
@@ -337,8 +342,8 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 4. **Free shipping**: a carrier's own amount; the store-wide amount overriding every carrier, then
    cleared; compared with `goods_total`, the boundary included (equal is free).
 5. **No VAT on the fee**: 1,000 + 150 + 30 = 1,180 (owner's own example, through Sales and Pricing).
-6. **Snapshots**: a price changed or a carrier switched off after placement — the order keeps its
-   carrier and fee; a switched-off carrier's tracking link still works.
+6. **Snapshots**: a price changed, a carrier switched off or deleted after placement — the order keeps
+   its carrier's names, its fee and its full tracking link; deleting a carrier that is on is refused.
 7. **Tracking**: a pattern with one `{number}`; none → no link; a number with spaces trimmed and the
    link encoded.
 8. **Boxes**: smallest fit; padding; a manual size → by hand; missing weight → by hand; no boxes → no
@@ -369,6 +374,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | S11–S17, S20 | As recommended (fields, admins, merge, district over city, typed district → city, snapshots, staff may change carrier, return shipping not recorded) | 2026-10-27 |
 | S18 | **No VAT on shipping** | 2026-10-27 |
 | §9.3 #1–13 | **(a) for all thirteen**, as recommended | 2026-10-27 |
+| — | A carrier is deleted only while switched off; the padding is a setting admins and staff change; every other pick accepted | 2026-10-28 |
 | C1–C6, R1–R4 | Districts seeded; "Other" city → not served; Super Admin may edit the lists, seeded first; the customer picks the region; KSA and Egypt now, UAE later; reset the test addresses; a Super Admin list of address countries; each store's ship-to countries; a country in one store only; free text in a country no store serves | 2026-10-19, 2026-10-27 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)

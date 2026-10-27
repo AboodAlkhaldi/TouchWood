@@ -1,4 +1,4 @@
-# MyFatoorah — research notes for the Payments module (KSA, hosted page, v3)
+# MyFatoorah — research notes for the Payments module (KSA, v3)
 
 Research date: 2026-10-27. Source: only docs.myfatoorah.com. Every page was read as its `.md` twin (the index at https://docs.myfatoorah.com/llms.txt lists them that way), and every fact below cites the exact URL it came from. "NOT IN THE DOCS" means I looked and the documentation does not say it. Nothing here was tested against the API; these notes are what the documentation claims.
 
@@ -16,6 +16,86 @@ Words used below:
 - **Invoice**: MyFatoorah's record of "this amount is owed". One invoice can have several payment attempts.
 - **Transaction**: one payment attempt on an invoice (a card try, an Apple Pay try...). Each has its own **PaymentId**.
 - **v3**: the new API (`/v3/...`). **v2**: the older API (`/v2/...`). The docs say v3 is the one to use for new work, and v2 pages remain as "Old Integration".
+
+---
+
+## 0. The full read of 2026-10-28 (the owner asked for every page)
+
+All **212 pages** were downloaded as their `.md` twins: the 167 in https://docs.myfatoorah.com/llms.txt and
+the 45 more that those pages link to (the old v2 pages among them). The pages about the payment flow —
+hosted page, embedded payment, sessions, payments, invoices, auth & capture, status, webhooks,
+idempotency, keys, test cards, Apple Pay — were read in full. The plugin, mobile SDK, multi-vendor,
+recurring and MyFatoorah-shipping pages were searched for expiry, cancel, rate limit, session and
+retry wording; nothing in them changes what follows.
+
+**What this read added or settled** (each with its page):
+
+1. **Two ways to take a payment on the web, and MyFatoorah recommends the embedded one.** "Embedded
+   Payment (Recommended)" — "complete the payment directly on your checkout page"; the Hosted Payment
+   Page — "redirect the client to the payment page" on MyFatoorah's site.
+   https://docs.myfatoorah.com/docs/get-started.md, https://docs.myfatoorah.com/docs/choose-your-payment-integration.md
+2. **The hosted page is MyFatoorah's own site**: `POST /v3/payments` returns a `PaymentURL` on a
+   MyFatoorah address, the customer is redirected there and comes back to our address with
+   `?paymentId=`. https://docs.myfatoorah.com/docs/v3-hosted-payment-page.md
+3. **Embedded**: a JavaScript library draws the payment form inside a box on our page. "Embedded
+   Payment Methods (processed on your page without redirection): Cards (Visa / Mastercard / AMEX,
+   etc.), Apple Pay, Google Pay, STC Pay"; other methods redirect to the hosted page. "MyFatoorah
+   handles all PCI DSS requirements; no certification needed on your end". Library for Saudi Arabia:
+   `https://sa.myfatoorah.com/sessions/v1/session.js` (test: `https://demo.myfatoorah.com/...`).
+   https://docs.myfatoorah.com/docs/embedded-payment-v3.md
+4. **"SessionId is valid for only one payment."** A new session is created for each payment
+   (`POST /v3/sessions`). https://docs.myfatoorah.com/docs/embedded-payment-v3.md (twice), and the
+   same sentence on https://docs.myfatoorah.com/docs/v3-token-payments.md
+5. **A session has an expiry we set** — `SessionExpiry`, "Must be in UTC timezone" — and the answer
+   gives it back. No default, minimum or maximum is written anywhere.
+   https://docs.myfatoorah.com/reference/create-session.md
+6. **Our server can ask about a session**: `GET /v3/sessions/{sessionId}` returns `IsUsed` ("whether
+   the session has been used for a transaction") and `TransactionResult` (the invoice and the
+   transaction). https://docs.myfatoorah.com/reference/get-session-details.md
+7. **Collect Details mode puts our server between "Pay" and the charge.** The form collects the
+   details, the callback tells our page, and **our server** then calls `POST /v3/payments` with
+   `SourceOfFund.SessionId` — "here you can update the amount of payment". "Ideal for complex
+   pricing scenarios or when the final amount may change." `OperationType` and the 3-D Secure model
+   cannot change between the two calls. https://docs.myfatoorah.com/docs/embedded-payment-v3.md
+8. **The bank's code page (OTP / 3-D Secure) can open inside a frame on our page**: "keep your
+   customers on your website during the whole payment process"; we handle the frame and "the
+   cancelation if the customer wants to cancel"; the result comes as a browser message whose sender
+   is exactly `MF-3DSecure`. https://docs.myfatoorah.com/docs/otp-page-in-an-iframe.md
+9. **Our own Pay button**: with `useCustomButton: true` we run our own steps and then call
+   `myfatoorah.submitCardPayment()`; `validateCardInputs()` checks the form first. Events include
+   `PAYMENT_STARTED`, `3DS_CHALLENGE_INITIATED`, `SESSION_CANCELED` (Apple Pay sheet closed).
+   https://docs.myfatoorah.com/docs/customizing-embedded-payment.md
+10. **Mada works in the embedded card form**: `SupportedNetworks` takes "visa", "masterCard", "mada",
+    "amex". A Mada test card is listed (4464040000000007). STC Pay test: mobile 0557877988, OTP 1234.
+    https://docs.myfatoorah.com/reference/create-session.md, https://docs.myfatoorah.com/docs/test-cards.md
+11. **Apple Pay on our page needs every domain verified** — staging and live: a file from
+    tech@myfatoorah.com at `https://{domain}/.well-known/apple-developer-merchantid-domain-association`,
+    kept there ("Apple might need to revalidate the domain on a yearly basis"), HTTPS only, then
+    `POST /v2/RegisterApplePayDomain` (KSA: `https://api-sa.myfatoorah.com/...`).
+    https://docs.myfatoorah.com/docs/apple-pay-domain-verification.md
+12. **Authorize & Capture**: with `OperationType: "AUTHORIZE"` the money is only held on the card;
+    later `PUT /v3/payments/{paymentId}` with `CAPTURE` (takes it, fully or partly) or `RELEASE`
+    (gives it back). "You can perform only one Capture or Release operation per invoice." "Kindly
+    contact your account manager to check the availability" — it must be switched on by MyFatoorah,
+    and works "when a payment is made using a gateway that supports" it.
+    https://docs.myfatoorah.com/docs/v3-auth-capture.md, https://docs.myfatoorah.com/reference/update-payment.md
+13. **Still no way to cancel an unpaid invoice or session.** No page in the 212 offers one; the only
+    ends are `PaymentExpiry` / `SessionExpiry`, and what happens after them is not written.
+14. **A phone number is not required**: in `POST /v3/sessions` only `PaymentMode`, `Order` and
+    `Order.Amount` are required; in `POST /v3/payments` only `Order` and `Order.Amount`. The phone
+    must match `^(?:(\+)|(00)|(\*)|())\d{6,14}(#?)$` when sent; the email is required only for
+    `NotificationOption` EMAIL or ALL. https://docs.myfatoorah.com/reference/create-session.md,
+    https://docs.myfatoorah.com/reference/create-payment.md
+15. **Webhook v2 retries**: set in the portal, "the maximum number of retries is 5, and the maximum
+    delay is 180 seconds". https://docs.myfatoorah.com/docs/webhook-v2.md
+16. **The return to our page is not reliable** — "redirection may fail if the customer closes the page
+    before it completes"; use the webhook and Get Payment Details together; if Get Payment Details is
+    unreachable, retry 3 times 5 seconds apart, 30-second timeout, then schedule a reattempt.
+    https://docs.myfatoorah.com/docs/v3-updating-payment-status-guidelines.md
+17. **Idempotency** covers `POST /v3/payments`, `PUT /v3/payments` and the refunds — **not**
+    `POST /v3/sessions`. https://docs.myfatoorah.com/docs/idempotency.md
+18. **Keys**: up to 5; "avoid disabling the user who created the token, as it will disable the token
+    key". https://docs.myfatoorah.com/docs/api-key.md
 
 ---
 

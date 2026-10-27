@@ -1526,7 +1526,9 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
     - the free-above amount snapshotted is **the one that applied** (the carrier's or the store-wide
       one), with which it was (`CARRIER`, `STORE`);
     - a cancel reason **`PAYMENT_NOT_COMPLETED`** for the timer (it is no staff's and no customer's);
-    - the tracking link typed by staff (S7), beside the number.
+    - the tracking link typed by staff (S7), beside the number; **the full link is stored on the order
+      when it is marked shipped** (made from the carrier's pattern then, or typed), and the carrier's
+      names at placing — so a carrier deleted later (shipping.md §1.3, owner 2026-10-28) breaks no order.
 12. **Edits after placing** (§1.7 step 5 works shipping out again from the order's snapshot): **staff
     set the fee** of a "fee to be set" order as an edit of its own ("Set the shipping fee"); a changed
     **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
