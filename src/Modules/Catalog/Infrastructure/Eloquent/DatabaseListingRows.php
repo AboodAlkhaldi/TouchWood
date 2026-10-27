@@ -27,7 +27,9 @@ use stdClass;
  * - **The facts pushed in** (`store_variant_facts`, P22): each side's card price — the price and the
  *   price before of the variant its card shows — and its "Last pieces" (amendment 16(h)): some size
  *   that side can buy and order now is ending soon — any size for companies and guests, a size sold
- *   retail for individuals; a size not orderable (`orderable` false) lights neither.
+ *   retail for individuals; a size not orderable (`orderable` false) lights neither. And the cards'
+ *   "From" and "Wholesale from" (amendment 35): the lowest price now among the retail sizes, only
+ *   when they differ, and the least a piece costs on a wholesale line among the wholesale sizes.
  * - **The search reads** the names (A), the search words (B) and the names of its category and of
  *   every category above it (C), **in both languages on every page** (amendment 5(f), (g)), each as
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
@@ -54,7 +56,8 @@ final readonly class DatabaseListingRows implements ListingRows
         .' search_text text, words_a text, words_b text, words_c text,'
         .' for_individuals boolean, for_companies boolean, sells_retail boolean, sells_wholesale boolean,'
         .' card_variant_id text, retail_card_variant_id text, ending_soon_companies boolean, ending_soon_individuals boolean,'
-        .' price_minor bigint, price_before_minor bigint, retail_price_minor bigint, retail_price_before_minor bigint';
+        .' price_minor bigint, price_before_minor bigint, retail_price_minor bigint, retail_price_before_minor bigint,'
+        .' retail_from_minor bigint, wholesale_from_minor bigint';
 
     /** The columns written, in the order the insert names them. */
     private const array COLUMNS = [
@@ -63,6 +66,7 @@ final readonly class DatabaseListingRows implements ListingRows
         'price_minor', 'sales_rank', 'search_text', 'search_document',
         'for_individuals', 'for_companies', 'sells_retail', 'sells_wholesale', 'card_variant_id', 'retail_card_variant_id',
         'ending_soon_companies', 'ending_soon_individuals', 'price_before_minor', 'retail_price_minor', 'retail_price_before_minor',
+        'retail_from_minor', 'wholesale_from_minor',
     ];
 
     public function __construct(
@@ -133,7 +137,8 @@ final readonly class DatabaseListingRows implements ListingRows
             .' r.orderable, r.price_minor, (SELECT sr.rank FROM catalog.sales_ranks AS sr WHERE sr.store_id = r.store_id::bpchar AND sr.product_id = r.product_id::bpchar),'
             ." r.search_text, {$document},"
             .' r.for_individuals, r.for_companies, r.sells_retail, r.sells_wholesale, r.card_variant_id, r.retail_card_variant_id,'
-            .' r.ending_soon_companies, r.ending_soon_individuals, r.price_before_minor, r.retail_price_minor, r.retail_price_before_minor'
+            .' r.ending_soon_companies, r.ending_soon_individuals, r.price_before_minor, r.retail_price_minor, r.retail_price_before_minor,'
+            .' r.retail_from_minor, r.wholesale_from_minor'
             .' FROM jsonb_to_recordset(?::jsonb) AS r('.self::RECORD.')'
             .' ON CONFLICT (store_id, locale, product_id) DO UPDATE SET '.$list('%1$s = EXCLUDED.%1$s')
             // Unchanged, it is not written at all.
@@ -217,6 +222,8 @@ final readonly class DatabaseListingRows implements ListingRows
                 // buy (14(f)): any for companies and guests, a retail one for individuals.
                 $retail = array_values(array_filter($variants, static fn (array $variant): bool => $variant['retail']));
                 $switches = $audiences[$storeId][$categoryId] ?? ['individuals' => true, 'companies' => true];
+                $retailPrices = array_values(array_filter(array_column($retail, 'price'), is_int(...)));
+                $wholesaleFrom = array_values(array_filter(array_column(array_filter($variants, static fn (array $variant): bool => $variant['wholesale']), 'wholesaleFrom'), is_int(...)));
                 $sides = [
                     'for_individuals' => $switches['individuals'] && $retail !== [],
                     'for_companies' => $switches['companies'],
@@ -231,6 +238,9 @@ final readonly class DatabaseListingRows implements ListingRows
                     'price_before_minor' => $variants[0]['before'],
                     'retail_price_minor' => $retail[0]['price'] ?? null,
                     'retail_price_before_minor' => $retail[0]['before'] ?? null,
+                    // "From" — only when the retail sizes' prices differ — and "Wholesale from" (amendment 35).
+                    'retail_from_minor' => $retailPrices !== [] && count(array_unique($retailPrices)) > 1 ? min($retailPrices) : null,
+                    'wholesale_from_minor' => $wholesaleFrom === [] ? null : min($wholesaleFrom),
                 ];
 
                 foreach (self::LOCALES as $locale) {
@@ -274,7 +284,7 @@ final readonly class DatabaseListingRows implements ListingRows
      * may be ordered now, and its price there, as pushed (P22, amendment 16(h)).
      *
      * @param  list<string>  $productIds
-     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, ending: bool, price: int|null, before: int|null}>>> product => store => variants
+     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null}>>> product => store => variants
      */
     private function sellableVariants(array $productIds): array
     {
@@ -292,7 +302,7 @@ final readonly class DatabaseListingRows implements ListingRows
             ->where('sp.not_available_now', false)
             ->where('v.is_archived', false)
             ->orderBy('sv.product_id')->orderBy('sv.store_id')->orderBy('v.position')->orderBy('v.id')
-            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor']);
+            ->get(['sv.product_id', 'sv.store_id', 'sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'f.orderable', 'f.ending_soon', 'f.price_minor', 'f.price_before_minor', 'f.wholesale_from_minor']);
 
         $sellable = [];
 
@@ -305,6 +315,7 @@ final readonly class DatabaseListingRows implements ListingRows
                 'ending' => (bool) $row->ending_soon && $row->orderable !== false,
                 'price' => $row->price_minor === null ? null : (int) $row->price_minor,
                 'before' => $row->price_before_minor === null ? null : (int) $row->price_before_minor,
+                'wholesaleFrom' => $row->wholesale_from_minor === null ? null : (int) $row->wholesale_from_minor,
             ];
         }
 

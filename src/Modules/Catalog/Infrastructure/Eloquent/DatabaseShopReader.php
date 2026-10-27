@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
 use Modules\Catalog\Application\Query\Shop\CardPage;
+use Modules\Catalog\Application\Query\Shop\CardPrice;
 use Modules\Catalog\Application\Query\Shop\CardRating;
 use Modules\Catalog\Application\Query\Shop\CategoryFilters;
 use Modules\Catalog\Application\Query\Shop\Cursor;
@@ -389,7 +390,7 @@ final readonly class DatabaseShopReader implements ShopReader
             ->when($viewer === ShopperKind::Individual, static fn (Builder $retail): Builder => $retail->where('sv.sells_retail', true))
             // A company and a guest see both sides: retail and wholesale (§4.5, §8 #33).
             ->orderBy('v.position')->orderBy('v.id')
-            ->get(['sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'v.weight_grams', 'v.length_mm', 'v.width_mm', 'v.height_mm', 'f.ending_soon', 'f.orderable'])
+            ->get(['sv.variant_id', 'sv.sells_retail', 'sv.sells_wholesale', 'v.weight_grams', 'v.length_mm', 'v.width_mm', 'v.height_mm', 'f.ending_soon', 'f.orderable', 'f.price_minor', 'f.price_before_minor'])
             ->all();
 
         if ($variants === []) {
@@ -441,6 +442,10 @@ final readonly class DatabaseShopReader implements ShopReader
             $row->length_mm === null ? null : (int) $row->length_mm,
             $row->width_mm === null ? null : (int) $row->width_mm,
             $row->height_mm === null ? null : (int) $row->height_mm,
+            // Its retail price as Pricing pushed it (amendment 35); none yet: not priced. A size sold wholesale
+            // only has none here: its wholesale price is Pricing's section's (`pricing.wholesale`).
+            $row->price_minor === null || ! $row->sells_retail ? null : (int) $row->price_minor,
+            $row->price_before_minor === null || ! $row->sells_retail ? null : (int) $row->price_before_minor,
         ), $variants));
     }
 
@@ -520,7 +525,8 @@ final readonly class DatabaseShopReader implements ShopReader
         $rows = $this->db->select(
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
-            .' l.ending_soon_companies, l.ending_soon_individuals, '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
+            .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.for_companies,'
+            .' '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
             .' WHEN ?::text <% l.search_text THEN 3'
@@ -718,7 +724,9 @@ final readonly class DatabaseShopReader implements ShopReader
     /**
      * Each card with the variant it shows to this viewer (amendment 14(f)): the first an individual can
      * buy — a retail one — or, for a company or a guest, the first on sale here (§2.2: companies and
-     * guests share a card); its labels, read with it; and its side's "Last pieces" (amendment 16(h)).
+     * guests share a card); its labels, read with it; its side's "Last pieces" (amendment 16(h)); and its
+     * price (amendment 35): retail for every viewer — the retail card size's, and "From" — and "Wholesale
+     * from" for a company or a guest.
      *
      * @param  array<array-key, mixed>  $rows  listing rows, each with its labels
      * @return list<ProductCard>
@@ -744,8 +752,20 @@ final readonly class DatabaseShopReader implements ShopReader
                 (bool) ($individual ? $row->ending_soon_individuals : $row->ending_soon_companies),
                 // Stars only where the store shows ratings, and once there is a review (amendment 25).
                 (bool) ($row->ratings_shown ?? true) && (int) ($row->rating_count ?? 0) > 0 ? CardRating::of((int) $row->rating_sum, (int) $row->rating_count) : null,
+                CardPrice::of(
+                    self::minor($row->retail_price_minor),
+                    self::minor($row->retail_price_before_minor),
+                    self::minor($row->retail_from_minor),
+                    // Never an individual's; a guest's only where companies may buy it (its category open to them).
+                    $individual || ! (bool) ($row->for_companies ?? true) ? null : self::minor($row->wholesale_from_minor),
+                ),
             );
         }, $rows);
+    }
+
+    private static function minor(mixed $amount): ?int
+    {
+        return $amount === null ? null : (int) $amount;
     }
 
     /**

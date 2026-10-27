@@ -197,7 +197,7 @@ describe('the addresses', function () {
 });
 
 describe('a product\'s page', function () {
-    it('shows the choices, the chosen variant\'s details, how it is sold and its warranty; no code, no price', function () {
+    it('shows the choices, the chosen variant\'s details, how it is sold and its warranty; no code, and no price before one is set', function () {
         $p = shopPagesProduct(Px::category('Kitchens'), ['60 cm', '80 cm']);
         $slug = shopPagesSlug('product', $p['product']);
 
@@ -212,6 +212,9 @@ describe('a product\'s page', function () {
             ->where('selling.retailMinimum', 1)
             ->where('address.noindex', false)
             ->has('photos', 1)
+            // Not priced in the store yet: no price (amendment 35; ShopPricesTest shows them priced).
+            ->where('variants.0.price', null)
+            ->where('variants.0.priceBefore', null)
         );
 
         $codes = DB::table('catalog.variants')->where('product_id', $p['product'])->pluck('code')->all();
@@ -219,8 +222,6 @@ describe('a product\'s page', function () {
         foreach ($codes as $code) {
             expect($response->getContent())->not->toContain((string) $code);
         }
-
-        expect($response->getContent())->not->toContain('price');
     });
 
     it('shows a product this viewer\'s account type does not see as not available now, kept out of search engines (P18)', function () {

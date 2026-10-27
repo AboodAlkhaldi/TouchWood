@@ -9,6 +9,7 @@ use LogicException;
 use Modules\Catalog\Public\Contracts\ShopProductSection;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Catalog\Public\Dto\ShopProductVisitDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -69,12 +70,14 @@ final class InMemoryShopProductSections implements ShopProductSections
      * @param  array<string, string>  $after  section key => where it goes on from
      * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31)
      * @param  bool  $available  false on a "Not available now" page: only the sections registered for it are read (amendment 34)
+     * @param  ShopperKind  $viewer  the side the viewer buys on (amendment 35)
+     * @param  list<string>  $wholesaleSizes  the page's sizes this viewer can buy wholesale (amendment 35)
      * @return array<string, array<string, mixed>|null>
      */
-    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true): array
+    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true, ShopperKind $viewer = ShopperKind::Guest, array $wholesaleSizes = []): array
     {
         $parts = [];
-        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters);
+        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters, $viewer, $wholesaleSizes);
 
         foreach ($this->sections as $key => $class) {
             if (! $available && ! isset($this->evenUnavailable[$key])) {

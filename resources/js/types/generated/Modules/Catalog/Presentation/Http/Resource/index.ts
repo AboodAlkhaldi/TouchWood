@@ -375,6 +375,13 @@ labels: ShopLabelData[],
 lastPieces: boolean,
 rating: number | null,
 ratingCount: number,
+price: ShopCardPriceData | null,
+};
+export type ShopCardPriceData = {
+now: MoneyData | null,
+before: MoneyData | null,
+from: MoneyData | null,
+wholesaleFrom: MoneyData | null,
 };
 export type ShopCategoryPage = {
 name: string,
@@ -484,6 +491,8 @@ weightGrams: number | null,
 lengthMm: number | null,
 widthMm: number | null,
 heightMm: number | null,
+price: MoneyData | null,
+priceBefore: MoneyData | null,
 };
 export type ShopWarrantyData = {
 name: string,
