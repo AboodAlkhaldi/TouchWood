@@ -1553,8 +1553,8 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    hand"**. The customer pays on **the request's own page** — `/{store}/{locale}/orders/{number}/pay` —
    with the same form and timers; paid → #7. **Staff edits — and recording a payment by hand — wait while
    a payment is in progress on the order** (`PaymentsApi::refresh` says so), with the reason shown;
-   **recording a payment by hand withdraws the order's open request** (payments.md §1.5). A customer's cancellation while a
-   request is being paid — payments.md §9.6 #5.
+   **recording a payment by hand withdraws the order's open request** (payments.md §1.5). **A customer's cancellation waits
+   too** while a request is being paid (owner, 2026-10-28, payments.md §9.6 #5).
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).

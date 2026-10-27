@@ -861,7 +861,7 @@ for a reader without that job.
 `customerIdsMatching`, which ships with Loyalty's screens, PR #168) and `PromotionsActionsForReader`;
 Platform's menu icons `coupons`, `segments`, `gifts`.
 
-### 9.5 Stage 7 — **[PROPOSED 2026-10-28]**: a coupon reserved while the customer pays online
+### 9.5 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: a coupon reserved while the customer pays online
 
 Waiting for the owner's acceptance of payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the coupon

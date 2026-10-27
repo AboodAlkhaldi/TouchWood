@@ -9,7 +9,7 @@ in code since S7b), the owner's answers of 2026-10-17 to 2026-10-28 (§9.1) and 
 documentation **read in full on 2026-10-28** — all 212 pages
 ([payments-myfatoorah-notes.md](payments-myfatoorah-notes.md): §0 is that read; every gateway fact below
 is from there, with its page). Points marked **[PROPOSED]** are mine, stated for the owner to reject;
-the open questions are in §9.6.
+§9.6 holds the last round, answered.
 
 **The owner's charge for this module (2026-10-17):** "the payment must be so secure and ran over all
 the usecases so we dont charge same order twice or charge on nothing or if had a error in connection or
@@ -113,7 +113,7 @@ These hold for every gateway, and every one has its tests in §8.
      when it is younger than 10 seconds, so pages never multiply calls (**[PROPOSED]**). **When nobody is paying,
      nothing runs** (the owner, 2026-10-28: no lookups "hoping to find anything").
    - **One backstop**: once an hour, a single query looks for attempts still unanswered after their
-     last check (a lost job) and checks them (**[PROPOSED]**, question §9.6 #4). With none, it ends at
+     last check (a lost job) and checks them (owner, 2026-10-28, §9.6 #4). With none, it ends at
      once.
 10. **No card data ever reaches our server** (owner, 2026-10-19 P3). The card form is **MyFatoorah's,
     drawn inside our page** ("MyFatoorah handles all PCI DSS requirements" — notes §0 #3); our page and
@@ -319,7 +319,7 @@ These hold for every gateway, and every one has its tests in §8.
    - **Declined** (the bank's reason — notes §9: a wrong code, insufficient funds, a card declined…) →
      `PaymentFailed` → Sales ends the try and releases everything; the customer is back on checkout
      with the reason **in plain words** (accepted, 2026-10-28) and may press Pay again — a new session,
-     a new try, a new 5 minutes (**[PROPOSED]**, question §9.6 #2). The frame is closed, so the declined
+     a new try, a new 5 minutes (owner, 2026-10-28, §9.6 #2). The frame is closed, so the declined
      invoice's page is no longer in the customer's hands; if another transaction on it were ever to
      succeed, it is a refund due (rule 15), never a second order.
 7. **The 5 minutes end** with no answer: Payments asks MyFatoorah.
@@ -342,8 +342,8 @@ These hold for every gateway, and every one has its tests in §8.
    - **the charge was made** (the bank's step was opened) → MyFatoorah cannot tell us whether the
      customer finished it (rule 15), so the try **cannot be pretended away until its time is over**: the
      page says "Your last payment can still go through until 14:37 — you can change your cart meanwhile;
-     Pay opens again after that", with the time left — **at most the window and the wait** (question
-     §9.6 #7);
+     Pay opens again after that", with the time left — **at most the window and the wait** (owner,
+     2026-10-28, §9.6 #7);
    - paid → their new order.
 9. **A second window.** Checkout opened in another tab, or the tab duplicated, **while a try is live**:
    the page shows "A payment is already in progress in another window" and **no form** — it cannot pay
@@ -375,7 +375,9 @@ These hold for every gateway, and every one has its tests in §8.
 - **Only for an individual's order in a store whose gateway is on**; sent by **staff who can manage
   orders** (P23).
 - **Staff edits wait while a payment is in progress on the order** (the 5 minutes and the wait at most):
-  staff are told why (owner, 2026-10-27, §9.3 #10, as it now applies).
+  staff are told why (owner, 2026-10-27, §9.3 #10, as it now applies). **So does the customer's
+  cancellation** — "A payment is being confirmed" — until the payment is answered (owner, 2026-10-28,
+  §9.6 #5).
 - A request still open when the amount changes again is **withdrawn** (it no longer matches) and a new
   one is needed (accepted, 2026-10-28). Withdrawn means: no longer shown; a payment already in progress
   on it is still answered and recorded, a refund due if too much (rule 8).
@@ -436,7 +438,7 @@ request is successful")
   the page counts it down. MyFatoorah's own `PaymentExpiry` is set to its end, so the payment cannot be
   finished after it — **whether MyFatoorah accepts an expiry this short is not in its docs** (notes §0
   #5), and the first build step tries it (§1.3). Our page ends the window at 5 minutes either way.
-- **The wait** (`payments.wait_minutes`, Super Admins; its length is question §9.6 #1). At the end of
+- **The wait — 2 minutes** (`payments.wait_minutes`, Super Admins; owner, 2026-10-28, §9.6 #1). At the end of
   the window our server asks MyFatoorah; **anything but paid or declined is waited for** — because
   MyFatoorah's `InProgress` is the same for the customer who pressed the bank's "confirm" at 4:59 and
   for one who left (rule 15). The page shows "Confirming your payment…" when it saw the customer finish
@@ -449,7 +451,7 @@ request is successful")
   minutes after the charge** → the attempt is listed
   for staff as needing attention (owner, 2026-10-27, §9.3 #13); staff may ask the gateway again, or
   release the try by hand once they have confirmed with MyFatoorah that nothing was taken
-  (**[PROPOSED]**, question §9.6 #3).
+  (owner, 2026-10-28, §9.6 #3).
 - **A success that arrives after the try was released** — it should not happen once rule 15's test
   passes; rule 5 still records it: **no order is made by itself**. The money is **a refund due**,
   recorded on the try in Sales and shown to staff as needing attention in the Payments list, with the
@@ -466,7 +468,7 @@ request is successful")
 (owner, 2026-10-27: "we can set something from us as the community does")
 
 - **Pay**: **10 per cart (or request) per 10 minutes** and **30 per customer per hour** (owner, 2026-10-27,
-  §9.3 #4). Opening a session (the checkout page): **30 per buyer per hour** (**[PROPOSED]**).
+  §9.3 #4). Opening a session (the checkout page): **30 per buyer per hour** (owner, 2026-10-28, §9.6 #6).
 - **The limits only stop abuse; they never multiply work** (the owner, 2026-10-27: ten presses must be
   one operation, not ten). While a try is live, every press — a double click, two tabs, ten presses —
   gets **the same try** or "already in progress", with no new call to MyFatoorah (rule 3); two presses
@@ -619,7 +621,7 @@ interface PaymentsApi
 | `ReceiveAnswer` (the frame's message or the return to our address, from the page) | The buyer's session — the attempt must be theirs (rule 7) | That store |
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.view`** — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.view`** | That store |
-| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (**[PROPOSED]**), `PrunePaymentLog` | System (reserved) | — |
+| `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
 characters. The permissions sit in a new **Payments** group in the role editor.
@@ -678,8 +680,8 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 | `payments.calls` | `id` bigint PK · `attempt_id` NULL · `store_id` · `endpoint` · `request` jsonb (the key, the secret and the `Authorization` header never stored; the customer's contact details cleared on anonymizing — rule 13) · `http_status` NULL · `response` jsonb NULL (card details removed) · `error` NULL · `took_ms` · `at` — kept 1 year (owner, 2026-10-27, §9.3 #8) |
 
 Settings (Platform, declared by Payments): `payments.window_minutes` (STORE, 1–30, default **5** —
-owner 2026-10-28, Super Admins), `payments.wait_minutes` (STORE, its default per §9.6 #1, Super
-Admins), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
+owner 2026-10-28, Super Admins), `payments.wait_minutes` (STORE, 1–10, default **2** — owner
+2026-10-28, Super Admins), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
 account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `payments.bank.holder`,
 "may be empty", sensitive).
 
@@ -831,6 +833,7 @@ account before going live (§9.3 #6).
 | — | **The embedded form on our checkout**; **the money taken at once**, never held; **no order until the money is confirmed**; **the order number given only when paid** — no gaps from tries | 2026-10-28 |
 | — | **Two timers**: a 5-minute window from Pay, and a wait for an answer already in flight | 2026-10-28 |
 | Q1, Q2, Q4, Q5 | (a): the embedded form; the try's own reference, the number at payment; the 5 minutes from Pay; the request's own page with the same form | 2026-10-28 |
+| §9.6 #1–8 | (a) for all eight: a 2-minute wait; leaving after the bank's step waits for the try's time; a decline ends the try; an unanswered try waits for staff after 20 minutes; a success after release is a refund due; the hourly backstop; a cancel waits for a request's payment; 30 sessions per buyer per hour — and Promotions' and Loyalty's reserve / confirm / release, and a second independent review | 2026-10-28 |
 | Q6 | Every remaining pick accepted: plain-word decline reasons; a request withdrawn when the amount changes; 60 checks and 120 notices a minute; Admins change the bank account; the Payments list wherever orders are seen; the UNAVAILABLE error category; Payments → Access for permissions; the nightly re-check dropped | 2026-10-28 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
@@ -928,7 +931,7 @@ what is left of them is in §1.3, §1.5 and §1.7.
 4. **A gateway switched off while attempts are open** — answered (a): the open attempts are still
    checked until each closes; only new payments stop.
 
-### 9.6 Still open — the round of 2026-10-28
+### 9.6 The round of 2026-10-28 — answered: (a) for all eight (owner, 2026-10-28: "Rec for all")
 
 Answered in this round, recorded here: **"authorize, then capture" is not used** (the owner: "we dont
 want any held we will take the money"). It was asked only for one rare case — a payment that goes

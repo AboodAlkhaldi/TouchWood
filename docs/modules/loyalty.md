@@ -979,7 +979,7 @@ written, for the owner to review with the built screens. Each says what changing
 | P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; **the owner, 2026-10-19: left as is** | One check in the handler |
 | P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |
 
-### 9.6 Stage 7 — **[PROPOSED 2026-10-28]**: points reserved while the customer pays online
+### 9.6 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: points reserved while the customer pays online
 
 Waiting for the owner's acceptance of payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the points it
