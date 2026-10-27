@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from '@inertiajs/react';
-import { Money } from '@/components/Money';
 import { cn } from 'cn';
 import { Note } from '@/components/Note';
 import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
@@ -26,8 +25,7 @@ import type { ShopWholesaleData, ShopWholesaleSizeData } from '@/types/generated
 | with its swatch, a value no variant on sale holds disabled; the chosen variant's details, weight and
 | size; "Last pieces" on the ending-soon option only (amendment 16(h)); the description; the warranty;
 | how it is sold to this viewer (P17); Goes With and You May Also Like. No code. The chosen size's price
-| under the name, "From" the lowest before one is chosen where they differ, a size sold wholesale only
-| priced by Pricing's section (amendment 35; sales.md §4.1 S1); Sales's Add to Cart in its slot (S2), the
+| under the name - the page opens on its first size - a size sold wholesale only priced by Pricing's section (amendment 35; sales.md §4.1 S1); Sales's Add to Cart in its slot (S2), the
 | wholesale bands with it. The variant is matched here from the list the server sent, for display only - Sales resolves
 | it on the server when there is a cart (handoff §9.1).
 |
@@ -88,7 +86,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                         ) : null}
                         <h1 className="text-heading-32 text-ink">{name}</h1>
                         <RatingLine reviews={sections['feedback.reviews']} />
-                        {available ? <ProductPrice variant={variant} variants={variants} wholesale={sections['pricing.wholesale'] ?? null} wholesaleMinimum={selling?.wholesaleMinimum ?? null} /> : null}
+                        {available ? <ProductPrice variant={variant} wholesale={sections['pricing.wholesale'] ?? null} wholesaleMinimum={selling?.wholesaleMinimum ?? null} /> : null}
 
                         {available ? null : (
                             <Note variant="warning" label={t('catalog::shop.product.not_available')} data-test="not-available">
@@ -249,42 +247,27 @@ function Terms({ side, minimum, maximum }: { side: string; minimum: number; maxi
 }
 
 /**
- * The price under the name: the chosen size's, with any sale; before a size is chosen, "From" the lowest where
- * the sizes differ. A size sold wholesale only has no retail price: Pricing's, what a piece costs at the
- * wholesale minimum - the band that starts there or below, else its price below any band.
+ * The price under the name: the chosen size's, with any sale. A size sold wholesale only has no retail price:
+ * Pricing's, what a piece costs at the wholesale minimum - the band that starts there or below, else its price
+ * below any band.
  */
-function ProductPrice({ variant, variants, wholesale, wholesaleMinimum }: { variant: ShopVariantData | null; variants: ShopVariantData[]; wholesale: ShopWholesaleData | null; wholesaleMinimum: number | null }) {
+function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopVariantData | null; wholesale: ShopWholesaleData | null; wholesaleMinimum: number | null }) {
     const t = useTranslator();
 
-    if (variant !== null) {
-        const only: ShopWholesaleSizeData | null = variant.price === null ? (wholesale?.sizes[variant.id] ?? null) : null;
-
-        if (variant.price !== null) {
-            return <ShopPrice now={variant.price} before={variant.priceBefore} className="text-heading-20" />;
-        }
-
-        return only === null ? null : (
-            <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="wholesale-price">
-                <ShopPrice now={only.bands.filter((band) => band.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop()?.unit ?? only.price} />
-                <span className="text-copy-14 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
-            </span>
-        );
-    }
-
-    const prices = variants.flatMap((each) => (each.price === null ? [] : [each.price]));
-
-    if (prices.length === 0) {
+    if (variant === null) {
         return null;
     }
 
-    const lowest = prices.reduce((low, each) => (each.minor < low.minor ? each : low));
+    if (variant.price !== null) {
+        return <ShopPrice now={variant.price} before={variant.priceBefore} className="text-heading-20" />;
+    }
 
-    return prices.every((each) => each.minor === lowest.minor) ? (
-        <ShopPrice now={lowest} className="text-heading-20" />
-    ) : (
-        <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="price-from">
-            <span className="text-copy-14 text-ink-muted">{t('catalog::shop.price.from')}</span>
-            <Money value={lowest} className="font-semibold text-ink" />
+    const only: ShopWholesaleSizeData | null = wholesale?.sizes[variant.id] ?? null;
+
+    return only === null ? null : (
+        <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="wholesale-price">
+            <ShopPrice now={only.bands.filter((band) => band.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop()?.unit ?? only.price} />
+            <span className="text-copy-14 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
         </span>
     );
 }

@@ -898,9 +898,9 @@ amount still owed (§4.2 B1).
 - **Wholesale bands** on the product page, under the Wholesale choice (companies and guests): "From 20
   pieces: 85.00 · From 100 pieces: 78.00", the band that applies to the quantity typed highlighted (R2-3).
 - **The screens session's picks, for the owner to change** (2026-10-27): the bands start with the wholesale
-  minimum at the size's own wholesale price when the first band starts above it; a size sold wholesale only
-  shows, under the name, what a piece costs at the wholesale minimum (not below it, where it cannot be
-  bought); before a size is chosen, the page shows "From" the lowest retail price where the sizes differ.
+  minimum, at the band that starts there or below, else at the size's own wholesale price; a size sold
+  wholesale only shows, under the name, what a piece costs at the wholesale minimum (not below it, where it
+  cannot be bought). The page opens on its first size, so its own price shows, never "From".
 
 **S2 · Add to Cart** — on the product page only, never on a card (R1-9):
 - **Retail or Wholesale** — a choice above the quantity, each with its own minimum and maximum, for a

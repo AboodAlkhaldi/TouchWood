@@ -92,3 +92,47 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
     $page->click('[data-test="mode-RETAIL"]');
     expect(browserUntil($page, "!document.querySelector('[data-test=\"bands\"]')"))->toBeTrue();
 });
+
+it('starts the wholesale bands at the minimum after it moved: a band below it folded in, the size\'s own price up to a band above it', function () {
+    // Pricing starts the first band at the wholesale minimum; Catalog may move the minimum after. Both sizes
+    // wholesale only: 80 cm at 22.00, its band from 20 at 18.00 (set under a minimum of 20); 60 cm at 40.00,
+    // bands from 5 at 35.00 and from 20 at 32.00 (under 5). Then the minimum moves to 10.
+    $category = Px::category('Kitchens');
+    $p = Px::ready(['60 cm', '80 cm'], $category);
+    [$sixty, $eighty] = $p['variants'];
+    $store = Fx::storeId('sa');
+    $terms = static fn (int $minimum) => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms($store, $p['product'], [
+        $sixty => ['retail' => false, 'wholesale' => true],
+        $eighty => ['retail' => false, 'wholesale' => true],
+    ], wholesaleMinimum: $minimum));
+
+    Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $p['product'], true)));
+    Rx::set('sa', [$sixty => '40.00', $eighty => '22.00']);
+    Fx::asSystem(function () use ($store, $sixty, $eighty, $terms): void {
+        $terms(20);
+        app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $eighty, [20 => '18.00']));
+        $terms(5);
+        app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $sixty, [5 => '35.00', 20 => '32.00']));
+        $terms(10);
+    });
+
+    $slug = (string) DB::table('catalog.product_slugs')->where('product_id', $p['product'])->where('locale', 'en')->where('is_current', true)->value('slug');
+    $text = static fn (mixed $page, string $selector): string => (string) $page->script("document.querySelector('{$selector}')?.textContent ?? ''");
+
+    // 60 cm: none bought under 10, so the band from 5 starts at 10.
+    $page = visit('/sa/en/products/'.$slug);
+    expect(browserUntil($page, "document.querySelector('[data-test=\"band-current\"]') !== null"))->toBeTrue()
+        ->and($text($page, '[data-test="band-current"]'))->toContain('From 10 pieces')->toContain('35.00')
+        ->and($text($page, '[data-test="bands"]'))->not->toContain('From 5 pieces')->toContain('From 20 pieces')
+        ->and($text($page, '[data-test="wholesale-price"]'))->toContain('35.00');
+
+    // A quantity under the minimum buys at no step: none highlighted.
+    $page->clear('#add-quantity')->type('#add-quantity', '7');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"band-current\"]') === null"))->toBeTrue();
+
+    // 80 cm: its own price from 10, its band from 20.
+    $page->click('80 cm');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"band-current\"]')?.textContent.includes('22.00')"))->toBeTrue()
+        ->and($text($page, '[data-test="band-current"]'))->toContain('From 10 pieces')
+        ->and($text($page, '[data-test="bands"]'))->toContain('From 20 pieces')->toContain('18.00');
+});

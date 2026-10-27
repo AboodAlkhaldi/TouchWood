@@ -12,9 +12,9 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 | in the system's tones until the one style every flag, tag and badge takes before launch (§9.2 #10).
 */
 
-/** The percent a sale takes off, whole; none unless the old price is higher. */
+/** The percent a sale takes off, whole and between 1 and 99 - never "−0%" on a sale, nor "−100%" on what still costs; none unless the old price is higher. */
 function percentOff(now: MoneyData, before: MoneyData | null): number {
-    return before === null || before.minor <= now.minor ? 0 : Math.round(((before.minor - now.minor) * 100) / before.minor);
+    return before === null || before.minor <= now.minor ? 0 : Math.min(99, Math.max(1, Math.round(((before.minor - now.minor) * 100) / before.minor)));
 }
 
 export function ShopPrice({ now, before = null, className }: { now: MoneyData; before?: MoneyData | null; className?: string }) {

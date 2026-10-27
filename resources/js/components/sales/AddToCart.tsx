@@ -154,13 +154,16 @@ export function AddToCart({ variant, selling, choicesId, wholesalePrices = null 
     );
 }
 
-/** The wholesale prices by quantity: from the first piece sold wholesale, then from each band's start; the step the quantity typed falls in, highlighted. */
+/**
+ * The wholesale prices by quantity: from the first piece sold wholesale - at the band that starts there or below,
+ * else the size's own price - then from each band's start above it; the step the quantity typed falls in, highlighted.
+ */
 function Bands({ wholesale, first, quantity }: { wholesale: ShopWholesaleSizeData; first: number; quantity: number | null }) {
     const t = useTranslator();
     const locale = useLocale();
     const steps: { from: number; unit: MoneyData }[] = [
-        ...((wholesale.bands[0]?.minQuantity ?? Number.MAX_SAFE_INTEGER) > first ? [{ from: first, unit: wholesale.price }] : []),
-        ...wholesale.bands.map((band) => ({ from: band.minQuantity, unit: band.unit })),
+        { from: first, unit: wholesale.bands.filter((band) => band.minQuantity <= first).pop()?.unit ?? wholesale.price },
+        ...wholesale.bands.filter((band) => band.minQuantity > first).map((band) => ({ from: band.minQuantity, unit: band.unit })),
     ];
     const applies = quantity === null ? -1 : steps.reduce((at, step, index) => (step.from <= quantity ? index : at), -1);
 
