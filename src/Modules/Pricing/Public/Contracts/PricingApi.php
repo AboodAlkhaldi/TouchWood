@@ -10,6 +10,7 @@ use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Pricing\Public\Dto\KeptPartDto;
 use Modules\Pricing\Public\Dto\OfferNameDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
+use Modules\Pricing\Public\Dto\WholesaleBandDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -91,4 +92,14 @@ interface PricingApi
      * @return list<OfferNameDto>
      */
     public function discountsNamed(array $discountIds): array;
+
+    /**
+     * **Sizes' wholesale bands in a store** (pricing.md §1.4; Sales's order edit and the shop's product page,
+     * 2026-10-27): each size's bands, lowest start first, without VAT; a size with none is left out. One
+     * query however many.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, list<WholesaleBandDto>> variant id, lower-cased => its bands
+     */
+    public function wholesaleBands(StoreId $store, array $variantIds): array;
 }

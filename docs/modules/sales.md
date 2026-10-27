@@ -729,6 +729,13 @@ customer, or these reads take the store too.
   exponent}` — `lines`:
   `ReturnLineView{nameAr, nameEn, values, code, gift, asked, received}`; `photos` a count (the files open
   through staff's `OpenOrderFile`). Another customer's return: `ReturnNotFound`.
+- **`BuyAgain(orderNumber)`** (the screens' B6; `sales.order.view_own`, then `sales.cart.manage` in the order's
+  store) → `BuyAgainResult{storeId, added, skipped}`: the customer's own order, of any state, put back in that
+  store's cart — each line but the gift, the parts of one size and mode as one, added to what the cart holds
+  as the cart adds (§1.1). A line not sold there now (`NOT_AVAILABLE`, the store off too) or not to this
+  account (`NOT_FOR_YOUR_ACCOUNT`) is left out: `BuyAgainSkipped{variantId, nameAr, nameEn, mode, quantity,
+  reason}`, its names as sold; every other goes in as it was, the cart marking what checkout would refuse
+  (a minimum or a most passed, stock, a price).
 - **`ViewCart(storeId, locale)`** (step S11b-2; `sales.cart.manage`, a guest `sales.guest_cart.manage`) →
   `CartView{storeId, lines, mayOrder, couponCode, notice, subtotal, exponent}` — `mayOrder` whether checkout
   would take this account at all (§1.2 step 1: a guest signs in first; an unapproved company or a customer
@@ -804,7 +811,8 @@ the order's store.
   screen's. Each line carries the variant's `code`, staff-only (catalog.md amendment 5(d)): an invoice handed
   to the customer leaves it out.
 - **`ListReturns(?storeId, ?status, ?after)`** (handoff §14: Returns): one store (refused when not covered or not
-  listed) or every store listed; one state (`REQUESTED` … `CLOSED`, any case) or all; newest asked first, **50 a
+  listed) or every store listed; one state (`REQUESTED` … `CLOSED`, any case), `CLOSED_ALL` — refused,
+  withdrawn and closed together, the "Closed" tab (owner R1-50) — or all; newest asked first, **50 a
   page**, `after` the last return id → `StaffReturnsPage{returns, next}`, each `StaffReturnRow{returnId, orderId,
   orderNumber, storeId, customer, status, requestedAt, refundDue, exponent}`.
 - **`ViewReturn(returnId)`** → `StaffReturnView{returnId, orderId, orderNumber, storeId, customer, status, reason,
@@ -815,6 +823,18 @@ the order's store.
 - **`OpenOrderFile(mediaId)`** → `OrderFile{mediaId, url, expiresAt}`: a transfer document or a return photo,
   through Platform's expiring link, to staff who view the orders of its store; any other file, or one of a store
   not covered: `OrderNotFound` (Platform asks the module to check its reader first: catalog.md §2.4).
+- **`PreviewReturnRefund(returnId)`** (the screens' B10; `sales.return.manage`) → `ReturnRefundPreview{goods,
+  vat, shipping, shippingVat, total, exponent}`: what `CompleteReturn` would refund for a received return —
+  the pieces' goods, their VAT share, the shipping and its VAT when it is the return that makes every bought
+  piece returned — by the same `ReturnRefunds` on the same facts, written nowhere (owner R2-40: the
+  Complete confirmation). Any other state: `InvalidOrderChange`.
+- **`SearchEditSizes(orderId, q)`** (the screens' B7; `sales.order.edit`) → `list<EditSizeRow{variantId,
+  productId, productNameAr, productNameEn, code, values, photoMediaId, retail {now, before}, wholesale {now,
+  before, minimum, bands [{fromQuantity, unit}]}, available, exponent}>`: the order's store's sizes switched on
+  there and not archived, by a product's name or a size's code (Catalog's `searchVariants`), 20 at most,
+  less those the order has — today's one-piece retail price when it sells retail and is priced (`before`
+  only while `now` is lower), its price at its wholesale minimum and its bands (`PricingApi::wholesaleBands`)
+  when it sells wholesale, the stock available now (null: not counted).
 
 ## 4 · State machines
 

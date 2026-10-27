@@ -15,7 +15,7 @@ final readonly class DatabaseStaffReturnReads implements StaffReturnReads
         private ConnectionInterface $db,
     ) {}
 
-    public function returns(?array $storeIds, ?string $status, ?string $afterReturnId, int $limit): array
+    public function returns(?array $storeIds, ?array $statuses, ?string $afterReturnId, int $limit): array
     {
         $query = $this->db->table('sales.returns AS r')->join('sales.orders AS o', 'o.id', '=', 'r.order_id')
             ->orderByDesc('r.requested_at')->orderByDesc('r.id')->limit($limit)
@@ -25,8 +25,8 @@ final readonly class DatabaseStaffReturnReads implements StaffReturnReads
             $query->whereIn('r.store_id', $storeIds);
         }
 
-        if ($status !== null) {
-            $query->where('r.status', $status);
+        if ($statuses !== null) {
+            $query->whereIn('r.status', $statuses);
         }
 
         if ($afterReturnId !== null) {

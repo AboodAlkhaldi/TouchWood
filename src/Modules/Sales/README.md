@@ -102,7 +102,8 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Infrastructure/Eloquent/DatabaseStaffReturnReads`. For the Sales screens (2026-10-27): `ListOrders`'s
   filters, search and customer, `Query/ListCarriers`, `Query/ListCustomerOrders` behind the customer page's
   `Presentation/Http/Resource/OrdersCustomerSection` (`sales.orders`); payments only of the whole balance
-  (`Order/MoneyRecording`).
+  (`Order/MoneyRecording`). PR B: `Command/BuyAgain`, `Query/SearchEditSizes`, `Query/PreviewReturnRefund`,
+  `ListReturns`' `CLOSED_ALL`.
 - **The Best-Selling ranks** (S11a): `PushSalesRanks` (nightly through `Infrastructure/Queue/PushSalesRanksJob`;
   `Orders::piecesSold`) pushes each store's whole ranking to Catalog's `ListingFacts::salesRanks` (catalog.md
   amendment 30).

@@ -17,8 +17,10 @@ use Modules\Pricing\Domain\Exception\InvalidPricingInput;
 use Modules\Pricing\Domain\Repository\CategoryDiscounts;
 use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Repository\Sales;
+use Modules\Pricing\Domain\Repository\WholesaleBands;
 use Modules\Pricing\Domain\Service\OrderTotals;
 use Modules\Pricing\Domain\Service\PriceResolution;
+use Modules\Pricing\Domain\ValueObject\Band;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
@@ -26,6 +28,7 @@ use Modules\Pricing\Public\Dto\KeptPartDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
 use Modules\Pricing\Public\Dto\OfferNameDto;
 use Modules\Pricing\Public\Dto\TotalsDto;
+use Modules\Pricing\Public\Dto\WholesaleBandDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\MoneyException;
 use Shared\Domain\ValueObject\StoreId;
@@ -48,7 +51,16 @@ final readonly class PricingApiImpl implements PricingApi
         private Sales $sales,
         private CategoryDiscounts $discounts,
         private OfferNames $names,
+        private WholesaleBands $bands,
     ) {}
+
+    public function wholesaleBands(StoreId $store, array $variantIds): array
+    {
+        $ids = array_values(array_unique(array_map(static fn (string $id): string => strtolower(trim($id)), $variantIds)));
+
+        return array_map(static fn (array $bands): array => array_map(static fn (Band $band): WholesaleBandDto => new WholesaleBandDto($band->fromQuantity, $band->amount), $bands),
+            $ids === [] ? [] : array_filter($this->bands->forVariants($store, $ids), static fn (array $bands): bool => $bands !== []));
+    }
 
     public function salesNamed(array $saleIds, array $knownVariants = []): array
     {

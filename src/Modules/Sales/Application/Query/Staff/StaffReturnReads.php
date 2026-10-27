@@ -8,12 +8,14 @@ namespace Modules\Sales\Application\Query\Staff;
 interface StaffReturnReads
 {
     /**
-     * Returns of these stores (null: every store), newest first, after the return with that id.
+     * Returns of these stores (null: every store) in these states (null: every state), newest first, after the
+     * return with that id.
      *
      * @param  list<string>|null  $storeIds
+     * @param  list<string>|null  $statuses
      * @return list<array<string, mixed>>
      */
-    public function returns(?array $storeIds, ?string $status, ?string $afterReturnId, int $limit): array;
+    public function returns(?array $storeIds, ?array $statuses, ?string $afterReturnId, int $limit): array;
 
     /** @return array<string, mixed>|null the return with its order's number, customer and currency */
     public function returnOf(string $returnId): ?array;
