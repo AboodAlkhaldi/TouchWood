@@ -16,6 +16,10 @@ mode: string,
 quantity: number,
 reason: string,
 };
+export type CartGiftData = {
+amount: MoneyData,
+missing: MoneyData,
+};
 export type CartLineData = {
 variantId: string,
 name: string,
@@ -49,6 +53,15 @@ subtotal: MoneyData | null,
 pieces: number,
 problems: boolean,
 skipped: Record<string, any>[],
+mayNotOrder: string | null,
+shippingFee: MoneyData | null,
+freeAbove: MoneyData | null,
+freeMissing: MoneyData | null,
+freeShare: number,
+nextGift: CartGiftData | null,
+pointsToEarn: number,
+bestSellers: Record<string, any>[],
+cardFacts: Record<string, Record<string, Record<string, any>>>,
 };
 export type CheckoutAddressData = {
 id: string,

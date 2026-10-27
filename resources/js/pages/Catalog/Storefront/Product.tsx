@@ -17,6 +17,7 @@ import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { ShopWholesaleData, ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
+import type { ShopCartData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 
 /*
 | A product's page in the shop (catalog.md §4.5): the path to its category, the brand, the labels, the
@@ -47,7 +48,7 @@ function pick(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Re
 }
 
 /** Sales's section (sales.md §4.1 S2): Add to Cart offered on this page; Pricing's, the wholesale sizes' prices and bands (amendment 35(d)). */
-type SalesSections = { 'sales.cart'?: { offered: boolean } | null; 'pricing.wholesale'?: ShopWholesaleData | null };
+type SalesSections = { 'sales.cart'?: ShopCartData | null; 'pricing.wholesale'?: ShopWholesaleData | null };
 
 export default function Product(page: ShopProductPage & { sections: FeedbackSections & SalesSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
@@ -150,7 +151,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                         ) : null}
 
                         {/* Sales's Add to Cart (sales.md §4.1 S2): on an available page only, as Sales offers it. */}
-                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" wholesalePrices={variant !== null ? (sections['pricing.wholesale']?.sizes[variant.id] ?? null) : null} /> : null}
+                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" cart={sections['sales.cart'] ?? null} wholesalePrices={variant !== null ? (sections['pricing.wholesale']?.sizes[variant.id] ?? null) : null} /> : null}
 
                         {/* On a "Not available now" page too (amendment 34): a saved product kept or removed there. */}
                         <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />

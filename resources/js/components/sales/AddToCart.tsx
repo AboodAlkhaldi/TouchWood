@@ -14,6 +14,7 @@ import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { ShopSellingData, ShopVariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
+import type { ShopCartData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 
 /*
 | S2 - Add to Cart on a product's page, never on a card (sales.md §4.1; R1-9): Retail or Wholesale above the
@@ -23,6 +24,10 @@ import type { ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Pr
 | account, the cart's command refuses in its own words (R1-2). Drawn only where Sales offers it: never on a "Not
 | available now" page (catalog.md §1.4). Under the Wholesale choice, the size's wholesale prices - from its
 | first piece, then from each band's start - the one the quantity typed buys at highlighted (S1; R2-3).
+|
+| Once a size is chosen, what this viewer may add of it is Sales's own (§4.2 B15): the modes it sells to them now,
+| each mode's limits counted with the pieces its line already holds - an add joins that line - and Out of
+| stock when too few are free for the least add; the pieces of it already in the cart said under the box.
 */
 
 type Mode = 'RETAIL' | 'WHOLESALE';
@@ -30,16 +35,37 @@ type Mode = 'RETAIL' | 'WHOLESALE';
 /** Its own words: a product's page carries these, not the cart's. */
 const C = 'sales::shop_add';
 
-export function AddToCart({ variant, selling, choicesId, wholesalePrices = null }: { variant: ShopVariantData | null; selling: ShopSellingData; choicesId: string; /** Pricing's prices for the chosen size, where it sells wholesale to this viewer. */ wholesalePrices?: ShopWholesaleSizeData | null }) {
+export function AddToCart({
+    variant,
+    selling,
+    choicesId,
+    wholesalePrices = null,
+    cart = null,
+}: {
+    variant: ShopVariantData | null;
+    selling: ShopSellingData;
+    choicesId: string;
+    /** Pricing's prices for the chosen size, where it sells wholesale to this viewer. */
+    wholesalePrices?: ShopWholesaleSizeData | null;
+    /** Sales's section: what this viewer may add of each size. */
+    cart?: ShopCartData | null;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const link = useLink();
-    const wholesale = variant === null ? selling.wholesaleMinimum !== null : variant.sellsWholesale && selling.wholesaleMinimum !== null;
-    const retail = variant === null ? true : variant.sellsRetail;
+    // The chosen size as Sales offers it; none before a size is chosen, when the page's terms stand in.
+    const size = variant === null || cart === null ? null : (cart.sizes.find((each) => each.variantId === variant.id) ?? null);
+    const known = variant === null || cart === null || size !== null;
+    const wholesale = !known ? false : size !== null ? size.wholesale !== null : variant === null ? selling.wholesaleMinimum !== null : variant.sellsWholesale && selling.wholesaleMinimum !== null;
+    const retail = !known ? false : size !== null ? size.retail !== null : variant === null ? true : variant.sellsRetail;
     const modes: Mode[] = [...(retail ? (['RETAIL'] as const) : []), ...(wholesale ? (['WHOLESALE'] as const) : [])];
     const [mode, setMode] = useState<Mode>(modes[0] ?? 'RETAIL');
-    const minimum = Math.max(1, mode === 'WHOLESALE' ? (selling.wholesaleMinimum ?? 1) : selling.retailMinimum);
-    const maximum = mode === 'WHOLESALE' ? selling.wholesaleMaximum : selling.retailMaximum;
+    const line = size === null ? null : mode === 'WHOLESALE' ? size.wholesale : size.retail;
+    // An add joins the mode's line: the line's limits cover what it holds and the add together (B15).
+    const minimum = line !== null ? Math.max(1, line.minimum - line.inCart) : Math.max(1, mode === 'WHOLESALE' ? (selling.wholesaleMinimum ?? 1) : selling.retailMinimum);
+    const maximum = line !== null ? (line.maximum === null ? null : line.maximum - line.inCart) : mode === 'WHOLESALE' ? selling.wholesaleMaximum : selling.retailMaximum;
+    const full = maximum !== null && maximum < minimum;
+    const outOfStock = size !== null && (size.outOfStock || (line?.outOfStock ?? false));
     const [typed, setTyped] = useState(String(minimum));
     const [busy, setBusy] = useState(false);
     const [added, setAdded] = useState<number | null>(null);
@@ -68,7 +94,9 @@ export function AddToCart({ variant, selling, choicesId, wholesalePrices = null 
 
     const quantity = Number(typed);
     const outside = !Number.isInteger(quantity) || quantity < minimum || (maximum !== null && quantity > maximum);
-    const limits = maximum === null ? t(`${C}.add.from`, { minimum: figure(locale, minimum) }) : t(`${C}.add.limits`, { minimum: figure(locale, minimum), maximum: figure(locale, maximum) });
+    const limits = maximum === null ? t(`${C}.add.from`, { minimum: figure(locale, minimum) }) : t(`${C}.add.limits`, { minimum: figure(locale, minimum), maximum: figure(locale, Math.max(minimum, maximum)) });
+    // Why nothing can be added of this size now: too few free, or its line already holds the most.
+    const blocked = outOfStock ? t(`${C}.add.out_of_stock`) : full ? t(`${C}.add.full`) : undefined;
 
     const add = () => {
         if (variant === null) {
@@ -132,11 +160,21 @@ export function AddToCart({ variant, selling, choicesId, wholesalePrices = null 
                     onBlur={() => setTyped(String(Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(minimum, Number.isInteger(quantity) && quantity > 0 ? quantity : minimum))))}
                     data-test="add-quantity"
                 />
-                <ActionButton size="lg" loading={busy} disabledReason={variant !== null && outside ? limits : undefined} onClick={add} data-test="add">
+                <ActionButton size="lg" loading={busy} disabledReason={blocked ?? (variant !== null && outside ? limits : undefined)} onClick={add} data-test="add">
                     {t(`${C}.add.add`)}
                 </ActionButton>
             </div>
 
+            {blocked === undefined ? null : (
+                <p className="text-copy-14 text-ink" role="status" data-test={outOfStock ? 'out-of-stock' : 'line-full'}>
+                    {blocked}
+                </p>
+            )}
+            {size === null || size.inCart === 0 ? null : (
+                <p className="text-copy-13 text-ink-muted" data-test="in-cart">
+                    {plural(t, locale, `${C}.add.in_cart`, size.inCart)}
+                </p>
+            )}
             {pointed && variant === null ? (
                 <p className="text-copy-14 text-ink" role="status" data-test="choose-size">
                     {t(`${C}.add.choose`)}

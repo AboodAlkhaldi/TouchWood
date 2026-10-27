@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
+import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
 import { C, plural, Price, useLocale } from '@/components/sales/shop';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -12,10 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Progress } from '@/components/ui/progress';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
 import { figure } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
+import type { ShopCardData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import type { BuyAgainSkippedData, CartLineData, CartPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
@@ -25,7 +28,10 @@ import type { SharedProps } from '@/types/page';
 | says so with its one fix (R2-10); the lines that left at a sign-in named at the top, with Close (R2-8); the
 | coupon kept for checkout, a guest asked to sign in for it (R1-15); the summary with Checkout - out of reach
 | while a line is marked (R2-11), and for an account that may not order yet, saying so once (R1-17). A
-| guest's Checkout signs in and comes straight back (R1-16). Empty, it says so with Continue Shopping (R2-9).
+| guest's Checkout signs in and comes straight back (R1-16). Empty, it says so with Continue Shopping and the
+| store's best sellers under it (R2-9, R3). How much more ships free, with a bar (R1-12), the next gift (R1-13)
+| and the points to earn (R1-14); the shipping in the summary (R2-12); what the account still needs, with its
+| link (R1-17) - each from §4.2 B12, B14.
 */
 
 export default function Cart(cart: CartPage) {
@@ -57,7 +63,9 @@ export default function Cart(cart: CartPage) {
                             </Button>
                         </EmptyContent>
                     </Empty>
-                ) : (
+                ) : null}
+                {cart.lines.length === 0 && cart.bestSellers.length > 0 ? <BestSellers cards={cart.bestSellers as unknown as ShopCardData[]} facts={cart.cardFacts as CardFacts} /> : null}
+                {cart.lines.length === 0 ? null : (
                     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                         <ul className="grid min-w-0 content-start gap-3" aria-label={t(`${C}.line.lines`)} data-test="cart-lines">
                             {cart.lines.map((line) => (
@@ -65,6 +73,7 @@ export default function Cart(cart: CartPage) {
                             ))}
                         </ul>
                         <div className="grid min-w-0 content-start gap-4">
+                            <Extras cart={cart} />
                             <Coupon code={cart.couponCode} />
                             <Summary cart={cart} checkout={link('storefront.sales.cart.sign-in')} />
                         </div>
@@ -272,7 +281,10 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
     const locale = useLocale();
     const link = useLink();
     const { shopper } = usePage<SharedProps>().props;
-    const reason = cart.problems ? t(`${C}.summary.fix_first`) : shopper && !cart.mayOrder ? t(`${C}.summary.may_not_order`) : undefined;
+    const block = shopper ? cart.mayNotOrder : null;
+    const reason = cart.problems ? t(`${C}.summary.fix_first`) : block !== null ? t(`${C}.block.${block}`) : undefined;
+    // Each reason's one fix (R1-17): verifying on the account page, the company's own page; none for an account closed to orders.
+    const fix = block === 'EMAIL_UNVERIFIED' || block === 'PHONE_UNVERIFIED' ? link('storefront.account') : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
 
     return (
         <Card className="material-base gap-3 border-0 py-4" data-test="cart-summary">
@@ -289,6 +301,20 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
                         </dt>
                         <dd>{cart.subtotal === null ? '—' : <Money value={cart.subtotal} className="text-label-14 text-ink" />}</dd>
                     </div>
+                    {cart.shippingFee === null ? null : (
+                        <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
+                            <dt className="text-ink-muted">
+                                {t(`${C}.summary.shipping`)}
+                                {cart.freeAbove === null || cart.freeShare >= 100 ? null : (
+                                    <span className="text-copy-13">
+                                        {' '}
+                                        ({t(`${C}.summary.free_above`)} <Money value={cart.freeAbove} />)
+                                    </span>
+                                )}
+                            </dt>
+                            <dd>{cart.freeAbove !== null && cart.freeShare >= 100 ? <span className="text-label-14 text-ink">{t(`${C}.summary.free`)}</span> : <Money value={cart.shippingFee} className="text-label-14 text-ink" />}</dd>
+                        </div>
+                    )}
                 </dl>
                 <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.later`)}</p>
 
@@ -306,12 +332,68 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
                         <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.sign_in_first`)}</p>
                     </>
                 )}
-                {shopper && !cart.mayOrder ? (
-                    <Link href={link('storefront.account')} className="text-copy-13 text-ink underline underline-offset-4" data-test="finish-account">
-                        {t(`${C}.summary.finish_account`)}
-                    </Link>
-                ) : null}
+                {block === null ? null : (
+                    <p className="grid gap-1 text-copy-13 text-ink" role="note" data-test="may-not-order">
+                        <span>{t(`${C}.block.${block}`)}</span>
+                        {fix === null ? null : (
+                            <Link href={fix} className="w-fit underline underline-offset-4" data-test="finish-account">
+                                {t(`${C}.block.fix.${block}`)}
+                            </Link>
+                        )}
+                    </p>
+                )}
             </CardContent>
         </Card>
+    );
+}
+
+/** How much more ships free, with a bar - nothing where the store never ships free (R1-12); the next gift (R1-13); the points to earn (R1-14). */
+function Extras({ cart }: { cart: CartPage }) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const free = cart.freeAbove !== null && cart.shippingFee !== null;
+
+    if (!free && cart.nextGift === null && cart.pointsToEarn === 0) {
+        return null;
+    }
+
+    return (
+        <Card className="material-base gap-3 border-0 py-4" data-test="cart-extras">
+            <CardContent className="grid gap-3 px-4 text-copy-14 text-ink">
+                {free ? (
+                    <div className="grid gap-2" data-test="free-shipping">
+                        <p>
+                            {cart.freeMissing === null ? (
+                                t(`${C}.extras.ships_free`)
+                            ) : (
+                                <>
+                                    {t(`${C}.extras.add_more`)} <Money value={cart.freeMissing} className="font-semibold" /> {t(`${C}.extras.for_free_shipping`)}
+                                </>
+                            )}
+                        </p>
+                        <Progress value={cart.freeShare} aria-label={t(`${C}.extras.free_bar`)} />
+                    </div>
+                ) : null}
+                {cart.nextGift === null ? null : (
+                    <p data-test="next-gift">
+                        {t(`${C}.extras.spend_about`)} <Money value={cart.nextGift.missing} className="font-semibold" /> {t(`${C}.extras.for_a_gift`)}
+                    </p>
+                )}
+                {cart.pointsToEarn === 0 ? null : <p data-test="points-to-earn">{plural(t, locale, `${C}.extras.points`, cart.pointsToEarn)}</p>}
+            </CardContent>
+        </Card>
+    );
+}
+
+/** The store's best sellers under an empty cart (R2-9, R3): the list pages' cards, the Save heart on each. */
+function BestSellers({ cards, facts }: { cards: ShopCardData[]; facts: CardFacts }) {
+    const t = useTranslator();
+    const all = useCardFacts(facts);
+
+    return (
+        <section className="grid gap-4" data-test="best-sellers">
+            <h2 className="text-heading-20 text-ink">{t(`${C}.best_sellers`)}</h2>
+            <ProductCards cards={cards} facts={all} />
+        </section>
     );
 }

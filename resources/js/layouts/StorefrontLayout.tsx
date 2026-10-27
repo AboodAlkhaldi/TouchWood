@@ -18,6 +18,7 @@ import {
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { CategoryMenuBar, CategoryMenuSheet } from '@/components/shop/CategoryMenu';
 import { SearchBox } from '@/components/shop/SearchBox';
+import { figure, intlLocale } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { ShopAddressData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
@@ -102,8 +103,19 @@ export function StorefrontLayout({ title, children, address }: Props) {
                             {/* Sales's part of the frame (sales.md §4.1 S3): the cart, beside the account's. */}
                             {shop === null || shop === undefined || staffView || !frame?.sales ? null : (
                                 <Button asChild variant="ghost" size="icon">
-                                    <Link href={`/${shop.code}/${locale}/cart`} aria-label={frame.sales.words.cart} data-test="header-cart">
+                                    <Link
+                                        href={`/${shop.code}/${locale}/cart`}
+                                        aria-label={frame.sales.pieces > 0 ? `${frame.sales.words.cart}, ${(frame.sales.words.pieces[new Intl.PluralRules(intlLocale(locale)).select(frame.sales.pieces)] ?? '').replace(':count', figure(locale, frame.sales.pieces))}` : frame.sales.words.cart}
+                                        className="relative"
+                                        data-test="header-cart"
+                                    >
                                         <ShoppingCart aria-hidden="true" />
+                                        {/* The pieces in the cart (R1-10). */}
+                                        {frame.sales.pieces > 0 ? (
+                                            <Badge className="tw-figure absolute -end-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[11px] leading-none" aria-hidden="true" data-test="header-cart-pieces">
+                                                {frame.sales.pieces > 99 ? '99+' : figure(locale, frame.sales.pieces)}
+                                            </Badge>
+                                        ) : null}
                                     </Link>
                                 </Button>
                             )}
