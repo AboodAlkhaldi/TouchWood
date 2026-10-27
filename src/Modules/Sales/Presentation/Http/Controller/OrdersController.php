@@ -154,8 +154,15 @@ final readonly class OrdersController
         )), 'refund');
     }
 
-    public function void(Request $request, string $order, VoidMoneyRecordHandler $handler): RedirectResponse
+    public function void(Request $request, string $order, VoidMoneyRecordHandler $handler, ViewOrderHandler $view): RedirectResponse
     {
+        // A record of this order only: the address names the order the toast is said on.
+        $record = self::text($request, 'record');
+
+        if (! in_array($record, array_map(static fn ($row): string => $row->id, $this->pages->order($order, $view)->money), true)) {
+            abort(404);
+        }
+
         return self::act($request, fn () => $handler->handle(new VoidMoneyRecord(self::text($request, 'kind'), self::text($request, 'record'), self::text($request, 'reason'))), 'voided');
     }
 

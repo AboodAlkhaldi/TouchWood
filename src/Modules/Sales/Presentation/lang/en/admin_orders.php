@@ -162,6 +162,7 @@ return [
         'tick' => 'Save Ticks',
     ],
     'why' => [
+        'void_uncovers' => 'What stays paid would no longer cover the refunds.',
         'not_waiting' => 'Only an order waiting for approval can be decided.',
         'shipped' => 'Already shipped.',
         'closed' => 'This order is finished.',
@@ -224,9 +225,12 @@ return [
         'RETURN_RECEIVED' => 'Return received',
         'RETURN_CLOSED' => 'Return closed',
         'RETURN_COMPLETED' => 'Return completed',
+        'money' => ':what: :amount (:way)',
         'by' => ':what by :name',
     ],
     'print' => [
+        'coupon' => 'Coupon',
+        'points' => 'Points',
         'title' => 'Packing slip :number',
         'print' => 'Print',
     ],

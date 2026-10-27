@@ -170,7 +170,8 @@ describe('P2 · An order', function () {
 
         $approved = $browser->post("{$base}/approve");
         $refusedShip = $browser->post("{$base}/ship", ['carrier' => 'SMSA']);
-        $paid = $browser->post("{$base}/payment", ['way' => 'BANK_TRANSFER', 'reference' => 'TR-1', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
+        // An amount sent is never read: the whole balance is recorded (§4.2 B1).
+        $paid = $browser->post("{$base}/payment", ['amount' => '1.00', 'way' => 'BANK_TRANSFER', 'reference' => 'TR-1', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
         $shipped = $browser->post("{$base}/ship", ['carrier' => 'SMSA', 'tracking_number' => '123']);
         $delivered = $browser->post("{$base}/deliver");
         $row = orderScreensRow($order);
@@ -206,10 +207,12 @@ describe('P2 · An order', function () {
 
         $refunded = $browser->post("/admin/orders/{$order}/refund", ['amount' => '10.00', 'way' => 'BANK_TRANSFER', 'happened_on' => $day, 'request_id' => (string) Str::uuid()]);
         $refund = (string) DB::table('sales.refunds')->where('order_id', $order)->value('id');
+        $recorded = (int) DB::table('sales.refunds')->where('id', $refund)->value('amount_minor');
         $voided = $browser->post("/admin/orders/{$order}/void", ['kind' => 'REFUND', 'record' => $refund, 'reason' => 'Typed twice']);
         $props = orderScreensProps($browser, "/admin/orders/{$order}", 'Sales/Admin/Orders/Show');
 
         expect([AdminBrowser::flashed($refunded, 'status'), AdminBrowser::flashed($voided, 'status')])->toBe(['Refund recorded.', 'Record voided.'])
+            ->and($recorded)->toBe(10_00)
             ->and($props['refundDue']['minor'])->toBe($props['paid']['minor'])
             ->and(array_column((array) $props['money'], 'voidReason', 'id')[$refund] ?? null)->toBe('Typed twice');
     });
@@ -228,6 +231,59 @@ describe('P2 · An order', function () {
         expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(12)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(4);
+    });
+});
+
+describe('P2 · The rest of an order\'s changes, and another store\'s orders', function () {
+    it('allows shipping unpaid, ships, and marks the parcel came back with its pieces back in stock', function () {
+        $order = orderScreensOrder();
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+        $browser->post("/admin/orders/{$order}/approve");
+
+        $allowed = $browser->post("/admin/orders/{$order}/ship-unpaid", ['allow' => true]);
+        $browser->post("/admin/orders/{$order}/ship", ['carrier' => 'Aramex']);
+        $lines = DB::table('sales.order_lines')->where('order_id', $order)->get(['variant_id', 'quantity', 'is_gift'])
+            ->map(fn ($line): array => ['variantId' => (string) $line->variant_id, 'quantity' => (int) $line->quantity, 'gift' => (bool) $line->is_gift])->all();
+        $back = $browser->post("/admin/orders/{$order}/came-back", ['put_back' => array_values($lines)]);
+
+        expect([AdminBrowser::flashed($allowed, 'status'), AdminBrowser::flashed($back, 'status')])->toBe(['This order may now ship before it is paid.', 'Parcel marked came back.'])
+            ->and(orderScreensRow($order))->toMatchArray(['status' => 'UNDELIVERED', 'shipment_status' => 'CAME_BACK']);
+    });
+
+    it('refuses voiding a payment once what stays paid would not cover the refunds, and a record of another order', function () {
+        $order = orderScreensOrder();
+        $other = orderScreensOrder();
+        $browser = orderScreensStaff(ORDER_SCREENS_ALL);
+        $day = now('Asia/Riyadh')->toDateString();
+        $browser->post("/admin/orders/{$order}/payment", ['way' => 'BANK_TRANSFER', 'happened_on' => $day, 'request_id' => (string) Str::uuid()]);
+        $browser->post("/admin/orders/{$order}/cancel", ['reason' => 'Out of stock']);
+        $props = orderScreensProps($browser, "/admin/orders/{$order}", 'Sales/Admin/Orders/Show');
+        $browser->post("/admin/orders/{$order}/refund", ['amount' => (string) ($props['paid']['minor'] / 100), 'way' => 'BANK_TRANSFER', 'happened_on' => $day, 'request_id' => (string) Str::uuid()]);
+        $payment = (string) DB::table('sales.payments')->where('order_id', $order)->value('id');
+
+        $refused = $browser->post("/admin/orders/{$order}/void", ['kind' => 'PAYMENT', 'record' => $payment, 'reason' => 'Typed twice']);
+        $elsewhere = $browser->post("/admin/orders/{$other}/void", ['kind' => 'PAYMENT', 'record' => $payment, 'reason' => 'Typed twice']);
+
+        expect(AdminBrowser::formError($refused))->not->toBeNull()
+            ->and($elsewhere->getStatusCode())->toBe(404)
+            ->and(DB::table('sales.payments')->where('id', $payment)->value('voided_at'))->toBeNull();
+    });
+
+    it('shows another store\'s order to nobody who does not cover it, and its jobs as not held', function () {
+        $order = orderScreensOrder();
+        $elsewhere = orderScreensStaff([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_APPROVE], ['ae']);
+
+        $elsewhere->get("/admin/orders/{$order}")->assertNotFound();
+        $elsewhere->get("/admin/orders/{$order}/print")->assertNotFound();
+        $refused = $elsewhere->post("/admin/orders/{$order}/approve");
+        $list = orderScreensProps($elsewhere, '/admin/orders', 'Sales/Admin/Orders/Index');
+        $viewHere = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW], ['sa', 'ae']), "/admin/orders/{$order}", 'Sales/Admin/Orders/Show');
+
+        expect(AdminBrowser::formError($refused))->not->toBeNull()
+            ->and(orderScreensRow($order)['status'])->toBe('PENDING_APPROVAL')
+            ->and($list['orders'])->toBe([])
+            ->and($viewHere['actions']['mayApprove'])->toBeFalse();
+        $elsewhere->get('/admin/orders?store=sa')->assertNotFound();
     });
 });
 

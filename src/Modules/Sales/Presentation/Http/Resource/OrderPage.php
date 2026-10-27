@@ -80,5 +80,6 @@ final class OrderPage extends Data
         public array $transferDocuments,
         public OrderActionsData $actions,
         public string $storeTimezone,
+        public int $exponent,
     ) {}
 }

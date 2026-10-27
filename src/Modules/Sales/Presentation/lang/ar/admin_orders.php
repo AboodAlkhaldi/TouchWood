@@ -162,6 +162,7 @@ return [
         'tick' => 'حفظ العلامات',
     ],
     'why' => [
+        'void_uncovers' => 'لن يغطي المدفوع المتبقي الاستردادات.',
         'not_waiting' => 'لا يُقرَّر إلا طلب بانتظار الموافقة.',
         'shipped' => 'شُحن بالفعل.',
         'closed' => 'هذا الطلب منتهٍ.',
@@ -224,9 +225,12 @@ return [
         'RETURN_RECEIVED' => 'استُلم الإرجاع',
         'RETURN_CLOSED' => 'أُغلق الإرجاع',
         'RETURN_COMPLETED' => 'اكتمل الإرجاع',
+        'money' => ':what: :amount (:way)',
         'by' => ':what — :name',
     ],
     'print' => [
+        'coupon' => 'القسيمة',
+        'points' => 'النقاط',
         'title' => 'قائمة التعبئة :number',
         'print' => 'طباعة',
     ],

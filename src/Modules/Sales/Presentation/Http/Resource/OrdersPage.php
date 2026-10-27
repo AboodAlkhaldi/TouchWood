@@ -23,5 +23,6 @@ final class OrdersPage extends Data
         public ?string $storeCode,
         public array $stores,
         public array $tabs,
+        public ?string $storeTimezone,
     ) {}
 }

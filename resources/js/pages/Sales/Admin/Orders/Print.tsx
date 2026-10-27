@@ -19,12 +19,14 @@ export default function Print(slip: PrintPage) {
     const t = useTranslator();
     const { locale } = usePage<SharedProps>().props;
     const placed = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: slip.storeTimezone }).format(new Date(slip.placedAt));
-    const rows: [string, PrintPage['total'], boolean][] = [
-        [t(`${W}.show.subtotal`), slip.grossSubtotal, true],
-        [t(`${W}.show.coupon`, { code: '' }), slip.couponDiscount, false],
-        [t(`${W}.show.points`, { points: '' }), slip.pointsDiscount, false],
-        [t(`${W}.show.shipping`), slip.shipping, true],
-        [`${t(`${W}.show.vat`)} (${figure('en', slip.vatRateBasisPoints / 100)}%)`, slip.vat, true],
+    // [label, amount, shown at 0, taken off]: a summary line with nothing in it is not shown (R2-15).
+    const rows: [string, PrintPage['total'], boolean, boolean][] = [
+        [t(`${W}.show.subtotal`), slip.grossSubtotal, true, false],
+        [t(`${W}.show.savings`), slip.savings, false, true],
+        [t(`${W}.print.coupon`), slip.couponDiscount, false, true],
+        [t(`${W}.print.points`), slip.pointsDiscount, false, true],
+        [t(`${W}.show.shipping`), slip.shipping, true, false],
+        [`${t(`${W}.show.vat`)} (${figure('en', slip.vatRateBasisPoints / 100)}%)`, slip.vat, true, false],
     ];
 
     return (
@@ -38,12 +40,12 @@ export default function Print(slip: PrintPage) {
                 </Button>
             }
         >
-            <div className="grid max-w-3xl gap-6 text-ink">
+            <div className="grid max-w-3xl gap-6 text-ink print:bg-white print:text-black">
                 <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
                     <div className="grid gap-0.5 text-copy-14">
-                        <span className="text-label-14">{slip.contactName}</span>
+                        <span className="text-label-14">{slip.recipientName === '' ? slip.contactName : slip.recipientName}</span>
                         <bdi dir="ltr" className="tw-figure">
-                            {slip.contactPhone}
+                            {slip.addressPhone === '' ? slip.contactPhone : slip.addressPhone}
                         </bdi>
                         <AddressLines text={slip.address} />
                     </div>
@@ -87,10 +89,11 @@ export default function Print(slip: PrintPage) {
                 <dl className="ms-auto grid w-full max-w-xs gap-1 text-copy-14">
                     {rows
                         .filter(([, value, always]) => always || value.minor !== 0)
-                        .map(([label, value]) => (
+                        .map(([label, value, , minus]) => (
                             <div key={label} className="flex justify-between gap-3">
                                 <dt className="text-ink-muted">{label}</dt>
                                 <dd>
+                                    {minus ? <span aria-hidden="true">− </span> : null}
                                     <Money value={value} />
                                 </dd>
                             </div>

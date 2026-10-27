@@ -199,7 +199,7 @@ export default function Show(item: ReturnPage) {
             {dialog === 'receive' ? <ReceiveDialog item={item} url={`${base}/receive`} onOpenChange={close} /> : null}
             {dialog === 'complete' ? <CompleteDialog url={`${base}/complete`} onOpenChange={close} /> : null}
             {dialog === 'refund' && item.refundDue !== null ? (
-                <MoneyDialog open onOpenChange={close} url={`/admin/orders/${item.orderId}/refund`} kind="refund" amount={item.refundDue} zone={item.storeTimezone} initial={item.refundDueDecimal ?? ''} />
+                <MoneyDialog open onOpenChange={close} url={`/admin/orders/${item.orderId}/refund`} kind="refund" amount={item.refundDue} zone={item.storeTimezone} exponent={item.exponent} initial={item.refundDueDecimal ?? ''} />
             ) : null}
         </AdminLayout>
     );

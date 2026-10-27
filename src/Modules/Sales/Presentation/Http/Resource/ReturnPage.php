@@ -41,5 +41,6 @@ final class ReturnPage extends Data
         public bool $mayRecordMoney,
         public ?string $refundDueDecimal,
         public string $storeTimezone,
+        public int $exponent,
     ) {}
 }

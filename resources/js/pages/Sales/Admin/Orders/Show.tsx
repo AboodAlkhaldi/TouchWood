@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -34,7 +34,6 @@ import { CustomerName } from './Index';
 type Dialog = 'reject' | 'cancel' | 'ship' | 'came_back' | 'payment' | 'refund' | { void: MoneyRecordData } | null;
 
 const CLOSED = ['REJECTED', 'CANCELLED', 'COMPLETED', 'UNDELIVERED'];
-const COVERED = ['PAID', 'REFUND_DUE', 'NOTHING_DUE'];
 
 export default function Show(order: OrderPage) {
     const t = useTranslator();
@@ -50,7 +49,8 @@ export default function Show(order: OrderPage) {
     const notShipped = order.shipment === 'NOT_SHIPPED';
     const shipped = order.shipment === 'SHIPPED';
     const a = order.actions;
-    const unpaidToShip = !COVERED.includes(order.payment) && !order.mayShipUnpaid;
+    // Covered as the server has it: nothing still owed (sales.md §1.4).
+    const unpaidToShip = order.owed.minor > 0 && !order.mayShipUnpaid;
 
     // The next step, by the order's state (R2-26): what staff most often do here.
     const main =
@@ -76,26 +76,22 @@ export default function Show(order: OrderPage) {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-60">
-                {waiting && a.mayApprove ? (
-                    <DropdownMenuItem onSelect={() => setDialog('reject')} data-test="reject">
-                        {t(`${W}.action.reject`)}
-                    </DropdownMenuItem>
+                {a.mayApprove ? <MenuAction label={t(`${W}.action.reject`)} reason={waiting ? null : t(`${W}.why.not_waiting`)} onSelect={() => setDialog('reject')} test="reject" /> : null}
+                {a.mayCancel ? (
+                    <MenuAction
+                        destructive
+                        label={t(`${W}.action.cancel`)}
+                        reason={CLOSED.includes(order.status) ? t(`${W}.why.closed`) : notShipped ? null : t(`${W}.why.shipped`)}
+                        onSelect={() => setDialog('cancel')}
+                        test="cancel"
+                    />
                 ) : null}
-                {(waiting || approved) && notShipped && a.mayCancel ? (
-                    <DropdownMenuItem variant="destructive" onSelect={() => setDialog('cancel')} data-test="cancel">
-                        {t(`${W}.action.cancel`)}
-                    </DropdownMenuItem>
-                ) : null}
-                {approved && notShipped && a.mayFulfil && !COVERED.includes(order.payment) ? (
+                {approved && notShipped && a.mayFulfil && (order.owed.minor > 0 || order.mayShipUnpaid) ? (
                     <DropdownMenuItem onSelect={() => post('ship-unpaid', { allow: !order.mayShipUnpaid })} data-test="ship-unpaid">
                         {order.mayShipUnpaid ? t(`${W}.action.ship_unpaid_off`) : t(`${W}.action.ship_unpaid_on`)}
                     </DropdownMenuItem>
                 ) : null}
-                {shipped && a.mayFulfil ? (
-                    <DropdownMenuItem variant="destructive" onSelect={() => setDialog('came_back')} data-test="came-back">
-                        {t(`${W}.action.came_back`)}
-                    </DropdownMenuItem>
-                ) : null}
+                {a.mayFulfil ? <MenuAction destructive label={t(`${W}.action.came_back`)} reason={shipped ? null : t(`${W}.why.not_shipped`)} onSelect={() => setDialog('came_back')} test="came-back" /> : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                     <Link href={`${base}/print`} data-test="print">
@@ -161,10 +157,36 @@ export default function Show(order: OrderPage) {
             {dialog === 'reject' || dialog === 'cancel' ? <ReasonDialog open onOpenChange={close} url={`${base}/${dialog}`} kind={dialog} /> : null}
             {dialog === 'ship' ? <ShipDialog open onOpenChange={close} url={`${base}/ship`} /> : null}
             {dialog === 'came_back' ? <CameBackDialog open onOpenChange={close} url={`${base}/came-back`} lines={order.lines} /> : null}
-            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} /> : null}
-            {dialog === 'refund' ? <MoneyDialog open onOpenChange={close} url={`${base}/refund`} kind="refund" amount={order.held} zone={order.storeTimezone} /> : null}
+            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} /> : null}
+            {dialog === 'refund' ? <MoneyDialog open onOpenChange={close} url={`${base}/refund`} kind="refund" amount={order.held} zone={order.storeTimezone} exponent={order.exponent} /> : null}
             {dialog !== null && typeof dialog === 'object' ? <VoidDialog open onOpenChange={close} url={`${base}/void`} kind={dialog.void.kind} record={dialog.void.id} /> : null}
         </AdminLayout>
+    );
+}
+
+/** An item of the ⋯ menu: out of reach where the order's state stops it, with that reason written under it. */
+function MenuAction({ label, reason, onSelect, test, destructive = false }: { label: string; reason: string | null; onSelect: () => void; test: string; destructive?: boolean }) {
+    return (
+        <DropdownMenuItem
+            variant={destructive ? 'destructive' : 'default'}
+            aria-disabled={reason !== null || undefined}
+            className={reason !== null ? 'cursor-not-allowed' : undefined}
+            onSelect={(event) => {
+                if (reason !== null) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                onSelect();
+            }}
+            data-test={test}
+        >
+            <span className="grid gap-0.5">
+                <span className={reason !== null ? 'opacity-60' : undefined}>{label}</span>
+                {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
+            </span>
+        </DropdownMenuItem>
     );
 }
 
@@ -308,18 +330,35 @@ function MoneyCard({ order, onRecord, onRefund, onVoid }: { order: OrderPage; on
                             <span className={record.voidedAt === null ? 'grid gap-0.5' : 'grid gap-0.5 text-ink-muted line-through'}>
                                 <span>
                                     {t(`${W}.show.${record.kind === 'REFUND' ? 'refund_record' : 'payment_record'}`)} · <Money value={record.amount} /> · {t(`${W}.money_way.${record.way}`)}
-                                    {record.reference === null ? '' : ` · ${record.reference}`}
+                                    {record.reference === null ? null : (
+                                        <>
+                                            {' · '}
+                                            <bdi>{record.reference}</bdi>
+                                        </>
+                                    )}
                                 </span>
                                 <span className="text-copy-13 text-ink-muted">
-                                    {record.happenedOn} · {record.recordedBy ?? t(`${W}.system`)}
-                                    {record.note === null ? '' : ` · ${record.note}`}
+                                    <bdi dir="ltr">{record.happenedOn}</bdi> · <bdi>{record.recordedBy ?? t(`${W}.system`)}</bdi>
+                                    {record.note === null ? null : (
+                                        <>
+                                            {' · '}
+                                            <bdi>{record.note}</bdi>
+                                        </>
+                                    )}
                                 </span>
                                 {record.voidedAt === null ? null : <span className="text-copy-13 no-underline">{t(`${W}.show.voided`, { name: record.voidedBy ?? t(`${W}.system`), reason: record.voidReason ?? '' })}</span>}
                             </span>
                             {may && record.voidedAt === null ? (
-                                <Button type="button" size="sm" variant="ghost" onClick={() => onVoid(record)} data-test="void">
+                                <ActionButton
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabledReason={record.kind === 'PAYMENT' && order.paid.minor - record.amount.minor < order.refunded.minor ? t(`${W}.why.void_uncovers`) : undefined}
+                                    onClick={() => onVoid(record)}
+                                    data-test="void"
+                                >
                                     {t(`${W}.action.void`)}
-                                </Button>
+                                </ActionButton>
                             ) : null}
                         </li>
                     ))}
@@ -381,7 +420,7 @@ function Shipment({ order }: { order: OrderPage }) {
     const t = useTranslator();
     const rows: [string, React.ReactNode][] = [];
 
-    if (order.carrier !== null) rows.push([t(`${W}.show.carrier`), order.carrier]);
+    if (order.carrier !== null) rows.push([t(`${W}.show.carrier`), <bdi key="carrier">{order.carrier}</bdi>]);
     if (order.trackingNumber !== null) rows.push([t(`${W}.show.tracking`), <bdi key="tracking" dir="ltr">{order.trackingNumber}</bdi>]);
     if (order.shippedAt !== null) rows.push([t(`${W}.show.shipped_at`), <Time key="shipped" value={order.shippedAt} />]);
     if (order.deliveredAt !== null) rows.push([t(`${W}.show.delivered_at`), <Time key="delivered" value={order.deliveredAt} />]);
@@ -390,16 +429,16 @@ function Shipment({ order }: { order: OrderPage }) {
 
     return (
         <Section title={t(`${W}.show.shipment`)} test="shipment">
+            {rows.length === 0 ? <p className="text-copy-14 text-ink-muted">{t(`${W}.shipment.NOT_SHIPPED`)}</p> : null}
             <dl className="grid gap-1.5 text-copy-14">
-                {rows.length === 0 ? <p className="text-ink-muted">{t(`${W}.shipment.NOT_SHIPPED`)}</p> : null}
                 {rows.map(([label, value]) => (
                     <div key={label} className="flex items-baseline justify-between gap-3">
                         <dt className="text-ink-muted">{label}</dt>
                         <dd>{value}</dd>
                     </div>
                 ))}
-                {order.mayShipUnpaid ? <p className="text-copy-13 text-ink-muted">{t(`${W}.show.unpaid_ship`)}</p> : null}
             </dl>
+            {order.mayShipUnpaid ? <p className="mt-2 text-copy-13 text-ink-muted">{t(`${W}.show.unpaid_ship`)}</p> : null}
             {order.ticks.length > 0 ? (
                 <div className="mt-3 grid gap-1 border-t border-line pt-3">
                     <p className="text-label-13 text-ink">{t(`${W}.show.ticks`)}</p>
@@ -483,7 +522,15 @@ function History({ order }: { order: OrderPage }) {
             <ol className="grid gap-2 text-copy-14">
                 {rows.map((row, index) => (
                     <li key={index} className="flex flex-wrap items-baseline justify-between gap-2" data-test="history-row">
-                        <span>{row.by === null ? t(`${W}.history.${row.kind}`) : t(`${W}.history.by`, { what: t(`${W}.history.${row.kind}`), name: row.by })}</span>
+                        <span>
+                            {row.amount === null ? t(`${W}.history.${row.kind}`) : t(`${W}.history.money`, { what: t(`${W}.history.${row.kind}`), amount: row.amount.text, way: row.way === null ? '' : t(`${W}.money_way.${row.way}`) })}
+                            {row.by === null ? null : (
+                                <>
+                                    {' · '}
+                                    <bdi>{row.by}</bdi>
+                                </>
+                            )}
+                        </span>
                         <span className="text-copy-13 text-ink-muted">
                             <Time value={row.at} />
                         </span>

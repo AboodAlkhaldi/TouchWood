@@ -63,6 +63,10 @@ final readonly class OrderPages
             }
         }
 
+        if ($storeCode !== null && $chosen === null) {
+            abort(404);
+        }
+
         $tab = in_array($tab, self::TABS, true) ? $tab : self::TABS[0];
         $page = $list->handle(new ListOrders($chosen?->storeId, $tab, $after));
         $codes = [];
@@ -89,6 +93,7 @@ final readonly class OrderPages
             $chosen === null ? null : strtolower($chosen->code),
             array_map(fn (OrderStoreChoice $choice): SalesStoreData => new SalesStoreData(strtolower($choice->code), $choice->name->in($this->locale()), $choice->isActive), $choices),
             self::TABS,
+            $chosen === null ? null : $this->store($chosen->storeId)?->timezone,
         );
     }
 
@@ -160,13 +165,18 @@ final readonly class OrderPages
                 $row->recordId, $row->kind, $money($row->amount), $row->way, $row->reference, $row->note, $row->happenedOn,
                 $row->recordedBy, self::moment($row->recordedAt), $row->voidedBy, self::maybe($row->voidedAt), $row->voidReason,
             ), $order->money),
-            array_map(static fn (HistoryRow $row): OrderHistoryData => new OrderHistoryData($row->kind, self::moment($row->at), $row->by, $row->detail), $order->history),
+            array_map(static fn (HistoryRow $row): OrderHistoryData => new OrderHistoryData(
+                $row->kind, self::moment($row->at), $row->by, $row->detail,
+                is_int($row->detail['amount'] ?? null) ? $money(Money::of($row->detail['amount'], $order->due->currencyCode)) : null,
+                is_string($row->detail['way'] ?? null) ? $row->detail['way'] : null,
+            ), $order->history),
             array_map(static fn (EditRow $row): OrderEditData => new OrderEditData($row->editId, $row->reason, $row->by, self::moment($row->at)), $order->edits),
             array_map(static fn (array $tick): OrderTickData => new OrderTickData((string) $tick['variantId'], $tick['by'], self::moment($tick['at'])), $order->ticks),
             array_map(static fn (OwnReturnRow $row): OrderReturnData => new OrderReturnData($row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue)), $order->returns),
             array_map(static fn (array $file): OrderFileData => new OrderFileData((string) $file['mediaId'], (int) $file['position'], self::moment($file['uploadedAt'])), $order->transferDocuments),
             new OrderActionsData($actions->mayApprove, $actions->mayEdit, $actions->mayCancel, $actions->mayFulfil, $actions->mayRecordMoney, $actions->mayManageReturns),
             $store->timezone ?? 'UTC',
+            $order->exponent,
         );
     }
 
@@ -202,10 +212,13 @@ final readonly class OrderPages
             self::moment($order->placedAt),
             $order->contactName,
             $order->contactPhone,
+            self::text($order->address['recipientName'] ?? ''),
+            self::text($order->address['phone'] ?? ''),
             self::text($order->address['formatted'] ?? ''),
             array_map(fn (OrderLineView $line): OrderLineData => $this->line($line, $money), $order->lines),
             $money($order->grossSubtotal),
             $money($order->netSubtotal),
+            $money(Money::of(max(0, $order->grossSubtotal->minorUnits - $order->netSubtotal->minorUnits), $order->total->currencyCode)),
             $money($order->couponDiscount),
             $money($order->pointsDiscount),
             $money($order->goodsTotal),

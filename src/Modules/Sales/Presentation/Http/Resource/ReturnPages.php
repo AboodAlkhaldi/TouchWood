@@ -57,6 +57,10 @@ final readonly class ReturnPages
             }
         }
 
+        if ($storeCode !== null && $chosen === null) {
+            abort(404);
+        }
+
         $tab = in_array($tab, self::TABS, true) ? $tab : self::TABS[0];
         $page = $list->handle(new ListReturns($chosen?->storeId, $tab, $after));
 
@@ -76,6 +80,7 @@ final readonly class ReturnPages
             $chosen === null ? null : strtolower($chosen->code),
             array_map(fn (OrderStoreChoice $choice): SalesStoreData => new SalesStoreData(strtolower($choice->code), $choice->name->in($this->locale()), $choice->isActive), $choices),
             self::TABS,
+            $chosen === null ? null : $this->platform->store(StoreId::fromString($chosen->storeId))?->timezone,
         );
     }
 
@@ -128,6 +133,7 @@ final readonly class ReturnPages
             $actions->mayRecordMoney,
             $return->refundDue === null ? null : self::decimal($return->refundDue->minorUnits, $return->exponent),
             $store->timezone ?? 'UTC',
+            $return->exponent,
         );
     }
 

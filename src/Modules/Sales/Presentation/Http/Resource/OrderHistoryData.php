@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\MoneyData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -19,5 +20,7 @@ final class OrderHistoryData extends Data
         public string $at,
         public ?string $by,
         public array $detail,
+        public ?MoneyData $amount,
+        public ?string $way,
     ) {}
 }

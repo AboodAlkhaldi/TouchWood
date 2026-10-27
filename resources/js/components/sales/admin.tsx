@@ -52,12 +52,26 @@ export function StateBadges({ status, payment, shipment, short = false }: { stat
 }
 
 /** A form's own id, so pressing twice records once (sales.md §1.9): one per dialog opened. */
+function uuid(): string {
+    if (typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+
+    // A page over plain HTTP has no randomUUID; getRandomValues is everywhere (RFC 9562's version 4).
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function useRequestId(open: boolean): string {
-    const [id, setId] = useState(() => crypto.randomUUID());
+    const [id, setId] = useState(uuid);
 
     useEffect(() => {
         if (open) {
-            setId(crypto.randomUUID());
+            setId(uuid());
         }
     }, [open]);
 
@@ -232,7 +246,7 @@ function today(zone: string): string {
  * Record Payment… and Record Refund… (§1.9). A payment is the whole amount still owed, shown and never typed
  * (the owner's R3-1, §4.2 B1); a refund any amount up to what the order holds.
  */
-export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** A refund's amount to start with: a completed return's. */ initial?: string }) {
+export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, exponent, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** The order currency's decimals. */ exponent: number; /** A refund's amount to start with: a completed return's. */ initial?: string }) {
     const t = useTranslator();
     const requestId = useRequestId(open);
     const [typed, setTyped] = useState('');
@@ -244,7 +258,7 @@ export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, initi
     const refund = kind === 'refund';
     const checks = useChecks(
         [
-            ...(refund ? [{ id: 'amount', label: t(`${W}.dialog.amount`), value: typed, rules: { required: true, number: { decimals: 2 } } }] : []),
+            ...(refund ? [{ id: 'amount', label: t(`${W}.dialog.amount`), value: typed, rules: { required: true, number: { decimals: exponent } } }] : []),
             { id: 'reference', label: t(`${W}.dialog.reference`), value: reference, rules: { length: { max: 100 } } },
             { id: 'note', label: t(`${W}.dialog.note`), value: note, rules: { required: way === 'OTHER', length: { max: 500 } } },
             { id: 'happened_on', label: t(`${W}.dialog.happened_on`), value: day, rules: { required: true } },
