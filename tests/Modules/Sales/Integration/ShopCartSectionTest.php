@@ -5,16 +5,23 @@ declare(strict_types=1);
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Public\Dto\ShopProductVisitDto;
 use Modules\Platform\Public\Enums\ShopperKind;
+use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
+use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Presentation\Storefront\CartSection;
+use Shared\Application\Actor;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -63,10 +70,11 @@ function shopCartProduct(): array
 }
 
 /**
- * Sales's part of the page as the screens read it: size => [retail limits, wholesale limits, out of stock, in cart].
+ * Sales's part of the page as the screens read it: size => [retail, wholesale, not one more free, in cart], each
+ * mode [minimum, maximum, its line's pieces, too few free for its least add].
  *
  * @param  list<string>  $sizes
- * @return array<string, array{?array{int, ?int}, ?array{int, ?int}, bool, int}>|null
+ * @return array<string, array{?array{int, ?int, int, bool}, ?array{int, ?int, int, bool}, bool, int}>|null
  */
 function shopCartRead(string $product, array $sizes, ShopperKind $viewer, ?string $customerId = null, bool $available = true): ?array
 {
@@ -77,7 +85,7 @@ function shopCartRead(string $product, array $sizes, ShopperKind $viewer, ?strin
     }
 
     $read = json_decode((string) json_encode($parts['sales.cart']), true);
-    $limits = static fn (mixed $mode): ?array => is_array($mode) ? [$mode['minimum'], $mode['maximum']] : null;
+    $limits = static fn (mixed $mode): ?array => is_array($mode) ? [$mode['minimum'], $mode['maximum'], $mode['inCart'], $mode['outOfStock']] : null;
     $sizesRead = [];
 
     foreach (is_array($read) ? $read['sizes'] : [] as $size) {
@@ -87,50 +95,89 @@ function shopCartRead(string $product, array $sizes, ShopperKind $viewer, ?strin
     return $sizesRead;
 }
 
+/** A browser with no guest cookie yet, acting as a guest. */
+function shopCartAsGuest(): void
+{
+    app()->instance('request', Request::create('/sa/en', 'GET'));
+    app()->forgetScopedInstances();
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+}
+
 it('offers a guest and a company each mode a size is sold in, an individual retail only', function () {
     ['product' => $product, 'sizes' => [$sixty, $eighty, $hundred]] = shopCartProduct();
+    shopCartAsGuest();
     $both = [
-        $sixty => [[1, 8], null, false, 0],
-        $eighty => [[1, 8], [5, null], false, 0],
-        // 4 free, a wholesale line holds 5 at least.
-        $hundred => [null, [5, null], true, 0],
+        $sixty => [[1, 8, 0, false], null, false, 0],
+        // 3 free: a retail line fits, a wholesale line holds 5 at least.
+        $eighty => [[1, 8, 0, false], [5, null, 0, true], false, 0],
+        $hundred => [null, [5, null, 0, true], false, 0],
     ];
 
     expect(shopCartRead($product, [$sixty, $eighty, $hundred], ShopperKind::Guest))->toBe($both)
         // An unapproved company too (owner, 2026-10-27): the cart marks its wholesale lines.
         ->and(shopCartRead($product, [$sixty, $eighty, $hundred], ShopperKind::Company))->toBe($both)
         ->and(shopCartRead($product, [$sixty, $eighty, $hundred], ShopperKind::Individual))->toBe([
-            $sixty => [[1, 8], null, false, 0],
-            $eighty => [[1, 8], null, false, 0],
+            $sixty => [[1, 8, 0, false], null, false, 0],
+            $eighty => [[1, 8, 0, false], null, false, 0],
             $hundred => [null, null, false, 0],
         ]);
 });
 
-it('counts the pieces already in the cart, against the stock too', function () {
+it('gives a guest wholesale only where companies may buy the product, as no account could order it otherwise', function () {
+    ['product' => $product, 'sizes' => [, $eighty]] = shopCartProduct();
+    $category = (string) DB::table('catalog.products')->where('id', $product)->value('category_id');
+    Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $category, forCompanies: false)));
+    shopCartAsGuest();
+
+    expect(shopCartRead($product, [$eighty], ShopperKind::Guest))->toBe([$eighty => [[1, 8, 0, false], null, false, 0]]);
+});
+
+it('counts each line already in the cart: its limits are on the line, the stock on the size', function () {
     ['product' => $product, 'sizes' => [$sixty, $eighty]] = shopCartProduct();
     $customer = Cx::customer();
     Fx::actAsCustomer($customer);
     Cx::add($sixty, 8);
     Cx::add($eighty, 2);
 
-    // 60 cm: 8 of 10 in the cart, 1 more fits; 80 cm: 2 of 3, 1 more fits retail.
+    // 60 cm: the line holds its most, 8 (the screen offers no more); 2 of 10 free left. 80 cm: 2 of 3, 1 more fits.
     expect(shopCartRead($product, [$sixty, $eighty], ShopperKind::Individual, $customer))->toBe([
-        $sixty => [[1, 8], null, false, 8],
-        $eighty => [[1, 8], null, false, 2],
+        $sixty => [[1, 8, 8, false], null, false, 8],
+        $eighty => [[1, 8, 2, false], null, false, 2],
     ]);
 
     Cx::add($eighty, 1);
 
-    expect(shopCartRead($product, [$eighty], ShopperKind::Individual, $customer))->toBe([$eighty => [[1, 8], null, true, 3]]);
+    expect(shopCartRead($product, [$eighty], ShopperKind::Individual, $customer))->toBe([$eighty => [[1, 8, 3, true], null, true, 3]]);
+});
+
+it('counts a guest\'s own cart, by the browser\'s guest id', function () {
+    ['product' => $product, 'sizes' => [$sixty, $eighty]] = shopCartProduct();
+    shopCartAsGuest();
+    app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $eighty, 'RETAIL', 1));
+    app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $eighty, 'WHOLESALE', 1));
+
+    // 2 of 3 in the cart, one line in each mode: a wholesale add up to its 5 would need 6 free.
+    expect(shopCartRead($product, [$sixty, $eighty], ShopperKind::Guest))->toBe([
+        $sixty => [[1, 8, 0, false], null, false, 0],
+        $eighty => [[1, 8, 1, false], [5, null, 1, true], false, 2],
+    ]);
+});
+
+it('is nothing for staff, who have no cart', function () {
+    ['product' => $product, 'sizes' => $sizes] = shopCartProduct();
+    Fx::actAsStaff(Fx::staff());
+
+    expect(app(InMemoryShopProductSections::class)->read(StoreId::fromString(Fx::storeId('sa')), 'en', $product, null, [], [], true, ShopperKind::Guest, [], $sizes)['sales.cart'])->toBeNull();
 });
 
 it('offers nothing for a size not sold here now, and is left off a "Not available now" page and a page of no sizes', function () {
     ['product' => $product, 'sizes' => [$sixty, $eighty]] = shopCartProduct();
     DB::table('catalog.store_variants')->where('variant_id', $sixty)->update(['not_available_now' => true]);
+    shopCartAsGuest();
 
     expect(shopCartRead($product, [$sixty, $eighty], ShopperKind::Guest))->toBe([
         $sixty => [null, null, false, 0],
-        $eighty => [[1, 8], [5, null], false, 0],
+        $eighty => [[1, 8, 0, false], [5, null, 0, true], false, 0],
     ])
         ->and(shopCartRead($product, [$sixty], ShopperKind::Guest, available: false))->toBeNull()
         ->and(app(InMemoryShopProductSections::class)->read(StoreId::fromString(Fx::storeId('sa')), 'en', $product, null, [], [], true, ShopperKind::Guest, [], [])['sales.cart'])->toBeNull();

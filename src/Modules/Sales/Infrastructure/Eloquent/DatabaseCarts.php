@@ -47,12 +47,12 @@ final readonly class DatabaseCarts implements Carts
 
         $pieces = [];
 
+        // One line a size a mode (the lines' key).
         foreach ($this->buyer($store, $customerId, $guestId)
             ->join('sales.cart_lines as l', 'l.cart_id', '=', 'sales.carts.id')
             ->whereIn('l.variant_id', $variantIds)
-            ->groupBy('l.variant_id')
-            ->get(['l.variant_id', $this->db->raw('SUM(l.quantity) AS pieces')]) as $row) {
-            $pieces[(string) $row->variant_id] = (int) $row->pieces;
+            ->get(['l.variant_id', 'l.sale_mode', 'l.quantity']) as $row) {
+            $pieces[(string) $row->variant_id][(string) $row->sale_mode] = (int) $row->quantity;
         }
 
         return $pieces;

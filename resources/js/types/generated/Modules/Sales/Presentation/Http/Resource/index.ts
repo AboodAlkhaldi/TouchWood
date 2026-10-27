@@ -507,6 +507,8 @@ sizes: ShopCartSizeData[],
 export type ShopCartLimitsData = {
 minimum: number,
 maximum: number | null,
+inCart: number,
+outOfStock: boolean,
 };
 export type ShopCartSizeData = {
 variantId: string,

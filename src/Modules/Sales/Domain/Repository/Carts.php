@@ -23,11 +23,11 @@ interface Carts
     public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int;
 
     /**
-     * The pieces of each of these sizes on the buyer's cart lines in the store, over both modes; a size
-     * not in the cart left out. Exactly one of the two ids.
+     * The pieces on the buyer's cart line of each of these sizes in each mode in the store; a size not in
+     * the cart left out. Exactly one of the two ids.
      *
      * @param  list<string>  $variantIds
-     * @return array<string, int>
+     * @return array<string, array<string, int>> variant => mode (`RETAIL`, `WHOLESALE`) => pieces
      */
     public function piecesOf(StoreId $store, ?string $customerId, ?string $guestId, array $variantIds): array;
 

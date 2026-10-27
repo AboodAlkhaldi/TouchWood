@@ -446,11 +446,12 @@ describe('the budget (P21)', function () {
         // A product's page, one more since 2026-10-19 (catalog.md amendment 26(b)): Feedback's sections -
         // its rating, reviews, questions and the wishlist button - in one statement (more only once
         // there are reviews or answers: their authors' names and the sizes bought, read in bulk).
-        // A product's page, five more since 2026-10-27 (amendment 36, sales.md §4.2 B15): Sales's Add to Cart -
-        // Catalog's sizes in the store 1 and Inventory's stock 4 (the wiring, the counts, ending soon, the
-        // low-stock setting); the owner chose the exact check over the cheaper one regardless of the count.
-        // The limits are a target, not a cap (owner, 2026-10-19).
-        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 12, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
+        // A product's page, six more since 2026-10-27 (amendment 36, sales.md §4.2 B15): Sales's Add to Cart -
+        // Catalog's sizes in the store 1, Inventory's stock 4 (the wiring, the counts, ending soon, the
+        // low-stock setting) and, for a guest, whether companies may buy the product 1; the owner chose the
+        // exact check over the cheaper one regardless of the count. The limits are a target, not a cap
+        // (owner, 2026-10-19).
+        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 13, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
     });
 
     it('records each page as production serves it - the session in the database - for a guest, an individual and a company', function () {
@@ -505,10 +506,10 @@ describe('the budget (P21)', function () {
             // product page has no related products). Signed in, a product's page one more since 2026-10-26
             // (owner's Q14): whether the product was delivered to the customer, for Write a Review - asked
             // only while they have not reviewed it. A product's page, since 2026-10-27, Sales's Add to Cart
-            // (amendment 36): five more for a guest, four for someone signed in, whose customer and store
-            // reads it shares with the page (the cart's pieces one of them).
+            // (amendment 36): six more for a guest, four for someone signed in, whose customer and store
+            // reads it shares with the page (the cart's lines one of them).
         ])->toBe([
-            'guest' => ['category' => 8, 'brand' => 8, 'product' => 14, 'search' => 9],
+            'guest' => ['category' => 8, 'brand' => 8, 'product' => 15, 'search' => 9],
             'individual' => ['category' => 15, 'brand' => 15, 'product' => 20, 'search' => 16],
             'company' => ['category' => 15, 'brand' => 15, 'product' => 20, 'search' => 16],
         ]);
