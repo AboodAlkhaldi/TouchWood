@@ -4,29 +4,39 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\ViewCart;
 
-use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\CustomerStatus;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
+use Modules\Pricing\Public\Dto\CartPricesDto;
+use Modules\Pricing\Public\Dto\LinePriceDto;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
+use Modules\Promotions\Public\Dto\CouponRequest;
+use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
 use Modules\Sales\Application\Cart\CartBuyer;
 use Modules\Sales\Application\Order\SizeRecords;
 use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Model\Cart;
 use Modules\Sales\Domain\Model\RemovedLine;
 use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Public\Enums\CartBlock;
 use Modules\Sales\Public\Enums\CartLineProblem;
 use Modules\Sales\Public\Enums\CartNoticeReason;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **The cart** (sales.md §1.1, §3 ViewCart) — a customer's or a guest's in a store, read only. Each line as it
@@ -49,8 +59,9 @@ final readonly class ViewCartHandler
         private InventoryApi $inventory,
         private SizeRecords $sizes,
         private PlatformApi $platform,
-        private AccessApi $access,
         private B2BApi $b2b,
+        private PromotionsApi $promotions,
+        private LoyaltyApi $loyalty,
     ) {}
 
     /**
@@ -58,12 +69,13 @@ final readonly class ViewCartHandler
      */
     public function handle(ViewCart $query): CartView
     {
-        [$store, $customerId, $guestId, $accountType] = $this->buyer->of($query->storeId);
+        [$store, $customerId, $guestId, $accountType, $customer] = $this->buyer->of($query->storeId);
         $this->authorizer->authorize($customerId === null ? SalesPermissions::GUEST_CART_MANAGE : self::PERMISSION, PermissionScope::store($store));
         $locale = in_array($query->locale, ['ar', 'en'], true) ? $query->locale : throw new InvalidSalesAttribute('locale', 'ar or en');
         $company = $customerId !== null && $accountType === AccountType::Company && $this->b2b->isApproved($customerId, $store->value);
-        // Whether checkout would take this account at all (§1.2 step 1): a guest signs in first.
-        $mayOrder = $customerId !== null && $this->access->customerMayOrder($customerId) && ($accountType !== AccountType::Company || $company);
+        // Whether checkout would take this account at all (§1.2 step 1), and the first reason it would not.
+        $block = self::block($customerId, $customer, $company);
+        $mayOrder = $block === null;
         $cart = $customerId === null && $guestId === null ? null : $this->carts->find($store, $customerId, $guestId);
         $records = $cart === null ? [] : $this->sizes->of(array_values(array_unique([
             ...array_map(static fn ($line): string => $line->variantId, $cart->lines),
@@ -73,8 +85,12 @@ final readonly class ViewCartHandler
 
         if ($cart === null || $cart->lines === []) {
             $currency = $this->platform->store($store)?->currencyCode;
+            [$fee, $freeAbove] = $currency === null ? [null, null] : $this->shipping($store, $currency);
 
-            return new CartView($store->value, [], $mayOrder, $cart?->couponCode, $notice, null, $currency === null ? 2 : ($this->platform->currency($currency)->exponent ?? 2));
+            return new CartView(
+                $store->value, [], $mayOrder, $cart?->couponCode, $notice, null, $currency === null ? 2 : ($this->platform->currency($currency)->exponent ?? 2),
+                $block, null, $fee, $freeAbove,
+            );
         }
 
         $viewer = $customerId === null ? ShopperKind::Guest : ($accountType === AccountType::Company ? ShopperKind::Company : ShopperKind::Individual);
@@ -101,6 +117,7 @@ final readonly class ViewCartHandler
 
         $lines = [];
         $subtotal = null;
+        $orderable = [];
 
         foreach ($cart->lines as $line) {
             $record = $records[$line->variantId] ?? null;
@@ -131,6 +148,7 @@ final readonly class ViewCartHandler
             // A line that can be ordered has its price (an unpriced one is NOT_PRICED).
             if ($problem === null) {
                 $subtotal = ($subtotal ?? Money::zero($prices->currencyCode))->add($price->total);
+                $orderable[] = $price;
             }
 
             $card = $cards[$record['productId']] ?? null;
@@ -142,7 +160,99 @@ final readonly class ViewCartHandler
             );
         }
 
-        return new CartView($store->value, $lines, $mayOrder, $cart->couponCode, $notice, $subtotal, $this->platform->currency($prices->currencyCode)->exponent ?? 2);
+        $audience = $company ? PromotionsAudience::Company : PromotionsAudience::Public;
+        $goods = $this->goodsTotal($prices, $orderable, $subtotal, $customerId, $cart->couponCode, $audience);
+        [$fee, $freeAbove] = $this->shipping($store, $prices->currencyCode);
+
+        return new CartView(
+            $store->value, $lines, $mayOrder, $cart->couponCode, $notice, $subtotal, $this->platform->currency($prices->currencyCode)->exponent ?? 2,
+            $block, $goods, $fee, $freeAbove,
+            $goods === null ? null : $this->nextGift($store, $audience, $goods, $pieces),
+            $goods === null || $customerId === null ? 0 : $this->loyalty->earningPreview($store->value, $goods),
+        );
+    }
+
+    /**
+     * The first reason checkout would not take this account (§1.2 step 1) — Access's own rule for the person
+     * (`Customer::mayOrder`: active, both verified, no deletion asked for, not emptied), then B2B's for a
+     * company — or null when it would.
+     */
+    private static function block(?string $customerId, ?CustomerDto $customer, bool $approvedCompany): ?CartBlock
+    {
+        return match (true) {
+            $customerId === null => CartBlock::SignIn,
+            $customer === null || $customer->status !== CustomerStatus::Active || $customer->deletionScheduledFor !== null || $customer->anonymized => CartBlock::AccountNotActive,
+            ! $customer->emailVerified => CartBlock::EmailUnverified,
+            ! $customer->phoneVerified => CartBlock::PhoneUnverified,
+            $customer->accountType === AccountType::Company && ! $approvedCompany => CartBlock::CompanyNotApproved,
+            default => null,
+        };
+    }
+
+    /**
+     * The goods total as far as the cart knows it: the orderable lines' subtotal less the coupon typed, as
+     * Promotions would take it off them at checkout (§1.2 step 5) — nothing when it refuses. Null with
+     * nothing orderable.
+     *
+     * @param  list<LinePriceDto>  $orderable
+     */
+    private function goodsTotal(CartPricesDto $prices, array $orderable, ?Money $subtotal, ?string $customerId, ?string $couponCode, PromotionsAudience $audience): ?Money
+    {
+        if ($subtotal === null || $customerId === null || $couponCode === null) {
+            return $subtotal;
+        }
+
+        $gross = Money::zero($prices->currencyCode);
+
+        foreach ($orderable as $line) {
+            $gross = $gross->add($line->listTotal);
+        }
+
+        $coupon = $this->promotions->applyCoupon(new CouponRequest($prices->storeId, $couponCode, $customerId, $audience, new CartPricesDto(
+            $prices->storeId, $prices->currencyCode, $prices->taxRateBasisPoints, $orderable, [], $gross, $subtotal, $prices->pricedAt, $prices->validUntil,
+        )));
+
+        return $coupon->isTaken() && $coupon->discount !== null ? $subtotal->subtract($coupon->discount) : $subtotal;
+    }
+
+    /**
+     * The store's flat fee and the goods total from which shipping is free — null when it never is (§1.2 step 9).
+     *
+     * @return array{Money, ?Money}
+     */
+    private function shipping(StoreId $store, string $currency): array
+    {
+        $freeAbove = $this->platform->setting(SalesSettings::FREE_ABOVE, $store)->int();
+
+        return [
+            Money::of($this->platform->setting(SalesSettings::FLAT_FEE, $store)->int(), $currency),
+            $freeAbove === 0 ? null : Money::of($freeAbove, $currency),
+        ];
+    }
+
+    /**
+     * The lowest gift level the goods do not reach yet whose gift is in stock after the cart's own pieces of
+     * it, as checkout would hold it (§1.2 step 8).
+     *
+     * @param  array<string, int>  $pieces  variant => the cart's pieces of it
+     */
+    private function nextGift(StoreId $store, PromotionsAudience $audience, Money $goods, array $pieces): ?CartNextGift
+    {
+        $levels = $this->promotions->giftLevelsAbove($store, $audience, $goods);
+
+        if ($levels === []) {
+            return null;
+        }
+
+        $stock = $this->inventory->stock($store, array_values(array_unique(array_map(static fn ($level): string => $level->variantId, $levels))));
+
+        foreach ($levels as $level) {
+            if (($stock[$level->variantId]->availableAsGift ?? 0) - ($pieces[$level->variantId] ?? 0) >= 1) {
+                return new CartNextGift($level->amount, $level->amount->subtract($goods));
+            }
+        }
+
+        return null;
     }
 
     /**

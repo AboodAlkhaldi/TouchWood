@@ -32,6 +32,13 @@ final readonly class DatabaseCarts implements Carts
         return $row instanceof stdClass ? $this->toCart($row) : null;
     }
 
+    public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int
+    {
+        return (int) $this->buyer($store, $customerId, $guestId)
+            ->join('sales.cart_lines as l', 'l.cart_id', '=', 'sales.carts.id')
+            ->sum('l.quantity');
+    }
+
     public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart
     {
         $row = $this->buyer($store, $customerId, $guestId)->lockForUpdate()->first();

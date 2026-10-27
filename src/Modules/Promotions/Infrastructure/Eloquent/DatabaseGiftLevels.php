@@ -75,18 +75,34 @@ final readonly class DatabaseGiftLevels implements GiftLevels
 
     public function reached(StoreId $store, Audience $audience, int $goodsMinor, DateTimeImmutable $now): array
     {
-        $at = Moment::of($now);
-
-        return array_values(array_filter(array_map($this->toLevel(...), $this->levels($store)
-            ->where('active', true)
+        return array_values(array_filter(array_map($this->toLevel(...), $this->running($store, $audience, $now)
             ->where('amount_minor', '<=', $goodsMinor)
-            ->where($audience === Audience::Company ? 'for_company' : 'for_public', true)
-            ->where(fn (Builder $query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $at))
-            ->where(fn (Builder $query) => $query->whereNull('ends_at')->orWhere('ends_at', '>', $at))
             ->orderByDesc('amount_minor')
             ->orderBy('id')
             ->get()
             ->all())));
+    }
+
+    public function above(StoreId $store, Audience $audience, int $goodsMinor, DateTimeImmutable $now): array
+    {
+        return array_values(array_filter(array_map($this->toLevel(...), $this->running($store, $audience, $now)
+            ->where('amount_minor', '>', $goodsMinor)
+            ->orderBy('amount_minor')
+            ->orderBy('id')
+            ->get()
+            ->all())));
+    }
+
+    /** The store's levels on now for this buyer: switched on, within their dates. */
+    private function running(StoreId $store, Audience $audience, DateTimeImmutable $now): Builder
+    {
+        $at = Moment::of($now);
+
+        return $this->levels($store)
+            ->where('active', true)
+            ->where($audience === Audience::Company ? 'for_company' : 'for_public', true)
+            ->where(fn (Builder $query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $at))
+            ->where(fn (Builder $query) => $query->whereNull('ends_at')->orWhere('ends_at', '>', $at));
     }
 
     public function namingVariants(array $variantIds): array

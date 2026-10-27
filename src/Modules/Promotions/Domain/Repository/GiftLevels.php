@@ -47,6 +47,14 @@ interface GiftLevels
     public function reached(StoreId $store, Audience $audience, int $goodsMinor, DateTimeImmutable $now): array;
 
     /**
+     * The levels an order of `$goodsMinor` does not reach yet, for this buyer — active, within their
+     * dates, their amount above the goods — lowest amount first (the cart's next gift).
+     *
+     * @return list<GiftLevel>
+     */
+    public function above(StoreId $store, Audience $audience, int $goodsMinor, DateTimeImmutable $now): array;
+
+    /**
      * The gift levels naming any of these variants (Catalog's usage check).
      *
      * @param  list<string>  $variantIds

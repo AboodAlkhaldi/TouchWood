@@ -19,6 +19,9 @@ interface Carts
     /** The buyer's cart in the store, as it is; null when they have none. Exactly one of the two ids. */
     public function find(StoreId $store, ?string $customerId, ?string $guestId): ?Cart;
 
+    /** The pieces on the buyer's cart lines in the store, over both modes; 0 when they have no cart. Exactly one of the two ids. */
+    public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int;
+
     /** The buyer's cart in the store, its row locked until the transaction ends; null when they have none. */
     public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart;
 

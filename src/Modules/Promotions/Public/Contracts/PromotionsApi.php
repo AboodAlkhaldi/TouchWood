@@ -81,4 +81,14 @@ interface PromotionsApi
      * @return list<GiftOfferDto>
      */
     public function giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): array;
+
+    /**
+     * Sales's cart (the next gift): the gift levels an order of `$goodsTotal` does not reach yet for
+     * this buyer — switched on, within their dates, their amount above the goods total — lowest first.
+     * Sales asks Inventory which gift is in stock and shows the first that is. The total must be in the
+     * store's currency. Reads only.
+     *
+     * @return list<GiftOfferDto>
+     */
+    public function giftLevelsAbove(StoreId $store, Audience $audience, Money $goodsTotal): array;
 }

@@ -361,7 +361,31 @@ describe('the levels an order reaches', function () {
 
     it('refuses a goods total in another currency, and an unknown store', function () {
         expect(Pr::thrown(fn () => Pr::api()->giftLevels(StoreId::fromString(Fx::storeId('sa')), Audience::Public, Pr::money(1000_00, 'eg')), InvalidPromotionAttribute::class)->attribute)->toBe('currency')
-            ->and(Pr::thrown(fn () => Pr::api()->giftLevels(StoreId::fromString(strtolower((string) Str::ulid())), Audience::Public, Pr::money(1000_00)), InvalidPromotionAttribute::class)->attribute)->toBe('store');
+            ->and(Pr::thrown(fn () => Pr::api()->giftLevels(StoreId::fromString(strtolower((string) Str::ulid())), Audience::Public, Pr::money(1000_00)), InvalidPromotionAttribute::class)->attribute)->toBe('store')
+            ->and(Pr::thrown(fn () => Pr::api()->giftLevelsAbove(StoreId::fromString(Fx::storeId('sa')), Audience::Public, Pr::money(1000_00, 'eg')), InvalidPromotionAttribute::class)->attribute)->toBe('currency');
+    });
+
+    it('answers the levels not reached yet for the buyer, lowest first — the cart\'s next gift (sales.md §4.2 B12)', function () {
+        [$pen, $mug] = gifts();
+        $now = CarbonImmutable::now()->startOfSecond();
+        CarbonImmutable::setTestNow($now);
+        $thousand = Pr::giftLevel($pen, 1000_00);
+        $twoThousand = Pr::giftLevel($mug, 2000_00);
+        $companies = Pr::giftLevel($mug, 1500_00, with: ['for_public' => false]);
+        Pr::giftLevel($mug, 1100_00, with: ['active' => false]);
+        Pr::giftLevel($mug, 1200_00, with: ['starts_at' => $now->addMinute()]);
+        Pr::giftLevel($mug, 1300_00, with: ['ends_at' => $now]);
+        Pr::giftLevel($mug, 1400_00, 'eg');
+        $above = static fn (int $goodsMinor, Audience $audience = Audience::Public): array => array_map(
+            static fn (GiftOfferDto $offer): array => [$offer->levelId, $offer->amount->minorUnits, $offer->variantId],
+            Pr::api()->giftLevelsAbove(StoreId::fromString(Fx::storeId('sa')), $audience, Pr::money($goodsMinor)),
+        );
+
+        expect($above(999_99))->toBe([[$thousand, 1000_00, $pen], [$twoThousand, 2000_00, $mug]])
+            // Reached exactly is not above.
+            ->and($above(1000_00))->toBe([[$twoThousand, 2000_00, $mug]])
+            ->and($above(1000_00, Audience::Company))->toBe([[$companies, 1500_00, $mug], [$twoThousand, 2000_00, $mug]])
+            ->and($above(2000_00))->toBe([]);
     });
 });
 
