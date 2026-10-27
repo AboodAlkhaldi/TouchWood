@@ -55,9 +55,9 @@ These hold for every gateway, and every one has its tests in §8.
    due. A new invoice is created only after the open one expired, or for a staff request (§1.5) — and
    **never while another invoice of the same order is open** (a `FURTHER` request is refused while an
    `ORDER` attempt is open, and the reverse).
-   - **How long an invoice lives** — question §9.3 #9: (a) **15 minutes**, renewed on the next "Pay now"
-     while the order's 60 minutes last — after a cancellation no invoice of ours stays payable for more
-     than 15 minutes **[Recommended]**; (b) one invoice for the whole 60 + 5 minutes.
+   - **An invoice lives 15 minutes** (owner, 2026-10-27, §9.3 #9), renewed on the next "Pay now" while the
+     order's 60 minutes last — after a cancellation no invoice of ours stays payable for more than 15
+     minutes.
    - **Our side stops offering an invoice** the moment its order is cancelled (any reason) or the
      amount is no longer due; a payment made on it anyway is recorded and becomes a refund due.
 3. **Creating an invoice is safe to repeat.** Every create carries an **idempotency key** made once and
@@ -124,8 +124,20 @@ These hold for every gateway, and every one has its tests in §8.
   key**, **the notice (webhook) secret** for each, and **test or live** (owner, 2026-10-19 P13: Super
   Admin only).
 - **The keys are new MyFatoorah API keys** (owner, 2026-10-27), not the legacy one — a legacy key
-  "will remain valid until it expires", then the new kind is required (notes §1.4). A new key has an
-  expiry date: the setup asks for it, and the panel warns **30 days before** (**[PROPOSED]**).
+  "will remain valid until it expires", then the new kind is required (notes §1.4).
+- **The key's expiry date** (owner, 2026-10-27, §9.3 #7): the Super Admin **chooses it in MyFatoorah's portal
+  when creating the key** (notes §1.5); MyFatoorah's documentation gives no call that reads it back, so
+  **the setup asks for it** when the key is pasted, and it is required. **The people in charge of the
+  key — the Super Admins (P11) — are told before it expires**, so a renewal never stops the shop
+  (**[PROPOSED]**, question §9.4 #2): 30, 7 and 1 days before, a banner on the gateway page and on their
+  admin home, and a staff notification on a new topic, **Payment problems** (access.md amendment 78),
+  sent as Sync's are — in the panel and by email once Ops sends notifications.
+- **A key MyFatoorah refuses anyway** (expired, switched off or deleted in the portal — a 401):
+  **[PROPOSED]** the store's online payment **stops by itself** — `availability()` answers not available
+  (`KEY_REJECTED`), so individuals' orders keep coming in as "staff will contact you", as in a store
+  with no gateway (owner, 2026-10-18) — and the Super Admins are told at once, by the same banner and
+  topic. Open attempts stay `UNKNOWN` and hold their cancellations (§1.7); once a new key is saved, the
+  checks resume with it and online payment comes back.
 - **The keys and secrets are kept encrypted** with the app's key in Payments' own table, as Sync keeps
   its key (sync.md §1.2) — Platform's settings never hold a secret (platform.md §1.3). **Never shown
   again**: the page shows only **the last 6 characters** (owner, 2026-10-19 P12) and when it was set.
@@ -135,8 +147,8 @@ These hold for every gateway, and every one has its tests in §8.
   `https://apitest.myfatoorah.com`, KSA live `https://api-sa.myfatoorah.com` (notes §1.1). A store's
   country picks its live address.
 - **Switching test ↔ live** (owner, 2026-10-27, P17): the Super Admin flips it; the store then uses the
-  other key and address. Attempts already open finish in the mode they started in (rule 14). **TEST is
-  allowed only while the store is switched off** (§1.6; question §9.3 #3).
+  other key and address. Attempts already open finish in the mode they started in (rule 14). **Where
+  TEST may be used is open again** (§1.6; question §9.4 #1).
 - **Each store and mode has its own notice address** — `/payments/notice/{store}/{mode}` — sent with
   every invoice (`IntegrationUrls.Webhook`, notes §5.1) and pasted into that mode's MyFatoorah portal,
   so the right secret is known before the signature is checked.
@@ -152,7 +164,7 @@ These hold for every gateway, and every one has its tests in §8.
   (Mada), STC Pay. Google Pay is not on. **MyFatoorah's fee is on the vendor** for every method (owner,
   2026-10-27), so the customer pays exactly the order's total (owner, 2026-10-19 P14) — and Payments
   checks it (§1.1 rule 7: with the fee on the customer, MyFatoorah would charge more — notes §3.5).
-- **Who picks the method** — question §9.3 #1. The owner's lean (2026-10-27): **MyFatoorah's page shows
+- **Who picks the method** (owner, 2026-10-27, §9.3 #1): **MyFatoorah's page shows
   every method switched on in the account** and the customer picks there; our checkout shows one "Pay
   online" choice with the methods' logos. (MyFatoorah's create call takes no `MADA` value — Mada is
   under `CARD` — notes §3.2.) MyFatoorah's reference says `PaymentMethod` is "required for redirection
@@ -229,17 +241,22 @@ customer goes back to the same page (rule 2). As many times as they like within 
 - **Only for an individual's order in a store whose gateway is on**; sent by **staff who can manage
   orders** (P23).
 - **Never while the order's first payment is still open**: a `FURTHER` request is refused while an
-  `ORDER` attempt is open, and only offered once the order holds something already (rule 2). Edits
-  while the first payment is open — question §9.3 #10.
+  `ORDER` attempt is open, and only offered once the order holds something already (rule 2) — or, for a
+  "fee to be set" order, once staff set the fee (below). **Staff edits are blocked while the first
+  payment is open** (owner, 2026-10-27, §9.3 #10): the edit waits until the order is paid or cancelled, and
+  staff are told why.
 - A `FURTHER` invoice expires after 60 minutes (`PaymentExpiry`), with the same 15-minute renewal as
-  rule 2 when the owner picks it (§9.3 #9).
+  rule 2 (§9.3 #9).
 - A request that is still open when the amount changes again is **withdrawn** (it no longer matches) and
   a new one is needed (**[PROPOSED]**). Withdrawn means: no longer shown; if the customer pays it anyway
   (MyFatoorah cannot cancel an invoice — notes §7), the money is recorded and becomes a refund due if
   too much (rule 7).
-- An order whose shipping fee is "to be set" (shipping.md §1.2, `NOT_COVERED`/`OUTSIDE`) is paid
-  **through staff only** (owner, 2026-10-19 S10), so no request is offered there (**[PROPOSED]** — see
-  §9.3 #5).
+- An order whose shipping fee is "to be set" (shipping.md §1.2, `NOT_COVERED`/`OUTSIDE`) is **never
+  offered "Pay now" at checkout** — its total is not known (owner, 2026-10-19 S10). **Once staff set the
+  fee, staff choose as above** (owner, 2026-10-27, §9.3 #5: (b)): **a payment request for the whole amount
+  due**, or by hand. The request is valid 60 minutes; expired → nothing is cancelled (the order has no
+  payment timer). Only for an individual's order in a store whose gateway is on; a company's order pays
+  by transfer (shipping.md §9.3 #7).
 
 ### 1.6 Test mode
 
@@ -249,14 +266,14 @@ customer goes back to the same page (rule 2). As many times as they like within 
   used, with MyFatoorah's test cards (notes §1.8). The whole flow can be tried: place, pay, fail, retry,
   cancel, revive.
 - **Real customers never meet a test page.** MyFatoorah's test cards are public, so a live store in TEST
-  would let anyone "pay" with them. **[PROPOSED]**: **TEST is allowed only while the store is switched
-  off** — the shop is then seen only by those Platform lets see an off store (platform.md §2.7: the
-  Super Admins), who test there; switching a store on while its gateway is in TEST is refused, and so
-  is switching a live store's gateway to TEST. Before launch this is exactly the owner's plan: test,
-  then switch to LIVE, then open the store.
+  would let anyone "pay" with them. **Where TEST runs is open again** (question §9.4 #1). The first pick
+  — TEST only while the store is switched off — **does not work** (the owner, 2026-10-27): an off store
+  takes no order from anyone, a Super Admin included (platform.md §1.6, §2.7: any form sent to it is a
+  404; the staff view only looks), and staff never order (frontend.md: View Store is "viewing and never
+  ordering"; access.md §1.4: an email is a staff account's or a customer's, never both).
 - **Every attempt and transaction carries its mode.** A TEST payment never counts as real money: it is
   marked TEST on the order, in every list and on the receipt, and **left out of every money figure**
-  (home cards, reports). How Sales treats an order paid in TEST — question §9.3 #3.
+  (home cards, reports). Where TEST runs, and so how Sales treats an order paid in TEST — question §9.4 #1.
 - While a store is in TEST: a banner on every admin page of that store, and the settings line (§1.2).
 - In TEST, MyFatoorah converts to KWD (notes §1.9): the amount check (rule 7) compares the **pay
   currency** value; in TEST the currency rule of rule 7 is checked against that pay currency, in LIVE
@@ -274,7 +291,7 @@ customer goes back to the same page (rule 2). As many times as they like within 
   attempt that is `UNKNOWN`, or has a try `INPROGRESS`, **holds the cancellation** until the gateway
   answers (the background check keeps asking); a success found then is simply a paid order.
 - **The grace window is judged by when the customer paid** — the try's `TransactionDate` from the
-  gateway (notes §4.4) — **not by when we learnt of it** (**[PROPOSED]**, question §9.3 #11): a customer
+  gateway (notes §4.4) — **not by when we learnt of it** (owner, 2026-10-27, §9.3 #11): a customer
   who paid at minute 59 whose notice was lost is not punished for our delay.
 - **Every success is reported**, whenever it arrives, with its payment time. Sales decides: paid inside
   the time or the grace window, and the order was cancelled **by the timer** → revived and paid;
@@ -287,7 +304,13 @@ customer goes back to the same page (rule 2). As many times as they like within 
 
 (owner, 2026-10-27: "we can set something from us as the community does")
 
-- "Pay now": **10 per order per 10 minutes** and **30 per customer per hour** (**[PROPOSED]**).
+- "Pay now": **10 per order per 10 minutes** and **30 per customer per hour** (owner, 2026-10-27, §9.3 #4).
+- **The limits only stop abuse; they never multiply work** (the owner, 2026-10-27: ten presses must be
+  one operation, not ten). While the order's invoice is open, every press — a double click, two tabs,
+  ten presses — gets **the same page** with no new call to MyFatoorah (rule 2); two presses at the same
+  instant cannot make two attempts, because the one-open-attempt index lets only one row in and the
+  other press gets that row (§1.4 step 2). Ten presses = one attempt, one invoice, one gateway call. A
+  press over the limit is answered "Too many tries — wait a few minutes" (429) and changes nothing.
 - Status calls: never more than one at a time per attempt (the lock); the background check takes
   **at most 60 attempts a minute** across the system, oldest first (**[PROPOSED]** — MyFatoorah's limit
   has no number in their docs, notes §4.7).
@@ -362,7 +385,7 @@ interface PaymentsApi
 - **`PaymentStateDto`**: `state` (`NONE`, `OPEN`, `UNKNOWN`, `IN_PROGRESS`, `SUCCEEDED`, `EXPIRED`) —
   whether Sales may cancel now (§1.7).
 - **`OnlinePaymentDto`**: `available` (bool), `mode` (`LIVE`, `TEST`, null), `methodLogos` (list), `reason`
-  when not available (`NO_GATEWAY`, `GATEWAY_OFF`, `COMPANY`).
+  when not available (`NO_GATEWAY`, `GATEWAY_OFF`, `KEY_REJECTED` — §1.2, `COMPANY`).
 - **`PaymentAudience`** stays (`INDIVIDUAL`, `COMPANY`). `PaymentMethodDto` and `methods()` go: the
   method is picked on MyFatoorah's page (question §9.3 #1).
 - **`BankAccountDto`** moves from B2B unchanged.
@@ -477,7 +500,7 @@ Every error extends `PaymentsError` → `DomainError` ("payments.*"), with both 
 | `KeyPermissionMissing` | INVALID | MyFatoorah's 401 "The token does not have the required permissions!" (notes §9) — names what to switch on |
 | `AttemptNotFound` | NOT_FOUND | An attempt that is not there, or not this customer's |
 | `AmountChanged` | CONFLICT | `start` with an amount different from the open attempt's for the same purpose — Sales must withdraw first |
-| `TestModeOnLiveStore` | CONFLICT | TEST on a store that is on, or switching on a store whose gateway is in TEST (§1.6) |
+| `TestModeOnLiveStore` | CONFLICT | TEST where it is not allowed — which depends on question §9.4 #1 (§1.6) |
 | `PayByPassed` | CONFLICT | `start` after the order's deadline (rule 12) |
 | `OrderPaymentOpen` | CONFLICT | A `FURTHER` request while the order's first payment is open (§1.5) |
 | `InvalidPaymentsInput` | INVALID | A field out of range, named |
@@ -523,7 +546,7 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 21. **Someone else's paymentId** on the return page: nothing applied to the visitor's order (rule 6).
 22. **Two successful tries on one invoice**: both recorded, the second flagged "paid twice", Sales gets
     both, the extra is a refund due.
-23. **An edit while the first payment is open**: as the owner answers §9.3 #10; a `FURTHER` request
+23. **An edit while the first payment is open**: refused, naming why (§9.3 #10); a `FURTHER` request
     refused while an `ORDER` attempt is open.
 24. **Test and live ids that are the same number**: both kept, nothing crosses.
 25. **The timer at minute 60 with an `UNKNOWN` or `INPROGRESS` attempt**: the cancellation waits; paid
@@ -533,7 +556,7 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 28. **A currency mismatch**: kept in Payments, flagged, nothing sent to Sales.
 29. **A forged notice sent before the real one**: the real one still processed (only signed notices are
     deduplicated).
-30. **TEST on a store that is on**: refused; switching a store on while in TEST refused (§1.6).
+30. **TEST where it is not allowed** (as the owner answers §9.4 #1): refused, `TestModeOnLiveStore` (§1.6).
 
 ---
 
@@ -559,6 +582,11 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 | P17 | Test by switching the store's gateway to MyFatoorah's test address; test payments marked and never counted; a warning while in test | 2026-10-27 |
 | P18, P20, P25 | Unlimited tries (each safe); a mismatch recorded and flagged; confirmation on the page until stage 8 | 2026-10-27 |
 | P19 | MyFatoorah now; Tamara a separate gateway later | 2026-10-27 |
+| §9.3 #1, #2, #4, #6, #8–#13 | (a), as recommended | 2026-10-27 |
+| §9.3 #4 | The limits must never turn repeated presses into repeated operations (§1.8) | 2026-10-27 |
+| §9.3 #5 | (b): a "fee to be set" order may get a payment request once staff set the fee | 2026-10-27 |
+| §9.3 #7 | (a), and the people in charge of the key told before it expires; where the date comes from explained (§1.2) | 2026-10-27 |
+| §9.3 #3 | The first pick fails: an off store takes no orders — open again as §9.4 #1 | 2026-10-27 |
 | — | New API keys, not the legacy one; methods on: Visa, Mastercard, Mada, Apple Pay, Apple Pay (Mada), STC Pay; fee on the vendor; SAR two decimals; no min/max | 2026-10-27 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
@@ -569,19 +597,24 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
    window (re-hold stock, coupon and points — and if any fails, it stays cancelled and the money is a
    refund due); `PaymentSucceeded` recorded as an `ONLINE` payment (once, by gateway payment id), with
    TEST and mismatch carried; **further-payment requests** on the order; the overdue transfer mark; "Pay
-   now" on the order page; online never offered for a "shipping fee to be set" order; the ways to pay
+   now" on the order page; online never offered at checkout for a "shipping fee to be set" order — a
+   payment request once staff set the fee (§1.5); the ways to pay
    read from `availability()`; `bankAccount` read from Payments.
    Also (the independent review, 2026-10-27): before the timer cancels, `refresh` — an `UNKNOWN` or
    `INPROGRESS` payment holds the cancellation (§1.7); the grace window judged by the payment's own time;
    **the revive does not take the coupon again** — a cancellation keeps its use counted (sales.md §1.6),
    so taking it again would count it twice; the points and the stock are taken again; each successful
-   try recorded once by its gateway payment id, a second one on the same order a refund due; voiding an
-   `ONLINE` record — §9.3 #12; edits while the first payment is open — §9.3 #10; the orders table's new
+   try recorded once by its gateway payment id, a second one on the same order a refund due; **no
+   voiding of a real `ONLINE` record** (§9.3 #12); **edits blocked while the first payment is open**
+   (§9.3 #10); the orders table's new
    columns and checks (sales.md §9.5).
 2. **B2B** — the bank account and its settings line move to Payments (b2b.md §2.3, amendment).
 3. **Access** — a **Payments** permission group.
 
-### 9.3 Still open — for the owner
+### 9.3 The round of 2026-10-27 — answered
+
+The owner answered (2026-10-27): **(a) for #1, #2, #4, #6 and #8–#13**; **(b) for #5**; **#7 (a) with an
+addition** (§1.2); **#3 open again** (§9.4 #1). The questions are kept as they were asked.
 
 1. **Who picks the method?** (a) **MyFatoorah's page** shows every method on the account; our checkout
    shows one "Pay online" with the logos — the owner's lean, nothing to keep in step with MyFatoorah's
@@ -621,3 +654,20 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 13. **Payments that need a person** — a mismatch, paid twice, `UNKNOWN` for more than an hour: (a) a
     count on the menu and on the admin home until someone opens each **[Recommended]**; (b) only in the
     Payments list.
+
+### 9.4 Still open — for the owner
+
+1. **Where test mode runs** (replaces §9.3 #3). (a) **On a test copy of the site** — the owner's computer
+   now, a staging copy on the server at hosting time (same code, its own database, its own address).
+   The test copy may use only the TEST key; the real site refuses TEST altogether. Nothing about off
+   stores or staff accounts changes, and test orders never reach the real database **[Recommended]**.
+   (b) A Super Admin may place orders in an off store — changes Platform's off-store rule (§1.6),
+   Access (a Super Admin would need a customer account, which one email cannot have), Sales's checkout,
+   stock holds and the figures **[Not recommended]**. (c) TEST on a live store for a short window — real
+   customers would meet the test page and could not pay with a real card, and anyone could "pay" with
+   the public test cards **[Not recommended]**.
+2. **Telling the Super Admins before the key expires** (§1.2): (a) 30, 7 and 1 days before: a banner on
+   the gateway page and their admin home **now**, and a staff notification (panel and email) on a new
+   topic, Payment problems, **once Ops sends notifications** — as Sync's problems are today
+   **[Recommended]**; (b) Payments sends the email itself now, before Ops — a second way of mailing staff
+   that Ops would later replace.

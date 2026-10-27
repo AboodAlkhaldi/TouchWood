@@ -70,7 +70,8 @@ restated):
   customer is told the place is served by a store that is closed now, rather than being offered staff
   handling for a country we have a store for.
 - **Never at address entry for `NOT_COVERED`** (owner, 2026-10-19 S10): the customer learns it at
-  checkout. Whether `OTHER_STORE` is refused already when the address is saved is question §9.3 #1.
+  checkout. **`OTHER_STORE` is refused already when the address is saved** (owner, 2026-10-27, §9.3 #1), and
+  again at checkout for an address saved before this rule.
 - Order of the checks: the country first (`OTHER_STORE`, `OUTSIDE`), then the place.
 
 ### 1.3 Carriers
@@ -94,7 +95,7 @@ country would leave every price pointing at places of the wrong country).
   store's own country is always one of them; a country is added only once Platform has its place list
   (otherwise its carriers could never be priced, and every address there would stay `NOT_COVERED`); a
   country is removed, or moved to another store, only once the store has no carrier there (they are
-  switched off first) — question §9.3 #9.
+  switched off first) (owner, 2026-10-27, §9.3 #9).
 
 ### 1.4 Prices — the groups
 
@@ -126,8 +127,8 @@ The rules, checked on every save:
   their own "Move here".
 - **A city with a district list whose district is missing** (a new neighbourhood): the customer picks
   **"Other"** and types it — it takes the **city's whole price**, or is `NOT_COVERED` when the city is
-  not priced whole (**[PROPOSED]**, question §9.3 #10).
-- **A retired place** (Platform, §9.3 #4): it leaves every picker; **its prices stay and still apply**
+  not priced whole (owner, 2026-10-27, §9.3 #10).
+- **A retired place** (Platform; owner, 2026-10-27, §9.3 #4): it leaves every picker; **its prices stay and still apply**
   to the addresses that already use it, so nothing changes for a customer whose saved address names it.
 - A group with no places left is deleted.
 - **One save at a time per carrier**: every change of a carrier's prices locks the carrier first, so two
@@ -159,7 +160,7 @@ price, otherwise the carrier does not serve it.
 - The carriers page shows, per country the store ships to, **"Places no carrier serves"**: every city
   with no price in any switched-on carrier (none of its districts either), and every district of a
   district-list city that is not served while its city is not priced as a whole. A count is shown on
-  the menu (Platform's `MenuCount`) while the list is not empty (**[PROPOSED]**).
+  the menu (Platform's `MenuCount`) while the list is not empty (owner, 2026-10-27, §9.3 #3).
 - An order placed for a `NOT_COVERED` or `OUTSIDE` address is marked **"Shipping fee to be set"** in
   Sales's order list (Sales amendment, §9.2), and **never auto-cancels** (it waits for no online
   payment).
@@ -180,7 +181,7 @@ price, otherwise the carrier does not serve it.
 - **It never changes the price** (owner, 2026-10-19 S8: prices are by place only) and **never blocks**
   an order, a shipment or the store going live.
 - With **no box in the list**, the suggestion is simply not shown.
-- Whether the box part is built now or when the list arrives is question §9.3 #6.
+- **The box part is built now** and stays unused until boxes are entered (owner, 2026-10-27, §9.3 #6).
 
 ---
 
@@ -367,6 +368,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | S10 | Carriers may skip places; admins warned; the customer told at checkout, the order placed and handled by staff, no online payment — with the four additions | 2026-10-19, 2026-10-27 |
 | S11–S17, S20 | As recommended (fields, admins, merge, district over city, typed district → city, snapshots, staff may change carrier, return shipping not recorded) | 2026-10-27 |
 | S18 | **No VAT on shipping** | 2026-10-27 |
+| §9.3 #1–13 | **(a) for all thirteen**, as recommended | 2026-10-27 |
 | C1–C6, R1–R4 | Districts seeded; "Other" city → not served; Super Admin may edit the lists, seeded first; the customer picks the region; KSA and Egypt now, UAE later; reset the test addresses; a Super Admin list of address countries; each store's ship-to countries; a country in one store only; free text in a country no store serves | 2026-10-19, 2026-10-27 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
@@ -390,7 +392,10 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 6. **Promotions** — nothing to change: its "free shipping above an amount" already names Shipping,
    stage 7; it is §1.5.
 
-### 9.3 Still open — for the owner
+### 9.3 The round of 2026-10-27 — answered
+
+The owner answered **(a) for all thirteen** (2026-10-27, "others as rec"). The questions are kept as
+they were asked. Nothing in Shipping is open.
 
 1. **`OTHER_STORE` at address entry or at checkout?** (a) Refused **when the address is saved**: "This
    country is served by our Egypt store" with a link — the customer never builds a cart for an address
