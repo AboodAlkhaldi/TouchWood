@@ -442,9 +442,10 @@ final readonly class DatabaseShopReader implements ShopReader
             $row->length_mm === null ? null : (int) $row->length_mm,
             $row->width_mm === null ? null : (int) $row->width_mm,
             $row->height_mm === null ? null : (int) $row->height_mm,
-            // Its price as Pricing pushed it (amendment 35); none yet: not priced.
-            $row->price_minor === null ? null : (int) $row->price_minor,
-            $row->price_before_minor === null ? null : (int) $row->price_before_minor,
+            // Its retail price as Pricing pushed it (amendment 35); none yet: not priced. A size sold wholesale
+            // only has none here: its wholesale price is Pricing's section's (`pricing.wholesale`).
+            $row->price_minor === null || ! $row->sells_retail ? null : (int) $row->price_minor,
+            $row->price_before_minor === null || ! $row->sells_retail ? null : (int) $row->price_before_minor,
         ), $variants));
     }
 
@@ -524,7 +525,7 @@ final readonly class DatabaseShopReader implements ShopReader
         $rows = $this->db->select(
             'SELECT * FROM (SELECT found.*, CASE WHEN tier = 3 THEN -near ELSE 0 END AS k2, COALESCE(sales_rank::bigint, '.SearchCursor::UNRANKED.') AS k3 FROM ('
             .'SELECT l.product_id, l.name, l.slug, l.card_photo, l.sales_rank, l.card_variant_id, l.retail_card_variant_id,'
-            .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor,'
+            .' l.ending_soon_companies, l.ending_soon_individuals, l.retail_price_minor, l.retail_price_before_minor, l.retail_from_minor, l.wholesale_from_minor, l.for_companies,'
             .' '.self::labelsOf($locale, 'l').' AS labels, '.self::ratingOf('l').','
             .' CASE WHEN split_part(l.search_text, chr(10), 1) = ?::text OR split_part(l.search_text, chr(10), 2) = ?::text THEN 1'
             ." WHEN l.search_document @@ to_tsquery('simple', ?) THEN 2"
@@ -755,7 +756,8 @@ final readonly class DatabaseShopReader implements ShopReader
                     self::minor($row->retail_price_minor),
                     self::minor($row->retail_price_before_minor),
                     self::minor($row->retail_from_minor),
-                    $individual ? null : self::minor($row->wholesale_from_minor),
+                    // Never an individual's; a guest's only where companies may buy it (its category open to them).
+                    $individual || ! (bool) ($row->for_companies ?? true) ? null : self::minor($row->wholesale_from_minor),
                 ),
             );
         }, $rows);

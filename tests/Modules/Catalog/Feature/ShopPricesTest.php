@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Platform\Public\Contracts\ShopperType;
@@ -86,9 +88,9 @@ function shopPricesProduct(): array
 }
 
 /**
- * The bands `pricing.wholesale` carries: size => [[from, minor]], or null when it draws nothing.
+ * What `pricing.wholesale` carries: size => [its wholesale price, [[from, minor]]], or null when it draws nothing.
  *
- * @return array<string, list<array{int, int}>>|null
+ * @return array<string, array{int, list<array{int, int}>}>|null
  */
 function shopPricesBands(mixed $sections): ?array
 {
@@ -98,13 +100,17 @@ function shopPricesBands(mixed $sections): ?array
         return null;
     }
 
+    $minor = static fn (mixed $money): int => is_array($money) && is_int($money['minor'] ?? null) ? $money['minor'] : 0;
     $sizes = [];
 
-    foreach ($wholesale['sizes'] as $variantId => $bands) {
-        foreach (is_array($bands) ? $bands : [] as $band) {
-            $unit = is_array($band) && is_array($band['unit'] ?? null) ? $band['unit'] : [];
-            $sizes[(string) $variantId][] = [is_array($band) && is_int($band['minQuantity'] ?? null) ? $band['minQuantity'] : 0, is_int($unit['minor'] ?? null) ? $unit['minor'] : 0];
+    foreach ($wholesale['sizes'] as $variantId => $size) {
+        $bands = [];
+
+        foreach (is_array($size) && is_array($size['bands'] ?? null) ? $size['bands'] : [] as $band) {
+            $bands[] = [is_array($band) && is_int($band['minQuantity'] ?? null) ? $band['minQuantity'] : 0, $minor(is_array($band) ? ($band['unit'] ?? null) : null)];
         }
+
+        $sizes[(string) $variantId] = [$minor(is_array($size) ? ($size['price'] ?? null) : null), $bands];
     }
 
     return $sizes;
@@ -134,7 +140,7 @@ describe('a card', function () {
             ->where('products.0.price.now.text', fn (string $text): bool => str_starts_with($text, '30.00 '))
             ->where('products.0.price.before', null)
             ->where('products.0.price.from.minor', 25_00)
-            ->where('products.0.price.wholesaleFrom.minor', $wholesaleFrom);
+            ->where($wholesaleFrom === null ? 'products.0.price.wholesaleFrom' : 'products.0.price.wholesaleFrom.minor', $wholesaleFrom);
 
         // A guest: the least a piece costs on a wholesale line of any wholesale size — 80 cm's band from 5.
         get($url)->assertOk()->assertInertia($card(20_00));
@@ -146,6 +152,35 @@ describe('a card', function () {
 
         shopPricesViewer(ShopperKind::Individual);
         get($url)->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.price.wholesaleFrom', null)->where('products.0.price.from.minor', 25_00));
+
+        // A band changed: "Wholesale from" follows at once.
+        shopPricesViewer(ShopperKind::Guest);
+        Fx::asSystem(fn () => app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices(Fx::storeId('sa'), $p['sizes'][1], [5 => '19.00'])));
+        get($url)->assertInertia($card(19_00));
+
+        // Its category closed to companies: no company can buy it wholesale, so a guest is not shown it.
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $p['category'], forCompanies: false)));
+        get($url)->assertInertia($card(null));
+    });
+
+    it('shows a guest the retail size\'s price when the first size is sold wholesale only', function () {
+        $category = Px::category('Kitchens');
+        $p = Px::ready(['100 cm', '60 cm'], $category);
+        [$wholesale, $retail] = $p['variants'];
+        Fx::asSystem(function () use ($p, $wholesale, $retail): void {
+            app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true));
+            app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [
+                $wholesale => ['retail' => false, 'wholesale' => true],
+                $retail => ['retail' => true, 'wholesale' => false],
+            ], wholesaleMinimum: 5));
+        });
+        Rx::set('sa', [$wholesale => '40.00', $retail => '30.00']);
+
+        // 100 cm's own price, 40.00, is not retail: the card shows 60 cm's, and "Wholesale from" 40.00 (no bands).
+        get('/sa/en/categories/'.shopPricesSlug('category', $category))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('products.0.price.now.minor', 30_00)
+            ->where('products.0.price.from', null)
+            ->where('products.0.price.wholesaleFrom.minor', 40_00));
     });
 
     it('follows a sale at once: the price before beside it, and a lower "Wholesale from" when it goes under a band', function () {
@@ -193,9 +228,10 @@ describe('a product page', function () {
             ->where('variants.0.price.minor', 30_00)
             ->where('variants.0.priceBefore', null)
             ->where('variants.1.price.minor', 25_00)
-            ->where('variants.2.price.minor', 40_00)
-            // 60 cm sells retail only: no bands.
-            ->where('sections', fn ($sections): bool => shopPricesBands($sections) === [$eighty => [[5, 20_00]], $hundred => [[5, 35_00], [20, 32_00]]]));
+            // 100 cm sells wholesale only: its price is Pricing's section's, not a retail one.
+            ->where('variants.2.price', null)
+            // 60 cm sells retail only: not in it.
+            ->where('sections', fn ($sections): bool => shopPricesBands($sections) === [$eighty => [25_00, [[5, 20_00]]], $hundred => [40_00, [[5, 35_00], [20, 32_00]]]]));
 
         shopPricesViewer(ShopperKind::Company);
         get($url)->assertInertia(fn (AssertableInertia $page) => $page->where('sections', fn ($sections): bool => shopPricesBands($sections) !== null));
@@ -206,7 +242,8 @@ describe('a product page', function () {
             ->where('sections', fn ($sections): bool => array_key_exists('pricing.wholesale', shopPricesSections($sections)) && shopPricesBands($sections) === null));
     });
 
-    it('reads the bands in one query, warm, and none for an individual or a product sold retail only', function () {
+    // A product sold retail only reads none: ShopPagesTest's budgets, unchanged by amendment 35.
+    it('reads the wholesale prices in one query, warm, and none for an individual', function () {
         $p = shopPricesProduct();
         $url = '/sa/en/products/'.shopPricesSlug('product', $p['product']);
         $warm = static function () use ($url): int {

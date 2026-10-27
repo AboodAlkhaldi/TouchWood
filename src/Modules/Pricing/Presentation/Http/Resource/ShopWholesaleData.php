@@ -9,13 +9,14 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * Pricing's part of a product's page in the shop, `pricing.wholesale` (catalog.md amendment 35): each
- * size here that sells wholesale and has bands, keyed by its id, with its bands, lowest start first.
+ * size here a company or a guest can buy wholesale and that is priced, keyed by its id, in the product's
+ * order, with its wholesale price and its bands.
  */
 #[TypeScript]
 final class ShopWholesaleData extends Data
 {
     /**
-     * @param  array<string, list<ShopBandData>>  $sizes  variant id => its bands
+     * @param  array<string, ShopWholesaleSizeData>  $sizes  variant id => its wholesale price and bands
      */
     public function __construct(
         public array $sizes,

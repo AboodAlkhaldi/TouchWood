@@ -239,7 +239,11 @@ minQuantity: number,
 unit: MoneyData,
 };
 export type ShopWholesaleData = {
-sizes: Record<string, ShopBandData[]>,
+sizes: Record<string, ShopWholesaleSizeData>,
+};
+export type ShopWholesaleSizeData = {
+price: MoneyData,
+bands: ShopBandData[],
 };
 export type SizeData = {
 variantId: string,

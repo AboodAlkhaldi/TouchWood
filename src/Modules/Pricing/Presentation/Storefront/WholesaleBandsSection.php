@@ -15,15 +15,18 @@ use Modules\Pricing\Domain\Repository\PriceCandidates;
 use Modules\Pricing\Domain\Service\PriceResolution;
 use Modules\Pricing\Presentation\Http\Resource\ShopBandData;
 use Modules\Pricing\Presentation\Http\Resource\ShopWholesaleData;
+use Modules\Pricing\Presentation\Http\Resource\ShopWholesaleSizeData;
 use Modules\Pricing\Public\Enums\PriceKind;
+use Shared\Domain\ValueObject\Money;
 
 /**
- * **The wholesale bands on a product's page** (catalog.md amendment 35; the shop's screens' B8),
+ * **The wholesale prices on a product's page** (catalog.md amendment 35; the shop's screens' B8),
  * `pricing.wholesale`: for a company or a guest — an individual buys retail only (amendment 14(e)) —
- * each of the page's sizes that sells wholesale (as Catalog read them, in the product's order), with the
- * bands it has: from each band's start, what one piece costs now on a wholesale line (the band, or a
- * sale or discount below it), without VAT. A size with no band is left out; none at all draws nothing.
- * One read of the sizes' candidates, none when no size sells wholesale; the store from Platform's cache.
+ * each of the page's sizes that sells wholesale (as Catalog read them, in the product's order) and is
+ * priced: what one piece costs now on a wholesale line below any band, and its bands — from each band's
+ * start, what a piece costs there now (the band, or a sale or discount below it). Without VAT. Catalog's
+ * own size price is retail only, so a size sold wholesale only is priced here alone. One read of the
+ * sizes' candidates, none when no size sells wholesale; the store from Platform's cache.
  */
 final readonly class WholesaleBandsSection implements ShopProductSection
 {
@@ -49,10 +52,17 @@ final readonly class WholesaleBandsSection implements ShopProductSection
         }
 
         $now = CarbonImmutable::now()->toDateTimeImmutable();
-        $bands = [];
+        $money = static fn (?Money $unit): ?MoneyData => $unit === null || $unit->currencyCode !== $store->currencyCode ? null : MoneyData::of($unit, $store, $visit->locale);
+        $sizes = [];
 
         foreach ($visit->wholesaleSizes as $variantId) {
             $of = $candidates[$variantId] ?? [];
+            $price = $money(PriceResolution::resolve($of, SaleMode::Wholesale, 1, $now)?->unit);
+
+            if ($price === null) {
+                continue;
+            }
+
             $starts = [];
 
             foreach ($of as $candidate) {
@@ -62,16 +72,19 @@ final readonly class WholesaleBandsSection implements ShopProductSection
             }
 
             sort($starts);
+            $bands = [];
 
             foreach (array_unique($starts) as $start) {
-                $unit = PriceResolution::resolve($of, SaleMode::Wholesale, $start, $now)?->unit;
+                $unit = $money(PriceResolution::resolve($of, SaleMode::Wholesale, $start, $now)?->unit);
 
-                if ($unit !== null && $unit->currencyCode === $store->currencyCode) {
-                    $bands[$variantId][] = new ShopBandData($start, MoneyData::of($unit, $store, $visit->locale));
+                if ($unit !== null) {
+                    $bands[] = new ShopBandData($start, $unit);
                 }
             }
+
+            $sizes[$variantId] = new ShopWholesaleSizeData($price, $bands);
         }
 
-        return $bands === [] ? null : (new ShopWholesaleData($bands))->toArray();
+        return $sizes === [] ? null : (new ShopWholesaleData($sizes))->toArray();
     }
 }

@@ -9,7 +9,8 @@ namespace Modules\Catalog\Application\Query\Shop;
  * without VAT, as Pricing pushed it: every viewer sees retail — `$now` and `$before` (only while `$now` is
  * lower) of the card's retail size, and `$from`, the lowest `$now` among the retail sizes, only when they
  * differ — and a company or a guest also `$wholesaleFrom`, the least one piece costs on a wholesale line
- * of any size that sells wholesale. A part with no price is null; a card with none has no price.
+ * of any size that sells wholesale, where companies may buy it. A part with no price is null; a card with
+ * none has no price.
  */
 final readonly class CardPrice
 {
@@ -22,6 +23,6 @@ final readonly class CardPrice
 
     public static function of(?int $now, ?int $before, ?int $from, ?int $wholesaleFrom): ?self
     {
-        return $now === null && $wholesaleFrom === null ? null : new self($now, $now === null ? null : $before, $now === null ? null : $from, $wholesaleFrom);
+        return $now === null && $from === null && $wholesaleFrom === null ? null : new self($now, $now === null ? null : $before, $from, $wholesaleFrom);
     }
 }
