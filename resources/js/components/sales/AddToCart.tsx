@@ -89,14 +89,18 @@ export function AddToCart({
     }, [added]);
 
     if (modes.length === 0) {
-        return null;
+        return variant === null ? null : (
+            <p className="text-copy-14 text-ink" role="status" data-test="not-sold">
+                {t(`${C}.add.not_sold`)}
+            </p>
+        );
     }
 
     const quantity = Number(typed);
     const outside = !Number.isInteger(quantity) || quantity < minimum || (maximum !== null && quantity > maximum);
     const limits = maximum === null ? t(`${C}.add.from`, { minimum: figure(locale, minimum) }) : t(`${C}.add.limits`, { minimum: figure(locale, minimum), maximum: figure(locale, Math.max(minimum, maximum)) });
     // Why nothing can be added of this size now: too few free, or its line already holds the most.
-    const blocked = outOfStock ? t(`${C}.add.out_of_stock`) : full ? t(`${C}.add.full`) : undefined;
+    const blocked = full ? t(`${C}.add.full`) : outOfStock ? t(`${C}.add.out_of_stock`) : undefined;
 
     const add = () => {
         if (variant === null) {
@@ -144,7 +148,7 @@ export function AddToCart({
                 </FieldSet>
             ) : null}
 
-            {mode === 'WHOLESALE' && wholesalePrices !== null ? <Bands wholesale={wholesalePrices} first={minimum} quantity={outside ? null : quantity} /> : null}
+            {mode === 'WHOLESALE' && wholesalePrices !== null ? <Bands wholesale={wholesalePrices} first={line?.minimum ?? minimum} quantity={outside ? null : quantity + (line?.inCart ?? 0)} /> : null}
 
             <div className="flex flex-wrap items-end gap-3">
                 <TextField
@@ -157,7 +161,7 @@ export function AddToCart({
                     helper={limits}
                     value={typed}
                     onChange={(event) => setTyped(toLatinDigits(event.target.value).replace(/[^0-9]/g, ''))}
-                    onBlur={() => setTyped(String(Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(minimum, Number.isInteger(quantity) && quantity > 0 ? quantity : minimum))))}
+                    onBlur={() => (full ? undefined : setTyped(String(Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(minimum, Number.isInteger(quantity) && quantity > 0 ? quantity : minimum)))))}
                     data-test="add-quantity"
                 />
                 <ActionButton size="lg" loading={busy} disabledReason={blocked ?? (variant !== null && outside ? limits : undefined)} onClick={add} data-test="add">
@@ -166,7 +170,7 @@ export function AddToCart({
             </div>
 
             {blocked === undefined ? null : (
-                <p className="text-copy-14 text-ink" role="status" data-test={outOfStock ? 'out-of-stock' : 'line-full'}>
+                <p className="text-copy-14 text-ink" role="status" data-test={full ? 'line-full' : 'out-of-stock'}>
                     {blocked}
                 </p>
             )}

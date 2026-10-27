@@ -43,10 +43,11 @@ final readonly class CartPages
         $cart = $view->handle(new ViewCart($storeId, $locale));
         $store = $this->platform->store(StoreId::fromString($cart->storeId));
         $money = fn (?Money $amount): ?MoneyData => $amount === null ? null : self::money($amount, $store, $cart->exponent, $locale);
-        // Free shipping measured on the goods (B12): what is missing, and the share for the bar.
+        // Free shipping measured on the goods (B12): what is missing, and the share for the bar. Nothing that can be
+        // ordered counts as no goods: all of it is missing.
         $goods = $cart->goodsTotal->minorUnits ?? 0;
         $free = $cart->freeAbove?->minorUnits;
-        $missing = $free !== null && $cart->goodsTotal !== null && $goods < $free ? Money::of($free - $goods, $cart->freeAbove->currencyCode) : null;
+        $missing = $free !== null && $goods < $free ? Money::of($free - $goods, $cart->freeAbove->currencyCode) : null;
         $best = $cart->lines === [] ? $this->bestSellers->read(StoreId::fromString($cart->storeId), $locale, self::BEST_SELLERS) : ['cards' => [], 'cardFacts' => []];
 
         return new CartPage(

@@ -105,7 +105,7 @@ export function StorefrontLayout({ title, children, address }: Props) {
                                 <Button asChild variant="ghost" size="icon">
                                     <Link
                                         href={`/${shop.code}/${locale}/cart`}
-                                        aria-label={frame.sales.pieces > 0 ? `${frame.sales.words.cart}, ${(frame.sales.words.pieces[new Intl.PluralRules(intlLocale(locale)).select(frame.sales.pieces)] ?? '').replace(':count', figure(locale, frame.sales.pieces))}` : frame.sales.words.cart}
+                                        aria-label={frame.sales.pieces > 0 ? `${frame.sales.words.cart}${locale === 'ar' ? '، ' : ', '}${(frame.sales.words.pieces[new Intl.PluralRules(intlLocale(locale)).select(frame.sales.pieces)] ?? '').replace(':count', figure(locale, frame.sales.pieces))}` : frame.sales.words.cart}
                                         className="relative"
                                         data-test="header-cart"
                                     >

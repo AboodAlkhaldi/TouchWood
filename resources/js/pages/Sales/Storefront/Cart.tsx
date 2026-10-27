@@ -284,7 +284,7 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
     const block = shopper ? cart.mayNotOrder : null;
     const reason = cart.problems ? t(`${C}.summary.fix_first`) : block !== null ? t(`${C}.block.${block}`) : undefined;
     // Each reason's one fix (R1-17): verifying on the account page, the company's own page; none for an account closed to orders.
-    const fix = block === 'EMAIL_UNVERIFIED' || block === 'PHONE_UNVERIFIED' ? link('storefront.account') : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
+    const fix = block === 'EMAIL_UNVERIFIED' ? link('storefront.account') : block === 'PHONE_UNVERIFIED' ? link('storefront.account', { tab: 'phone' }) : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
 
     return (
         <Card className="material-base gap-3 border-0 py-4" data-test="cart-summary">
@@ -305,14 +305,14 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
                         <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
                             <dt className="text-ink-muted">
                                 {t(`${C}.summary.shipping`)}
-                                {cart.freeAbove === null || cart.freeShare >= 100 ? null : (
+                                {cart.freeAbove === null || cart.freeShare >= 100 || cart.shippingFee.minor === 0 ? null : (
                                     <span className="text-copy-13">
                                         {' '}
                                         ({t(`${C}.summary.free_above`)} <Money value={cart.freeAbove} />)
                                     </span>
                                 )}
                             </dt>
-                            <dd>{cart.freeAbove !== null && cart.freeShare >= 100 ? <span className="text-label-14 text-ink">{t(`${C}.summary.free`)}</span> : <Money value={cart.shippingFee} className="text-label-14 text-ink" />}</dd>
+                            <dd>{cart.shippingFee.minor === 0 || (cart.freeAbove !== null && cart.freeShare >= 100) ? <span className="text-label-14 text-ink">{t(`${C}.summary.free`)}</span> : <Money value={cart.shippingFee} className="text-label-14 text-ink" />}</dd>
                         </div>
                     )}
                 </dl>
@@ -351,7 +351,8 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
 function Extras({ cart }: { cart: CartPage }) {
     const t = useTranslator();
     const locale = useLocale();
-    const free = cart.freeAbove !== null && cart.shippingFee !== null;
+    // A store shipping for nothing needs no line toward free shipping.
+    const free = cart.freeAbove !== null && cart.shippingFee !== null && cart.shippingFee.minor > 0;
 
     if (!free && cart.nextGift === null && cart.pointsToEarn === 0) {
         return null;
@@ -363,7 +364,7 @@ function Extras({ cart }: { cart: CartPage }) {
                 {free ? (
                     <div className="grid gap-2" data-test="free-shipping">
                         <p>
-                            {cart.freeMissing === null ? (
+                            {cart.freeShare >= 100 || cart.freeMissing === null ? (
                                 t(`${C}.extras.ships_free`)
                             ) : (
                                 <>
