@@ -1515,6 +1515,8 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).
+10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
+    §2.1: `options` becomes `quote`, `methods` goes, and `PaymentExpired` is consumed.
 11. **The orders table** (the review found the built schema cannot hold a stage 7 order):
     - a **`carrier_id`** (Shipping's, no key) and the carrier's names, **snapshotted at placement**; the
       check `orders_carrier` (carrier set exactly when shipped) becomes: the **shipping carrier** is set
@@ -1530,5 +1532,3 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
     **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
     snapshotted is the one used again.
 13. **Voiding an `ONLINE` record** — payments.md §9.3 #12.
-10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
-    §2.1: `options` becomes `quote`, `methods` goes, and `PaymentExpired` is consumed.
