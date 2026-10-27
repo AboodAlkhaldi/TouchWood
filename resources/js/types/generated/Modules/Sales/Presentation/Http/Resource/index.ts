@@ -1,4 +1,81 @@
 import type { MoneyData } from '../../../../Platform/Public/Dto';
+export type BankData = {
+iban: string,
+bank: string,
+holder: string,
+};
+export type CartLineData = {
+variantId: string,
+name: string,
+slug: string | null,
+photo: Record<string, Record<string, string>> | null,
+code: string,
+values: string,
+mode: string,
+quantity: number,
+unit: MoneyData | null,
+before: MoneyData | null,
+total: MoneyData | null,
+problem: string | null,
+minimum: number,
+maximum: number | null,
+};
+export type CartNoticeData = {
+variantId: string,
+name: string,
+values: string,
+mode: string,
+quantity: number,
+reason: string,
+};
+export type CartPage = {
+lines: CartLineData[],
+mayOrder: boolean,
+couponCode: string | null,
+notice: CartNoticeData[],
+subtotal: MoneyData | null,
+pieces: number,
+problems: boolean,
+};
+export type CheckoutAddressData = {
+id: string,
+label: string,
+recipientName: string,
+phone: string,
+formatted: string,
+isDefault: boolean,
+isComplete: boolean,
+};
+export type CheckoutPage = {
+quoteId: string | null,
+addresses: CheckoutAddressData[],
+addressId: string | null,
+audience: string,
+couponCode: string | null,
+couponName: string | null,
+couponRefusal: string | null,
+usePoints: boolean,
+pointsAsked: number | null,
+pointsUsed: number,
+pointsMostUsable: number,
+pointsMode: string | null,
+pointsRefusal: string | null,
+ways: string[],
+way: string | null,
+bank: BankData | null,
+subtotal: MoneyData | null,
+savings: MoneyData | null,
+coupon: MoneyData | null,
+points: MoneyData | null,
+shipping: MoneyData | null,
+freeAbove: MoneyData | null,
+vat: MoneyData | null,
+vatRateBasisPoints: number,
+total: MoneyData | null,
+gift: string | null,
+giftPrice: MoneyData | null,
+earns: number,
+};
 export type CustomerOrdersSectionData = {
 customerId: string,
 orders: OrderRowData[],
@@ -161,6 +238,14 @@ storeTimezone: string | null,
 q: string,
 customerId: string | null,
 customerName: string | null,
+};
+export type PlacedPage = {
+number: string,
+total: MoneyData,
+wayToPay: string,
+bank: BankData | null,
+receipts: number,
+mayUpload: boolean,
 };
 export type PrintPage = {
 id: string,

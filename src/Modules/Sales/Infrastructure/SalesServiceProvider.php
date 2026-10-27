@@ -13,9 +13,11 @@ use Modules\Access\Public\Dto\CustomerPageSectionDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
 use Modules\Sales\Application\Query\Own\OwnReads;
@@ -48,6 +50,8 @@ use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
 use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
+use Modules\Sales\Presentation\Storefront\CartSection;
+use Modules\Sales\Presentation\Storefront\SalesFramePart;
 use Modules\Sales\Public\Contracts\SalesApi;
 
 /**
@@ -83,6 +87,10 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(MediaUsages::class)->register('sales', SalesFilesUsage::class);
         // A customer's latest orders on the staff customer page (§3.2; access.md amendment 72(a)).
         $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class, ['sales::admin_orders'], 30));
+        // The header's cart on every shop page (§4.1 S3).
+        $this->app->make(ShopFrameParts::class)->register('sales', SalesFramePart::class);
+        // Add to Cart on a product's page (§4.1 S2).
+        $this->app->make(ShopProductSections::class)->register('sales.cart', CartSection::class, ['sales::shop_add']);
 
         // A guest signed in or registered: their carts move or merge, what the account may not buy leaving (§1.1).
         Event::listen(GuestBecameCustomer::class, [MoveGuestCart::class, 'handle']);
@@ -111,6 +119,7 @@ final class SalesServiceProvider extends ServiceProvider
         );
 
         if (! $this->app->routesAreCached()) {
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/shop-routes.php');
             // The panel's own file: the admin session cookie must be set before "web" opens a session.
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }

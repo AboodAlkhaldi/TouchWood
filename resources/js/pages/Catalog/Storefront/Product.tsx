@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/react';
 import { cn } from 'cn';
 import { Note } from '@/components/Note';
 import { type FeedbackSections, QuestionsSection, RatingLine, ReviewsSection, SaveHeart } from '@/components/feedback/shop';
+import { AddToCart } from '@/components/sales/AddToCart';
 import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
@@ -21,8 +22,8 @@ import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/g
 | variant attribute in the product's order, its values as buttons in the attribute's order, a colour's
 | with its swatch, a value no variant on sale holds disabled; the chosen variant's details, weight and
 | size; "Last pieces" on the ending-soon option only (amendment 16(h)); the description; the warranty;
-| how it is sold to this viewer (P17); Goes With and You May Also Like. No code, no price, no Add to
-| Cart. The variant is matched here from the list the server sent, for display only - Sales resolves
+| how it is sold to this viewer (P17); Goes With and You May Also Like. No code and no price; Sales's
+| Add to Cart in its slot (sales.md §4.1 S2). The variant is matched here from the list the server sent, for display only - Sales resolves
 | it on the server when there is a cart (handoff §9.1).
 |
 | Not available now (P18): its name, photos and description, a Note, nothing to choose.
@@ -42,7 +43,10 @@ function pick(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Re
     return variantOf(variants, choices, { ...chosen, [attributeId]: valueId }) ?? variants.find((variant) => variant.values[attributeId] === valueId) ?? null;
 }
 
-export default function Product(page: ShopProductPage & { sections: FeedbackSections; cardFacts?: CardFacts | unknown[] }) {
+/** Sales's section (sales.md §4.1 S2): Add to Cart offered on this page. */
+type SalesSections = { 'sales.cart'?: { offered: boolean } | null };
+
+export default function Product(page: ShopProductPage & { sections: FeedbackSections & SalesSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
     const link = useLink();
     const { name, available, variants, choices, selling, warranty, address } = page;
@@ -86,6 +90,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                             </Note>
                         )}
 
+                        <div id="product-choices" className="grid gap-6">
                         {choices.map((choice) => (
                             <fieldset key={choice.id} className="grid gap-2" data-test="choice">
                                 <legend className="mb-2 text-label-14 text-ink">{choice.name}</legend>
@@ -122,6 +127,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                 </div>
                             </fieldset>
                         ))}
+                        </div>
 
                         {choices.length === 0 && variant?.lastPieces ? (
                             <Badge className={cn(tone('amber'), 'w-fit')} data-test="last-pieces">
@@ -138,6 +144,9 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                 ) : null}
                             </section>
                         ) : null}
+
+                        {/* Sales's Add to Cart (sales.md §4.1 S2): on an available page only, as Sales offers it. */}
+                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" /> : null}
 
                         {/* On a "Not available now" page too (amendment 34): a saved product kept or removed there. */}
                         <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />

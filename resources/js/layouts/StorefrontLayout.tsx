@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ChevronDown, LayoutDashboard, LogOut, UserRound } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, LogOut, ShoppingCart, UserRound } from 'lucide-react';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
@@ -99,6 +99,14 @@ export function StorefrontLayout({ title, children, address }: Props) {
 
                             {/* Only under a store: the country page has none, and every address in
                                 the shop is written inside one. */}
+                            {/* Sales's part of the frame (sales.md §4.1 S3): the cart, beside the account's. */}
+                            {shop === null || shop === undefined || staffView || !frame?.sales ? null : (
+                                <Button asChild variant="ghost" size="icon">
+                                    <Link href={`/${shop.code}/${locale}/cart`} aria-label={frame.sales.words.cart} data-test="header-cart">
+                                        <ShoppingCart aria-hidden="true" />
+                                    </Link>
+                                </Button>
+                            )}
                             {shop === null || shop === undefined ? null : staffView ? (
                                 <StaffViewMenu staffView={staffView} shopCode={shop.code} />
                             ) : (
