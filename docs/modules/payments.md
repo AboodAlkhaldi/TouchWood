@@ -701,10 +701,10 @@ addition** (§1.2); **#3 open again** (§9.4 #1). The questions are kept as they
    (the payment is still recorded by the notice and the background check). (a) **The return page keeps
    working for an order already placed** in that store, showing that order's result only **[Recommended]**;
    (b) the 404 stays.
-3. **A customer disputes the charge with their bank** (a chargeback): MyFatoorah sends a notice for it
+3. **Answered (owner, 2026-10-27): nothing in the system** — we have no reliable source for it and it changes nothing here; staff record a refund by hand if they choose. MyFatoorah's dispute notices are answered and ignored. The question was: **A customer disputes the charge with their bank** (a chargeback): MyFatoorah sends a notice for it
    (`DISPUTE_STATUS_CHANGED`, notes §5) and the money is taken back. (a) **Like refunds, staff's
    business**: our notice address answers it without acting, staff record it in Sales by hand
    **[Recommended]**; (b) Payments records disputes and flags the order.
-4. **A gateway switched off by the Super Admin while attempts are open**: (a) the open attempts are still
+4. **Answered (owner, 2026-10-27): (a).** The question was: **A gateway switched off by the Super Admin while attempts are open**: (a) the open attempts are still
    checked until each closes, so no paid money is lost; only new "Pay now" stops **[Recommended]**;
    (b) everything stops at once.
