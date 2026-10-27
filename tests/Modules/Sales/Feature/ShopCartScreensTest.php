@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -9,10 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia;
 use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Sales\Application\SalesSettings;
+use Modules\Sales\Domain\Model\RemovedLine;
+use Modules\Sales\Domain\Repository\Carts;
 use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -197,6 +202,21 @@ describe('S3, S4 · The cart', function () {
             ->and($empty['lines'])->toBe([])
             ->and(array_column($empty['bestSellers'], 'productId'))->toContain($ready['product'])
             ->and($empty['frame']['sales']['pieces'])->toBe(0);
+    });
+
+    it('closes the notice of the lines that left at a sign-in for good (R2-8; B17)', function () {
+        [$ready, $browser] = shopCartScreensCustomer();
+        $cart = app(Carts::class)->find(StoreId::fromString(Fx::storeId('sa')), $ready['customer'], null) ?? throw new LogicException('No cart.');
+        app(Carts::class)->setNotice($cart->id, [new RemovedLine($ready['variants'][1], SaleMode::Wholesale, 3, RemovedLine::WHOLESALE)], CarbonImmutable::now());
+
+        $before = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+        $closed = $browser->post('/sa/en/cart/notice/dismiss');
+        $after = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+
+        expect(array_column($before['notice'], 'reason'))->toBe(['WHOLESALE'])
+            ->and($closed->isRedirect())->toBeTrue()
+            ->and(AdminBrowser::formError($closed))->toBeNull()
+            ->and([$after['notice'], $after['pieces']])->toBe([[], 3]);
     });
 
     it('shows a guest an empty cart, and sends their Checkout to sign in and back to the cart', function () {

@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
@@ -13,7 +15,10 @@ use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
+use Modules\Sales\Domain\Model\RemovedLine;
+use Modules\Sales\Domain\Repository\Carts;
 use Shared\Application\ActorContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -131,6 +136,9 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
         $ready = Cx::ready();
         Cx::setting(SalesSettings::FLAT_FEE, 25_00);
         Cx::setting(SalesSettings::FREE_ABOVE, 300_00);
+        // A line that left at a sign-in, for the notice's Close (R2-8; B17).
+        $cart = app(Carts::class)->find(StoreId::fromString(Fx::storeId('sa')), $ready['customer'], null) ?? throw new LogicException('No cart.');
+        app(Carts::class)->setNotice($cart->id, [new RemovedLine($ready['variants'][1], SaleMode::Wholesale, 3, RemovedLine::WHOLESALE)], CarbonImmutable::now());
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -152,6 +160,12 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
         ->and($text($page, '[data-test="free-shipping"]'))->toContain('Add')->toContain('50.00')->toContain('more for free shipping.')
         ->and($text($page, '[data-test="summary-shipping"]'))->toContain('Shipping')->toContain('25.00')->toContain('free above')->toContain('300.00')
         ->and(salesShopWide($page))->toBe('', 'the cart scrolls sideways');
+
+    // Closed, the notice stays away: the cart again has none.
+    $page->click('[data-test="close-notice"]');
+    expect(browserUntil($page, "!document.querySelector('[data-test=\"cart-notice\"]')"))->toBeTrue();
+    $page->navigate('/sa/en/cart');
+    expect(browserUntil($page, "document.querySelector('[data-test=\"cart-summary\"]') !== null && !document.querySelector('[data-test=\"cart-notice\"]')"))->toBeTrue();
 
     // Its first size: 2 in the cart. Then only those 2 left in stock: none more can be added.
     $slug = (string) DB::table('catalog.product_slugs')->where('product_id', $ready['product'])->where('locale', 'en')->where('is_current', true)->value('slug');

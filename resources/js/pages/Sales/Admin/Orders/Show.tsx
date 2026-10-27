@@ -559,6 +559,11 @@ function Returns({ order }: { order: OrderPage }) {
                             <Time value={each.requestedAt} />
                         </span>
                         {each.refundDue === null ? null : <Money value={each.refundDue} />}
+                        {each.staffReason === null ? null : (
+                            <span className="basis-full text-copy-13 text-ink-muted" data-test="return-staff-reason">
+                                {t(`${W}.return_refused_because`)} <bdi className="text-ink">{each.staffReason}</bdi>
+                            </span>
+                        )}
                     </li>
                 ))}
             </ul>

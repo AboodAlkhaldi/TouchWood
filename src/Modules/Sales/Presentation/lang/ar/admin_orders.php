@@ -86,6 +86,7 @@ return [
         'OTHER' => 'أخرى',
         'BY_STAFF' => 'ألغاه الفريق',
     ],
+    'return_refused_because' => 'رُفض:',
     'return_status' => [
         'REQUESTED' => 'مطلوب',
         'ACCEPTED' => 'مقبول',

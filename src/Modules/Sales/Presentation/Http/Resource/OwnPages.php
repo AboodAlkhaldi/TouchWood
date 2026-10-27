@@ -95,7 +95,7 @@ final readonly class OwnPages
             self::maybe($order->deliveredAt),
             self::maybe($order->returnDeadline),
             array_map(fn (OwnReturnRow $row): OwnReturnRowData => new OwnReturnRowData(
-                $row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue),
+                $row->returnId, $row->status, self::moment($row->requestedAt), $row->refundDue === null ? null : $money($row->refundDue), $row->staffReason,
             ), $order->returns),
             $order->mayCancel,
             $order->mayReturn,
