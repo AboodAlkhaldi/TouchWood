@@ -7,6 +7,7 @@ namespace Modules\Sales\Presentation\Http\Controller;
 use App\Http\FormErrors;
 use App\Http\Page;
 use Closure;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -19,6 +20,8 @@ use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrderHandler;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlag;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlagHandler;
+use Modules\Sales\Application\Command\EditOrder\EditOrder;
+use Modules\Sales\Application\Command\EditOrder\EditOrderHandler;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
@@ -39,17 +42,14 @@ use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
 use Modules\Sales\Application\Query\ListOrders\ListOrdersHandler;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFile;
 use Modules\Sales\Application\Query\OpenOrderFile\OpenOrderFileHandler;
-use Modules\Sales\Application\Query\PrintOrder\PrintOrderHandler;
-use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
-use Modules\Sales\Presentation\Http\Resource\OrderPages;
-use Shared\Domain\Error\DomainError;
-use Illuminate\Http\JsonResponse;
-use Modules\Sales\Application\Command\EditOrder\EditOrder;
-use Modules\Sales\Application\Command\EditOrder\EditOrderHandler;
 use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEditHandler;
+use Modules\Sales\Application\Query\PrintOrder\PrintOrderHandler;
 use Modules\Sales\Application\Query\SearchEditSizes\SearchEditSizesHandler;
+use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
 use Modules\Sales\Presentation\Http\Resource\EditPages;
 use Modules\Sales\Presentation\Http\Resource\EditSizeData;
+use Modules\Sales\Presentation\Http\Resource\OrderPages;
+use Shared\Domain\Error\DomainError;
 
 /*
 | P1–P3 - the panel's orders, an order and its packing slip (sales.md §4.1), and every change an order's page
