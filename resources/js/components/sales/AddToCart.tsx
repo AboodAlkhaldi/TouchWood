@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
+import { Money } from '@/components/Money';
 import { TextField } from '@/components/Fields';
 import { plural, useLocale } from '@/components/sales/shop';
 import { FieldLegend, FieldSet } from '@/components/ui/field';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/cn';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
 import type { ShopSellingData, ShopVariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
+import type { ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
 
 /*
 | S2 - Add to Cart on a product's page, never on a card (sales.md §4.1; R1-9): Retail or Wholesale above the
@@ -17,7 +21,8 @@ import type { ShopSellingData, ShopVariantData } from '@/types/generated/Modules
 | minimum and kept within the limits (R1-8). Pressed before a size is chosen, it points at the choices and adds
 | nothing (R2-6). Added, it says so with View Cart for a few seconds (R2-7). A size out of stock, or not for this
 | account, the cart's command refuses in its own words (R1-2). Drawn only where Sales offers it: never on a "Not
-| available now" page (catalog.md §1.4).
+| available now" page (catalog.md §1.4). Under the Wholesale choice, the size's wholesale prices - from its
+| first piece, then from each band's start - the one the quantity typed buys at highlighted (S1; R2-3).
 */
 
 type Mode = 'RETAIL' | 'WHOLESALE';
@@ -25,7 +30,7 @@ type Mode = 'RETAIL' | 'WHOLESALE';
 /** Its own words: a product's page carries these, not the cart's. */
 const C = 'sales::shop_add';
 
-export function AddToCart({ variant, selling, choicesId }: { variant: ShopVariantData | null; selling: ShopSellingData; choicesId: string }) {
+export function AddToCart({ variant, selling, choicesId, wholesalePrices = null }: { variant: ShopVariantData | null; selling: ShopSellingData; choicesId: string; /** Pricing's prices for the chosen size, where it sells wholesale to this viewer. */ wholesalePrices?: ShopWholesaleSizeData | null }) {
     const t = useTranslator();
     const locale = useLocale();
     const link = useLink();
@@ -111,6 +116,8 @@ export function AddToCart({ variant, selling, choicesId }: { variant: ShopVarian
                 </FieldSet>
             ) : null}
 
+            {mode === 'WHOLESALE' && wholesalePrices !== null ? <Bands wholesale={wholesalePrices} first={minimum} quantity={outside ? null : quantity} /> : null}
+
             <div className="flex flex-wrap items-end gap-3">
                 <TextField
                     id="add-quantity"
@@ -143,6 +150,38 @@ export function AddToCart({ variant, selling, choicesId }: { variant: ShopVarian
                     </Link>
                 </p>
             )}
+        </section>
+    );
+}
+
+/**
+ * The wholesale prices by quantity: from the first piece sold wholesale - at the band that starts there or below,
+ * else the size's own price - then from each band's start above it; the step the quantity typed falls in, highlighted.
+ */
+function Bands({ wholesale, first, quantity }: { wholesale: ShopWholesaleSizeData; first: number; quantity: number | null }) {
+    const t = useTranslator();
+    const locale = useLocale();
+    const steps: { from: number; unit: MoneyData }[] = [
+        { from: first, unit: wholesale.bands.filter((band) => band.minQuantity <= first).pop()?.unit ?? wholesale.price },
+        ...wholesale.bands.filter((band) => band.minQuantity > first).map((band) => ({ from: band.minQuantity, unit: band.unit })),
+    ];
+    const applies = quantity === null ? -1 : steps.reduce((at, step, index) => (step.from <= quantity ? index : at), -1);
+
+    return (
+        <section className="grid gap-1" aria-label={t(`${C}.bands.title`)} data-test="bands">
+            <h2 className="text-label-14 font-semibold text-ink">{t(`${C}.bands.title`)}</h2>
+            <ul className="flex flex-wrap gap-2">
+                {steps.map((step, index) => (
+                    <li
+                        key={step.from}
+                        aria-current={index === applies ? 'true' : undefined}
+                        className={cn('rounded-md border px-2 py-1 text-copy-13', index === applies ? 'border-ink bg-surface-sunken text-ink' : 'border-line text-ink-muted')}
+                        data-test={index === applies ? 'band-current' : 'band'}
+                    >
+                        {plural(t, locale, `${C}.bands.from`, step.from)}: <Money value={step.unit} className="font-semibold" />
+                    </li>
+                ))}
+            </ul>
         </section>
     );
 }

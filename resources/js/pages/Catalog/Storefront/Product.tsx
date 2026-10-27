@@ -7,6 +7,7 @@ import { AddToCart } from '@/components/sales/AddToCart';
 import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { RichText } from '@/components/shop/RichText';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
+import { ShopPrice } from '@/components/shop/ShopPrice';
 import { ShopTrail } from '@/components/shop/ShopTrail';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/ui/table';
@@ -15,6 +16,7 @@ import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
+import type { ShopWholesaleData, ShopWholesaleSizeData } from '@/types/generated/Modules/Pricing/Presentation/Http/Resource';
 
 /*
 | A product's page in the shop (catalog.md §4.5): the path to its category, the brand, the labels, the
@@ -22,8 +24,9 @@ import type { ShopChoiceData, ShopProductPage, ShopVariantData } from '@/types/g
 | variant attribute in the product's order, its values as buttons in the attribute's order, a colour's
 | with its swatch, a value no variant on sale holds disabled; the chosen variant's details, weight and
 | size; "Last pieces" on the ending-soon option only (amendment 16(h)); the description; the warranty;
-| how it is sold to this viewer (P17); Goes With and You May Also Like. No code and no price; Sales's
-| Add to Cart in its slot (sales.md §4.1 S2). The variant is matched here from the list the server sent, for display only - Sales resolves
+| how it is sold to this viewer (P17); Goes With and You May Also Like. No code. The chosen size's price
+| under the name - the page opens on its first size - a size sold wholesale only priced by Pricing's section (amendment 35; sales.md §4.1 S1); Sales's Add to Cart in its slot (S2), the
+| wholesale bands with it. The variant is matched here from the list the server sent, for display only - Sales resolves
 | it on the server when there is a cart (handoff §9.1).
 |
 | Not available now (P18): its name, photos and description, a Note, nothing to choose.
@@ -43,8 +46,8 @@ function pick(variants: ShopVariantData[], choices: ShopChoiceData[], chosen: Re
     return variantOf(variants, choices, { ...chosen, [attributeId]: valueId }) ?? variants.find((variant) => variant.values[attributeId] === valueId) ?? null;
 }
 
-/** Sales's section (sales.md §4.1 S2): Add to Cart offered on this page. */
-type SalesSections = { 'sales.cart'?: { offered: boolean } | null };
+/** Sales's section (sales.md §4.1 S2): Add to Cart offered on this page; Pricing's, the wholesale sizes' prices and bands (amendment 35(d)). */
+type SalesSections = { 'sales.cart'?: { offered: boolean } | null; 'pricing.wholesale'?: ShopWholesaleData | null };
 
 export default function Product(page: ShopProductPage & { sections: FeedbackSections & SalesSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
@@ -83,6 +86,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                         ) : null}
                         <h1 className="text-heading-32 text-ink">{name}</h1>
                         <RatingLine reviews={sections['feedback.reviews']} />
+                        {available ? <ProductPrice variant={variant} wholesale={sections['pricing.wholesale'] ?? null} wholesaleMinimum={selling?.wholesaleMinimum ?? null} /> : null}
 
                         {available ? null : (
                             <Note variant="warning" label={t('catalog::shop.product.not_available')} data-test="not-available">
@@ -146,7 +150,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                         ) : null}
 
                         {/* Sales's Add to Cart (sales.md §4.1 S2): on an available page only, as Sales offers it. */}
-                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" /> : null}
+                        {available && selling !== null && sections['sales.cart'] ? <AddToCart variant={variant} selling={selling} choicesId="product-choices" wholesalePrices={variant !== null ? (sections['pricing.wholesale']?.sizes[variant.id] ?? null) : null} /> : null}
 
                         {/* On a "Not available now" page too (amendment 34): a saved product kept or removed there. */}
                         <SaveHeart wishlist={sections['feedback.wishlist']} productId={page.productId} name={name} />
@@ -239,6 +243,32 @@ function Terms({ side, minimum, maximum }: { side: string; minimum: number; maxi
                 {maximum !== null ? `, ${t('catalog::shop.product.at_most', { count: maximum })}` : ''}
             </span>
         </p>
+    );
+}
+
+/**
+ * The price under the name: the chosen size's, with any sale. A size sold wholesale only has no retail price:
+ * Pricing's, what a piece costs at the wholesale minimum - the band that starts there or below, else its price
+ * below any band.
+ */
+function ProductPrice({ variant, wholesale, wholesaleMinimum }: { variant: ShopVariantData | null; wholesale: ShopWholesaleData | null; wholesaleMinimum: number | null }) {
+    const t = useTranslator();
+
+    if (variant === null) {
+        return null;
+    }
+
+    if (variant.price !== null) {
+        return <ShopPrice now={variant.price} before={variant.priceBefore} className="text-heading-20" />;
+    }
+
+    const only: ShopWholesaleSizeData | null = wholesale?.sizes[variant.id] ?? null;
+
+    return only === null ? null : (
+        <span className="flex flex-wrap items-center gap-x-2 text-heading-20" data-test="wholesale-price">
+            <ShopPrice now={only.bands.filter((band) => band.minQuantity <= Math.max(1, wholesaleMinimum ?? 1)).pop()?.unit ?? only.price} />
+            <span className="text-copy-14 text-ink-muted">{t('catalog::shop.product.wholesale')}</span>
+        </span>
     );
 }
 

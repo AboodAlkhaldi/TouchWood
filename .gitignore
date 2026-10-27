@@ -29,3 +29,5 @@ Homestead.yaml
 Thumbs.db
 .deptrac.cache
 
+# What a failed browser test saves locally (lesson 118): committed, it fails the next browser run.
+/tests/Browser/Screenshots

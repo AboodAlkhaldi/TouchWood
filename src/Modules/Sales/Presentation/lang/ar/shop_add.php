@@ -16,4 +16,9 @@ return [
         'added' => 'أُضيف إلى السلة · :pieces',
         'view' => 'عرض السلة',
     ],
+    // The wholesale prices by quantity, under the Wholesale choice (§4.1 S1; R2-3).
+    'bands' => [
+        'title' => 'أسعار الجملة',
+        'from' => ['zero' => 'من :count قطعة', 'one' => 'من قطعة واحدة', 'two' => 'من قطعتين', 'few' => 'من :count قطع', 'many' => 'من :count قطعة', 'other' => 'من :count قطعة'],
+    ],
 ];
