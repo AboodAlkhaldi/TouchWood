@@ -95,7 +95,8 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
   `Query/Own/OwnReader` (`sales.order.view_own`), SQL in `Infrastructure/Eloquent/DatabaseOwnReads`;
   `Query/ViewCart` (S11b-2: each line's card, today's prices, `CartLineProblem`, the subtotal; §4.2 B12: `CartBlock`,
   the goods total after the coupon typed, the shipping, the next gift, the points); `Query/CountCartPieces` (B13,
-  the header's count, through `CartBuyer::who`, which reads no customer).
+  the header's count, through `CartBuyer::who`, which reads no customer); `Presentation/Storefront/CartSection`
+  (B15, the shop product page's `sales.cart`: Add to Cart per size).
 - **Staff's reads** (S11c-1, sales.md §3.2): `Query/ListOrders`, `Query/ViewOrder`, `Query/PrintOrder` through
   `Query/Staff/StaffReader` (customers by name, staff names, exponents), SQL in `Infrastructure/Eloquent/DatabaseStaffReads`;
   `Query/OrderLines` shared by the customer's and staff's order views; `Query/Staff/OrderStores` (an off store

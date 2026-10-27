@@ -39,6 +39,25 @@ final readonly class DatabaseCarts implements Carts
             ->sum('l.quantity');
     }
 
+    public function piecesOf(StoreId $store, ?string $customerId, ?string $guestId, array $variantIds): array
+    {
+        if ($variantIds === []) {
+            return [];
+        }
+
+        $pieces = [];
+
+        foreach ($this->buyer($store, $customerId, $guestId)
+            ->join('sales.cart_lines as l', 'l.cart_id', '=', 'sales.carts.id')
+            ->whereIn('l.variant_id', $variantIds)
+            ->groupBy('l.variant_id')
+            ->get(['l.variant_id', $this->db->raw('SUM(l.quantity) AS pieces')]) as $row) {
+            $pieces[(string) $row->variant_id] = (int) $row->pieces;
+        }
+
+        return $pieces;
+    }
+
     public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart
     {
         $row = $this->buyer($store, $customerId, $guestId)->lockForUpdate()->first();
@@ -142,9 +161,10 @@ final readonly class DatabaseCarts implements Carts
 
     private function buyer(StoreId $store, ?string $customerId, ?string $guestId): Builder
     {
-        $query = $this->db->table('sales.carts')->where('store_id', $store->value);
+        // Named in full: the piece counts join the lines onto it.
+        $query = $this->db->table('sales.carts')->where('sales.carts.store_id', $store->value);
 
-        return $customerId !== null ? $query->where('customer_id', $customerId) : $query->where('guest_id', (string) $guestId);
+        return $customerId !== null ? $query->where('sales.carts.customer_id', $customerId) : $query->where('sales.carts.guest_id', (string) $guestId);
     }
 
     private function line(string $cartId, string $variantId, SaleMode $mode): Builder

@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
@@ -250,11 +252,15 @@ describe('the header\'s piece count (B13)', function () {
         expect([$customer, $otherStore, $noGuestYet, cartExtrasPieces()])->toBe([3, 0, 0, 4]);
     });
 
-    it('is 0 for staff, who have no cart, rather than refusing a shop page', function () {
+    it('is 0 for staff, who have no cart, and in an off store, rather than refusing a shop page', function () {
         Cx::ready();
+        // The base store is never off: Egypt's page, which the cart refuses (`no such store open`).
+        $egypt = Fx::storeId('eg');
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        $off = app(CountCartPiecesHandler::class)->handle(new CountCartPieces($egypt));
         Fx::actAsStaff(Fx::staff());
 
-        expect(cartExtrasPieces())->toBe(0);
+        expect([$off, cartExtrasPieces()])->toBe([0, 0]);
     });
 
     it('reads the count in one query', function () {
@@ -268,6 +274,33 @@ describe('the header\'s piece count (B13)', function () {
         // Measured 2026-10-27: the store and the permissions come from caches warmed by the first call.
         expect(count(DB::getQueryLog()))->toBe(1);
     });
+});
+
+it('agrees with checkout: the goods total, free shipping, the points, and the gift once the next level is reached', function () {
+    ['address' => $address] = Cx::ready();
+    Lx::programme();
+    Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+    Cx::setting(SalesSettings::FREE_ABOVE, 200_00);
+    $gift = cartExtrasGift(50);
+    $reached = Pr::giftLevel($gift, 200_00);
+    $next = Pr::giftLevel($gift, 300_00);
+    Pr::coupon('SUMMER-15');
+    app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+
+    $cart = cartExtras();
+    $quote = Cx::start($address);
+    $free = $cart->freeAbove !== null && $cart->goodsTotal !== null && $cart->goodsTotal->isAtLeast($cart->freeAbove);
+
+    // 250.00 less 15% = 212.50: shipping free from 200.00, the 200.00 gift held, 300.00 next.
+    expect([$cart->goodsTotal?->minorUnits, $cart->pointsToEarn, $cart->freeAbove?->minorUnits, $free])
+        ->toBe([$quote->totals->goodsTotal->minorUnits, $quote->earningPreview, $quote->shippingRuleFreeAbove->minorUnits, $quote->totals->shipping->isZero()])
+        ->and([$cart->goodsTotal?->minorUnits, $free, $quote->giftLevelId, $cart->nextGift?->amount->minorUnits])->toBe([212_50, true, $reached, 300_00]);
+
+    // 87.50 missing after 15% off: 11 × 10.00 more (360.00 less 15% = 306.00) reaches the next level at checkout.
+    app(AddCartLineHandler::class)->handle(new AddCartLine(Fx::storeId('sa'), $gift, 'RETAIL', 11));
+
+    expect(Cx::start($address)->giftLevelId)->toBe($next)
+        ->and(cartExtras()->nextGift)->toBeNull();
 });
 
 it('reads a full cart — coupon, next gift, points — in a recorded number of queries', function () {

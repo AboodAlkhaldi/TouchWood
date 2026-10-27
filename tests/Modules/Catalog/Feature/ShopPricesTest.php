@@ -261,8 +261,9 @@ describe('a product page', function () {
         $guest = $warm();
         shopPricesViewer(ShopperKind::Individual);
 
-        // A guest's product page is 7 sold retail only (ShopPagesTest's budget); the bands add their one
-        // read of the sizes' prices. The limits are a target, not a cap (owner, 2026-10-19).
-        expect([$guest, $warm()])->toBe([8, 7]);
+        // A guest's product page is 12 sold retail only (ShopPagesTest's budget, with Sales's Add to Cart
+        // since amendment 36); the bands add their one read of the sizes' prices. The limits are a
+        // target, not a cap (owner, 2026-10-19).
+        expect([$guest, $warm()])->toBe([13, 12]);
     });
 });

@@ -91,7 +91,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->make(CustomerPageSections::class)->register(new CustomerPageSectionDto('sales', 'orders', OrdersCustomerSection::class, ['sales::admin_orders'], 30));
         // The header's cart on every shop page (§4.1 S3).
         $this->app->make(ShopFrameParts::class)->register('sales', SalesFramePart::class);
-        // Add to Cart on a product's page (§4.1 S2).
+        // Add to Cart on a product's page (§4.1 S2, §4.2 B15; catalog.md amendment 36): not on a "Not available now" page.
         $this->app->make(ShopProductSections::class)->register('sales.cart', CartSection::class, ['sales::shop_add']);
         // My Orders beside the account's own tabs, always offered (§4.1 S7).
         $this->app->make(CustomerAccountPages::class)->register(new CustomerAccountPageDto('sales', 'orders', 'storefront.sales.orders', position: 5));

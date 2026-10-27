@@ -22,6 +22,15 @@ interface Carts
     /** The pieces on the buyer's cart lines in the store, over both modes; 0 when they have no cart. Exactly one of the two ids. */
     public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int;
 
+    /**
+     * The pieces of each of these sizes on the buyer's cart lines in the store, over both modes; a size
+     * not in the cart left out. Exactly one of the two ids.
+     *
+     * @param  list<string>  $variantIds
+     * @return array<string, int>
+     */
+    public function piecesOf(StoreId $store, ?string $customerId, ?string $guestId, array $variantIds): array;
+
     /** The buyer's cart in the store, its row locked until the transaction ends; null when they have none. */
     public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart;
 
