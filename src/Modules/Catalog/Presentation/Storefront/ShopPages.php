@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Presentation\Storefront;
 
+use Closure;
 use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
@@ -25,6 +26,7 @@ use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Presentation\Http\Resource\ShopAddressData;
 use Modules\Catalog\Presentation\Http\Resource\ShopBrandPage;
 use Modules\Catalog\Presentation\Http\Resource\ShopCardData;
+use Modules\Catalog\Presentation\Http\Resource\ShopCardPriceData;
 use Modules\Catalog\Presentation\Http\Resource\ShopCategoryPage;
 use Modules\Catalog\Presentation\Http\Resource\ShopChoiceData;
 use Modules\Catalog\Presentation\Http\Resource\ShopChoiceValueData;
@@ -40,8 +42,11 @@ use Modules\Catalog\Presentation\Http\Resource\ShopSellingData;
 use Modules\Catalog\Presentation\Http\Resource\ShopVariantData;
 use Modules\Catalog\Presentation\Http\Resource\ShopWarrantyData;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\MoneyData;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -84,7 +89,7 @@ final readonly class ShopPages
             $page->slug,
             $around['path'],
             $around['children'],
-            self::cards($page->products->cards),
+            $this->cards($store, $locale, $page->products->cards),
             $page->products->next,
             self::filters($page->filters ?? new CategoryFilters([], [], []), $filters, $page->ratingSort),
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
@@ -110,7 +115,7 @@ final readonly class ShopPages
             $page->slug,
             $logo === null || $logo->variants === [] ? null : $logo->variants,
             $page->description,
-            self::cards($page->products->cards),
+            $this->cards($store, $locale, $page->products->cards),
             $page->products->next,
             self::address('storefront.catalog.brand', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
             $this->facts($store, $page->products->cards),
@@ -146,6 +151,7 @@ final readonly class ShopPages
             }
 
             $relations = $page->available ? $this->catalog->relations($store, $locale, $viewer, $owner['id']) : null;
+            $price = $this->money($store, $locale);
 
             return ['page' => (new ShopProductPage(
                 $page->productId,
@@ -164,11 +170,11 @@ final readonly class ShopPages
                     $choice->isColour,
                     array_map(static fn (ShopChoiceValue $value): ShopChoiceValueData => new ShopChoiceValueData($value->valueId, $value->name, $value->swatch, $value->onSale), $choice->values),
                 ), $page->choices),
-                array_map(self::variant(...), $page->variants),
+                array_map(fn (ShopVariant $variant): ShopVariantData => self::variant($variant, $price), $page->variants),
                 $page->warranty === null ? null : new ShopWarrantyData($page->warranty->name, $page->warranty->periodMonths, $page->warranty->terms),
                 $page->selling === null ? null : new ShopSellingData($page->selling->retailMinimum, $page->selling->retailMaximum, $page->selling->wholesaleMinimum, $page->selling->wholesaleMaximum),
-                self::cards($relations === null ? [] : $relations->goesWith),
-                self::cards($relations === null ? [] : $relations->mayAlsoLike),
+                $this->cards($store, $locale, $relations === null ? [] : $relations->goesWith),
+                $this->cards($store, $locale, $relations === null ? [] : $relations->mayAlsoLike),
                 new ShopAddressData('', null, null, true),
             ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId];
         });
@@ -190,7 +196,12 @@ final readonly class ShopPages
 
         $customerId = $this->customerId();
         // Not available now: only the sections read on such a page too - the Save heart (amendment 34).
-        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true);
+        // The page's sizes this viewer can buy wholesale, as it read them (amendment 35): none for an individual.
+        $wholesaleSizes = $viewer === ShopperKind::Individual ? [] : array_values(array_map(
+            static fn (array $variant): string => (string) $variant['id'],
+            array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['sellsWholesale'] ?? false) === true),
+        ));
+        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 
@@ -212,7 +223,7 @@ final readonly class ShopPages
         $found = $this->search->results($store, $locale, $this->visit->viewer(), $query, ShopSearch::RESULTS, $after);
 
         // A results page is its search's, not a page of the shop's own: kept out of search engines.
-        return new ShopSearchPage($query, $found->total, self::cards($found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true), $this->facts($store, $found->cards));
+        return new ShopSearchPage($query, $found->total, $this->cards($store, $locale, $found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true), $this->facts($store, $found->cards));
     }
 
     /**
@@ -222,7 +233,7 @@ final readonly class ShopPages
      */
     public function suggest(StoreId $store, string $locale, string $typed): array
     {
-        return self::cards($this->search->suggest($store, $locale, $this->visit->viewer(), $typed));
+        return $this->cards($store, $locale, $this->search->suggest($store, $locale, $this->visit->viewer(), $typed));
     }
 
     /**
@@ -265,7 +276,10 @@ final readonly class ShopPages
         );
     }
 
-    private static function variant(ShopVariant $variant): ShopVariantData
+    /**
+     * @param  Closure(?int): ?MoneyData  $price
+     */
+    private static function variant(ShopVariant $variant, Closure $price): ShopVariantData
     {
         $values = [];
 
@@ -285,6 +299,8 @@ final readonly class ShopPages
             $variant->lengthMm,
             $variant->widthMm,
             $variant->heightMm,
+            $price($variant->priceMinor),
+            $price($variant->priceBeforeMinor),
         );
     }
 
@@ -319,9 +335,27 @@ final readonly class ShopPages
      * @param  list<ProductCard>  $cards
      * @return list<ShopCardData>
      */
-    private static function cards(array $cards): array
+    private function cards(StoreId $store, string $locale, array $cards): array
     {
-        return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData($card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0), $cards);
+        $price = $cards === [] ? static fn (?int $minor): ?MoneyData => null : $this->money($store, $locale);
+
+        return array_map(static fn (ProductCard $card): ShopCardData => new ShopCardData(
+            $card->productId, $card->name, $card->slug, $card->photo, self::labels($card->labels), $card->lastPieces, $card->rating?->average, $card->rating->count ?? 0,
+            $card->price === null ? null : new ShopCardPriceData($price($card->price->now), $price($card->price->before), $price($card->price->from), $price($card->price->wholesaleFrom)),
+        ), $cards);
+    }
+
+    /**
+     * An amount as the screens show it (amendment 35): written by the server in the store's currency
+     * (`MoneyData`, pricing.md §4.3.1) — the prices Pricing pushed are in it.
+     *
+     * @return Closure(?int): ?MoneyData
+     */
+    private function money(StoreId $store, string $locale): Closure
+    {
+        $found = $this->platform->store($store);
+
+        return static fn (?int $minor): ?MoneyData => $minor === null || $found === null ? null : MoneyData::of(Money::of($minor, $found->currencyCode), $found, $locale);
     }
 
     /**

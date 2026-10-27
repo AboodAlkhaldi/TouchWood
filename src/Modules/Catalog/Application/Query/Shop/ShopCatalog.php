@@ -231,6 +231,8 @@ final readonly class ShopCatalog
                 $variant->lengthMm,
                 $variant->widthMm,
                 $variant->heightMm,
+                $variant->priceMinor,
+                $variant->priceBeforeMinor,
             ), $variants),
             $product['other_slug'],
             $product['brand'],

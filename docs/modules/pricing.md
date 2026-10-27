@@ -229,6 +229,13 @@ push the sizes it covers then; a task whose sale was changed or removed meanwhil
 do. **Once a day a safety check** pushes every size whose window opened or closed in the last day,
 in case a task was lost. Catalog keeps the prices and chooses which size each card shows.
 
+**And the least a piece costs on a wholesale line** (catalog.md amendment 35, 2026-10-27): with each
+price, `ListingPrice.wholesaleFrom` — the wholesale line resolved from one piece and from each band's
+start, the cheapest kept (a sale or discount under a band counts) — the card's "Wholesale from" where
+the size sells wholesale. On the product page, Pricing's section `pricing.wholesale`
+(`Presentation/Storefront/WholesaleBandsSection`) shows a company or a guest each wholesale size's
+bands: from each band's start, what a piece costs there now, without VAT; never an individual.
+
 ### 1.11 An order edited before it ships
 
 Staff may change an order's lines and quantities before it ships (owner, 2026-10-10, through stage

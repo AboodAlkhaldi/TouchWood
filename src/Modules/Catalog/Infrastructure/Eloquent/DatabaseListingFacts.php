@@ -50,6 +50,8 @@ final readonly class DatabaseListingFacts implements ListingFacts
             'price_minor' => $price?->now->minorUnits,
             'price_before_minor' => $price?->before?->minorUnits,
             'currency' => $price?->now->currencyCode,
+            // The card's "Wholesale from" (amendment 35).
+            'wholesale_from_minor' => $price?->wholesaleFrom?->minorUnits,
         ], $prices));
     }
 

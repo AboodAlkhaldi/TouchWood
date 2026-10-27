@@ -6,6 +6,7 @@ use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Public\Contracts\ShopProductSection;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Catalog\Public\Dto\ShopProductVisitDto;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
 
 /*
@@ -32,11 +33,24 @@ final class ShopProductSectionsTestSection implements ShopProductSection
     }
 }
 
-it('is one registry for the whole application, holding the sections Sales and Feedback register, in order', function () {
+it('is one registry for the whole application, holding the sections Pricing, Sales and Feedback register, in order', function () {
     $held = (fn (): array => $this->sections)->call(app(InMemoryShopProductSections::class));
 
     expect(app(ShopProductSections::class))->toBe(app(InMemoryShopProductSections::class))
-        ->and(array_keys($held))->toBe(['sales.cart', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist']);
+        ->and(array_keys($held))->toBe(['pricing.wholesale', 'sales.cart', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist']);
+});
+
+it('tells every section who is looking and which of the page\'s sizes they can buy wholesale (amendment 35)', function () {
+    $sections = new InMemoryShopProductSections(app());
+    $sections->register('test.one', ShopProductSectionsTestSection::class);
+    ShopProductSectionsTestSection::forget();
+    $store = StoreId::fromString('01k6abcdefghjkmnpqrstvwxyz');
+
+    $sections->read($store, 'en', 'p1', null, [], [], true, ShopperKind::Company, ['v1', 'v2']);
+    $sections->read($store, 'en', 'p1', null, []);
+
+    expect([ShopProductSectionsTestSection::$asked[0]->viewer, ShopProductSectionsTestSection::$asked[0]->wholesaleSizes])->toBe([ShopperKind::Company, ['v1', 'v2']])
+        ->and([ShopProductSectionsTestSection::$asked[1]->viewer, ShopProductSectionsTestSection::$asked[1]->wholesaleSizes])->toBe([ShopperKind::Guest, []]);
 });
 
 it('asks every section with the same visit, and carries what each answers', function () {
