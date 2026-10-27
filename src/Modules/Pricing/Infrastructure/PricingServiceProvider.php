@@ -11,6 +11,7 @@ use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
+use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Catalog\Public\Events\CategoryMoved;
 use Modules\Catalog\Public\Events\ProductArchived;
 use Modules\Catalog\Public\Events\ProductChanged;
@@ -58,6 +59,7 @@ use Modules\Pricing\Infrastructure\Queue\CountUnpricedSizesJob;
 use Modules\Pricing\Infrastructure\Queue\QueuedPriceWindowTasks;
 use Modules\Pricing\Infrastructure\Queue\QueuedUnpricedRecounts;
 use Modules\Pricing\Presentation\Console\RebuildPriceCandidatesCommand;
+use Modules\Pricing\Presentation\Storefront\WholesaleBandsSection;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Contracts\ProviderPrices;
 use Modules\Pricing\Public\Contracts\StoreWiring;
@@ -119,6 +121,8 @@ final class PricingServiceProvider extends ServiceProvider
 
         // Its part of a product's Stores tab (§4.3.3; Catalog's amendment 23(e)): one read for every card.
         $this->app->make(ProductStoreSections::class)->register('pricing', ProductPricesSection::class);
+        // Its part of a product's page in the shop (catalog.md amendment 35): the wholesale bands.
+        $this->app->make(ShopProductSections::class)->register('pricing.wholesale', WholesaleBandsSection::class);
 
         // Needs a Price's count kept per store (owner Q43): sizes switched on or off in a store, and any
         // size archived or restored, count it again.

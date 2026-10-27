@@ -234,6 +234,13 @@ export type SaleViewData = {
 sale: SaleRowData,
 sizes: SaleSizeData[],
 };
+export type ShopBandData = {
+minQuantity: number,
+unit: MoneyData,
+};
+export type ShopWholesaleData = {
+sizes: Record<string, ShopBandData[]>,
+};
 export type SizeData = {
 variantId: string,
 productId: string,

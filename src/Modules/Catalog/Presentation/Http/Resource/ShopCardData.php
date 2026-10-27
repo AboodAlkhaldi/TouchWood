@@ -9,7 +9,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * A product card (catalog.md §4.5): photo, name and labels, and "Last pieces" while a size this
- * viewer can buy and order now is ending soon (amendment 16(h)). No price, no stock, no code.
+ * viewer can buy and order now is ending soon (amendment 16(h)), and its price for this viewer (amendment
+ * 35). No stock, no code.
  */
 #[TypeScript]
 final class ShopCardData extends Data
@@ -27,5 +28,6 @@ final class ShopCardData extends Data
         public bool $lastPieces,
         public ?float $rating = null,
         public int $ratingCount = 0,
+        public ?ShopCardPriceData $price = null,
     ) {}
 }

@@ -330,7 +330,11 @@ read (`variants`, `products`: `ApiReads`, two queries and one, however many ids)
 sent when a category moves. **`ListingFacts` is bound** (`DatabaseListingFacts`): orderable, ending
 soon and prices (`ListingPrice`) kept in `store_variant_facts`, only the facts given, a variant not
 Catalog's left out; the cards read them with the shop's pages (P22); Sales's Best-Selling ranks
-(amendment 30) kept in `sales_ranks`, a store's whole ranking at a time, which every listing row takes. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+(amendment 30) kept in `sales_ranks`, a store's whole ranking at a time, which every listing row takes.
+**The shop's prices** (amendment 35): `ListingPrice.wholesaleFrom` kept beside the price; the listing's
+`retail_from_minor` and `wholesale_from_minor`; a card's `price` (`CardPrice`, `ShopCardPriceData`) and
+each size's on its page, written as Platform's `MoneyData`; a product-page section told the `viewer` and
+the page's `wholesaleSizes`. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
 register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
 says prices are kept once one is registered; switching an item on gives each section the variant,
 its price and stock, inside the same change.

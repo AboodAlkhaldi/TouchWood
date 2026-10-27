@@ -10,7 +10,7 @@ namespace Modules\Catalog\Application\Query\Shop;
  * and **the variant the card shows this viewer**: the first, in the product's own order, the viewer
  * can buy here (amendment 14(f)) — a retail one for an individual; companies and guests share a card
  * (§2.2). **"Last pieces"** while a size here this viewer can buy and order now is ending soon
- * (amendment 16(h)). Its price joins it with Pricing's stage (§2.2, P22).
+ * (amendment 16(h)). **Its price** for this viewer (amendment 35), none until Pricing pushes one.
  */
 final readonly class ProductCard
 {
@@ -27,5 +27,6 @@ final readonly class ProductCard
         public string $variantId,
         public bool $lastPieces = false,
         public ?CardRating $rating = null,
+        public ?CardPrice $price = null,
     ) {}
 }

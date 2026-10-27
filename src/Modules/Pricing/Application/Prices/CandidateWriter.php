@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Pricing\Application\Prices;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\CatalogApi;
@@ -29,7 +30,8 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * Writes sizes' candidates again from what they are made of (pricing.md §1.6 "materialized"), inside
  * the change's transaction, then tells Catalog the price a card shows (§1.10): what one piece costs
- * now on a retail line, and the retail price before it only while the price now is lower.
+ * now on a retail line, and the retail price before it only while the price now is lower — and the
+ * least one piece costs now on a wholesale line (catalog.md amendment 35, the card's "Wholesale from").
  *
  * In chunks, so the repair of a whole store stays under PostgreSQL's 65,535 parameters a statement
  * (as Catalog's listing rows): a few reads and writes a chunk, however many sizes.
@@ -144,6 +146,7 @@ final readonly class CandidateWriter
                 $prices[$variantId] = $price === null ? null : new ListingPrice(
                     $price->unit,
                     $price->unit->compareTo($price->listUnit) < 0 ? $price->listUnit : null,
+                    self::wholesaleFrom($candidates, $now),
                 );
             }
 
@@ -155,6 +158,34 @@ final readonly class CandidateWriter
         if ($wired && $variantIds !== []) {
             $this->events->dispatch(new DiscountReachChecked((string) Str::uuid(), $store->value, $variantIds, $skipped, CarbonImmutable::now()));
         }
+    }
+
+    /**
+     * The least one piece costs now on a wholesale line, at any quantity: the line resolved from one piece
+     * and from each band's start — the price only changes there — the cheapest kept. None: not priced.
+     *
+     * @param  list<Candidate>  $candidates
+     */
+    private static function wholesaleFrom(array $candidates, DateTimeImmutable $now): ?Money
+    {
+        $least = null;
+        $starts = [1];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate->kind === PriceKind::Quantity) {
+                $starts[] = $candidate->fromQuantity;
+            }
+        }
+
+        foreach (array_unique($starts) as $quantity) {
+            $unit = PriceResolution::resolve($candidates, SaleMode::Wholesale, $quantity, $now)?->unit;
+
+            if ($unit !== null && ($least === null || $unit->compareTo($least) < 0)) {
+                $least = $unit;
+            }
+        }
+
+        return $least;
     }
 
     /** The sale's price on a size: its own, or its percentage of the retail price; none if that would be 0. */
