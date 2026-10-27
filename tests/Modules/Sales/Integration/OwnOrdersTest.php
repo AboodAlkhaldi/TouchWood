@@ -149,7 +149,7 @@ it('counts the pieces already asked back, and closes the window at its deadline'
     $late = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
 
     expect(array_map(fn (OrderLineView $line): int => $line->returnable, $view->lines))->toBe([1, 1])
-        ->and(array_column($view->returns, 'returnId'))->toBe([$return])
+        ->and(array_map(fn ($row): array => [$row->returnId, $row->status, $row->staffReason], $view->returns))->toBe([[$return, 'REQUESTED', null]])
         ->and([$late->mayReturn, array_map(fn (OrderLineView $line): int => $line->returnable, $late->lines)])->toBe([false, [0, 0]]);
 });
 
@@ -163,11 +163,14 @@ it('shows the customer their return, with staff words when refused', function ()
     Fx::actAsCustomer($customer);
 
     $view = app(ViewOwnReturnHandler::class)->handle(new ViewOwnReturn(strtoupper($return)));
+    // The order's page lists it with the same words (sales.md §4.1 S8, §4.2 B16).
+    $rows = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number))->returns;
 
     expect([$view->orderNumber, $view->status, $view->reason, $view->reasonOther, $view->staffReason])->toBe([$number, 'REFUSED', ReturnReason::Other, 'Not the colour shown', 'Opened and used'])
         ->and([$view->lines[0]->asked, $view->lines[0]->received, $view->photos])->toBe([2, null, 0])
         ->and($view->decidedAt)->not->toBeNull()
-        ->and($view->refundDue)->toBeNull();
+        ->and($view->refundDue)->toBeNull()
+        ->and(array_map(fn ($row): array => [$row->returnId, $row->status, $row->staffReason], $rows))->toBe([[$return, 'REFUSED', 'Opened and used']]);
 });
 
 it('answers another customer order and return as none, and staff as not allowed', function () {

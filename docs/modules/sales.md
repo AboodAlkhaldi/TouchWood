@@ -675,7 +675,7 @@ order's or cart's store — Promotions and Loyalty build their scope from it, lo
 
 | Use case | Kind | Permission |
 |---|---|---|
-| `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` | Command | `sales.cart.manage` — a guest's cart (no coupon): `sales.guest_cart.manage` |
+| `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon`, `DismissCartNotice` (§4.2 B17) | Command | `sales.cart.manage` — a guest's cart (no coupon): `sales.guest_cart.manage` |
 | `ViewCart` | Query | `sales.cart.manage` / `sales.guest_cart.manage` |
 | `StartCheckout`, `PlaceOrder` | Command | `sales.order.place` |
 | `CancelOwnOrder`, `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto`, `UploadTransferDocument` | Command | `sales.order.manage_own` (also the scope of `uploadMediaFor`) |
@@ -1082,6 +1082,8 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 | B13 | **The header's piece count** — `CountCartPieces`: the pieces on every line of the shopper's cart in a store (one that cannot be ordered too), a customer's or a guest's; one query; 0 with no cart, for a browser not yet a guest, in an off store, and for staff | S3 |
 | B14 | **Best sellers for an empty cart** — Catalog's `ShopBestSellers::read(store, locale, limit)` (catalog.md amendment 36(a)): the shop's own cards (`ShopCardData`, with their prices) and `cardFacts`, what this shopper can order, best-selling first | S4 |
 | B15 | **Add to Cart on the product page** — section `sales.cart` (`ShopCartData{sizes: [ShopCartSizeData{variantId, retail, wholesale, outOfStock, inCart}]}`), on an available page only, for a customer or a guest (nothing for staff), for each size the page shows in its order: each mode the size is sold in now and this viewer may buy it in — an individual retail only; a company both, **an unapproved company too** (owner, 2026-10-27: the cart marks its wholesale lines); a guest both, wholesale only where companies may buy the product — as `ShopCartLimitsData{minimum, maximum, inCart, outOfStock}`: the mode's line's limits, what that line holds (an add joins it, so the limits are on the two together), and whether too few are free for the least add that leaves the line within them, the size's pieces already in the cart counted first (the exact check, owner, 2026-10-27). The size's `outOfStock`: not one more piece free; its `inCart`: its pieces over both modes | S2 |
+| B16 | **The store's reason on the order's returns** — `ViewOwnOrder`'s `OwnReturnRow.staffReason`: the words staff wrote when they refused the return, as written (one text, not per language); null for any other state. The panel's `ViewOrder` carries it too | S8 |
+| B17 | **Close on the cart's notice** — `DismissCartNotice(storeId)`: the current buyer's cart in that store loses its notice of the lines that left at a sign-in, for good (owner, 2026-10-27); nothing when there is no cart or no notice, and no cart is made. A customer's or a guest's, as the cart's other commands | S4 |
 
 ---
 

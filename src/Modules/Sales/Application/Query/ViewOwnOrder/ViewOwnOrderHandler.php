@@ -14,6 +14,7 @@ use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
+use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Service\OrderStatuses;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
@@ -70,6 +71,7 @@ final readonly class ViewOwnOrderHandler
             array_map(static fn (array $return): OwnReturnRow => new OwnReturnRow(
                 (string) $return['id'], (string) $return['status'], CarbonImmutable::parse((string) $return['requested_at']),
                 $return['refund_due_minor'] === null ? null : $money($return['refund_due_minor']),
+                $return['status'] === ReturnState::REFUSED && $return['staff_reason'] !== null ? (string) $return['staff_reason'] : null,
             ), $this->reads->returns($id)),
             $documents,
             in_array($order['status'], [OrderState::PENDING_APPROVAL, OrderState::APPROVED], true) && $order['shipment_status'] === OrderState::NOT_SHIPPED,
