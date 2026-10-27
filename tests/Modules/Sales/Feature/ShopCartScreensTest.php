@@ -11,12 +11,18 @@ use Inertia\Testing\AssertableInertia;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Sales\Application\SalesSettings;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
+use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
+use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -90,6 +96,19 @@ function shopCartScreensProps(AdminBrowser $browser, string $uri, string $compon
     return $props;
 }
 
+/** Work done as the system, then the real ActorContext given back (the fixtures leave theirs bound). */
+function shopCartScreensAsSystem(Closure $work): void
+{
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+
+    try {
+        $work();
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+}
+
 describe('S3, S4 · The cart', function () {
     it('shows the lines with today\'s prices, the pieces and the subtotal, and the header\'s cart', function () {
         [, $browser] = shopCartScreensCustomer();
@@ -133,6 +152,51 @@ describe('S3, S4 · The cart', function () {
             ->toBe([[2, false, null, false], [1, false, null, false]])
             ->and($product['translations']['sales::shop_add.add.add'] ?? null)->toBe('Add to Cart')
             ->and(array_column($cart['lines'], 'quantity', 'variantId')[$ready['variants'][1]] ?? null)->toBe(3);
+    });
+
+    it('shows the shipping and how much more ships free, the next gift, the points and the header\'s pieces (B12, B13)', function () {
+        [$ready, $browser] = shopCartScreensCustomer();
+        shopCartScreensAsSystem(function (): void {
+            Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+            Cx::setting(SalesSettings::FREE_ABOVE, 300_00);
+            ['variants' => [$gift]] = Px::ready(['90 cm']);
+            Rx::switchOn('sa', [$gift]);
+            Rx::set('sa', [$gift => '10.00']);
+            Ix::count('sa', [$gift => 5]);
+            Pr::giftLevel($gift, 400_00);
+            Lx::programme();
+        });
+
+        $cart = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+
+        // The goods: 2 × 100.00 + 50.00 = 250.00 - 50.00 short of free shipping, 150.00 of the gift.
+        expect([$cart['shippingFee']['minor'], $cart['freeAbove']['minor'], $cart['freeMissing']['minor'], $cart['freeShare']])->toBe([25_00, 300_00, 50_00, 83])
+            ->and([$cart['nextGift']['amount']['minor'], $cart['nextGift']['missing']['minor']])->toBe([400_00, 150_00])
+            ->and($cart['pointsToEarn'])->toBeGreaterThan(0)
+            ->and([$cart['mayNotOrder'], $cart['bestSellers']])->toBe([null, []])
+            ->and($cart['frame']['sales']['pieces'])->toBe(3)
+            ->and($cart['translations']['sales::shop_cart.extras.for_free_shipping'] ?? null)->toBe('more for free shipping.');
+
+        // Past the free-above amount: nothing missing, the bar full.
+        $browser->post('/sa/en/cart/lines/change', ['variant' => $ready['variants'][1], 'mode' => 'RETAIL', 'quantity' => 2])->assertRedirect();
+        $free = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+
+        expect([$free['freeMissing'], $free['freeShare'], $free['frame']['sales']['pieces']])->toBe([null, 100, 4]);
+    });
+
+    it('shows the store\'s best sellers under an empty cart, and an account that may not order why, with its fix (B12, B14)', function () {
+        [$ready, $browser] = shopCartScreensCustomer();
+        DB::table('access.customers')->where('id', $ready['customer'])->update(['email_verified_at' => null]);
+
+        $blocked = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+        DB::table('sales.cart_lines')->delete();
+        $empty = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
+
+        expect([$blocked['mayOrder'], $blocked['mayNotOrder']])->toBe([false, 'EMAIL_UNVERIFIED'])
+            ->and($blocked['bestSellers'])->toBe([])
+            ->and($empty['lines'])->toBe([])
+            ->and(array_column($empty['bestSellers'], 'productId'))->toContain($ready['product'])
+            ->and($empty['frame']['sales']['pieces'])->toBe(0);
     });
 
     it('shows a guest an empty cart, and sends their Checkout to sign in and back to the cart', function () {

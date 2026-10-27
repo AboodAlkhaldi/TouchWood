@@ -937,6 +937,12 @@ amount still owed (§4.2 B1).
   (access.md amendment 75's return; R1-16).
 - **Empty**: "Your cart is empty", Continue Shopping, and **the store's best-selling products** under it
   (R2-9, R3).
+- **The screens session's picks, for the owner to change** (2026-10-27): eight best sellers; once the goods
+  reach the free-above amount, "Your order ships free" with the bar full and "Shipping: Free" in the summary;
+  the gift said as "Spend about 80.00 more" (the amount is measured after a percent coupon, B12); each
+  reason an account may not order with its own link — Verify Email or Verify Phone to the account page,
+  View Your Company to the company's page, none for an account closed to orders; the header's count shows
+  "99+" above 99.
 
 **S5 · Checkout** — `/{store}/{locale}/checkout`, **one page** (R1-18), its quote worked out by
 `StartCheckout` (§1.2) each time something on it changes:

@@ -9,6 +9,7 @@ return [
     'pieces' => ['zero' => ':count pieces', 'one' => ':count piece', 'two' => ':count pieces', 'few' => ':count pieces', 'many' => ':count pieces', 'other' => ':count pieces'],
     'empty' => 'Your cart is empty',
     'continue' => 'Continue Shopping',
+    'best_sellers' => 'Best Sellers',
     'mode' => ['RETAIL' => 'Retail', 'WHOLESALE' => 'Wholesale'],
     'line' => [
         'lines' => 'Items in your cart',
@@ -47,12 +48,35 @@ return [
     'summary' => [
         'title' => 'Summary',
         'subtotal' => 'Subtotal',
-        'later' => 'The coupon, points, shipping and VAT are worked out at checkout.',
+        'later' => 'The coupon, points and VAT are worked out at checkout.',
+        'shipping' => 'Shipping',
+        'free_above' => 'free above',
+        'free' => 'Free',
         'checkout' => 'Checkout',
         'fix_first' => 'Fix the marked lines first',
-        'may_not_order' => 'Your account can\'t place orders yet.',
-        'finish_account' => 'Finish your account',
         'sign_in_first' => 'Sign in or register to check out. Your cart comes with you.',
+    ],
+    // Why this account may not order yet, and its one fix (R1-17; §4.2 B12).
+    'block' => [
+        'ACCOUNT_NOT_ACTIVE' => 'Your account can\'t place orders. Contact the store for help.',
+        'EMAIL_UNVERIFIED' => 'Verify your email to place orders.',
+        'PHONE_UNVERIFIED' => 'Verify your phone number to place orders.',
+        'COMPANY_NOT_APPROVED' => 'Your company must be approved here before it can order.',
+        'fix' => [
+            'EMAIL_UNVERIFIED' => 'Verify Email',
+            'PHONE_UNVERIFIED' => 'Verify Phone',
+            'COMPANY_NOT_APPROVED' => 'View Your Company',
+        ],
+    ],
+    // Free shipping, the next gift and the points (R1-12 to R1-14).
+    'extras' => [
+        'add_more' => 'Add',
+        'for_free_shipping' => 'more for free shipping.',
+        'ships_free' => 'Your order ships free.',
+        'free_bar' => 'Toward free shipping',
+        'spend_about' => 'Spend about',
+        'for_a_gift' => 'more for a free gift.',
+        'points' => ['zero' => 'You\'ll earn :count points with this order.', 'one' => 'You\'ll earn :count point with this order.', 'two' => 'You\'ll earn :count points with this order.', 'few' => 'You\'ll earn :count points with this order.', 'many' => 'You\'ll earn :count points with this order.', 'other' => 'You\'ll earn :count points with this order.'],
     ],
     'skipped' => [
         'title' => 'Some items could not be added again',

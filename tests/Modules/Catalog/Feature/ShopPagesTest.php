@@ -507,11 +507,13 @@ describe('the budget (P21)', function () {
             // (owner's Q14): whether the product was delivered to the customer, for Write a Review - asked
             // only while they have not reviewed it. A product's page, since 2026-10-27, Sales's Add to Cart
             // (amendment 36): six more for a guest, four for someone signed in, whose customer and store
-            // reads it shares with the page (the cart's lines one of them).
+            // reads it shares with the page (the cart's lines one of them). Signed in, every page one more
+            // since 2026-10-27 (sales.md §4.1 S3, §4.2 B13): the header's count of the pieces in the cart -
+            // none for a guest, whose count is read from the cart's cookie only when there is one.
         ])->toBe([
             'guest' => ['category' => 8, 'brand' => 8, 'product' => 15, 'search' => 9],
-            'individual' => ['category' => 15, 'brand' => 15, 'product' => 20, 'search' => 16],
-            'company' => ['category' => 15, 'brand' => 15, 'product' => 20, 'search' => 16],
+            'individual' => ['category' => 16, 'brand' => 16, 'product' => 21, 'search' => 17],
+            'company' => ['category' => 16, 'brand' => 16, 'product' => 21, 'search' => 17],
         ]);
     });
 });
