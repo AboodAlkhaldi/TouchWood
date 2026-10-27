@@ -41,7 +41,7 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Sales | [accepted](sales.md) 2026-10-10 (#110), the owner's answers of 2026-10-19 (31–44) — **being built** from 2026-10-19 (stage 6, backend): S1 the foundation, S2 the outbox, S3 Catalog's and Access's reads, S4 the cart. See [its README](../../src/Modules/Sales/README.md) | Pricing, Inventory (built in stage 5); Shipping and Payments (stage 7) through the interfaces it defines |
 | Promotions | [accepted](promotions.md) 2026-10-10 (#101) — **backend built and merged** (seven steps, 2026-10-17 to 2026-10-19, #143–#169 and step 7); screens to come (another session). See [its README](../../src/Modules/Promotions/README.md) | — (Platform, Access, Catalog, Pricing — Pricing's interfaces on `main` since #97) |
 | Loyalty | [accepted](loyalty.md) 2026-10-10 (#96) — **built**: six steps from 2026-10-10, all merged by 2026-10-17, the first of stage 6 (owner: Loyalty → Promotions → Feedback → Sales). See [its README](../../src/Modules/Loyalty/README.md) | — (Platform, Access: handoff §4.4; this row had said Pricing) |
-| Payments | not started | MyFatoorah API docs + sandbox |
-| Shipping | not started | box list + carrier list + rate tables |
+| Payments | [draft](payments.md) 2026-10-27 — stage 7, waiting for the owner; MyFatoorah (KSA) on its hosted page; research in [payments-myfatoorah-notes.md](payments-myfatoorah-notes.md) | — (Platform); Sales calls it |
+| Shipping | [draft](shipping.md) 2026-10-27 — stage 7, waiting for the owner; the box list optional, it blocks nothing | Platform (the places, amendment proposed), Catalog |
 | Content | not started | Catalog |
 | Ops | not started | SMS + email provider |

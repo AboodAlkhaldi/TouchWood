@@ -1104,3 +1104,10 @@ product in a store with no provider, and only for stock-dependent sizes in a sto
 | Unknown Code · Not at Provider · Archived · Off or Draft | رمز غير معروف · غير موجود لدى المزوّد · مؤرشف · متوقف أو مسودة | Offer Stopped · Bad Value · Read Failed · Discount Skipped | عرض متوقف · قيمة غير صالحة · فشلت القراءة · خصم مُتجاوَز |
 | Notice · Hourly · Nightly · Now · One Code | إشعار · كل ساعة · ليلية · الآن · رمز واحد | Waiting · Running · Done · Failed | بالانتظار · قيد التشغيل · تمّت · فشلت |
 | Working · Failing · Not Wired | يعمل · متعثّر · غير مربوط | Wire Store · Unwire Store · Sync Now · Dismiss Entry | ربط المتجر · فكّ ربط المتجر · مزامنة الآن · إغلاق البند |
+
+### 9.5 Stage 7 — **[PROPOSED 2026-10-27]**: no VAT on shipping
+
+The owner (2026-10-27): "the VAT is on the products only not the shipping fees" — 1,000 + 150 + 30 =
+1,180. In `totals(prices, coupon, points, shipping)`, **`taxable_base` is the lines' taxable amounts
+only**; the shipping is added to `order_total` after the VAT. Applied in place, with Sales's §9.5 #1,
+once the owner accepts.

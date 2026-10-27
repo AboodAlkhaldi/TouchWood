@@ -1462,3 +1462,53 @@ option (a).**
   guest's; Buy Again from an order in any state, a line added at its old quantity and marked in the cart
   when outside its limits now, one no longer available left out with why; the edit's search leaving out
   sizes already on the order; search from 2 characters; no counts on the tabs.
+
+### 9.5 Stage 7's changes — **[PROPOSED 2026-10-27]**, waiting for the owner's acceptance of shipping.md and payments.md
+
+Each becomes an amendment applied in place once the owner accepts the two specs. The Stage 6 session
+agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the same code.
+
+1. **No VAT on shipping** (owner, 2026-10-27: "1000 riyals, the vat will be 15% so 150 riyals, and
+   shipping 30 riyals, so total 1180 not 1184.5"). §1.2 step 10: `taxable_base` is the lines only. The
+   returns' refunds (§1.8: the shipping and its VAT share go with the last piece) lose the VAT share, so
+   only the shipping itself is refunded. Pricing's `totals()` changes with it (pricing.md §9.5). As built
+   today, the Stage 6 session names: Pricing's `totals()`, QuoteBuilder step 10, OrderEditing,
+   ReturnRefunds and PreviewReturnRefund, and their tests (QuoteTest, ReturnCompletionTest, the edit
+   tests).
+2. **Shipping from Shipping** (shipping.md §2.1): step 9 calls `ShippingApi::quote`.
+   - `SERVED`: the carriers; the customer picks one when two or more serve the place (the cheapest
+     picked first — shipping.md §9.3 #2); the carrier and its fee are snapshotted.
+   - `NOT_COVERED` / `OUTSIDE`: placed with **no carrier and the fee "to be set"**; the way to pay is
+     forced to "staff will contact you"; the order is marked **"Shipping fee to be set"** and is never
+     cancelled by the payment timer; staff set the fee later as an edit (§1.7).
+   - `OTHER_STORE`: refused, naming the store.
+
+   §1.10's `sales.shipping.flat_fee` and `sales.shipping.free_above` are removed.
+3. **Marking shipped** (§1.5): the carrier is picked from `ShippingApi::carriers()` (staff may change
+   the one ordered — owner, 2026-10-27 S17), with the tracking number and/or a full tracking link typed
+   by staff (S7). The customer sees **Track** only when there is a link (the carrier's pattern with the
+   number, or the typed link).
+4. **Online payment** (payments.md §1.4): for an individual in a store whose gateway is on, "Pay online"
+   is offered (`PaymentsApi::availability`). After placing, Sales calls `start` and sends the customer to
+   MyFatoorah's page. The order page shows Paid, Not paid — Pay now, or We are confirming your payment.
+5. **The time to pay**: new settings `sales.payment.minutes_to_pay` (**60**, owner 2026-10-19 P2) and
+   `sales.payment.grace_minutes` (**5**, owner 2026-10-27), changed by Super Admins (P2). An online order
+   not paid by then is **cancelled by the system** with the reason "payment not completed": stock,
+   points and the coupon's use go as §1.6 says for any cancellation. Staff see these orders like any
+   other (P2).
+6. **The revive** (owner, 2026-10-19 P5): a `PaymentSucceeded` inside the grace window for an order the
+   **timer** cancelled brings it back: the hold, the points and the coupon are taken again. If any of
+   them fails, the order stays cancelled and the money is a refund due. Any other late payment (after the
+   grace window, or for an order cancelled by staff, by the customer or for stock) is recorded and is a
+   refund due.
+7. **Recording**: `PaymentSucceeded` → an `ONLINE` payment (`reference` = the gateway's payment id,
+   unique, so twice is once), carrying the TEST mark and the mismatch flag (payments.md §1.1 rule 6,
+   §1.6). For an order paid in TEST, see payments.md §9.3 #3.
+8. **Further payments** (payments.md §1.5; owner, 2026-10-19 P6): when an edit leaves the order holding
+   less than is due, staff choose **"Request payment"** (Payments' request, 60 minutes) or **"Handle by
+   hand"**. The customer pays from the order page.
+9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
+   was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
+   **overdue** in the staff list (owner, 2026-10-27 P8, P28).
+10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
+    §2.1: `options` becomes `quote`, `methods` goes, and `PaymentExpired` is consumed.
