@@ -30,6 +30,9 @@ final class EditPage extends Data
         public string $address,
         public MoneyData $total,
         public MoneyData $paid,
+        public MoneyData $beforeSubtotal,
+        public MoneyData $beforeShipping,
+        public MoneyData $beforeVat,
         public string $storeTimezone,
     ) {}
 }

@@ -57,13 +57,13 @@ export default function AskReturn(page: AskReturnPage) {
                                             <span className="text-copy-13 text-ink-muted">{plural(t, locale, `${O}.ask.may`, line.returnable)}</span>
                                         </span>
                                         <span className="flex items-center gap-1" role="group" aria-label={t(`${O}.ask.pieces`, { name: line.name })}>
-                                            <Button type="button" variant="outline" size="icon" disabled={count === 0} onClick={() => set(count - 1)} aria-label="−" data-test="fewer">
+                                            <Button type="button" variant="outline" size="icon" disabled={count === 0} onClick={() => set(count - 1)} aria-label={t(`${O}.ask.less`)} data-test="fewer">
                                                 <Minus aria-hidden="true" />
                                             </Button>
                                             <output className="tw-figure min-w-10 text-center text-label-14 text-ink" aria-live="polite" data-test="count">
                                                 {figure(locale, count)}
                                             </output>
-                                            <Button type="button" variant="outline" size="icon" disabled={count >= line.returnable} onClick={() => set(count + 1)} aria-label="+" data-test="more">
+                                            <Button type="button" variant="outline" size="icon" disabled={count >= line.returnable} onClick={() => set(count + 1)} aria-label={t(`${O}.ask.more`)} data-test="more">
                                                 <Plus aria-hidden="true" />
                                             </Button>
                                         </span>

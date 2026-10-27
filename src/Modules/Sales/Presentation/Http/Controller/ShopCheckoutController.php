@@ -50,7 +50,8 @@ final readonly class ShopCheckoutController
                 app()->getLocale(),
                 self::query($request, 'address'),
                 $request->query('points') === '1',
-                is_string($asked) && ctype_digit($asked) && strlen($asked) <= 9 ? (int) $asked : null,
+                // 0 or none: as many as allowed.
+                is_string($asked) && ctype_digit($asked) && strlen($asked) <= 9 && (int) $asked > 0 ? (int) $asked : null,
                 self::query($request, 'way'),
                 $start,
             );

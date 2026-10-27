@@ -27,7 +27,7 @@
     "generated\\Modules\\Promotions\\Domain\\Model\\index.ts": "845ffa427bb7780cd12004e84016a031",
     "generated\\Modules\\Promotions\\Presentation\\Http\\Resource\\index.ts": "bd719f02da4cd7ab2a48293d42969d40",
     "generated\\Modules\\Promotions\\Public\\Enums\\index.ts": "c6893b572bb04e872c6c63ff8b242057",
-    "generated\\Modules\\Sales\\Presentation\\Http\\Resource\\index.ts": "c0873b636b3394d6b60c863743d3990e",
+    "generated\\Modules\\Sales\\Presentation\\Http\\Resource\\index.ts": "cc3ab5d29bf5d2fa9c26ff1ed7aab8ab",
     "generated\\Modules\\Sales\\Public\\Enums\\index.ts": "f62d20827120bb936769ef59453c7ba8",
     "generated\\Modules\\Sync\\Domain\\ValueObject\\index.ts": "4c202f059a066a89a12ecf5a9d107069",
     "generated\\Modules\\Sync\\Presentation\\Http\\Resource\\index.ts": "b50c82ce4e35a1c15727374969ce7412",

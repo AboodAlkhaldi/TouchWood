@@ -17,6 +17,8 @@ return [
         'title' => 'Coupon',
         'applied' => 'Coupon :code applied.',
         'refused' => 'Coupon :code was not applied:',
+        'applied_short' => 'applied.',
+        'refused_why' => 'not applied:',
         'change' => 'Change it in your cart',
         'none' => 'No coupon. You can add one in your cart.',
         'refusal' => [

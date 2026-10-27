@@ -254,7 +254,9 @@ function Coupon({ code }: { code: string | null }) {
                 )}
                 {code === null ? null : (
                     <p className="flex flex-wrap items-center justify-between gap-2 text-copy-13 text-ink-muted">
-                        <span>{t(`${C}.coupon.kept`, { code })}</span>
+                        <span>
+                            <bdi className="text-label-14 text-ink">{code}</bdi> · {t(`${C}.coupon.kept_for`)}
+                        </span>
                         <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => post('storefront.sales.cart.coupon', { code: '' })} data-test="remove-coupon">
                             {t(`${C}.coupon.remove`)}
                         </Button>

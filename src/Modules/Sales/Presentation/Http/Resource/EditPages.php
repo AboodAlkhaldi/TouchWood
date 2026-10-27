@@ -65,8 +65,16 @@ final readonly class EditPages
                 continue;
             }
 
-            $lines[] = new EditLineData($line->variantId, $line->mode, $this->en() ? $line->nameEn : $line->nameAr, $this->values($line), $line->code, $line->quantity, $money($line->unit), in_array($line->variantId, $ticked, true));
+            // An edit that raised a line added a part of it (§1.7): the edit names a size and mode once, all its parts together.
+            $key = $line->variantId.'|'.$line->mode;
+            $before = $lines[$key] ?? null;
+            $lines[$key] = new EditLineData(
+                $line->variantId, $line->mode, $this->en() ? $line->nameEn : $line->nameAr, $this->values($line), $line->code,
+                ($before->quantity ?? 0) + $line->quantity, $money($line->unit), in_array($line->variantId, $ticked, true),
+            );
         }
+
+        $lines = array_values($lines);
 
         // Another of the customer's addresses in the order's store (§1.7); none of a deleted customer's.
         $addresses = $order->customer->deleted ? [] : $this->access->addresses($order->customer->customerId, $order->storeId);
@@ -83,6 +91,9 @@ final readonly class EditPages
             is_string($order->address['formatted'] ?? null) ? $order->address['formatted'] : '',
             $money($order->total),
             $money($order->paid),
+            $money($order->grossSubtotal),
+            $money($order->shipping),
+            $money($order->vat),
             $this->platform->store(StoreId::fromString($order->storeId))->timezone ?? 'UTC',
         );
     }
@@ -124,7 +135,14 @@ final readonly class EditPages
         $plan = $previews->handle(new PreviewOrderEdit($orderId, $lines, $addressId, $gift));
         $money = fn (Money $amount): MoneyData => $this->money($amount, $order->storeId, $order->exponent);
         $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
-        $difference = $plan->difference->minorUnits;
+        // What the order holds, against what it owed before and owes after (R2-37): a refund once it holds more than its
+        // new total; else the change in what is still owed - more, less or none.
+        $held = $plan->difference->minorUnits + $plan->totals->orderTotal->minorUnits;
+        $owedBefore = max(0, $order->total->minorUnits - $held);
+        $owedAfter = max(0, $plan->totals->orderTotal->minorUnits - $held);
+        [$words, $amount] = $held > $plan->totals->orderTotal->minorUnits
+            ? ['REFUND', $held - $plan->totals->orderTotal->minorUnits]
+            : ($owedAfter > $owedBefore ? ['MORE', $owedAfter - $owedBefore] : ($owedAfter < $owedBefore ? ['LESS', $owedBefore - $owedAfter] : ['NONE', 0]));
         $names = $this->catalog->variantBriefs(array_map(static fn (GiftOfferDto $option): string => $option->variantId, $plan->giftOptions));
 
         return new EditPreviewData(
@@ -135,9 +153,8 @@ final readonly class EditPages
             $money($plan->totals->vat),
             $money($plan->totals->orderTotal),
             $money($order->total),
-            // The order holds `difference` more than its new total: a refund; less: a balance.
-            $difference > 0 ? 'REFUND' : ($difference < 0 ? 'MORE' : 'NONE'),
-            $money(Money::of(abs($difference), $plan->difference->currencyCode)),
+            $words,
+            $money(Money::of($amount, $plan->difference->currencyCode)),
             array_map(fn (GiftOfferDto $option): EditGiftData => new EditGiftData(
                 $option->levelId,
                 isset($names[$option->variantId]) ? ($this->en() ? ($names[$option->variantId]->productNameEn ?? $names[$option->variantId]->productNameAr) : $names[$option->variantId]->productNameAr) : $option->variantId,

@@ -41,6 +41,7 @@ return [
         'apply' => 'Apply',
         'remove' => 'Remove',
         'kept' => 'Coupon :code is applied at checkout.',
+        'kept_for' => 'applied at checkout.',
         'sign_in' => 'Sign in to use a coupon',
     ],
     'summary' => [

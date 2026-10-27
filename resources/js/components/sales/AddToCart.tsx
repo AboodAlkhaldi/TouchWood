@@ -5,7 +5,7 @@ import { TextField } from '@/components/Fields';
 import { plural, useLocale } from '@/components/sales/shop';
 import { FieldLegend, FieldSet } from '@/components/ui/field';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { figure } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { SWITCH_ITEM, SWITCH_TRACK } from '@/lib/view-switch';
@@ -121,7 +121,7 @@ export function AddToCart({ variant, selling, choicesId }: { variant: ShopVarian
                     label={t(`${C}.add.quantity`)}
                     helper={limits}
                     value={typed}
-                    onChange={(event) => setTyped(event.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(event) => setTyped(toLatinDigits(event.target.value).replace(/[^0-9]/g, ''))}
                     onBlur={() => setTyped(String(Math.min(maximum ?? Number.MAX_SAFE_INTEGER, Math.max(minimum, Number.isInteger(quantity) && quantity > 0 ? quantity : minimum))))}
                     data-test="add-quantity"
                 />

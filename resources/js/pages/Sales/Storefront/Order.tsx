@@ -357,7 +357,7 @@ function CancelDialog({ order, onOpenChange }: { order: OwnOrderPage; onOpenChan
                     loading={busy}
                     disabledReason={missing}
                     onClick={() =>
-                        router.post(link('storefront.sales.order.cancel', { number: order.number }), { reason, other } as never, {
+                        router.post(link('storefront.sales.order.cancel', { number: order.number }), { reason, other: reason === 'OTHER' ? other : '' } as never, {
                             preserveScroll: true,
                             onStart: () => setBusy(true),
                             onFinish: () => setBusy(false),

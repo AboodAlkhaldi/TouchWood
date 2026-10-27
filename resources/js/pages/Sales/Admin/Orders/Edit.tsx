@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { figure } from '@/lib/digits';
+import { figure, toLatinDigits } from '@/lib/digits';
+import { Input } from '@/components/ui/input';
 import { useLiveRead } from '@/lib/live-read';
 import { useTranslator } from '@/lib/t';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
@@ -115,13 +116,19 @@ export default function Edit(page: EditPage) {
                                         </span>
                                         {line.ticked ? null : (
                                             <span className="flex items-center gap-1" role="group" aria-label={t(`${W}.edit.pieces`, { name: line.name })}>
-                                                <Button type="button" variant="outline" size="icon" disabled={line.quantity === 0} onClick={() => set(index, line.quantity - 1)} aria-label="−" data-test="fewer">
+                                                <Button type="button" variant="outline" size="icon" disabled={line.quantity === 0} onClick={() => set(index, line.quantity - 1)} aria-label={t(`${W}.edit.less`)} data-test="fewer">
                                                     <Minus aria-hidden="true" />
                                                 </Button>
-                                                <output className="tw-figure min-w-10 text-center text-label-14 text-ink" data-test="quantity">
-                                                    {figure('en', line.quantity)}
-                                                </output>
-                                                <Button type="button" variant="outline" size="icon" onClick={() => set(index, line.quantity + 1)} aria-label="+" data-test="more">
+                                                <Input
+                                                    className="tw-figure w-16 text-center"
+                                                    inputMode="numeric"
+                                                    dir="ltr"
+                                                    aria-label={t(`${W}.edit.pieces`, { name: line.name })}
+                                                    value={String(line.quantity)}
+                                                    onChange={(event) => set(index, Number(toLatinDigits(event.target.value).replace(/[^0-9]/g, '') || '0'))}
+                                                    data-test="quantity"
+                                                />
+                                                <Button type="button" variant="outline" size="icon" onClick={() => set(index, line.quantity + 1)} aria-label={t(`${W}.edit.more`)} data-test="more">
                                                     <Plus aria-hidden="true" />
                                                 </Button>
                                                 <Button type="button" variant="ghost" size="icon" onClick={() => set(index, 0)} aria-label={`${t(`${W}.edit.remove`)}: ${line.name}`} data-test="remove-line">
@@ -182,7 +189,7 @@ export default function Edit(page: EditPage) {
                                 {refused}
                             </p>
                         )}
-                        {preview === null ? null : <Preview preview={preview.data} stale={!current} />}
+                        {preview === null ? null : <Preview page={page} preview={preview.data} stale={!current} />}
                         <ActionButton
                             loading={saving}
                             disabledReason={confirmReason}
@@ -203,27 +210,36 @@ export default function Edit(page: EditPage) {
     );
 }
 
-function Preview({ preview, stale }: { preview: EditPreviewData; stale: boolean }) {
+function Preview({ page, preview, stale }: { page: EditPage; preview: EditPreviewData; stale: boolean }) {
     const t = useTranslator();
-    const rows: [string, MoneyData | null, boolean][] = [
-        [t(`${W}.edit.subtotal`), preview.subtotal, false],
-        [t(`${W}.edit.coupon`), preview.coupon, true],
-        [t(`${W}.edit.points`), preview.points, true],
-        [t(`${W}.edit.shipping`), preview.shipping, false],
-        [t(`${W}.edit.vat`), preview.vat, false],
+    // [label, before, after, taken off]: before → after for every total (P4); a discount line with nothing in it is not shown.
+    const rows: [string, MoneyData | null, MoneyData | null, boolean][] = [
+        [t(`${W}.edit.subtotal`), page.beforeSubtotal, preview.subtotal, false],
+        [t(`${W}.edit.coupon`), null, preview.coupon, true],
+        [t(`${W}.edit.points`), null, preview.points, true],
+        [t(`${W}.edit.shipping`), page.beforeShipping, preview.shipping, false],
+        [t(`${W}.edit.vat`), page.beforeVat, preview.vat, false],
     ];
 
     return (
         <div className={`grid gap-2 ${stale ? 'opacity-60' : ''}`} data-test="preview-result">
             <dl className="grid gap-1.5 text-copy-14">
+                <div className="flex justify-end gap-3 text-copy-12 text-ink-muted" aria-hidden="true">
+                    <span>{t(`${W}.edit.before`)} → {t(`${W}.edit.after`)}</span>
+                </div>
                 {rows
-                    .filter(([, value]) => value !== null)
-                    .map(([label, value, minus]) => (
+                    .filter(([, , after]) => after !== null)
+                    .map(([label, before, after, minus]) => (
                         <div key={label} className="flex items-baseline justify-between gap-3">
                             <dt className="text-ink-muted">{label}</dt>
-                            <dd className="text-ink">
+                            <dd className="text-end text-ink">
+                                {before === null ? null : (
+                                    <span className="text-copy-13 text-ink-muted">
+                                        <Money value={before} /> →{' '}
+                                    </span>
+                                )}
                                 {minus ? <span aria-hidden="true">− </span> : null}
-                                <Money value={value as MoneyData} />
+                                <Money value={after as MoneyData} />
                             </dd>
                         </div>
                     ))}

@@ -105,6 +105,8 @@ return [
         'lines' => 'What are you returning?',
         'may' => ['zero' => 'None left to return', 'one' => 'Up to :count piece', 'two' => 'Up to :count pieces', 'few' => 'Up to :count pieces', 'many' => 'Up to :count pieces', 'other' => 'Up to :count pieces'],
         'pieces' => 'Pieces of :name',
+        'less' => 'One piece less',
+        'more' => 'One piece more',
         'reason' => 'Why?',
         'choose' => 'Choose a reason',
         'other' => 'Tell us more',

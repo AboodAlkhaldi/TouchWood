@@ -118,6 +118,9 @@ addresses: CheckoutAddressData[],
 address: string,
 total: MoneyData,
 paid: MoneyData,
+beforeSubtotal: MoneyData,
+beforeShipping: MoneyData,
+beforeVat: MoneyData,
 storeTimezone: string,
 };
 export type EditPreviewData = {

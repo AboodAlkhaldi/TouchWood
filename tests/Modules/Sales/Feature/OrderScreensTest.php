@@ -386,6 +386,12 @@ describe('P4 · Editing an order', function () {
             ->and($saved->headers->get('Location'))->toEndWith("/admin/orders/{$order}")
             ->and(AdminBrowser::flashed($saved, 'status'))->toBe('Order edited.')
             ->and((int) DB::table('sales.orders')->where('id', $order)->value('order_total_minor'))->toBe($preview['total']['minor']);
+
+        // Edited again: a raised line's parts are one line, and the same lines again change no money.
+        $again = orderScreensProps($browser, "/admin/orders/{$order}/edit", 'Sales/Admin/Orders/Edit');
+        $same = $browser->get("/admin/orders/{$order}/edit/preview?{$query}")->assertOk()->json();
+        expect(array_map(static fn (array $line): int => $line['quantity'], $again['lines']))->toBe(array_column($lines, 'quantity'))
+            ->and([$same['money'], $same['difference']['minor']])->toBe(['NONE', 0]);
     });
 
     it('refuses the edit page to a reader without the job, and answers a refused preview in its own words', function () {

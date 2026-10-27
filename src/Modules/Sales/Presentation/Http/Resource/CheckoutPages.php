@@ -16,6 +16,7 @@ use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
+use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Public\Enums\OrderAudience;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\ActorContext;
@@ -68,7 +69,13 @@ final readonly class CheckoutPages
         // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
         // staff's contact, which changes no amount.
         $asked = WayToPay::tryFrom((string) $way);
-        $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, ($asked ?? WayToPay::StaffContact)->value));
+        // A way the account is not offered (an old address, the bank account since emptied) is no choice made.
+        try {
+            $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, ($asked ?? WayToPay::StaffContact)->value));
+        } catch (WayToPayNotOffered) {
+            $asked = null;
+            $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, WayToPay::StaffContact->value));
+        }
         $ways = array_map(static fn (WayToPay $each): string => $each->value, $quote->waysToPay);
         $wayChosen = count($ways) === 1 ? $ways[0] : ($asked !== null && in_array($asked->value, $ways, true) ? $asked->value : null);
         $store = $this->platform->store(StoreId::fromString($storeId));
