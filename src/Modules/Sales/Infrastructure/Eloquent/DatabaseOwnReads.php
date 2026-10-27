@@ -58,7 +58,7 @@ final readonly class DatabaseOwnReads implements OwnReads
     public function returns(string $orderId): array
     {
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $this->db->table('sales.returns')
-            ->where('order_id', $orderId)->orderByDesc('requested_at')->orderByDesc('id')->get(['id', 'status', 'requested_at', 'refund_due_minor'])->all()));
+            ->where('order_id', $orderId)->orderByDesc('requested_at')->orderByDesc('id')->get(['id', 'status', 'requested_at', 'refund_due_minor', 'staff_reason'])->all()));
     }
 
     public function transferDocuments(string $orderId): int

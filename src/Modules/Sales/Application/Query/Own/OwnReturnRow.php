@@ -16,5 +16,7 @@ final readonly class OwnReturnRow
         public DateTimeImmutable $requestedAt,
         /** What the completed return refunds; null before. */
         public ?Money $refundDue,
+        /** The store's reason, as staff wrote it, when the return was refused; null otherwise (§4.1 S8, §4.2 B16). */
+        public ?string $staffReason = null,
     ) {}
 }

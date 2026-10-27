@@ -17,6 +17,7 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Service\OrderStatuses;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\Unauthorized;
@@ -104,6 +105,7 @@ final readonly class ViewOrderHandler
             array_map(static fn (array $return): OwnReturnRow => new OwnReturnRow(
                 (string) $return['id'], (string) $return['status'], CarbonImmutable::parse((string) $return['requested_at']),
                 $return['refund_due_minor'] === null ? null : $money($return['refund_due_minor']),
+                $return['status'] === ReturnState::REFUSED && $return['staff_reason'] !== null ? (string) $return['staff_reason'] : null,
             ), $this->own->returns($orderId)),
             array_map(static fn (array $row): array => ['mediaId' => (string) $row['media_id'], 'position' => (int) $row['position'], 'uploadedAt' => CarbonImmutable::parse((string) $row['uploaded_at'])], $this->reads->transferDocuments($orderId)),
             $this->reader->exponent($currency),

@@ -13,6 +13,8 @@ use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
+use Modules\Sales\Application\Command\DismissCartNotice\DismissCartNotice;
+use Modules\Sales\Application\Command\DismissCartNotice\DismissCartNoticeHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Query\ViewCart\CartLineView;
@@ -182,6 +184,27 @@ it('names each line that left the cart, and why', function () {
 
     expect(array_map(fn (CartNoticeLine $line): array => [$line->variantId, $line->name, $line->mode, $line->quantity, $line->reason], $notice))
         ->toBe([[$variants[1], (string) DB::table('catalog.products')->where('id', $product)->value('name_en'), 'WHOLESALE', 3, CartNoticeReason::Wholesale]]);
+});
+
+it('closes the notice for good, and does nothing without a cart or a notice (sales.md §4.2 B17)', function () {
+    ['variants' => $variants, 'customer' => $customer] = Cx::ready();
+    $cart = app(Carts::class)->find(StoreId::fromString(Fx::storeId('sa')), $customer, null) ?? throw new LogicException('No cart.');
+    app(Carts::class)->setNotice($cart->id, [new RemovedLine($variants[1], SaleMode::Wholesale, 3, RemovedLine::WHOLESALE)], CarbonImmutable::now());
+    $dismiss = fn () => app(DismissCartNoticeHandler::class)->handle(new DismissCartNotice(Fx::storeId('sa')));
+
+    $before = count(cartView()->notice);
+    $dismiss();
+    $dismiss();
+    $after = cartView();
+    cartViewAsGuest();
+    $dismiss();
+
+    expect([$before, $after->notice, count($after->lines)])->toBe([1, [], 2])
+        ->and(DB::table('sales.carts')->where('id', $cart->id)->value('notice'))->toBeNull()
+        ->and(DB::table('sales.carts')->whereNull('customer_id')->count())->toBe(0);
+
+    Fx::actAsStaff(Fx::staff());
+    expect($dismiss)->toThrow(Unauthorized::class);
 });
 
 it('reads a cart of three lines in the same number of queries as one of one', function () {
