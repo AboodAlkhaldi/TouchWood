@@ -1508,7 +1508,7 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    refund due.
 7. **Recording**: `PaymentSucceeded` → an `ONLINE` payment (`reference` = the gateway's payment id,
    unique, so twice is once), carrying the TEST mark and the mismatch flag (payments.md §1.1 rule 6,
-   §1.6). For an order paid in TEST, see payments.md §9.4 #1.
+   §1.6). For an order placed in TEST, see payments.md §9.4 #3.
 8. **Further payments** (payments.md §1.5; owner, 2026-10-19 P6): when an edit leaves the order holding
    less than is due, staff choose **"Request payment"** (Payments' request, 60 minutes) or **"Handle by
    hand"**. The customer pays from the order page.

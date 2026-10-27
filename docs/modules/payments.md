@@ -129,7 +129,7 @@ These hold for every gateway, and every one has its tests in §8.
   when creating the key** (notes §1.5); MyFatoorah's documentation gives no call that reads it back, so
   **the setup asks for it** when the key is pasted, and it is required. **The people in charge of the
   key — the Super Admins (P11) — are told before it expires**, so a renewal never stops the shop
-  (**[PROPOSED]**, question §9.4 #2): 30, 7 and 1 days before, a banner on the gateway page and on their
+  (owner, 2026-10-27, §9.4 #2: (a)): 30, 7 and 1 days before, a banner on the gateway page and on their
   admin home, and a staff notification on a new topic, **Payment problems** (access.md amendment 78),
   sent as Sync's are — in the panel and by email once Ops sends notifications.
 - **A key MyFatoorah refuses anyway** (expired, switched off or deleted in the portal — a 401):
@@ -147,8 +147,8 @@ These hold for every gateway, and every one has its tests in §8.
   `https://apitest.myfatoorah.com`, KSA live `https://api-sa.myfatoorah.com` (notes §1.1). A store's
   country picks its live address.
 - **Switching test ↔ live** (owner, 2026-10-27, P17): the Super Admin flips it; the store then uses the
-  other key and address. Attempts already open finish in the mode they started in (rule 14). **Where
-  TEST may be used is open again** (§1.6; question §9.4 #1).
+  other key and address. Attempts already open finish in the mode they started in (rule 14). **TEST
+  may be used on any store** (owner, 2026-10-27, §9.4 #1 — §1.6).
 - **Each store and mode has its own notice address** — `/payments/notice/{store}/{mode}` — sent with
   every invoice (`IntegrationUrls.Webhook`, notes §5.1) and pasted into that mode's MyFatoorah portal,
   so the right secret is known before the signature is checked.
@@ -265,15 +265,19 @@ customer goes back to the same page (rule 2). As many times as they like within 
 - The Super Admin switches the store's gateway to **TEST**: the test key and `apitest.myfatoorah.com` are
   used, with MyFatoorah's test cards (notes §1.8). The whole flow can be tried: place, pay, fail, retry,
   cancel, revive.
-- **Real customers never meet a test page.** MyFatoorah's test cards are public, so a live store in TEST
-  would let anyone "pay" with them. **Where TEST runs is open again** (question §9.4 #1). The first pick
-  — TEST only while the store is switched off — **does not work** (the owner, 2026-10-27): an off store
-  takes no order from anyone, a Super Admin included (platform.md §1.6, §2.7: any form sent to it is a
-  404; the staff view only looks), and staff never order (frontend.md: View Store is "viewing and never
-  ordering"; access.md §1.4: an email is a staff account's or a customer's, never both).
+- **Where TEST runs** (owner, 2026-10-27, §9.4 #1): **the system acts as usual** — one code, and TEST is a
+  store's gateway setting, allowed on any store, switched on. The testing happens **on the staging site**
+  (a subdomain, before the real domain opens); the owner switches each store to LIVE when everything
+  passes, then moves the system to the real domain. (The first pick — TEST only while the store is off —
+  could not work: an off store takes no order from anyone, platform.md §1.6, §2.7, and staff never order.)
+- **A store in TEST says so to everyone** (owner, 2026-10-27): the checkout and the order page show "Test
+  mode — no real money is taken", besides the admin banner below. MyFatoorah's test page accepts only
+  its public test cards, so nobody can pay real money there.
+- **The safety net if a real store is ever left in TEST**: a TEST payment never makes an order paid for
+  real (below), so it can never send goods out unpaid.
 - **Every attempt and transaction carries its mode.** A TEST payment never counts as real money: it is
   marked TEST on the order, in every list and on the receipt, and **left out of every money figure**
-  (home cards, reports). Where TEST runs, and so how Sales treats an order paid in TEST — question §9.4 #1.
+  (home cards, reports). How Sales treats an order placed in TEST — question §9.4 #3.
 - While a store is in TEST: a banner on every admin page of that store, and the settings line (§1.2).
 - In TEST, MyFatoorah converts to KWD (notes §1.9): the amount check (rule 7) compares the **pay
   currency** value; in TEST the currency rule of rule 7 is checked against that pay currency, in LIVE
@@ -500,7 +504,6 @@ Every error extends `PaymentsError` → `DomainError` ("payments.*"), with both 
 | `KeyPermissionMissing` | INVALID | MyFatoorah's 401 "The token does not have the required permissions!" (notes §9) — names what to switch on |
 | `AttemptNotFound` | NOT_FOUND | An attempt that is not there, or not this customer's |
 | `AmountChanged` | CONFLICT | `start` with an amount different from the open attempt's for the same purpose — Sales must withdraw first |
-| `TestModeOnLiveStore` | CONFLICT | TEST where it is not allowed — which depends on question §9.4 #1 (§1.6) |
 | `PayByPassed` | CONFLICT | `start` after the order's deadline (rule 12) |
 | `OrderPaymentOpen` | CONFLICT | A `FURTHER` request while the order's first payment is open (§1.5) |
 | `InvalidPaymentsInput` | INVALID | A field out of range, named |
@@ -556,7 +559,8 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 28. **A currency mismatch**: kept in Payments, flagged, nothing sent to Sales.
 29. **A forged notice sent before the real one**: the real one still processed (only signed notices are
     deduplicated).
-30. **TEST where it is not allowed** (as the owner answers §9.4 #1): refused, `TestModeOnLiveStore` (§1.6).
+30. **A store in TEST**: the checkout and the order page say "Test mode — no real money is taken"; a
+    TEST payment never makes the order paid for real (§1.6, §9.4 #3).
 
 ---
 
@@ -587,6 +591,8 @@ late), and a short manual pass in MyFatoorah's test account before going live (�
 | §9.3 #5 | (b): a "fee to be set" order may get a payment request once staff set the fee | 2026-10-27 |
 | §9.3 #7 | (a), and the people in charge of the key told before it expires; where the date comes from explained (§1.2) | 2026-10-27 |
 | §9.3 #3 | The first pick fails: an off store takes no orders — open again as §9.4 #1 | 2026-10-27 |
+| §9.4 #1 | The system acts as usual: TEST is a store setting on any store, said at checkout; testing on the staging subdomain; LIVE before the real domain | 2026-10-27 |
+| §9.4 #2 | (a): a banner now; the Payment problems notification with Ops | 2026-10-27 |
 | — | New API keys, not the legacy one; methods on: Visa, Mastercard, Mada, Apple Pay, Apple Pay (Mada), STC Pay; fee on the vendor; SAR two decimals; no min/max | 2026-10-27 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
@@ -655,19 +661,17 @@ addition** (§1.2); **#3 open again** (§9.4 #1). The questions are kept as they
     count on the menu and on the admin home until someone opens each **[Recommended]**; (b) only in the
     Payments list.
 
-### 9.4 Still open — for the owner
+### 9.4 The second round of 2026-10-27
 
-1. **Where test mode runs** (replaces §9.3 #3). (a) **On a test copy of the site** — the owner's computer
-   now, a staging copy on the server at hosting time (same code, its own database, its own address).
-   The test copy may use only the TEST key; the real site refuses TEST altogether. Nothing about off
-   stores or staff accounts changes, and test orders never reach the real database **[Recommended]**.
-   (b) A Super Admin may place orders in an off store — changes Platform's off-store rule (§1.6),
-   Access (a Super Admin would need a customer account, which one email cannot have), Sales's checkout,
-   stock holds and the figures **[Not recommended]**. (c) TEST on a live store for a short window — real
-   customers would meet the test page and could not pay with a real card, and anyone could "pay" with
-   the public test cards **[Not recommended]**.
-2. **Telling the Super Admins before the key expires** (§1.2): (a) 30, 7 and 1 days before: a banner on
-   the gateway page and their admin home **now**, and a staff notification (panel and email) on a new
-   topic, Payment problems, **once Ops sends notifications** — as Sync's problems are today
-   **[Recommended]**; (b) Payments sends the email itself now, before Ops — a second way of mailing staff
-   that Ops would later replace.
+1. **Where test mode runs** — answered: the system acts as usual, TEST on any store, said at checkout;
+   testing on the staging subdomain before the real domain opens (§1.6).
+2. **Telling the Super Admins before the key expires** — answered: (a) (§1.2).
+3. **Orders placed while a store is in TEST** — open: (a) **every order placed while the store is in
+   TEST is a test order** (whatever the way to pay): numbered apart (`TEST-0001`), so real order numbers
+   still start at `SA-0001` on launch day; marked TEST everywhere, left out of every figure, and never
+   marked shipped **[Recommended]**; (b) only orders paid online in TEST are test orders, numbered as
+   usual — the staging orders then take `SA-0001` onwards.
+4. **The staging data on launch day** — open: (a) the staging database becomes the real one: products,
+   prices, stores and staff are kept; the test orders stay, marked TEST and outside every figure; the
+   keys and the MyFatoorah notice address are entered again for the real domain **[Recommended]**;
+   (b) a new empty database, and everything entered again.
