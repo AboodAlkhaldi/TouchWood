@@ -6,6 +6,7 @@ import { ShopStars } from '@/components/feedback/shop';
 import { Badge } from '@/components/ui/badge';
 import { figure, intlLocale } from '@/lib/digits';
 import { ShopPhoto } from '@/components/shop/ShopPhoto';
+import { CardPrice } from '@/components/shop/ShopPrice';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
@@ -16,8 +17,8 @@ import type { SharedProps } from '@/types/page';
 | The shop's product cards (catalog.md §4.5): photo, name and the labels the store attached, in the
 | list's order (amendment 1(g)), each as Geist's Badge in its tone - and "Last pieces" while a size
 | this viewer can buy and order now is ending soon (amendment 16(h)). Its stars and count where the
-| store's lists show ratings and it has a review (amendment 25; feedback.md §4.1 F7). No price, no
-| stock, no Add to Cart, no code: those come with their stages.
+| store's lists show ratings and it has a review (amendment 25; feedback.md §4.1 F7). Its price for this
+| viewer (amendment 35; sales.md §4.1 S1). No stock, no Add to Cart (R1-9), no code.
 |
 | What other modules add to a card (amendment 32) comes beside the cards as `facts`: Feedback's Save
 | heart, filled where the signed-in customer saved it here (feedback.md §4.1 F7, Q17 (b)) - a button
@@ -70,6 +71,7 @@ function ProductCard({ card, test }: { card: ShopCardData; test: string }) {
         >
             <ShopPhoto photo={card.photo} size="card" alt={card.name} className="aspect-square w-full rounded-md" />
             <span className="text-label-14 text-ink group-hover:underline">{card.name}</span>
+            <CardPrice price={card.price} />
             {card.rating === null || card.ratingCount === 0 ? null : (
                 <span className="inline-flex items-center gap-1.5" data-test="card-rating">
                     <ShopStars rating={card.rating} className="size-3.5" label={t(`catalog::shop.card_rating.${new Intl.PluralRules(intlLocale(locale)).select(card.ratingCount)}`, { rating: new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format(card.rating), count: figure(locale, card.ratingCount) })} />

@@ -16,4 +16,9 @@ return [
         'added' => 'Added to cart · :pieces',
         'view' => 'View Cart',
     ],
+    // The wholesale prices by quantity, under the Wholesale choice (§4.1 S1; R2-3).
+    'bands' => [
+        'title' => 'Wholesale Prices',
+        'from' => ['zero' => 'From :count pieces', 'one' => 'From :count piece', 'two' => 'From :count pieces', 'few' => 'From :count pieces', 'many' => 'From :count pieces', 'other' => 'From :count pieces'],
+    ],
 ];

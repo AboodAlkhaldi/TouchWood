@@ -43,6 +43,8 @@ return [
     // A card's Save heart (feedback.md §4.1 F7; amendment 32).
     'card_save' => ['add' => 'Save :name', 'remove' => 'Remove :name from saved'],
     'empty' => 'Nothing is listed here yet.',
+    // The shop's prices, without VAT (amendment 35; sales.md §4.1 S1).
+    'price' => ['from' => 'From', 'wholesale_from' => 'Wholesale from', 'was' => 'Was', 'off' => '−:percent%'],
     'product' => [
         'photo' => 'Photo :number of :total',
         'details' => 'Details',
