@@ -501,3 +501,19 @@ code: string,
 name: string,
 isActive: boolean,
 };
+export type ShopCartData = {
+sizes: ShopCartSizeData[],
+};
+export type ShopCartLimitsData = {
+minimum: number,
+maximum: number | null,
+inCart: number,
+outOfStock: boolean,
+};
+export type ShopCartSizeData = {
+variantId: string,
+retail: ShopCartLimitsData | null,
+wholesale: ShopCartLimitsData | null,
+outOfStock: boolean,
+inCart: number,
+};

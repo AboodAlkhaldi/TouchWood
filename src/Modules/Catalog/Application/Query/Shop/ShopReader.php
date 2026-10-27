@@ -94,6 +94,14 @@ interface ShopReader
     public function cardsSharing(string $storeId, string $locale, ShopperKind $viewer, string $column, string $value, string $brandId, array $except, int $limit): array;
 
     /**
+     * The store's best-selling cards this viewer sees, of brands shown in default listings, best-selling
+     * first, then newest (amendment 36, an empty cart's suggestions).
+     *
+     * @return list<ProductCard>
+     */
+    public function bestSelling(string $storeId, string $locale, ShopperKind $viewer, int $limit): array;
+
+    /**
      * A product as its page needs it, in that language, whatever its stage: its brand — its name and
      * current slug — its warranty, and its slug now in the other language.
      *

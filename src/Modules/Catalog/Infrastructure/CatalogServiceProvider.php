@@ -75,12 +75,14 @@ use Modules\Catalog\Infrastructure\Queue\PruneSearchLogJob;
 use Modules\Catalog\Infrastructure\Queue\PruneShopPagesJob;
 use Modules\Catalog\Presentation\Console\RebuildListingCommand;
 use Modules\Catalog\Presentation\Storefront\CatalogFramePart;
+use Modules\Catalog\Presentation\Storefront\PageBestSellers;
 use Modules\Catalog\Presentation\Storefront\ShopVisit;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ImportSections;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Catalog\Public\Contracts\ProductStoreSections;
+use Modules\Catalog\Public\Contracts\ShopBestSellers;
 use Modules\Catalog\Public\Contracts\ShopCardFacts;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Platform\Public\Contracts\AdminMenu;
@@ -145,6 +147,8 @@ final class CatalogServiceProvider extends ServiceProvider
         // What the modules add to the shop's product cards (amendment 32): one registry, the modules register.
         $this->app->singleton(InMemoryShopCardFacts::class);
         $this->app->alias(InMemoryShopCardFacts::class, ShopCardFacts::class);
+        // The store's best sellers as the shop's cards, for a page another module draws (amendment 36).
+        $this->app->bind(ShopBestSellers::class, PageBestSellers::class);
         // The modules that hold on to Catalog's items, asked before a delete (amendment 19).
         $this->app->singleton(InMemoryCatalogUsages::class);
         $this->app->alias(InMemoryCatalogUsages::class, CatalogUsages::class);

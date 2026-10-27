@@ -32,6 +32,32 @@ final readonly class DatabaseCarts implements Carts
         return $row instanceof stdClass ? $this->toCart($row) : null;
     }
 
+    public function pieces(StoreId $store, ?string $customerId, ?string $guestId): int
+    {
+        return (int) $this->buyer($store, $customerId, $guestId)
+            ->join('sales.cart_lines as l', 'l.cart_id', '=', 'sales.carts.id')
+            ->sum('l.quantity');
+    }
+
+    public function piecesOf(StoreId $store, ?string $customerId, ?string $guestId, array $variantIds): array
+    {
+        if ($variantIds === []) {
+            return [];
+        }
+
+        $pieces = [];
+
+        // One line a size a mode (the lines' key).
+        foreach ($this->buyer($store, $customerId, $guestId)
+            ->join('sales.cart_lines as l', 'l.cart_id', '=', 'sales.carts.id')
+            ->whereIn('l.variant_id', $variantIds)
+            ->get(['l.variant_id', 'l.sale_mode', 'l.quantity']) as $row) {
+            $pieces[(string) $row->variant_id][(string) $row->sale_mode] = (int) $row->quantity;
+        }
+
+        return $pieces;
+    }
+
     public function lock(StoreId $store, ?string $customerId, ?string $guestId): ?Cart
     {
         $row = $this->buyer($store, $customerId, $guestId)->lockForUpdate()->first();
@@ -135,9 +161,10 @@ final readonly class DatabaseCarts implements Carts
 
     private function buyer(StoreId $store, ?string $customerId, ?string $guestId): Builder
     {
-        $query = $this->db->table('sales.carts')->where('store_id', $store->value);
+        // Named in full: the piece counts join the lines onto it.
+        $query = $this->db->table('sales.carts')->where('sales.carts.store_id', $store->value);
 
-        return $customerId !== null ? $query->where('customer_id', $customerId) : $query->where('guest_id', (string) $guestId);
+        return $customerId !== null ? $query->where('sales.carts.customer_id', $customerId) : $query->where('sales.carts.guest_id', (string) $guestId);
     }
 
     private function line(string $cartId, string $variantId, SaleMode $mode): Builder

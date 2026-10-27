@@ -14,7 +14,9 @@ use Shared\Domain\ValueObject\StoreId;
  * `after[{module}.{key}]`, every section's, so a module reading its sections together reads them
  * once), so "Show more" is the same page asked again. And **which side the viewer buys on**
  * (amendment 35): an individual, a company, or a guest — who sees both, as the page does (§4.5) — and
- * the page's sizes this viewer can buy wholesale, in the product's order, as the page read them.
+ * the page's sizes this viewer can buy wholesale, in the product's order, as the page read them. And
+ * every size the page shows (amendment 36: the sizes on sale here, in the product's order), so a
+ * section about the sizes reads no page of its own.
  */
 final readonly class ShopProductVisitDto
 {
@@ -23,6 +25,7 @@ final readonly class ShopProductVisitDto
      * @param  array<string, string>  $after  section key => where it goes on from
      * @param  array<string, string>  $filters  section key => what it is narrowed to (amendment 31), the section's own word
      * @param  list<string>  $wholesaleSizes  variant ids
+     * @param  list<string>  $sizes  variant ids
      */
     public function __construct(
         public StoreId $store,
@@ -33,5 +36,6 @@ final readonly class ShopProductVisitDto
         public array $filters = [],
         public ShopperKind $viewer = ShopperKind::Guest,
         public array $wholesaleSizes = [],
+        public array $sizes = [],
     ) {}
 }

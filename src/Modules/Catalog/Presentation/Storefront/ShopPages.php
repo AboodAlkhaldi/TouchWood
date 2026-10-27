@@ -201,7 +201,9 @@ final readonly class ShopPages
             static fn (array $variant): string => (string) $variant['id'],
             array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['sellsWholesale'] ?? false) === true),
         ));
-        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes);
+        // Every size the page shows, in its order (amendment 36).
+        $sizes = array_map(static fn (array $variant): string => (string) $variant['id'], self::listOf($kept['page']['variants'] ?? []));
+        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 
@@ -224,6 +226,23 @@ final readonly class ShopPages
 
         // A results page is its search's, not a page of the shop's own: kept out of search engines.
         return new ShopSearchPage($query, $found->total, $this->cards($store, $locale, $found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true), $this->facts($store, $found->cards));
+    }
+
+    /**
+     * The store's best sellers as this viewer's cards, with what the modules add to them (amendment 36).
+     *
+     * @return array{cards: list<array<string, mixed>>, cardFacts: array<string, array<string, array<string, mixed>>>}
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function bestSelling(StoreId $store, string $locale, int $limit): array
+    {
+        $cards = $this->catalog->bestSelling($store, $locale, $this->visit->viewer(), $limit);
+
+        return [
+            'cards' => array_map(static fn (ShopCardData $card): array => $card->toArray(), $this->cards($store, $locale, $cards)),
+            'cardFacts' => $this->facts($store, $cards),
+        ];
     }
 
     /**

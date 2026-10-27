@@ -125,7 +125,12 @@ describe('S3, S4 · The cart', function () {
         $browser->post('/sa/en/cart/lines', ['variant' => $ready['variants'][1], 'mode' => 'RETAIL', 'quantity' => 2])->assertRedirect();
         $cart = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
 
-        expect($product['sections']['sales.cart'] ?? null)->toBe(['offered' => true])
+        // Each size with what this customer's cart holds of it, sold retail only (sales.md §4.2 B15).
+        $sizes = $product['sections']['sales.cart']['sizes'] ?? [];
+
+        expect(array_column($sizes, 'inCart', 'variantId'))->toBe([$ready['variants'][0] => 2, $ready['variants'][1] => 1])
+            ->and(array_map(static fn (array $size): array => [$size['retail']['inCart'] ?? null, $size['retail']['outOfStock'] ?? null, $size['wholesale'], $size['outOfStock']], $sizes))
+            ->toBe([[2, false, null, false], [1, false, null, false]])
             ->and($product['translations']['sales::shop_add.add.add'] ?? null)->toBe('Add to Cart')
             ->and(array_column($cart['lines'], 'quantity', 'variantId')[$ready['variants'][1]] ?? null)->toBe(3);
     });
