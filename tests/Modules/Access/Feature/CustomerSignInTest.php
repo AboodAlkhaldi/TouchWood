@@ -397,6 +397,36 @@ describe('the storefront session (spec §1.8)', function () {
             ->and(shopWho($browser))->toBe($customerId);
     });
 
+    it('is not swept away by a stranger opening a store without its language', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId, extra: ['remember' => '1']);
+
+        // brand.com/{store} shares the shop's session cookie and table, so it must sweep with the
+        // shop's lifetime too - any visitor reaches it, even with a store code that does not exist
+        // (security audit 2026-10-27; lessons 58 and 59).
+        config(['session.lottery' => [100, 100]]);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addDays(3));
+        (new AdminBrowser)->get('/zz')->assertNotFound();
+
+        // The stranger's own visit may leave a row of its own, so the count proves nothing (lesson 60):
+        // what matters is that the customer is still signed in.
+        expect(shopWho($browser))->toBe($customerId);
+    });
+
+    it('stays signed in when the customer opens their store without its language', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        shopSignIn($browser, $customerId, extra: ['remember' => '1']);
+
+        // Three hours idle - past the framework's two-hour fallback - then a bookmark to brand.com/sa.
+        config(['session.lottery' => [0, 100]]);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(3));
+        $browser->get('/sa')->assertRedirect();
+
+        expect(shopWho($browser))->toBe($customerId);
+    });
+
     it('is separate from the admin session', function () {
         $customerId = Fx::customer();
         $browser = new AdminBrowser;
