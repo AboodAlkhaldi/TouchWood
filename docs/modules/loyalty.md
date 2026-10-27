@@ -995,4 +995,5 @@ placing as built):
    order's redemption, as `redeem` would have recorded it; `orderCancelled` and the returns then work on
    it as built. Once.
 3. **`releaseRedemption(orderId)`** — the try did not pay: the points are free again **with their own
-   dates**, and no redemption is recorded. Once; nothing to release does nothing.
+   dates**, and no redemption is recorded; points whose date passed while they were held expire at the
+   release, as they would have. Once; nothing to release does nothing.

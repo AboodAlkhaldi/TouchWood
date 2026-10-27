@@ -1497,11 +1497,14 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    use case, **`PayOnline(quoteId, sessionId)`**:
    - **One transaction**: the quote and the cart locked; **a live try on this cart** →
      `PaymentInProgress` (the same quote and session again — a double click — answers the same try);
-     **§1.3 step 3 again**, refusing with `QuoteChanged` as built — **nothing reserved**, the customer
-     stays on checkout and sees what changed; then **the reservations** (#5) under **the order's future
-     id** (a ULID made now); then **the try** written — `sales.checkout_tries` (#11) — `LIVE`. Committed.
-   - Then `PaymentsApi::pay` (the try's id, the order's future id, the session, the quote's total — never
-     an amount from the page). The page follows payments.md §1.4 steps 5–9.
+     **a quote with a live or paid try, or made before the cart last changed** (the cart's version is
+     stamped on the quote) → refused (payments.md §1.1 rule 3); **the quote built again from the cart**
+     (§1.2 — prices, stock, coupon, points, gift, shipping) **must equal it**, else `QuoteChanged` naming
+     what moved — **nothing reserved**, the customer stays on checkout; then **the reservations** (#5)
+     under **the order's future id** (a ULID made now); **the try** written — `sales.checkout_tries`
+     (#11) — `LIVE`, with its window's end; and **`PaymentsApi::prepare`** in the same transaction (the
+     session checked, the attempt written with its key and checks). Committed.
+   - Then `PaymentsApi::charge` (the prepared attempt). The page follows payments.md §1.4 steps 5–9.
    - **`PaymentSucceeded` for a try → the order is created** (`CompleteOnlineOrder`), once, under the
      try's lock: §1.3 steps 2, 6, 7 and 8 from the try's quote — **the order number is taken now**, the
      fact segments recorded, everything snapshotted, `OrderPlaced` — the reservations **confirmed** to the
@@ -1510,22 +1513,25 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
      step 1 already answers a quote after its expiry), and §1.3 step 3 is **not** run again — it ran at
      Pay and the reservations hold. **A store switched off meanwhile still gets the order**
      (payments.md §1.10).
-   - **`PaymentFailed` or `PaymentNotTaken` for a try → the try is released** (`ReleaseTry`), once:
-     every reservation given back with **nothing counted** (#5), the try `RELEASED`, the cart untouched.
-   - **Checkout opened again while a try is live** → `PaymentsApi::refresh`: nothing in progress → the
-     try released there and then — as if Pay had never been pressed; in progress → "Your last payment is
-     being confirmed"; paid → the new order (payments.md §1.4 step 8). A second window while a try is
-     live shows no form (step 9).
-   - **A success for a try already released** (payments.md §1.7): `CompleteOnlineOrder` takes the
-     reservations **again** (all or nothing) and, if it can, creates the order as above; if it cannot,
-     **no order**, the try keeps the payment as **a refund due**, and Payments lists the attempt as needing
-     attention (it knows the success came after it reported nothing taken).
+   - **`PaymentFailed` or `PaymentNotTaken` for a try → the try is released** (`ReleaseTry`), once and
+     **only while it is `LIVE`** — a release arriving after the order was created changes nothing (the
+     order shares the try's id for its stock): every reservation given back with **nothing counted** (#5),
+     the try `RELEASED`, the cart untouched. **`PaymentNotAccepted`** (a currency refused) → released the
+     same way, with a refund due recorded on the try.
+   - **Checkout or the cart opened again while a try is live** (payments.md §1.4 step 8): nothing sent to
+     the gateway yet → the try released there and then — as if Pay had never been pressed; the charge
+     made → "Your last payment can still go through until …", the cart may be changed, Pay opens again
+     when the try's time is over; paid → the new order. A second window while a try is live shows no
+     form (step 9).
+   - **A success for a try already released** (payments.md §1.7, rule 15): **no order is made by
+     itself** — the try keeps the payment as **a refund due** (`refund_due_minor`), and Payments lists the
+     attempt as needing attention.
    - **Staff never see a try as an order** (the owner, 2026-10-28: "his order won't be created and shown
      to staff until it's paid"); tries are seen only in Payments' list.
 5. **Reservations for a try** (payments.md §9.2 #2–#4):
    - **Stock** — `InventoryApi::hold` under the order's future id, **with no expiry**, as at placing; the
-     order keeps the same hold when it is created (same id), and `release` gives it back. To check in the
-     build: a hold again for an id Inventory released (a late success, #4).
+     order keeps the same hold when it is created (same id), and `release` gives it back. Nothing new in
+     Inventory: an id is never held twice (a success after release makes no order — #4).
    - **The coupon** — Promotions' **reserve / confirm / release** (promotions.md §9.5): reserved at Pay
      (every check of `useCoupon`, counted toward its limits while reserved), **confirmed with the order's
      number** when the order is created, **released with nothing counted** otherwise. The built
@@ -1545,15 +1551,16 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
 8. **Payment requests** (payments.md §1.5; owner, 2026-10-19 P6, 2026-10-28 Q5): when an edit leaves the
    order holding less than is due, staff choose **"Request payment"** (open 60 minutes) or **"Handle by
    hand"**. The customer pays on **the request's own page** — `/{store}/{locale}/orders/{number}/pay` —
-   with the same form and timers; paid → #7. **Staff edits wait while a payment is in progress on the
-   order** (`PaymentsApi::refresh` says so), with the reason shown. A customer's cancellation while a
+   with the same form and timers; paid → #7. **Staff edits — and recording a payment by hand — wait while
+   a payment is in progress on the order** (`PaymentsApi::refresh` says so), with the reason shown;
+   **recording a payment by hand withdraws the order's open request** (payments.md §1.5). A customer's cancellation while a
    request is being paid — payments.md §9.6 #5.
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).
 10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md
-    §2.1: `options` becomes `quote`; `methods` and `start` go — `openSession` and `pay` replace them; and
-    `PaymentNotTaken` is consumed.
+    §2.1: `options` becomes `quote`; `methods` and `start` go — `openSession`, `prepare` and `charge` replace
+    them; and `PaymentNotTaken` and `PaymentNotAccepted` are consumed.
 11. **The orders table** (the review found the built schema cannot hold a stage 7 order):
     - a **`carrier_id`** (Shipping's, no key) and the carrier's names, **snapshotted at placement**; the
       check `orders_carrier` (carrier set exactly when shipped) becomes: the **shipping carrier** is set
@@ -1566,10 +1573,13 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
       when it is marked shipped** (made from the carrier's pattern then, or typed), and the carrier's
       names at placing — so a carrier deleted later (shipping.md §1.3, owner 2026-10-28) breaks no order;
     - **`sales.checkout_tries`** (#4): `id` ULID PK · `store_id` · `buyer` (customer or guest, as the cart)
-      · `cart_id` · `quote_id` · `order_id` (the order's future id) UNIQUE · `state` CHECK (`LIVE`,
-      `PAID`, `RELEASED`) · `refund_due_minor` NULL (#4's late success with no order) · `created_at`,
-      `ended_at` NULL · **one live try per cart** (a unique partial index on `cart_id` WHERE `state =
-      'LIVE'`).
+      · `cart_id` · `cart_version` · `quote_id` · `order_id` (the order's future id) UNIQUE · `state`
+      CHECK (`LIVE`, `PAID`, `RELEASED`) · `window_ends_at` · `refund_due_minor` NULL (#4: a success after
+      release, a currency refused) · `created_at`, `ended_at` NULL · **one live try per cart** (a unique
+      partial index on `cart_id` WHERE `state = 'LIVE'`) · **one try per quote that is not released** (a
+      unique partial index on `quote_id` WHERE `state <> 'RELEASED'`);
+    - **the cart's version** (`sales.carts.version`, raised by every change of its lines, coupon or
+      points) and **the quote's copy of it** (`sales.quotes.cart_version`) — payments.md §1.1 rule 3.
 12. **Edits after placing** (§1.7 step 5 works shipping out again from the order's snapshot): **staff
     set the fee** of a "fee to be set" order as an edit of its own ("Set the shipping fee"); a changed
     **address** re-quotes at today's prices (shipping.md §9.3 #12); the carrier's own free-above amount
@@ -1577,7 +1587,9 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
 13. **Voiding an `ONLINE` record** (owner, 2026-10-27, payments.md §9.3 #12): **a real one is never
     voided** — a mistake is fixed by a refund; a TEST one may be.
 14. **Test orders numbered apart** (owner, 2026-10-27; payments.md §1.6, §9.4 #3): an order placed while
-    its store's gateway is in TEST — an online one when it is paid (#4) — takes the number `TEST-0001`,
+    its store's gateway is in TEST — **an online one by the mode its payment was made in**, not the
+    store's mode when it is paid (#4; the review, 2026-10-28: a store switched to LIVE mid-payment must
+    not turn a test payment into a real order, nor the reverse) — takes the number `TEST-0001`,
     `TEST-0002`… from a counter of its own
     per store, so the real `SA-0001` counter is untouched; the order carries `is_test`, is left out of
     every figure, and is never marked shipped.
