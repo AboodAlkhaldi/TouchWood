@@ -8,6 +8,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\FoundVariantDto;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
@@ -17,13 +18,16 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Public\Enums\OrderAudience;
 use Shared\Application\Unauthorized;
 
 /**
  * **The order edit's size search** (sales.md §3.2; the screens' B7): the store's sizes — switched on there,
  * not archived — by a product's name or a size's code, 20 at most, less those the order already has (staff
- * change those lines' quantity), each with today's prices and the stock available. For staff who edit
- * that store's orders.
+ * change those lines' quantity), and **less those the edit would refuse** (§1.7, checkout's rules): not
+ * orderable now, not available now, not open to the order's account, no stock record or not orderable in
+ * Inventory. Each with today's prices — wholesale only on a company's order — and the stock available when
+ * its stock counts. For staff who edit that store's orders.
  */
 final readonly class SearchEditSizesHandler
 {
@@ -60,6 +64,23 @@ final readonly class SearchEditSizesHandler
 
         $ids = array_map(static fn (FoundVariantDto $row): string => $row->variantId, $found);
         $listed = $this->catalog->storeVariants($store, $ids);
+        $company = $order['audience'] === OrderAudience::Company->value;
+        $open = array_flip($this->catalog->productsOpenTo($store, $company ? ShopperKind::Company : ShopperKind::Individual, array_values(array_unique(array_map(static fn (FoundVariantDto $row): string => $row->productId, $found)))));
+        $stock = $this->inventory->stock($store, $ids);
+        // What the edit would refuse left out (OrderEditing: checkout's rules on an added line).
+        $found = array_values(array_filter($found, static function (FoundVariantDto $row) use ($listed, $open, $stock): bool {
+            $variant = $listed[$row->variantId] ?? null;
+            $held = $stock[$row->variantId] ?? null;
+
+            return $variant !== null && $variant->isActive && $variant->orderable && ! $variant->notAvailableNow && isset($open[$row->productId])
+                && $held !== null && $held->orderable;
+        }));
+
+        if ($found === []) {
+            return [];
+        }
+
+        $ids = array_map(static fn (FoundVariantDto $row): string => $row->variantId, $found);
         $asked = [];
 
         foreach ($ids as $id) {
@@ -69,7 +90,7 @@ final readonly class SearchEditSizesHandler
                 $asked[] = new CartLineDto($id, SaleMode::Retail, 1);
             }
 
-            if ($variant !== null && in_array(SaleMode::Wholesale, $variant->saleModes, true)) {
+            if ($company && $variant !== null && in_array(SaleMode::Wholesale, $variant->saleModes, true)) {
                 $asked[] = new CartLineDto($id, SaleMode::Wholesale, max(1, $variant->wholesaleMinimum ?? 1));
             }
         }
@@ -80,8 +101,7 @@ final readonly class SearchEditSizesHandler
             $prices[$line->variantId.'|'.$line->mode->value] = $line;
         }
 
-        $bands = $this->pricing->wholesaleBands($store, $ids);
-        $stock = $this->inventory->stock($store, $ids);
+        $bands = $company ? $this->pricing->wholesaleBands($store, $ids) : [];
         $exponent = $this->reader->exponent((string) $order['currency_code']);
         $price = static fn (?LinePriceDto $line): ?array => $line === null ? null : ['now' => $line->unit, 'before' => $line->unit->minorUnits < $line->listUnit->minorUnits ? $line->listUnit : null];
 
@@ -96,7 +116,7 @@ final readonly class SearchEditSizesHandler
                 ], $row->values),
                 $row->photoMediaId, $retail,
                 $wholesale === null ? null : [...$wholesale, 'minimum' => max(1, $listed[$row->variantId]->wholesaleMinimum ?? 1), 'bands' => $bands[$row->variantId] ?? []],
-                $stock[$row->variantId]->available ?? null, $exponent,
+                ($stock[$row->variantId]->countsOnStock ?? false) ? $stock[$row->variantId]->available : null, $exponent,
             );
         }, $found);
     }

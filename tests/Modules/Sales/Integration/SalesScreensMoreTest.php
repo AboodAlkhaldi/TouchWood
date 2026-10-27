@@ -7,6 +7,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePrices;
 use Modules\Pricing\Application\Command\SetWholesalePrices\SetWholesalePricesHandler;
 use Modules\Pricing\Application\PricingPermissions;
@@ -16,6 +18,8 @@ use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\BuyAgain\BuyAgain;
 use Modules\Sales\Application\Command\BuyAgain\BuyAgainHandler;
+use Modules\Sales\Application\Command\CloseReturn\CloseReturn;
+use Modules\Sales\Application\Command\CloseReturn\CloseReturnHandler;
 use Modules\Sales\Application\Command\CompleteReturn\CompleteReturn;
 use Modules\Sales\Application\Command\CompleteReturn\CompleteReturnHandler;
 use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
@@ -142,6 +146,28 @@ describe('buy again', function () {
         expect(array_column(app(BuyAgainHandler::class)->handle(new BuyAgain($number))->skipped, 'reason'))->toBe([CartLineProblem::NotAvailable, CartLineProblem::NotForYourAccount]);
     });
 
+    it('leaves out a wholesale line for an individual, and every line of a store switched off since', function () {
+        ['number' => $number, 'order' => $order, 'variants' => $variants] = smOrder();
+        DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $variants[1])->update(['sale_mode' => 'WHOLESALE']);
+        DB::table('catalog.store_variants')->where('variant_id', $variants[1])->update(['sells_wholesale' => true]);
+
+        $wholesale = app(BuyAgainHandler::class)->handle(new BuyAgain($number));
+
+        expect(array_map(fn ($skipped): array => [$skipped->variantId, $skipped->reason], $wholesale->skipped))->toBe([[$variants[1], CartLineProblem::NotForYourAccount]]);
+
+        // A store switched off since (the base store never is): nothing goes back.
+        $ready = Cx::ready(storeCode: 'eg');
+        $egypt = Cx::place(Cx::start($ready['address'], storeCode: 'eg')->id, 'eg')->number;
+        DB::table('sales.cart_lines')->delete();
+        $customer = $ready['customer'];
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+        Fx::actAsCustomer($customer);
+        $off = app(BuyAgainHandler::class)->handle(new BuyAgain($egypt));
+
+        expect([$off->added, array_values(array_unique(array_map(fn ($skipped): string => $skipped->reason->value, $off->skipped)))])->toBe([0, ['NOT_AVAILABLE']])
+            ->and(DB::table('sales.cart_lines')->count())->toBe(0);
+    });
+
     it('answers another customer\'s order as none, and staff as not allowed', function () {
         ['number' => $number] = smOrder();
         Fx::actAsCustomer(Cx::customer());
@@ -165,19 +191,33 @@ describe('the order edit\'s size search', function () {
         DB::table('catalog.store_products')->where('product_id', $other)->where('store_id', Fx::storeId('sa'))->update(['wholesale_minimum' => 5]);
         Fx::actAsStaff(Fx::staffWith([PricingPermissions::WHOLESALE_EDIT], ['sa']));
         app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices(Fx::storeId('sa'), $third, [5 => '25.00', 10 => '20.00']));
+        // A company's order sees wholesale prices; an individual's would not.
+        DB::table('sales.orders')->where('id', $order)->update(['audience' => 'COMPANY']);
+        // Not available now: the edit would refuse it, so it is not offered.
+        ['variants' => [$unavailable]] = Px::ready(['95 cm']);
+        Rx::switchOn('sa', [$unavailable]);
+        Rx::set('sa', [$unavailable => '40.00']);
+        Ix::count('sa', [$unavailable => 7]);
+        DB::table('catalog.store_variants')->where('variant_id', $unavailable)->update(['not_available_now' => true]);
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_EDIT], ['sa']));
 
         $rows = app(SearchEditSizesHandler::class)->handle(new SearchEditSizes($order));
         $found = array_values(array_filter($rows, fn ($row): bool => $row->variantId === $third))[0] ?? null;
 
-        expect(array_column($rows, 'variantId'))->not->toContain($variants[0])
+        expect(array_column($rows, 'variantId'))->not->toContain($unavailable)
+            ->and(array_column($rows, 'variantId'))->not->toContain($variants[0])
             ->and(array_column($rows, 'variantId'))->not->toContain($variants[1])
-            ->and($found?->retail['now']->minorUnits)->toBe(30_00)
-            ->and($found?->retail['before'])->toBeNull()
-            ->and([$found?->wholesale['minimum'], $found?->wholesale['now']->minorUnits])->toBe([5, 25_00])
+            ->and(($found->retail ?? null)['now']->minorUnits ?? null)->toBe(30_00)
+            ->and(($found->retail ?? null)['before'] ?? null)->toBeNull()
+            ->and([($found->wholesale ?? null)['minimum'] ?? null, ($found->wholesale ?? null)['now']->minorUnits ?? null])->toBe([5, 25_00])
             ->and(array_map(fn ($band): array => [$band->fromQuantity, $band->unit->minorUnits], $found->wholesale['bands'] ?? []))->toBe([[5, 25_00], [10, 20_00]])
             ->and([$found?->available, $found?->exponent])->toBe([7, 2])
             ->and(array_column(app(SearchEditSizesHandler::class)->handle(new SearchEditSizes($order, (string) DB::table('catalog.variants')->where('id', $third)->value('code'))), 'variantId'))->toBe([$third]);
+
+        DB::table('sales.orders')->where('id', $order)->update(['audience' => 'PUBLIC']);
+        $individual = array_values(array_filter(app(SearchEditSizesHandler::class)->handle(new SearchEditSizes($order)), fn ($row): bool => $row->variantId === $third))[0] ?? null;
+        expect($individual?->wholesale)->toBeNull()
+            ->and(($individual->retail ?? null)['now']->minorUnits ?? null)->toBe(30_00);
     });
 
     it('answers an order of a store the reader does not edit as none', function () {
@@ -195,7 +235,7 @@ describe('returns', function () {
     it('shows what completing a received return refunds, as completing it does, the shipping with the last pieces', function (int $pieces, bool $withShipping) {
         Cx::setting(SalesSettings::FLAT_FEE, 25_00);
         $sold = smOrder();
-        // One size only, of two pieces: the second return of both makes every bought piece returned.
+        // One size only, of two pieces: a return of both makes every bought piece returned.
         DB::table('sales.order_lines')->where('order_id', $sold['order'])->where('variant_id', $sold['variants'][1])->delete();
         $return = smReturn($sold, $pieces);
         $line = (string) DB::table('sales.return_lines')->where('return_id', $return)->value('order_line_id');
@@ -204,9 +244,12 @@ describe('returns', function () {
         $preview = app(PreviewReturnRefundHandler::class)->handle(new PreviewReturnRefund($return));
         $refunded = app(CompleteReturnHandler::class)->handle(new CompleteReturn($return));
 
+        $shippingVat = (int) DB::table('sales.orders')->where('id', $sold['order'])->value('vat_minor')
+            - (int) DB::table('sales.order_lines')->where('order_id', $sold['order'])->sum('vat_share_minor');
+
         expect($preview->total->minorUnits)->toBe($refunded)
             ->and($preview->goods->minorUnits + $preview->vat->minorUnits + $preview->shipping->minorUnits + $preview->shippingVat->minorUnits)->toBe($refunded)
-            ->and($preview->shipping->minorUnits > 0)->toBe($withShipping)
+            ->and([$preview->shipping->minorUnits, $preview->shippingVat->minorUnits])->toBe($withShipping ? [25_00, $shippingVat] : [0, 0])
             ->and($preview->vat->minorUnits)->toBeGreaterThan(0)
             ->and($preview->exponent)->toBe(2);
     })->with([
@@ -234,9 +277,13 @@ describe('returns', function () {
         $line = (string) DB::table('sales.order_lines')->where('order_id', $sold['order'])->where('is_gift', false)->orderBy('unit_minor')->value('id');
         $withdrawn = app(RequestReturnHandler::class)->handle(new RequestReturn($sold['order'], 'DAMAGED', null, [['orderLineId' => $line, 'quantity' => 1]]));
         app(WithdrawReturnHandler::class)->handle(new WithdrawReturn($withdrawn));
-        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, SalesPermissions::RETURN_MANAGE], ['sa']));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        // Accepted, its pieces never came: closed.
+        $closed = smReturn($sold);
+        app(CloseReturnHandler::class)->handle(new CloseReturn($closed));
 
-        expect(array_column(app(ListReturnsHandler::class)->handle(new ListReturns(status: 'closed_all'))->returns, 'returnId'))->toBe([$withdrawn, $refused])
+        expect(array_column(app(ListReturnsHandler::class)->handle(new ListReturns(status: 'closed_all'))->returns, 'returnId'))->toBe([$closed, $withdrawn, $refused])
             ->and(array_column(app(ListReturnsHandler::class)->handle(new ListReturns(status: 'ACCEPTED'))->returns, 'returnId'))->toBe([$accepted]);
     });
 });

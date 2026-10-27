@@ -832,9 +832,11 @@ the order's store.
   productId, productNameAr, productNameEn, code, values, photoMediaId, retail {now, before}, wholesale {now,
   before, minimum, bands [{fromQuantity, unit}]}, available, exponent}>`: the order's store's sizes switched on
   there and not archived, by a product's name or a size's code (Catalog's `searchVariants`), 20 at most,
-  less those the order has — today's one-piece retail price when it sells retail and is priced (`before`
-  only while `now` is lower), its price at its wholesale minimum and its bands (`PricingApi::wholesaleBands`)
-  when it sells wholesale, the stock available now (null: not counted).
+  less those the order has and **less those the edit would refuse** (§1.7, checkout's rules: not orderable
+  now, not available now, not open to the order's account, no stock record or not orderable in Inventory) —
+  today's one-piece retail price when it sells retail and is priced (`before` only while `now` is lower);
+  on a company's order only, its price at its wholesale minimum and its bands (`PricingApi::wholesaleBands`)
+  when it sells wholesale; the stock available now when its stock counts (null: the provider's).
 
 ## 4 · State machines
 
