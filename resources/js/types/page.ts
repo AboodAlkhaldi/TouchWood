@@ -147,7 +147,7 @@ export type SharedProps = {
      * Shop pages under a store: what modules put in the frame, by module (catalog.md §4.5) - Catalog's
      * category menu and search box.
      */
-    frame?: { catalog?: ShopFrameData };
+    frame?: { catalog?: ShopFrameData; sales?: { words: { cart: string } } };
     /** Whether the sidebar starts open or shut down to its rail; this browser's own choice. */
     sidebarOpen: boolean;
     /** The sidebar's business areas this browser left open (group keys); several may be. */

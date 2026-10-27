@@ -33,11 +33,11 @@ final class ShopProductSectionsTestSection implements ShopProductSection
     }
 }
 
-it('is one registry for the whole application, holding Pricing\'s section and the three Feedback registers, in order', function () {
+it('is one registry for the whole application, holding the sections Pricing, Sales and Feedback register, in order', function () {
     $held = (fn (): array => $this->sections)->call(app(InMemoryShopProductSections::class));
 
     expect(app(ShopProductSections::class))->toBe(app(InMemoryShopProductSections::class))
-        ->and(array_keys($held))->toBe(['pricing.wholesale', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist']);
+        ->and(array_keys($held))->toBe(['pricing.wholesale', 'sales.cart', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist']);
 });
 
 it('tells every section who is looking and which of the page\'s sizes they can buy wholesale (amendment 35)', function () {

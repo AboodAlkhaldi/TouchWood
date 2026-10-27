@@ -75,8 +75,8 @@ it('gives a guest the rating, no reviews yet, nothing to write or ask, and no wi
 
     $sections = shopSections(get(shopSectionsUrl($product)));
 
-    // Pricing's wholesale bands come first (catalog.md amendment 35): none here, sold retail only.
-    expect(array_keys($sections))->toBe(['pricing.wholesale', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist'])
+    // Pricing's wholesale bands and Sales's Add to Cart come first (catalog.md amendment 35): no bands here, sold retail only.
+    expect(array_keys($sections))->toBe(['pricing.wholesale', 'sales.cart', 'feedback.reviews', 'feedback.questions', 'feedback.wishlist'])
         ->and($sections['pricing.wholesale'])->toBeNull()
         ->and($sections['feedback.reviews'])->toBe(['average' => null, 'count' => 0, 'reviews' => [], 'next' => null, 'canWrite' => false, 'stars' => [
             ['star' => 5, 'count' => 0], ['star' => 4, 'count' => 0], ['star' => 3, 'count' => 0], ['star' => 2, 'count' => 0], ['star' => 1, 'count' => 0],
