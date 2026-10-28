@@ -121,3 +121,12 @@ Tests: `tests/Modules/Feedback/Integration` — `FeedbackPermissionsTest`, `Feed
 `FeedbackMenuSectionTest`, `FeedbackErrorMessagesTest`, `FeedbackSettingsTest`, `ReviewsTest`, `ReviewTablesTest`, `ReviewRaceTest`, `RatingsPushTest` (with Catalog's `CatalogRatingsTest`), `QuestionsTest`, `QuestionTablesTest`, `QuestionRaceTest`, `BulkDecisionsTest`, `RejectReasonsTest`, `WishlistTest`, `WishlistTablesTest`, `WishlistRaceTest`, `FeedbackReadsTest`;
 `tests/Modules/Feedback/Feature/ShopSectionsTest` (the product page, with Catalog's `ShopProductSectionsTest` and `ShopPagesTest`), `SavedHeartsTest` (the hearts on cards: a category page, its Show More, the search results, a product page's related cards); `tests/Modules/Feedback/Unit/RemovedMeanwhileTest`, `FeedbackLanguageTest`;
 Sales is faked by `tests/Modules/Feedback/Support/FakeSales` until it is built.
+
+## For Ops (feedback.md §2.5, §6; 2026-10-28)
+
+- `Public/Contracts/FeedbackApi` (bound to `Application/FeedbackApiImpl`): `favouriteCounts`, `reviewForMessage`,
+  `questionForMessage`, `counts`; SQL in `DatabaseFeedbackQueries` (`review`, `question`, `counts`).
+- `Public/Events`: `QuestionAnswered` (`AnswerQuestionHandler`), `QuestionNotPublished` (`RejectQuestionHandler`,
+  `UnpublishQuestionHandler`, with a reason only), `ReviewNotPublished` (`Application/Review/Moderation`, rejecting or
+  unpublishing with a reason only) — each through the outbox inside the change's own transaction.
+- Tests: `tests/Modules/Feedback/Integration/FeedbackOpsTest.php`.

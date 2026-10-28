@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Feedback\Application\Review;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Feedback\Application\FeedbackAudit;
 use Modules\Feedback\Application\StaffChange;
@@ -12,7 +13,9 @@ use Modules\Feedback\Domain\Exception\InvalidModeration;
 use Modules\Feedback\Domain\Exception\ReviewNotFound;
 use Modules\Feedback\Domain\Repository\Reviews;
 use Modules\Feedback\Public\Enums\ReviewStatus;
+use Modules\Feedback\Public\Events\ReviewNotPublished;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * A review moved on by its store's staff (feedback.md §1.1, §4): approved from waiting — it shows in
@@ -27,6 +30,7 @@ final readonly class Moderation
         private StaffChange $change,
         private Reviews $reviews,
         private ListingFacts $listing,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -54,6 +58,12 @@ final readonly class Moderation
                 $this->reviews->countRating($review->productId, $review->rating, $to === ReviewStatus::Approved ? 1 : -1, $now);
                 // Into Catalog's listing in the same transaction (§1.2): a list is never stale.
                 $this->listing->ratings([$review->productId => $this->reviews->rating($review->productId)]);
+            }
+
+            // Rejected or taken down with a reason: Ops tells the customer why; without one, no message ever
+            // goes out (§1.1; ops.md §1.5 C17; owner, 2026-10-28).
+            if ($to !== ReviewStatus::Approved && $reason !== null) {
+                $this->outbox->record(new ReviewNotPublished((string) Str::uuid(), $review->id, $review->productId, $review->storeId, $review->customerId, $now));
             }
 
             $action = match ($to) {

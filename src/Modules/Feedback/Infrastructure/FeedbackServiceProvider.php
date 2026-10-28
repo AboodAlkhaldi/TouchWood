@@ -15,6 +15,7 @@ use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Catalog\Public\Contracts\CatalogUsages;
 use Modules\Catalog\Public\Contracts\ShopCardFacts;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
+use Modules\Feedback\Application\FeedbackApiImpl;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\FeedbackSettings;
 use Modules\Feedback\Application\Query\FeedbackQueries;
@@ -40,6 +41,7 @@ use Modules\Feedback\Presentation\Storefront\QuestionsSection;
 use Modules\Feedback\Presentation\Storefront\ReviewsSection;
 use Modules\Feedback\Presentation\Storefront\SavedCardFact;
 use Modules\Feedback\Presentation\Storefront\WishlistSection;
+use Modules\Feedback\Public\Contracts\FeedbackApi;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Dto\MenuEntryDto;
@@ -61,6 +63,8 @@ final class FeedbackServiceProvider extends ServiceProvider
         $this->app->bind(Wishlist::class, DatabaseWishlist::class);
         $this->app->bind(FeedbackQueries::class, DatabaseFeedbackQueries::class);
         $this->app->bind(ShopFeedbackQueries::class, DatabaseShopFeedbackQueries::class);
+        // Its public reads, for Ops (§2.5).
+        $this->app->bind(FeedbackApi::class, FeedbackApiImpl::class);
         // Read once a request for the product page's three sections (catalog.md amendment 26(b)).
         $this->app->scoped(ShopFeedback::class);
     }
