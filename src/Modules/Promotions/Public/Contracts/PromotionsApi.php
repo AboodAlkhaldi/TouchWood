@@ -31,6 +31,13 @@ interface PromotionsApi
     public function applyCoupon(CouponRequest $request): CouponResult;
 
     /**
+     * Sales's coupon box (§2.1, answer 29): whether the code typed names a coupon of the store this
+     * customer may know of — one for everyone, or one assigned to them — whatever its dates or uses, so
+     * Sales can count the codes that name nothing. Reads only.
+     */
+    public function knowsCoupon(StoreId $store, string $customerId, string $code): bool;
+
+    /**
      * The room left under the store's discount ceiling for a coupon, then points (§1.6): what the
      * ceiling allows off `gross_subtotal`, less what the prices already took, never below 0.
      */

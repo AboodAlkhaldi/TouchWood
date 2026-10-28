@@ -13,11 +13,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\GuestIdentity;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
@@ -28,9 +31,12 @@ use Modules\Sales\Application\Command\RemoveCartLine\RemoveCartLine;
 use Modules\Sales\Application\Command\RemoveCartLine\RemoveCartLineHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
+use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\SignInToUseCoupon;
+use Modules\Sales\Domain\Exception\TooManyCouponTries;
 use Modules\Sales\Domain\Model\Cart;
 use Modules\Sales\Domain\Model\RemovedLine;
 use Modules\Sales\Domain\Repository\Carts;
@@ -40,8 +46,10 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 
 use function Pest\Laravel\seed;
+use function Pest\Laravel\travel;
 
 /*
 | The cart (sales.md §1.1, §6, §8 "Cart"): permissive adds — any size, either mode, 1 to 1,000,000 —
@@ -234,6 +242,111 @@ describe('the coupon', function () {
         cartAsGuest();
 
         expect(fn () => app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15')))->toThrow(SignInToUseCoupon::class);
+    });
+
+    // Security audit run-2 (2026-10-27): codes could be guessed without limit (owner, 2026-10-28).
+    describe('codes that name no coupon', function () {
+        $type = static fn (string $code) => app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), $code));
+
+        it('takes five in ten minutes, then no code at all - a right one included - and keeps the last taken', function () use ($type) {
+            $sara = Fx::customer();
+            Pr::coupon('SUMMER-15');
+            Fx::actAsCustomer($sara);
+
+            foreach (['NOPE-1', 'NOPE-2', 'NOPE-3', 'NOPE-4', 'NOPE-5'] as $wrong) {
+                $type($wrong);
+            }
+
+            expect(cartOf($sara, null)?->couponCode)->toBe('NOPE-5')
+                ->and(fn () => $type('NOPE-6'))->toThrow(TooManyCouponTries::class)
+                ->and(fn () => $type('SUMMER-15'))->toThrow(TooManyCouponTries::class)
+                ->and(cartOf($sara, null)?->couponCode)->toBe('NOPE-5');
+
+            // Taking the code off is never stopped.
+            $type('');
+            expect(cartOf($sara, null)?->couponCode)->toBeNull();
+        });
+
+        it('says how many minutes are left, and takes codes again once ten minutes have passed', function () use ($type) {
+            $sara = Fx::customer();
+            Pr::coupon('SUMMER-15');
+            Fx::actAsCustomer($sara);
+
+            foreach (range(1, 5) as $n) {
+                $type("NOPE-{$n}");
+            }
+
+            travel(4)->minutes();
+
+            try {
+                $type('SUMMER-15');
+                throw new RuntimeException('Nothing was refused.');
+            } catch (TooManyCouponTries $refused) {
+                expect($refused->context())->toBe(['minutes' => 6]);
+            }
+
+            travel(6)->minutes();
+            $type('SUMMER-15');
+
+            expect(cartOf($sara, null)?->couponCode)->toBe('SUMMER-15');
+        });
+
+        it('does not count a code that names a coupon, whatever its state, and still takes a right one after four wrong', function () use ($type) {
+            $sara = Fx::customer();
+            Pr::coupon('SUMMER-15');
+            Pr::coupon('ENDED', with: ['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]);
+            Fx::actAsCustomer($sara);
+
+            foreach (range(1, 4) as $n) {
+                $type("NOPE-{$n}");
+            }
+
+            foreach (range(1, 3) as $n) {
+                $type('ENDED');
+                $type('summer-15');
+            }
+
+            $type('NOPE-5');
+
+            expect(cartOf($sara, null)?->couponCode)->toBe('NOPE-5')
+                ->and(fn () => $type('SUMMER-15'))->toThrow(TooManyCouponTries::class);
+        });
+
+        it('follows the two settings an admin of every store changed: 2 codes in 1 minute', function () use ($type) {
+            $sara = Fx::customer();
+            Fx::actAsStaff(Fx::staffWith([SalesPermissions::SETTINGS_UPDATE], ['*'], RoleLevel::Admin));
+            app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::COUPON_WRONG_CODES, null, 2));
+            app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::COUPON_WINDOW_MINUTES, null, 1));
+            Fx::actAsCustomer($sara);
+
+            $type('NOPE-1');
+            $type('NOPE-2');
+
+            expect(fn () => $type('NOPE-3'))->toThrow(TooManyCouponTries::class);
+
+            travel(1)->minutes();
+            $type('NOPE-3');
+
+            expect(cartOf($sara, null)?->couponCode)->toBe('NOPE-3');
+        });
+
+        it('counts a coupon given to others as wrong, and each customer apart', function () use ($type) {
+            $sara = Fx::customer();
+            $omar = Fx::customer('omar@example.test');
+            Pr::assign(Pr::coupon('FOR-SARA', with: ['eligibility' => 'ASSIGNED']), $sara);
+            Fx::actAsCustomer($omar);
+
+            foreach (range(1, 5) as $n) {
+                $type('FOR-SARA');
+            }
+
+            expect(fn () => $type('FOR-SARA'))->toThrow(TooManyCouponTries::class);
+
+            Fx::actAsCustomer($sara);
+            $type('FOR-SARA');
+
+            expect(cartOf($sara, null)?->couponCode)->toBe('FOR-SARA');
+        });
     });
 });
 

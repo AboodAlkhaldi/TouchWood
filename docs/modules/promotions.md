@@ -123,7 +123,8 @@ In the store currency's smallest unit (handoff §5.1), on the eligible lines' `t
 area"), with a message the checkout shows, when:
 
 - it is not active, not started, ended, used up for everyone or for this customer, or not assigned to
-  this customer;
+  this customer — **a coupon given to others is checked first and answers as an unknown code**, with
+  no name and no other reason, so a guessed code never tells that a private coupon exists (answer 29);
 - the order's `net_subtotal` is under its minimum;
 - no line is eligible;
 - it is worth nothing (a percentage of a small total that rounds to 0);
@@ -279,6 +280,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | Method | For |
 |---|---|
 | `applyCoupon(CouponRequest $request): CouponResult` | Sales's cart and quote: the coupon's discount, line by line, or the reason it is refused (§1.3). Reads only |
+| `knowsCoupon(StoreId $store, string $customerId, string $code): bool` | Sales's coupon box: whether the code names a coupon of the store this customer may know of — one for everyone, or one assigned to them — whatever its dates or uses, so Sales counts the codes that name nothing (answer 29). Reads only |
 | `customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money` | Sales: the room left under the ceiling (§1.6), against which it checks the coupon, then the points |
 | `giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales: the levels the order reaches, highest first (§1.7) |
 | `giftLevelsAbove(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales's cart: the levels on now for the buyer that the goods do not reach yet, lowest first — the next gift (sales.md §4.2 B12, 2026-10-27) |
@@ -300,7 +302,9 @@ permission that allowed the change**; Promotions builds the scope itself — as 
   `allowWithPoints`; or a `CouponRefusal`.
 - `CouponRefusal`: `UNKNOWN_CODE`, `INACTIVE`, `NOT_STARTED`, `ENDED`, `USED_UP`,
   `USED_UP_FOR_YOU`, `NOT_ASSIGNED_TO_YOU`, `BELOW_MINIMUM`, `NOTHING_ELIGIBLE`, `WORTH_NOTHING`,
-  `NOT_WITH_POINTS`, `PASSES_CEILING`.
+  `NOT_WITH_POINTS`, `PASSES_CEILING`. `applyCoupon` never answers `NOT_ASSIGNED_TO_YOU`: it answers
+  `UNKNOWN_CODE` instead (answer 29); placing the order (`useCoupon`) may still, for a customer whose
+  assignment was taken back after the quote.
 - `UseCoupon`: the order's id and public number, the coupon's id, the `CouponRequest` it was quoted
   for (the cart's prices, customer, audience), the quoted discount, whether points are used, and the
   caller's permission.
@@ -354,7 +358,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
-| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `giftLevelsAbove`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
+| `applyCoupon`, `knowsCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `giftLevelsAbove`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
 |---|---|
@@ -778,6 +782,13 @@ Owner, 2026-10-19 ("accept for all", after step 5's review):
     (`amount <= goods_total`, §1.7).
 28. **A change of a gift level checks only a new gift** against Catalog, as answer 22 for a coupon's
     lists (§1.7).
+
+Owner, 2026-10-28 (security audit run-2):
+
+29. **A coupon given to others answers as an unknown code** — "some of them are secret and some are
+    public for everyone": `applyCoupon` checks the assignment before anything else and answers
+    `UNKNOWN_CODE` with no name; a public coupon keeps its reason (ended, under the minimum…). Sales
+    limits the codes that name nothing (sales.md answer 50) through the new read `knowsCoupon` (§1.3, §2.1).
 
 ### 9.2 Still open
 
