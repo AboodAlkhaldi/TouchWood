@@ -384,7 +384,7 @@ These hold for every gateway, and every one has its tests in §8.
   **(a) ask the customer to pay the rest online** — a **payment request** — or **(b) handle it by hand**
   (a transfer or whatever they arrange; then they record it in Sales, as today).
 - (a) creates a **request** for **exactly what is missing**, open **60 minutes** (P22). The customer sees
-  it on their order ("Pay the remaining 45.00 SAR") — and, from stage 8, by email/SMS. Expired → nothing
+  it on their order ("Pay the remaining 45.00 SAR") — and, from stage 8, **by bell and email** (§9.7 #5; SMS carries codes only — ops.md). Expired → nothing
   is cancelled; staff may send a new one.
 - **The request has its own page** (owner, 2026-10-28: "a unique page, not as usual"):
   `/{store}/{locale}/orders/{number}/pay` — the order's number and summary, the amount asked, who asked
@@ -640,10 +640,13 @@ interface PaymentsApi
 
 | Event | When |
 |---|---|
-| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
+| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `storeId`, `occurredAt`) — exists; `storeId` added (§9.7 #1) | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
 | `PaymentFailed` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | A transaction was declined |
 | **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new (`orderId` so the outbox keeps it in order with the order's other payment events) | An attempt ended with nothing paid: the window and the wait passed, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
-| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
+| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `storeId`, `occurredAt`) — new; `storeId` for Ops (§9.7 #1) | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
+| **`GatewayKeyExpiring`** (`eventId`, `storeId`, `mode`, `daysLeft` — 30, 7 or 1 — `expiresOn`, `occurredAt`) — new (§9.7 #2) | The daily job finds the current key that many days from its expiry date (§1.2); **once per key and threshold** |
+| **`GatewayKeyRejected`** (`eventId`, `storeId`, `mode`, `occurredAt`) — new (§9.7 #3) | MyFatoorah refused the **current** key (§1.2: a 401) and online payment stopped by itself; once until a new key is set |
+| **`PaymentRequested`** (`eventId`, `requestId`, `orderId`, `storeId`, `customerId`, `expiresAt`, `occurredAt`) — new (§9.7 #4) | Staff created a payment request (§1.5); Ops sends the customer the link, built from the order's number |
 
 ### 2.3 What Payments needs from other modules
 
@@ -1030,3 +1033,23 @@ payment MyFatoorah first said was not in progress; if it ever happens, it is a r
 8. **A success after release** (§1.7): (a) **a refund due**, needing attention, no order made by itself
    **[Recommended]**; (b) the order made by itself when everything can still be taken — needs Inventory,
    Promotions and Loyalty to take the same order twice, and may sell goods a later try already paid for.
+
+### 9.7 What Ops needs (stage 8) — **[ACCEPTED by the owner, 2026-10-28]**
+
+Asked by the Ops spec (ops.md §1.5 C11, §1.6 S5, S5b, S7, §2.3; merged as #249); accepted by the owner
+("Accept all six", 2026-10-28). Events carry ids only and go through the outbox (handoff §4.5).
+
+1. **`storeId` on `PaymentSucceeded` and `PaymentNotAccepted`** (§2.2), so Ops can tell the store's staff
+   without asking Sales; for a try that never became an order, S7 links to the attempt (built in stage 7
+   step 10).
+2. **`GatewayKeyExpiring`** — from the daily job that already shows the banner (§1.2): once per key and
+   threshold (30, 7, 1 days). Ops tells Super Admins on Payment problems, by SMS at 1 day (ops.md S5)
+   (step 8).
+3. **`GatewayKeyRejected`** — when MyFatoorah refuses the current key (§1.2); a 401 on an earlier key
+   kept for old attempts sends nothing. Ops tells Super Admins, SMS included (ops.md S5b) (step 9).
+4. **`PaymentRequested`** — when staff create a request (§1.5). The request is open 60 minutes, so Ops
+   sends the link at once (ops.md C11) (step 12).
+5. **The request reaches the customer by bell and email**, never SMS (§1.5; SMS carries codes and the
+   two critical staff alerts only — ops.md).
+
+Sales's part, the overdue transfer (`TransferOverdue`), is sales.md §9.5 #16.

@@ -1644,3 +1644,8 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
 15. **Order numbers** (owner, 2026-10-28: "ok for the no gaps"): **an online order takes its number only
     when it is paid** (#4), so a try that never pays leaves no gap. The rare gap of §1.3 step 2 (a
     placement that fails after taking its number) stays, as the owner accepted on 2026-10-26.
+16. **`TransferOverdue`** (`eventId`, `orderId`, `storeId`, `occurredAt`) — **[ACCEPTED by the owner, 2026-10-28]**,
+    asked by Ops (ops.md §1.6 S6, #249): Sales's scheduled job publishes it **once per order** when the order
+    becomes overdue by #9 — its receipt uploaded more than `transferCheckHours` (72) ago and still not
+    paid. Ops tells staff holding `sales.payment.record` on Payments to check. Built with #9 in stage 7's
+    step 12 (payments.md §9.7).
