@@ -306,7 +306,8 @@ interface CatalogApi
      * `to`, not included, one store's or every store's; each phrase as the log keeps it (normalised), in a
      * store and a language, how many times and how many found nothing; most searched first, keyset-paged,
      * `limit` 1 to 1000. The log keeps 12 months (§1.11): nothing older is ever there. **No person** - the log
-     * has none. One query; reads only, for a caller that has already asked who may see it.
+     * has none. One query; reads only, for a caller that has already asked who may see it. Each page counts
+     * the range afresh: pages are steady only over a range already past.
      */
     public function searchSummary(?StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): SearchSummaryDto;
 }

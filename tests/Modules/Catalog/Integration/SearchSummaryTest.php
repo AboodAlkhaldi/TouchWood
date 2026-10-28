@@ -92,6 +92,43 @@ it('pages the phrases with a cursor, the same rows as one long page, and starts 
         ->and(searchSummaryRead('sa', '2026-10-01', '2026-10-02', null, 5)->next)->toBeNull();
 });
 
+it('breaks a page between the same words and count in two stores and languages, and keeps the limit within 1 to 1000', function () {
+    searchSummaryLog('sa', 'en', 'oak', 1, '2026-10-01 09:00:00+00');
+    searchSummaryLog('sa', 'ar', 'oak', 1, '2026-10-01 09:00:00+00');
+    searchSummaryLog('ae', 'en', 'oak', 1, '2026-10-01 09:00:00+00');
+    searchSummaryLog('ae', 'ar', 'oak', 1, '2026-10-01 09:00:00+00');
+
+    $all = searchSummaryRows(searchSummaryRead(null, '2026-10-01', '2026-10-02'));
+    $pages = [];
+    $after = null;
+
+    do {
+        $page = searchSummaryRead(null, '2026-10-01', '2026-10-02', $after, 1);
+        $pages = [...$pages, ...searchSummaryRows($page)];
+        $after = $page->next;
+    } while ($after !== null);
+
+    $typed = rtrim(strtr(base64_encode((string) json_encode(['1', 'oak', 'x', 'en'])), '+/', '-_'), '=');
+
+    expect(count($all))->toBe(4)
+        ->and($pages)->toBe($all)
+        ->and(array_map(static fn (array $row): string => $row[1].$row[2], $all))->toBe(array_map(static fn (array $row): string => $row[1].$row[2], $pages))
+        ->and(count(searchSummaryRead(null, '2026-10-01', '2026-10-02', null, 0)->rows))->toBe(1)
+        ->and(count(searchSummaryRead(null, '2026-10-01', '2026-10-02', null, -5)->rows))->toBe(1)
+        ->and(count(searchSummaryRead(null, '2026-10-01', '2026-10-02', null, 5000)->rows))->toBe(4)
+        ->and(searchSummaryRows(searchSummaryRead(null, '2026-10-01', '2026-10-02', $typed, 4)))->toBe($all);
+});
+
+it('reads a range given in a store\'s own time, as the same moments in UTC', function () {
+    searchSummaryLog('sa', 'en', 'oak', 1, '2026-09-30 20:59:59+00');
+    searchSummaryLog('sa', 'en', 'oak', 1, '2026-09-30 21:00:00+00');
+    searchSummaryLog('sa', 'en', 'oak', 1, '2026-10-01 20:59:59+00');
+    searchSummaryLog('sa', 'en', 'oak', 1, '2026-10-01 21:00:00+00');
+
+    // Riyadh's 1 October, midnight to midnight (+03:00).
+    expect(searchSummaryRows(searchSummaryRead('sa', '2026-10-01 00:00:00+03:00', '2026-10-02 00:00:00+03:00'))[0][3] ?? null)->toBe(2);
+});
+
 it('answers an empty or reversed range, and a store with no searches, with nothing', function () {
     searchSummaryLog('sa', 'en', 'oak', 1, '2026-10-01 09:00:00+00');
 
