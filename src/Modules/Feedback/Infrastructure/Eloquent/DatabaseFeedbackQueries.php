@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Modules\Feedback\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Modules\Feedback\Application\Query\FeedbackQueries;
 use Modules\Feedback\Application\Query\WishlistItem;
+use Modules\Feedback\Domain\Model\Question;
+use Modules\Feedback\Domain\Model\Review;
 use Modules\Feedback\Public\Enums\QuestionStatus;
 use Modules\Feedback\Public\Enums\ReviewStatus;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
 /**
@@ -83,6 +87,33 @@ final readonly class DatabaseFeedbackQueries implements FeedbackQueries
         return array_values($query->orderByDesc('saved_by')->orderBy('product_id')->limit($limit)->get()
             ->map(static fn (stdClass $row): array => [(string) $row->product_id, (int) $row->saved_by])
             ->all());
+    }
+
+    public function review(string $reviewId): ?Review
+    {
+        $row = Ulids::valid($reviewId) ? $this->db->table('feedback.reviews')->where('id', strtolower($reviewId))->first() : null;
+
+        return $row instanceof stdClass ? DatabaseReviews::toReview($row) : null;
+    }
+
+    public function question(string $questionId): ?Question
+    {
+        $row = Ulids::valid($questionId) ? $this->db->table('feedback.questions')->where('id', strtolower($questionId))->first() : null;
+
+        return $row instanceof stdClass ? DatabaseQuestions::toQuestion($row) : null;
+    }
+
+    public function counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        $range = [$store->value, Moment::of($from), Moment::of($to)];
+        $row = $this->db->selectOne(
+            'SELECT (SELECT count(*) FROM feedback.reviews WHERE store_id = ? AND created_at >= ? AND created_at < ?) AS reviews,'
+            .' (SELECT count(*) FROM feedback.questions WHERE store_id = ? AND created_at >= ? AND created_at < ?) AS questions,'
+            .' (SELECT count(*) FROM feedback.questions WHERE store_id = ? AND status = ?) AS waiting',
+            [...$range, ...$range, $store->value, QuestionStatus::Pending->value],
+        );
+
+        return $row instanceof stdClass ? [(int) $row->reviews, (int) $row->questions, (int) $row->waiting] : [0, 0, 0];
     }
 
     /**

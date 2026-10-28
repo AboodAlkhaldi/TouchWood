@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Feedback\Application\Command\AnswerQuestion;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Modules\Feedback\Application\FeedbackAudit;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\StaffChange;
@@ -14,7 +15,9 @@ use Modules\Feedback\Domain\Exception\QuestionNotFound;
 use Modules\Feedback\Domain\Model\FeedbackText;
 use Modules\Feedback\Domain\Repository\Questions;
 use Modules\Feedback\Public\Enums\QuestionStatus;
+use Modules\Feedback\Public\Events\QuestionAnswered;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Answers a waiting question (feedback.md §1.3): it shows in every store selling the product, signed
@@ -28,6 +31,7 @@ final readonly class AnswerQuestionHandler
     public function __construct(
         private StaffChange $change,
         private Questions $questions,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -56,6 +60,9 @@ final readonly class AnswerQuestionHandler
                 $this->questions->setLocale($question, $locale, $now);
                 [$from['locale'], $to['locale']] = [$question->locale, $locale];
             }
+
+            // Ops tells the customer (ops.md §1.5 C16).
+            $this->outbox->record(new QuestionAnswered((string) Str::uuid(), $question->id, $question->productId, $question->storeId, $question->customerId, $now));
 
             return [null, [FeedbackAudit::entry('question', 'answered', $question->id, $store->value, $from, $to)]];
         });

@@ -184,7 +184,8 @@ offers off stores to Super Admins alone (platform.md §9.10) — as its promotio
 fills its sections of Catalog's product page through the registry Catalog adds (§2.3), and its own
 screens read through its queries (§3). The shop reads reviews and answered questions through shop
 readers, as Catalog's shop pages do (`Catalog/Application/Query/Shop`) — public reads with no
-permission of their own. Ops adds what it needs when it writes to customers.
+permission of their own. Ops adds what it needs when it writes to customers — added 2026-10-28 as
+`FeedbackApi` and three events (§2.5, §6).
 
 **Built before Sales, against Sales's interface.** Handoff §17 says Feedback "cannot be built before"
 Sales exists; the owner's order puts it before (2026-10-07). So **Sales's read and its
@@ -263,6 +264,17 @@ The Feedback screens' backend additions (§4.2 in the screens' spec, PR #211), a
   {saved: true}` for the products the signed-in customer saved **in this store**, read in one query
   (`Wishlist::savedAmong`); a product not saved, and every card for a guest, carry nothing. Pressing it is
   `SaveToWishlist` / `RemoveFromWishlist` as on the product page; a guest is sent to sign in (F5).
+
+### 2.5 Built for Ops (ops.md §1.5, §1.10, §1.11, §2.3; the owner's go to the builders, 2026-10-28)
+
+`Modules\Feedback\Public\Contracts\FeedbackApi` — reads only, no permission of their own: Ops asks who may see them.
+
+| Method | For |
+|---|---|
+| `favouriteCounts(StoreId $store, ?string $after = null, int $limit = 100): FavouriteCountsDto` | Ops' Favourites report: **each product saved in the store with how many customers saved it** (`FavouriteCountDto{productId, customers}`), most saved first, then by product id; keyset-paged, 1 to 1000 a page, the cursor the staff list writes (`count:productId`), one that is not one starting at the top. Every product saved there, archived or not — Ops names them through Catalog. One query |
+| `reviewForMessage(string $reviewId): ?ReviewForMessageDto` | Ops' message for `ReviewNotPublished`: the review's product, size, store, customer, state, rating, language and **the reason staff wrote**; null for none |
+| `questionForMessage(string $questionId): ?QuestionForMessageDto` | Ops' messages for `QuestionAnswered` and `QuestionNotPublished`: the question, **the answer as corrected last**, the language and the reason; null for none |
+| `counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): FeedbackCountsDto` | Ops' daily report (§1.11 item 8): **the reviews and the questions written** from `from` up to `to` (not included), whatever became of them, and **the questions waiting for an answer now** (`{newReviews, newQuestions, waitingQuestions}`); a reversed range wrote nothing. One query |
 
 ---
 
@@ -537,8 +549,16 @@ questions by (`product_id`, `status`, `answered_at` DESC, `id` DESC), by (`store
 
 ## 6 · Events
 
-**Published:** none in this stage. Ops adds "your question was answered" and "your review was not
-published, because …" (only with a reason, §1.1) when it writes to customers.
+**Published** (added for Ops, 2026-10-28; §2.5) — through the outbox, after commit, ids only
+(`eventId`, the item's id, `productId`, `storeId`, `customerId`, `occurredAt`):
+
+| Event | When |
+|---|---|
+| `QuestionAnswered` (`questionId`) | Staff answer a waiting question (§1.3; ops.md §1.5 C16). A corrected answer sends nothing |
+| `QuestionNotPublished` (`questionId`) | Staff reject a question, or take an answered one down, **with a reason** (§1.3; owner, 2026-10-28: "yes, all of them") |
+| `ReviewNotPublished` (`reviewId`) | Staff reject a review, or take an approved one down, **with a reason** (§1.1; ops.md §1.5 C17; owner, 2026-10-28) — one by one or many at once |
+
+**No reason, no message** (§1.1): a rejection or a taking-down without one publishes nothing.
 
 **Consumed:**
 

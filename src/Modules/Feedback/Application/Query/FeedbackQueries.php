@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Feedback\Application\Query;
 
+use DateTimeImmutable;
 use Modules\Feedback\Domain\Model\Question;
 use Modules\Feedback\Domain\Model\Review;
 use Modules\Feedback\Public\Enums\QuestionStatus;
@@ -61,4 +62,18 @@ interface FeedbackQueries
      * @return list<array{string, int}> product id and count
      */
     public function favouritesIn(StoreId $store, ?array $after, int $limit): array;
+
+    /** One review by its id, in any store and state; null for none (§2.5, Ops' messages). */
+    public function review(string $reviewId): ?Review;
+
+    /** One question by its id, in any store and state; null for none (§2.5, Ops' messages). */
+    public function question(string $questionId): ?Question;
+
+    /**
+     * A store's reviews and questions written from `from` up to `to` (not included), and its questions
+     * waiting now (§2.5, Ops' daily report). One query.
+     *
+     * @return array{int, int, int}
+     */
+    public function counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
 }
