@@ -29,10 +29,12 @@ use Modules\Platform\Application\Media\MediaSettings;
 use Modules\Platform\Application\Media\MediaStorage;
 use Modules\Platform\Application\Media\MediaVariantsQueue;
 use Modules\Platform\Application\Menu\InMemoryAdminMenu;
+use Modules\Platform\Application\Places\InMemoryShipToCountryGuards;
 use Modules\Platform\Application\PlatformApiImpl;
 use Modules\Platform\Application\Query\AuthorizedStoreChoices;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
+use Modules\Platform\Application\Query\PlaceReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
@@ -42,15 +44,22 @@ use Modules\Platform\Application\Settings\InMemorySettingGuards;
 use Modules\Platform\Application\Settings\InMemorySettingsRegistry;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
 use Modules\Platform\Application\Settings\SettingValues;
+use Modules\Platform\Domain\Repository\AddressCountryRepository;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
 use Modules\Platform\Domain\Repository\MediaRepository;
+use Modules\Platform\Domain\Repository\PlaceRepository;
+use Modules\Platform\Domain\Repository\StoreCountryRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
 use Modules\Platform\Infrastructure\Eloquent\CachedStoreDirectory;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseAddressCountries;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditLog;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseAuditReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaRepository;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlaceReader;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlaces;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseSettings;
+use Modules\Platform\Infrastructure\Eloquent\DatabaseStoreCountries;
 use Modules\Platform\Infrastructure\Eloquent\EloquentCurrencyRepository;
 use Modules\Platform\Infrastructure\Eloquent\EloquentStoreRepository;
 use Modules\Platform\Infrastructure\External\FinfoMediaInspector;
@@ -80,6 +89,7 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Contracts\ShipToCountryGuards;
 use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
@@ -106,6 +116,10 @@ final class PlatformServiceProvider extends ServiceProvider
         AuditReader::class => DatabaseAuditReader::class,
         StoreRepository::class => EloquentStoreRepository::class,
         CurrencyRepository::class => EloquentCurrencyRepository::class,
+        AddressCountryRepository::class => DatabaseAddressCountries::class,
+        PlaceRepository::class => DatabasePlaces::class,
+        StoreCountryRepository::class => DatabaseStoreCountries::class,
+        PlaceReader::class => DatabasePlaceReader::class,
         LaravelStoreContext::class => LaravelStoreContext::class,
         MediaRepository::class => DatabaseMediaRepository::class,
         MediaInspector::class => FinfoMediaInspector::class,
@@ -121,6 +135,9 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->app->alias(LaravelStoreContext::class, StoreContext::class);
         $this->app->alias(InMemorySettingsRegistry::class, SettingsRegistry::class);
         $this->app->alias(InMemorySettingGuards::class, SettingGuards::class);
+        // Modules that may refuse taking a country off a store's ship-to list register here (Shipping).
+        $this->app->singleton(InMemoryShipToCountryGuards::class);
+        $this->app->alias(InMemoryShipToCountryGuards::class, ShipToCountryGuards::class);
         // Bound here, not in $singletons: Laravel applies that list only after register() returns, and
         // Platform reserves its own paths just below. Other modules reserve in their register().
         $this->app->singleton(InMemoryReservedPaths::class);

@@ -15,6 +15,7 @@ return [
         'invalid' => 'Invalid Request',
         'unsupported' => 'Unsupported',
         'too_large' => 'Too Large',
+        'unavailable' => 'Unavailable',
     ],
 
     'unauthorized' => [

@@ -9,6 +9,10 @@ return [
         'update' => 'Edit Stores',
         'view' => 'View Stores',
         'switch' => 'Turn Stores On and Off',
+        'countries' => 'Choose Where Stores Ship',
+    ],
+    'places' => [
+        'manage' => 'Manage Address Places',
     ],
     'currency' => [
         'create' => 'Create Currencies',

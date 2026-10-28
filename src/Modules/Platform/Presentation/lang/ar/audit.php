@@ -19,4 +19,13 @@ return [
     'media.variants_retried' => 'أُعيدت معالجة صورة',
     'failed_job.retried' => 'أُعيد تشغيل مهمة متعثّرة',
     'failed_job.deleted' => 'حُذفت مهمة متعثّرة',
+    'address_country.added' => 'أُضيفت دولة عناوين',
+    'address_country.retired' => 'أُوقِفت دولة عناوين',
+    'address_country.restored' => 'أُعيدت دولة عناوين',
+    'place.added' => 'أُضيف مكان',
+    'place.renamed' => 'أُعيدت تسمية مكان',
+    'place.retired' => 'أُوقِف مكان',
+    'place.restored' => 'أُعيد مكان',
+    'store_country.added' => 'صار المتجر يشحن إلى دولة',
+    'store_country.removed' => 'توقّف المتجر عن الشحن إلى دولة',
 ];

@@ -15,6 +15,7 @@ return [
         'invalid' => 'طلب غير صالح',
         'unsupported' => 'غير مدعوم',
         'too_large' => 'الحجم كبير جدًا',
+        'unavailable' => 'الخدمة غير متاحة',
     ],
 
     'unauthorized' => [

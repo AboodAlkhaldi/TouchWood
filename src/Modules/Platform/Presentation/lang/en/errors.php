@@ -103,6 +103,46 @@ return [
         'title' => 'Translation Missing',
         'detail' => 'Couldn\'t save: the :attribute needs both an Arabic and an English value. Fill in both.',
     ],
+    'address_country_not_found' => [
+        'title' => 'Country Not on the List',
+        'detail' => 'Couldn\'t find ":country" on the address countries. Add it to the list first.',
+    ],
+    'address_country_retired' => [
+        'title' => 'Country Retired',
+        'detail' => 'Couldn\'t use ":country": it is retired from the address countries. Restore it first.',
+    ],
+    'address_country_in_use' => [
+        'title' => 'Country in Use',
+        'detail' => 'Couldn\'t retire ":country": the store ":store" ships there. Take it off that store\'s countries first.',
+    ],
+    'place_not_found' => [
+        'title' => 'Place Not Found',
+        'detail' => 'Couldn\'t find that place. Reload the list and try again.',
+    ],
+    'invalid_place' => [
+        'title' => 'Invalid Place',
+        'detail' => 'Couldn\'t save the place: its :attribute isn\'t valid. Check it and try again.',
+    ],
+    'place_retired' => [
+        'title' => 'Place Retired',
+        'detail' => 'Couldn\'t add a place there: the place above it is retired. Restore that place first.',
+    ],
+    'place_name_taken' => [
+        'title' => 'Name Already Used',
+        'detail' => 'Couldn\'t use ":name": another place here has that name. Choose another name.',
+    ],
+    'country_without_places' => [
+        'title' => 'No Place List Yet',
+        'detail' => 'Couldn\'t add ":country": it has no cities yet, so no carrier could be priced there. Add its places first.',
+    ],
+    'country_shipped_by_another_store' => [
+        'title' => 'Country Shipped by Another Store',
+        'detail' => 'Couldn\'t add ":country": the store ":store" ships there. Take it off that store\'s countries first.',
+    ],
+    'store_own_country' => [
+        'title' => 'Store\'s Own Country',
+        'detail' => 'Couldn\'t remove ":country": the store ":store" always ships to its own country.',
+    ],
     /* Field names, for the refusals that name one. */
     'fields' => [
         'bytes' => 'size',
@@ -115,5 +155,8 @@ return [
         'position' => 'position',
         'sign' => 'symbol',
         'visibility' => 'visibility',
+        'kind' => 'type',
+        'parent' => 'place above it',
+        'name' => 'name',
     ],
 ];

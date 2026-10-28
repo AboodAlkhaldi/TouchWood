@@ -101,6 +101,25 @@ $store = $choices->chosen($code, B2BPermissions::COMPANY_VIEW);
 // for a queued class with no name or no tries.
 ```
 
+```php
+// The places (stage 7): the countries a customer may choose in an address, and each one's regions,
+// cities and districts in both languages, set by Super Admins. The lists are a picker's - nothing
+// retired, nor anything under something retired - sorted by name in the language asked for. By id,
+// retired places are read too, marked `retired`, for the addresses and prices that already name them.
+$countries = $this->platform->addressCountries('ar');          // list<AddressCountryDto>, with hasPlaces
+$cities    = $this->platform->cities($regionId, 'ar');          // list<PlaceDto>
+$all       = $this->platform->citiesOf('SA', 'en');             // every city, for "Select all"
+$places    = $this->platform->place([$cityId, $districtId]);    // array<id, PlaceDto>
+
+// Each store's ship-to countries: its own always among them; a country in one store at most.
+$codes = $this->platform->storeCountries($storeId);              // ['QA', 'SA']
+$store = $this->platform->countryStore('EG');                    // ?StoreDto, an off store too
+
+// A module that must keep a country on a store's list registers a guard (Shipping, while the store
+// has a carrier there), asked inside the removal's transaction; throwing a DomainError refuses it.
+$this->app->make(ShipToCountryGuards::class)->register(CarriersThereGuard::class);
+```
+
 Listen to `Public/Events/*` (`StoreUpdated`, `SettingChanged`, `MediaVariantsReady`…). They carry
 ids only and are dispatched after the transaction commits.
 
@@ -111,12 +130,13 @@ ids only and are dispatched after the transaction commits.
 | Folder | Contents |
 |---|---|
 | `Public/` | The contract other modules use: `PlatformApi`, `SettingsRegistry`, `ReservedPaths`, `MediaUsages` and `MediaUsage`, `AdminMenu` and `MenuCount`, `HomeCards` and `HomeCard` (the admin home's cards), `StoreChoices` (the stores a panel screen's filter offers), `OffStoreViewers` and `OffStoreViewer` (who may see an off store in the shop), `SettingsSectionLines` and `SettingsSectionLine`, DTOs, enums, events, and `PlatformPermissions` — the permissions Platform checks, which Access puts in its catalog (names in `platform::permissions`). |
-| `Domain/Model` | `Store`, `Currency`, `Media`: plain PHP classes holding the rules, with no Laravel inside. |
-| `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. |
+| `Domain/Model` | `Store`, `Currency`, `Media`, `AddressCountry`, `Place`: plain PHP classes holding the rules, with no Laravel inside. |
+| `Domain/ValueObject` | `StoreCode`, `CountryCode`, `CurrencyCode`, `TaxRate`, `Timezone`, `TranslatedText`. Each validates itself when created. `IsoCountries`: the ISO countries PHP knows, and their names. |
 | `Domain/Exception` | Every expected error, all extending `PlatformError` → `DomainError`. |
 | `Domain/Repository` | Interfaces for loading and saving the models. |
 | `Application/Command` | One folder per use case: a command (plain data) plus its handler. |
-| `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`). |
+| `Application/Audit` | Builds the audit entry for each kind of change (`StoreAudit`, `CurrencyAudit`, `MediaAudit`, `PlaceAudit`). |
+| `Application/Places` | `PlaceLocks` (the one lock order for the places: the country's row, then the place) and `InMemoryShipToCountryGuards`. |
 | `Application/Settings` | The settings registry, strict type checks and reading with defaults. |
 | `Application/Media` | What media needs from the outside world, as interfaces (storage, file inspection, resizing, the queue), plus `MediaSettings` (the upload-limit declarations) and `InspectedFile`. |
 | `Application/Query` | The read sides: `StoreDirectory` (stores and currencies, cached), `MediaReader`, and `AuthorizedStoreChoices` (`StoreChoices`: a screen's stores, from the Authorizer's reach). |

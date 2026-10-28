@@ -101,6 +101,7 @@ final class ProblemDetails
             ErrorCategory::Invalid => 422,
             ErrorCategory::Unsupported => 415,
             ErrorCategory::TooLarge => 413,
+            ErrorCategory::Unavailable => 503,
         };
     }
 

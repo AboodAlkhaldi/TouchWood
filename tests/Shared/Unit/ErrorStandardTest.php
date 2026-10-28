@@ -17,6 +17,7 @@ it('maps every error category to its HTTP status', function (ErrorCategory $cate
     [ErrorCategory::Invalid, 422],
     [ErrorCategory::Unsupported, 415],
     [ErrorCategory::TooLarge, 413],
+    [ErrorCategory::Unavailable, 503],
 ]);
 
 it('treats a missing permission as a forbidden shared error', function () {
