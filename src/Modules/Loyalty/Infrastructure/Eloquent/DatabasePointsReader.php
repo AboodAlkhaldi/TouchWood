@@ -176,4 +176,47 @@ final readonly class DatabasePointsReader implements PointsReader
         /** @var list<stdClass> */
         return $query->orderByDesc('loyalty.entries.occurred_at')->orderByDesc('loyalty.entries.id')->limit($limit)->get()->all();
     }
+
+    public function entry(int $entryId): ?array
+    {
+        $row = $this->db->table('loyalty.entries as e')
+            ->join('loyalty.accounts as a', 'a.id', '=', 'e.account_id')
+            ->leftJoin('loyalty.orders as o', 'o.order_id', '=', 'e.order_id')
+            ->leftJoin('loyalty.lots as l', 'l.entry_id', '=', 'e.id')
+            ->where('e.id', $entryId)
+            ->first(['e.id', 'e.store_id', 'a.customer_id', 'e.kind', 'e.points', 'e.reason', 'o.order_number', 'l.expires_at', 'a.balance']);
+
+        return $row instanceof stdClass ? [
+            'id' => (int) $row->id, 'store_id' => (string) $row->store_id, 'customer_id' => (string) $row->customer_id,
+            'kind' => (string) $row->kind, 'points' => (int) $row->points, 'reason' => $row->reason === null ? null : (string) $row->reason,
+            'order_number' => $row->order_number === null ? null : (string) $row->order_number,
+            'expires_at' => $row->expires_at === null ? null : (string) $row->expires_at, 'balance' => (int) $row->balance,
+        ] : null;
+    }
+
+    public function expiring(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, ?string $afterCustomerId, int $limit): array
+    {
+        return array_values(array_map(static fn (stdClass $row): array => [(string) $row->customer_id, (int) $row->points], $this->db->table('loyalty.lots as l')
+            ->join('loyalty.accounts as a', 'a.id', '=', 'l.account_id')
+            ->where('a.store_id', strtolower($storeId))
+            ->where('l.points_left', '>', 0)
+            ->where('l.expires_at', '>=', Moment::of($from))->where('l.expires_at', '<', Moment::of($to))
+            ->when($afterCustomerId !== null, fn (Builder $query) => $query->where('a.customer_id', '>', $afterCustomerId))
+            ->groupBy('a.customer_id')
+            ->orderBy('a.customer_id')
+            ->limit($limit)
+            ->get(['a.customer_id', $this->db->raw('sum(l.points_left) as points')])
+            ->all()));
+    }
+
+    public function byKind(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        return array_values(array_map(static fn (stdClass $row): array => [(string) $row->kind, (int) $row->entries, (int) $row->points], $this->db->table('loyalty.entries')
+            ->where('store_id', strtolower($storeId))
+            ->where('occurred_at', '>=', Moment::of($from))->where('occurred_at', '<', Moment::of($to))
+            ->groupBy('kind')
+            ->orderBy('kind')
+            ->get(['kind', $this->db->raw('count(*) as entries'), $this->db->raw('sum(points) as points')])
+            ->all()));
+    }
 }

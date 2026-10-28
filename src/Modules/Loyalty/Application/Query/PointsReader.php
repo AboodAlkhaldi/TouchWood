@@ -51,4 +51,28 @@ interface PointsReader
      * @return array<string, string> store id => account id
      */
     public function accountsOf(string $customerId, array $storeIds): array;
+
+    /**
+     * One entry for Ops' message about it (§2.1): its store, customer, kind, points, reason, order number,
+     * the expiry of the lot it added, and the account's balance now; null for none.
+     *
+     * @return array{id: int, store_id: string, customer_id: string, kind: string, points: int, reason: ?string, order_number: ?string, expires_at: ?string, balance: int}|null
+     */
+    public function entry(int $entryId): ?array;
+
+    /**
+     * Per customer of the store, what is left of their lots expiring from `from` up to `to` (not included),
+     * together, by customer id after `afterCustomerId` (§2.1, Ops' reminders).
+     *
+     * @return list<array{string, int}> customer id and points
+     */
+    public function expiring(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to, ?string $afterCustomerId, int $limit): array;
+
+    /**
+     * The store's entries from `from` up to `to` (not included) by kind: how many, and their points together
+     * (§2.1, Ops' daily report). One query.
+     *
+     * @return list<array{string, int, int}> kind, entries and points
+     */
+    public function byKind(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array;
 }

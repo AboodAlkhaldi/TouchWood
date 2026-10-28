@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Loyalty\Application\Command\Earn;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Loyalty\Application\Points\CallerCheck;
 use Modules\Loyalty\Application\Points\Inputs;
@@ -16,7 +17,9 @@ use Modules\Loyalty\Domain\Model\PointsAccount;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
 use Modules\Loyalty\Domain\Service\PointsArithmetic;
+use Modules\Loyalty\Public\Events\PointsEarned;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Records an order delivered and the points it earns (loyalty.md §1.6): `goods_total` at the store's
@@ -32,6 +35,7 @@ final readonly class EarnHandler
         private AccessApi $access,
         private PointsAccounts $accounts,
         private PointsLedger $ledger,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -77,13 +81,18 @@ final readonly class EarnHandler
             ? PointsArithmetic::earned($goodsTotal, $programme->earnPerUnit, $programme->exponent)
             : 0;
 
-        $recordedNow = $this->ledger->earn(
+        $entry = $this->ledger->earn(
             $account, $orderId, $orderNumber, $programme->currencyCode, $goodsTotal, $points,
             $now->addMonthsNoOverflow($programme->expiryMonths), $now,
         );
 
-        if (! $recordedNow) {
+        if ($entry === null) {
             throw new InvalidPointsAttribute('customer', 'the order is another customer\'s');
+        }
+
+        // Points earned: Ops tells the customer (§6; ops.md §1.5 C12). An order that earned none says nothing.
+        if ($entry > 0) {
+            $this->outbox->record(new PointsEarned((string) Str::uuid(), $entry, $orderId, $store->value, $customerId, $now));
         }
     }
 

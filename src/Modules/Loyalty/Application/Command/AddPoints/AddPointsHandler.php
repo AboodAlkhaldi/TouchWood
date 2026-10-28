@@ -6,6 +6,7 @@ namespace Modules\Loyalty\Application\Command\AddPoints;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Points\Inputs;
 use Modules\Loyalty\Application\Points\PointsAudit;
@@ -15,9 +16,11 @@ use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Public\Events\PointsChangedByHand;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Adds points by hand (loyalty.md §1.9): under `loyalty.points.adjust` in the points' store — an
@@ -36,6 +39,7 @@ final readonly class AddPointsHandler
         private PointsLedger $ledger,
         private PlatformApi $platform,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -55,8 +59,10 @@ final readonly class AddPointsHandler
             $now = CarbonImmutable::now();
             $account = $this->accounts->lockOrCreate($customerId, $store, $now);
 
-            $this->ledger->add($account, $points, $staffId, $reason, $now->addMonthsNoOverflow($months), $now);
+            $entry = $this->ledger->add($account, $points, $staffId, $reason, $now->addMonthsNoOverflow($months), $now);
             $this->platform->recordAudit(PointsAudit::byHand('loyalty.points.added', $account, $points, $reason));
+            // Ops tells the customer, with the admin's reason (§6; ops.md §1.5 C13).
+            $this->outbox->record(new PointsChangedByHand((string) Str::uuid(), $entry, $store->value, $customerId, $now));
         }, 3);
     }
 }

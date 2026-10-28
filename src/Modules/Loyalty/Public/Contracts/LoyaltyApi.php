@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Loyalty\Public\Contracts;
 
+use DateTimeImmutable;
 use Modules\Loyalty\Public\Dto\EarnPoints;
 use Modules\Loyalty\Public\Dto\EditedPoints;
 use Modules\Loyalty\Public\Dto\EditedPointsRequest;
+use Modules\Loyalty\Public\Dto\ExpiringPointsPageDto;
 use Modules\Loyalty\Public\Dto\PointsBalanceDto;
+use Modules\Loyalty\Public\Dto\PointsByKindDto;
+use Modules\Loyalty\Public\Dto\PointsEntryDto;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
@@ -15,6 +19,7 @@ use Modules\Loyalty\Public\Dto\SettleEdit;
 use Modules\Loyalty\Public\Dto\SettleOrder;
 use Modules\Loyalty\Public\Dto\SettleReturn;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Points, for Sales (loyalty.md §2.1). Ids in, DTOs out. **The writes run inside Sales's own
@@ -52,4 +57,26 @@ interface LoyaltyApi
 
     /** A staff edit that lowered the points discount settled; once per edit. Answers what `pointsAfterEdit` did. */
     public function orderEdited(SettleEdit $change): EditedPoints;
+
+    /**
+     * **For Ops** (loyalty.md §2.1, §6; ops.md §1.5 C12, C13, §2.3): one ledger entry as its message needs
+     * it — `PointsEarned` and `PointsChangedByHand` name it — with the account's balance now; null for none.
+     * Reads only, as every method below.
+     */
+    public function entryForMessage(int $entryId): ?PointsEntryDto;
+
+    /**
+     * **Ops' reminder before points expire** (ops.md §1.5 C14): per customer of the store, what is left of
+     * their lots expiring from `from` up to `to` (not included) — one row a customer however many lots —
+     * by customer id, keyset-paged, `limit` 1 to 1000, a cursor that is not one starting at the top.
+     */
+    public function expiring(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ExpiringPointsPageDto;
+
+    /**
+     * **Ops' daily report** (ops.md §1.11 item 7): the store's ledger from `from` up to `to` (not included)
+     * by kind — how many entries and their points together, signed — each kind that has any. One query.
+     *
+     * @return list<PointsByKindDto>
+     */
+    public function pointsByKind(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
 }

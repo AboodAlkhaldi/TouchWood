@@ -103,7 +103,7 @@ final readonly class DatabasePointsLedger implements PointsLedger
         int $points,
         DateTimeImmutable $expiresAt,
         DateTimeImmutable $now,
-    ): bool {
+    ): ?int {
         $this->guard();
         $orderId = strtolower($orderId);
         $delivery = ['goods_total_minor' => $goodsTotalMinor, 'points_earned' => $points, 'delivered_at' => Moment::of($now)];
@@ -124,11 +124,11 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ]) > 0;
 
         if (! $recorded) {
-            return false;
+            return null;
         }
 
         if ($points === 0) {
-            return true;
+            return 0;
         }
 
         $entry = $this->entry($account, 'EARNED', $points, $orderId, $now);
@@ -148,10 +148,10 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ->where('store_id', $account->store->value)
             ->increment('balance', $points, ['updated_at' => Moment::of($now)]);
 
-        return true;
+        return $entry;
     }
 
-    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void
+    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): int
     {
         $this->guard();
 
@@ -170,9 +170,11 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ->where('id', $account->id)
             ->where('store_id', $account->store->value)
             ->increment('balance', $points, ['updated_at' => Moment::of($now)]);
+
+        return $entry;
     }
 
-    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void
+    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): int
     {
         $this->guard();
 
@@ -198,6 +200,8 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ->where('id', $account->id)
             ->where('store_id', $account->store->value)
             ->decrement('balance', $points, ['updated_at' => Moment::of($now)]);
+
+        return $entry;
     }
 
     /**

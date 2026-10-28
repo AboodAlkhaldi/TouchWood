@@ -148,19 +148,19 @@ final class LoyaltyFixtures
                 return ! $this->recordedMeanwhile && $this->real->redeem($account, $orderId, $orderNumber, $currencyCode, $points, $discountMinor, $capPercent, $now);
             }
 
-            public function earn(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $goodsTotalMinor, int $points, DateTimeImmutable $expiresAt, DateTimeImmutable $now): bool
+            public function earn(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $goodsTotalMinor, int $points, DateTimeImmutable $expiresAt, DateTimeImmutable $now): ?int
             {
-                return ! $this->recordedMeanwhile && $this->real->earn($account, $orderId, $orderNumber, $currencyCode, $goodsTotalMinor, $points, $expiresAt, $now);
+                return $this->recordedMeanwhile ? null : $this->real->earn($account, $orderId, $orderNumber, $currencyCode, $goodsTotalMinor, $points, $expiresAt, $now);
             }
 
-            public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void
+            public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): int
             {
-                $this->real->add($account, $points, $staffId, $reason, $expiresAt, $now);
+                return $this->real->add($account, $points, $staffId, $reason, $expiresAt, $now);
             }
 
-            public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void
+            public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): int
             {
-                $this->real->deduct($account, $points, $staffId, $reason, $now);
+                return $this->real->deduct($account, $points, $staffId, $reason, $now);
             }
         });
     }

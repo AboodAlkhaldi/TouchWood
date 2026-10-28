@@ -210,3 +210,10 @@ alone. Step 4: `Unit/SettlementTest` the rules on an in-memory book (`Support/Po
 owner's examples both ways, the third-order case pinned, answer 16, a three-part return, edits, and
 40 random histories that never go below 0 or lose a point; `LoyaltySettlementsTest` the same on the
 ledger through `LoyaltyApi`, every lot equal to its movements and the balance to its lots.
+
+## For Ops (loyalty.md §2.1, §6; 2026-10-28)
+
+- `Public/Events`: `PointsEarned` (`EarnHandler`, above 0 only), `PointsChangedByHand` (`AddPointsHandler`,
+  `DeductPointsHandler`), through the outbox; `PointsLedger::earn`, `add` and `deduct` answer the entry's id.
+- `LoyaltyApi::entryForMessage`, `expiring`, `pointsByKind`, over `PointsReader::entry`, `expiring`, `byKind`.
+- Tests: `tests/Modules/Loyalty/Integration/LoyaltyOpsTest.php`.
