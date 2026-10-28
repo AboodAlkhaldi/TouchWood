@@ -144,6 +144,9 @@ final readonly class CustomerOwnAccountController
                 // half-filled is worse than none (frontend.md §3.6, decided 2026-09-19).
                 isDefault: $request->boolean('is_default'),
                 addressId: $request->text('address_id') === '' ? null : $request->text('address_id'),
+                // The store's own country, typed, until the form picks from Platform's places
+                // (amendment 76; the screens session's).
+                language: app()->getLocale(),
             ));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields']);

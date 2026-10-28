@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Application\Command\SaveAddress;
 
 use Illuminate\Database\Connection;
+use Modules\Access\Application\Address\AddressPlaceRules;
 use Modules\Access\Application\Address\StoreIds;
 use Modules\Access\Application\Audit\AddressAudit;
 use Modules\Access\Application\Customer\CurrentCustomer;
@@ -17,6 +18,8 @@ use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\Exception\TooManyAddresses;
 use Modules\Access\Domain\Model\Address;
+use Modules\Access\Domain\Model\AddressPlaces;
+use Modules\Access\Domain\Model\StoreAddressFormat;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
@@ -29,7 +32,8 @@ use Shared\Application\PermissionScope;
 /**
  * The customer saves an address in one store (spec §1.9). The store's own format decides which
  * fields there are, which are required and how long they may be; a value whose key that format does
- * not define is refused (amendment 41), so nothing is stored that no screen can show.
+ * not define is refused (amendment 41), so nothing is stored that no screen can show. Its country and
+ * places are checked against Platform's lists first (AddressPlaceRules, amendment 76).
  *
  * The first address a customer saves in a store becomes its default. Everything is done inside one
  * transaction that holds the customer's own row, so two tabs cannot both count the last address
@@ -47,6 +51,7 @@ final readonly class SaveAddressHandler
         private StoreAddressFormatRepository $formats,
         private CustomerSecuritySettings $settings,
         private PlatformApi $platform,
+        private AddressPlaceRules $placeRules,
         private Connection $db,
     ) {}
 
@@ -65,34 +70,38 @@ final readonly class SaveAddressHandler
 
         // An off store's country is not offered, and its addresses are hidden (amendment 53): it is
         // refused exactly as a store that does not exist.
-        if ($this->platform->store($store)?->isActive !== true) {
+        $storeDto = $this->platform->store($store);
+
+        if ($storeDto?->isActive !== true) {
             throw new InvalidAccessAttribute('store', 'unknown');
         }
 
         $format = $this->formats->forStore($storeId) ?? throw new AddressFormatMissing($storeId);
-        $fields = $format->accept($command->fields);
+        $places = AddressPlaces::of(
+            $command->countryCode ?? $storeDto->countryCode,
+            $command->regionId, $command->cityId, $command->districtId, $command->language,
+        );
         $phone = PhoneNumber::of($command->phone);
         $pin = MapPin::optional($command->latitude, $command->longitude);
         $limit = $this->settings->addressesPerStore($storeId);
 
-        return $this->db->transaction(function () use ($command, $customerId, $storeId, $fields, $phone, $pin, $limit): string {
+        return $this->db->transaction(function () use ($command, $customerId, $storeId, $format, $places, $phone, $pin, $limit): string {
             // Their own row, held for this transaction: two tabs saving at once would otherwise
             // both count nine addresses, or both claim the store's default (review of step 5).
             $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
 
             return $command->addressId === null
-                ? $this->create($command, $customerId, $storeId, $fields, $phone, $pin, $limit)
-                : $this->edit($command, $customerId, $storeId, $fields, $phone, $pin);
+                ? $this->create($command, $customerId, $storeId, $format, $places, $phone, $pin, $limit)
+                : $this->edit($command, $customerId, $storeId, $format, $places, $phone, $pin);
         }, 3);
     }
 
     /**
-     * @param  array<string, string>  $fields
-     *
      * @throws TooManyAddresses
      */
-    private function create(SaveAddress $command, string $customerId, string $storeId, array $fields, PhoneNumber $phone, ?MapPin $pin, int $limit): string
+    private function create(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, PhoneNumber $phone, ?MapPin $pin, int $limit): string
     {
+        $fields = $format->accept($this->placeRules->apply($storeId, $places, $command->fields, null));
         $kept = $this->addresses->countForCustomerInStore($customerId, $storeId);
 
         if ($kept >= $limit) {
@@ -104,6 +113,7 @@ final readonly class SaveAddressHandler
             $command->label, $command->recipientName, $phone, $fields, $pin,
             // The first address in a store is its default, so checkout always has one (amendment 41).
             $command->isDefault || $kept === 0,
+            $places,
         );
 
         // The others give the flag up first: one default per store is a unique index, and two rows
@@ -119,11 +129,9 @@ final readonly class SaveAddressHandler
     }
 
     /**
-     * @param  array<string, string>  $fields
-     *
      * @throws AddressNotFound|InvalidAddress
      */
-    private function edit(SaveAddress $command, string $customerId, string $storeId, array $fields, PhoneNumber $phone, ?MapPin $pin): string
+    private function edit(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, PhoneNumber $phone, ?MapPin $pin): string
     {
         $address = $this->addresses->byId((string) $command->addressId);
 
@@ -132,7 +140,17 @@ final readonly class SaveAddressHandler
             throw new AddressNotFound((string) $command->addressId);
         }
 
-        $address->change($command->label, $command->recipientName, $phone, $fields, $pin);
+        // Given no country, an edit keeps the address's own country and places: the store's would
+        // move an address abroad home.
+        $before = $address->places();
+
+        if ($command->countryCode === null) {
+            $places = AddressPlaces::of($before->countryCode, $before->regionId, $before->cityId, $before->districtId, $command->language);
+        }
+
+        // A place retired since stays while it is left as it was (owner, 2026-10-28, step 2 Q2).
+        $fields = $format->accept($this->placeRules->apply($storeId, $places, $command->fields, $before));
+        $address->change($command->label, $command->recipientName, $phone, $fields, $pin, $places);
 
         if ($command->isDefault) {
             $address->makeDefault();

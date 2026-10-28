@@ -96,6 +96,7 @@ return [
         'LOW_STOCK' => 'قرب نفاد المخزون',
         'CAMPAIGN_EXPIRY' => 'الحملات التي توشك على الانتهاء',
         'SYNC_PROBLEMS' => 'مشاكل المزامنة',
+        'PAYMENT_PROBLEMS' => 'مشاكل الدفع',
     ],
 
     /*

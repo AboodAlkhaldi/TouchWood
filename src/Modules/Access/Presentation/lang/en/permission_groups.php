@@ -15,6 +15,8 @@ return [
     'catalog' => 'Catalog and Variants',
     'pricing' => 'Pricing and Campaigns',
     'orders' => 'Orders and Fulfilment',
+    'shipping' => 'Shipping',
+    'payments' => 'Payments',
     'companies' => 'Company Approvals',
     'points' => 'Points',
     'sync' => 'Sync',

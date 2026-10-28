@@ -16,4 +16,6 @@ enum StaffNotificationTopic: string
     case CampaignExpiry = 'CAMPAIGN_EXPIRY';
     /** A store's reads need someone: a sale stopped, a discount skipped, a read failed (amendment 71). */
     case SyncProblems = 'SYNC_PROBLEMS';
+    /** The payment gateway's key expires in 30, 7 or 1 days, or MyFatoorah refused it; Super Admins only (amendment 78). */
+    case PaymentProblems = 'PAYMENT_PROBLEMS';
 }
