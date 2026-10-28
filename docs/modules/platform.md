@@ -563,12 +563,12 @@ Files without variants — PDFs and every private file — have no status (empty
 - **Currency:** the exponent lock is derived from "is any store using it", not a stored state.
 - **Setting, audit entry:** no states.
 
-### 4.3 The screens of the places and the ship-to countries (stage 7's screens, part 1) — **[DRAFT, waiting on §9.12]**
+### 4.3 The screens of the places and the ship-to countries (stage 7's screens, part 1) — **[ACCEPTED by the owner, 2026-10-29]**
 
 **Written 2026-10-28** by the screens session, on stage 7 step 1's backend (PR #253): the handlers and
-reads of §3 and §2.1, with no routes, controllers or pages. Each pick marked **(Q n)** waits on the owner's
-answer to §9.12's question n; the text is written to the recommended option and changes with the answer.
-**Nothing is built before the last round is answered** (the owner's method, 2026-10-19).
+reads of §3 and §2.1, with no routes, controllers or pages. Each pick marked **(Q n)** is the owner's
+answer to §9.12's question n (2026-10-29: Q4 the screens session's pick from our references, every
+other question (a)).
 
 **What every screen keeps** — as every panel screen: Geist's rules on shadcn's code (frontend.md §1.11),
 nothing built that either has (the shared `CountryCombobox`, `PanelDialog`, `DestructiveActionDialog`,
@@ -605,28 +605,39 @@ offered for `platform.places.manage` — so to Super Admins only (Q1, Q17).
 - Sorted by name; retired countries after the others, and only while **Show retired** is on (off at first)
   (Q5). No paging: the list is short (our stores' countries, then what Super Admins add — step 1, Q8).
 
-**A country's places** — `/admin/places/{country}` (Q4): the country's name, its marks as above, and
-**three columns side by side** — **Regions** · **Cities** of the region chosen · **Districts** of the city
-chosen. Choosing a row opens the next column (and marks the row chosen); the address keeps what is open
-(`?region=&city=`), so a reload or a shared link opens the same place. **On a phone, one column at a time**,
-with a **Back** link to the column before it.
+**A country's places — one page per level, with a trail** (Q4, the owner's "the best, and matching our
+references": shadcn's `Breadcrumb` over the panel's table; neither Geist nor shadcn has side-by-side
+columns, and Catalog's folded tree loads its whole tree at once, while a country's districts can run into
+the thousands):
+- `/admin/places/{country}` — its **regions**;
+- `/admin/places/{country}/{region}` — the region's **cities**;
+- `/admin/places/{country}/{region}/{city}` — the city's **districts**.
 
-Each column:
-- a **filter box** at the top, narrowing the column as it is typed, by either language's name (Q6);
+Each page opens with the trail — **Countries › :country › :region › :city** — each step a link back, the
+last the page itself, and the page's marks (the country's as above; a region's or city's Retired). An
+address with a place of another country, or a city outside the region named, is not found (the panel's
+not-found page). The pages stand at a phone's width as they are, the trail shortening to its last two steps
+with an ellipsis menu for the rest (shadcn's `BreadcrumbEllipsis`).
+
+Each level's page:
+- a **filter box** at the top, narrowing the list as it is typed, by either language's name (Q6) — the
+  level is loaded whole, so nothing is asked of the server;
 - **Add Region** / **Add City** / **Add District** — a dialog with **Arabic name** and **English name**
   (Q11); refused when a sibling has either name (`PlaceNameTaken`, naming it) or the place above is
   retired (`PlaceRetired`);
-- each row: the name in the page's language and the other under it; on a region or a city, its count —
-  **:count cities**, **:count districts** (in use); **Retired** (grey) when retired; a row menu (`RowMenu`) with
-  **Rename** (the same dialog, filled) and **Retire**, or **Restore** on a retired one;
+- the table: the name in the page's language and the other under it; on a region or a city, its count —
+  **:count cities**, **:count districts** (in use) — and the row a link to its page; **Retired** (grey) when
+  retired; a row menu (`RowMenu`) with **Rename** (the same dialog, filled) and **Retire**, or **Restore**
+  on a retired one;
 - retired rows after the others, only while **Show retired** is on (Q5);
 - empty: **No regions yet** / **No cities in this region yet** / **No districts in this city** — "A city
   needs no districts: the address form then asks for none." (`Empty`, with the Add button).
 
-**Under something retired** — a retired country, region or city opened (Show retired on): a note at the top
-of the column, "This region is retired, with everything in it: none of it is in the address form or the
-price pickers until it is restored." Its Add button is out of reach with that reason, and its rows keep
-their own marks (step 1, Q4: restoring the region brings back what was in use under it).
+**Under something retired** — the page of a retired country, region or city (reached with Show retired
+on, or by its address): a note at the top, "This region is retired, with everything in it: none of it is in
+the address form or the price pickers until it is restored." Its Add button is out of reach with that
+reason, and its rows keep their own marks (step 1, Q4: restoring the region brings back what was in use
+under it).
 
 **Retire** — `DestructiveActionDialog` (Q7): "Retire ":place"? It leaves the address form and the
 shipping price pickers, with its :cities cities and :districts districts. Addresses and prices that already name them
@@ -654,10 +665,10 @@ Each store's card on the Stores page (E1) gets a part **Ships to**:
 #### What these screens need from the backend (Q16)
 
 Step 1's reads are a picker's: nothing retired (§2.1). The panel needs, in Platform's Application layer,
-behind `platform.places.manage` (the ship-to part behind the Stores page's own read):
+behind `platform.places.manage` (the ship-to part behind the Stores page's own read) — **built by the backend session** (Q16):
 - **B1** — the address countries **with the retired ones**, each with: retired or not, the store that ships
   there (id, code, name, on/off), whether it has its place list, its regions and cities in use (counts);
-- **B2** — a country's regions, a region's cities, a city's districts, **with the retired ones**, each with:
+- **B2** — a level's page: a country's regions, a region's cities, a city's districts, **with the retired ones**, each with:
   its own retired mark, whether it is hidden by something above it, and the count of what is under it in
   use (cities of a region, districts of a city), sorted by name in the page's language;
 - **B3** — for Retire's dialog, what goes with a place: its cities and districts in use (or B2's counts,
@@ -1284,7 +1295,9 @@ and the store directory twice on every page, each a read of the cache table (2 q
 
 ### 9.12 The places screens' questions — round 1 (2026-10-28)
 
-Asked by the screens session for §4.3. Option **(a)** is the recommended one in each; §4.3 is written to it.
+Asked by the screens session for §4.3. Option **(a)** is the recommended one in each. **Answered by the owner,
+2026-10-29**: Q4 — "what's the best and matches our references, go with it": **(c)**, a page per level with a
+trail (shadcn's Breadcrumb; §4.3 says why); **every other question (a)**. No round 2.
 
 | # | Question | Options and their effect |
 |---|---|---|
