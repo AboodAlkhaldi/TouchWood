@@ -33,7 +33,8 @@ use function Pest\Laravel\seed;
 | `InventoryApi::makeStockDependent` (inventory.md §2.1, §9.2 #23; owner, 2026-10-19): Promotions' gift
 | level turns a size's stock-dependent switch on, in its own save. On only, never off; in a wired store
 | only; the same rows, audit entry and Catalog facts as staff's switch; inside the caller's transaction
-| or its own. No permission checked inside: the caller checks Manage Stock, a name now public.
+| or its own. No permission checked inside: the caller checks Manage Stock, a name now public. The switch
+| is on by default (owner, 2026-10-28; §9.2 #24), so it changes only a size staff switched off.
 */
 
 uses(RefreshDatabase::class);
@@ -96,12 +97,15 @@ function stockDependentAuditDepths(Closure $work): array
 }
 
 it('turns the sizes on in a wired store, audited and told to Catalog, answering the ids it turned on', function () {
-    // Wired first: a wired ordinary product with no stock is told orderable; stock-dependent at 0, it is not.
+    // Wired first: a size staff switched off with no stock is told orderable; stock-dependent at 0, it is not.
     Ix::wired();
     $sizes = stockDependentSizes()['variants'];
+    Ix::switchOff('sa', [$sizes[0], $sizes[1]]);
     $wanted = [$sizes[1], $sizes[0]];
     $expected = [$sizes[0], $sizes[1]];
     sort($expected);
+
+    expect(stockDependentOrderable($sizes[0]))->toBeTrue();
 
     $turnedOn = Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [strtoupper($wanted[0]), $wanted[1]]));
 
@@ -110,10 +114,11 @@ it('turns the sizes on in a wired store, audited and told to Catalog, answering 
         ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
         ->and(Ix::stock('sa', $sizes[2]))->toBeNull()
         ->and(Ix::auditChanges('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(['stock_dependent' => [false, true]])
-        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(2)
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(4)
         ->and(stockDependentOrderable($sizes[0]))->toBeFalse()
         ->and(stockDependentOrderable($sizes[1]))->toBeFalse()
-        ->and(stockDependentOrderable($sizes[2]))->toBeTrue();
+        // Never switched: on by default, so with no stock it cannot be ordered either.
+        ->and(stockDependentOrderable($sizes[2]))->toBeFalse();
 });
 
 it('does nothing in a store with no provider', function () {
@@ -127,6 +132,7 @@ it('does nothing in a store with no provider', function () {
 it('leaves a size already on as it is, and never turns one off', function () {
     $sizes = stockDependentSizes()['variants'];
     Ix::wired();
+    Ix::switchOff('sa', [$sizes[0], $sizes[1]]);
     Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0]]));
 
     $turnedOn = Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0], $sizes[1]]));
@@ -134,11 +140,21 @@ it('leaves a size already on as it is, and never turns one off', function () {
     expect($turnedOn)->toBe([$sizes[1]])
         ->and(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeTrue()
         ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
-        ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(1)
+        ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(2)
         ->and(Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0], $sizes[1]])))->toBe([])
         ->and(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeTrue()
         ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
-        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(2);
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(4);
+});
+
+it('changes nothing for a size never switched off: it is on by default, and no row is made for it', function () {
+    $sizes = stockDependentSizes()['variants'];
+    Ix::wired();
+
+    expect(Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0], $sizes[1]])))->toBe([])
+        ->and(Ix::stock('sa', $sizes[0]))->toBeNull()
+        ->and(Ix::stock('sa', $sizes[1]))->toBeNull()
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
 });
 
 it('refuses a size that does not exist or is archived, or a store that does not exist, changing nothing', function () {
@@ -212,6 +228,7 @@ it('asks the wiring again under the store\'s lock: unwired while it waited, it w
 it('runs inside the caller\'s transaction: rolled back with it, written with it', function () {
     $sizes = stockDependentSizes()['variants'];
     Ix::wired();
+    Ix::switchOff('sa', [$sizes[0]]);
 
     expect(fn () => DB::transaction(function () use ($sizes): void {
         Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0]]));
@@ -219,30 +236,32 @@ it('runs inside the caller\'s transaction: rolled back with it, written with it'
         throw new RuntimeException('The gift level was refused.');
     }))->toThrow(RuntimeException::class);
 
-    expect(Ix::stock('sa', $sizes[0]))->toBeNull()
-        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
+    expect(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeFalse()
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(1);
 
     // The audit entry is written inside the caller's transaction, one savepoint down.
     $depths = stockDependentAuditDepths(fn () => DB::transaction(fn (): array => Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0]]))));
 
     expect($depths)->toBe([2])
         ->and(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeTrue()
-        ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(1);
+        ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(2);
 });
 
 it('called alone, opens a transaction of its own for its audit entry - the suite\'s own would hide a missing one (lesson 220)', function () {
     $sizes = stockDependentSizes()['variants'];
     Ix::wired();
+    Ix::switchOff('sa', [$sizes[0], $sizes[1]]);
 
     $depths = stockDependentAuditDepths(fn () => Fx::asSystem(fn (): array => stockDependentApi()->makeStockDependent(stockDependentSa(), [$sizes[0], $sizes[1]])));
 
     expect($depths)->toBe([1, 1])
-        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(2);
+        ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(4);
 });
 
 it('checks no permission: the caller checks Manage Stock, whose name is public', function () {
     $sizes = stockDependentSizes()['variants'];
     Ix::wired();
+    Ix::switchOff('sa', [$sizes[0]]);
     // A staff member without Manage Stock: the check is the caller's.
     Cx::actAsStaffWith(['catalog.product.view']);
 

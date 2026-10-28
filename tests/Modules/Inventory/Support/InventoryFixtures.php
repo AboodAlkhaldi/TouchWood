@@ -9,6 +9,8 @@ use Modules\Inventory\Application\Command\AdjustStock\AdjustStock;
 use Modules\Inventory\Application\Command\AdjustStock\AdjustStockHandler;
 use Modules\Inventory\Application\Command\SetStock\SetStock;
 use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Public\Contracts\StoreWiring;
 use Shared\Domain\ValueObject\StoreId;
@@ -62,6 +64,17 @@ final class InventoryFixtures
     public static function count(string $storeCode, array $counts): void
     {
         Fx::asSystem(fn () => app(SetStockHandler::class)->handle(new SetStock(self::storeId($storeCode), $counts)));
+    }
+
+    /**
+     * Sizes staff switched off ("Don't Count on Stock") in a wired store - an ordinary product's sizes:
+     * every size is stock-dependent by default (inventory.md §9.2 #24). Call after `wired()`.
+     *
+     * @param  list<string>  $variantIds
+     */
+    public static function switchOff(string $storeCode, array $variantIds): void
+    {
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(self::storeId($storeCode), $variantIds, false)));
     }
 
     public static function adjust(string $storeCode, string $variantId, string $direction, int $quantity, string $reason, ?string $note = null): void

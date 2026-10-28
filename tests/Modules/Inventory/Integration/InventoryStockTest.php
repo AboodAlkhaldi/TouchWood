@@ -31,10 +31,12 @@ use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\StockBelowZero;
 use Modules\Inventory\Domain\Exception\StoreOff;
 use Modules\Inventory\Domain\Exception\ThresholdInvalid;
+use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
@@ -94,7 +96,7 @@ describe('a stocktake', function () {
 
         inventoryStockCount(Ix::storeId('sa'), [$sizes[0] => 12, $sizes[1] => 0]);
 
-        expect(Ix::stock('sa', $sizes[0]))->toMatchObject(['in_stock' => 12, 'held' => 0, 'threshold' => null, 'stock_dependent' => false])
+        expect(Ix::stock('sa', $sizes[0]))->toMatchObject(['in_stock' => 12, 'held' => 0, 'threshold' => null, 'stock_dependent' => true])
             ->and(Ix::stock('eg', $sizes[0]))->toBeNull()
             ->and(Ix::ledger('sa', $sizes[0]))->toBe(['STOCKTAKE 0→12 STAFF'])
             ->and(DB::table('inventory.stock_movements')->where('variant_id', $sizes[0])->value('actor_id'))->toBe($staff)
@@ -354,34 +356,45 @@ describe('the stock-dependent switch', function () {
             ->and(Ix::stock('sa', $size))->toBeNull();
     });
 
-    it('switches the sizes picked in a wired store - some of a product\'s - leaving the others off', function () {
+    it('switches off the sizes picked in a wired store - some of a product\'s - leaving the others on, and back on', function () {
         $sizes = Px::ready(['60 cm', '80 cm', '100 cm'])['variants'];
         Ix::wired();
 
-        inventoryStockDependent('sa', [$sizes[0], $sizes[1]], true);
+        // On by default (§9.2 #24): switching off makes the size's row, kept with the switch off.
+        inventoryStockDependent('sa', [$sizes[0], $sizes[1]], false);
 
-        expect(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeTrue()
-            ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
+        expect(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeFalse()
+            ->and(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeFalse()
             ->and(Ix::stock('sa', $sizes[2]))->toBeNull()
-            ->and(Ix::auditChanges('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(['stock_dependent' => [false, true]]);
+            ->and(Ix::auditChanges('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(['stock_dependent' => [true, false]]);
 
-        inventoryStockDependent('sa', [$sizes[1], $sizes[2]], false);
+        inventoryStockDependent('sa', [$sizes[1], $sizes[2]], true);
 
-        // Switching off a size that was never on changes nothing and makes no row.
-        expect(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeFalse()
+        // Back on keeps the row; switching on a size that was never off changes nothing and makes no row.
+        expect(Ix::stock('sa', $sizes[1])?->stock_dependent)->toBeTrue()
+            ->and(Ix::auditChanges('inventory.stock.stock_dependent_set', $sizes[1]))->toBe(['stock_dependent' => [false, true]])
+            ->and(Ix::stock('sa', $sizes[0])?->stock_dependent)->toBeFalse()
             ->and(Fx::audits('inventory.stock.stock_dependent_set', $sizes[2]))->toBe(0)
             ->and(Ix::stock('sa', $sizes[2]))->toBeNull();
+
+        // Off twice changes nothing more.
+        inventoryStockDependent('sa', [$sizes[0]], false);
+
+        expect(Fx::audits('inventory.stock.stock_dependent_set', $sizes[0]))->toBe(1);
     });
 
-    it('leaves a size added later off, though every other size of its product is on', function () {
+    it('counts a size added later on stock, though every other size of its product is off', function () {
         $ready = Px::ready(['60 cm', '80 cm']);
         Ix::wired();
-        inventoryStockDependent('sa', $ready['variants'], true);
+        inventoryStockDependent('sa', $ready['variants'], false);
 
         $later = Px::variant($ready['product'], '7000001', [$ready['width'] => Px::value($ready['width'], '120 cm')]);
+        $stock = app(InventoryApi::class)->stock(StoreId::fromString(Ix::storeId('sa')), [$later, $ready['variants'][0]]);
 
         expect(Ix::stock('sa', $later))->toBeNull()
-            ->and(Ix::stock('sa', $ready['variants'][0])?->stock_dependent)->toBeTrue();
+            ->and($stock[$later]->countsOnStock)->toBeTrue()
+            ->and($stock[$ready['variants'][0]]->countsOnStock)->toBeFalse()
+            ->and(Ix::stock('sa', $ready['variants'][0])?->stock_dependent)->toBeFalse();
     });
 
     it('is Manage Stock\'s in that store, as every other change', function () {
@@ -389,11 +402,11 @@ describe('the stock-dependent switch', function () {
         Ix::wired();
         Cx::actAsStaffWith([InventoryPermissions::STOCK_MANAGE], ['eg']);
 
-        expect(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$size], true)))->toThrow(Unauthorized::class);
+        expect(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$size], false)))->toThrow(Unauthorized::class);
 
-        app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('eg'), [$size], true));
+        app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('eg'), [$size], false));
 
-        expect(Ix::stock('eg', $size)?->stock_dependent)->toBeTrue()
+        expect(Ix::stock('eg', $size)?->stock_dependent)->toBeFalse()
             ->and(Ix::stock('sa', $size))->toBeNull();
     });
 });

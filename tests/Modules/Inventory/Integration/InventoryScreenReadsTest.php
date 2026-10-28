@@ -278,7 +278,8 @@ describe('a wired store', function () {
         [$ordinary, $dependent, $sent] = $ready['variants'];
         Ix::wired();
         $sa = StoreId::fromString(Ix::storeId('sa'));
-        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent($sa->value, [$dependent], true)));
+        // On by default (§9.2 #24): the ordinary sizes are those staff switched off.
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent($sa->value, [$ordinary, $sent], false)));
         Fx::asSystem(fn () => app(ProviderStock::class)->apply($sa, [$dependent => 5, $sent => 30], 'read-1'));
         Fx::asSystem(fn () => app(ProviderStock::class)->apply($sa, [$dependent => 0, $sent => 30], 'read-2'));
         stockManager();
@@ -783,6 +784,8 @@ describe('the review\'s points (step 4)', function () {
         Ix::wired();
         $sa = StoreId::fromString(Ix::storeId('sa'));
         Fx::asSystem(fn () => app(ProviderStock::class)->apply($sa, [$size => 10], 'read-1'));
+        // An ordinary size: switched off by staff, as every size is stock-dependent by default (§9.2 #24).
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent($sa->value, [$size], false)));
         stockHold([new HoldLineDto($size, 3), new HoldLineDto($size, 2, gift: true)]);
         stockManager();
 

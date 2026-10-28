@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependent;
+use Modules\Inventory\Application\Command\SetStockDependent\SetStockDependentHandler;
 use Modules\Inventory\Public\Contracts\StoreWiring as InventoryWiring;
 use Modules\Pricing\Domain\Exception\ProviderOwnsPrice;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
@@ -33,6 +35,7 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 use Tests\Modules\Sync\Support\FakeProvider;
 
@@ -109,17 +112,25 @@ describe('wiring', function () {
             ->and(str_contains($audit, 'key-1') || str_contains($audit, 'secret-1'))->toBeFalse();
     });
 
-    it('tells Catalog every size again as a wired store\'s: an ordinary size at 0 can be ordered', function () {
-        $ready = Px::ready();
+    it('tells Catalog every size again as a wired store\'s: stock-dependent by default, by its stock until the first read', function () {
+        $ready = Px::ready(['60 cm', '80 cm']);
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(syncSa(), $ready['product'], true)));
-        $size = $ready['variants'][0];
-        $told = fn (): mixed => DB::table('catalog.store_variant_facts')->where('store_id', syncSa())->where('variant_id', $size)->value('orderable');
-        expect((bool) $told())->toBeFalse();
+        [$stocked, $none] = $ready['variants'];
+        Ix::count('sa', [$stocked => 3]);
+        $told = fn (string $size): mixed => DB::table('catalog.store_variant_facts')->where('store_id', syncSa())->where('variant_id', $size)->value('orderable');
+        DB::table('catalog.store_variant_facts')->where('store_id', syncSa())->update(['orderable' => null]);
         FakeProvider::bind();
 
         syncWire();
 
-        expect((bool) $told())->toBeTrue();
+        // Every size counts on stock by default (inventory.md §9.2 #24): no stock row, 0, not orderable.
+        expect($told($stocked))->toBeTrue()
+            ->and($told($none))->toBeFalse();
+
+        // One staff switch off is an ordinary size: orderable at 0.
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(syncSa(), [$none], false)));
+
+        expect($told($none))->toBeTrue();
     });
 
     it('saves nothing when the test fails, and names the reason', function () {
@@ -330,6 +341,12 @@ describe('unwiring (sync.md §1.8)', function () {
         FakeProvider::bind();
         syncWire();
         DB::table('sync.report_entries')->insert(['store_id' => syncSa(), 'kind' => 'UNKNOWN_CODE', 'code' => '123', 'detail' => '{}', 'opened_at' => now(), 'seen_at' => now()]);
+
+        // Stock-dependent by default and at 0, it is not orderable now, so nothing would stop.
+        expect(syncView()->stopsWhenUnwired)->toBe(0);
+
+        // Switched off by staff (an ordinary size), it is orderable at 0 - and stops once unwired.
+        Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(syncSa(), [$ready['variants'][0]], false)));
 
         expect(syncView()->stopsWhenUnwired)->toBe(1);
 

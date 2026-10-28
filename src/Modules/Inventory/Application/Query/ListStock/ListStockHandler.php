@@ -32,7 +32,8 @@ use Shared\Application\Unauthorized;
  * - **Low**: of those, available at or below the threshold - a size with no row counts as 0 - archived
  *   ones left out, as the Low Stock list leaves them (§1.7);
  * - **Out of Stock**: available 0 on a size whose stock limits ordering (Q17) - in a store with no
- *   provider every size, a size with no row too; in a wired store a stock-dependent one;
+ *   provider every size, a size with no row too; in a wired store a stock-dependent one - every size
+ *   unless staff switched it off, a size with no row too (§9.2 #24);
  * - **Held**: a size orders hold pieces of;
  * - **Short**: orders hold more than there is (Q18).
  *

@@ -39,8 +39,10 @@ interface ProviderStock
 
     /**
      * The store has just been wired (sync.md §1.2; Sync calls this once `StoreWiring` answers true):
-     * every size switched on there or with a row is told to Catalog again for a wired store - an
-     * ordinary product orderable whatever its number (§1.3). Nothing is written.
+     * every size switched on there or with a row is told to Catalog again for a wired store - a size
+     * staff switched off orderable whatever its number (§1.3); every other size, on by default
+     * (§9.2 #24), by its figure, a size with no row as 0 until the provider's first read. Nothing is
+     * written.
      */
     public function wired(StoreId $store): void;
 

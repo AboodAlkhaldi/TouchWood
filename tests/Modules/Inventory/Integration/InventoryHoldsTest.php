@@ -141,8 +141,9 @@ describe('placing an order holds (§8 #1)', function () {
     it('in a wired store holds a stock-dependent size and a gift, and only notes an ordinary product', function () {
         [$ordinary, $dependent] = Px::ready(['60 cm', '80 cm'])['variants'];
         Ix::count('sa', [$ordinary => 0, $dependent => 1]);
-        DB::table('inventory.stock')->where('variant_id', $dependent)->update(['stock_dependent' => true]);
         Ix::wired();
+        // Every size is stock-dependent by default (§9.2 #24): the ordinary one is switched off by staff.
+        Ix::switchOff('sa', [$ordinary]);
         $order = inventoryHoldsOrder();
 
         inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($ordinary, 5), new HoldLineDto($dependent, 1)], null);
@@ -451,8 +452,9 @@ describe('returns (§8 #15)', function () {
     it('in a wired store adds a stock-dependent size\'s or a gift\'s pieces on our side, and nothing for an ordinary product', function () {
         [$ordinary, $dependent] = Px::ready(['60 cm', '80 cm'])['variants'];
         Ix::count('sa', [$ordinary => 3, $dependent => 3]);
-        DB::table('inventory.stock')->where('variant_id', $dependent)->update(['stock_dependent' => true]);
         Ix::wired();
+        // The dependent size is left as it is: on by default (§9.2 #24); the ordinary one switched off.
+        Ix::switchOff('sa', [$ordinary]);
         $order = inventoryHoldsOrder();
         inventoryHoldsApi()->hold(inventoryHoldsSa(), $order, [new HoldLineDto($ordinary, 1), new HoldLineDto($ordinary, 1, gift: true), new HoldLineDto($dependent, 1)], null);
 
@@ -484,13 +486,25 @@ describe('stock() (§1.3, §2.2)', function () {
     it('in a wired store leaves an ordinary product orderable at 0 and counts a stock-dependent size\'s returned pieces', function () {
         [$ordinary, $dependent] = Px::ready(['60 cm', '80 cm'])['variants'];
         Ix::count('sa', [$ordinary => 0, $dependent => 1]);
-        DB::table('inventory.stock')->where('variant_id', $dependent)->update(['stock_dependent' => true, 'returned_extra' => 1]);
+        DB::table('inventory.stock')->where('variant_id', $dependent)->update(['returned_extra' => 1]);
         Ix::wired();
+        Ix::switchOff('sa', [$ordinary]);
 
         $stock = inventoryHoldsApi()->stock(inventoryHoldsSa(), [$ordinary, $dependent]);
 
         expect([$stock[$ordinary]->countsOnStock, $stock[$ordinary]->orderable, $stock[$ordinary]->available, $stock[$ordinary]->availableAsGift])->toBe([false, true, null, 0])
             ->and([$stock[$dependent]->available, $stock[$dependent]->endingSoon])->toBe([2, true]);
+    });
+
+    it('in a wired store counts a new size on stock by default: no row, 0 available, not orderable, and a hold refused', function () {
+        $size = Px::ready()['variants'][0];
+        Ix::wired();
+
+        $stock = inventoryHoldsApi()->stock(inventoryHoldsSa(), [$size]);
+
+        expect([$stock[$size]->countsOnStock, $stock[$size]->orderable, $stock[$size]->available, $stock[$size]->availableAsGift])->toBe([true, false, 0, 0])
+            ->and(Ix::stock('sa', $size))->toBeNull()
+            ->and(fn () => inventoryHoldsApi()->hold(inventoryHoldsSa(), inventoryHoldsOrder(), [new HoldLineDto($size, 1)], null))->toThrow(NotEnoughStock::class);
     });
 });
 

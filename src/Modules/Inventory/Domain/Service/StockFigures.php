@@ -19,10 +19,19 @@ final class StockFigures
         return $row === null ? 0 : max(0, $row->inStock + ($wired ? $row->returnedExtra : 0) - $row->held);
     }
 
-    /** Whether its stock limits ordering: always with no provider; in a wired store a stock-dependent size only. */
+    /**
+     * Whether a wired store's switch is on for the size: **on by default** (owner, 2026-10-28; §9.2 #24),
+     * so a size with no row is on, and only a row staff switched off says off.
+     */
+    public static function dependent(?StockRow $row): bool
+    {
+        return $row === null || $row->stockDependent;
+    }
+
+    /** Whether its stock limits ordering: always with no provider; in a wired store unless staff switched the size off. */
     public static function counts(?StockRow $row, bool $wired): bool
     {
-        return ! $wired || ($row !== null && $row->stockDependent);
+        return ! $wired || self::dependent($row);
     }
 
     /** Whether it can be ordered now, as far as stock goes (§1.3; Catalog decides the rest). */

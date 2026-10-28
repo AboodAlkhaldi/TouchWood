@@ -246,9 +246,10 @@ describe('the provider\'s numbers', function () {
 });
 
 /**
- * Five sizes switched on in KSA, wired: an ordinary one at 0 and one with stock, a stock-dependent one
- * at 0 with 2 returned meanwhile, one never counted, and a stock-dependent one at 0 - not orderable
- * before either. And one more at 0 that is not switched on there.
+ * Five sizes switched on in KSA, wired: an ordinary one at 0 (switched off by staff - every size is
+ * stock-dependent by default, §9.2 #24) and one with stock, a stock-dependent one at 0 with 2 returned
+ * meanwhile, one never counted (switched off, so orderable), and a stock-dependent one at 0 - not
+ * orderable before either. And one more at 0 that is not switched on there.
  *
  * @return array{string, string, string, string, string, string}
  */
@@ -261,8 +262,9 @@ function providerStockFour(): array
     Ix::count('sa', [$atZero => 0, $withStock => 3, $notOn => 0]);
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
     Ix::wired();
-    providerStockRow($returned, ['in_stock' => 0, 'stock_dependent' => true, 'returned_extra' => 2]);
-    providerStockRow($dependentAtZero, ['in_stock' => 0, 'stock_dependent' => true]);
+    Ix::switchOff('sa', [$atZero, $withStock, $never]);
+    providerStockRow($returned, ['in_stock' => 0, 'returned_extra' => 2]);
+    providerStockRow($dependentAtZero, ['in_stock' => 0]);
     Fx::asSystem(fn () => app(ProviderStock::class)->wired(providerStockSa()));
 
     return [$atZero, $withStock, $returned, $never, $dependentAtZero, $notOn];
@@ -276,12 +278,31 @@ describe('wiring (sync.md §1.2)', function () {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
         expect(array_map(providerStockOrderable(...), [$atZero, $never]))->toBe([false, false]);
         Ix::wired();
+        // Ordinary: staff switched both off (every size is stock-dependent by default, §9.2 #24).
+        Ix::switchOff('sa', [$atZero, $never]);
+        DB::table('catalog.store_variant_facts')->where('store_id', Ix::storeId('sa'))->update(['orderable' => null]);
 
         Fx::asSystem(fn () => app(ProviderStock::class)->wired(providerStockSa()));
 
         expect(array_map(providerStockOrderable(...), [$atZero, $never]))->toBe([true, true])
             // Nothing written: the stocktake's line is the only one.
             ->and(Ix::ledger('sa', $atZero))->toBe(['STOCKTAKE 0→0 SYSTEM']);
+    });
+
+    it('tells Catalog every size left on by default by its stock: at 0 or never counted, not orderable; with stock, orderable', function () {
+        $ready = Px::ready(['60 cm', '80 cm', '100 cm']);
+        [$atZero, $never, $withStock] = $ready['variants'];
+        Ix::count('sa', [$atZero => 0, $withStock => 3]);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Ix::storeId('sa'), $ready['product'], true)));
+        Ix::wired();
+        DB::table('catalog.store_variant_facts')->where('store_id', Ix::storeId('sa'))->update(['orderable' => null]);
+
+        Fx::asSystem(fn () => app(ProviderStock::class)->wired(providerStockSa()));
+
+        expect(array_map(providerStockOrderable(...), [$atZero, $never, $withStock]))->toBe([false, false, true])
+            ->and(Ix::stock('sa', $never))->toBeNull()
+            // Nothing would stop on unwiring: none is orderable now with nothing free.
+            ->and(app(ProviderStock::class)->stopsWhenUnwired(providerStockSa()))->toBe(0);
     });
 
     it('refuses to work orderability out for a store not wired', function () {

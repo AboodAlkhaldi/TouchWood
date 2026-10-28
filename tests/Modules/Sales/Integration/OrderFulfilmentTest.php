@@ -77,9 +77,12 @@ function fulfilled(bool $withPoints = false, bool $withGift = false, bool $appro
     // Wired before the order is placed (its hold remembers), after the stock was counted (then the provider's).
     if ($wired) {
         Ix::wired();
+        // Ordinary sizes: staff switched both off, as every size is stock-dependent by default
+        // (inventory.md §9.2 #24).
+        Ix::switchOff('sa', $ready['variants']);
     }
 
-    // The first size's normal sales made to depend on its stock (a wired store's switch).
+    // The first size's normal sales made to depend on its stock again (a wired store's switch).
     if ($dependent) {
         app(InventoryApi::class)->makeStockDependent(StoreId::fromString(Fx::storeId('sa')), [$ready['variants'][0]]);
     }

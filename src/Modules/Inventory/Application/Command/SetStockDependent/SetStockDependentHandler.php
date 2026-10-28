@@ -16,8 +16,9 @@ use Shared\Application\Unauthorized;
 
 /**
  * **The stock-dependent switch** (inventory.md §1.2, §3, §4.2), under **Manage Stock** in a wired
- * store: on or off for the sizes picked - all of a product's, some, or one (owner, 2026-10-09). Off by
- * default; a size added later starts off. A store with no provider counts every product on its stock
+ * store: on or off for the sizes picked - all of a product's, some, or one (owner, 2026-10-09). **On by
+ * default**, every size, a size added later too (owner, 2026-10-28; §9.2 #24): staff switch a size off
+ * here, and back on. A store with no provider counts every product on its stock
  * already, so the switch is refused there. Each size that changed is audited from and to.
  */
 final readonly class SetStockDependentHandler

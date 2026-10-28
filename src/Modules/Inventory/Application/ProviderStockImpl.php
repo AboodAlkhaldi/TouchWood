@@ -107,7 +107,8 @@ final readonly class ProviderStockImpl implements ProviderStock
             throw new LogicException('Wire the store before telling Inventory: orderability is worked out for a wired store.');
         }
 
-        // Every size told again, a size with no row too: an ordinary product counts on stock no more.
+        // Every size told again, a size with no row too: one staff switched off counts on stock no more;
+        // the rest, on by default (§9.2 #24), count on the provider's stock - no row, 0, until it is read.
         $this->tellEverySize($store, static fn (): int => 0);
     }
 
