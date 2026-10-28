@@ -54,14 +54,14 @@ interface SalesReports
 
     /**
      * **Revenue by the store's own day** (ops.md §1.10; the owner, 2026-10-28) from `from` up to `to` (not
-     * included), each day with anything in it:
+     * included) — moments: pass the store's midnights for whole days — each day with anything in it:
      *
      * - the orders placed that count — **a cancelled, rejected or come-back order never does**, judged by
      *   what it is now, so a past day may change — and what their customers pay for the goods after the
      *   coupon and the points, **without VAT and without shipping**; their VAT and shipping apart;
      * - **a refund on the day its return was asked**: the goods refunded by those completed, and those not
      *   finished estimated with the same arithmetic (`ReturnRefunds`) over the pieces received, or else
-     *   asked — each by return and order number, never a customer.
+     *   asked, in the order they were asked — each by return and order number, never a customer.
      *
      * @return list<RevenueDayDto> by day
      */

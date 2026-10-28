@@ -256,7 +256,7 @@ final readonly class DatabaseSalesReports implements SalesReports
     /**
      * The goods each return refunds, or would (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
-     * completed so far, over the pieces received, or else asked.
+     * completed so far and those not finished asked before it, over the pieces received, or else asked.
      *
      * @param  list<stdClass>  $returns
      * @return array<string, int> by return id
@@ -282,15 +282,19 @@ final readonly class DatabaseSalesReports implements SalesReports
         // Every return of these orders that refunds, with its pieces: the completed ones in the order they completed.
         $pieces = [];
         $completed = [];
+        $open = [];
 
+        // The completed in the order they completed; those not finished after them, in the order they were asked.
         foreach ($this->db->table('sales.return_lines as rl')->join('sales.returns as r', 'r.id', '=', 'rl.return_id')
             ->whereIn('rl.order_id', $orders)->whereIn('r.status', self::REFUNDING)
-            ->orderBy('r.completed_at')->orderBy('r.id')
+            ->orderBy('r.completed_at')->orderBy('r.requested_at')->orderBy('r.id')
             ->get(['r.id', 'r.order_id', 'r.status', 'rl.order_line_id', 'rl.quantity', 'rl.received_quantity']) as $row) {
             $pieces[(string) $row->id][(string) $row->order_line_id] = $row->received_quantity === null ? (int) $row->quantity : (int) $row->received_quantity;
 
             if ($row->status === 'COMPLETED') {
                 $completed[(string) $row->order_id][(string) $row->id] = true;
+            } else {
+                $open[(string) $row->order_id][(string) $row->id] = true;
             }
         }
 
@@ -300,7 +304,9 @@ final readonly class DatabaseSalesReports implements SalesReports
             [$id, $order] = [(string) $return->id, (string) $return->order_id];
             $before = [];
 
-            foreach (array_keys($completed[$order] ?? []) as $earlier) {
+            // Each before it: the completed ones, then — for one not finished — those not finished asked before it,
+            // so several on one line land on the line's shares as their completions would.
+            foreach ([...array_keys($completed[$order] ?? []), ...array_keys($open[$order] ?? [])] as $earlier) {
                 if ($earlier === $id) {
                     break;
                 }

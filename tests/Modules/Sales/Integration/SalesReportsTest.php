@@ -223,5 +223,22 @@ it('gives each size\'s units and revenue, most sold first, a page at a time, nev
         ->and($second->next)->toBeNull()
         ->and($rows(salesReports()->productSales($sa, $from, $to, 'not-a-cursor', 5)->rows))->toBe([[$variants[0], 2, 200_00], [$variants[1], 1, 50_00]])
         ->and(salesReports()->productSales(StoreId::fromString(Fx::storeId('ae')), $from, $to)->rows)->toBe([])
+        ->and(fn () => salesReports()->productSales(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class)
         ->and(fn () => salesReports()->transfersWaiting(StoreId::fromString(strtolower((string) Str::ulid()))))->toThrow(InvalidArgumentException::class);
+});
+
+it('estimates two returns not finished on one line one after the other, each piece once', function () {
+    ['order' => $order, 'customer' => $customer, 'first' => $first] = salesReportsDelivered();
+    $ask = static function () use ($order, $customer, $first): string {
+        Fx::actAsCustomer($customer);
+
+        return app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'DAMAGED', null, [['orderLineId' => $first, 'quantity' => 1]]));
+    };
+    $one = $ask();
+    $two = $ask();
+
+    $days = salesReports()->revenueByDay(StoreId::fromString(Fx::storeId('sa')), CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
+
+    expect(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits], $days[0]->waiting ?? []))->toBe([[$one, 100_00], [$two, 100_00]])
+        ->and($days[0]->waitingRefunds->minorUnits ?? null)->toBe(200_00);
 });
