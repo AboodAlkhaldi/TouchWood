@@ -861,3 +861,24 @@ for a reader without that job.
 `activeBrands()` (Q4, catalog.md amendment 28); Promotions `SearchSegmentCandidates` (the backend session's, on Access's
 `customerIdsMatching`, which ships with Loyalty's screens, PR #168) and `PromotionsActionsForReader`;
 Platform's menu icons `coupons`, `segments`, `gifts`.
+
+### 9.5 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: a coupon reserved while the customer pays online
+
+Accepted by the owner on 2026-10-28 with payments.md. **Online, no order exists until the money is
+confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the coupon
+for its few minutes, and **a try that does not pay must leave nothing counted** — "as if Pay had never
+been pressed". The built `useCoupon` cannot: it needs the order's number, and "a use never comes back".
+Three new operations, beside `useCoupon` (which stays for placing as built):
+
+1. **`reserveCoupon(orderId, couponId, …)`** — at Pay, under the order's future id: every check of
+   `useCoupon`, under the same lock; refused or changed exactly as `useCoupon` is. **A reserved use counts
+   toward the coupon's limits** (in total and per customer) while it lasts, so two buyers can never both
+   take the last use. The same id again does nothing.
+2. **`confirmCoupon(orderId, orderNumber)`** — when the order is created: the reservation becomes a use,
+   recorded with the order's number, and from then on it is the use `useCoupon` would have made ("a use
+   never comes back" applies). Once.
+3. **`releaseCoupon(orderId)`** — the try did not pay: the reservation goes, **nothing counted**, nothing
+   in the coupon's history but the reservation's own record. Once; nothing to release does nothing.
+
+`recordOrder` (the fact segments count) is called only when the order is created. A reservation is never
+older than a try (Sales releases or confirms every one); the reports count uses, never reservations.

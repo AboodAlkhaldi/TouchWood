@@ -1104,3 +1104,18 @@ product in a store with no provider, and only for stock-dependent sizes in a sto
 | Unknown Code · Not at Provider · Archived · Off or Draft | رمز غير معروف · غير موجود لدى المزوّد · مؤرشف · متوقف أو مسودة | Offer Stopped · Bad Value · Read Failed · Discount Skipped | عرض متوقف · قيمة غير صالحة · فشلت القراءة · خصم مُتجاوَز |
 | Notice · Hourly · Nightly · Now · One Code | إشعار · كل ساعة · ليلية · الآن · رمز واحد | Waiting · Running · Done · Failed | بالانتظار · قيد التشغيل · تمّت · فشلت |
 | Working · Failing · Not Wired | يعمل · متعثّر · غير مربوط | Wire Store · Unwire Store · Sync Now · Dismiss Entry | ربط المتجر · فكّ ربط المتجر · مزامنة الآن · إغلاق البند |
+
+### 9.5 Stage 7 — **[ACCEPTED by the owner, 2026-10-28]**: no VAT on shipping
+
+The owner (2026-10-27): "the VAT is on the products only not the shipping fees" — 1,000 + 150 + 30 =
+1,180. §1's formula becomes:
+
+```
+taxable_base   = goods_total                     (was: goods_total + shipping)
+vat            = taxable_base × the store's rate  rounded once, half up, to the coin
+order_total    = goods_total + vat + shipping
+```
+
+Applied in place — §1's formula (lines "taxable_base = goods_total + shipping" and "order_total =
+taxable_base + vat"), the `totals()` row of §2 and its note on the shipping, and `TotalsDto` — with
+Sales's §9.5 #1, once the owner accepts. Handoff §10.2 is amended with it.
