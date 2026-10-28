@@ -563,6 +563,109 @@ Files without variants — PDFs and every private file — have no status (empty
 - **Currency:** the exponent lock is derived from "is any store using it", not a stored state.
 - **Setting, audit entry:** no states.
 
+### 4.3 The screens of the places and the ship-to countries (stage 7's screens, part 1) — **[DRAFT, waiting on §9.12]**
+
+**Written 2026-10-28** by the screens session, on stage 7 step 1's backend (PR #253): the handlers and
+reads of §3 and §2.1, with no routes, controllers or pages. Each pick marked **(Q n)** waits on the owner's
+answer to §9.12's question n; the text is written to the recommended option and changes with the answer.
+**Nothing is built before the last round is answered** (the owner's method, 2026-10-19).
+
+**What every screen keeps** — as every panel screen: Geist's rules on shadcn's code (frontend.md §1.11),
+nothing built that either has (the shared `CountryCombobox`, `PanelDialog`, `DestructiveActionDialog`,
+`Empty`, `Item`, `Badge`, `ActionButton` with its disabled reason), every box checking itself as it is typed
+with the server's own rules — a place's name **1–100 characters in each language, both required**, digits
+made Latin as typed (§9.12 is not asked about these: they are step 1's rules, amendment of 2026-10-28) —
+names in the page's language first and the other language under them, lists sorted as the page's language
+sorts (Q7 of step 1), every page at a phone's width with nothing scrolling sideways, and **each refusal in
+its own words** (§7.3's ten new errors, already worded in `lang/{ar,en}/errors.php`). **Both permissions
+are reserved** (`platform.places.manage`, `platform.store.countries`): no role can carry them, so only a
+Super Admin is ever offered a button, and every handler asks again. A button the item's state stops is
+**shown out of reach, with the reason** (Feedback's rule); a refusal the page could not foresee (a change
+made by someone else meanwhile, Shipping's carriers on a country) comes back from the server in its own
+words. Every change is audited by step 1 (`PlaceAudit`); the audit log shows it (Q18).
+
+#### E8 · Countries and places — `/admin/places` (Q1, Q17)
+
+**The menu**: an entry **Countries and Places** in **Store Settings**, after Currencies (position 30),
+offered for `platform.places.manage` — so to Super Admins only (Q1, Q17).
+
+**The list of address countries** (Q9) — each country a row (a card on a phone):
+- its **name** in the page's language, the other language and its **code** under it;
+- **Ships from**: the store whose ship-to list holds it (a link to that store on the Stores page; an off
+  store marked **Off**), or **No store**;
+- **No place list yet** (amber) when it has no city in use — the address form then asks for typed places
+  there, and no store may ship to it (`CountryWithoutPlaces`); else its counts: **:regions regions · :cities
+  cities** (in use; the numbers here and below are the words' placeholders, not real figures);
+- **Retired** (grey) when it is retired;
+- **Open** (its places, below); **Retire** — out of reach while a store ships there, with the reason
+  "Ships from the store ":store" — take it off that store's countries first" and a link (Q8); a
+  retired country offers **Restore** instead.
+- **Add Country** at the top: the shared country combobox, every ISO country not on the list, searchable
+  in both languages; a retired country is not offered there — it is on the list with Restore (Q10).
+- Sorted by name; retired countries after the others, and only while **Show retired** is on (off at first)
+  (Q5). No paging: the list is short (our stores' countries, then what Super Admins add — step 1, Q8).
+
+**A country's places** — `/admin/places/{country}` (Q4): the country's name, its marks as above, and
+**three columns side by side** — **Regions** · **Cities** of the region chosen · **Districts** of the city
+chosen. Choosing a row opens the next column (and marks the row chosen); the address keeps what is open
+(`?region=&city=`), so a reload or a shared link opens the same place. **On a phone, one column at a time**,
+with a **Back** link to the column before it.
+
+Each column:
+- a **filter box** at the top, narrowing the column as it is typed, by either language's name (Q6);
+- **Add Region** / **Add City** / **Add District** — a dialog with **Arabic name** and **English name**
+  (Q11); refused when a sibling has either name (`PlaceNameTaken`, naming it) or the place above is
+  retired (`PlaceRetired`);
+- each row: the name in the page's language and the other under it; on a region or a city, its count —
+  **:count cities**, **:count districts** (in use); **Retired** (grey) when retired; a row menu (`RowMenu`) with
+  **Rename** (the same dialog, filled) and **Retire**, or **Restore** on a retired one;
+- retired rows after the others, only while **Show retired** is on (Q5);
+- empty: **No regions yet** / **No cities in this region yet** / **No districts in this city** — "A city
+  needs no districts: the address form then asks for none." (`Empty`, with the Add button).
+
+**Under something retired** — a retired country, region or city opened (Show retired on): a note at the top
+of the column, "This region is retired, with everything in it: none of it is in the address form or the
+price pickers until it is restored." Its Add button is out of reach with that reason, and its rows keep
+their own marks (step 1, Q4: restoring the region brings back what was in use under it).
+
+**Retire** — `DestructiveActionDialog` (Q7): "Retire ":place"? It leaves the address form and the
+shipping price pickers, with its :cities cities and :districts districts. Addresses and prices that already name them
+keep them. You can restore it." **Restore** asks nothing: it is undone by Retire.
+
+**Not on these screens**: adding many places at once (the lists are seeded by the backend from the list
+the owner reviews — Q12); moving a place under another parent (no such command — Q13); deleting (a place is
+never deleted, shipping.md §9.3 #4).
+
+#### E1 addition · A store's ship-to countries, on the Stores page (Q2, Q3)
+
+Each store's card on the Stores page (E1) gets a part **Ships to**:
+- the store's countries, each a `Badge`-like item with its name; **the store's own country first, marked
+  Own**, never removable — no Remove on it (`StoreOwnCountry` is the server's guard) (Q14);
+- **Add Country** (Super Admins): a combobox of the address countries in use. A country another store ships
+  to is listed **out of reach** with "Ships from ":store"", one with no place list with "No place list yet —
+  add its places first" and a link to its places (Q14);
+- **Remove** on each other country: a `DestructiveActionDialog` saying what follows (Q15): saved addresses
+  there stay; until another store ships there, orders to it are staff-handled — no carrier, the fee
+  confirmed later, no online payment (shipping.md §1.2, `OUTSIDE`). Refused while the store has a
+  carrier there (`CountryHasCarriers`, Shipping's, once its step 3 registers its guard): shown in its own
+  words.
+- Everyone who may open the Stores page sees the list; only Super Admins see Add and Remove (Q3).
+
+#### What these screens need from the backend (Q16)
+
+Step 1's reads are a picker's: nothing retired (§2.1). The panel needs, in Platform's Application layer,
+behind `platform.places.manage` (the ship-to part behind the Stores page's own read):
+- **B1** — the address countries **with the retired ones**, each with: retired or not, the store that ships
+  there (id, code, name, on/off), whether it has its place list, its regions and cities in use (counts);
+- **B2** — a country's regions, a region's cities, a city's districts, **with the retired ones**, each with:
+  its own retired mark, whether it is hidden by something above it, and the count of what is under it in
+  use (cities of a region, districts of a city), sorted by name in the page's language;
+- **B3** — for Retire's dialog, what goes with a place: its cities and districts in use (or B2's counts,
+  if they are enough — a region's districts are not among them);
+- **B4** — each store's ship-to countries on the Stores page's read (`ListStores`), with each country's
+  name, and the address countries a Super Admin may add for each (in use, not shipped by another store,
+  with the store that ships it and whether it has its place list, for the out-of-reach reasons).
+
 ---
 
 ## 5 · Tables
@@ -1178,3 +1281,28 @@ and the store directory twice on every page, each a read of the cache table (2 q
 |---|---|---|
 | 1 | §1.3, §5 | **The settings and the store directory are read once per web request.** `DatabaseSettings` and `CachedStoreDirectory` are bound **scoped**, no longer as singletons, and keep the snapshot they read for the rest of the request. A wrapper could only have remembered each answer apart, so the snapshot is kept by the class itself. **Never for the system**: a console command or a queued job reads the cache every time, as before. **A change forgets**: after `invalidate()` the rest of the request reads the cache, so a change made in the request is never answered from memory; a change another process commits while the request runs is seen by the next request. **Never inside a transaction opened after the request began** (access.md amendment 65 (h), kept by the owner, 2026-10-09): a check made there, after its locks - an off store refused, say - reads the cache as before, and nothing read there is kept. Nothing outlives a request or a job: Laravel forgets scoped instances before each queued job, and a web server process serves one request. A warm storefront request reads the store directory once, 2 queries, though two parts of the page ask (`StoreResolutionTest`). |
 | 2 | frontend.md §5 | **15 queries is a page's own budget**; the panel's frame is counted apart, with its own recorded number (access.md amendment 65 (f)). |
+
+### 9.12 The places screens' questions — round 1 (2026-10-28)
+
+Asked by the screens session for §4.3. Option **(a)** is the recommended one in each; §4.3 is written to it.
+
+| # | Question | Options and their effect |
+|---|---|---|
+| 1 | Where do the places live in the menu? | **(a)** an entry in Store Settings, after Currencies — beside the other Super Admin lists. (b) The System group — with Audit and Failed Jobs, less where one looks for addresses. |
+| 2 | Where is a store's ship-to list set? | **(a)** On the Stores page, a **Ships to** part in each store's card — the store is where one thinks of it, no new page. (b) Its own page per store — more room, one more page. (c) On the places page, a **Ships from** store picker per country — one place for both, but a move is two steps underneath (remove, then add) and Shipping's carriers can stop the first. |
+| 3 | Who sees a store's ship-to list? | **(a)** Everyone who may open the Stores page, read-only; Add and Remove for Super Admins only. (b) Super Admins only — admins would not know which countries a store serves. |
+| 4 | How is a country's place list laid out? | **(a)** Three columns side by side — regions, the chosen region's cities, the chosen city's districts; one column at a time on a phone, with Back. Quick to work through hundreds of places. (b) One tree that opens level by level — long once a city has many districts. (c) A page per level with a trail (country › region › city) — one more page load per step. |
+| 5 | Retired countries and places? | **(a)** Listed after the others, greyed, marked Retired, with Restore — shown only while **Show retired** is on (off at first). (b) Always listed at the end. (c) Hidden, with only "3 retired — show". |
+| 6 | Finding a place? | **(a)** A filter box on each column, narrowing it as it is typed, in either language — the column is already loaded, no server work. (b) One search across the whole country — needs a new backend read. (c) None. |
+| 7 | Retire's confirmation? | **(a)** A dialog saying what goes with it — "its :cities cities and :districts districts leave the address form and the price pickers; what already names them keeps them; you can restore it" (needs counts from the backend, §4.3 B3). (b) A plain "Retire :place?" — no counts. (c) No dialog: Restore undoes it. |
+| 8 | A country a store ships to cannot be retired (step 1, Q2). On the screen? | **(a)** Retire shown out of reach with the reason and a link to that store — Feedback's rule. (b) Offered, and refused by the server. |
+| 9 | What does the countries list show? | **(a)** Name and code, **Ships from** (the store, or No store), **No place list yet** or its region and city counts, **Retired**; Open, Retire or Restore. (b) Name, code and Retired only — no backend read beyond the list, but no warning before a store is refused the country. |
+| 10 | Adding an address country? | **(a)** The shared country combobox (as Add Store's), every ISO country not on the list; a retired one stays on the list with Restore. (b) A typed ISO code. |
+| 11 | Adding and renaming a place? | **(a)** A small dialog: Arabic name, English name, both required. (b) Edited in the row itself — quicker, but two names do not fit a row on a phone. |
+| 12 | Adding many places at once (a pasted list)? | **(a)** Not now: the lists are seeded by the backend from the list you review; the screen adds one at a time. (b) A paste box per column ("Arabic \| English" per line) — a new backend command. |
+| 13 | Moving a place to another parent (a city to another region)? | **(a)** Not offered: retire it and add it again where it belongs — what already names the old one keeps it. (b) A Move command — new backend work, and a moved city would carry its prices into another region. |
+| 14 | The ship-to Add picker? | **(a)** The address countries in use; one another store ships to, or one with no place list, listed out of reach with its reason and a link; the store's own country first, marked Own, with no Remove. (b) Only the countries that can be added — nothing says why one is missing. |
+| 15 | Remove's confirmation for a ship-to country (the backend session's answer, 2026-10-28: saved addresses stay; each next quote applies the new rule — no store ships there: the order can still be placed, staff-handled, no carrier, the fee to be confirmed, no online payment; another store ships there: checkout refuses it and points to that store) | **(a)** A dialog that says so: "Remove :country from :store? Saved addresses there stay. Until another store ships there, orders to :country are handled by staff: no carrier, the fee confirmed later, no online payment." (b) A plain "Remove :country?" |
+| 16 | Who builds the panel reads (§4.3 B1–B4)? | **(a)** The backend session, as in stage 6 (sales.md §9.4 R1-36) — the reads stay with whoever owns Platform's Application layer. (b) The screens session, in Platform's Application layer, with the screens — one session, one PR, but outside the screens session's usual layer. |
+| 17 | The menu entry's and page's name? | **(a)** **Countries and Places** / **الدول والأماكن**. (b) **Places** / **الأماكن**. (c) **Address Places** / **أماكن العناوين**. |
+| 18 | The changes' history? | **(a)** Nothing on these pages: the audit log already shows each change. (b) A History link on each row to the audit log, filtered to it — the audit log has no such filter today. |
