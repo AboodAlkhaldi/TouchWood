@@ -22,6 +22,7 @@ use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Exception\QuoteExpired;
+use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Public\Enums\OrderAudience;
@@ -58,12 +59,13 @@ final readonly class QuoteBuilder
     /**
      * Prices that end while the quote is built are asked again, once; ending again, `QuoteExpired`.
      *
-     * @throws MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
+     * @throws MayNotOrder|TooManyWaitingOrders|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
      */
     public function build(StoreId $store, string $customerId, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay, int $attempt = 1): QuoteView
     {
-        // 1. The store is on, and who may order.
+        // 1. The store is on, who may order, and fewer orders waiting than allowed.
         $audience = $this->rules->audience($store, $customerId);
+        $this->rules->waiting($store, $customerId);
 
         // 2. What may be bought — a cart with something in it first.
         $cart = $this->carts->find($store, $customerId, null);

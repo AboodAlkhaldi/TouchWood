@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,16 +18,26 @@ use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\CancelOwnOrder\CancelOwnOrder;
+use Modules\Sales\Application\Command\CancelOwnOrder\CancelOwnOrderHandler;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLineHandler;
 use Modules\Sales\Application\Command\PlaceOrder\PlaceOrder;
 use Modules\Sales\Application\Command\PlaceOrder\PlaceOrderHandler;
+use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
+use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
+use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Service\OrderShares;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Public\Events\OrderPlaced;
@@ -35,6 +46,7 @@ use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
@@ -476,6 +488,106 @@ describe('what the review asked for', function () {
             ->and($order?->address)->not->toBeNull();
     });
 });
+
+// At most 3 orders waiting for approval per customer per store, one number for every store (owner,
+// 2026-10-28, answer 51): checked at the quote, and at placing under a lock per customer and store.
+describe('orders waiting for approval', function () {
+    it('refuses a fourth quote, and a fourth placement quoted before the third was placed', function () {
+        $ready = Cx::ready();
+        Cx::place(Cx::start($ready['address'])->id);
+        Cx::place(placeQuoteAgain($ready));
+        $third = placeQuoteAgain($ready);
+        $fourth = Cx::start($ready['address'])->id;
+        Cx::place($third);
+        $orders = DB::table('sales.orders')->count();
+
+        expect(Pr::thrown(fn () => Cx::place($fourth), TooManyWaitingOrders::class)->context())->toBe(['most' => 3])
+            ->and(DB::table('sales.orders')->count())->toBe($orders)
+            ->and(fn () => placeQuoteAgain($ready))->toThrow(TooManyWaitingOrders::class);
+    });
+
+    it('takes a new order once one is decided or cancelled', function (Closure $decide) {
+        $ready = Cx::ready();
+        $first = Cx::place(Cx::start($ready['address'])->id)->id;
+        Cx::place(placeQuoteAgain($ready));
+        Cx::place(placeQuoteAgain($ready));
+        $decide($first, $ready['customer']);
+        Fx::actAsCustomer($ready['customer']);
+
+        expect(Cx::place(placeQuoteAgain($ready))->number)->toBe('SA-0004');
+    })->with([
+        'approved' => [function (string $order) {
+            Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['sa']));
+            app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+        }],
+        'rejected' => [function (string $order) {
+            Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['sa']));
+            app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Not for us'));
+        }],
+        'cancelled by the customer' => [fn (string $order) => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND'))],
+    ]);
+
+    it('counts only the customer\'s own orders in this store', function () {
+        // Another customer's three in the store.
+        $other = Cx::ready();
+        Cx::place(Cx::start($other['address'])->id);
+        Cx::place(placeQuoteAgain($other));
+        Cx::place(placeQuoteAgain($other));
+        // The customer's own three in another store.
+        $abroad = Cx::ready(storeCode: 'eg');
+        Cx::place(Cx::start($abroad['address'], storeCode: 'eg')->id, 'eg');
+        foreach ([1, 2] as $again) {
+            Cx::add($abroad['variants'][0], storeCode: 'eg');
+            Cx::place(Cx::start($abroad['address'], storeCode: 'eg')->id, 'eg');
+        }
+        $address = Bx::savedAddress($abroad['customer'], 'sa');
+        Cx::add($other['variants'][0]);
+
+        expect(Cx::place(Cx::start($address)->id)->number)->toBe('SA-0004');
+    });
+
+    it('follows the number an admin of every store set', function () {
+        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::WAITING_ORDERS, null, 1)));
+        $ready = Cx::ready();
+        Cx::place(Cx::start($ready['address'])->id);
+
+        expect(Pr::thrown(fn () => placeQuoteAgain($ready), TooManyWaitingOrders::class)->context())->toBe(['most' => 1]);
+    });
+
+    // Proves placing takes the customer's lock in the store; that the count comes after it is the
+    // handler's order of the two calls (PlaceOrderHandler step 1), read in review, not tested here.
+    it('counts under a lock per customer and store: a placement meanwhile waits for it', function () {
+        $ready = Cx::ready();
+        $quote = Cx::start($ready['address'])->id;
+        config(['database.connections.waiting_race' => config('database.connections.'.config('database.default'))]);
+        $other = DB::connection('waiting_race');
+        // Another placement of the customer's in the store, holding the lock.
+        $other->select('SELECT pg_advisory_lock(hashtextextended(?, 0))', ['sales:waiting:'.Fx::storeId('sa').':'.$ready['customer']]);
+        DB::statement("SET LOCAL lock_timeout = '300ms'");
+
+        try {
+            $waited = Pr::thrown(fn () => Cx::place($quote), QueryException::class);
+        } finally {
+            $other->select('SELECT pg_advisory_unlock_all()');
+            $other->disconnect();
+        }
+
+        expect($waited->getCode())->toBe('55P03')
+            ->and($waited->getSql())->toContain('pg_advisory_xact_lock');
+    });
+});
+
+/**
+ * The customer's next order of the first size, quoted; the cart filled again.
+ *
+ * @param  array{customer: string, address: string, variants: list<string>, product: string}  $ready
+ */
+function placeQuoteAgain(array $ready): string
+{
+    Cx::add($ready['variants'][0]);
+
+    return Cx::start($ready['address'])->id;
+}
 
 /** Inventory's hold refusing with this error; its reads as they are. */
 function placeHoldFailing(Throwable $error): void

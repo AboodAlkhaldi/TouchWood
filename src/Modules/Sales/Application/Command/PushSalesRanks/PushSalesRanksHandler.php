@@ -18,8 +18,9 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **The shop's Best-Selling ranks, each night** (sales.md §1.13; catalog.md amendment 30): in each store, its
- * products ranked by **the pieces sold in that store's orders placed in the last 90 days that were not
- * cancelled, rejected or undelivered** — a gift is not sold — 1 the most; a tie goes to the newer product,
+ * products ranked by **the pieces sold in that store's orders placed in the last 90 days that are approved
+ * or later and were not cancelled, rejected or undelivered** (a waiting order is not yet sold, answer 51)
+ * — a gift is not sold — 1 the most; a tie goes to the newer product,
  * as the shop's own tie-break. Every store, on and off, gets its whole ranking, so a product that sold
  * nothing loses its rank. The system only.
  */

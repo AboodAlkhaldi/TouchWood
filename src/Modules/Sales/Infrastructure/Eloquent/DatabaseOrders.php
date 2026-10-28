@@ -188,11 +188,22 @@ final readonly class DatabaseOrders implements Orders
         return $this->db->table('sales.orders')->where('id', $orderId)->whereNotNull('short_of_stock_at')->update(['short_of_stock_at' => null]) > 0;
     }
 
+    public function lockCustomer(string $storeId, string $customerId): void
+    {
+        $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['sales:waiting:'.strtolower($storeId).':'.strtolower($customerId)], false);
+    }
+
+    public function waitingCount(string $storeId, string $customerId): int
+    {
+        return $this->db->table('sales.orders')->where('customer_id', strtolower($customerId))->where('store_id', strtolower($storeId))
+            ->where('status', OrderState::PENDING_APPROVAL)->count();
+    }
+
     public function piecesSold(string $storeId, DateTimeImmutable $since): array
     {
         return array_map('intval', $this->db->table('sales.order_lines AS l')->join('sales.orders AS o', 'o.id', '=', 'l.order_id')
             ->where('o.store_id', strtolower($storeId))->where('o.placed_at', '>=', Moment::of($since))
-            ->whereNotIn('o.status', [OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED])->where('l.is_gift', false)
+            ->whereNotIn('o.status', [OrderState::PENDING_APPROVAL, OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED])->where('l.is_gift', false)
             ->groupBy('l.product_id')->selectRaw('l.product_id, SUM(l.quantity) AS pieces')->pluck('pieces', 'product_id')->all());
     }
 

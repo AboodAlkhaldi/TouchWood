@@ -89,7 +89,8 @@ Built in this fixed order (handoff §10.2, §11.3):
 1. **The store is on** (`PlatformApi::store` → `isActive`) and **who may order** —
    `AccessApi::customerMayOrder` (active, email and phone verified, no deletion pending) and, for a
    company account, `B2BApi::isApproved` in this store (handoff §7.4). An unapproved company sees the
-   company view but cannot order (owner, 2026-10-07).
+   company view but cannot order (owner, 2026-10-07). **And fewer orders waiting for approval in this
+   store than allowed** — 3 unless changed (§1.10) — else `TooManyWaitingOrders` (answer 51).
 2. **What may be bought** — each line orderable here in its sale mode, within the store's minimum and
    maximum (Catalog, the store's variants in bulk — §2.3); **a wholesale line only for a company**
    (handoff §6, amended 2026-10-07); **only products whose category is open to the buyer's account
@@ -141,7 +142,10 @@ Built in this fixed order (handoff §10.2, §11.3):
 
 1. **The quote is locked** (`SELECT … FOR UPDATE`) and **an order already placed from it is answered
    as it is** — before the quote's expiry is checked, so a retry after 15 minutes still gets its order — placing twice is placing once, however often the button is pressed (b2b.md §9 #7).
-   The order keeps its quote's id (unique), the backstop.
+   The order keeps its quote's id (unique), the backstop. Then, **under a lock per customer and store**
+   (an advisory lock held to the transaction's end), **the orders already waiting for approval are
+   counted**: as many as allowed (§1.10) is `TooManyWaitingOrders`, shown as itself, not as
+   `QuoteChanged` — two placements sent at once cannot both pass (answer 51).
 2. **The order's public number** — the store's code in capitals and the store's own sequence,
    (owner, 2026-10-09; the KSA store's code is `sa`, platform.md §5.2), **each store's sequence starting
    at 1, shown four digits at least** — `SA-0001` … `SA-9999`, then `SA-10000` (owner, 2026-10-26,
@@ -539,12 +543,14 @@ Changed under `sales.settings.update`, **admin-only** — they decide money. My 
 owner to reject, with the defaults 0. **Shipping (stage 7) replaces the two shipping settings** with
 carriers and rates per store; the return window stays Sales's.
 
-And **once for every store** (answer 50; owner, 2026-10-28), the coupon box's limit (§1.1):
+And **once for every store** (answers 50 and 51; owner, 2026-10-28), the coupon box's limit (§1.1) and
+the orders waiting a customer may have:
 
 | Key | Type | Range | Default | Means |
 |---|---|---|---|---|
 | `sales.coupons.wrong_codes` | Integer | 1–20 | **5** | Codes naming no coupon a customer may type in the window |
 | `sales.coupons.window_minutes` | Integer | 1–60 | **10** | The window, in minutes, from the first such code |
+| `sales.orders.waiting_most` | Integer | 1–20 | **3** | Orders waiting for approval a customer may have in one store (§1.2 step 1, §1.3 step 1; answer 51) |
 
 Changed under `sales.settings.update` in **every store** — an admin of all stores or a Super Admin.
 
@@ -583,13 +589,13 @@ edit adds or frees (inventory.md §1.4), so a successful edit does not show that
 
 Catalog's "Best-Selling" sort is fed by Sales (catalog.md §2.2: `ListingFacts::salesRanks`; built in S11a,
 catalog.md amendment 30). **A nightly
-job ranks each store's products by the pieces sold in that store's orders not cancelled, rejected or undelivered over the last
-90 days**, and pushes the ranks. My assumption for the measure and the window, stated for the owner to
-reject.
+job ranks each store's products by the pieces sold in that store's orders approved or later, not cancelled, rejected or
+undelivered, over the last 90 days**, and pushes the ranks. My assumption for the window, stated for the
+owner to reject; **a waiting order is not yet sold** (owner, 2026-10-28, answer 51).
 
 **As built (step S11a)** — `PushSalesRanks` (nightly, 03:45 Riyadh, the system only): per store, the pieces
 of non-gift lines in its orders **placed** within the last 90 days (to the second) whose status is not
-`CANCELLED`, `REJECTED` or `UNDELIVERED` — returned pieces still count (my assumption) — ranked 1 the most, a
+`PENDING_APPROVAL` (answer 51), `CANCELLED`, `REJECTED` or `UNDELIVERED` — returned pieces still count (kept, owner 2026-10-28) — ranked 1 the most, a
 tie to the newer product (the shop's own tie-break); **every store, on and off, gets its whole ranking**, so a
 product that sold nothing loses its rank. Catalog keeps it (catalog.md amendment 30).
 
@@ -1197,6 +1203,7 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `WayToPayNotOffered` | INVALID | A way to pay not offered to this account (online to a company; a bank transfer while the store has none) |
 | `SignInToUseCoupon` | INVALID | A guest's coupon code |
 | `TooManyCouponTries` | FORBIDDEN | Five codes that name no coupon in ten minutes; carries the minutes left (answer 50) |
+| `TooManyWaitingOrders` | CONFLICT | As many orders waiting for approval in the store as allowed, at the quote or at placing; carries the number (answer 51) |
 | `QuoteNotFound` | NOT_FOUND | A quote that is not this buyer's — the same answer as an unknown one |
 | `QuoteExpired` | CONFLICT | Placing after 15 minutes or past the prices' end — checkout quotes again |
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
@@ -1379,6 +1386,13 @@ refusing anything but one void.
     coupon in ten minutes per customer, then none until the ten minutes pass (§1.1); a coupon given to
     others answers as unknown (promotions.md answer 29). **Both numbers are settings, one pair for every
     store**, changed only by an admin of all stores or a Super Admin: codes 1–20, minutes 1–60 (§1.10).
+51. **Waiting orders capped, and not yet sold** (2026-10-28, security audit run-2): a customer may have
+    at most **3 orders waiting for approval in one store** — a fourth is refused at the quote and at
+    placing (`TooManyWaitingOrders`), counted under a lock per customer and store; one more is allowed
+    once staff approve or reject one, or the customer cancels one. **The number is a setting, one for
+    every store**, 1–20, changed only by an admin of all stores or a Super Admin (§1.10). **Best-Selling
+    counts orders approved or later** — a waiting order is not yet sold; cancelled, rejected and
+    undelivered (came back) ones stay out, returned pieces still count (§1.13).
 
 ### 9.2 Still open
 

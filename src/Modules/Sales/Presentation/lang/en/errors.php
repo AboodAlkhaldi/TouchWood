@@ -33,6 +33,10 @@ return [
         'title' => 'Too Many Wrong Codes',
         'detail' => 'Couldn\'t try the code: too many codes that match no coupon. Try again in :minutes minutes.',
     ],
+    'too_many_waiting_orders' => [
+        'title' => 'Too Many Orders Waiting',
+        'detail' => 'You already have :most orders waiting for approval in this store. You can order again once the store approves or rejects one of them, or you cancel one.',
+    ],
     'quote_not_found' => [
         'title' => 'Checkout Not Found',
         'detail' => 'This checkout was not found. Start the checkout again.',

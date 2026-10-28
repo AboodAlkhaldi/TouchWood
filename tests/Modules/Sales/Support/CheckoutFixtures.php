@@ -83,6 +83,16 @@ final class CheckoutFixtures
         return CarbonImmutable::now()->addHour()->startOfHour();
     }
 
+    /**
+     * The customer's orders waiting for approval marked approved, so a test placing many orders stays
+     * under the cap of orders waiting (sales.md §1.3, answer 51).
+     */
+    public static function approveWaiting(string $customerId): void
+    {
+        DB::table('sales.orders')->where('customer_id', $customerId)->where('status', 'PENDING_APPROVAL')
+            ->update(['status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now()]);
+    }
+
     public static function setting(string $key, int|bool $value): void
     {
         Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, 'sa', $value)));

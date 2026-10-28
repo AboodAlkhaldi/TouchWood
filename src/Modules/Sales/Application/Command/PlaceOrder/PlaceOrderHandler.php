@@ -33,6 +33,7 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
+use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Model\Cart;
 use Modules\Sales\Domain\Model\PlacedOrder;
 use Modules\Sales\Domain\Repository\Carts;
@@ -53,11 +54,13 @@ use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * Placing a quote (sales.md §1.3) — **one transaction**, its locks in one order: Sales's own first (the
- * quote, then the cart), then Promotions' and Loyalty's, Inventory's last — no lock on an existing row
+ * quote, the customer's in the store, then the cart), then Promotions' and Loyalty's, Inventory's last — no lock on an existing row
  * after it, only new rows (the cart's own row already locked); a deadlock tried again (`ATTEMPTS`):
  *
  * 1. the quote locked; an order already placed from it answered as it is — before the expiry, so a
- *    retry after 15 minutes still gets its order; then the expiry;
+ *    retry after 15 minutes still gets its order; then the expiry; then, under a lock per customer and
+ *    store, fewer orders waiting for approval than allowed (`TooManyWaitingOrders`, answer 51 — shown as
+ *    itself, not as `QuoteChanged`);
  * 2. the store's next number;
  * 3. every rule that can change in 15 minutes, again, on the quote's own lines — the store, the
  *    account, the lines, the address, the way to pay, **the gift as quoted**, **the coupon and points
@@ -107,7 +110,7 @@ final readonly class PlaceOrderHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|QuoteChanged
+     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|TooManyWaitingOrders|QuoteChanged
      */
     public function handle(PlaceOrder $command): PlacedOrder
     {
@@ -150,6 +153,10 @@ final readonly class PlaceOrderHandler
             if ($now >= $quote->expiresAt) {
                 throw new QuoteExpired;
             }
+
+            // The orders already waiting, counted with the customer's other placements in the store kept out.
+            $this->orders->lockCustomer($store->value, $customerId);
+            $this->rules->waiting($store, $customerId);
 
             $view = QuoteView::fromArray($quote->id, $quote->storeId, $quote->customerId, $quote->addressId, WayToPay::from($quote->wayToPay), $quote->expiresAt, $quote->createdAt, $quote->result);
             $cart = $this->carts->lock($store, $customerId, null);

@@ -25,6 +25,7 @@ use Modules\Sales\Domain\Exception\SalesError;
 use Modules\Sales\Domain\Exception\SignInToUseCoupon;
 use Modules\Sales\Domain\Exception\TooManyCouponTries;
 use Modules\Sales\Domain\Exception\TooManyFiles;
+use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Shared\Domain\Error\ErrorCategory;
 
@@ -47,6 +48,7 @@ function salesErrors(): array
         'WayToPayNotOffered' => [new WayToPayNotOffered, 'sales.way_to_pay_not_offered', ErrorCategory::Invalid],
         'SignInToUseCoupon' => [new SignInToUseCoupon, 'sales.sign_in_to_use_coupon', ErrorCategory::Invalid],
         'TooManyCouponTries' => [new TooManyCouponTries(360), 'sales.too_many_coupon_tries', ErrorCategory::Forbidden],
+        'TooManyWaitingOrders' => [new TooManyWaitingOrders(3), 'sales.too_many_waiting_orders', ErrorCategory::Conflict],
         'QuoteNotFound' => [new QuoteNotFound, 'sales.quote_not_found', ErrorCategory::NotFound],
         'QuoteExpired' => [new QuoteExpired, 'sales.quote_expired', ErrorCategory::Conflict],
         'QuoteChanged' => [new QuoteChanged, 'sales.quote_changed', ErrorCategory::Conflict],
@@ -88,7 +90,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(salesErrors()));
     sort($listed);
 
-    expect(salesErrorClassesInFolder())->toHaveCount(20)
+    expect(salesErrorClassesInFolder())->toHaveCount(21)
         ->and(salesErrorClassesInFolder())->toBe($listed);
 });
 

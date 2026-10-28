@@ -94,6 +94,8 @@ it('lists the customer orders newest first, 20 a page, each by its number with t
 
     foreach (range(1, 20) as $n) {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        // Under the cap of orders waiting; the newest stays waiting (New).
+        Cx::approveWaiting($customer);
         Cx::add($variants[1]);
         $numbers[] = Cx::place(Cx::start($address)->id)->number;
     }

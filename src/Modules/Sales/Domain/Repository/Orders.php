@@ -47,8 +47,17 @@ interface Orders
     public function clearShort(string $orderId): bool;
 
     /**
-     * The pieces sold of each product in a store's orders placed since `$since` that were not cancelled,
-     * rejected or undelivered — gift lines left out (§1.13).
+     * The customer's placements in the store wait for one another (§1.3): held to the transaction's end,
+     * so the orders waiting are counted with none placed meanwhile.
+     */
+    public function lockCustomer(string $storeId, string $customerId): void;
+
+    /** The customer's orders in the store waiting for approval (§1.3, answer 51). */
+    public function waitingCount(string $storeId, string $customerId): int;
+
+    /**
+     * The pieces sold of each product in a store's orders placed since `$since` that are approved or
+     * later and were not cancelled, rejected or undelivered — gift lines left out (§1.13, answer 51).
      *
      * @return array<string, int> product id => pieces
      */
