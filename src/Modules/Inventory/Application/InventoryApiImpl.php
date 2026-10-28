@@ -97,7 +97,7 @@ final readonly class InventoryApiImpl implements InventoryApi
             $lines = [];
 
             foreach ($wanted as $line) {
-                $holdLine = new HoldLine($line->variantId, $line->gift, $line->quantity, self::counts($wired, $line->gift, $rows[$line->variantId]->stockDependent ?? false));
+                $holdLine = new HoldLine($line->variantId, $line->gift, $line->quantity, self::counts($wired, $line->gift, StockFigures::dependent($rows[$line->variantId] ?? null)));
                 $lines[$holdLine->key()] = $holdLine;
             }
 
@@ -220,7 +220,7 @@ final readonly class InventoryApiImpl implements InventoryApi
             $new = [];
 
             foreach ($wanted as $line) {
-                $holdLine = new HoldLine($line->variantId, $line->gift, $line->quantity, self::counts($wired, $line->gift, $rows[$line->variantId]->stockDependent ?? false));
+                $holdLine = new HoldLine($line->variantId, $line->gift, $line->quantity, self::counts($wired, $line->gift, StockFigures::dependent($rows[$line->variantId] ?? null)));
                 $new[$holdLine->key()] = $holdLine;
             }
 
@@ -295,8 +295,9 @@ final readonly class InventoryApiImpl implements InventoryApi
                 }
 
                 // A wired store: an ordinary product follows the provider's number; a stock-dependent
-                // size or a gift is added on our side until that number next changes (§1.9, provisional).
-                $stockDependent = $this->stock->read($store, [$line->variantId])[$line->variantId]->stockDependent ?? false;
+                // size or a gift is added on our side until that number next changes (§1.9). A size is
+                // stock-dependent unless staff switched it off: a size with no row is (§9.2 #24).
+                $stockDependent = StockFigures::dependent($this->stock->read($store, [$line->variantId])[$line->variantId] ?? null);
 
                 if ($line->gift || $stockDependent) {
                     $this->stock->addReturnedExtra($store, $line->variantId, $productId, $line->quantity);
@@ -330,7 +331,8 @@ final readonly class InventoryApiImpl implements InventoryApi
 
         // The caller's transaction when there is one (a savepoint in it), its own otherwise: the store's
         // lock first, the audit entries inside (InventoryChange). On only, never off. Unwired since the
-        // question above - asked again under the lock - nothing happens.
+        // question above - asked again under the lock - nothing happens. The switch is on by default
+        // (§9.2 #24), so only a size staff switched off changes.
         return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true) ?? [[], []]);
     }
 

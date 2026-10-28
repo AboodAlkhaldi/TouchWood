@@ -224,6 +224,8 @@ describe('the lines', function () {
     it('counts a wired order lines on stock as its hold does, kept parts too, by the size switch today', function () {
         $ready = Cx::ready();
         Ix::wired();
+        // Switched off by staff (on by default, inventory.md §9.2 #24), then one back on before the edit.
+        Ix::switchOff('sa', $ready['variants']);
         $order = Cx::place(Cx::start($ready['address'])->id)->id;
         $variants = $ready['variants'];
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_EDIT], ['sa']));

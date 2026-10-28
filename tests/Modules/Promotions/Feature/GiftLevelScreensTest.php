@@ -203,6 +203,8 @@ describe('the stock tick box (owner\'s Q11 (c))', function () {
     it('gives the dialog the box\'s facts: the store wired, a size not yet limited to its stock, and who may tick', function () {
         Ix::wired();
         $ready = Px::ready(['60 cm']);
+        // Every size counts on stock by default (inventory.md §9.2 #24): the box is for one switched off.
+        Ix::switchOff('sa', [$ready['variants'][0]]);
         $code = (string) DB::table('catalog.variants')->where('id', $ready['variants'][0])->value('code');
         Pr::giftLevel($ready['variants'][0], 300_00);
 
@@ -216,6 +218,7 @@ describe('the stock tick box (owner\'s Q11 (c))', function () {
     it('limits the size to its stock in the level\'s own save, ticked by someone who manages stock', function () {
         Ix::wired();
         [$gift] = Px::ready(['60 cm'])['variants'];
+        Ix::switchOff('sa', [$gift]);
 
         $saved = giftScreens([PromotionsPermissions::GIFT_MANAGE, InventoryPermissions::STOCK_MANAGE])->post('/admin/gift-levels', giftScreensForm($gift, ['make_stock_dependent' => true]));
 
@@ -226,6 +229,7 @@ describe('the stock tick box (owner\'s Q11 (c))', function () {
     it('limits the size on an edit too, and refuses that edit to someone who may not manage stock', function () {
         Ix::wired();
         [$gift] = Px::ready(['60 cm'])['variants'];
+        Ix::switchOff('sa', [$gift]);
         $level = Pr::giftLevel($gift, 300_00);
 
         $refused = giftScreens()->post("/admin/gift-levels/{$level}", giftScreensForm($gift, ['amount' => '350', 'make_stock_dependent' => true]));
@@ -242,6 +246,7 @@ describe('the stock tick box (owner\'s Q11 (c))', function () {
     it('refuses the tick from someone who may not manage stock, saving nothing', function () {
         Ix::wired();
         [$gift] = Px::ready(['60 cm'])['variants'];
+        Ix::switchOff('sa', [$gift]);
 
         $refused = giftScreens()->post('/admin/gift-levels', giftScreensForm($gift, ['make_stock_dependent' => true]));
 

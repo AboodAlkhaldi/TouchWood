@@ -73,6 +73,8 @@ describe('the tick box', function () {
     it('makes the size stock-dependent in a wired store, in the level own save', function () {
         Ix::wired();
         [$pen] = giftStockSizes();
+        // On by default (inventory.md §9.2 #24): the box changes only a size staff switched off.
+        Ix::switchOff('sa', [$pen]);
         giftStockStaff();
         expect(giftStockCounts($pen))->toBeFalse();
 
@@ -85,6 +87,7 @@ describe('the tick box', function () {
     it('leaves the size as it is when not ticked', function () {
         Ix::wired();
         [$pen] = giftStockSizes();
+        Ix::switchOff('sa', [$pen]);
         giftStockStaff();
 
         app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
@@ -95,6 +98,7 @@ describe('the tick box', function () {
     it('makes the new size stock-dependent when a level is changed with it ticked', function () {
         Ix::wired();
         [$pen, $mug] = giftStockSizes();
+        Ix::switchOff('sa', [$pen, $mug]);
         giftStockStaff();
         $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
 
@@ -108,6 +112,7 @@ describe('the tick box', function () {
     it('switches the size when a change only ticks the box', function () {
         Ix::wired();
         [$pen] = giftStockSizes();
+        Ix::switchOff('sa', [$pen]);
         giftStockStaff();
         $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
         $audits = DB::table('platform.audit_entries')->where('subject_id', $level)->count();
@@ -150,6 +155,7 @@ describe('the tick box', function () {
     it('refuses the tick to a reader without Inventory switch job, and saves nothing', function (Closure $save) {
         Ix::wired();
         [$pen, $mug] = giftStockSizes();
+        Ix::switchOff('sa', [$pen, $mug]);
         giftStockStaff();
         $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, false)));
         giftStockStaff(stock: false);
@@ -175,6 +181,20 @@ describe('the tick box', function () {
             ->and(DB::table('promotions.gift_levels')->count())->toBe(0);
     });
 
+    it('changes nothing for a size staff never switched off: it counts on stock already, by default', function () {
+        Ix::wired();
+        [$pen] = giftStockSizes();
+        giftStockStaff();
+        expect(giftStockCounts($pen))->toBeTrue();
+
+        $level = app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, true)));
+
+        expect(DB::table('promotions.gift_levels')->where('id', $level)->exists())->toBeTrue()
+            ->and(giftStockCounts($pen))->toBeTrue()
+            ->and(DB::table('inventory.stock')->where('variant_id', $pen)->exists())->toBeFalse()
+            ->and(Fx::audits('inventory.stock.stock_dependent_set'))->toBe(0);
+    });
+
     it('saves the level and changes nothing in a store with no provider', function () {
         [$pen] = giftStockSizes();
         giftStockStaff();
@@ -188,18 +208,21 @@ describe('the tick box', function () {
 
 describe('the dialog reads', function () {
     it('says on each level whether its size counts on stock and whether the store is wired', function (bool $wired) {
+        [$pen, $mug] = giftStockSizes();
+
         if ($wired) {
             Ix::wired();
+            // Both switched off by staff, so the box decides (inventory.md §9.2 #24).
+            Ix::switchOff('sa', [$pen, $mug]);
         }
 
-        [$pen, $mug] = giftStockSizes();
         giftStockStaff();
         app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, $wired)));
         app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($mug, false, 2000_00)));
 
         $rows = app(ListGiftLevelsHandler::class)->handle(new ListGiftLevels(Fx::storeId('sa')));
 
-        // With no provider every size counts on its stock; wired, only the one ticked.
+        // With no provider every size counts on its stock; wired, of two switched off, only the one ticked.
         expect(array_map(fn ($row): array => [$row->variantId, $row->stockDependent, $row->wired], $rows))
             ->toBe([[$mug, ! $wired ? true : false, $wired], [$pen, true, $wired]]);
     })->with([
@@ -210,6 +233,7 @@ describe('the dialog reads', function () {
     it('finds the store sizes by name or code with the same facts, archived ones left out', function () {
         Ix::wired();
         [$pen, $mug] = giftStockSizes();
+        Ix::switchOff('sa', [$pen, $mug]);
         giftStockStaff();
         app(CreateGiftLevelHandler::class)->handle(new CreateGiftLevel(Fx::storeId('sa'), giftStockFields($pen, true)));
         $code = (string) DB::table('catalog.variants')->where('id', $mug)->value('code');

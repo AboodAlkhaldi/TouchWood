@@ -58,7 +58,7 @@ final readonly class StockViews
             StockFigures::badge($row, $wired, $defaultThreshold)?->value,
             StockFigures::shortBy($row, $wired),
             StockFigures::counts($row, $wired),
-            $wired && $row !== null && $row->stockDependent,
+            $wired && StockFigures::dependent($row),
             $wired ? $providerChangedAt?->format(DateTimeInterface::ATOM) : null,
             $holds->orders ?? 0,
         );

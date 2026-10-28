@@ -29,8 +29,8 @@ provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07,
 2. **A store with no provider counts every product on its stock**, always: nobody orders what is
    not there (owner, 2026-10-07).
 3. **A store wired to a provider** (Sync, KSA to be): the provider's stock is **read, never held or
-   reduced** (owner, 2026-10-09). An **ordinary** product's stock **does not limit ordering**. A
-   **stock-dependent** size counts on **the provider's stock minus this store's holds not yet ticked
+   reduced** (owner, 2026-10-09). An **ordinary** product's stock — a size staff switched off (§1.2) —
+   **does not limit ordering**. A **stock-dependent** size — every size by default (owner, 2026-10-28) — counts on **the provider's stock minus this store's holds not yet ticked
    "reduced in the provider"** (handoff §12.1's worked example) — plus, provisionally, pieces returned
    and not yet in the provider's number (§1.9). **Gifts** count on stock in every store.
 4. **The low-stock threshold only ever alerts staff; it never changes what can be ordered** (owner,
@@ -47,7 +47,7 @@ provider's team or another session is §9.1. Handoff §12.1, revised 2026-10-07,
 | in stock | A whole number, **never below 0**. In a store with no provider it is ours; in a wired store it is the provider's last number (Sync). |
 | held | The sum of the open holds' lines that count on stock (§1.4). It **may exceed in stock** after a hand removal (§1.5): those orders are flagged. |
 | low-stock threshold | Per size per store (owner, 2026-10-07); empty → **the store's default, 10 pieces** (owner, 2026-10-09; a Platform setting per store, `inventory.low_stock.default`, accepted 2026-10-09). **From 0 to 100,000**, the default and each size's own alike (owner, 2026-10-10). |
-| stock-dependent | **Only in a wired store** (owner, 2026-10-07), off by default, **per size**: staff pick a product's sizes — all of them, some, or one (owner, 2026-10-09: "so its customized"). **A size added later starts off**; staff pick it (owner, 2026-10-09). |
+| stock-dependent | **Only in a wired store** (owner, 2026-10-07), **on by default** (owner, 2026-10-28; §9.2 #24 — replaces "off by default"), **per size**: staff pick a product's sizes to switch off, and back on — all of them, some, or one (owner, 2026-10-09: "so its customized"). **Every size is on**: those already there when the default changed (migration `2026_10_28_100000`), and **a size added later starts on**. A size with no stock row counts as on; switching a size off makes or keeps its row with the switch off. |
 
 **"Ending soon" ("last pieces")** for customers (owner, 2026-10-07/09), when a size's available stock
 is at or below its threshold: **in a store with no provider**, where staff switch it on for the
@@ -172,8 +172,8 @@ out** — and each return once (its id makes it safe to repeat).
 | Store, size | What happens |
 |---|---|
 | A store with no provider | **In stock rises** — a movement, reason **Returned** |
-| A wired store, an ordinary product | **Nothing**: the provider's number rules ("otherwise it depends on odoo") |
-| A wired store, a **stock-dependent** size, or a **gift** (a gift counts on stock in every store) | **The returned extra** (owner, 2026-10-10; final 2026-10-19) — see below |
+| A wired store, an ordinary product (a size staff switched off, §1.2) | **Nothing**: the provider's number rules ("otherwise it depends on odoo") |
+| A wired store, a **stock-dependent** size — every size by default (§9.2 #24), a size with no row too — or a **gift** (a gift counts on stock in every store) | **The returned extra** (owner, 2026-10-10; final 2026-10-19) — see below |
 
 **The rule** — final (owner, 2026-10-19: nothing is written to the provider; it was provisional until
 that answer, 2026-10-10): the returned pieces are **added on our side at once** — the size's **returned
@@ -203,7 +203,7 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `release(string $orderId): void` | Sales (a cancel; a shipped parcel that came back, sales.md §1.5), Inventory's own expiry job | Frees whatever the order still holds — and only that: after a shipment, what was shipped or ticked is not held any more and is left alone (in a store with no provider a fully shipped order frees nothing; in a wired store, the stock-dependent and gift lines not yet ticked). |
 | `adjustHold(string $orderId, list<HoldLineDto> $newLines): void` | Sales (staff edited an order before it ships) | Moves the order's hold to exactly `newLines`, all or nothing (§1.4): the extra held, refused with `inventory.not_enough_stock` as at placement; lowered or removed lines freed; the expiry kept. No hold for the order: `inventory.no_hold`; a line already shipped or ticked: `inventory.hold_not_editable`. (stage 6's shape; accepted with #106) |
 | `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received; a shipped parcel marked "came back", settled as a whole return — sales.md §1.5, owner 2026-10-10 — after `release`, with its own id in `returnId`) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back — for a parcel that came back, those whose stock was taken: every shipped piece in a store with no provider, the ticked lines in a wired store. The store is the order's (its hold). (agreed with stage 6; accepted with #106) |
-| `makeStockDependent(StoreId $store, list<string> $variantIds): list<string>` | Promotions (a gift level saved with its tick box, promotions.md §4.1 M4) | Turns the sizes' stock-dependent switch **on, never off**, in a **wired** store, as `SetStockDependent` does — the row made, the flag set, the same audit entry (`inventory.stock.stock_dependent_set`), Catalog's facts refreshed, the store's lock then the rows in size-id order (one shared piece of code). A store that does not exist is refused (`store`); then a size that does not exist or is archived (or of an archived product), in every store alike, as staff's switch refuses it — `inventory.invalid_inventory_input`, `variant`, naming them — and nothing changes. Then nothing happens in a store with no provider (every size counts on its stock there already) nor for a size already on. The wiring is asked again under the store's lock, which unwiring takes too: a store unwired while the call waited for it is left as it is (staff's switch is refused there, `inventory.not_wired`). Runs in the caller's transaction when one is open (a savepoint in it), its own otherwise. **Call it last in that transaction, take no lock of the caller's own module after it, and keep the transaction short**: Inventory's store lock and Catalog's products lock (the facts) are held until the caller commits. Answers the sizes it turned on, by their own ids, in id order. **No permission inside**: Promotions checks `inventory.stock.manage` in the store itself, by its public name `Modules\Inventory\Public\InventoryPermissions::STOCK_MANAGE` (owner, 2026-10-19; §9.2 #23) |
+| `makeStockDependent(StoreId $store, list<string> $variantIds): list<string>` | Promotions (a gift level saved with its tick box, promotions.md §4.1 M4) | Turns the sizes' stock-dependent switch **on, never off**, in a **wired** store, as `SetStockDependent` does — the flag set on the size's row, the same audit entry (`inventory.stock.stock_dependent_set`), Catalog's facts refreshed, the store's lock then the rows in size-id order (one shared piece of code). A store that does not exist is refused (`store`); then a size that does not exist or is archived (or of an archived product), in every store alike, as staff's switch refuses it — `inventory.invalid_inventory_input`, `variant`, naming them — and nothing changes. Then nothing happens in a store with no provider (every size counts on its stock there already) nor for a size already on — **since the switch is on by default (§9.2 #24), that is every size except one staff switched off**, and a size with no row is on already, so no row is made. The wiring is asked again under the store's lock, which unwiring takes too: a store unwired while the call waited for it is left as it is (staff's switch is refused there, `inventory.not_wired`). Runs in the caller's transaction when one is open (a savepoint in it), its own otherwise. **Call it last in that transaction, take no lock of the caller's own module after it, and keep the transaction short**: Inventory's store lock and Catalog's products lock (the facts) are held until the caller commits. Answers the sizes it turned on, by their own ids, in id order. **No permission inside**: Promotions checks `inventory.stock.manage` in the store itself, by its public name `Modules\Inventory\Public\InventoryPermissions::STOCK_MANAGE` (owner, 2026-10-19; §9.2 #23) |
 
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
 shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
@@ -266,8 +266,8 @@ here is audited: Sync audits each read once, the detail being in the ledger (syn
 | `StoreWiring::isWired(StoreId): bool` | Moved from Inventory's Application layer to its Public contracts, so Sync can answer it. Inventory binds "no store is wired" until Sync binds its own. |
 | `StoreWiring::wiredStores(): list<string>` | *(Stage 5's screens step 4:)* every store wired now, by id, in one read - for a screen asking of many stores at once (a product's stock in every store, what the screens may offer), as Pricing's `StoreWiring` answers it. Sync's `ConnectionWiring` answers both modules' with one method. |
 | `ProviderStock::apply(StoreId, array<variantId, int>, string $readRef): ProviderStockResult` | Each size's in stock set to the provider's number (§1.1 rule 3, §1.9; sync.md §1.5 #3): the same number as now changes nothing — a size with no row that the provider has at 0 gets none, so sizes the store does not sell stay off its Low Stock list; a different one is a `PROVIDER` movement to it, its reference the read's and the size's, so the same read run again is counted once; the size's returned extra goes back to 0; orderable and "last pieces" pushed to Catalog. A size switched off in the store, or of a draft product, takes it too. 500 sizes a transaction, under the store's lock, the wiring asked again in each: a store unwired while the read ran gets nothing from then on (`wired` false). **Not written, and named in the result** for Sync to report: an archived size or one of an archived product, a size not found, a number below 0 or above the most pieces a size holds (Sync drops fractions and keeps a number below 0 as 0 first, sync.md §1.5 #2), a second id written for the same size. `HoldsShort` is not sent: §6.1 names hand changes only. **Sync's part**: `readRef` is the read's own id (letters, digits, `-` and `_`, at most 64 — the ledger's reference holds 120), never reused; one read per store at a time, a retry asking the provider again (sync.md §1.3, §1.7) — an old read's numbers are never applied after a later read's. |
-| `ProviderStock::wired(StoreId): void` | Sync calls it once the store is wired (`StoreWiring` answers true; refused otherwise; sync.md §1.2): every size switched on or with a row is told to Catalog again for a wired store — an ordinary product orderable whatever its number (§1.3). Nothing is written. *(Added in step 2a's review: without it, a size the provider reports at the number it had, or never reports, kept the unwired figures.)* |
-| `ProviderStock::stopsWhenUnwired(StoreId): int` | How many sizes switched on in the store would stop being orderable once it is unwired — orderable now, nothing free with no provider: ordinary ones at 0 or all held, sizes never counted — for the Super Admin's confirmation (sync.md §1.8). Reads only. |
+| `ProviderStock::wired(StoreId): void` | Sync calls it once the store is wired (`StoreWiring` answers true; refused otherwise; sync.md §1.2): every size switched on or with a row is told to Catalog again for a wired store — a size staff switched off (an ordinary product) orderable whatever its number (§1.3); every other size, stock-dependent by default (§9.2 #24), by its figure, a size with no row as 0 (not orderable) until Sync's first read, queued at once (sync.md §1.2), sets its number. Nothing is written. *(Added in step 2a's review: without it, a size the provider reports at the number it had, or never reports, kept the unwired figures.)* |
+| `ProviderStock::stopsWhenUnwired(StoreId): int` | How many sizes switched on in the store would stop being orderable once it is unwired — orderable now, nothing free with no provider: sizes staff switched off, at 0 or all held — a stock-dependent size (every size by default, §9.2 #24) is orderable now only with pieces free, which it keeps — for the Super Admin's confirmation (sync.md §1.8). Reads only. |
 | `ProviderStock::unwired(StoreId): int` | Sync calls it once the store is unwired (`StoreWiring` answers false; refused otherwise): each size's returned extra — a stock-dependent size's or a gift's (§1.9) — is added into its in stock, a `CORRECTION` movement noted with Inventory's own code `UNWIRED` (sync.md §9.2 #12; §1.6); every size switched on or with a row is told to Catalog again for a store with no provider, a size with no row as 0. Nothing else is cleared. Answers how many sizes switched on there stopped being orderable. |
 
 `ProviderStockResult`: `wired` · `changed`, `archived`, `notFound`, `invalid` — lists of the variant ids
@@ -321,8 +321,10 @@ edit adds starts HELD (or NOTED).
 
 ### 4.2 The stock-dependent switch (wired store)
 
-`OFF` ⇄ `ON`, per size, by hand; off by default, a size added later too. `OFF` → `ON` also by
-Promotions' gift level (`InventoryApi::makeStockDependent`, §2.1), never back.
+`OFF` ⇄ `ON`, per size, by hand; ~~off by default, a size added later too~~ **on by default**, every
+size, a size added later too (owner, 2026-10-28; §9.2 #24). `OFF` → `ON` also by Promotions' gift
+level (`InventoryApi::makeStockDependent`, §2.1), never back — so the gift level changes only a size
+staff switched off.
 
 ### 4.3 The admin screens (stage 5's screens)
 
@@ -544,7 +546,7 @@ column is written so a NULL cannot slip through (lesson 162).
 
 | Table | Columns |
 |---|---|
-| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` FK `catalog.products` CASCADE (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `orderable` boolean NULL — the same for orderability, null when never pushed (step 4: only a flip is pushed; sizes switched on, the default threshold's change and the repair tell Catalog too) · `updated_at` |
+| `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` FK `catalog.products` CASCADE (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) DEFAULT true — on by default, a size with no row counted as on (§9.2 #24; migration `2026_10_28_100000` set every row on and the default from false) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `orderable` boolean NULL — the same for orderability, null when never pushed (step 4: only a flip is pushed; sizes switched on, the default threshold's change and the repair tell Catalog too) · `updated_at` |
 | `inventory.store_products` | (`store_id` FK `platform.stores` RESTRICT, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) · `updated_at` |
 | `inventory.low_counts` | `store_id` PK FK `platform.stores` RESTRICT · `low` NULL CHECK ≥ 0 · `counted_at` NULL (both NULL until first counted) · `recount_queued` boolean — the menu's Low Stock count per store, kept (step 5); one recount waits per store |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
@@ -633,9 +635,11 @@ their one detail stands.
 8. **Ending soon**: a store with no provider — only with the product's switch; a wired store —
    automatic on stock-dependent sizes, never on ordinary ones; pushed into Catalog when it turns on
    or off (a hold, a shipment, a cancel, the provider's number, a threshold, a switch), only then.
-9. **Stock-dependent switch**: all of a product's sizes, some, one; a size added later starts off;
-   refused in a store with no provider. `makeStockDependent`: on only, audited and told as the
-   switch; nothing in a store with no provider or for a size already on; inside the caller's
+9. **Stock-dependent switch**: all of a product's sizes, some, one; on by default — a size added
+   later and a size with no row count on stock, an existing size after the migration too; switched
+   off (its row made or kept with the switch off) and back on; refused in a store with no provider.
+   `makeStockDependent`: on only, audited and told as the switch; nothing in a store with no
+   provider or for a size already on (every size not switched off); inside the caller's
    transaction and alone, its audit entry always in a transaction.
 10. **The store's file**: sets the stock when switched on (a File movement); ignored in a wired store,
     the page saying so.
@@ -666,12 +670,12 @@ their one detail stands.
 | 4 | `ListingFacts::endingSoon` (§2.3) | Catalog's amendment 16(h), accepted (#103, 50e9991); its backend being built |
 | 5 | Inventory's screens: stock and its history, hand changes, the Low Stock list, the switches | The frontend session, after this spec |
 
-### 9.2 Answered (owner, 2026-10-09, 2026-10-10, 2026-10-11, 2026-10-18 and 2026-10-19)
+### 9.2 Answered (owner, 2026-10-09, 2026-10-10, 2026-10-11, 2026-10-18, 2026-10-19 and 2026-10-28)
 
 | # | Question | Answer |
 |---|---|---|
 | 1 | A wired ordinary product the provider reports at 0 | **Stays orderable** — "since its not stock-dependent"; staff mark it "Not available now" (§1.3). Replaces handoff §9.2's provisional rule |
-| 2 | The stock-dependent switch's level | **Per size**: all of a product's sizes, some, or one — "customized"; **a size added later starts off** (§1.2) |
+| 2 | The stock-dependent switch's level | **Per size**: all of a product's sizes, some, or one — "customized"; ~~**a size added later starts off**~~ — the default is now **on**, a size added later too (#24) (§1.2) |
 | 3 | "Last pieces" on cards and lists too? | **Yes** — a card shows it when **any** of its sizes is ending soon (§1.2, §2.3); narrowed to the sizes the viewer can buy and order now (#12) |
 | 4 | The permission's name `inventory.stock.manage`, in the role editor's **Catalog** group ("Catalog and variants"), as no stock group exists | Accepted |
 | 5 | **`HoldsShort(storeId, variantId, orderIds)`**, published after a removal — how Sales learns which orders to flag | Accepted |
@@ -693,6 +697,7 @@ their one detail stands.
 | 21 | The menu's Low Stock count in one query | **A count kept per store**, counted again by a job after each change and each night - about half a minute behind the list at most (owner, 2026-10-18; §1.7) |
 | 22 | Shipping more than is in stock, in a store with no provider (a hand removal took the pieces) | **Never refused** (owner, 2026-10-19; sales.md answer 41): the stock stops at 0, never below; one `SHIPPED` line, before → 0, notes the shortfall for a recount — **always**, from a stock already at 0 too, as a 0 → 0 line with its note (a shipped line changing nothing is otherwise refused); the line is shipped in full and its hold freed. A removal by hand is still refused below 0 (§2.1, §7) |
 | 23 | Promotions' gift-level tick box ("Also limit this size's normal sales to its stock") | **`InventoryApi::makeStockDependent`** turns the switch on, never off, in a wired store, inside the gift level's own save; **the tick box also needs `inventory.stock.manage`** in that store, which Promotions checks itself by the permission's public name (owner, 2026-10-19; promotions.md §4.1 M4, §9.4 Q11) (§2.1, §3) |
+| 24 | The stock-dependent switch's default in a wired store | **On by default** (owner, 2026-10-28): in a store wired to a provider **every size depends on stock** — **every existing size**, not only new ones, and a size added later. **The per-size switch stays**: staff may switch a size off, and back on. A store with no provider is unchanged: it always counts on stock. Built as: a size with no stock row counts as on (`StockFigures::dependent`); the column defaults to true; migration `2026_10_28_100000` sets every existing row on; switching a size off makes or keeps its row with `false`. Catalog's facts and the Low Stock counts are told again by `inventory:orderable:rebuild` right after the migration (handoff §15.4). Follows: holds, edits and the returned extra (§1.9) apply to every size not switched off; `makeStockDependent` (#23) changes only a size staff switched off, so Promotions' gift tick box rarely applies. Replaces #2's "a size added later starts off" and §1.2's "off by default" (§1.1, §1.2, §2.1, §2.5, §4.2, §5) |
 
 ### 9.3 Proposals for the screens (2026-10-18) - built as written unless the owner says otherwise
 

@@ -554,7 +554,9 @@ it again." (§1.4) [Q14].
   companies; dates, optional. **In a wired store**, under the gift (owner, Q11 (c)): a tick box, off by
   default, **"Also limit this size's normal sales to its stock"**, with the line "The gift itself is
   always given from stock. Ticking this also makes customers able to buy this size only while it is in
-  stock — it leaves the shop when it runs out." Shown only for a size whose stock-dependency is off;
+  stock — it leaves the shop when it runs out." Shown only for a size whose stock-dependency is off —
+  since 2026-10-28 every size is stock-dependent by default (inventory.md §9.2 #24), so only a size
+  staff switched off shows it, and the tick box rarely applies;
   out of reach, with the reason, for a reader without Inventory's switch job. Saving the level with it
   ticked also turns the size's switch on, **in the level's own save** (one transaction: no level saved
   without its switch) — `CreateGiftLevel` and `ChangeGiftLevel` call Inventory's public

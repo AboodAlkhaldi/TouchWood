@@ -139,6 +139,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-19 | §13.3 | **Staff messages to customers, for Ops** (owner, 2026-10-19, from Loyalty's screens): staff may send a message to all customers, to some, or to one found by name, in the account's notifications, by email or by SMS as they choose — for example to explain a change of points. Ops specifies and builds it; nothing before Ops | Owner decision |
 | 2026-10-19 | §2, §13.1 | **Product questions are global** (feedback.md answer 16): asked in a store, answered by its staff, shown once answered in every store that sells the product; an answered question may be unpublished (answer 18) — replaces "questions per store" of 2026-10-09 | Owner, Feedback's answers before the build |
 | 2026-10-28 | §4.4 | **Shipping → Access and Payments → Access**, only to declare their permissions — and Payments also hears `CustomerAnonymized` (shipping.md §9.2, payments.md §6) | Owner decision |
+| 2026-10-28 | §12.1, §15.4 | **The stock-dependent switch is on by default**: in a store wired to a provider every variant depends on stock — every variant already there too, not only new ones; staff may switch a variant off, and back on. A store with no provider is unchanged. Replaces "off by default; a variant added later starts off" (2026-10-09). Promotions' gift tick box then changes only a variant staff switched off. The details: `docs/modules/inventory.md` §1.2, §9.2 #24 | Owner decision |
 | 2026-10-28 | §13.3, §17 | **Ops' rules** (`docs/modules/ops.md`, draft for acceptance): Ops is specified before Content; email by **Brevo**, SMS by an adapter (provider not chosen) and **only for codes and the gateway key's critical alerts to super admins**; staff messages to customers by bell and email (not SMS); besides queued listeners, Ops runs scheduled jobs (points expiring, the daily report's email); marketing email only with the customer's consent (access.md amendments 79–84); newsletters designed in Brevo; reports in Excel and a **daily report** in PDF; revenue = what the customer pays for goods after coupon and points, without VAT or shipping; no visitor counting | Owner decision |
 
 ---
@@ -1325,9 +1326,10 @@ this system's scope.** Do not model warehouses, branches, bins or transfers.
   customer may order more than it shows. Staff reduce stock **in the provider**, by hand, as they ship.
   The product goes out of stock only when staff mark it (§9.2) ~~or the provider reports 0~~
   (revised 2026-10-09).
-- **Stock-dependent products** — a flag, **off by default**, ~~per product~~ **per variant** per
-  store — staff pick all of a product's variants, some or one, and a variant added later starts off
-  (owner, 2026-10-09) — for a wired
+- **Stock-dependent products** — a flag, ~~off by default~~ **on by default** (owner, 2026-10-28:
+  every variant of a wired store, those already there too), ~~per product~~ **per variant** per
+  store — staff switch off all of a product's variants, some or one, ~~and a variant added later
+  starts off (owner, 2026-10-09)~~ and a variant added later starts on — for a wired
   store's products that must not be oversold. Our figure is **the provider's stock minus the
   quantities of this store's orders not yet ticked "reduced in the provider"** by staff (§12.3).
   Staff tick an order once they have reduced its stock in the provider. Whatever the provider sends
@@ -1739,6 +1741,11 @@ Decide these when the owning module is reached; do not design them now.
 - **Stage 5's first deploy**: run `php artisan inventory:orderable:rebuild` once after the migrations,
   so Catalog's listing is told, in every store, whether each size can be ordered and is ending soon -
   the sizes switched on before Inventory existed were never told.
+- **The stock-dependent switch on by default** (owner, 2026-10-28; inventory.md §9.2 #24): the deploy
+  that brings migration `2026_10_28_100000_stock_dependent_on_by_default` runs `php artisan
+  inventory:orderable:rebuild` once right after the migrations, so every wired store's sizes are told
+  to Catalog as stock-dependent at once (a size with no stock row as 0, not orderable) and each store's
+  Low Stock count is queued for a recount. Until it runs, the shop shows the old orderability.
 - **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Inventory\Application\Stock;
 
 use Modules\Inventory\Domain\Repository\StockRows;
+use Modules\Inventory\Domain\Service\StockFigures;
 use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
@@ -38,17 +39,18 @@ final readonly class StockDependentSwitch
             return null;
         }
 
-        // A size with no row is off: a row is made only for one switched on.
+        // On by default (owner, 2026-10-28; §9.2 #24): a size with no row is on, so a row is made only
+        // for one switched off, which keeps it with `false`; switching on changes only existing rows.
         $rows = $on
-            ? $this->stock->lockFor($store, $products)
-            : $this->stock->lockExisting($store, array_map('strval', array_keys($products)));
+            ? $this->stock->lockExisting($store, array_map('strval', array_keys($products)))
+            : $this->stock->lockFor($store, $products);
         $sizes = array_map('strval', array_keys($products));
         sort($sizes);
         $changed = [];
         $entries = [];
 
         foreach ($sizes as $variantId) {
-            $before = isset($rows[$variantId]) && $rows[$variantId]->stockDependent;
+            $before = StockFigures::dependent($rows[$variantId] ?? null);
 
             if ($before === $on) {
                 continue;

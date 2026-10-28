@@ -168,7 +168,8 @@ it('in a wired store tells an ordinary product orderable at 0, and a stock-depen
         ['store_id' => Ix::storeId('sa'), 'variant_id' => $dependent, 'product_id' => DB::table('catalog.variants')->where('id', $dependent)->value('product_id'), 'in_stock' => 2, 'updated_at' => now()],
     ]);
 
-    Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$dependent], true)));
+    // The dependent size is on by default (§9.2 #24); the ordinary one is switched off by staff.
+    Fx::asSystem(fn () => app(SetStockDependentHandler::class)->handle(new SetStockDependent(Ix::storeId('sa'), [$ordinary], false)));
     Fx::asSystem(fn () => app(RebuildOrderableHandler::class)->handle(new RebuildOrderable));
 
     expect(inventoryFactsTold($ordinary))->toBe([true, false])

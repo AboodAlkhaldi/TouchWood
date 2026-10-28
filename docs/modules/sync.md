@@ -57,6 +57,8 @@ shown again** — the page shows only that they are set and when; a new value re
   is shown (`sync.connection_failed`). *(§9.2 #10)*
 - Once saved, the store is wired **at that second**, and **a full read is queued at once** (§1.3). The
   provider's prices replace the store's own, and its stock numbers replace ours through the ledger.
+  Every size is stock-dependent by default (owner, 2026-10-28; inventory.md §9.2 #24), so until that
+  read lands a size with no stock row shows 0 and cannot be ordered.
 - **Changing the key or the secret** is the same form, tested the same way. A key or a secret left empty is
   kept - **unless the address changes** (as stored, its closing slash trimmed): then **both are typed again**,
   each left empty refused under its own box ("Type the key again: the address changed." · "Type the secret
@@ -172,7 +174,8 @@ that second the store is not wired** — staff own its prices and stock. **Nothi
 prices and stock stay as they are, now editable by hand.
 
 - Inventory works out every size's orderability again for a store with no provider, where **every
-  product counts on its stock** (inventory.md §1.1 rule 2) — so an ordinary product the provider left
+  product counts on its stock** (inventory.md §1.1 rule 2) — so an ordinary product (a size staff
+  switched off; every size is stock-dependent by default, inventory.md §9.2 #24) the provider left
   at 0 stops being orderable. **The Super Admin is shown how many sizes will stop before confirming.**
 - A stock-dependent size's returned extra is added into its stock. *(§9.2 #12)*
 - The report's entries are closed; reads queued for the store are dropped.

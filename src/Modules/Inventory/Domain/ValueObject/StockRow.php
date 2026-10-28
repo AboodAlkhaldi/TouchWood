@@ -6,7 +6,8 @@ namespace Modules\Inventory\Domain\ValueObject;
 
 /**
  * A size's stock in a store, as `inventory.stock` holds it (inventory.md §1.2, §5). A size with no row
- * counts as 0 in a store with no provider (§9.2 #6).
+ * counts as 0 (§9.2 #6) and, in a wired store, as stock-dependent: the switch is on by default
+ * (owner, 2026-10-28; §9.2 #24).
  */
 final readonly class StockRow
 {
