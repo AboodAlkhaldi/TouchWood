@@ -8,17 +8,23 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use LogicException;
+use Modules\Platform\Application\Audit\PlaceAudit;
 use Modules\Platform\Application\Audit\StoreAudit;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
+use Modules\Platform\Domain\Exception\CountryShippedByAnotherStore;
 use Modules\Platform\Domain\Exception\CurrencyNotFound;
 use Modules\Platform\Domain\Exception\CurrencyTaken;
 use Modules\Platform\Domain\Exception\InvalidStoreAttribute;
 use Modules\Platform\Domain\Exception\StoreCodeTaken;
+use Modules\Platform\Domain\Model\AddressCountry;
 use Modules\Platform\Domain\Model\Store;
+use Modules\Platform\Domain\Repository\AddressCountryRepository;
 use Modules\Platform\Domain\Repository\CurrencyRepository;
+use Modules\Platform\Domain\Repository\StoreCountryRepository;
 use Modules\Platform\Domain\Repository\StoreRepository;
 use Modules\Platform\Domain\ValueObject\CountryCode;
 use Modules\Platform\Domain\ValueObject\CurrencyCode;
@@ -51,6 +57,8 @@ final readonly class CreateStoreHandler
         private AuditLog $auditLog,
         private InMemoryReservedPaths $reservedPaths,
         private CreateCurrencyHandler $createCurrency,
+        private AddressCountryRepository $addressCountries,
+        private StoreCountryRepository $storeCountries,
     ) {}
 
     public function handle(CreateStore $command): StoreId
@@ -101,10 +109,46 @@ final readonly class CreateStoreHandler
 
             $this->stores->add($store);
             $this->auditLog->record(StoreAudit::created($store));
+            $this->shipToItsCountry($store);
             $this->directory->invalidate();
             $this->events->dispatch(new StoreCreated((string) Str::uuid(), $store->id()->value, CarbonImmutable::now()));
         });
 
         return $store->id();
+    }
+
+    /**
+     * A store always ships to its own country (shipping.md §1.3), which is then on the address list
+     * too - added, or brought back if it was retired. Refused when another store ships there: a
+     * country ships from one store at most, so it is moved off that store first (stage 7 step 1, Q1).
+     */
+    private function shipToItsCountry(Store $store): void
+    {
+        $code = $store->country()->value;
+        // The store's own rules have checked the code. Added here, or already there - then read
+        // under its lock, so a Super Admin adding the same country at that moment never collides.
+        $country = AddressCountry::reconstitute($code, false);
+
+        if ($this->addressCountries->add($country)) {
+            $this->auditLog->record(PlaceAudit::countryAdded($country));
+        } else {
+            $country = $this->addressCountries->byCode($code) ?? throw new LogicException("The address country {$code} vanished while locked.");
+
+            if ($country->isRetired()) {
+                $country->restore();
+                $country->pullChanges();
+                $this->addressCountries->update($country);
+                $this->auditLog->record(PlaceAudit::countryMarked($country));
+            }
+        }
+
+        $current = $this->storeCountries->storeOf($code);
+
+        if ($current !== null) {
+            throw new CountryShippedByAnotherStore($code, $this->directory->storeById($current->value)->code ?? $current->value);
+        }
+
+        $this->storeCountries->add($store->id(), $code);
+        $this->auditLog->record(PlaceAudit::shipToAdded($store->id(), $code));
     }
 }

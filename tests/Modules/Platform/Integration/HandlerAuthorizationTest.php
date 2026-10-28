@@ -12,6 +12,12 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStore;
 use Modules\Platform\Application\Command\ActivateStore\ActivateStoreHandler;
+use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountry;
+use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountryHandler;
+use Modules\Platform\Application\Command\AddPlace\AddPlace;
+use Modules\Platform\Application\Command\AddPlace\AddPlaceHandler;
+use Modules\Platform\Application\Command\AddStoreCountry\AddStoreCountry;
+use Modules\Platform\Application\Command\AddStoreCountry\AddStoreCountryHandler;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrency;
 use Modules\Platform\Application\Command\CreateCurrency\CreateCurrencyHandler;
 use Modules\Platform\Application\Command\CreateStore\CreateStore;
@@ -24,8 +30,20 @@ use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariants;
 use Modules\Platform\Application\Command\GenerateMediaVariants\GenerateMediaVariantsHandler;
+use Modules\Platform\Application\Command\RemoveStoreCountry\RemoveStoreCountry;
+use Modules\Platform\Application\Command\RemoveStoreCountry\RemoveStoreCountryHandler;
+use Modules\Platform\Application\Command\RenamePlace\RenamePlace;
+use Modules\Platform\Application\Command\RenamePlace\RenamePlaceHandler;
 use Modules\Platform\Application\Command\RequeueStuckMediaVariants\RequeueStuckMediaVariants;
 use Modules\Platform\Application\Command\RequeueStuckMediaVariants\RequeueStuckMediaVariantsHandler;
+use Modules\Platform\Application\Command\RestoreAddressCountry\RestoreAddressCountry;
+use Modules\Platform\Application\Command\RestoreAddressCountry\RestoreAddressCountryHandler;
+use Modules\Platform\Application\Command\RestorePlace\RestorePlace;
+use Modules\Platform\Application\Command\RestorePlace\RestorePlaceHandler;
+use Modules\Platform\Application\Command\RetireAddressCountry\RetireAddressCountry;
+use Modules\Platform\Application\Command\RetireAddressCountry\RetireAddressCountryHandler;
+use Modules\Platform\Application\Command\RetirePlace\RetirePlace;
+use Modules\Platform\Application\Command\RetirePlace\RetirePlaceHandler;
 use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariants;
 use Modules\Platform\Application\Command\RetryMediaVariants\RetryMediaVariantsHandler;
 use Modules\Platform\Application\Command\UpdateCurrency\UpdateCurrency;
@@ -110,6 +128,26 @@ function mediaRowWithoutPermission(?string $variantsStatus = 'FAILED'): string
     return $id;
 }
 
+/**
+ * A region and a city in it, written directly, so making them checks no permission.
+ *
+ * @return array{region: string, city: string}
+ */
+function placesWithoutPermission(string $country = 'SA'): array
+{
+    $region = strtolower((string) Str::ulid());
+    $city = strtolower((string) Str::ulid());
+
+    DB::table('platform.places')->insert([
+        ['id' => $region, 'country_code' => $country, 'kind' => 'REGION', 'parent_id' => null, 'name' => json_encode(['ar' => 'منطقة', 'en' => 'Region']), 'retired' => false, 'created_at' => now(), 'updated_at' => now()],
+    ]);
+    DB::table('platform.places')->insert([
+        ['id' => $city, 'country_code' => $country, 'kind' => 'CITY', 'parent_id' => $region, 'name' => json_encode(['ar' => 'مدينة', 'en' => 'City']), 'retired' => false, 'created_at' => now(), 'updated_at' => now()],
+    ]);
+
+    return ['region' => $region, 'city' => $city];
+}
+
 beforeEach(function () {
     seed(PlatformSeeder::class);
     Storage::fake('public');
@@ -164,6 +202,23 @@ it('checks the right permission, against the right scope, in every handler', fun
     'generate variants' => [fn () => app(GenerateMediaVariantsHandler::class)->handle(new GenerateMediaVariants(mediaRowWithoutPermission('READY'))), 'platform.media.variants.generate', 'global'],
     'mark variants failed' => [fn () => app(GenerateMediaVariantsHandler::class)->fail(new GenerateMediaVariants(mediaRowWithoutPermission('READY'))), 'platform.media.variants.generate', 'global'],
     'sweep stuck variants' => [fn () => app(RequeueStuckMediaVariantsHandler::class)->handle(new RequeueStuckMediaVariants), 'platform.media.variants.generate', 'global'],
+    // The places and the ship-to countries: reserved and store-free (platform.md, stage 7).
+    'add an address country' => [fn () => app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA')), 'platform.places.manage', 'global'],
+    'retire an address country' => [function () {
+        DB::table('platform.address_countries')->insert(['country_code' => 'QA', 'retired' => false, 'created_at' => now(), 'updated_at' => now()]);
+        app(RetireAddressCountryHandler::class)->handle(new RetireAddressCountry('QA'));
+    }, 'platform.places.manage', 'global'],
+    'restore an address country' => [fn () => app(RestoreAddressCountryHandler::class)->handle(new RestoreAddressCountry('SA')), 'platform.places.manage', 'global'],
+    'add a place' => [fn () => app(AddPlaceHandler::class)->handle(new AddPlace('SA', 'REGION', null, 'الرياض', 'Riyadh')), 'platform.places.manage', 'global'],
+    'rename a place' => [fn () => app(RenamePlaceHandler::class)->handle(new RenamePlace(placesWithoutPermission()['city'], 'جدة', 'Jeddah')), 'platform.places.manage', 'global'],
+    'retire a place' => [fn () => app(RetirePlaceHandler::class)->handle(new RetirePlace(placesWithoutPermission()['city'])), 'platform.places.manage', 'global'],
+    'restore a place' => [fn () => app(RestorePlaceHandler::class)->handle(new RestorePlace(placesWithoutPermission()['city'])), 'platform.places.manage', 'global'],
+    'add a ship-to country' => [function () {
+        DB::table('platform.address_countries')->insert(['country_code' => 'QA', 'retired' => false, 'created_at' => now(), 'updated_at' => now()]);
+        placesWithoutPermission('QA');
+        app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'QA'));
+    }, 'platform.store.countries', 'global'],
+    'remove a ship-to country' => [fn () => app(RemoveStoreCountryHandler::class)->handle(new RemoveStoreCountry('sa', 'QA')), 'platform.store.countries', 'global'],
 ]);
 
 it('asks for creating a currency too when a store brings a new one, and makes neither without it (§9.7 #3)', function () {
@@ -212,6 +267,38 @@ it('changes nothing and audits nothing when the permission is denied', function 
     'update a store' => [fn () => app(UpdateStoreHandler::class)->handle(new UpdateStore('sa', taxRateBasisPoints: 1))],
     'create a store' => [fn () => app(CreateStoreHandler::class)->handle(new CreateStore('xa', 'متجر', 'Store', 'XA', 'SAR', 1500, 'UTC', 9))],
     'turn a store off' => [fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg'))],
+    'add an address country' => [fn () => app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA'))],
+    'retire an address country' => [fn () => app(RetireAddressCountryHandler::class)->handle(new RetireAddressCountry('AE'))],
+    'restore an address country' => [fn () => app(RestoreAddressCountryHandler::class)->handle(new RestoreAddressCountry('SA'))],
+    'add a place' => [fn () => app(AddPlaceHandler::class)->handle(new AddPlace('SA', 'REGION', null, 'الرياض', 'Riyadh'))],
+    'rename a place' => [fn () => app(RenamePlaceHandler::class)->handle(new RenamePlace(placesWithoutPermission()['city'], 'جدة', 'Jeddah'))],
+    'retire a place' => [fn () => app(RetirePlaceHandler::class)->handle(new RetirePlace(placesWithoutPermission()['city']))],
+    'restore a place' => [fn () => app(RestorePlaceHandler::class)->handle(new RestorePlace(placesWithoutPermission()['city']))],
+    'add a ship-to country' => [fn () => app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'AE'))],
+    'remove a ship-to country' => [fn () => app(RemoveStoreCountryHandler::class)->handle(new RemoveStoreCountry('ae', 'AE'))],
+]);
+
+it('changes no place and no ship-to country when the permission is denied', function (Closure $run) {
+    $places = placesWithoutPermission();
+    permissionLog()->deny = true;
+    $before = [
+        DB::table('platform.address_countries')->orderBy('country_code')->get()->toJson(),
+        DB::table('platform.places')->orderBy('id')->get()->toJson(),
+        DB::table('platform.store_countries')->orderBy('country_code')->get()->toJson(),
+    ];
+
+    expect(fn () => $run($places))->toThrow(Unauthorized::class)
+        ->and([
+            DB::table('platform.address_countries')->orderBy('country_code')->get()->toJson(),
+            DB::table('platform.places')->orderBy('id')->get()->toJson(),
+            DB::table('platform.store_countries')->orderBy('country_code')->get()->toJson(),
+        ])->toBe($before);
+})->with([
+    'add an address country' => [fn (array $places) => app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA'))],
+    'add a place' => [fn (array $places) => app(AddPlaceHandler::class)->handle(new AddPlace('SA', 'CITY', $places['region'], 'جدة', 'Jeddah'))],
+    'rename a place' => [fn (array $places) => app(RenamePlaceHandler::class)->handle(new RenamePlace($places['city'], 'جدة', 'Jeddah'))],
+    'retire a place' => [fn (array $places) => app(RetirePlaceHandler::class)->handle(new RetirePlace($places['city']))],
+    'add a ship-to country' => [fn (array $places) => app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('ae', 'SA'))],
 ]);
 
 it('changes no media, stores no file and queues nothing when the permission is denied', function (Closure $run) {

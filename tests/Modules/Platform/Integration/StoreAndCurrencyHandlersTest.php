@@ -54,10 +54,12 @@ function givenCurrency(string $code = 'XTS', ?string $sign = "\u{20C1}"): void
 /**
  * A store, created and then turned on, as a Super Admin opens one: a new store is created off, and
  * an off store is as if it were never there to other modules (platform.md §1.6, owner 2026-10-01).
+ * Each in a country of its own, named after its code: a country ships from one store at most
+ * (platform.md, stage 7 (b)).
  */
 function givenStore(string $code = 'xa', string $currency = 'XTS', int $position = 1): void
 {
-    app(CreateStoreHandler::class)->handle(new CreateStore($code, 'متجر '.$code, 'Store '.$code, 'XA', $currency, 1500, 'Asia/Riyadh', $position));
+    app(CreateStoreHandler::class)->handle(new CreateStore($code, 'متجر '.$code, 'Store '.$code, strtoupper(substr($code, 0, 2)), $currency, 1500, 'Asia/Riyadh', $position));
     app(ActivateStoreHandler::class)->handle(new ActivateStore($code));
 }
 

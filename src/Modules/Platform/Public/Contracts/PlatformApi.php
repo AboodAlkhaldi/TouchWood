@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Modules\Platform\Public\Contracts;
 
 use DateTimeImmutable;
+use Modules\Platform\Public\Dto\AddressCountryDto;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\ModuleDeleteDto;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
+use Modules\Platform\Public\Dto\PlaceDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Actor;
@@ -146,4 +148,60 @@ interface PlatformApi
      * is marked as imported. Runs as the system, inside a transaction; the date must be past.
      */
     public function recordImportedAudit(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void;
+
+    /**
+     * The countries a customer may choose in an address (platform.md, stage 7 (a)), in use only,
+     * sorted by name as the language sorts (stage 7 step 1, Q7).
+     *
+     * @return list<AddressCountryDto>
+     */
+    public function addressCountries(string $locale): array;
+
+    /**
+     * A country's regions in use, sorted by name in the language. Nothing retired, nor anything
+     * under something retired, is in these lists (stage 7 step 1, Q4).
+     *
+     * @return list<PlaceDto>
+     */
+    public function regions(string $countryCode, string $locale): array;
+
+    /**
+     * @return list<PlaceDto> the region's cities in use, sorted by name in the language
+     */
+    public function cities(string $regionId, string $locale): array;
+
+    /**
+     * @return list<PlaceDto> the city's districts in use, sorted by name in the language
+     */
+    public function districts(string $cityId, string $locale): array;
+
+    /**
+     * Every city of the country in use, whatever its region: the country-wide "Select all"
+     * (shipping.md §2.2).
+     *
+     * @return list<PlaceDto>
+     */
+    public function citiesOf(string $countryCode, string $locale): array;
+
+    /**
+     * Places by id, retired ones included and marked so: an address or a price that already names
+     * a place keeps it (shipping.md §9.3 #4).
+     *
+     * @param  list<string>  $ids
+     * @return array<string, PlaceDto> by id; an unknown id is left out
+     */
+    public function place(array $ids): array;
+
+    /**
+     * The countries the store ships to, its own always among them (shipping.md §1.3).
+     *
+     * @return list<string>
+     */
+    public function storeCountries(StoreId $store): array;
+
+    /**
+     * The store that ships to the country - an off store too, whose countries still count as its
+     * own (shipping.md §1.2) - or null when none of ours does.
+     */
+    public function countryStore(string $countryCode): ?StoreDto;
 }

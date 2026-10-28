@@ -4,21 +4,26 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application;
 
+use Collator;
 use DateTimeImmutable;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
 use Modules\Platform\Application\Command\UploadMedia\UploadMedia;
 use Modules\Platform\Application\Command\UploadMedia\UploadMediaHandler;
+use Modules\Platform\Application\Places\PlaceLocks;
 use Modules\Platform\Application\Query\MediaReader;
+use Modules\Platform\Application\Query\PlaceReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\ReadSetting;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\AddressCountryDto;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\CurrencyDto;
 use Modules\Platform\Public\Dto\MediaDto;
 use Modules\Platform\Public\Dto\MediaUrlsDto;
 use Modules\Platform\Public\Dto\ModuleDeleteDto;
 use Modules\Platform\Public\Dto\ModuleUploadDto;
+use Modules\Platform\Public\Dto\PlaceDto;
 use Modules\Platform\Public\Dto\SettingValueDto;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Actor;
@@ -33,6 +38,7 @@ final readonly class PlatformApiImpl implements PlatformApi
         private MediaReader $mediaReader,
         private UploadMediaHandler $uploadMedia,
         private DeleteMediaHandler $deleteMedia,
+        private PlaceReader $places,
     ) {}
 
     public function store(StoreId $id): ?StoreDto
@@ -116,5 +122,65 @@ final readonly class PlatformApiImpl implements PlatformApi
     public function recordImportedAudit(AuditEntryDto $entry, Actor $actor, DateTimeImmutable $occurredAt): void
     {
         $this->auditLog->recordImported($entry, $actor, $occurredAt);
+    }
+
+    public function addressCountries(string $locale): array
+    {
+        return self::byName($this->places->addressCountries(), $locale);
+    }
+
+    public function regions(string $countryCode, string $locale): array
+    {
+        return self::byName($this->places->regions(PlaceLocks::code($countryCode)), $locale);
+    }
+
+    public function cities(string $regionId, string $locale): array
+    {
+        return self::byName($this->places->cities($regionId), $locale);
+    }
+
+    public function districts(string $cityId, string $locale): array
+    {
+        return self::byName($this->places->districts($cityId), $locale);
+    }
+
+    public function citiesOf(string $countryCode, string $locale): array
+    {
+        return self::byName($this->places->citiesOf(PlaceLocks::code($countryCode)), $locale);
+    }
+
+    public function place(array $ids): array
+    {
+        return $this->places->places($ids);
+    }
+
+    public function storeCountries(StoreId $store): array
+    {
+        return $this->places->storeCountries($store->value);
+    }
+
+    public function countryStore(string $countryCode): ?StoreDto
+    {
+        $storeId = $this->places->countryStore(PlaceLocks::code($countryCode));
+
+        return $storeId === null ? null : $this->directory->storeById($storeId);
+    }
+
+    /**
+     * Alphabetical in the page's language, as that language sorts (stage 7 step 1, Q7).
+     *
+     * @template T of AddressCountryDto|PlaceDto
+     *
+     * @param  list<T>  $items
+     * @return list<T>
+     */
+    private static function byName(array $items, string $locale): array
+    {
+        $collator = Collator::create($locale);
+        usort($items, static fn (AddressCountryDto|PlaceDto $a, AddressCountryDto|PlaceDto $b): int => $collator instanceof Collator
+            ? (int) $collator->compare($a->name->in($locale), $b->name->in($locale))
+            : strcmp($a->name->in($locale), $b->name->in($locale)));
+
+        return $items;
     }
 }

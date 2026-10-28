@@ -19,4 +19,13 @@ return [
     'media.variants_retried' => 'Image processing tried again',
     'failed_job.retried' => 'Failed job retried',
     'failed_job.deleted' => 'Failed job deleted',
+    'address_country.added' => 'Address country added',
+    'address_country.retired' => 'Address country retired',
+    'address_country.restored' => 'Address country restored',
+    'place.added' => 'Place added',
+    'place.renamed' => 'Place renamed',
+    'place.retired' => 'Place retired',
+    'place.restored' => 'Place restored',
+    'store_country.added' => 'Store ships to a country',
+    'store_country.removed' => 'Store stops shipping to a country',
 ];

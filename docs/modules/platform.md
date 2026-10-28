@@ -491,6 +491,9 @@ stay reserved: each reaches every store at once. Deleting a currency no store us
 | `ListFailedJobs` / `ViewFailedJob` — the queue's failed work, and one job's whole error | Admin | `platform.jobs.manage` (**admin-only**) | Global (a job belongs to no store) |
 | `RetryFailedJob` — puts that one job back on its queue | Admin | `platform.jobs.manage` | Global |
 | `DeleteFailedJob` — removes that one job for good, unrun | Admin | `platform.jobs.manage` | Global |
+| `AddAddressCountry` / `RetireAddressCountry` / `RestoreAddressCountry` — the countries a customer may choose in an address; an ISO code; retiring refused while a store ships there (`AddressCountryInUse`); adding a retired one refused (`AddressCountryRetired`): restore it (stage 7) | Super Admin | `platform.places.manage` (reserved) | Global |
+| `AddPlace` / `RenamePlace` / `RetirePlace` / `RestorePlace` — regions, cities, districts; names unique under one parent (`PlaceNameTaken`); never under something retired (`PlaceRetired`); retiring hides what is under it (stage 7) | Super Admin | `platform.places.manage` (reserved) | Global |
+| `AddStoreCountry` / `RemoveStoreCountry` — a store's ship-to countries: one store per country (`CountryShippedByAnotherStore`), a country with its place list (`CountryWithoutPlaces`), never the store's own (`StoreOwnCountry`); removal asks the registered `ShipToCountryGuard`s (stage 7) | Super Admin | `platform.store.countries` (reserved) | Global |
 | `ResolveStoreContext` | Every storefront request | None | — |
 | `ChooseStore` — the country page at `brand.com/`, and the cookie redirect | Any visitor | None | — |
 
@@ -847,7 +850,17 @@ PlatformError  extends DomainError        (abstract, module base)
 ├── InvalidMediaAttribute                 INVALID     file name or alt text too long / empty, bad checksum  ¹
 ├── FailedJobNotFound                     NOT_FOUND   retried or deleted already, or never there (2026-09-29)
 ├── FailedJobNotRetryable                 CONFLICT    it failed on a queue other than the database one: delete it (2026-09-29)
-└── BaseStoreAlwaysActive                 CONFLICT    turning the base store off (2026-10-02)
+├── BaseStoreAlwaysActive                 CONFLICT    turning the base store off (2026-10-02)
+├── AddressCountryNotFound                NOT_FOUND   not on the address list (stage 7)
+├── AddressCountryRetired                 CONFLICT    adding in, or to, a retired country: restore it first
+├── AddressCountryInUse                   CONFLICT    retiring a country a store ships to
+├── PlaceNotFound                         NOT_FOUND
+├── InvalidPlace                          INVALID     kind, parent, country code or name length
+├── PlaceRetired                          CONFLICT    adding under a retired region or city
+├── PlaceNameTaken                        CONFLICT    a sibling has the name, in either language
+├── CountryWithoutPlaces                  CONFLICT    a ship-to country with no city in use
+├── CountryShippedByAnotherStore          CONFLICT    a country ships from one store at most
+└── StoreOwnCountry                       CONFLICT    taking a store's own country off its list
 ```
 
 ¹ Added during implementation, **[DECIDED 2026-09-18]** kept. The approved list had no error for
@@ -1091,6 +1104,7 @@ in full in that module's specification.
 | 2026-10-18 (built 2026-10-19, stage 5's screens step 1) | Sync (its section, stage 5's screens) | **`sync` joins the admin menu's business areas** (`InMemoryAdminMenu::GROUPS`), after `pricing`; the area is Access's `PermissionGroup::Sync` (access.md amendment 68). Its icon `sync` (Lucide's `RefreshCw`) joins the panel's short list in `MenuIcon`. | sync.md §4.1, §9.4 S6 |
 | 2026-10-19 | Loyalty (its screens; the Points menu's Settings entry) | **A settings card can be opened by address**: each module's card on the settings screen gets the `id` `settings-{module}`, and the screen scrolls to the card the address's `#` names once it has drawn — so Loyalty's Points › Settings entry opens the screen at the Points card instead of Platform keeping a second settings screen. **Two icons join `MenuIcon`'s list**: `points` (the area; Lucide's `Coins`) and `redemptions` (Lucide's `TicketPercent`). | loyalty.md §4.1 L6, §9.4 #5 |
 | 2026-10-27 (stage 7, **[ACCEPTED by the owner, 2026-10-28]**) | Access (the address form), Shipping (prices by place), Payments | **(a) The places**: Platform keeps the **countries a customer may choose in an address** (Super Admins' list — owner, 2026-10-27 R1) and, per country, its **regions, cities and districts** in both languages, seeded at deployment — KSA and Egypt first, UAE later (C5) — from a list the owner reviews first (S9); **Super Admins may add, rename and retire** them in the panel (C3); a place is **never deleted, only retired** (shipping.md §9.3 #4). **(b) Each store's ship-to countries** — a list per store, set by Super Admins (R2); **a country in one store at most** (R3; a unique key). Reads: `PlatformApi::addressCountries()`, `regions(country)`, `cities(region)`, `districts(city)`, `place(ids)`, `storeCountries(StoreId)`, `countryStore(countryCode)`. **(c) A new error category `UNAVAILABLE`** (HTTP 503) in Shared's `ErrorCategory`, for a gateway that does not answer (payments.md §7). | shipping.md §9.2, payments.md §7 |
+| 2026-10-28 (stage 7 step 1, built) | Access, Shipping, Sales | **The places as built, with the owner's answers to step 1's eight questions** (2026-10-28, all as recommended): (1) a store opened in a country another store ships to is refused (`CountryShippedByAnotherStore`) until a Super Admin moves the country off that store; a new store's country joins the address list, a retired one brought back; (2) an address country a store ships to cannot be retired (`AddressCountryInUse`); (3) a retired country or place can be **restored**; (4) retiring a region or a city takes everything under it out of the pickers, their own marks untouched, so restoring brings them back; nothing new is added under a retired place (`PlaceRetired`); (5) a country **has its place list** when it has a city in use (neither it nor its region retired) — `CountryWithoutPlaces`, refused by Platform, which owns the ship-to list; (6) two places of one kind under one parent never share a name, in either language, case aside (`PlaceNameTaken`; a unique index behind it); (7) the lists are sorted by name as the page's language sorts, so the reads take the locale: `addressCountries(locale)`, `regions(country, locale)`, `cities(regionId, locale)`, `districts(cityId, locale)`, `citiesOf(country, locale)`; (8) the address list begins with only our stores' countries on it (not every country); Super Admins add others. Also: `countryStore(country)` answers the store (`?StoreDto`, an off store too); `place(ids)` marks retired whatever is retired itself or under something retired; names keep Latin digits and at most 100 characters; two reserved, store-free permissions, `platform.places.manage` and `platform.store.countries`; the hook `ShipToCountryGuards`, which Shipping fills in its step 3; `UNAVAILABLE` answers 503. No screens: the screens session builds them. | The spec named the places and the reads; the build needed these rules settled. |
 
 ### 9.5 The owner's new direction — 2026-10-01 and 2026-10-02
 

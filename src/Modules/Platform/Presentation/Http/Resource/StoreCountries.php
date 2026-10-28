@@ -6,8 +6,7 @@ namespace Modules\Platform\Presentation\Http\Resource;
 
 use Collator;
 use DateTimeZone;
-use Locale;
-use ResourceBundle;
+use Modules\Platform\Domain\ValueObject\IsoCountries;
 
 /**
  * Every country a store may be opened in, for the Add Store form (platform.md §9.7 #3): PHP's ICU
@@ -19,9 +18,6 @@ use ResourceBundle;
  */
 final readonly class StoreCountries
 {
-    /** In ICU's region list but not ISO 3166-1 countries: groupings, reserved and private-use codes. */
-    private const array NOT_COUNTRIES = ['AC', 'CP', 'CQ', 'DG', 'EA', 'EU', 'EZ', 'IC', 'QO', 'TA', 'UN', 'XA', 'XB', 'XK', 'ZZ'];
-
     /**
      * @param  list<string>  $ours  the countries we have a store in, which come first
      * @return list<StoreCountryOption>
@@ -30,9 +26,8 @@ final readonly class StoreCountries
     {
         $options = [];
 
-        foreach (self::codes() as $code) {
-            $name = Locale::getDisplayRegion('-'.$code, $locale);
-            $options[] = new StoreCountryOption($code, $name === false || $name === '' ? $code : $name, in_array($code, $ours, true));
+        foreach (IsoCountries::codes() as $code) {
+            $options[] = new StoreCountryOption($code, IsoCountries::name($code, $locale), in_array($code, $ours, true));
         }
 
         $collator = Collator::create($locale);
@@ -56,7 +51,7 @@ final readonly class StoreCountries
     {
         $zones = [];
 
-        foreach (self::codes() as $code) {
+        foreach (IsoCountries::codes() as $code) {
             $all = DateTimeZone::listIdentifiers(DateTimeZone::PER_COUNTRY, $code);
 
             if (count($all) === 1) {
@@ -65,26 +60,5 @@ final readonly class StoreCountries
         }
 
         return $zones;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function codes(): array
-    {
-        static $codes = null;
-
-        if ($codes === null) {
-            $codes = [];
-            $regions = ResourceBundle::create('en', 'ICUDATA-region')?->get('Countries');
-
-            foreach ($regions instanceof ResourceBundle ? $regions : [] as $code => $name) {
-                if (is_string($code) && preg_match('/\A[A-Z]{2}\z/', $code) === 1 && ! in_array($code, self::NOT_COUNTRIES, true)) {
-                    $codes[] = $code;
-                }
-            }
-        }
-
-        return $codes;
     }
 }
