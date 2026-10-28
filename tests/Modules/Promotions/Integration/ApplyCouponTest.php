@@ -149,7 +149,6 @@ describe('refused whole', function () {
         'inactive' => [['active' => false], CouponRefusal::Inactive],
         'not started' => [['starts_at' => now()->addDay()], CouponRefusal::NotStarted],
         'ended' => [['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()], CouponRefusal::Ended],
-        'assigned to others' => [['eligibility' => 'ASSIGNED'], CouponRefusal::NotAssignedToYou],
         'under the minimum' => [['minimum_minor' => 100_01], CouponRefusal::BelowMinimum],
         'nothing eligible' => [['for_retail' => false], CouponRefusal::NothingEligible],
     ]);
@@ -177,7 +176,59 @@ describe('refused whole', function () {
         Pr::assign($coupon, $sara);
 
         expect(tryCoupon('SUMMER-15', $sara, [Pr::line($a, 100_00)])->discount?->minorUnits)->toBe(15_00)
-            ->and(tryCoupon('SUMMER-15', $omar, [Pr::line($a, 100_00)])->refusal)->toBe(CouponRefusal::NotAssignedToYou);
+            ->and(tryCoupon('SUMMER-15', $omar, [Pr::line($a, 100_00)])->refusal)->toBe(CouponRefusal::UnknownCode);
+    });
+
+    // Security audit run-2 (2026-10-27): a coupon given to others answered with its own reason and name,
+    // so guessing codes found private ones.
+    it('answers a coupon given to others as an unknown code, naming nothing, whatever else is true of it (answer 29)', function (array $with) {
+        $sara = Fx::customer();
+        $omar = Fx::customer('omar@example.test');
+        [$a] = Px::ready()['variants'];
+        $coupon = Pr::coupon(with: ['eligibility' => 'ASSIGNED', ...$with]);
+        Pr::assign($coupon, $sara);
+
+        $result = tryCoupon('SUMMER-15', $omar, [Pr::line($a, 100_00)]);
+
+        expect($result->refusal)->toBe(CouponRefusal::UnknownCode)
+            ->and($result->couponId)->toBeNull()
+            ->and($result->nameAr)->toBeNull()
+            ->and($result->nameEn)->toBeNull()
+            ->and($result->discount)->toBeNull()
+            ->and($result->shares)->toBe([]);
+    })->with([
+        'usable' => [[]],
+        'inactive' => [['active' => false]],
+        'ended' => [['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]],
+        'not started' => [['starts_at' => now()->addDay()]],
+    ]);
+
+    it('tells the customer it was given to its own reason, as before', function () {
+        $sara = Fx::customer();
+        [$a] = Px::ready()['variants'];
+        $coupon = Pr::coupon(with: ['eligibility' => 'ASSIGNED', 'starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]);
+        Pr::assign($coupon, $sara);
+
+        $result = tryCoupon('SUMMER-15', $sara, [Pr::line($a, 100_00)]);
+
+        expect($result->refusal)->toBe(CouponRefusal::Ended)
+            ->and($result->couponId)->toBe($coupon);
+    });
+
+    it('knows a code the customer may know of: one for everyone, or one given to them, whatever its dates (answer 29)', function () {
+        $sara = Fx::customer();
+        $omar = Fx::customer('omar@example.test');
+        $sa = StoreId::fromString(Fx::storeId('sa'));
+        Pr::coupon('EVERYONE', with: ['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]);
+        Pr::assign(Pr::coupon('FOR-SARA', with: ['eligibility' => 'ASSIGNED']), $sara);
+        Pr::coupon('ELSEWHERE', 'eg', with: ['currency_code' => Pr::currency('eg')]);
+
+        expect(Pr::api()->knowsCoupon($sa, $omar, ' everyone '))->toBeTrue()
+            ->and(Pr::api()->knowsCoupon($sa, $sara, 'FOR-SARA'))->toBeTrue()
+            ->and(Pr::api()->knowsCoupon($sa, $omar, 'FOR-SARA'))->toBeFalse()
+            ->and(Pr::api()->knowsCoupon($sa, $omar, 'NOPE'))->toBeFalse()
+            ->and(Pr::api()->knowsCoupon($sa, $omar, 'ELSEWHERE'))->toBeFalse()
+            ->and(Pr::api()->knowsCoupon($sa, $omar, 'not a code!'))->toBeFalse();
     });
 
     it('refuses a coupon worth nothing: 1% of 49 halalas', function () {

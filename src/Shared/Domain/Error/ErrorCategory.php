@@ -16,4 +16,7 @@ enum ErrorCategory: string
     case Invalid = 'INVALID';
     case Unsupported = 'UNSUPPORTED';
     case TooLarge = 'TOO_LARGE';
+
+    /** An outside service did not answer in time; trying again later may work (platform.md, stage 7). */
+    case Unavailable = 'UNAVAILABLE';
 }

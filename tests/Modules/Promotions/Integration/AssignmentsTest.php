@@ -124,7 +124,7 @@ it('lets an assigned customer use the coupon at once, and nobody else', function
     $try = static fn (string $customer): CouponResult => Pr::api()->applyCoupon(new CouponRequest(Fx::storeId('sa'), 'SUMMER-15', $customer, Audience::Public, Pr::prices([Pr::line($variant, 100_00)])));
 
     expect($try($sara)->discount?->minorUnits)->toBe(15_00)
-        ->and($try($outsider)->refusal)->toBe(CouponRefusal::NotAssignedToYou);
+        ->and($try($outsider)->refusal)->toBe(CouponRefusal::UnknownCode);
 });
 
 it('refuses what can never be assigned, writing nothing', function (Closure $make, string $field) {

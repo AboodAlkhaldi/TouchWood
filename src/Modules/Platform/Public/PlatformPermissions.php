@@ -27,6 +27,20 @@ final class PlatformPermissions
      */
     public const string STORE_SWITCH = 'platform.store.switch';
 
+    /**
+     * The places customers pick in an address - the address countries and each one's regions,
+     * cities and districts: adding, renaming, retiring, restoring (platform.md, stage 7 (a); owner,
+     * 2026-10-27 C3, R1). Reserved: Super Admins only. Store-free: the lists serve every store.
+     */
+    public const string PLACES_MANAGE = 'platform.places.manage';
+
+    /**
+     * Which countries a store ships to (platform.md, stage 7 (b); owner, 2026-10-27 R2). Reserved:
+     * Super Admins only. Store-free, as the switch is: moving a country from one store to another
+     * is no one store's job.
+     */
+    public const string STORE_COUNTRIES = 'platform.store.countries';
+
     public const string CURRENCY_CREATE = 'platform.currency.create';
 
     public const string CURRENCY_UPDATE = 'platform.currency.update';
@@ -89,6 +103,8 @@ final class PlatformPermissions
             self::STORE_UPDATE => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
             self::STORE_VIEW => ['reserved' => false, 'storeFree' => false, 'group' => 'store_settings', 'adminOnly' => false],
             self::STORE_SWITCH => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::PLACES_MANAGE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
+            self::STORE_COUNTRIES => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_CREATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_UPDATE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],
             self::CURRENCY_DELETE => ['reserved' => true, 'storeFree' => true, 'group' => null, 'adminOnly' => false],

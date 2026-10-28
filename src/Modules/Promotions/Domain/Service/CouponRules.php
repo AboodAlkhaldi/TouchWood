@@ -49,18 +49,19 @@ final class CouponRules
     }
 
     /**
-     * Whether the coupon may be used now by this customer (§1.3) — its switch, dates, uses for everyone
-     * and for them, and the assignment — in the order `CouponRefusal` lists them; null when it may.
+     * Whether the coupon may be used now by this customer (§1.3) — the assignment first, so nothing
+     * else about a coupon given to others is told (answer 29), then its switch, dates, and uses for
+     * everyone and for them; null when it may.
      */
     public static function refusalNow(Coupon $coupon, CouponUsage $usage, DateTimeImmutable $now): ?CouponRefusal
     {
         return match (true) {
+            $coupon->eligibility === CouponEligibility::Assigned && ! $usage->assigned => CouponRefusal::NotAssignedToYou,
             ! $coupon->active => CouponRefusal::Inactive,
             $now < $coupon->startsAt => CouponRefusal::NotStarted,
             $coupon->endsAt !== null && $now >= $coupon->endsAt => CouponRefusal::Ended,
             $coupon->maxUsesTotal !== null && $coupon->usesTotal >= $coupon->maxUsesTotal => CouponRefusal::UsedUp,
             $coupon->maxUsesPerCustomer !== null && $usage->usesByCustomer >= $coupon->maxUsesPerCustomer => CouponRefusal::UsedUpForYou,
-            $coupon->eligibility === CouponEligibility::Assigned && ! $usage->assigned => CouponRefusal::NotAssignedToYou,
             default => null,
         };
     }

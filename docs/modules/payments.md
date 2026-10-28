@@ -150,20 +150,18 @@ These hold for every gateway, and every one has its tests in §8.
       claimed: Sales asks Payments to **abandon** the attempt, which succeeds only while no charge has
       been claimed (rule 4), under the attempt's lock; if the charge was claimed meanwhile, nothing is
       released (the second review, 2026-10-28);
-    - **at once on a decline** the gateway confirms (§1.4 step 6) — **provided** the first build step
-      proves that no other transaction can follow on that invoice once our page has closed the form
-      and the frame (MyFatoorah's invoices can hold several transactions — notes §4.6); until then, and
-      if it cannot be proven, a decline keeps the reservations until `PaymentExpiry` and the customer
-      is told when Pay opens again (the second review, 2026-10-28);
-    - otherwise **only after the window and the wait** (§1.7), when `PaymentExpiry` has passed and the
-      payment can no longer be finished.
+    - **at once on a decline** the gateway confirms (§1.4 step 6): the first build step proved that no
+      other transaction can follow on that invoice from our page — the session is used, charging it
+      again is refused, and the old bank page answers "Transaction not found" (§9.8);
+    - otherwise **when MyFatoorah answers, or at the hold limit — 15 minutes after Pay — whichever
+      comes first** (`payments.hold_minutes`; owner, 2026-10-29, §9.8): **our own clock decides**. The
+      first build step proved that MyFatoorah does **not** stop a charged payment at its
+      `PaymentExpiry`, nor at its session's expiry — a bank step finished 41 seconds after the one and
+      two minutes after the other still succeeded — and that an unfinished payment stays `InProgress`
+      for at least an hour (§9.8).
 
-    **The first build step must prove that MyFatoorah refuses to finish a payment after its
-    `PaymentExpiry`** (and after its session's expiry), **and whether a declined transaction can be
-    followed by another on the same invoice** — **blocking** tests in the test account: if either does
-    not hold, this design goes back to the owner before anything is built on it. A success reported
-    after a release is still recorded (rule 5) and is **a refund due — never an order made by itself**
-    (§1.7).
+    A success reported after a release is still recorded (rule 5) and is **a refund due — never an
+    order made by itself** (§1.7).
 
 ### 1.2 A store's gateway
 
@@ -384,7 +382,7 @@ These hold for every gateway, and every one has its tests in §8.
   **(a) ask the customer to pay the rest online** — a **payment request** — or **(b) handle it by hand**
   (a transfer or whatever they arrange; then they record it in Sales, as today).
 - (a) creates a **request** for **exactly what is missing**, open **60 minutes** (P22). The customer sees
-  it on their order ("Pay the remaining 45.00 SAR") — and, from stage 8, by email/SMS. Expired → nothing
+  it on their order ("Pay the remaining 45.00 SAR") — and, from stage 8, **by bell and email** (§9.7 #5; SMS carries codes only — ops.md). Expired → nothing
   is cancelled; staff may send a new one.
 - **The request has its own page** (owner, 2026-10-28: "a unique page, not as usual"):
   `/{store}/{locale}/orders/{number}/pay` — the order's number and summary, the amount asked, who asked
@@ -471,25 +469,29 @@ request is successful")
 - **The window — 5 minutes** (`payments.window_minutes`, Super Admins; owner, 2026-10-28: replaces the
   60 minutes of 2026-10-19 P2). It starts **when Pay is pressed** (owner, 2026-10-28, Q4 (a)) — before
   that the checkout may stay open, nothing reserved. Inside it the customer finishes the bank's step;
-  the page counts it down. MyFatoorah's own `PaymentExpiry` is set to its end, so the payment cannot be
-  finished after it — **whether MyFatoorah accepts an expiry this short is not in its docs** (notes §0
-  #5), and the first build step tries it (§1.3). Our page ends the window at 5 minutes either way.
+  the page counts it down. MyFatoorah's own `PaymentExpiry` is still set to its end (it accepts one
+  minute), but **it does not stop the payment** (§9.8): our page ends the window at 5 minutes, and the
+  hold limit below is what ends the try.
 - **The wait — 2 minutes** (`payments.wait_minutes`, Super Admins; owner, 2026-10-28, §9.6 #1). At the end of
   the window our server asks MyFatoorah; **anything but paid or declined is waited for** — because
   MyFatoorah's `InProgress` is the same for the customer who pressed the bank's "confirm" at 4:59 and
   for one who left (rule 15). The page shows "Confirming your payment…" when it saw the customer finish
   the bank's step; the reservations stay. The answer comes → paid or released (§1.4 step 6); none by the
   wait's end → not taken (§1.4 step 7).
+- **The hold limit — 15 minutes after Pay** (`payments.hold_minutes`, Super Admins; owner, 2026-10-29,
+  §9.8). A try MyFatoorah has not answered by then — `InProgress`, or not reachable — **is released by
+  our own clock**: stock, coupon and points go back, `PaymentNotTaken` goes out, the page says the
+  payment was not completed. MyFatoorah never ends such a payment by itself (§9.8), so nothing else
+  would. A bank step finished after it is a refund due (below). Rule 9's checks go on after the
+  release, so a late success is still found and recorded.
 - **When MyFatoorah cannot be reached** (the attempt `UNKNOWN` at the wait's end): the page says "We
   are still confirming with your bank. If the payment goes through, your order appears in My Orders —
-  please do not pay again." **The reservations stay until MyFatoorah answers** (rule 9's checks go on),
-  so a payment that does go through still finds its stock, coupon and points. **Still no answer 20
-  minutes after the charge** → the attempt is listed
-  for staff as needing attention (owner, 2026-10-27, §9.3 #13); staff may ask the gateway again, or
-  release the try by hand once they have confirmed with MyFatoorah that nothing was taken
-  (owner, 2026-10-28, §9.6 #3).
-- **A success that arrives after the try was released** — it should not happen once rule 15's test
-  passes; rule 5 still records it: **no order is made by itself**. The money is **a refund due**,
+  please do not pay again." **The reservations stay until MyFatoorah answers or the hold limit ends
+  the try** (rule 9's checks go on), so a payment that goes through inside the 15 minutes still finds
+  its stock, coupon and points. **Still no answer 20 minutes after the charge** → the attempt is listed
+  for staff as needing attention (owner, 2026-10-27, §9.3 #13); staff may ask the gateway again.
+- **A success that arrives after the try was released** — a bank step finished after the hold limit
+  (§9.8 shows MyFatoorah allows it); rule 5 still records it: **no order is made by itself**. The money is **a refund due**,
   recorded on the try in Sales and shown to staff as needing attention in the Payments list, with the
   customer and the amount (owner, 2026-10-19 P7: refunds are staff's). Staff may contact the customer;
   making an order by hand is the usual "staff will contact you" order. (Making the order again by
@@ -499,10 +501,10 @@ request is successful")
   answer 20 minutes after the charge, or **a paid try Sales has not turned into an order 10 minutes
   after the payment** (Sales's hourly look at its tries, sales.md §9.5 #4 — the second review, 2026-10-28) — this
   replaces §9.3 #13's "`UNKNOWN` for more than an hour" for the payments of this design.
-- **Staff releasing a try by hand** (§9.6 #3): the use case `ReleaseTryByHand`, permission
-  **`payments.attempts.release`** (Admins — **accepted, owner 2026-10-28**), only for an attempt `UNKNOWN` more than 20
-  minutes, with a reason, audited; the attempt ends `RELEASED_BY_STAFF` (its key no longer needed —
-  rule 14) and Sales releases the try. A success reported afterwards is a refund due (rule 15).
+- **Staff releasing a try by hand** (§9.6 #3) — **superseded by the hold limit** (§9.8): every try
+  is released 15 minutes after Pay at the latest, before an attempt could be `UNKNOWN` for the 20
+  minutes this use case waited for, so `ReleaseTryByHand` and `payments.attempts.release` are **not
+  built** (§9.8 #3).
 
 ### 1.8 Our own limits
 
@@ -640,10 +642,13 @@ interface PaymentsApi
 
 | Event | When |
 |---|---|
-| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
+| `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `storeId`, `occurredAt`) — exists; `storeId` added (§9.7 #1) | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
 | `PaymentFailed` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | A transaction was declined |
 | **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new (`orderId` so the outbox keeps it in order with the order's other payment events) | An attempt ended with nothing paid: the window and the wait passed, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
-| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
+| **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `storeId`, `occurredAt`) — new; `storeId` for Ops (§9.7 #1) | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
+| **`GatewayKeyExpiring`** (`eventId`, `storeId`, `mode`, `daysLeft` — 30, 7 or 1 — `expiresOn`, `occurredAt`) — new (§9.7 #2) | The daily job finds the current key that many days from its expiry date (§1.2); **once per key and threshold** |
+| **`GatewayKeyRejected`** (`eventId`, `storeId`, `mode`, `occurredAt`) — new (§9.7 #3) | MyFatoorah refused the **current** key (§1.2: a 401) and online payment stopped by itself; once until a new key is set |
+| **`PaymentRequested`** (`eventId`, `requestId`, `orderId`, `storeId`, `customerId`, `expiresAt`, `occurredAt`) — new (§9.7 #4) | Staff created a payment request (§1.5); Ops sends the customer the link, built from the order's number |
 
 ### 2.3 What Payments needs from other modules
 
@@ -666,7 +671,7 @@ interface PaymentsApi
 | `ReceiveAnswer` (the frame's message or the return to our address, from the page) | The buyer's session — the attempt must be theirs (rule 7) | That store |
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.view`** — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.view`** | That store |
-| `ReleaseTryByHand` (an attempt `UNKNOWN` more than 20 minutes, with a reason — §1.7) | **`payments.attempts.release`** — Admins (accepted, 2026-10-28) | That store |
+| ~~`ReleaseTryByHand`~~ — **not built**: the hold limit releases every try first (§1.7, §9.8 #3) | ~~`payments.attempts.release`~~ | — |
 | `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
@@ -685,9 +690,8 @@ CHARGING ─▶ REFUSED                            (the gateway refused the firs
 CHARGING ─▶ UNKNOWN ─▶ OPEN                    (the charge's answer was lost; settled through the session)
 OPEN ─▶ FAILED                                 (declined — §1.4 step 6)
 OPEN ─▶ UNKNOWN ─▶ OPEN | SUCCEEDED | FAILED | EXPIRED   (a status call failed; asked again)
-OPEN ─▶ EXPIRED                                (the window and the wait passed with nothing paid — PaymentExpiry passed, rule 15)
-UNKNOWN ─▶ RELEASED_BY_STAFF                   (staff, after 20 minutes — §1.7)
-FAILED | EXPIRED | RELEASED_BY_STAFF ─▶ SUCCEEDED   (a success reported later: recorded — a refund due, rule 15)
+OPEN | UNKNOWN ─▶ EXPIRED                      (the hold limit, 15 minutes after Pay, passed with nothing paid — rule 15, §9.8)
+FAILED | EXPIRED ─▶ SUCCEEDED                  (a success reported later: recorded — a refund due, rule 15)
 SUCCEEDED ─▶ SUCCEEDED                         (a second successful transaction: recorded, "paid twice" — rule 3)
 ```
 
@@ -707,7 +711,7 @@ SUCCEEDED ─▶ SUCCEEDED                         (a second successful transact
 | **Store closed while paying** — shown once | §1.10 |
 | **Payment gateway** — `/admin/payments/gateway?store=` (Super Admins) | The gateway, mode, keys (last 6 shown), the key's expiry, the notice address to paste into MyFatoorah, Apple Pay's domain state, on/off; the TEST banner |
 | **Payments** — `/admin/payments?store=&state=` | Every online attempt: owner (a try or an order), amount, method, state, mode, time; needing attention first (§1.7); filters (§3) |
-| **An attempt** — `/admin/payments/{id}` | Its transactions, the gateway's ids, every call made (§1.1 rule 13), "Ask the gateway now", "Release the try" (§9.6 #3) |
+| **An attempt** — `/admin/payments/{id}` | Its transactions, the gateway's ids, every call made (§1.1 rule 13), "Ask the gateway now" ("Release the try" dropped: the hold limit releases it — §9.8 #3) |
 | **On the order** (Sales's screen) | The attempts block; "Request payment of the rest" / "Handle by hand" (§1.5); the overdue mark (§1.9) |
 | **The bank account** | Moves from B2B's settings section to Payments' (§1.9) |
 
@@ -1030,3 +1034,55 @@ payment MyFatoorah first said was not in progress; if it ever happens, it is a r
 8. **A success after release** (§1.7): (a) **a refund due**, needing attention, no order made by itself
    **[Recommended]**; (b) the order made by itself when everything can still be taken — needs Inventory,
    Promotions and Loyalty to take the same order twice, and may sell goods a later try already paid for.
+
+### 9.7 What Ops needs (stage 8) — **[ACCEPTED by the owner, 2026-10-28]**
+
+Asked by the Ops spec (ops.md §1.5 C11, §1.6 S5, S5b, S7, §2.3; merged as #249); accepted by the owner
+("Accept all six", 2026-10-28). Events carry ids only and go through the outbox (handoff §4.5).
+
+1. **`storeId` on `PaymentSucceeded` and `PaymentNotAccepted`** (§2.2), so Ops can tell the store's staff
+   without asking Sales; for a try that never became an order, S7 links to the attempt (built in stage 7
+   step 10).
+2. **`GatewayKeyExpiring`** — from the daily job that already shows the banner (§1.2): once per key and
+   threshold (30, 7, 1 days). Ops tells Super Admins on Payment problems, by SMS at 1 day (ops.md S5)
+   (step 8).
+3. **`GatewayKeyRejected`** — when MyFatoorah refuses the current key (§1.2); a 401 on an earlier key
+   kept for old attempts sends nothing. Ops tells Super Admins, SMS included (ops.md S5b) (step 9).
+4. **`PaymentRequested`** — when staff create a request (§1.5). The request is open 60 minutes, so Ops
+   sends the link at once (ops.md C11) (step 12).
+5. **The request reaches the customer by bell and email**, never SMS (§1.5; SMS carries codes and the
+   two critical staff alerts only — ops.md).
+
+Sales's part, the overdue transfer (`TransferOverdue`), is sales.md §9.5 #16.
+
+### 9.8 The first build step's MyFatoorah tests (P0) — **[ACCEPTED by the owner, 2026-10-29]**
+
+Run on MyFatoorah's test server on 2026-10-28 with the published test cards (the key is a Kuwait demo
+account's; the full report with every request and answer is kept out of the repository, keys and card
+data removed).
+
+| Question (§1.3, rule 15) | Answer |
+|---|---|
+| A payment refused after `PaymentExpiry`? | **No.** Charged with a 1-minute `PaymentExpiry`, the bank page opened 34 s after it: **paid**. The invoice's own expiry is the **session's**, not `PaymentExpiry` |
+| After the session's expiry? | **No** for a charge already made: the bank page opened after the session (and invoice) expired: **paid** two minutes later. A **new** charge on an expired session is refused ("SessionId is expired!") |
+| An unfinished payment | `InProgress`, invoice `Pending`, **for at least an hour**: MyFatoorah never ends it by itself |
+| A declined card, then another transaction? | **Not from our page**: transaction `Failed` (`MF003`); the session is used ("SessionId is already used!"); the old bank page answers "Transaction not found" |
+| When `IsUsed` turns true | At the charge, not when the details are collected; `TransactionResult` then holds the invoice and the transaction |
+| The bank frame's message | `MF-3DSecure` says `isSuccess: true, paymentCompleted: true` **even for a declined payment**: only Get Payment Details tells the outcome (as rule 6 already says) |
+| STC Pay's value in `SupportedPaymentMethods` | `stcpay` (also `stc_pay`, `STC_PAY`); `stc` is refused |
+
+**The owner's decisions (2026-10-29):**
+
+1. **Our own clock — "we have to take control of everything"**: a try is released at the **hold limit,
+   15 minutes after Pay** (`payments.hold_minutes`, Super Admins), whatever MyFatoorah says; a bank step
+   finished after it is a refund due, listed for staff as needing attention (rule 15, §1.7). Chosen over
+   60 minutes (as WooCommerce shops hold stock) and over holding until MyFatoorah answers, which P0
+   showed may be never.
+2. **A decline releases at once** (rule 15): the condition the second review set is proven.
+3. **`ReleaseTryByHand` and `payments.attempts.release` are not built**: the hold limit releases every
+   try first (§1.7).
+
+Also found, for the build: the test account charges Visa/Mastercard, Apple Pay and Google Pay in **KWD**
+(only Mada and STC Pay in SAR) — the live KSA account must charge SAR, or rule 8 refuses those payments;
+the Mada test card is processed and named as **Visa** (a co-branded card), so nothing should name the
+method from the card's brand.

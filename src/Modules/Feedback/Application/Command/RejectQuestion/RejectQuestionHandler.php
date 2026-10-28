@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Feedback\Application\Command\RejectQuestion;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Modules\Feedback\Application\FeedbackAudit;
 use Modules\Feedback\Application\FeedbackPermissions;
 use Modules\Feedback\Application\StaffChange;
@@ -14,7 +15,9 @@ use Modules\Feedback\Domain\Exception\QuestionNotFound;
 use Modules\Feedback\Domain\Model\FeedbackText;
 use Modules\Feedback\Domain\Repository\Questions;
 use Modules\Feedback\Public\Enums\QuestionStatus;
+use Modules\Feedback\Public\Events\QuestionNotPublished;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Rejects a waiting question, for good (feedback.md §1.3): never shown; with a reason, the customer
@@ -28,6 +31,7 @@ final readonly class RejectQuestionHandler
     public function __construct(
         private StaffChange $change,
         private Questions $questions,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -49,6 +53,11 @@ final readonly class RejectQuestionHandler
             $this->questions->reject($question, $reason, $now);
             $from = ['status' => $question->status->value, 'reason' => null];
             $to = ['status' => QuestionStatus::Rejected->value, 'reason' => $reason];
+
+            // With a reason only: without one, no message ever goes out (§1.1; owner, 2026-10-28).
+            if ($reason !== null) {
+                $this->outbox->record(new QuestionNotPublished((string) Str::uuid(), $question->id, $question->productId, $question->storeId, $question->customerId, $now));
+            }
 
             return [null, [FeedbackAudit::entry('question', 'rejected', $question->id, $store->value, $from, $to)]];
         });

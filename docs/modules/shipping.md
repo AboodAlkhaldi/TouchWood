@@ -318,7 +318,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | `CarrierStillOn` | CONFLICT | Deleting a carrier that is switched on (§1.3) |
 | `CountryNotShipped` | INVALID | A carrier for a country the store does not ship to |
 | `CountryHasCarriers` | CONFLICT | Removing a ship-to country, or moving it to another store, while the store has carriers there (Platform asks Shipping through a hook it declares — §9.2) |
-| `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) |
+| `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) — raised by Platform, which owns the ship-to list (platform.md, stage 7 step 1) |
 | `PlaceAlreadyPriced` | CONFLICT | A place already in another group of this carrier (§1.4) — names the place and its amount |
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
 | `PlaceNotInCountry` | INVALID | A city or district not in the carrier's country, or a district of another city |
