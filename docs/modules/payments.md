@@ -19,8 +19,8 @@ closing the tab, opening it twice, or running out of time must leave nothing beh
 didn't press the pay button".
 
 **Dependencies (handoff §4.4):** Payments → Platform. **Payments → Access only to declare its
-permissions** (accepted by the owner, 2026-10-28) — a handoff §4.4 amendment, as Catalog, Pricing,
-Inventory and Sync were allowed (2026-10-02/07). Payments **never reads Sales**: Sales hands it an id
+permissions and to hear `CustomerAnonymized`** (§6; owner, 2026-10-28) — a handoff §4.4 amendment, as
+Catalog, Pricing, Inventory and Sync were allowed for their permissions (2026-10-02/07). Payments **never reads Sales**: Sales hands it an id
 (a checkout try's or an order's), an amount and the customer's contact details, and Payments answers
 with events. Every order decision (creating it, releasing what a try reserved, a refund due) stays in
 Sales.

@@ -10,7 +10,7 @@ other shippings"), except the carrier's deletion and the padding, which the owne
 
 **Dependencies (handoff §4.4):** Shipping → Platform, Catalog. **[ACCEPTED 2026-10-28]** Shipping → Access **only
 to declare its permissions**, as the owner allowed Catalog, Pricing, Inventory and Sync (handoff §4.4,
-2026-10-02/07) — not yet allowed for Shipping: a handoff §4.4 amendment for the owner (§9.2). Sales
+2026-10-02/07) — allowed for Shipping by the owner on 2026-10-28 (handoff §4.4). Sales
 calls Shipping; Shipping never calls Sales, so **Shipping never knows which orders name a carrier**
 (§1.3).
 

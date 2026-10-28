@@ -138,6 +138,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-19 | §14 | **The Points menu** (owner, 2026-10-19, Loyalty's screens; loyalty.md §4.1): Points › Customers (the store's points holders, each opening their points), Redemptions and Settings (opening the settings screen at the Points card); "Customers › Loyalty" leaves the Customers menu (proposed, loyalty.md §9.5 P8) — a customer's points also show as a section of the customer's own page | Owner decision; P8 proposed |
 | 2026-10-19 | §13.3 | **Staff messages to customers, for Ops** (owner, 2026-10-19, from Loyalty's screens): staff may send a message to all customers, to some, or to one found by name, in the account's notifications, by email or by SMS as they choose — for example to explain a change of points. Ops specifies and builds it; nothing before Ops | Owner decision |
 | 2026-10-19 | §2, §13.1 | **Product questions are global** (feedback.md answer 16): asked in a store, answered by its staff, shown once answered in every store that sells the product; an answered question may be unpublished (answer 18) — replaces "questions per store" of 2026-10-09 | Owner, Feedback's answers before the build |
+| 2026-10-28 | §4.4 | **Shipping → Access and Payments → Access**, only to declare their permissions — and Payments also hears `CustomerAnonymized` (shipping.md §9.2, payments.md §6) | Owner decision |
 
 ---
 
@@ -359,8 +360,8 @@ Pricing    → Platform, Catalog, Access   (Access only to declare its permissio
 Inventory  → Platform, Catalog, Access   (Access only to declare its permissions)
 Promotions → Platform, Access, Catalog, Pricing, Inventory   (Inventory for a gift's stock switch and the stock facts of its dialog, 2026-10-19/20)
 Loyalty    → Platform, Access
-Shipping   → Platform, Catalog
-Payments   → Platform
+Shipping   → Platform, Catalog, Access   (Access only to declare its permissions)
+Payments   → Platform, Access   (Access only to declare its permissions and to hear CustomerAnonymized)
 Feedback   → Platform, Access, Catalog, Sales
 Sync       → Platform, Catalog, Pricing, Inventory, Access   (Access only to declare its permissions)
 Sales      → everything above except Feedback and Sync
@@ -372,7 +373,9 @@ Ops        → every Public surface
 `PermissionCatalog`, which Catalog could not reach. The arrow points down a tier and Access never
 needs Catalog, so no cycle can form; Catalog uses Access's public surface for that alone, and any
 other use goes to the owner first (`docs/modules/catalog.md` §2.4). **Pricing, Inventory and Sync
-too** (owner, 2026-10-07), on the same terms.
+too** (owner, 2026-10-07), on the same terms. **Shipping and Payments too** (owner, 2026-10-28), on the
+same terms — and Payments also hears Access's `CustomerAnonymized`, to clear a customer's name, email
+and phone from its payment records (`docs/modules/payments.md` §6).
 
 Two modules have a wide fan-in for opposite reasons. **Sales** is the transaction and
 legitimately needs price, stock, discount, points, shipping and payment in one flow.
