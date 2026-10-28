@@ -10,6 +10,8 @@ final readonly class SalesCountsDto
     public function __construct(
         /** Placed in the range, whatever became of them. */
         public int $placed,
+        /** Of those, the ones that count as sales: never cancelled, rejected or come back (ops.md §1.10). */
+        public int $counted,
         /** Of those, by an individual's account and by a company's. */
         public int $individuals,
         public int $companies,
