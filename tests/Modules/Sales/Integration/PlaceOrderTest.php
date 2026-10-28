@@ -15,6 +15,7 @@ use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NotEnoughStock;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Loyalty\Public\Events\PointsEarned;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
@@ -69,7 +70,8 @@ function nothingPlaced(): void
         ->and(DB::table('inventory.holds')->count())->toBe(0)
         // An order delivered before (the points' source) is Loyalty's own: none redeemed here.
         ->and(DB::table('loyalty.orders')->where('points_redeemed', '>', 0)->count())->toBe(0)
-        ->and(DB::table('public.outbox_messages')->count())->toBe(0);
+        // Nothing told of this placement; that earlier delivery's PointsEarned is Loyalty's own (loyalty.md §6).
+        ->and(DB::table('public.outbox_messages')->where('type', '!=', PointsEarned::class)->count())->toBe(0);
 }
 
 describe('placing', function () {

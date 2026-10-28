@@ -550,6 +550,7 @@ it('writes nothing for an order recorded meanwhile under another account', funct
         app(PointsLedger::class)->earn($otherAccount, $order, 'T-1', 'SAR', 10_000, 100, $now->addYear(), $now),
     ]);
 
-    expect([$redeemed, $earned])->toBe([false, false])
+    // `earn` answers null for an order another account holds (ops: it answers the entry otherwise).
+    expect([$redeemed, $earned])->toBe([false, null])
         ->and(loyaltyRedeemRows())->toBe($before);
 });

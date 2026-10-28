@@ -45,7 +45,8 @@ interface PointsLedger
      * Records the order delivered with its goods total and the points it earned (§1.6) — written even
      * at 0 points; above 0, one EARNED entry and a lot that expires at `$expiresAt`.
      *
-     * @return bool false, with nothing written, when the order is recorded for another account
+     * @return int|null null, with nothing written, when the order is recorded for another account; else the
+     *                  EARNED entry's id, 0 when it earned nothing
      */
     public function earn(
         PointsAccount $account,
@@ -56,15 +57,15 @@ interface PointsLedger
         int $points,
         DateTimeImmutable $expiresAt,
         DateTimeImmutable $now,
-    ): bool;
+    ): ?int;
 
-    /** Points added by hand (§1.9): one ADDED entry with the staff member and reason, and a lot that expires at `$expiresAt`. */
-    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): void;
+    /** Points added by hand (§1.9): one ADDED entry with the staff member and reason, and a lot that expires at `$expiresAt`; answers the entry's id. */
+    public function add(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $expiresAt, DateTimeImmutable $now): int;
 
     /**
      * Points removed by hand (§1.9): one DEDUCTED entry, taken from the live lots expiring first, a
      * movement per lot and no take — removed points never come back. The caller has checked the
-     * balance covers it.
+     * balance covers it. Answers the entry's id.
      */
-    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): void;
+    public function deduct(PointsAccount $account, int $points, string $staffId, string $reason, DateTimeImmutable $now): int;
 }

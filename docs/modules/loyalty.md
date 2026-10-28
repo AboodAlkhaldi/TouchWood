@@ -337,6 +337,9 @@ not the order's recorded store is refused. The permission must belong to the cal
 | `pointsAfterEdit(EditedPointsRequest $request): EditedPoints` | Sales, working out a staff edit before shipping (§1.8): the new points discount and the points still charged. Reads only |
 | `orderEdited(SettleEdit $change): EditedPoints` | §1.8, a staff edit before shipping that lowered the points discount; answers the points discount and the points still charged |
 | `balance(string $customerId, string $storeId): PointsBalanceDto` | **Sales only**, inside flows it has already authorized. The screens read through §3's queries, which check the reader |
+| `entryForMessage(int $entryId): ?PointsEntryDto` | **Ops** (added 2026-10-28; ops.md §1.5 C12, C13): the entry `PointsEarned` or `PointsChangedByHand` names — store, customer, `EntryKind`, signed points, the admin's reason, the order's number, when the points it added expire — and the account's balance now; null for none. Reads only |
+| `expiring(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ExpiringPointsPageDto` | **Ops' reminder** (ops.md §1.5 C14): per customer of the store, what is left of their lots expiring from `from` up to `to` (not included), together — one row a customer — by customer id, keyset-paged, 1 to 1000. Reads only |
+| `pointsByKind(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): list<PointsByKindDto>` | **Ops' daily report** (ops.md §1.11 item 7): the store's entries over the range by `EntryKind` — how many and their points together, signed. One query; reads only |
 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
 
@@ -732,12 +735,20 @@ DESC) — the redemptions list (keyset paging, handoff §5.4); movements by `lot
 
 ## 6 · Events
 
-**Published:** none in this stage. Nothing listens to points yet; Ops (stage 8) adds the events it
-needs to tell customers — earned, about to expire.
+**Published** (added for Ops, 2026-10-28; ops.md §1.5 C12, C13, §2.3) — through the outbox, inside the
+change's transaction, after commit, ids only:
+
+| Event | When |
+|---|---|
+| `PointsEarned` (`eventId`, `entryId`, `orderId`, `storeId`, `customerId`, `occurredAt`) | A delivery earned points (§1.6) — **only above 0**; delivered again, earned once, one event |
+| `PointsChangedByHand` (`eventId`, `entryId`, `storeId`, `customerId`, `occurredAt`) | An admin added or removed points by hand (§1.9) |
+
+Ops reads each through `entryForMessage` (§2.1). Points about to expire publish nothing: Ops asks
+`expiring` each night (ops.md §1.5 C14).
 
 **Consumed:** none. `CustomerAnonymized` needs nothing from Loyalty (§1.11).
 
-The `processed_events` and outbox tables are not needed: Loyalty is called synchronously inside Sales's
+The `processed_events` table is not needed (the outbox is Shared's, for the two events above): Loyalty is called synchronously inside Sales's
 transaction, and every call is idempotent by its order or return id (`loyalty.orders`,
 `loyalty.order_returns`).
 

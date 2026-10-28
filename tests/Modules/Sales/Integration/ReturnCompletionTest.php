@@ -393,9 +393,14 @@ describe('what the module pass added (§8)', function () {
         completionComplete($return);
         $before = (string) DB::table('feedback.reviews')->where('id', $review)->value('mark');
 
-        // One message an order a run, in their order: placed, delivered, then the return completed.
-        foreach (range(1, 3) as $run) {
+        // One message an order a run, in their order — placed, approved, paid, shipped, delivered, the return's
+        // steps (sales.md §2.2), then the return completed — until none is left (at most 20 runs).
+        foreach (range(1, 20) as $run) {
             app(OutboxRelay::class)->run();
+
+            if (DB::table('public.outbox_messages')->whereNull('dispatched_at')->doesntExist()) {
+                break;
+            }
         }
 
         expect([$before, (string) DB::table('feedback.reviews')->where('id', $review)->value('mark')])->toBe(['VERIFIED_PURCHASE', 'RETURNED'])
