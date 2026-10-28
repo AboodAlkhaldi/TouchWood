@@ -1,6 +1,6 @@
 # Payments — module specification
 
-**Status (2026-10-28): draft for the owner.** Payments takes money online through a gateway —
+**Status (2026-10-28): accepted by the owner — every pick answered.** Payments takes money online through a gateway —
 **MyFatoorah for the KSA store**, the only one chosen (owner, 2026-10-17) — **on our own checkout page**
 (MyFatoorah's embedded form, owner 2026-10-28), and tells Sales when money arrived. It also holds each
 store's **bank account** for transfers (moved from B2B, owner 2026-10-19 P10) and the **target time to
@@ -8,8 +8,8 @@ check a transfer**. It is built from handoff §12.4, the contract Sales declared
 in code since S7b), the owner's answers of 2026-10-17 to 2026-10-28 (§9.1) and MyFatoorah's
 documentation **read in full on 2026-10-28** — all 212 pages
 ([payments-myfatoorah-notes.md](payments-myfatoorah-notes.md): §0 is that read; every gateway fact below
-is from there, with its page). Points marked **[PROPOSED]** are mine, stated for the owner to reject;
-§9.6 holds the last round, answered.
+is from there, with its page). Every point once marked **[PROPOSED]** is accepted (owner, 2026-10-28: the last three — the
+staff release for Admins, the checks at 10 and 20 minutes, the 10-second answer); §9.6 holds the last round, answered.
 
 **The owner's charge for this module (2026-10-17):** "the payment must be so secure and ran over all
 the usecases so we dont charge same order twice or charge on nothing or if had a error in connection or
@@ -112,10 +112,10 @@ These hold for every gateway, and every one has its tests in §8.
      never "failed".
    - **Each attempt carries its own few checks**, booked when it is written and stopping as soon as it
      has an answer: at the end of the 5 minutes, at the end of the wait (§1.7), then 10 and 20 minutes
-     after the charge (**[PROPOSED]**: MyFatoorah stops retrying its notice after at most 5 tries 180
+     after the charge (**accepted, owner 2026-10-28**: MyFatoorah stops retrying its notice after at most 5 tries 180
      seconds apart — notes §0 #15 — so 20 minutes covers a notice that never comes).
    - **A page asking again** (checkout reopened, "Confirming…" refreshing) gets the attempt's last answer
-     when it is younger than 10 seconds, so pages never multiply calls (**[PROPOSED]**). **When nobody is paying,
+     when it is younger than 10 seconds, so pages never multiply calls (**accepted, owner 2026-10-28**). **When nobody is paying,
      nothing runs** (the owner, 2026-10-28: no lookups "hoping to find anything").
    - **One backstop**: once an hour, a single query looks for attempts still unanswered after their
      last check (a lost job) and checks them (owner, 2026-10-28, §9.6 #4). With none, it ends at
@@ -500,7 +500,7 @@ request is successful")
   after the payment** (Sales's hourly look at its tries, sales.md §9.5 #4 — the second review, 2026-10-28) — this
   replaces §9.3 #13's "`UNKNOWN` for more than an hour" for the payments of this design.
 - **Staff releasing a try by hand** (§9.6 #3): the use case `ReleaseTryByHand`, permission
-  **`payments.attempts.release`** (**[PROPOSED]**: Admins), only for an attempt `UNKNOWN` more than 20
+  **`payments.attempts.release`** (Admins — **accepted, owner 2026-10-28**), only for an attempt `UNKNOWN` more than 20
   minutes, with a reason, audited; the attempt ends `RELEASED_BY_STAFF` (its key no longer needed —
   rule 14) and Sales releases the try. A success reported afterwards is a refund due (rule 15).
 
@@ -666,7 +666,7 @@ interface PaymentsApi
 | `ReceiveAnswer` (the frame's message or the return to our address, from the page) | The buyer's session — the attempt must be theirs (rule 7) | That store |
 | `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.view`** — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (staff's "Ask the gateway now") | **`payments.view`** | That store |
-| `ReleaseTryByHand` (an attempt `UNKNOWN` more than 20 minutes, with a reason — §1.7) | **`payments.attempts.release`** — Admins (**[PROPOSED]**) | That store |
+| `ReleaseTryByHand` (an attempt `UNKNOWN` more than 20 minutes, with a reason — §1.7) | **`payments.attempts.release`** — Admins (accepted, 2026-10-28) | That store |
 | `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
 
 Every change of a gateway is audited — never a key or a secret, only "changed" and the last 6
@@ -897,6 +897,7 @@ account before going live (§9.3 #6).
 | Q1, Q2, Q4, Q5 | (a): the embedded form; the try's own reference, the number at payment; the 5 minutes from Pay; the request's own page with the same form | 2026-10-28 |
 | §9.6 #1–8 | (a) for all eight: a 2-minute wait; leaving after the bank's step waits for the try's time; a decline ends the try; an unanswered try waits for staff after 20 minutes; a success after release is a refund due; the hourly backstop; a cancel waits for a request's payment; 30 sessions per buyer per hour — and Promotions' and Loyalty's reserve / confirm / release, and a second independent review | 2026-10-28 |
 | Q6 | Every remaining pick accepted: plain-word decline reasons; a request withdrawn when the amount changes; 60 checks and 120 notices a minute; Admins change the bank account; the Payments list wherever orders are seen; the UNAVAILABLE error category; Payments → Access for permissions; the nightly re-check dropped | 2026-10-28 |
+| The last three picks | Accepted: `payments.attempts.release` for Admins; each attempt's checks at the window's end, the wait's end, and 10 and 20 minutes after the charge; a page reuses an answer younger than 10 seconds | 2026-10-28 |
 
 ### 9.2 What other modules must change (written as their amendments in this PR)
 
