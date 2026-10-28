@@ -9,4 +9,6 @@ return [
     'shipping.flat_fee' => 'Shipping Fee (in the Currency\'s Smallest Unit)',
     'shipping.free_above' => 'Free Shipping From (in the Currency\'s Smallest Unit; 0 Means Never)',
     'returns.window_days' => 'Return Window (Days After Delivery)',
+    'coupons.wrong_codes' => 'Wrong Coupon Codes Allowed (Per Customer, Every Store)',
+    'coupons.window_minutes' => 'Wrong Coupon Codes Window (Minutes, Every Store)',
 ];

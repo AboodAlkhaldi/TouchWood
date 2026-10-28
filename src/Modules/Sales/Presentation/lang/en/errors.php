@@ -29,6 +29,10 @@ return [
         'title' => 'Sign In to Use a Coupon',
         'detail' => 'Sign in or create an account to use a coupon.',
     ],
+    'too_many_coupon_tries' => [
+        'title' => 'Too Many Wrong Codes',
+        'detail' => 'Couldn\'t try the code: too many codes that match no coupon. Try again in :minutes minutes.',
+    ],
     'quote_not_found' => [
         'title' => 'Checkout Not Found',
         'detail' => 'This checkout was not found. Start the checkout again.',

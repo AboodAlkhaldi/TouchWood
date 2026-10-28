@@ -64,6 +64,11 @@ those lines leave the merged cart, each with why.
   the same variant and mode adding their quantities. My assumption, stated for the owner to reject.
 - **The cart keeps the coupon code** typed, for signed-in customers only — a guest's code box says "sign
   in to use a coupon" (owner, 2026-10-10).
+- **Five codes that name no coupon in ten minutes** (two settings for every store, §1.10), per customer, and the box takes no code —
+  a right one included — until the ten minutes have passed (`TooManyCouponTries`, with the minutes
+  left); the code is then not kept. A code "names no coupon" when Promotions' `knowsCoupon` says so: no
+  coupon of the store by it, or one given to other customers. Taking the code off is never stopped
+  (answer 50).
 - A cart survives (handoff §12.3: "30+ days"): one untouched for **90 days** is emptied by a nightly
   job. My assumption, stated for the owner to reject.
 
@@ -534,6 +539,15 @@ Changed under `sales.settings.update`, **admin-only** — they decide money. My 
 owner to reject, with the defaults 0. **Shipping (stage 7) replaces the two shipping settings** with
 carriers and rates per store; the return window stays Sales's.
 
+And **once for every store** (answer 50; owner, 2026-10-28), the coupon box's limit (§1.1):
+
+| Key | Type | Range | Default | Means |
+|---|---|---|---|---|
+| `sales.coupons.wrong_codes` | Integer | 1–20 | **5** | Codes naming no coupon a customer may type in the window |
+| `sales.coupons.window_minutes` | Integer | 1–60 | **10** | The window, in minutes, from the first such code |
+
+Changed under `sales.settings.update` in **every store** — an admin of all stores or a Super Admin.
+
 ### 1.11 Stock that runs short after placement
 
 Inventory may let staff remove stock that is held for orders, and then publishes `HoldsShort(storeId,
@@ -613,7 +627,7 @@ A rejection and a parcel that came back publish nothing yet; Ops adds what its m
 |---|---|---|
 | Pricing | `prices`, `totals`; **`pricesForEdit`** with `KeptPartDto`; **the result's lines in the order given**, an unpriced line left out and named | `prices`, `totals` on `main` (#97); `pricesForEdit` and the lines' order on `main` (#107, `89c07e9`) |
 | Inventory | `stock` (with `availableAsGift`), `hold`, `ship`, `reducedInProvider`, `release`, `HoldsShort`; `adjustHold`, `returned` | Interfaces on `main` (#97); `HoldsShort` specified (#102); `adjustHold` and `returned` on `main` (#106, `4cca6fc`); `release` and `returned` for a parcel that came back on `main` (#109, `906fca62`) |
-| Promotions | `applyCoupon`, `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
+| Promotions | `applyCoupon`, `knowsCoupon` (the coupon box's limit, answer 50), `customerDiscountRoom`, `giftLevels`, `useCoupon`, `recordOrder`; for edits `orderDiscountRoom` (the order's own ceiling), `couponAfterEdit` (with the whole room, never above the discount now), `updateCouponUse`; **one share per price line, in the prices' order** | promotions.md (PR #101) — corrected there with this spec |
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read** — Catalog additions, built in S3 (catalog.md amendment 29) |
 | Access | `customerMayOrder`, `customer`, `addresses`, `address`, `GuestBecameCustomer`, `CustomerAnonymized` | Exist |
@@ -1182,6 +1196,7 @@ Each extends `SalesError`, which extends `Shared\Domain\Error\DomainError`, with
 | `AddressNotUsable` | INVALID | No address in this store, or its format no longer accepted |
 | `WayToPayNotOffered` | INVALID | A way to pay not offered to this account (online to a company; a bank transfer while the store has none) |
 | `SignInToUseCoupon` | INVALID | A guest's coupon code |
+| `TooManyCouponTries` | FORBIDDEN | Five codes that name no coupon in ten minutes; carries the minutes left (answer 50) |
 | `QuoteNotFound` | NOT_FOUND | A quote that is not this buyer's — the same answer as an unknown one |
 | `QuoteExpired` | CONFLICT | Placing after 15 minutes or past the prices' end — checkout quotes again |
 | `QuoteChanged` | CONFLICT | Anything of §1.3 steps 3–5 no longer as quoted |
@@ -1360,6 +1375,10 @@ refusing anything but one void.
     With the Sales screens' answers relayed by their session (their spec PR lists their own picks): the
     order lists' four filters, one search box, one customer's orders, the carriers used before, the
     customer page's orders, a wired order's tickable sizes (§3.2).
+50. **Coupon codes may not be guessed** (2026-10-28, security audit run-2): five codes that name no
+    coupon in ten minutes per customer, then none until the ten minutes pass (§1.1); a coupon given to
+    others answers as unknown (promotions.md answer 29). **Both numbers are settings, one pair for every
+    store**, changed only by an admin of all stores or a Super Admin: codes 1–20, minutes 1–60 (§1.10).
 
 ### 9.2 Still open
 

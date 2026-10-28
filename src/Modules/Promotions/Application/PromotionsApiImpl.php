@@ -33,6 +33,7 @@ use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience;
+use Modules\Promotions\Public\Enums\CouponEligibility;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -71,9 +72,24 @@ final readonly class PromotionsApiImpl implements PromotionsApi
 
         $outcome = $this->quotes->outcome($coupon, $store, $customerId, $request->audience, $request->prices);
 
+        // A coupon given to others is no coupon to this customer: no reason, no name (answer 29).
+        if ($outcome->refusal === CouponRefusal::NotAssignedToYou) {
+            return CouponResult::refused(CouponRefusal::UnknownCode);
+        }
+
         return $outcome->refusal !== null || $outcome->discount === null
             ? CouponResult::refused($outcome->refusal ?? CouponRefusal::WorthNothing, $coupon->id, $coupon->nameAr, $coupon->nameEn)
             : CouponResult::taken($coupon->id, $coupon->nameAr, $coupon->nameEn, $outcome->discount, $outcome->shares, $coupon->allowWithPoints);
+    }
+
+    public function knowsCoupon(StoreId $store, string $customerId, string $code): bool
+    {
+        $customerId = Inputs::id($customerId, 'customer');
+        $code = Inputs::code($code);
+        $coupon = $code === null ? null : $this->coupons->byCode($store, $code);
+
+        return $coupon !== null
+            && ($coupon->eligibility !== CouponEligibility::Assigned || $this->coupons->usage($store, $coupon->id, $customerId)->assigned);
     }
 
     public function customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money
