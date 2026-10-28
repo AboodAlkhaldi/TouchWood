@@ -20,7 +20,9 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Public\Events\OrderCameBack;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
@@ -44,6 +46,7 @@ final readonly class MarkCameBackHandler
         private LoyaltyApi $loyalty,
         private InventoryApi $inventory,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -81,6 +84,7 @@ final readonly class MarkCameBackHandler
             $now = CarbonImmutable::now();
             $cameBackId = strtolower((string) Str::ulid());
             $this->orders->cameBack($order->id, $cameBackId, $now);
+            $this->outbox->record(new OrderCameBack((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, 'CAME_BACK', $staffId, $now, OrderUndoing::status($order, OrderState::UNDELIVERED), ['cameBackId' => $cameBackId, 'pieces' => array_sum(array_map(static fn (HoldLineDto $line): int => $line->quantity, $back))]);
             $this->loyalty->orderCancelled(new SettleOrder($order->id, $order->storeId, new CallerPermission('sales', self::PERMISSION)));
             $this->inventory->release($order->id);

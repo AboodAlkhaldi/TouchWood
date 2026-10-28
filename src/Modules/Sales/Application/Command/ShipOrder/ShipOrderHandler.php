@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\ShipOrder;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Modules\Platform\Public\Dto\AuditChanges;
@@ -18,7 +19,9 @@ use Modules\Sales\Domain\Exception\NotShippable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Public\Events\OrderShipped;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Staff mark an approved order shipped (sales.md §1.5) — **one shipment per order**: the carrier, and a
@@ -39,6 +42,7 @@ final readonly class ShipOrderHandler
         private OrderUndoing $changes,
         private InventoryApi $inventory,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -71,6 +75,7 @@ final readonly class ShipOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->ship($order->id, $carrier, $tracking, $now);
+            $this->outbox->record(new OrderShipped((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, 'SHIPPED', $staffId, $now, AuditChanges::none()
                 ->changed('shipment_status', $order->shipmentStatus, OrderState::SHIPPED)->personal('carrier')->personal('tracking_number'));
 

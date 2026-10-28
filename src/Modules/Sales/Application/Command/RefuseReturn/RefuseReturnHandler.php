@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\RefuseReturn;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Sales\Application\Order\OrderInputs;
 use Modules\Sales\Application\Return\ReturnAccess;
@@ -16,7 +17,9 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\ReturnNotFound;
 use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Repository\Returns;
+use Modules\Sales\Public\Events\ReturnRefused;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * **Staff refuse a return** asked for (sales.md §1.8), with words the customer sees (my assumption, stated
@@ -32,6 +35,7 @@ final readonly class RefuseReturnHandler
         private Returns $returns,
         private ReturnChanges $changes,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -46,6 +50,7 @@ final readonly class RefuseReturnHandler
             [$order, $return] = $this->changes->lock($returnId, null, [ReturnState::REQUESTED]);
             $now = CarbonImmutable::now();
             $this->returns->decide($return->id, ReturnState::REFUSED, $reason, $staffId, $now);
+            $this->outbox->record(new ReturnRefused((string) Str::uuid(), $return->id, $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, $return, ReturnState::REFUSED, $staffId, $now, AuditChanges::none()->personal('staff_reason'));
         }, 3);
     }

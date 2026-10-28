@@ -21,9 +21,12 @@ use Modules\Sales\Domain\Exception\RefundTooLarge;
 use Modules\Sales\Domain\Model\MoneyRecord;
 use Modules\Sales\Domain\Repository\MoneyRecords;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Public\Events\PaymentRecorded;
+use Modules\Sales\Public\Events\RefundRecorded;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\MoneyException;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * A payment or a refund staff record by hand (sales.md §1.9): **a payment is always the whole balance
@@ -46,6 +49,7 @@ final readonly class MoneyRecording
         private MoneyRecords $records,
         private PlatformApi $platform,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -105,6 +109,10 @@ final readonly class MoneyRecording
                 throw $taken->getCode() === '23505' && str_contains($taken->getMessage(), '_request') ? new InvalidSalesAttribute('request', 'a form of another order') : $taken;
             }
             $kind === MoneyRecord::PAYMENT ? $this->orders->moveMoney($order->id, $money->minorUnits, 0) : $this->orders->moveMoney($order->id, 0, $money->minorUnits);
+
+            $this->outbox->record($kind === MoneyRecord::PAYMENT
+                ? new PaymentRecorded((string) Str::uuid(), $id, $order->id, $order->storeId, $order->customerId, $now)
+                : new RefundRecorded((string) Str::uuid(), $id, $order->id, $order->storeId, $order->customerId, $now));
 
             $historyKind = $kind === MoneyRecord::PAYMENT ? 'PAYMENT_RECORDED' : 'REFUND_RECORDED';
             $this->orders->recordHistory($order->id, $order->storeId, $historyKind, null, $staffId, $now, ['recordId' => $id, 'amount' => $money->minorUnits, 'way' => $way]);

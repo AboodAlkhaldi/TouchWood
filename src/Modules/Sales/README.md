@@ -116,3 +116,10 @@ Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSetti
 `SalesErrorMessagesTest`, `SalesSchemaTest`, `CartTest`, `CartTablesTest`, `CartRaceTest`, `QuoteTest`, `OrderTablesTest`, `PlaceOrderTest`, `PlaceOrderRaceTest`, `OrderDecisionsTest`, `OrderDecisionsRaceTest`, `OrderMoneyTest`, `TransferDocumentsTest`, `OrderFulfilmentTest`, `OrderEditTest`, `ReturnRequestsTest`, `ReturnRequestsRaceTest`, `ReturnCompletionTest`, `SalesContractTest`, `SalesRanksTest`, `OwnOrdersTest`, `CartViewTest`, `StaffOrdersTest`, `StaffReturnsTest`, and
 `tests/Modules/Sales/Unit/OrderSharesTest`, `ReturnRefundsTest`, `OrderStatusesTest`; the outbox's in
 `tests/Shared/Integration/Outbox*Test`.
+
+## For Ops (sales.md §2.2, §6; 2026-10-28)
+
+- `Public/Events`: `OrderApproved`, `OrderRejected`, `OrderEdited`, `OrderShipped`, `OrderCameBack` (their order
+  handlers), `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` (their return handlers),
+  `PaymentRecorded`, `RefundRecorded` (`Application/Order/MoneyRecording`) — each through the outbox in its change's
+  transaction. Tests: `tests/Modules/Sales/Integration/SalesOpsEventsTest.php`.

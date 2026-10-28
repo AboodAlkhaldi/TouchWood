@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\ApproveOrder;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderUndoing;
 use Modules\Sales\Application\SalesPermissions;
@@ -13,7 +14,9 @@ use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Public\Events\OrderApproved;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /** Approving an order waiting for it (sales.md §1.4): every order passes staff approval. Audited. */
 final readonly class ApproveOrderHandler
@@ -25,6 +28,7 @@ final readonly class ApproveOrderHandler
         private Orders $orders,
         private OrderUndoing $changes,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -43,6 +47,7 @@ final readonly class ApproveOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->approve($order->id, $staffId, $now);
+            $this->outbox->record(new OrderApproved((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, 'APPROVED', $staffId, $now, OrderUndoing::status($order, OrderState::APPROVED));
         }, 3);
     }

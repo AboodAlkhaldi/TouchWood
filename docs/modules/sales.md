@@ -618,8 +618,15 @@ before Sales exists; Sales's build replaces the binding. **Replaced in step S10b
 | `OrderCancelled` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
 | `OrderDelivered` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
 | `ReturnCompleted` | `eventId`, `returnId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
+| `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` — staff approved, rejected (not a cancellation), shipped, or marked the parcel back (§1.5) |
+| `OrderEdited` | `eventId`, `editId`, `orderId`, `storeId`, `customerId`, `occurredAt` — a staff edit before shipping (§1.4) |
+| `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` | `eventId`, `returnId`, `orderId`, `storeId`, `customerId`, `occurredAt` — the customer asked; staff accepted, refused, received (§1.8) |
+| `PaymentRecorded`, `RefundRecorded` | `eventId`, `moneyRecordId`, `orderId`, `storeId`, `customerId`, `occurredAt` — money recorded on the order, in or back (§1.9): by staff here (`MoneyRecording`); an online payment on an order that exists, by stage 7's own handlers with the same event (payments.md) |
 
-A rejection and a parcel that came back publish nothing yet; Ops adds what its messages need (stage 8).
+**For Ops** (ops.md §1.5, §1.6, §2.3; the owner's go to the builders, 2026-10-28): the rows after `ReturnCompleted`,
+each recorded through the outbox inside its change's transaction — a change refused records nothing. A return
+**completed** works out what is owed; money actually given back is `RefundRecorded`. `TransferOverdue` is stage 7's
+(§9.5 #16).
 
 ### 2.3 What Sales needs from other modules
 
@@ -1161,7 +1168,9 @@ digits at least (`SA-0001`).
 ## 6 · Events
 
 **Published, through the outbox** (handoff §4.5 — critical, ids only, §2.2): `OrderPlaced`,
-`OrderCancelled`, `OrderDelivered`, `ReturnCompleted`. **Sales builds the shared outbox and
+`OrderCancelled`, `OrderDelivered`, `ReturnCompleted`; and, for Ops (2026-10-28), `OrderApproved`, `OrderRejected`,
+`OrderEdited`, `OrderShipped`, `OrderCameBack`, `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`,
+`ReturnReceived`, `PaymentRecorded`, `RefundRecorded` (§2.2). **Sales builds the shared outbox and
 `processed_events`** (platform.md §5.6): the first module publishing through it (B2B's
 `CompanyStatusChanged` is published without one, as built).
 

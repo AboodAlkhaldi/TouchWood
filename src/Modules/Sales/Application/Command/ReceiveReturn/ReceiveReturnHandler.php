@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\ReceiveReturn;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Modules\Platform\Public\Dto\AuditChanges;
@@ -18,8 +19,10 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\ReturnNotFound;
 use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Repository\Returns;
+use Modules\Sales\Public\Events\ReturnReceived;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * **Staff mark an accepted return's pieces received** (sales.md §1.8): for every line of the return, how
@@ -38,6 +41,7 @@ final readonly class ReceiveReturnHandler
         private ReturnChanges $changes,
         private InventoryApi $inventory,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -74,6 +78,7 @@ final readonly class ReceiveReturnHandler
 
             $now = CarbonImmutable::now();
             $this->returns->receive($return->id, $counts, $now);
+            $this->outbox->record(new ReturnReceived((string) Str::uuid(), $return->id, $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, $return, ReturnState::RECEIVED, $staffId, $now, AuditChanges::none()
                 ->changed('pieces_received', null, array_sum(array_column($counts, 0)))->changed('pieces_restocked', null, array_sum(array_column($counts, 1))));
 

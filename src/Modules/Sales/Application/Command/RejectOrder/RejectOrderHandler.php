@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Command\RejectOrder;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Str;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderInputs;
 use Modules\Sales\Application\Order\OrderUndoing;
@@ -15,7 +16,9 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Public\Events\OrderRejected;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Rejecting an order waiting for approval (sales.md §1.4, §1.6), with a reason the customer sees — **a
@@ -31,6 +34,7 @@ final readonly class RejectOrderHandler
         private Orders $orders,
         private OrderUndoing $changes,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -50,6 +54,7 @@ final readonly class RejectOrderHandler
 
             $now = CarbonImmutable::now();
             $this->orders->reject($order->id, $staffId, $reason, $now);
+            $this->outbox->record(new OrderRejected((string) Str::uuid(), $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, 'REJECTED', $staffId, $now, OrderUndoing::status($order, OrderState::REJECTED)->personal('decision_reason'));
             $this->changes->undo($order, self::PERMISSION);
         }, 3);
