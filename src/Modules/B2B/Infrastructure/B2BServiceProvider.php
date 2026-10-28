@@ -14,6 +14,7 @@ use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Application\B2BApiImpl;
 use Modules\B2B\Application\B2BPermissions;
+use Modules\B2B\Application\Query\ApplicationCounts\ApplicationCounts;
 use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Query\ViewTypeLists\TypeHolders;
@@ -26,6 +27,7 @@ use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\Repository\StoreTypeListsRepository;
+use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationCounts;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationReferenceCounter;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseApplicationRepository;
 use Modules\B2B\Infrastructure\Eloquent\DatabaseCompanyReader;
@@ -67,6 +69,7 @@ final class B2BServiceProvider extends ServiceProvider
         $this->app->bind(ApplicationReferenceCounter::class, DatabaseApplicationReferenceCounter::class);
         $this->app->bind(CompanyReader::class, DatabaseCompanyReader::class);
         $this->app->bind(CompanyStandings::class, DatabaseCompanyStandings::class);
+        $this->app->bind(ApplicationCounts::class, DatabaseApplicationCounts::class);
         $this->app->bind(TypeHolders::class, DatabaseTypeHolders::class);
         $this->app->bind(B2BApi::class, B2BApiImpl::class);
     }

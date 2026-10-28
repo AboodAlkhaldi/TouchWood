@@ -419,17 +419,19 @@ Everything another module needs, and nothing more. Ids in, DTOs out; never an El
 | `status(string $customerId, string $storeId): ?CompanyStatus` | The shop's banner (§4.3) and the staff screens, per store. **Not Pricing** — since 2026-09-26 prices follow the account type, which Access owns, so nothing asks this on a hot path and nothing caches it |
 | `isApproved(string $customerId, string $storeId): bool` | Sales's half of `canPlaceOrder` (handoff §7.4): that store's company approved, and the store on (amendments 18, 20) |
 | `bankAccount(string $storeId): ?BankAccountDto` | Sales and Payments: the account a company of that store transfers to — **null while bank transfer is temporarily off**, until the store has filled in all three settings (§2.3, amendment 13(c)); checkout then disables paying by transfer, and the server refuses it |
+| `applicationCounts(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): ApplicationCountsDto` | **Ops's daily report** (ops.md §1.11 item 5, amendment 34): how many applications of that store were **sent**, and how many **approved**, in the range — from `from`, up to but not including `to`. Counts only; no company, no person |
 
 `CompanyDto` carries the id, the account id, the name, the type's name in both languages, the
 status, and the reason when there is one. **Both type names are null while the company is still
 "Other"**: its type is not set yet, and its own words are for the reviewing staff alone (§1.3,
 amendment 13(b)). It never carries documents: a document is reached only through its own signed
 link, by staff with the permission (§3). `BankAccountDto` carries the IBAN as the store typed it,
-the bank's name and the holder's name.
+the bank's name and the holder's name. `ApplicationCountsDto` carries two numbers, `submitted` and
+`approved` (amendment 34).
 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
 
-- `CompanyDto`, `BankAccountDto`, plain `final readonly` (handoff §4.3).
+- `CompanyDto`, `BankAccountDto`, `ApplicationCountsDto`, plain `final readonly` (handoff §4.3).
 - `CompanyStatus`: `PENDING`, `APPROVED`, `REJECTED`, `SUSPENDED`. A backed enum stored as a
   string, and the only company status anywhere in the system.
 
@@ -452,7 +454,10 @@ the bank's name and the holder's name.
 
 - `B2BApi` above.
 - Events (§6): the company's status changed, so Ops can write to the customer later — not Pricing,
-  since prices follow the account type (§1.1) — and an application sent, for staff notifications.
+  since prices follow the account type (§1.1) — and an application sent, for staff notifications,
+  with the store it was made in (amendment 34).
+- For Ops's daily report, the applications sent and approved in a range (`applicationCounts`,
+  amendment 34): Ops never counts from the events.
 
 ---
 
@@ -930,7 +935,7 @@ Addresses written before amendment 16 keep their text and have no id. No map pin
 | Event | When | Who listens |
 |---|---|---|
 | `CompanyStatusChanged` — `customerId`, `companyId`, `from`, `to`, `reason` | Every status change | **Ops**, later, to write to the customer. **Not Pricing**: prices follow the account type (§1.1) |
-| `CompanyApplicationSubmitted` — `companyId`, `applicationId` | An application leaves `DRAFT` | Staff notifications, once Ops exists |
+| `CompanyApplicationSubmitted` — `companyId`, `applicationId`, `storeId` (amendment 34) | An application leaves `DRAFT` | Staff notifications, once Ops exists: `storeId` — the store the application was made in — tells Ops whose staff to alert (ops.md §1.6 S2) |
 
 ### Consumed
 
@@ -1109,3 +1114,4 @@ place in the sections named; this table records what changed and why.
 | 31 | §4.5, §8 (37) | **A field says what is wrong as it is typed**, not once left — the rule for every form of every module (frontend.md §1.7; catalog.md amendment 16(f)); "required" still waits until the field was touched. Amendment 22(a)'s look is unchanged. | The owner: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" — for every module, now. | Owner, 2026-10-09 |
 | 32 | §2.3, §3.2 | **The store's bank account is changed by an admin only.** Its three settings — IBAN, bank, holder — are changed under a new B2B permission, **`b2b.settings.update`**: per store, in the Companies group, **admin-only**. This replaces 12(b)'s "under Platform's `platform.settings.update`, no B2B job of its own". The form's minimums (16(b)) stay under `platform.settings.update`. | Security audit run-2 (2026-10-27): any staff role holding the store settings job could change the account approved companies send their money to. | Owner, 2026-10-28 |
 | 33 | §2.3, §2.4 (`bankAccount`), §3.2, §4.5 | **[ACCEPTED — stage 7, owner 2026-10-28]** **The bank account moves to Payments**, as §2.3 always said it would (owner, 2026-10-19 P10): the three settings, their rules, the settings line and `bankAccount` become Payments' (`PaymentsApi::bankAccount`, payments.md §1.9); B2B's company page reads it from there; nothing changes for the company. **Still an admin's alone** (amendment 32): the job moves with the settings, as Payments' admin-only `payments.bank_account.update` (payments.md §3). | Payments owns how money arrives; B2B kept it until stage 7. | Accepted 2026-10-28 |
+| 34 | §2.1, §2.2, §2.4, §6 | **What Ops needs from B2B** (ops.md §2.3, the B2B row). **(a) `CompanyApplicationSubmitted` carries `storeId`** — the store the application was made in (`applications.store_id`, the company's home store, amendment 18) — so Ops can alert the staff who review companies there (`b2b.company.review`, ops.md §1.6 S2) without reading B2B. **(b) A new read, `B2BApi::applicationCounts(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): ApplicationCountsDto`** (`submitted`, `approved`), for the daily report's "company applications submitted, approved" (ops.md §1.11 item 5). **Sent**: every application of that store whose `submitted_at` falls in the range — **each send counts once, on the day it was sent**, so a company sending again after a rejection (with or without flags and requests — there is no "waiting for papers" state, §1.2, §4.2) or an approved company sending new details is **counted again**, being a new application; a draft, and a discarded one, never counts. **Approved**: every application of that store now `APPROVED` whose `decided_at` falls in the range — on the day of the decision, whatever day it was sent; what the company did after (suspended, sent again) changes nothing, since a decided application is never reopened (§4.2). Neither figure looks at the store being on or off, nor at an account erased since: the rows stay (amendment 12(a)). So a past range always answers the same. **The range is from `from`, up to but not including `to`**, compared as moments; **the caller draws it** — Ops sends the store's midnight in the store's time zone and the moment the button is pressed, or two midnights for a past day, and for All Stores asks each store with its own day and adds them up. `to` before `from` and a store id that is not a ULID are the caller's bugs and throw; a store with nothing in the range gives 0 and 0. **No permission is checked** — module to module, like every `B2BApi` read; Ops's use case checks its own (`ops.report.daily`). **One query**, a plain read with no lock. | Ops alerts by store and builds the daily report from each module's reads, never from events and never from another module's tables (ops.md §2.3; deptrac). The owner chose the store on the event over a read by application. | Owner, 2026-10-28 |

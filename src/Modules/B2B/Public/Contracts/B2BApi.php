@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Public\Contracts;
 
+use DateTimeImmutable;
+use InvalidArgumentException;
+use Modules\B2B\Public\Dto\ApplicationCountsDto;
 use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\B2B\Public\Dto\CompanyDto;
 use Modules\B2B\Public\Enums\CompanyStatus;
@@ -47,4 +50,17 @@ interface B2BApi
      * @param  string  $storeId  a store's ULID; anything else is a caller's bug and throws
      */
     public function bankAccount(string $storeId): ?BankAccountDto;
+
+    /**
+     * For Ops's daily report (amendment 34): how many of this store's applications were sent, and
+     * how many approved, from `$from` up to but not including `$to`, compared as moments. Each send
+     * counts once, on the day it was sent — a send after a rejection counts again; an approval
+     * counts on the day of the decision. The caller draws the range: the store's midnight in its
+     * time zone, to now or to the next midnight. A past range always answers the same.
+     *
+     * @param  string  $storeId  a store's ULID; anything else is a caller's bug and throws
+     *
+     * @throws InvalidArgumentException `$to` is before `$from`, or the store id is not a ULID
+     */
+    public function applicationCounts(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): ApplicationCountsDto;
 }

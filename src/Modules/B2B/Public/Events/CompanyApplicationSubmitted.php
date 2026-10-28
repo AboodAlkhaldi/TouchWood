@@ -9,7 +9,8 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
  * An application left `DRAFT` (b2b.md §6): staff have one to review. Staff notifications listen,
- * once Ops exists.
+ * once Ops exists: `storeId` is the store the application was made in — the company's home store —
+ * so Ops alerts that store's reviewers without reading B2B (amendment 34).
  *
  * Ids only, after commit.
  */
@@ -19,6 +20,7 @@ final readonly class CompanyApplicationSubmitted implements ShouldDispatchAfterC
         public string $eventId,
         public string $companyId,
         public string $applicationId,
+        public string $storeId,
         public DateTimeImmutable $occurredAt,
     ) {}
 }

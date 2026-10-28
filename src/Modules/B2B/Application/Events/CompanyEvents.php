@@ -41,6 +41,12 @@ final readonly class CompanyEvents
 
     public function submitted(Company $company, Application $application): void
     {
-        $this->events->dispatch(new CompanyApplicationSubmitted((string) Str::uuid(), $company->id(), $application->id(), CarbonImmutable::now()));
+        $this->events->dispatch(new CompanyApplicationSubmitted(
+            (string) Str::uuid(),
+            $company->id(),
+            $application->id(),
+            $application->storeId(),
+            CarbonImmutable::now(),
+        ));
     }
 }
