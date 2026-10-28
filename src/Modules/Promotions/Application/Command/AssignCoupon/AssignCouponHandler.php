@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application\Command\AssignCoupon;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Modules\Promotions\Application\Coupon\CouponAudit;
 use Modules\Promotions\Application\MarketingChange;
 use Modules\Promotions\Application\PromotionsPermissions;
@@ -15,15 +16,18 @@ use Modules\Promotions\Domain\Repository\Coupons;
 use Modules\Promotions\Domain\Repository\Segments;
 use Modules\Promotions\Public\Enums\CouponEligibility;
 use Modules\Promotions\Public\Enums\SegmentAudience;
+use Modules\Promotions\Public\Events\CouponAssigned;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * Assigns a coupon to a segment (promotions.md §1.4): **writes the segment's members of that moment**
  * as the coupon's customers, and they stay — a customer who leaves the segment later keeps it.
  * Assigning again adds the new members only; nobody is removed. Only an `ASSIGNED` coupon is assigned
  * (owner, 2026-10-18, answer 24); the segment must be the coupon's own store's, of an audience the
- * coupon allows (§1.1). The customers see it in their account centre at once. Audited.
+ * coupon allows (§1.1). The customers see it in their account centre at once; an assignment that adds
+ * anyone records one `CouponAssigned` through the outbox, for Ops' messages (§6; ops.md §1.5 C15). Audited.
  */
 final readonly class AssignCouponHandler
 {
@@ -34,6 +38,7 @@ final readonly class AssignCouponHandler
         private Coupons $coupons,
         private Segments $segments,
         private Assignments $assignments,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -58,9 +63,16 @@ final readonly class AssignCouponHandler
                 throw new InvalidPromotionAttribute('audience', 'the coupon is not for this segment\'s customers');
             }
 
-            $added = $this->assignments->assign($coupon, $this->segments->memberIds($segment->id), $segment->id, CarbonImmutable::now());
+            $now = CarbonImmutable::now();
+            $assignmentId = strtolower((string) Str::ulid());
+            $added = $this->assignments->assign($coupon, $this->segments->memberIds($segment->id), $segment->id, $now, $assignmentId);
 
-            return [null, $added === 0 ? [] : array_filter([CouponAudit::entry('assigned', $coupon->id, $storeId->value, [], ['segment' => $segment->id, 'customers' => $added])])];
+            // One event for the whole assignment: Ops reads whom it added by its id (assignedCustomers).
+            if ($added !== []) {
+                $this->outbox->record(new CouponAssigned((string) Str::uuid(), $assignmentId, $coupon->id, $coupon->storeId, $now));
+            }
+
+            return [null, $added === [] ? [] : array_filter([CouponAudit::entry('assigned', $coupon->id, $storeId->value, [], ['segment' => $segment->id, 'customers' => count($added)])])];
         });
     }
 }

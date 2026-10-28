@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Promotions\Application;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderCommand;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler;
@@ -15,6 +16,7 @@ use Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler;
 use Modules\Promotions\Application\Coupon\CartLines;
 use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Coupon\Quotes;
+use Modules\Promotions\Application\Query\MarketingQueries;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Model\GiftLevel;
@@ -27,6 +29,7 @@ use Modules\Promotions\Domain\Service\DiscountRoom;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
+use Modules\Promotions\Public\Dto\CouponsUsedDto;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
@@ -55,6 +58,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         private PlatformApi $platform,
         private Segments $segments,
         private GiftLevels $levels,
+        private MarketingQueries $queries,
     ) {}
 
     public function applyCoupon(CouponRequest $request): CouponResult
@@ -194,6 +198,25 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         $this->inStoreCurrency($store, $goodsTotal);
 
         return self::offers($this->levels->above($store, $audience, $goodsTotal->minorUnits, CarbonImmutable::now()));
+    }
+
+    public function couponsUsed(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): CouponsUsedDto
+    {
+        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidPromotionAttribute('store', 'no such store');
+        [$uses, $discount] = $from < $to ? $this->queries->usesIn($store, $from, $to) : [0, 0];
+
+        return new CouponsUsedDto($uses, Money::of($discount, $currency));
+    }
+
+    public function assignedCustomers(string $assignmentId, ?string $after, int $limit): array
+    {
+        $assignmentId = Inputs::id($assignmentId, 'assignment');
+
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidPromotionAttribute('limit', 'from 1 to 1000');
+        }
+
+        return $this->queries->assignedBy($assignmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
     }
 
     private function inStoreCurrency(StoreId $store, Money $goodsTotal): void

@@ -225,4 +225,22 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
             CarbonImmutable::parse((string) $row->created_at),
         );
     }
+
+    public function usesIn(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        $row = $this->db->table('promotions.coupon_uses')
+            ->where('store_id', $store->value)->where('used_at', '>=', Moment::of($from))->where('used_at', '<', Moment::of($to))
+            ->selectRaw('count(*) AS uses, coalesce(sum(discount_minor), 0) AS discount')
+            ->first();
+
+        return $row instanceof stdClass ? [(int) $row->uses, (int) $row->discount] : [0, 0];
+    }
+
+    public function assignedBy(string $assignmentId, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table('promotions.coupon_assignments')
+            ->where('assignment_id', $assignmentId)
+            ->when($after !== null, fn (Builder $query) => $query->where('customer_id', '>', $after))
+            ->orderBy('customer_id')->limit($limit)->pluck('customer_id')->all()));
+    }
 }

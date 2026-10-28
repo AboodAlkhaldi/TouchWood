@@ -76,6 +76,7 @@ return [
         'rule_orders' => 'number of orders',
         'members' => 'customers picked',
         'segment' => 'segment',
+        'assignment' => 'assignment',
         'limit' => 'page size',
         'after' => 'page position',
     ],

@@ -15,12 +15,13 @@ use Modules\Promotions\Public\Enums\SegmentAudience;
 interface Assignments
 {
     /**
-     * Gives the coupon to these customers; those who have it already keep their row. Answers how many
-     * are new.
+     * Gives the coupon to these customers; those who have it already keep their row. Answers the ones
+     * new to it, each once; every row it adds carries `assignmentId` (`CouponAssigned`, §6).
      *
      * @param  list<string>  $customerIds
+     * @return list<string>
      */
-    public function assign(Coupon $coupon, array $customerIds, ?string $segmentId, DateTimeImmutable $at): int;
+    public function assign(Coupon $coupon, array $customerIds, ?string $segmentId, DateTimeImmutable $at, string $assignmentId): array;
 
     /** Whether the coupon was given to anyone. */
     public function any(Coupon $coupon): bool;
