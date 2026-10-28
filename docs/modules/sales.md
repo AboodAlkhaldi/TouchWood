@@ -1463,7 +1463,7 @@ option (a).**
   when outside its limits now, one no longer available left out with why; the edit's search leaving out
   sizes already on the order; search from 2 characters; no counts on the tabs.
 
-### 9.5 Stage 7's changes — **[PROPOSED 2026-10-27]**, waiting for the owner's acceptance of shipping.md and payments.md
+### 9.5 Stage 7's changes — **[ACCEPTED by the owner, 2026-10-28]** (proposed 2026-10-27, with shipping.md and payments.md)
 
 Each becomes an amendment applied in place once the owner accepts the two specs. The Stage 6 session
 agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the same code.
