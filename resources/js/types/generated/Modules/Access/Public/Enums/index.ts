@@ -1,6 +1,7 @@
 export type AccessLevel = 'ALL_STORES' | 'SELECTED_STORES';
 export type AccountType = 'INDIVIDUAL' | 'COMPANY';
 export type CustomerStatus = 'ACTIVE' | 'BLOCKED';
+export type MarketingConsentSource = 'REGISTRATION' | 'ACCOUNT' | 'UNSUBSCRIBE_LINK' | 'NEWSLETTER_PROVIDER';
 export type PermissionAudience = 'ROLE' | 'EVERY_STAFF' | 'EVERY_CUSTOMER' | 'EVERY_GUEST';
 export type PermissionGroup = 'staff_and_permissions' | 'customers' | 'store_settings' | 'media' | 'audit' | 'system' | 'catalog' | 'pricing' | 'orders' | 'shipping' | 'payments' | 'companies' | 'points' | 'sync' | 'marketing' | 'support';
 export type PermissionKind = 'PER_STORE' | 'GLOBAL';

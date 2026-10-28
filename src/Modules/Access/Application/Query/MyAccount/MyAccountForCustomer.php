@@ -59,6 +59,7 @@ final readonly class MyAccountForCustomer
             mayOrder: $customer->mayOrder(),
             homeStoreId: $customer->homeStoreId(),
             deletionScheduledFor: $customer->deletionScheduledFor()?->format('Y-m-d'),
+            marketingConsent: $customer->marketingConsent(),
         );
     }
 }

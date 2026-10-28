@@ -40,6 +40,8 @@ return [
     'customer.email_verified' => 'وُثّق بريد عميل',
     'customer.phone_verified' => 'وُثّق جوال عميل',
     'customer.profile_updated' => 'عُدّل ملف عميل',
+    'customer.marketing_consent_changed' => 'غيّر عميل اشتراكه في العروض والأخبار',
+    'customer.marketing_consent_withdrawn' => 'ألغى عميل اشتراكه في العروض والأخبار',
     'customer.password_changed' => 'تغيّرت كلمة مرور عميل',
     'customer.password_reset' => 'أُعيدت كلمة مرور عميل',
     'customer.blocked' => 'حُظر عميل',

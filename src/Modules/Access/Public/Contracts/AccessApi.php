@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Access\Public\Contracts;
 
+use DateTimeImmutable;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDisplayNameDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\MarketingConsentSource;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -110,4 +112,23 @@ interface AccessApi
      * @return list<AddressDto>
      */
     public function addresses(string $customerId, string $storeId): array;
+
+    /**
+     * For Ops' daily report (amendment 83): how many accounts of each type registered in the store
+     * from `$from` (included) to `$to` (excluded), anonymized ones included — they were new then.
+     * Counts only; no person.
+     *
+     * @return array{individuals: int, companies: int}
+     */
+    public function customersRegistered(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    /**
+     * For Ops (amendment 79): the customer unsubscribed — by a marketing email's link or at the
+     * newsletter provider — so their marketing consent is withdrawn, at once and everywhere.
+     * **Run as the system** (a queued job): the permission is reserved. Withdrawing what is already
+     * off, or an anonymized account, changes nothing. Publishes `MarketingConsentChanged`.
+     *
+     * @throws DomainError when the source would give consent instead
+     */
+    public function withdrawMarketingConsent(string $customerId, MarketingConsentSource $source): void;
 }

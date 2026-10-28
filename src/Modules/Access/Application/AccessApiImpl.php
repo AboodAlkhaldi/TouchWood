@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application;
 
+use DateTimeImmutable;
 use InvalidArgumentException;
 use Modules\Access\Application\Address\AddressMapper;
 use Modules\Access\Application\Address\OpenStores;
+use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketingConsent;
+use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketingConsentHandler;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Staff\StaffDisplayNames;
@@ -22,6 +25,7 @@ use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
+use Modules\Access\Public\Enums\MarketingConsentSource;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
@@ -38,6 +42,7 @@ final readonly class AccessApiImpl implements AccessApi
         private OpenStores $openStores,
         private StaffDisplayNames $displayNames,
         private Authorizer $authorizer,
+        private WithdrawMarketingConsentHandler $withdrawConsent,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -157,5 +162,19 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $this->addressMapper->toDtos($this->addresses->forCustomerInStore($customerId, $storeId));
+    }
+
+    public function customersRegistered(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        if ($from >= $to) {
+            throw new InvalidArgumentException('A range of registrations ends after it starts.');
+        }
+
+        return $this->customers->countRegistered($store->value, $from, $to);
+    }
+
+    public function withdrawMarketingConsent(string $customerId, MarketingConsentSource $source): void
+    {
+        $this->withdrawConsent->handle(new WithdrawMarketingConsent($customerId, $source));
     }
 }

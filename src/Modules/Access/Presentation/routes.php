@@ -232,6 +232,7 @@ Route::prefix('{store}/{locale}')
             */
             Route::get('account', [CustomerOwnAccountController::class, 'show'])->name('storefront.account');
             Route::post('account/profile', [CustomerOwnAccountController::class, 'updateProfile'])->name('storefront.account.profile');
+            Route::post('account/marketing', [CustomerOwnAccountController::class, 'updateMarketingConsent'])->name('storefront.account.marketing');
             Route::post('account/phone', [CustomerOwnAccountController::class, 'requestPhoneCode'])->name('storefront.account.phone');
             Route::post('account/phone/code', [CustomerOwnAccountController::class, 'confirmPhone'])->name('storefront.account.phone.confirm');
 

@@ -99,6 +99,7 @@ final class CustomerAudit
             ->personal('email')
             ->personal('phone')
             ->personal('addresses')
+            ->personal('marketing_consent')
             ->changed('anonymized', false, true));
     }
 

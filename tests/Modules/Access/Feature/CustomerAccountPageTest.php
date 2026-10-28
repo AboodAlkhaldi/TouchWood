@@ -209,3 +209,43 @@ describe('what the page can change', function () {
             );
     });
 });
+
+describe('offers and news (amendment 79)', function () {
+    it('shows the switch off, turns it on and off, and comes back to the profile tab', function () {
+        [$customerId, $browser] = accountPageCustomer();
+
+        $browser->get('/sa/en/account')->assertInertia(fn (AssertableInertia $page) => $page->where('marketingConsent', false));
+
+        $browser->post('/sa/en/account/marketing', ['marketing_consent' => true])->assertRedirect('/sa/en/account?tab=profile');
+        expect(DB::table('access.customers')->where('id', $customerId)->value('marketing_consent'))->toBeTrue();
+        $browser->get('/sa/en/account')->assertInertia(fn (AssertableInertia $page) => $page->where('marketingConsent', true));
+
+        $browser->post('/sa/en/account/marketing', ['marketing_consent' => false])->assertRedirect('/sa/en/account?tab=profile');
+        expect(DB::table('access.customers')->where('id', $customerId)->value('marketing_consent'))->toBeFalse();
+    });
+
+    it('refuses a missing answer, and a visitor who is not signed in', function () {
+        [$customerId, $browser] = accountPageCustomer();
+
+        $errors = AdminBrowser::flashed($browser->post('/sa/en/account/marketing', []), 'errors');
+        $errors = is_array($errors) ? ($errors['default']['messages'] ?? []) : [];
+        expect($errors)->toHaveKey('marketing_consent');
+
+        (new AdminBrowser)->post('/sa/en/account/marketing', ['marketing_consent' => true])->assertRedirect();
+        expect(DB::table('access.customers')->where('id', $customerId)->value('marketing_consent'))->toBeFalse();
+    });
+
+    it('takes the box from the registration form, unticked when it is left out', function () {
+        (new AdminBrowser)->post('/sa/en/account/register', [
+            'email' => 'ticked@example.test', 'password' => 'a long enough password', 'first_name' => 'Sara',
+            'last_name' => 'Ali', 'account_type' => 'individual', 'locale' => 'en', 'terms' => '1', 'marketing_consent' => '1',
+        ]);
+        (new AdminBrowser)->post('/sa/en/account/register', [
+            'email' => 'unticked@example.test', 'password' => 'a long enough password', 'first_name' => 'Omar',
+            'last_name' => 'Ali', 'account_type' => 'individual', 'locale' => 'en', 'terms' => '1',
+        ]);
+
+        expect(DB::table('access.customers')->where('email', 'ticked@example.test')->value('marketing_consent'))->toBeTrue()
+            ->and(DB::table('access.customers')->where('email', 'unticked@example.test')->value('marketing_consent'))->toBeFalse();
+    });
+});

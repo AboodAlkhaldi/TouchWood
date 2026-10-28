@@ -93,6 +93,7 @@ addresses: AddressBookStore[],
 deletionDays: number,
 returnTo: string | null,
 codeLength: number,
+marketingConsent: boolean,
 };
 export type CustomerAddressGroup = {
 storeId: string,

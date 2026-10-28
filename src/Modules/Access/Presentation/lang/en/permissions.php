@@ -12,6 +12,9 @@ return [
         'delete' => 'Delete Their Own Account',
         'anonymize' => 'Anonymize Deleted Accounts',
     ],
+    'marketing_consent' => [
+        'withdraw' => 'Withdraw Offers and News on an Unsubscribe',
+    ],
     'session' => [
         'sign_in' => 'Sign In',
         'sign_out' => 'Sign Out',

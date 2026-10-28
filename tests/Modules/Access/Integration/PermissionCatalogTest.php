@@ -82,6 +82,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
     // Owner's decision, 2026-09-19 (Access spec §9.4, amendment 4).
     expect($storeFree)->toBe([
         'access.account.anonymize',
+        // Reserved: an unsubscribe Ops received (amendment 79).
+        'access.marketing_consent.withdraw',
         'access.role.manage',
         'access.super_admin.manage',
         // Reserved: the import reaches every store at once, and a job belongs to none (catalog.md §3).

@@ -22,5 +22,7 @@ final readonly class RegisterCustomer
         public string $locale,
         public bool $termsAccepted,
         public string $ip = '',
+        /** The "offers and news" box, unticked by default (amendment 79). */
+        public bool $marketingConsent = false,
     ) {}
 }

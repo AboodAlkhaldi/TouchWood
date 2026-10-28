@@ -12,6 +12,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
+use Modules\Access\Public\Enums\MarketingConsentSource;
 
 /**
  * A customer account (Access spec §1.1, §1.2, §4.1): one account for every store.
@@ -51,6 +52,9 @@ final class Customer
         private ?DateTimeImmutable $deletionScheduledFor = null,
         private ?DateTimeImmutable $anonymizedAt = null,
         private int $sessionVersion = 0,
+        private bool $marketingConsent = false,
+        private ?DateTimeImmutable $marketingConsentChangedAt = null,
+        private ?MarketingConsentSource $marketingConsentSource = null,
     ) {}
 
     /**
@@ -59,6 +63,7 @@ final class Customer
      *
      * @param  string  $storeId  the store they registered in: their home store, fixed
      * @param  string  $termsVersion  the version of that store's terms they accepted (amendment 37)
+     * @param  bool  $marketingConsent  the "offers and news" box, unticked unless they ticked it (amendment 79)
      */
     public static function register(
         string $id,
@@ -71,10 +76,14 @@ final class Customer
         string $storeId,
         string $termsVersion,
         DateTimeImmutable $at,
+        bool $marketingConsent = false,
     ): self {
         return new self(
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, CustomerStatus::Active,
             null, null, null, $language, $storeId, $storeId, $termsVersion, $at,
+            marketingConsent: $marketingConsent,
+            marketingConsentChangedAt: $marketingConsent ? $at : null,
+            marketingConsentSource: $marketingConsent ? MarketingConsentSource::Registration : null,
         );
     }
 
@@ -97,6 +106,9 @@ final class Customer
         ?DateTimeImmutable $deletionScheduledFor = null,
         ?DateTimeImmutable $anonymizedAt = null,
         int $sessionVersion = 0,
+        bool $marketingConsent = false,
+        ?DateTimeImmutable $marketingConsentChangedAt = null,
+        ?MarketingConsentSource $marketingConsentSource = null,
     ): self {
         if ($sessionVersion < 0) {
             throw new InvalidAccessAttribute('session_version', 'zero or more');
@@ -106,7 +118,32 @@ final class Customer
             $id, $email, $passwordHash, $firstName, $lastName, $accountType, $status,
             $emailVerifiedAt, $phone, $phoneVerifiedAt, $language, $homeStoreId, $lastStoreId,
             $termsVersion, $termsAcceptedAt, $deletionScheduledFor, $anonymizedAt, $sessionVersion,
+            $marketingConsent, $marketingConsentChangedAt, $marketingConsentSource,
         );
+    }
+
+    /**
+     * Offers and news, yes or no (amendment 79): by the customer — at registration or in their
+     * account — or withdrawn by an unsubscribe Ops received. The same answer again changes nothing.
+     *
+     * @throws InvalidAccessAttribute when a withdrawal's source would give consent
+     */
+    public function changeMarketingConsent(bool $consent, MarketingConsentSource $source, DateTimeImmutable $at): void
+    {
+        $this->refuseWhenAnonymized();
+
+        if ($consent && in_array($source, MarketingConsentSource::withdrawals(), true)) {
+            throw new InvalidAccessAttribute('marketing_consent', 'an unsubscribe only withdraws consent');
+        }
+
+        if ($this->marketingConsent === $consent) {
+            return;
+        }
+
+        $this->marketingConsent = $consent;
+        $this->marketingConsentChangedAt = $at;
+        $this->marketingConsentSource = $source;
+        $this->markChanged('marketing_consent');
     }
 
     /**
@@ -286,6 +323,10 @@ final class Customer
         $this->phone = null;
         $this->phoneVerifiedAt = null;
         $this->deletionScheduledFor = null;
+        // Consent is personal data too (amendment 79): nothing says what this person agreed to.
+        $this->marketingConsent = false;
+        $this->marketingConsentChangedAt = null;
+        $this->marketingConsentSource = null;
         $this->anonymizedAt = $at;
         // Every session of theirs ends at its next request, whatever it holds.
         $this->sessionVersion++;
@@ -393,6 +434,21 @@ final class Customer
     public function deletionScheduledFor(): ?DateTimeImmutable
     {
         return $this->deletionScheduledFor;
+    }
+
+    public function marketingConsent(): bool
+    {
+        return $this->marketingConsent;
+    }
+
+    public function marketingConsentChangedAt(): ?DateTimeImmutable
+    {
+        return $this->marketingConsentChangedAt;
+    }
+
+    public function marketingConsentSource(): ?MarketingConsentSource
+    {
+        return $this->marketingConsentSource;
     }
 
     /**
