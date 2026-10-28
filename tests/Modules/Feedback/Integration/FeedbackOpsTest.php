@@ -14,6 +14,8 @@ use Modules\Feedback\Application\Command\ApproveReview\ApproveReview;
 use Modules\Feedback\Application\Command\ApproveReview\ApproveReviewHandler;
 use Modules\Feedback\Application\Command\AskQuestion\AskQuestion;
 use Modules\Feedback\Application\Command\AskQuestion\AskQuestionHandler;
+use Modules\Feedback\Application\Command\BulkDecideQuestions\BulkDecideQuestions;
+use Modules\Feedback\Application\Command\BulkDecideQuestions\BulkDecideQuestionsHandler;
 use Modules\Feedback\Application\Command\BulkDecideReviews\BulkDecideReviews;
 use Modules\Feedback\Application\Command\BulkDecideReviews\BulkDecideReviewsHandler;
 use Modules\Feedback\Application\Command\RejectQuestion\RejectQuestion;
@@ -141,6 +143,22 @@ describe('the events', function () {
             ->toEqual(['productId' => $reasoned['product'], 'storeId' => Fx::storeId('sa'), 'customerId' => $reasoned['customer']])
             ->and([$message?->status, $message?->reason, $message?->rating, $message?->customerId])
             ->toBe([ReviewStatus::Rejected, 'Not about the product.', 5, $reasoned['customer']]);
+    });
+
+    it('sends nothing for a reason of spaces only or a review taken down without one, and one each for many questions at once', function () {
+        $review = feedbackOpsReview('a@example.test');
+        ['product' => $product] = $GLOBALS['feedbackOpsSold'];
+        $spaces = feedbackOpsAsk(Fx::customer('b@example.test'), $product);
+        $bulk = [feedbackOpsAsk(Fx::customer('c@example.test'), $product), feedbackOpsAsk(Fx::customer('d@example.test'), $product)];
+        Fx::actAsStaff(Fx::staffWith([FeedbackPermissions::REVIEW_MODERATE, FeedbackPermissions::QUESTION_ANSWER], ['sa']));
+
+        app(ApproveReviewHandler::class)->handle(new ApproveReview($review['review']));
+        app(UnpublishReviewHandler::class)->handle(new UnpublishReview($review['review']));
+        app(RejectQuestionHandler::class)->handle(new RejectQuestion($spaces, '   '));
+        app(BulkDecideQuestionsHandler::class)->handle(new BulkDecideQuestions(Fx::storeId('sa'), 'reject', $bulk, 'Duplicate.'));
+
+        expect(feedbackOpsEvents(ReviewNotPublished::class))->toBe([])
+            ->and(array_column(feedbackOpsEvents(QuestionNotPublished::class), 'questionId'))->toEqualCanonicalizing($bulk);
     });
 
     it('records nothing when the change is refused', function () {
