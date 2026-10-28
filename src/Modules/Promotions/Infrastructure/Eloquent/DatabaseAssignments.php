@@ -19,18 +19,23 @@ final readonly class DatabaseAssignments implements Assignments
         private ConnectionInterface $db,
     ) {}
 
-    public function assign(Coupon $coupon, array $customerIds, ?string $segmentId, DateTimeImmutable $at): int
+    public function assign(Coupon $coupon, array $customerIds, ?string $segmentId, DateTimeImmutable $at): array
     {
-        $added = 0;
+        $added = [];
 
+        // A thousand at a time, as one bound array each; the rows a customer had already are left as they
+        // are, and only the new ones come back.
         foreach (array_chunk(array_values(array_unique($customerIds)), self::CHUNK) as $chunk) {
-            $added += $this->db->table('promotions.coupon_assignments')->insertOrIgnore(array_map(static fn (string $customerId): array => [
-                'coupon_id' => $coupon->id,
-                'store_id' => $coupon->storeId,
-                'customer_id' => $customerId,
-                'segment_id' => $segmentId,
-                'assigned_at' => Moment::of($at),
-            ], $chunk));
+            $rows = $this->db->select(
+                'INSERT INTO promotions.coupon_assignments (coupon_id, store_id, customer_id, segment_id, assigned_at)'
+                .' SELECT ?, ?, customer_id, ?, ? FROM unnest(?::text[]) AS customer_id'
+                .' ON CONFLICT DO NOTHING RETURNING customer_id',
+                [$coupon->id, $coupon->storeId, $segmentId, Moment::of($at), '{'.implode(',', $chunk).'}'],
+            );
+
+            foreach ($rows as $row) {
+                $added[] = (string) $row->customer_id;
+            }
         }
 
         return $added;

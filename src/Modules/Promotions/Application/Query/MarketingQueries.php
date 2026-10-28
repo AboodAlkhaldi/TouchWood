@@ -67,4 +67,12 @@ interface MarketingQueries
      * @return list<array{row: CouponRow, cap: ?int, minimum: ?int, maxUsesPerCustomer: ?int, usesByMe: int}>
      */
     public function assignedTo(StoreId $store, string $customerId, DateTimeImmutable $now): array;
+
+    /**
+     * The store's coupon uses from `from` up to `to` (not included): how many, and their discounts
+     * together in the smallest unit (§2.1, Ops' daily report). One query.
+     *
+     * @return array{int, int}
+     */
+    public function usesIn(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
 }

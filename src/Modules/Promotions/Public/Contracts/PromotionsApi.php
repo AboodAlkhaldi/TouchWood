@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Promotions\Public\Contracts;
 
+use DateTimeImmutable;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\CouponResult;
+use Modules\Promotions\Public\Dto\CouponsUsedDto;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
@@ -78,6 +80,14 @@ interface PromotionsApi
      * @return list<string>
      */
     public function segmentMembers(string $segmentId, ?string $after, int $limit): array;
+
+    /**
+     * Ops' daily report (ops.md §1.11 item 7): **the store's coupon uses** from `from` up to `to` (not
+     * included) — how many orders were placed with a coupon, a cancelled one still counting (a use never
+     * comes back), and their discounts together in the store's currency, as edits left them. One query and
+     * the store's currency; reads only. A store that does not exist is refused as an invalid attribute.
+     */
+    public function couponsUsed(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): CouponsUsedDto;
 
     /**
      * Sales's cart, quote and checkout (§1.7): the gift levels an order of `$goodsTotal` reaches now for

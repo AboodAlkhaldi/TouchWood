@@ -290,6 +290,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | `updateCouponUse(UpdateCouponUse $change): void` | Sales, after a staff edit: records the use's new discount (never higher). Idempotent by the edit's id — **the latest edit's**: the use keeps only its last edit, so an older edit replayed after a newer one is refused when it would raise the discount (built with step 2b) |
 | `recordOrder(RecordOrder $change): void` | Placing the order, with or without a coupon: the fact segments count (§1.5). The same order again does nothing |
 | `segmentMembers(string $segmentId, ?string $after, int $limit): list<string>` | Ops later: a segment's customer ids, keyset-paged (handoff §5.4) |
+| `couponsUsed(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): CouponsUsedDto` | Ops' daily report (ops.md §1.11 item 7, §2.3; added 2026-10-28): **the store's coupon uses** from `from` up to `to` (not included) — `{uses, discount: Money}` in the store's currency, as edits left the discounts; a cancelled order still counts (§9: a use never comes back); a reversed range is none; a store that does not exist refused. One query |
 
 ### 2.2 DTOs and enums (`Public/Dto`, `Public/Enums`)
 
@@ -358,7 +359,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
-| `applyCoupon`, `knowsCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `giftLevelsAbove`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
+| `applyCoupon`, `knowsCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `giftLevelsAbove`, `segmentMembers`, `couponsUsed` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
 |---|---|
@@ -612,8 +613,11 @@ assignments by `customer_id` — "my coupons"; segment members by `customer_id`;
 
 ## 6 · Events
 
-**Published:** none in this stage. Ops adds "a coupon was assigned to you" when it writes to customers
-(owner, 2026-10-08: the account centre now, messages with Ops).
+**Published** (added for Ops, 2026-10-28; ops.md §1.5 C15, §2.3) — through the outbox, after commit, ids only:
+
+| Event | When |
+|---|---|
+| `CouponAssigned` (`eventId`, `couponId`, `storeId`, `customerId`, `occurredAt`) | `AssignCoupon` gives the coupon to a customer: **one for each customer the assignment adds**, none for one who had it already (§1.4) — Ops says "a coupon was assigned to you"; the account centre shows it at once either way (owner, 2026-10-08) |
 
 **Consumed:** none. Anonymized customers leave segments at the next refresh (§1.5); their uses and
 assignments keep only their id.

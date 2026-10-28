@@ -152,3 +152,10 @@ Tests: `tests/Modules/Promotions/Unit/CouponRulesTest` (the rules and the room, 
 orders at once on the last use; outside RefreshDatabase, skipped under --parallel), `CouponTablesTest`,
 `PromotionsPermissionsTest`, `PromotionsSchemaTest`, `PromotionsErrorMessagesTest`,
 `PromotionsMenuSectionTest`.
+
+## For Ops (promotions.md §2.1, §6; 2026-10-28)
+
+- `Public/Events/CouponAssigned`, recorded by `AssignCouponHandler` through the outbox for each customer
+  `Assignments::assign` answers as new (`INSERT … ON CONFLICT DO NOTHING RETURNING`).
+- `PromotionsApi::couponsUsed` (`CouponsUsedDto`), over `MarketingQueries::usesIn`.
+- Tests: `tests/Modules/Promotions/Integration/PromotionsOpsTest.php`.
