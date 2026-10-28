@@ -44,4 +44,4 @@ The Shared kernel's guide is [src/Shared/README.md](../../src/Shared/README.md).
 | Payments | [draft](payments.md) 2026-10-27 — stage 7, waiting for the owner; MyFatoorah (KSA) on its hosted page; research in [payments-myfatoorah-notes.md](payments-myfatoorah-notes.md) | — (Platform); Sales calls it |
 | Shipping | [draft](shipping.md) 2026-10-27 — stage 7, waiting for the owner; the box list optional, it blocks nothing | Platform (the places, amendment proposed), Catalog |
 | Content | not started | Catalog |
-| Ops | not started | SMS + email provider |
+| Ops | [draft](ops.md) 2026-10-28, for the owner's acceptance; Access's part is amendments 79–84 | Every module's public surface; Brevo (email); an SMS provider (not chosen) |
