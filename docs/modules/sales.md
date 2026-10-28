@@ -671,6 +671,22 @@ Declared in those modules' `Public/Contracts`, implemented in stage 7 — **with
 
 ---
 
+### 2.5 What Sales offers Ops — `Modules\Sales\Public\Contracts\SalesReports`
+
+Added 2026-10-28/29 for Ops (ops.md §1.5, §1.10, §1.11, §2.3; the owner's go to the builders). A contract of its
+own, apart from `SalesApi` (Feedback's, faked in its tests). Reads only, no permission of their own — Ops asks
+who may see them; amounts in the order's or the store's currency, never converted.
+
+| Method | Answers |
+|---|---|
+| `orderForMessage(string $orderId, string $locale): ?OrderMessageDto` | An order as its messages need it: number, store, customer, its language, `status`, `shipment_status`, `way_to_pay`; the lines as sold or edited (`OrderMessageLineDto{name, values, quantity, total, gift}`, names and values in `ar` or else English); subtotal, coupon and points discounts, shipping, VAT, total; carrier and number; staff's words when rejected; the cancel reason. The tracking link comes with stage 7 |
+| `returnForMessage(string $returnId): ?ReturnMessageDto` | A return: its order's number, store, customer, `status`, the store's words when refused, the refund once completed |
+| `counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): SalesCountsDto` | The daily report's orders over the range (`to` not included): placed — individuals and companies apart — and, of orders placed any day, cancelled, rejected, come back in it. One query |
+| `moneyOn(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): MoneyDaysDto` | Payments in and refunds out by the day the money moved (`happened_on`), both days included, by way (`MoneyByWayDto{way, records, amount}`); voided records never. Test-mode payments are stage 7's to leave out |
+| `transfersWaiting(StoreId $store): TransfersWaitingDto` | Open orders to be paid by transfer holding less than they owe (`PENDING_APPROVAL`, `APPROVED`, or delivered unpaid), and how much. Overdue is stage 7's mark (§9.5 #9) |
+
+Revenue by day and product sales (ops.md §1.10, the owner's rules of 2026-10-28) come in the next PR.
+
 ## 3 · Use cases
 
 Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`); staff actions are
