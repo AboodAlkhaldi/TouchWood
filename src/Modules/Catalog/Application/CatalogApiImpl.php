@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Catalog\Application;
 
+use DateTimeImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\Api\ApiSearches;
+use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Catalog\Domain\Exception\InvalidCatalogAttribute;
 use Modules\Catalog\Domain\Repository\BrandRepository;
 use Modules\Catalog\Domain\Repository\CategoryRepository;
@@ -20,6 +22,7 @@ use Modules\Catalog\Public\Dto\CategoryDto;
 use Modules\Catalog\Public\Dto\FoundProductsDto;
 use Modules\Catalog\Public\Dto\FoundVariantsDto;
 use Modules\Catalog\Public\Dto\ProductDto;
+use Modules\Catalog\Public\Dto\SearchSummaryDto;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Dto\VariantDto;
 use Modules\Catalog\Public\Enums\ProductStage;
@@ -33,6 +36,9 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class CatalogApiImpl implements CatalogApi
 {
+    /** The most phrases a page of `searchSummary` holds (amendment 37). */
+    public const int SUMMARY_MAX = 1000;
+
     public function __construct(
         private ProductRepository $products,
         private VariantRepository $variants,
@@ -41,6 +47,7 @@ final readonly class CatalogApiImpl implements CatalogApi
         private BrandRepository $brands,
         private ApiReads $reads,
         private ApiSearches $searches,
+        private SearchLog $log,
         private Application $app,
     ) {}
 
@@ -278,6 +285,11 @@ final readonly class CatalogApiImpl implements CatalogApi
     public function wholesaleOf(StoreId $store, array $variantIds): array
     {
         return $this->searches->wholesaleOf($store->value, $variantIds);
+    }
+
+    public function searchSummary(?StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): SearchSummaryDto
+    {
+        return $this->log->summary($store?->value, $from, $to, $after, min(max($limit, 1), self::SUMMARY_MAX));
     }
 
     public function resolveVariant(string $productId, array $valueIds): ?string

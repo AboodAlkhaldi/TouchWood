@@ -336,7 +336,8 @@ Catalog's left out; the cards read them with the shop's pages (P22); Sales's Bes
 each size's on its page, written as Platform's `MoneyData`; a product-page section told the `viewer` and
 the page's `wholesaleSizes`. **The shop's cart reads** (amendment 36): `ShopBestSellers` (bound to
 `Presentation/Storefront/PageBestSellers`, the shop's own cards and `cardFacts`, `ShopReader::bestSelling`);
-a product-page section told every size the page shows (`sizes`). **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+a product-page section told every size the page shows (`sizes`). **The search log for Ops** (amendment 37):
+`CatalogApi::searchSummary`, by phrase, store and language over a range, keyset-paged, in `DatabaseSearchLog::summary`. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
 register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
 says prices are kept once one is registered; switching an item on gives each section the variant,
 its price and stock, inside the same change.
