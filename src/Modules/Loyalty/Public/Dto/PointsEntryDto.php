@@ -23,7 +23,7 @@ final readonly class PointsEntryDto
         public ?string $orderNumber,
         /** When the points it added expire (EARNED, ADDED); null for an entry that added none. */
         public ?DateTimeImmutable $expiresAt,
-        /** The account's balance now. */
+        /** The account's balance now: its live lots only, as `balance` counts it. */
         public int $balance,
     ) {}
 }

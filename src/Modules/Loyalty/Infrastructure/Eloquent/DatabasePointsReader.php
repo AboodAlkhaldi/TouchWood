@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Loyalty\Infrastructure\Eloquent;
 
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
@@ -184,7 +185,10 @@ final readonly class DatabasePointsReader implements PointsReader
             ->leftJoin('loyalty.orders as o', 'o.order_id', '=', 'e.order_id')
             ->leftJoin('loyalty.lots as l', 'l.entry_id', '=', 'e.id')
             ->where('e.id', $entryId)
-            ->first(['e.id', 'e.store_id', 'a.customer_id', 'e.kind', 'e.points', 'e.reason', 'o.order_number', 'l.expires_at', 'a.balance']);
+            ->select(['e.id', 'e.store_id', 'a.customer_id', 'e.kind', 'e.points', 'e.reason', 'o.order_number', 'l.expires_at'])
+            // The live lots only, as `balance` counts it: one past its date the nightly sweep has not reached yet is gone.
+            ->selectRaw('(SELECT coalesce(sum(live.points_left), 0) FROM loyalty.lots AS live WHERE live.account_id = a.id AND live.points_left > 0 AND live.expires_at > ?) AS balance', [Moment::of(CarbonImmutable::now())])
+            ->first();
 
         return $row instanceof stdClass ? [
             'id' => (int) $row->id, 'store_id' => (string) $row->store_id, 'customer_id' => (string) $row->customer_id,

@@ -68,7 +68,8 @@ interface LoyaltyApi
     /**
      * **Ops' reminder before points expire** (ops.md §1.5 C14): per customer of the store, what is left of
      * their lots expiring from `from` up to `to` (not included) — one row a customer however many lots —
-     * by customer id, keyset-paged, `limit` 1 to 1000, a cursor that is not one starting at the top.
+     * by customer id, keyset-paged, `limit` 1 to 1000, a cursor that is not one starting at the top. Meant
+     * for a range ahead (Ops asks the day a week away): one already past may count points not yet swept.
      */
     public function expiring(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ExpiringPointsPageDto;
 

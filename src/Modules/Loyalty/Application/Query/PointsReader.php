@@ -54,7 +54,8 @@ interface PointsReader
 
     /**
      * One entry for Ops' message about it (§2.1): its store, customer, kind, points, reason, order number,
-     * the expiry of the lot it added, and the account's balance now; null for none.
+     * the expiry of the lot it added, and the account's live balance now (§1.3: a dead point never counts);
+     * null for none.
      *
      * @return array{id: int, store_id: string, customer_id: string, kind: string, points: int, reason: ?string, order_number: ?string, expires_at: ?string, balance: int}|null
      */
@@ -62,7 +63,8 @@ interface PointsReader
 
     /**
      * Per customer of the store, what is left of their lots expiring from `from` up to `to` (not included),
-     * together, by customer id after `afterCustomerId` (§2.1, Ops' reminders).
+     * together, by customer id after `afterCustomerId` (§2.1, Ops' reminders) — a range ahead: a lot past its
+     * date the sweep has not reached yet still counts here.
      *
      * @return list<array{string, int}> customer id and points
      */

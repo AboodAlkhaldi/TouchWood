@@ -98,6 +98,9 @@ it('gives each customer\'s points expiring in a range together, a page at a time
     // The first has a second lot expiring the same day; the third's lot expires a day later.
     CarbonImmutable::setTestNow('2026-06-01 18:00:00 UTC');
     Lx::deliver($customers[0], 30_00);
+    // The second spent part of hers by hand: what is left counts.
+    Fx::actAsAdmin(['sa'], [LoyaltyPermissions::ADJUST]);
+    app(DeductPointsHandler::class)->handle(new DeductPoints($customers[1], Fx::storeId('sa'), 25, 'Mistake'));
     DB::table('loyalty.lots')->join('loyalty.accounts as a', 'a.id', '=', 'loyalty.lots.account_id')
         ->where('a.customer_id', $customers[2])->update(['expires_at' => '2027-06-02 12:00:00+00']);
 
@@ -109,12 +112,12 @@ it('gives each customer\'s points expiring in a range together, a page at a time
     $rows = static fn (array $page): array => array_map(static fn (ExpiringPointsDto $row): array => [$row->customerId, $row->points], $page);
 
     expect($rows($first->rows))->toBe([[$customers[0], 130]])
-        ->and($rows($second->rows))->toBe([[$customers[1], 100]])
+        ->and($rows($second->rows))->toBe([[$customers[1], 75]])
         ->and($second->next)->toBeNull()
-        ->and($rows($api->expiring($sa, $from, $to->addDay())->rows))->toBe([[$customers[0], 130], [$customers[1], 100], [$customers[2], 100]])
+        ->and($rows($api->expiring($sa, $from, $to->addDay())->rows))->toBe([[$customers[0], 130], [$customers[1], 75], [$customers[2], 100]])
         ->and($api->expiring($sa, $to, $from)->rows)->toBe([])
         ->and($api->expiring(StoreId::fromString(Fx::storeId('ae')), $from, $to)->rows)->toBe([])
-        ->and($rows($api->expiring($sa, $from, $to, 'not-a-cursor', 5)->rows))->toBe([[$customers[0], 130], [$customers[1], 100]]);
+        ->and($rows($api->expiring($sa, $from, $to, 'not-a-cursor', 5)->rows))->toBe([[$customers[0], 130], [$customers[1], 75]]);
 });
 
 it('counts the store\'s ledger by kind over a range, signed', function () {
@@ -128,10 +131,15 @@ it('counts the store\'s ledger by kind over a range, signed', function () {
     $api = Lx::api();
     $sa = StoreId::fromString(Fx::storeId('sa'));
     $today = $api->pointsByKind($sa, CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addHour());
+    $swept = DB::table('loyalty.lots')->whereNull('order_id')->update(['expires_at' => '2026-05-01 00:00:00+00']);
 
     expect(array_map(static fn (PointsByKindDto $row): array => [$row->kind, $row->entries, $row->points], $today))
         ->toBe([[EntryKind::Added, 1, 40], [EntryKind::Deducted, 2, -20], [EntryKind::Earned, 1, 100]])
         ->and($api->pointsByKind($sa, CarbonImmutable::now()->addHour(), CarbonImmutable::now()))->toBe([])
         ->and($api->pointsByKind(StoreId::fromString(Fx::storeId('ae')), CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addHour()))->toBe([])
+        // A lot past its date, not swept yet, leaves the balance a message shows: 100 earned less the 20
+        // taken from it (the older of two lots expiring together), the 40 added gone.
+        ->and($swept)->toBe(1)
+        ->and(Lx::api()->entryForMessage((int) loyaltyOpsEvents(PointsEarned::class)[0]['entryId'])?->balance)->toBe(80)
         ->and(Str::isUuid((string) (loyaltyOpsEvents(PointsEarned::class)[0]['eventId'] ?? '')))->toBeTrue();
 });
