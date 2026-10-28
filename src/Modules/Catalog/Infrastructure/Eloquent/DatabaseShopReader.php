@@ -275,6 +275,11 @@ final readonly class DatabaseShopReader implements ShopReader
         return $this->cards(self::ordered($query)->limit($limit)->get()->all(), $viewer);
     }
 
+    public function bestSelling(string $storeId, string $locale, ShopperKind $viewer, int $limit): array
+    {
+        return $this->cards(self::ordered($this->listed($storeId, $locale, $viewer)->where('brand_visible_by_default', true))->limit($limit)->get()->all(), $viewer);
+    }
+
     public function product(string $productId, string $locale): ?array
     {
         if (! Ulids::valid($productId)) {

@@ -659,7 +659,7 @@ interface PaymentsApi
 | Use case | Permission | Scope |
 |---|---|---|
 | `SetUpGateway`, `ChangeKeys`, `SwitchMode` (test ↔ live), `SwitchGateway` (on/off), `RegisterApplePayDomain` | **`payments.gateway.manage`** — reserved, Super Admins only (owner, 2026-10-19 P11, P13) | That store |
-| `ChangeBankAccount` (from B2B's `platform.settings.update` rule) | **`payments.bank_account.update`** — Admins (accepted, 2026-10-28) | That store |
+| `ChangeBankAccount` (from B2B's admin-only `b2b.settings.update`, b2b.md amendment 32; moved by b2b.md amendment 33) | **`payments.bank_account.update`** — Admins (accepted, 2026-10-28) | That store |
 | `OpenSession`, `PrepareCharge`, `Charge` (from Sales's checkout and the request page) | The buyer's own checkout or order — Sales checks it, Payments is called inside | That store |
 | `RequestPayment`, `WithdrawRequest` | **`sales.order.edit`** — staff who manage orders (owner, 2026-10-27 P23) — checked by Sales, which calls Payments | That store |
 | `ReceiveNotice` (the webhook) | The signature — no staff, no customer | That store and mode |

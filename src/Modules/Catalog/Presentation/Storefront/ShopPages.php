@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Catalog\Presentation\Storefront;
 
 use Closure;
+use Modules\Catalog\Application\Api\ApiReads;
 use Modules\Catalog\Application\Products\InMemoryShopCardFacts;
 use Modules\Catalog\Application\Products\InMemoryShopProductSections;
 use Modules\Catalog\Application\Query\Shop\CardLabel;
@@ -66,6 +67,7 @@ final readonly class ShopPages
         private InMemoryShopProductSections $sections,
         private InMemoryShopCardFacts $cardFacts,
         private ActorContext $actors,
+        private ApiReads $reads,
     ) {}
 
     /**
@@ -142,12 +144,12 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
             if ($page === null) {
-                return ['page' => null, 'other' => null, 'category' => null];
+                return ['page' => null, 'other' => null, 'category' => null, 'companies' => null];
             }
 
             $relations = $page->available ? $this->catalog->relations($store, $locale, $viewer, $owner['id']) : null;
@@ -176,7 +178,10 @@ final readonly class ShopPages
                 $this->cards($store, $locale, $relations === null ? [] : $relations->goesWith),
                 $this->cards($store, $locale, $relations === null ? [] : $relations->mayAlsoLike),
                 new ShopAddressData('', null, null, true),
-            ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId];
+            ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId,
+                // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
+                // Kept with the page: a change of who sees its category is a Catalog change, a new version.
+                'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null];
         });
 
         if ($kept['page'] === null) {
@@ -196,12 +201,20 @@ final readonly class ShopPages
 
         $customerId = $this->customerId();
         // Not available now: only the sections read on such a page too - the Save heart (amendment 34).
-        // The page's sizes this viewer can buy wholesale, as it read them (amendment 35): none for an individual.
-        $wholesaleSizes = $viewer === ShopperKind::Individual ? [] : array_values(array_map(
+        // The page's sizes this viewer can buy wholesale, as it read them (amendment 35): none for an individual,
+        // and a guest's only where companies may buy the product - as its card and Sales's Add to Cart have it.
+        $wholesaleViewer = match ($viewer) {
+            ShopperKind::Individual => false,
+            ShopperKind::Company => true,
+            ShopperKind::Guest => $kept['companies'] ?? $this->openToCompanies($store, $owner['id']),
+        };
+        $wholesaleSizes = ! $wholesaleViewer ? [] : array_values(array_map(
             static fn (array $variant): string => (string) $variant['id'],
             array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['sellsWholesale'] ?? false) === true),
         ));
-        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes);
+        // Every size the page shows, in its order (amendment 36).
+        $sizes = array_map(static fn (array $variant): string => (string) $variant['id'], self::listOf($kept['page']['variants'] ?? []));
+        $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
 
@@ -224,6 +237,23 @@ final readonly class ShopPages
 
         // A results page is its search's, not a page of the shop's own: kept out of search engines.
         return new ShopSearchPage($query, $found->total, $this->cards($store, $locale, $found->cards), $found->next, self::address('storefront.catalog.search', $locale, ['q' => $query], ['q' => $query], true), $this->facts($store, $found->cards));
+    }
+
+    /**
+     * The store's best sellers as this viewer's cards, with what the modules add to them (amendment 36).
+     *
+     * @return array{cards: list<array<string, mixed>>, cardFacts: array<string, array<string, array<string, mixed>>>}
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function bestSelling(StoreId $store, string $locale, int $limit): array
+    {
+        $cards = $this->catalog->bestSelling($store, $locale, $this->visit->viewer(), $limit);
+
+        return [
+            'cards' => array_map(static fn (ShopCardData $card): array => $card->toArray(), $this->cards($store, $locale, $cards)),
+            'cardFacts' => $this->facts($store, $cards),
+        ];
     }
 
     /**
@@ -310,6 +340,12 @@ final readonly class ShopPages
         $actor = $this->actors->current();
 
         return $actor->type === ActorType::Customer && $actor->id !== null ? strtolower($actor->id) : null;
+    }
+
+    /** Whether companies may buy the product in the store: its category open to them (amendment 14). */
+    private function openToCompanies(StoreId $store, string $productId): bool
+    {
+        return $this->reads->productsOpenTo($store->value, ShopperKind::Company, [$productId]) !== [];
     }
 
     /**

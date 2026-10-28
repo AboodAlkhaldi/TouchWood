@@ -168,15 +168,33 @@ final readonly class PromotionsApiImpl implements PromotionsApi
 
     public function giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): array
     {
+        $this->inStoreCurrency($store, $goodsTotal);
+
+        return self::offers($this->levels->reached($store, $audience, $goodsTotal->minorUnits, CarbonImmutable::now()));
+    }
+
+    public function giftLevelsAbove(StoreId $store, Audience $audience, Money $goodsTotal): array
+    {
+        $this->inStoreCurrency($store, $goodsTotal);
+
+        return self::offers($this->levels->above($store, $audience, $goodsTotal->minorUnits, CarbonImmutable::now()));
+    }
+
+    private function inStoreCurrency(StoreId $store, Money $goodsTotal): void
+    {
         $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidPromotionAttribute('store', 'no such store');
 
         if ($goodsTotal->currencyCode !== $currency) {
             throw new InvalidPromotionAttribute('currency', "the goods total is not in the store's currency ({$currency})");
         }
+    }
 
-        return array_map(
-            static fn (GiftLevel $level): GiftOfferDto => new GiftOfferDto($level->id, Money::of($level->amountMinor, $level->currencyCode), $level->variantId),
-            $this->levels->reached($store, $audience, $goodsTotal->minorUnits, CarbonImmutable::now()),
-        );
+    /**
+     * @param  list<GiftLevel>  $levels
+     * @return list<GiftOfferDto>
+     */
+    private static function offers(array $levels): array
+    {
+        return array_map(static fn (GiftLevel $level): GiftOfferDto => new GiftOfferDto($level->id, Money::of($level->amountMinor, $level->currencyCode), $level->variantId), $levels);
     }
 }

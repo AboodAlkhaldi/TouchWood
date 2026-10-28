@@ -24,9 +24,11 @@ Route::middleware(StorefrontArea::MIDDLEWARE_WITHOUT_STORE)
         Route::get('/', ChooseStoreController::class)->name('platform.choose-store');
     });
 
-// brand.com/sa: on to the remembered language, or the default. A redirect and nothing else, so it
-// needs no session and no page of its own.
-Route::middleware('web')->group(function (): void {
+// brand.com/sa: on to the remembered language, or the default. A redirect and nothing else, but
+// `web` opens the shop's session cookie here all the same, so it takes the shop's session first:
+// under the framework's two-hour fallback this route signed remembered customers out, and its
+// sweep deleted every shop session idle that long (security audit 2026-10-27).
+Route::middleware([StorefrontArea::SESSION, 'web'])->group(function (): void {
     Route::get('{store}', StoreWithoutLanguageController::class)->name('storefront.store');
 });
 

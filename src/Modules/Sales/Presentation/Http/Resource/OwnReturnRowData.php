@@ -17,5 +17,7 @@ final class OwnReturnRowData extends Data
         public string $status,
         public string $requestedAt,
         public ?MoneyData $refundDue,
+        /** The words staff wrote when they refused it, as written; null unless refused (§4.2 B16). */
+        public ?string $staffReason = null,
     ) {}
 }

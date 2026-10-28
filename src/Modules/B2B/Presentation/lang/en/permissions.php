@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 // The names of B2B's permissions (B2BPermissions). The company's own two are automatic, so no role
 // editor offers them; they are named for the screens that list what a person may do. The twelve
-// staff jobs are what the role editor shows under Companies (amendments 10 and 11).
+// staff jobs are what the role editor shows under Companies (amendments 10 and 11), with the admin-only
+// bank account (amendment 32).
 return [
     'company' => [
         'apply' => 'Apply as a Company',
@@ -27,5 +28,8 @@ return [
         'create' => 'Add Document Types',
         'update' => 'Rename, Reorder and Require Document Types',
         'deactivate' => 'Deactivate and Reactivate Document Types',
+    ],
+    'settings' => [
+        'update' => 'Change the Store\'s Bank Account',
     ],
 ];

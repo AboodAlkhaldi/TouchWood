@@ -15,6 +15,10 @@ return [
         'choose' => 'Choose a size first',
         'added' => 'Added to cart · :pieces',
         'view' => 'View Cart',
+        'not_sold' => 'This size can\'t be ordered now.',
+        'out_of_stock' => 'Out of stock',
+        'full' => 'Your cart already holds the most you can buy of this size.',
+        'in_cart' => ['zero' => ':count pieces in your cart', 'one' => ':count piece in your cart', 'two' => ':count pieces in your cart', 'few' => ':count pieces in your cart', 'many' => ':count pieces in your cart', 'other' => ':count pieces in your cart'],
     ],
     // The wholesale prices by quantity, under the Wholesale choice (§4.1 S1; R2-3).
     'bands' => [

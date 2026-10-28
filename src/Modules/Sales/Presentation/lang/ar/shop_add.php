@@ -15,6 +15,10 @@ return [
         'choose' => 'اختر المقاس أولًا',
         'added' => 'أُضيف إلى السلة · :pieces',
         'view' => 'عرض السلة',
+        'not_sold' => 'لا يمكن طلب هذا المقاس الآن.',
+        'out_of_stock' => 'نفدت الكمية',
+        'full' => 'سلتك تحوي أقصى ما يمكنك شراؤه من هذا المقاس.',
+        'in_cart' => ['zero' => ':count قطعة في سلتك', 'one' => 'قطعة واحدة في سلتك', 'two' => 'قطعتان في سلتك', 'few' => ':count قطع في سلتك', 'many' => ':count قطعة في سلتك', 'other' => ':count قطعة في سلتك'],
     ],
     // The wholesale prices by quantity, under the Wholesale choice (§4.1 S1; R2-3).
     'bands' => [

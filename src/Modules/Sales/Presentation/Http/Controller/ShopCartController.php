@@ -15,6 +15,8 @@ use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLine;
 use Modules\Sales\Application\Command\ChangeCartLine\ChangeCartLineHandler;
+use Modules\Sales\Application\Command\DismissCartNotice\DismissCartNotice;
+use Modules\Sales\Application\Command\DismissCartNotice\DismissCartNoticeHandler;
 use Modules\Sales\Application\Command\RemoveCartLine\RemoveCartLine;
 use Modules\Sales\Application\Command\RemoveCartLine\RemoveCartLineHandler;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
@@ -27,7 +29,8 @@ use Shared\Domain\Error\DomainError;
 /*
 | S4 - the cart (sales.md §4.1), a guest's or a customer's, in the store being browsed: the page, and the
 | changes it sends - a line's pieces set, a line taken off, the coupon typed - each back to the cart with
-| its toast, or its refusal in its own words. Add to Cart (S2) sends `add` from the product page.
+| its toast, or its refusal in its own words. Add to Cart (S2) sends `add` from the product page; the notice's
+| Close puts it away for good (R2-8; §4.2 B17).
 */
 final readonly class ShopCartController
 {
@@ -67,6 +70,11 @@ final readonly class ShopCartController
         $code = trim(self::text($request, 'code'));
 
         return self::act($request, fn () => $handler->handle(new SetCartCoupon($this->store(), $code === '' ? null : $code)), $code === '' ? 'coupon_cleared' : 'coupon_kept');
+    }
+
+    public function dismissNotice(Request $request, DismissCartNoticeHandler $handler): RedirectResponse
+    {
+        return self::act($request, fn () => $handler->handle(new DismissCartNotice($this->store())), null);
     }
 
     /** A guest's Checkout (R1-16): to sign in or register, then straight back to the cart, theirs joined to the account's. */

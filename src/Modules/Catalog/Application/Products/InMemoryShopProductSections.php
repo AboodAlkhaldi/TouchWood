@@ -72,12 +72,13 @@ final class InMemoryShopProductSections implements ShopProductSections
      * @param  bool  $available  false on a "Not available now" page: only the sections registered for it are read (amendment 34)
      * @param  ShopperKind  $viewer  the side the viewer buys on (amendment 35)
      * @param  list<string>  $wholesaleSizes  the page's sizes this viewer can buy wholesale (amendment 35)
+     * @param  list<string>  $sizes  every size the page shows (amendment 36)
      * @return array<string, array<string, mixed>|null>
      */
-    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true, ShopperKind $viewer = ShopperKind::Guest, array $wholesaleSizes = []): array
+    public function read(StoreId $store, string $locale, string $productId, ?string $customerId, array $after, array $filters = [], bool $available = true, ShopperKind $viewer = ShopperKind::Guest, array $wholesaleSizes = [], array $sizes = []): array
     {
         $parts = [];
-        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters, $viewer, $wholesaleSizes);
+        $visit = new ShopProductVisitDto($store, $locale, $productId, $customerId, $after, $filters, $viewer, $wholesaleSizes, $sizes);
 
         foreach ($this->sections as $key => $class) {
             if (! $available && ! isset($this->evenUnavailable[$key])) {

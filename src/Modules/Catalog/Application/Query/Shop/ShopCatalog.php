@@ -245,6 +245,19 @@ final readonly class ShopCatalog
     }
 
     /**
+     * The store's best sellers this viewer can order here, of brands shown in default listings — an empty
+     * cart's suggestions (amendment 36) — best-selling first, then newest; at most `SUGGESTIONS_MAX`.
+     *
+     * @return list<ProductCard>
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function bestSelling(StoreId $store, string $locale, ShopperKind $viewer, int $limit): array
+    {
+        return $this->reader->bestSelling($store->value, ShopLocale::of($locale), $viewer, self::limit($limit, self::SUGGESTIONS_MAX));
+    }
+
+    /**
      * What a product's page suggests (§1.10), only what a shopper can order here: the hand-picked
      * "Related" — or, when staff picked none, the same category's, then the same brand's, a secondary
      * brand's products only on its own products' pages (amendment 5(l)) — and the hand-picked "Goes

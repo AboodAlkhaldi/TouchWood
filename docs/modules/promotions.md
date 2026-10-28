@@ -281,6 +281,7 @@ permission that allowed the change**; Promotions builds the scope itself — as 
 | `applyCoupon(CouponRequest $request): CouponResult` | Sales's cart and quote: the coupon's discount, line by line, or the reason it is refused (§1.3). Reads only |
 | `customerDiscountRoom(StoreId $store, Money $grossSubtotal, Money $netSubtotal): Money` | Sales: the room left under the ceiling (§1.6), against which it checks the coupon, then the points |
 | `giftLevels(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales: the levels the order reaches, highest first (§1.7) |
+| `giftLevelsAbove(StoreId $store, Audience $audience, Money $goodsTotal): list<GiftOfferDto>` | Sales's cart: the levels on now for the buyer that the goods do not reach yet, lowest first — the next gift (sales.md §4.2 B12, 2026-10-27) |
 | `useCoupon(UseCoupon $change): void` | Placing the order: **every check of §1.3 again, as the coupon is now** — dates, switch, uses for everyone and for this customer, the assignment, the minimum, the rules, the points, the ceiling — under a lock on the coupon so two orders never take its last use; **recomputes the discount and refuses (`CouponChanged`) if it is not the one quoted**, so checkout quotes again; then records the use. The same order with the same coupon again does nothing; the same order with another coupon is refused. **A use never comes back**, not even when the order is cancelled (owner, 2026-10-08) |
 | `orderDiscountRoom(string $orderId, Money $grossSubtotal, Money $netSubtotal): Money` | Sales, working out a staff edit: the room under the ceiling **recorded with the order** (§1.6) |
 | `couponAfterEdit(EditedCouponRequest $request): CouponResult` | Sales, after a staff edit (§1.3, the exception): the coupon's discount on the edited lines, never more than it is now, 0 if it no longer applies. Reads only |
@@ -353,7 +354,7 @@ audited (`promotions.coupon.created`, `…updated`, `…deactivated`, `…activa
 | Refresh every segment, nightly | `promotions.segment.refresh` (reserved, global: the system only) |
 | `useCoupon`, `recordOrder` | **The caller's** — Sales's placing an order — in the coupon's store (`useCoupon`), the order's store (`recordOrder`) |
 | `updateCouponUse` | The caller's — Sales's editing an order — in the coupon's store |
-| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
+| `applyCoupon`, `couponAfterEdit`, `customerDiscountRoom`, `orderDiscountRoom`, `giftLevels`, `giftLevelsAbove`, `segmentMembers` | **None of their own**: reads for modules inside flows they have authorized |
 
 | Read (query) | Permission |
 |---|---|

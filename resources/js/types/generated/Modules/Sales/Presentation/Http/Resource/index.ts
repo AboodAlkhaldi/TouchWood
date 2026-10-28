@@ -16,6 +16,10 @@ mode: string,
 quantity: number,
 reason: string,
 };
+export type CartGiftData = {
+amount: MoneyData,
+missing: MoneyData,
+};
 export type CartLineData = {
 variantId: string,
 name: string,
@@ -49,6 +53,15 @@ subtotal: MoneyData | null,
 pieces: number,
 problems: boolean,
 skipped: Record<string, any>[],
+mayNotOrder: string | null,
+shippingFee: MoneyData | null,
+freeAbove: MoneyData | null,
+freeMissing: MoneyData | null,
+freeShare: number,
+nextGift: CartGiftData | null,
+pointsToEarn: number,
+bestSellers: Record<string, any>[],
+cardFacts: Record<string, Record<string, Record<string, any>>>,
 };
 export type CheckoutAddressData = {
 id: string,
@@ -280,6 +293,7 @@ id: string,
 status: string,
 requestedAt: string,
 refundDue: MoneyData | null,
+staffReason: string | null,
 };
 export type OrderRowData = {
 id: string,
@@ -395,6 +409,7 @@ id: string,
 status: string,
 requestedAt: string,
 refundDue: MoneyData | null,
+staffReason: string | null,
 };
 export type PlacedPage = {
 number: string,
@@ -500,4 +515,20 @@ export type SalesStoreData = {
 code: string,
 name: string,
 isActive: boolean,
+};
+export type ShopCartData = {
+sizes: ShopCartSizeData[],
+};
+export type ShopCartLimitsData = {
+minimum: number,
+maximum: number | null,
+inCart: number,
+outOfStock: boolean,
+};
+export type ShopCartSizeData = {
+variantId: string,
+retail: ShopCartLimitsData | null,
+wholesale: ShopCartLimitsData | null,
+outOfStock: boolean,
+inCart: number,
 };

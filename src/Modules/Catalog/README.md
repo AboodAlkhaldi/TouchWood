@@ -334,7 +334,9 @@ Catalog's left out; the cards read them with the shop's pages (P22); Sales's Bes
 **The shop's prices** (amendment 35): `ListingPrice.wholesaleFrom` kept beside the price; the listing's
 `retail_from_minor` and `wholesale_from_minor`; a card's `price` (`CardPrice`, `ShopCardPriceData`) and
 each size's on its page, written as Platform's `MoneyData`; a product-page section told the `viewer` and
-the page's `wholesaleSizes`. **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
+the page's `wholesaleSizes`. **The shop's cart reads** (amendment 36): `ShopBestSellers` (bound to
+`Presentation/Storefront/PageBestSellers`, the shop's own cards and `cardFacts`, `ShopReader::bestSelling`);
+a product-page section told every size the page shows (`sizes`). **`ImportSections` is bound** (`InMemoryImportSections`, a singleton the modules above
 register into, as Platform's `MediaUsages`): a store file's page shows each section's lines and
 says prices are kept once one is registered; switching an item on gives each section the variant,
 its price and stock, inside the same change.

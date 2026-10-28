@@ -675,7 +675,7 @@ order's or cart's store — Promotions and Loyalty build their scope from it, lo
 
 | Use case | Kind | Permission |
 |---|---|---|
-| `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` | Command | `sales.cart.manage` — a guest's cart (no coupon): `sales.guest_cart.manage` |
+| `AddCartLine`, `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon`, `DismissCartNotice` (§4.2 B17) | Command | `sales.cart.manage` — a guest's cart (no coupon): `sales.guest_cart.manage` |
 | `ViewCart` | Query | `sales.cart.manage` / `sales.guest_cart.manage` |
 | `StartCheckout`, `PlaceOrder` | Command | `sales.order.place` |
 | `CancelOwnOrder`, `RequestReturn`, `WithdrawReturn`, `UploadReturnPhoto`, `UploadTransferDocument` | Command | `sales.order.manage_own` (also the scope of `uploadMediaFor`) |
@@ -937,6 +937,12 @@ amount still owed (§4.2 B1).
   (access.md amendment 75's return; R1-16).
 - **Empty**: "Your cart is empty", Continue Shopping, and **the store's best-selling products** under it
   (R2-9, R3).
+- **The screens session's picks, for the owner to change** (2026-10-27): eight best sellers; once the goods
+  reach the free-above amount, "Your order ships free" with the bar full and "Shipping: Free" in the summary;
+  the gift said as "Spend about 80.00 more" (the amount is measured after a percent coupon, B12); each
+  reason an account may not order with its own link — Verify Email or Verify Phone to the account page,
+  View Your Company to the company's page, none for an account closed to orders; the header's count shows
+  "99+" above 99.
 
 **S5 · Checkout** — `/{store}/{locale}/checkout`, **one page** (R1-18), its quote worked out by
 `StartCheckout` (§1.2) each time something on it changes:
@@ -1072,6 +1078,12 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 | B9 | **What may be ticked "reduced in the provider"** — the staff view says whether the order was placed wired (`orders.wired`) and, for each line, whether it counts on stock (`order_lines.counts_on_stock`, the gift always) | P2 |
 | B10 | **A return's refund worked out before it is completed** — `PreviewReturnRefund`: the pieces' goods, their VAT share, and the shipping with its VAT when it is the last bought piece, without writing | P6 |
 | B11 | **`ListReturns` by a group of states** — Closed: refused, withdrawn and closed together | P5 |
+| B12 | **What the cart page says beside the lines** (`ViewCart`, owner's go 2026-10-27) — `mayNotOrder`, the first reason checkout would not take the account: `SIGN_IN`, `ACCOUNT_NOT_ACTIVE` (blocked, deletion asked for, emptied — before the confirmations, which would not help), `EMAIL_UNVERIFIED`, `PHONE_UNVERIFIED`, `COMPANY_NOT_APPROVED`; null exactly when `mayOrder` (an off store has no cart, so no reason for it). `shippingFee` and `freeAbove` (null when shipping is never free); `nextGift` {amount, missing}: the lowest level on now for this buyer above the goods, whose gift is in stock after the cart's own pieces (Promotions' `giftLevelsAbove`); `pointsToEarn` (Loyalty's preview; 0 for a guest). These compare with `goodsTotal`: the orderable lines' subtotal **less the coupon typed** (owner, 2026-10-27) — the points are chosen at checkout, so using them can still move it | S4 |
+| B13 | **The header's piece count** — `CountCartPieces`: the pieces on every line of the shopper's cart in a store (one that cannot be ordered too), a customer's or a guest's; one query; 0 with no cart, for a browser not yet a guest, in an off store, and for staff | S3 |
+| B14 | **Best sellers for an empty cart** — Catalog's `ShopBestSellers::read(store, locale, limit)` (catalog.md amendment 36(a)): the shop's own cards (`ShopCardData`, with their prices) and `cardFacts`, what this shopper can order, best-selling first | S4 |
+| B15 | **Add to Cart on the product page** — section `sales.cart` (`ShopCartData{sizes: [ShopCartSizeData{variantId, retail, wholesale, outOfStock, inCart}]}`), on an available page only, for a customer or a guest (nothing for staff), for each size the page shows in its order: each mode the size is sold in now and this viewer may buy it in — an individual retail only; a company both, **an unapproved company too** (owner, 2026-10-27: the cart marks its wholesale lines); a guest both, wholesale only where companies may buy the product — as `ShopCartLimitsData{minimum, maximum, inCart, outOfStock}`: the mode's line's limits, what that line holds (an add joins it, so the limits are on the two together), and whether too few are free for the least add that leaves the line within them, the size's pieces already in the cart counted first (the exact check, owner, 2026-10-27). The size's `outOfStock`: not one more piece free; its `inCart`: its pieces over both modes | S2 |
+| B16 | **The store's reason on the order's returns** — `ViewOwnOrder`'s `OwnReturnRow.staffReason`: the words staff wrote when they refused the return, as written (one text, not per language); null for any other state. The panel's `ViewOrder` carries it too. The pages' data (`OwnReturnRowData`, `OrderReturnData`) take it with the screens | S8 |
+| B17 | **Close on the cart's notice** — `DismissCartNotice(storeId)`: the current buyer's cart in that store loses its notice of the lines that left at a sign-in, for good (owner, 2026-10-27); nothing when there is no cart or no notice, and no cart is made. A customer's or a guest's, as the cart's other commands | S4 |
 
 ---
 

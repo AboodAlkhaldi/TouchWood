@@ -242,6 +242,29 @@ describe('a product page', function () {
             ->where('sections', fn ($sections): bool => array_key_exists('pricing.wholesale', shopPricesSections($sections)) && shopPricesBands($sections) === null));
     });
 
+    // Security audit run-2 (2026-10-27): the page showed a guest the bands where its card did not.
+    it('shows a guest the bands only where companies may buy the product, as its card does', function () {
+        $p = shopPricesProduct();
+        [, $eighty, $hundred] = $p['sizes'];
+        $url = '/sa/en/products/'.shopPricesSlug('product', $p['product']);
+        $audience = static fn (bool $forCompanies) => Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)
+            ->handle(new SetCategoryAudiences(Fx::storeId('sa'), $p['category'], forCompanies: $forCompanies)));
+
+        // Its category closed to companies: no company can buy it wholesale, so a guest sees no bands.
+        $audience(false);
+        $closed = fn (AssertableInertia $page) => $page
+            ->where('variants.0.price.minor', 30_00)
+            ->where('sections', fn ($sections): bool => shopPricesBands($sections) === null);
+        get($url)->assertOk()->assertInertia($closed);
+        // The page as kept says the same.
+        get($url)->assertOk()->assertInertia($closed);
+
+        // Open again: the bands come back - the kept page is a new version after the change.
+        $audience(true);
+        get($url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('sections', fn ($sections): bool => shopPricesBands($sections) === [$eighty => [25_00, [[5, 20_00]]], $hundred => [40_00, [[5, 35_00], [20, 32_00]]]]));
+    });
+
     // A product sold retail only reads none: ShopPagesTest's budgets, unchanged by amendment 35.
     it('reads the wholesale prices in one query, warm, and none for an individual', function () {
         $p = shopPricesProduct();
@@ -261,8 +284,10 @@ describe('a product page', function () {
         $guest = $warm();
         shopPricesViewer(ShopperKind::Individual);
 
-        // A guest's product page is 7 sold retail only (ShopPagesTest's budget); the bands add their one
-        // read of the sizes' prices. The limits are a target, not a cap (owner, 2026-10-19).
-        expect([$guest, $warm()])->toBe([8, 7]);
+        // A guest's product page is 13 sold retail only (ShopPagesTest's budget, with Sales's Add to Cart
+        // since amendment 36); the bands add their one read of the sizes' prices; an individual's has no
+        // bands and no question of whether companies may buy it. The limits are a target, not a cap
+        // (owner, 2026-10-19).
+        expect([$guest, $warm()])->toBe([14, 12]);
     });
 });

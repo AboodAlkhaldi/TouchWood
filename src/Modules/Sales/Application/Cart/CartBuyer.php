@@ -7,6 +7,7 @@ namespace Modules\Sales\Application\Cart;
 use InvalidArgumentException;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\GuestIdentity;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\SalesPermissions;
@@ -39,11 +40,32 @@ final readonly class CartBuyer
      * The store asked about, its permission checked for this buyer, and the buyer — a guest's id only
      * when the browser already has one.
      *
-     * @return array{StoreId, ?string, ?string, ?AccountType} the store, the customer or the guest, and the customer's account type
+     * @return array{StoreId, ?string, ?string, ?AccountType, ?CustomerDto} the store, the customer or the guest, the customer's account type, and the customer as read
      *
      * @throws Unauthorized|InvalidSalesAttribute
      */
     public function of(string $storeId): array
+    {
+        [$store, $customerId, $guestId] = $this->who($storeId);
+
+        if ($customerId !== null) {
+            $customer = $this->access->customer($customerId);
+
+            return [$store, $customerId, null, $customer?->accountType, $customer];
+        }
+
+        return [$store, null, $guestId, null, null];
+    }
+
+    /**
+     * As `of`, without reading the customer: the store, its permission checked, and the customer or the
+     * guest (the header's piece count).
+     *
+     * @return array{StoreId, ?string, ?string}
+     *
+     * @throws Unauthorized|InvalidSalesAttribute
+     */
+    public function who(string $storeId): array
     {
         try {
             $store = StoreId::fromString($storeId);
@@ -68,12 +90,10 @@ final readonly class CartBuyer
         }
 
         if ($actor->type === ActorType::Customer) {
-            $customerId = strtolower((string) $actor->id);
-
-            return [$store, $customerId, null, $this->access->customer($customerId)?->accountType];
+            return [$store, strtolower((string) $actor->id), null];
         }
 
-        return [$store, null, $this->guests->current(), null];
+        return [$store, null, $this->guests->current()];
     }
 
     /** The guest this browser is, made now — its cookie sent with the answer — when it has none. */
