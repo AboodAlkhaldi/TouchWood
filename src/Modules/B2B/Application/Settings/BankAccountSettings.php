@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Application\Settings;
 
+use Modules\B2B\Application\B2BPermissions;
 use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
-use Modules\Platform\Public\PlatformPermissions;
 
 /**
  * The bank account an approved company transfers to (b2b.md §2.3, amendment 12(b)): three settings
- * per store — a store's bank is its own —, changed under Platform's store settings job, no B2B job of
- * its own. **They start empty**, meaning not set yet (a text setting that may be empty, platform.md
- * §1.3), and a company is shown them only once all three are filled in, and only while it is
- * approved. Payments owns them from stage 7.
+ * per store — a store's bank is its own —, changed only by an admin, under B2B's own admin-only
+ * `b2b.settings.update` (amendment 32). **They start empty**, meaning not set yet (a text setting
+ * that may be empty, platform.md §1.3), and a company is shown them only once all three are filled
+ * in, and only while it is approved. Payments owns them from stage 7.
  */
 final class BankAccountSettings
 {
@@ -46,7 +46,7 @@ final class BankAccountSettings
     private static function setting(string $key, array $rules): SettingDefinitionDto
     {
         return new SettingDefinitionDto(
-            $key, SettingScope::Store, SettingType::Text, $rules, '', PlatformPermissions::SETTINGS_UPDATE, mayBeEmpty: true,
+            $key, SettingScope::Store, SettingType::Text, $rules, '', B2BPermissions::SETTINGS_UPDATE, mayBeEmpty: true,
         );
     }
 }
