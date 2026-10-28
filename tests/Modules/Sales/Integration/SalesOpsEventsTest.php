@@ -136,6 +136,19 @@ it('follows an order from approval to its money given back, an event for each ch
         ->and(salesOpsEvents(OrderRejected::class))->toBe([]);
 });
 
+it('records a payment sent twice once, and none for one refused', function () {
+    ['order' => $order] = salesOpsOrder();
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    $request = (string) Str::uuid();
+    $first = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-1', null, '2026-10-19', $request));
+    $again = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-1', null, '2026-10-19', $request));
+
+    // Nothing is owed any more: a second payment is refused.
+    expect(fn () => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-2', null, '2026-10-19', (string) Str::uuid())))->toThrow(InvalidOrderChange::class)
+        ->and($again)->toBe($first)
+        ->and(array_column(salesOpsEvents(PaymentRecorded::class), 'moneyRecordId'))->toBe([$first]);
+});
+
 it('records an order rejected, and nothing for a decision refused', function () {
     ['order' => $order] = salesOpsOrder();
     app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Out of the delivery area'));

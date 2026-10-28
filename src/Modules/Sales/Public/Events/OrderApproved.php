@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
- * Staff approved a waiting order (§1.5; ops.md §1.5 C2).
+ * Staff approved a waiting order (§1.4; ops.md §1.5 C2).
  *
  * Ids only, through the outbox, after commit (sales.md §6; ops.md §1.5, §2.3).
  */

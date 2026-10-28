@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
- * Staff edited an order before shipping (§1.4) — its lines, address or totals changed; `editId` names the
+ * Staff edited an order before shipping (§1.7) — its lines, address or totals changed; `editId` names the
  * edit.
  *
  * Ids only, through the outbox, after commit (sales.md §6; ops.md §1.5, §2.3).

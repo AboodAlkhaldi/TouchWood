@@ -618,8 +618,8 @@ before Sales exists; Sales's build replaces the binding. **Replaced in step S10b
 | `OrderCancelled` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
 | `OrderDelivered` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
 | `ReturnCompleted` | `eventId`, `returnId`, `orderId`, `storeId`, `customerId`, `occurredAt` |
-| `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` — staff approved, rejected (not a cancellation), shipped, or marked the parcel back (§1.5) |
-| `OrderEdited` | `eventId`, `editId`, `orderId`, `storeId`, `customerId`, `occurredAt` — a staff edit before shipping (§1.4) |
+| `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` | `eventId`, `orderId`, `storeId`, `customerId`, `occurredAt` — staff approved or rejected (§1.4; a rejection is not a cancellation), shipped, or marked the parcel back (§1.5) |
+| `OrderEdited` | `eventId`, `editId`, `orderId`, `storeId`, `customerId`, `occurredAt` — a staff edit before shipping (§1.7) |
 | `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` | `eventId`, `returnId`, `orderId`, `storeId`, `customerId`, `occurredAt` — the customer asked; staff accepted, refused, received (§1.8) |
 | `PaymentRecorded`, `RefundRecorded` | `eventId`, `moneyRecordId`, `orderId`, `storeId`, `customerId`, `occurredAt` — money recorded on the order, in or back (§1.9): by staff here (`MoneyRecording`); an online payment on an order that exists, by stage 7's own handlers with the same event (payments.md) |
 
