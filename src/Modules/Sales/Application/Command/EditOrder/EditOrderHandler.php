@@ -35,8 +35,10 @@ use Modules\Sales\Domain\Model\OrderForEdit;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Service\OrderShares;
+use Modules\Sales\Public\Events\OrderEdited;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * A staff edit confirmed (sales.md §1.7): worked out again under the order's lock, in one transaction —
@@ -61,6 +63,7 @@ final readonly class EditOrderHandler
         private InventoryApi $inventory,
         private PlatformApi $platform,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -95,6 +98,7 @@ final readonly class EditOrderHandler
                     'latitude' => $plan->address->latitude, 'longitude' => $plan->address->longitude, 'formatted' => $plan->address->formatted,
                 ],
             ));
+            $this->outbox->record(new OrderEdited((string) Str::uuid(), $editId, $order->id, $order->storeId, $order->customerId, $now));
             $this->orders->recordHistory($order->id, $order->storeId, 'EDITED', $editId, $staffId, $now, ['orderTotal' => $plan->totals->orderTotal->minorUnits]);
             $changes = AuditChanges::none()->changed('edit_id', null, $editId)
                 ->changed('order_total_minor', $order->orderTotal, $plan->totals->orderTotal->minorUnits)->personal('reason');

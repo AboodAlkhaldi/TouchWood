@@ -18,7 +18,9 @@ use Modules\Sales\Domain\Exception\ReturnNotAllowed;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Returns;
+use Modules\Sales\Public\Events\ReturnRequested;
 use Shared\Application\Unauthorized;
+use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * **The customer asks to return pieces** of their delivered order (sales.md §1.8): within the return window
@@ -38,6 +40,7 @@ final readonly class RequestReturnHandler
         private Returns $returns,
         private OrderUndoing $changes,
         private ConnectionInterface $db,
+        private Outbox $outbox,
     ) {}
 
     /**
@@ -79,6 +82,7 @@ final readonly class RequestReturnHandler
 
             $returnId = strtolower((string) Str::ulid());
             $this->returns->request($returnId, $order->id, $order->storeId, $reason->value, $words, $asked, $now);
+            $this->outbox->record(new ReturnRequested((string) Str::uuid(), $returnId, $order->id, $order->storeId, $order->customerId, $now));
             $this->changes->record($order, 'RETURN_REQUESTED', null, $now, AuditChanges::none(), ['returnId' => $returnId, 'reason' => $reason->value]);
 
             return $returnId;
