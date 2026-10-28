@@ -26,5 +26,7 @@ final class StoresPage extends Data
         public array $timezones,
         public bool $maySwitch,
         public ?NewStoreForm $add = null,
+        /** @var list<ShipToChoice>|null Add Country's choices; null for whoever may not change a store's countries */
+        public ?array $shipToChoices = null,
     ) {}
 }

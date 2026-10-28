@@ -47,5 +47,11 @@ final class StoreRow extends Data
          * the base store.
          */
         public bool $switchable,
+        /**
+         * The countries it ships to, its own first (platform.md §4.3): read by everyone who may open the page.
+         *
+         * @var list<ShipToRow>
+         */
+        public array $shipsTo = [],
     ) {}
 }

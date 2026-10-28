@@ -129,6 +129,8 @@ describe('the admin menu', function () {
             'staff_and_permissions/saved-roles',
             'store_settings/stores',
             'store_settings/currencies',
+            // The address countries and their places (platform.md §4.3).
+            'store_settings/places',
             'store_settings/settings',
             'store_settings/address-formats',
             'media/media',

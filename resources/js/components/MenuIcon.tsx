@@ -11,6 +11,7 @@ import {
     Image,
     UserRound,
     LayoutDashboard,
+    MapPin,
     ListChecks,
     MessageCircleQuestion,
     Megaphone,
@@ -65,6 +66,8 @@ const ICONS = {
     media: Image,
     audit: ScrollText,
     billing: Receipt,
+    // The address countries and their places (platform.md §4.3).
+    places: MapPin,
     failed_jobs: TriangleAlert,
     companies: Building2,
     company_types: Tags,
