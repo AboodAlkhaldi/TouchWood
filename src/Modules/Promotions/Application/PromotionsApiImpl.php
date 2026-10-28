@@ -208,6 +208,17 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         return new CouponsUsedDto($uses, Money::of($discount, $currency));
     }
 
+    public function assignedCustomers(string $assignmentId, ?string $after, int $limit): array
+    {
+        $assignmentId = Inputs::id($assignmentId, 'assignment');
+
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidPromotionAttribute('limit', 'from 1 to 1000');
+        }
+
+        return $this->queries->assignedBy($assignmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
+    }
+
     private function inStoreCurrency(StoreId $store, Money $goodsTotal): void
     {
         $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidPromotionAttribute('store', 'no such store');

@@ -75,4 +75,11 @@ interface MarketingQueries
      * @return array{int, int}
      */
     public function usesIn(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    /**
+     * The customers one assignment added, by id, after `after` (§2.1, Ops' messages).
+     *
+     * @return list<string>
+     */
+    public function assignedBy(string $assignmentId, ?string $after, int $limit): array;
 }

@@ -235,4 +235,12 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
 
         return $row instanceof stdClass ? [(int) $row->uses, (int) $row->discount] : [0, 0];
     }
+
+    public function assignedBy(string $assignmentId, ?string $after, int $limit): array
+    {
+        return array_values(array_map(strval(...), $this->db->table('promotions.coupon_assignments')
+            ->where('assignment_id', $assignmentId)
+            ->when($after !== null, fn (Builder $query) => $query->where('customer_id', '>', $after))
+            ->orderBy('customer_id')->limit($limit)->pluck('customer_id')->all()));
+    }
 }

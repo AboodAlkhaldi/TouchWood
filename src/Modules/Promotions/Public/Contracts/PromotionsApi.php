@@ -90,6 +90,16 @@ interface PromotionsApi
     public function couponsUsed(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): CouponsUsedDto;
 
     /**
+     * Ops' messages for `CouponAssigned` (ops.md §1.5 C15): **the customers that assignment added** (the
+     * event's `assignmentId`), by id, keyset-paged after `after`, at most `limit` (1 to 1000). None for a
+     * coupon deleted since (an unused coupon's delete takes its assignments) or one taken back. Reads only;
+     * an id or a limit that is not one is refused as an invalid attribute.
+     *
+     * @return list<string>
+     */
+    public function assignedCustomers(string $assignmentId, ?string $after, int $limit): array;
+
+    /**
      * Sales's cart, quote and checkout (§1.7): the gift levels an order of `$goodsTotal` reaches now for
      * this buyer — switched on, within their dates, their amount at most the goods total (after coupon
      * and points) — highest first. Sales asks Inventory which gift is in stock and holds the first that

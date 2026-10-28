@@ -26,8 +26,8 @@ use Shared\Infrastructure\Outbox\Outbox;
  * as the coupon's customers, and they stay — a customer who leaves the segment later keeps it.
  * Assigning again adds the new members only; nobody is removed. Only an `ASSIGNED` coupon is assigned
  * (owner, 2026-10-18, answer 24); the segment must be the coupon's own store's, of an audience the
- * coupon allows (§1.1). The customers see it in their account centre at once; each one new to it gets
- * `CouponAssigned` through the outbox, for Ops' message (§6; ops.md §1.5 C15). Audited.
+ * coupon allows (§1.1). The customers see it in their account centre at once; an assignment that adds
+ * anyone records one `CouponAssigned` through the outbox, for Ops' messages (§6; ops.md §1.5 C15). Audited.
  */
 final readonly class AssignCouponHandler
 {
@@ -64,10 +64,12 @@ final readonly class AssignCouponHandler
             }
 
             $now = CarbonImmutable::now();
-            $added = $this->assignments->assign($coupon, $this->segments->memberIds($segment->id), $segment->id, $now);
+            $assignmentId = strtolower((string) Str::ulid());
+            $added = $this->assignments->assign($coupon, $this->segments->memberIds($segment->id), $segment->id, $now, $assignmentId);
 
-            foreach ($added as $customerId) {
-                $this->outbox->record(new CouponAssigned((string) Str::uuid(), $coupon->id, $coupon->storeId, $customerId, $now));
+            // One event for the whole assignment: Ops reads whom it added by its id (assignedCustomers).
+            if ($added !== []) {
+                $this->outbox->record(new CouponAssigned((string) Str::uuid(), $assignmentId, $coupon->id, $coupon->storeId, $now));
             }
 
             return [null, $added === [] ? [] : array_filter([CouponAudit::entry('assigned', $coupon->id, $storeId->value, [], ['segment' => $segment->id, 'customers' => count($added)])])];

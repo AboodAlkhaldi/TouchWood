@@ -50,13 +50,15 @@ function promotionsOpsUse(string $couponId, string $customerId, int $discount, s
     ]);
 }
 
-it('records one CouponAssigned for each customer an assignment adds, none for one who had it already', function () {
+it('records one CouponAssigned for each assignment that adds anyone, and pages whom it added by its moment', function () {
     $sara = Fx::customer('sara@example.test');
     $omar = Fx::customer('omar@example.test');
     Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::COUPON_MANAGE, PromotionsPermissions::SEGMENT_MANAGE], ['sa']));
     $segment = app(CreateSegmentHandler::class)->handle(new CreateSegment(Fx::storeId('sa'), 'شريحة', 'Never ordered', 'DYNAMIC', 'INDIVIDUAL', 'NO_ORDERS_EVER'));
     $coupon = Pr::coupon(with: ['eligibility' => 'ASSIGNED']);
 
+    app(AssignCouponHandler::class)->handle(new AssignCoupon($coupon, $segment));
+    // Assigned again with nobody new: no event, no audit entry.
     app(AssignCouponHandler::class)->handle(new AssignCoupon($coupon, $segment));
     $first = promotionsOpsEvents();
     $lina = Fx::customer('lina@example.test');
@@ -65,12 +67,24 @@ it('records one CouponAssigned for each customer an assignment adds, none for on
     app(AssignCouponHandler::class)->handle(new AssignCoupon($coupon, $segment));
     $all = promotionsOpsEvents();
 
-    expect(array_column($first, 'customerId'))->toEqualCanonicalizing([$sara, $omar])
-        ->and(array_column(array_slice($all, 2), 'customerId'))->toBe([$lina])
-        ->and(array_unique(array_column($all, 'couponId')))->toBe([$coupon])
-        ->and(array_unique(array_column($all, 'storeId')))->toBe([Fx::storeId('sa')])
-        ->and(count(array_unique(array_column($all, 'eventId'))))->toBe(3)
-        ->and(json_decode((string) DB::table('platform.audit_entries')->where('action', 'promotions.coupon.assigned')->orderByDesc('id')->value('changes'), true)['customers'] ?? null)->toBe([null, 1]);
+    $api = app(PromotionsApi::class);
+    $firstAdded = $api->assignedCustomers((string) $all[0]['assignmentId'], null, 1000);
+    $page = $api->assignedCustomers((string) $all[0]['assignmentId'], null, 1);
+    $rest = $api->assignedCustomers((string) $all[0]['assignmentId'], $page[0], 1000);
+    $expected = [$sara, $omar];
+    sort($expected);
+
+    expect(count($first))->toBe(1)
+        ->and(count($all))->toBe(2)
+        ->and(array_intersect_key($all[0], array_flip(['couponId', 'storeId'])))->toEqual(['couponId' => $coupon, 'storeId' => Fx::storeId('sa')])
+        ->and($all[0]['assignmentId'])->not->toBe($all[1]['assignmentId'])
+        ->and($firstAdded)->toBe($expected)
+        ->and([...$page, ...$rest])->toBe($expected)
+        ->and($api->assignedCustomers((string) $all[1]['assignmentId'], null, 1000))->toBe([$lina])
+        ->and($api->assignedCustomers(strtolower((string) Str::ulid()), null, 1000))->toBe([])
+        ->and(DB::table('platform.audit_entries')->where('action', 'promotions.coupon.assigned')->count())->toBe(2)
+        ->and(fn () => $api->assignedCustomers((string) $all[0]['assignmentId'], null, 0))->toThrow(InvalidPromotionAttribute::class)
+        ->and(fn () => $api->assignedCustomers('nope', null, 10))->toThrow(InvalidPromotionAttribute::class);
 });
 
 it('records nothing when the assignment is refused', function () {
@@ -98,9 +112,11 @@ it('counts the store\'s coupon uses in a range and their discounts, in the store
     $sa = StoreId::fromString(Fx::storeId('sa'));
     $day = $api->couponsUsed($sa, CarbonImmutable::parse('2026-10-01 00:00:00+00'), CarbonImmutable::parse('2026-10-02 00:00:00+00'));
     $none = $api->couponsUsed($sa, CarbonImmutable::parse('2026-10-02'), CarbonImmutable::parse('2026-10-01'));
+    $empty = $api->couponsUsed($sa, CarbonImmutable::parse('2026-10-01 09:00:00+00'), CarbonImmutable::parse('2026-10-01 09:00:00+00'));
 
     expect([$day->uses, $day->discount->minorUnits, $day->discount->currencyCode])->toBe([2, 22_50, 'SAR'])
         ->and([$none->uses, $none->discount->minorUnits])->toBe([0, 0])
+        ->and($empty->uses)->toBe(0)
         ->and(fn () => $api->couponsUsed(StoreId::fromString(strtolower((string) Str::ulid())), CarbonImmutable::now()->subDay(), CarbonImmutable::now()))
         ->toThrow(InvalidPromotionAttribute::class);
 });
