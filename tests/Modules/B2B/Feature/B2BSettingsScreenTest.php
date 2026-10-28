@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -35,11 +36,12 @@ beforeEach(function () {
 });
 
 /**
- * A staff member of the 'sa' store who may change its settings, signed in: the panel shows 'sa'.
+ * An admin of the 'sa' store who may change its settings and its bank account (amendment 32), signed
+ * in: the panel shows 'sa'.
  */
 function b2bSettingsScreenSignIn(): AdminBrowser
 {
-    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE, B2BPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
     $browser = new AdminBrowser('10.11.1.'.random_int(20, 250));
 
     $browser->post('/admin/sign-in', [

@@ -19,6 +19,9 @@ use Modules\Access\Public\Enums\PermissionKind;
  * module's are, an action sharing one with its undo — as blocking and unblocking a customer share
  * `access.customer.block`. Every one is per store — the account's home store for a company, the
  * list's own store for a type — none is admin-only, and all sit in the Companies group.
+ *
+ * Changing the store's bank account is apart from them: per store, in the Companies group too, and
+ * **admin-only** (amendment 32).
  */
 final class B2BPermissions
 {
@@ -64,6 +67,9 @@ final class B2BPermissions
     /** Deactivate a document type, and activate it again. */
     public const string DOCUMENT_TYPE_DEACTIVATE = 'b2b.document_type.deactivate';
 
+    /** Change the store's bank account a company transfers to — admin-only (amendment 32). */
+    public const string SETTINGS_UPDATE = 'b2b.settings.update';
+
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -81,7 +87,9 @@ final class B2BPermissions
             self::staff(),
         );
 
-        return [...$own, ...$staff];
+        $admin = new PermissionDefinitionDto(self::SETTINGS_UPDATE, PermissionAudience::Role, adminOnly: true, kind: PermissionKind::PerStore, group: PermissionGroup::Companies);
+
+        return [...$own, ...$staff, $admin];
     }
 
     /**

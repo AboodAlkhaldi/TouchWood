@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -152,8 +153,9 @@ it('says in the Companies section whether bank transfer is on, and names no valu
     };
     $empty();
 
-    // An admin of one store who may change its store settings: only the Companies section shows.
-    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+    // An admin of one store who may change its store settings and its bank account (b2b.md amendment 32):
+    // only the Companies section shows.
+    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE, B2BPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 
     $page = visit('/admin/sign-in')

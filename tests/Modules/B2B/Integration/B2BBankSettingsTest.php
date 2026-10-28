@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
@@ -15,14 +17,16 @@ use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
 use Modules\Platform\Public\PlatformPermissions;
+use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 use function Pest\Laravel\seed;
 
 /*
 | The bank account an approved company transfers to (b2b.md §2.3, amendment 12(b)): three Platform
-| settings per store, declared by B2B, changed under Platform's store settings job. They start empty,
-| meaning not set yet.
+| settings per store, declared by B2B, changed only by an admin under B2B's `b2b.settings.update`
+| (amendment 32). They start empty, meaning not set yet.
 */
 
 uses(RefreshDatabase::class);
@@ -47,7 +51,7 @@ function bankSettingRead(string $key, string $storeCode): string
     return app(PlatformApi::class)->setting($key, bankSettingStore($storeCode))->string();
 }
 
-it('declares the IBAN, the bank and the holder: per store, text, empty until set, under the store settings job', function () {
+it('declares the IBAN, the bank and the holder: per store, text, empty until set, under B2B\'s admin-only job (amendment 32)', function () {
     $keys = [BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER];
 
     foreach ($keys as $key) {
@@ -58,13 +62,32 @@ it('declares the IBAN, the bank and the holder: per store, text, empty until set
             ->and($definition?->type)->toBe(SettingType::Text)
             ->and($definition?->default)->toBe('')
             ->and($definition?->mayBeEmpty)->toBeTrue()
-            ->and($definition?->permission)->toBe(PlatformPermissions::SETTINGS_UPDATE)
+            ->and($definition?->permission)->toBe(B2BPermissions::SETTINGS_UPDATE)
             // Shown to every approved company of the store: nothing about it is secret.
             ->and($definition?->sensitive)->toBeFalse()
             ->and(bankSettingRead($key, 'sa'))->toBe('');
     }
 
     expect($keys)->toBe(['b2b.bank.iban', 'b2b.bank.name', 'b2b.bank.holder']);
+});
+
+// Security audit run-2 (2026-10-27): any staff role holding the store settings job could change where
+// approved companies send their money.
+it('refuses the bank account to a staff role holding the store settings job', function (string $key) {
+    Fx::actAsStaff(Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE], ['sa']));
+
+    expect(fn () => bankSettingSave($key, 'sa', $key === BankAccountSettings::IBAN ? 'GB82 WEST 1234 5698 7654 32' : 'Al Noor Bank'))->toThrow(Unauthorized::class)
+        ->and(bankSettingRead($key, 'sa'))->toBe('');
+})->with([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER]);
+
+it('lets an admin holding the job change the bank account of their own store only', function () {
+    Fx::actAsStaff(Fx::staffWith([B2BPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin));
+
+    bankSettingSave(BankAccountSettings::IBAN, 'sa', 'GB82 WEST 1234 5698 7654 32');
+
+    expect(bankSettingRead(BankAccountSettings::IBAN, 'sa'))->toBe('GB82 WEST 1234 5698 7654 32')
+        ->and(fn () => bankSettingSave(BankAccountSettings::IBAN, 'eg', 'GB82 WEST 1234 5698 7654 32'))->toThrow(Unauthorized::class)
+        ->and(bankSettingRead(BankAccountSettings::IBAN, 'eg'))->toBe('');
 });
 
 it('keeps an IBAN as it was typed, and a store\'s bank is its own', function () {

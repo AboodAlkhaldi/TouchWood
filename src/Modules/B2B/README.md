@@ -28,7 +28,7 @@ with each step.
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
 | `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none; `StaffTypeAction`, what every staff change to a list shares; `TypeListsNotice`, which clears a store's "copied" notice |
-| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, declared into Access's catalog at boot; `B2BApiImpl` |
+| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, and the admin-only bank account job (amendment 32), declared into Access's catalog at boot; `B2BApiImpl` |
 | `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits; `StoreBankAccount`, the one reader of the three — no account while any is empty |
 | `Application/Events` | `CompanyEvents`: the two events, dispatched inside a use case's transaction |
 | `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
@@ -228,7 +228,8 @@ the owner's Latin digits rule, 2026-10-06).
 
 **One permission per job** (amendments 10 and 11(c)): twelve, in `B2BPermissions::staff()`, named as every
 module's are, an action sharing one with its undo (suspend and reinstate, deactivate and activate).
-Every one is per store and none is admin-only: any staff or admin role may be given any of them.
+Every one is per store and none of the twelve is admin-only: any staff or admin role may be given any
+of them. The bank account's `b2b.settings.update` is apart from them, and admin-only (amendment 32).
 Holding one job never grants another — viewing a company does not open its papers, reviewing does
 not suspend.
 
@@ -330,8 +331,8 @@ reason the company now carries. `CompanyApplicationSubmitted` goes when an appli
 draft. A type corrected or an address changed is not a status change and tells nobody.
 
 **The bank account an approved company transfers to** (amendment 12(b)) is three **per-store
-Platform settings** B2B declares — `b2b.bank.iban`, `b2b.bank.name`, `b2b.bank.holder` — changed under
-Platform's own `platform.settings.update`, with no B2B job. They **start empty**, which means "not set
+Platform settings** B2B declares — `b2b.bank.iban`, `b2b.bank.name`, `b2b.bank.holder` — changed only
+by an admin, under B2B's own **admin-only** `b2b.settings.update` (amendment 32). They **start empty**, which means "not set
 yet": a Platform addition lets a text setting say it may be empty, and then its rules apply only to a
 value that is not (platform.md §1.3, §9.4). `IbanRule` checks an IBAN's shape (two letters, two
 digits, 11 to 30 letters and digits) and its check digits (ISO 13616, the number modulo 97), with
