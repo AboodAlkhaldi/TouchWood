@@ -39,7 +39,7 @@ final readonly class SavePriceGroupHandler
 {
     public const string PERMISSION = ShippingPermissions::PRICES_MANAGE;
 
-    /** The most places one save may name - a whole country's cities fit (Saudi Arabia: 4,354). */
+    /** The most places one save may name - a whole country's cities fit (the largest list has 4,354). */
     public const int MOST_PLACES = 10000;
 
     public const int MOST_AMOUNT = 100000000;

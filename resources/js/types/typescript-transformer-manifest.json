@@ -32,6 +32,7 @@
     "generated\\Modules\\Promotions\\Public\\Enums\\index.ts": "c6893b572bb04e872c6c63ff8b242057",
     "generated\\Modules\\Sales\\Presentation\\Http\\Resource\\index.ts": "ce1a8d8b69d1addf2a5a2aacd88128de",
     "generated\\Modules\\Sales\\Public\\Enums\\index.ts": "3ebebf938fb5bbdd060106071eac046b",
+    "generated\\Modules\\Shipping\\Public\\Enums\\index.ts": "708b39c93280b2a7edac263ff5148a30",
     "generated\\Modules\\Sync\\Domain\\ValueObject\\index.ts": "4c202f059a066a89a12ecf5a9d107069",
     "generated\\Modules\\Sync\\Presentation\\Http\\Resource\\index.ts": "b50c82ce4e35a1c15727374969ce7412",
     "generated\\Shared\\Application\\index.ts": "98233a3c81f7fda28a0e0e1e91802372",

@@ -10,7 +10,7 @@ use Modules\Platform\Public\Enums\PlaceKind;
 
 /**
  * A place as the shipping screens show it (shipping.md §4.1): its kind and name, with its region's and
- * city's names, so "Olaya" reads "Olaya, Riyadh, Riyadh Region"; `retired` when it has left the
+ * city's names, so a district reads with its city and region; `retired` when it has left the
  * pickers yet its price still applies (§9.3 #4).
  */
 final readonly class PlaceRow

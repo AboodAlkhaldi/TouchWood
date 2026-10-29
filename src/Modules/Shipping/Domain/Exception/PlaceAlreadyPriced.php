@@ -7,7 +7,7 @@ namespace Modules\Shipping\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * A place already in another group of this carrier (rule 3, §1.4): "Riyadh is already at 20 in this
+ * A place already in another group of this carrier (rule 3, §1.4): "This city is already at 20 in this
  * carrier". Named in both languages with that group's amount; "Move here" takes it out of there.
  */
 final class PlaceAlreadyPriced extends ShippingError

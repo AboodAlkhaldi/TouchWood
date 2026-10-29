@@ -370,7 +370,8 @@ describe('the migration, over stores that already exist', function () {
     function placesMigrateAgain(): void
     {
         $migration = require base_path('src/Modules/Platform/Infrastructure/Persistence/Migrations/2026_10_28_100000_create_platform_places_tables.php');
-        DB::statement('DROP TABLE platform.store_countries, platform.places, platform.address_countries');
+        // CASCADE drops only the keys other modules hold on them (Shipping's prices name places).
+        DB::statement('DROP TABLE platform.store_countries, platform.places, platform.address_countries CASCADE');
         $migration->up();
     }
 

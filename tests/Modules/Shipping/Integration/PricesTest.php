@@ -18,9 +18,6 @@ use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\PlaceKind;
-use Modules\Shipping\Application\Uncovered\UncoveredCounts;
-use Modules\Shipping\Application\Uncovered\UncoveredPlaces;
-use Modules\Shipping\Infrastructure\Queue\CountUncoveredPlacesJob;
 use Modules\Shipping\Application\Command\CreateCarrier\CreateCarrier;
 use Modules\Shipping\Application\Command\CreateCarrier\CreateCarrierHandler;
 use Modules\Shipping\Application\Command\DeleteCarrier\DeleteCarrier;
@@ -40,15 +37,19 @@ use Modules\Shipping\Application\Query\ListUncoveredPlaces\ListUncoveredPlacesHa
 use Modules\Shipping\Application\Query\PlaceRow;
 use Modules\Shipping\Application\ShippingPermissions;
 use Modules\Shipping\Application\ShippingSettings;
+use Modules\Shipping\Application\Uncovered\UncoveredCounts;
+use Modules\Shipping\Application\Uncovered\UncoveredPlaces;
 use Modules\Shipping\Application\Uncovered\UncoveredPlacesCount;
 use Modules\Shipping\Domain\Exception\AmountAlreadyUsed;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Exception\PlaceAlreadyPriced;
 use Modules\Shipping\Domain\Exception\PlaceNotInCountry;
 use Modules\Shipping\Domain\Exception\PriceGroupNotFound;
+use Modules\Shipping\Infrastructure\Queue\CountUncoveredPlacesJob;
 use Modules\Shipping\Public\Contracts\ShippingApi;
 use Modules\Shipping\Public\Dto\ShippingDestinationDto;
 use Modules\Shipping\Public\Dto\ShippingOptionDto;
+use Modules\Shipping\Public\Dto\ShippingQuoteDto;
 use Modules\Shipping\Public\Enums\FreeShippingReason;
 use Modules\Shipping\Public\Enums\ShippingCoverage;
 use Shared\Application\Unauthorized;
@@ -154,7 +155,7 @@ function pricesGroups(string $carrier): array
     return $out;
 }
 
-function pricesQuote(?string $district = null, ?string $city = null, ?string $region = null, string $country = 'SA', int $goods = 10000, string $store = 'sa'): Modules\Shipping\Public\Dto\ShippingQuoteDto
+function pricesQuote(?string $district = null, ?string $city = null, ?string $region = null, string $country = 'SA', int $goods = 10000, string $store = 'sa'): ShippingQuoteDto
 {
     return app(ShippingApi::class)->quote(StoreId::fromString(pricesStore($store)), new ShippingDestinationDto($country, $region, $city, $district), Money::of($goods, 'SAR'));
 }
