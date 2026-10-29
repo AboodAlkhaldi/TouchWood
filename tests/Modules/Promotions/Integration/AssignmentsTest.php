@@ -39,7 +39,7 @@ use function Pest\Laravel\seed;
 | segment's members of that moment become the coupon's customers and stay; assigning again adds the
 | new ones only; only an ASSIGNED coupon is assigned (owner, 2026-10-18, answer 24), from a segment of
 | its own store and of an audience it allows; an unused assignment can be removed. And
-| `segmentMembers`, keyset-paged, for Ops later.
+| `segmentMembers` for Ops, keyset-paged: the store's segment only, another store's refused as unknown.
 */
 
 uses(RefreshDatabase::class);
@@ -236,6 +236,7 @@ it('pages a store\'s segment\'s members by id for Ops, refusing an unknown segme
         ->and(Pr::api()->segmentMembers($sa, $segment, $last[0], 2))->toBe([])
         ->and(fn () => Pr::api()->segmentMembers($sa, Pr::orderId(), null, 2))->toThrow(SegmentNotFound::class)
         ->and(fn () => Pr::api()->segmentMembers(StoreId::fromString(Fx::storeId('ae')), $segment, null, 2))->toThrow(SegmentNotFound::class)
+        ->and(fn () => Pr::api()->segmentMembers(StoreId::fromString(Fx::storeId('ae')), $segment, 'not-an-id', 2))->toThrow(SegmentNotFound::class)
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
