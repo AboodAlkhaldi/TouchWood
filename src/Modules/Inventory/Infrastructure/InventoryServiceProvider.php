@@ -27,6 +27,7 @@ use Modules\Inventory\Application\Stock\Words;
 use Modules\Inventory\Domain\Repository\Holds;
 use Modules\Inventory\Domain\Repository\InventoryLocks;
 use Modules\Inventory\Domain\Repository\LowCounts;
+use Modules\Inventory\Domain\Repository\LowSets;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
@@ -34,6 +35,7 @@ use Modules\Inventory\Infrastructure\Catalog\ProductStockSection;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseHolds;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseInventoryLocks;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseLowCounts;
+use Modules\Inventory\Infrastructure\Eloquent\DatabaseLowSets;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockMovements;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStockRows;
 use Modules\Inventory\Infrastructure\Eloquent\DatabaseStoreProducts;
@@ -42,6 +44,7 @@ use Modules\Inventory\Infrastructure\Import\StockImportSection;
 use Modules\Inventory\Infrastructure\Listener\RecountLowStock;
 use Modules\Inventory\Infrastructure\Listener\TellCatalogOfStock;
 use Modules\Inventory\Infrastructure\Queue\CountLowStockJob;
+use Modules\Inventory\Infrastructure\Queue\PruneLowStockChangesJob;
 use Modules\Inventory\Infrastructure\Queue\QueuedLowStockRecounts;
 use Modules\Inventory\Infrastructure\Queue\ReleaseExpiredHoldsJob;
 use Modules\Inventory\Presentation\Console\RebuildOrderableCommand;
@@ -80,6 +83,7 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->app->bind(InventoryApi::class, InventoryApiImpl::class);
         $this->app->bind(ProviderStock::class, ProviderStockImpl::class);
         $this->app->bind(LowCounts::class, DatabaseLowCounts::class);
+        $this->app->bind(LowSets::class, DatabaseLowSets::class);
         $this->app->bind(LowStockRecounts::class, QueuedLowStockRecounts::class);
         $this->app->bind(Words::class, LangWords::class);
     }
@@ -139,6 +143,8 @@ final class InventoryServiceProvider extends ServiceProvider
             $schedule->job(ReleaseExpiredHoldsJob::class)->everyMinute()->onOneServer();
             // Every store's Low Stock count counted again each night: a change missed is mended by morning.
             $schedule->job(new CountLowStockJob)->timezone('Asia/Riyadh')->dailyAt('03:30')->onOneServer();
+            // The low-stock change log keeps twelve months, as Ops keeps its daily reports (amendment 1).
+            $schedule->job(PruneLowStockChangesJob::class)->timezone('Asia/Riyadh')->dailyAt('04:00')->onOneServer();
         });
     }
 }

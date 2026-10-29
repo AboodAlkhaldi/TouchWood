@@ -24,4 +24,7 @@ final class InventoryPermissions
 
     /** The job that counts a store's low sizes again for the menu (step 5) - the system's. */
     public const string LOW_STOCK_COUNT = 'inventory.low_stock.count';
+
+    /** The nightly job that removes low-stock changes older than twelve months (amendment 1) - the system's. */
+    public const string LOW_CHANGES_PRUNE = 'inventory.low_changes.prune';
 }
