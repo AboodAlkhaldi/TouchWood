@@ -172,9 +172,12 @@ return [
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
     |
+    | On by default in production (handoff §15.4; audit run-2 job F): every
+    | cookie the app writes takes its default from here.
+    |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV', 'production') === 'production' ? true : null),
 
     /*
     |--------------------------------------------------------------------------

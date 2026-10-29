@@ -1722,9 +1722,17 @@ Decide these when the owning module is reached; do not design them now.
   address, and 10 wrong passwords from anyone would make every staff member wait 15 minutes (owner,
   2026-09-19: settled with the hosting).
 - **HTTPS-only cookies** (`SESSION_SECURE_COOKIE=true`) for the admin session and trusted-browser
-  cookies (owner, 2026-09-19: settled with the hosting). Until it is set, the trusted-browser cookie
-  follows `config('session.secure')`, which Symfony only forces on a request it can see is secure —
-  behind an untrusted TLS proxy it cannot, and the 30-day cookie may leave without `Secure`.
+  cookies (owner, 2026-09-19: settled with the hosting). **Since audit run-2 job F (owner,
+  2026-10-29) it defaults to true when `APP_ENV=production`**, so a production host that forgets it
+  still sends every cookie the app writes (session, guest cart, staff view, trusted browser) with
+  `Secure`; `SESSION_SECURE_COOKIE` still overrides it either way.
+- **Security headers on every page** (audit run-2 job F, owner 2026-10-29): `Content-Security-Policy:
+  frame-ancestors 'self'` (no other site may frame a page; nothing else of a CSP yet),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`; and `Cache-Control: private,
+  no-store` on the admin panel, on shop pages seen by a signed-in customer, and on shop pages a
+  staff member views from the panel (it may be a store that is off), so a shared computer
+  keeps no copy of somebody's data — guests' shop pages keep the browser's instant Back (owner's
+  choice). HSTS waits for the hosting, like the proxies.
 - Both of the above are **hardening today and a broken flow tomorrow**: Laravel checks a signed URL
   against the scheme and host of the request, while Access signs its links on `APP_URL`. Behind a
   TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer

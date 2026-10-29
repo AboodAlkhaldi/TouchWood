@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\AdminArea;
 use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AddressFormatController;
@@ -21,11 +22,8 @@ use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
 use Modules\Access\Presentation\Http\Controller\StaffViewController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
-use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
-use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
-use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 
 /*
@@ -35,7 +33,7 @@ use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 */
 
 Route::prefix('admin')
-    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS, ShareAdminPage::ALIAS])
+    ->middleware(AdminArea::MIDDLEWARE)
     ->group(function (): void {
         /*
         | The pages themselves (stage 2b step 1, frontend.md 3.1 A1-A9). Each is a plain GET that
