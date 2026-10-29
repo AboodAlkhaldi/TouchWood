@@ -272,9 +272,10 @@ it('gives every action a role can hold a business area, and names every area in 
     // fill Companies (b2b.md amendment 10), the failed jobs System (owner, 2026-09-29), Catalog's
     // jobs Catalog (catalog.md §3), Pricing's jobs Pricing (pricing.md §3), Loyalty's jobs Points
     // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68), Promotions' jobs Marketing
-    // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73).
+    // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73),
+    // Shipping's jobs Shipping (shipping.md §3, amendment 77).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'orders', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'orders', 'points', 'pricing', 'shipping', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {
