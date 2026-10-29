@@ -38,6 +38,9 @@ final class InventoryPermissions
     /** The job that counts a store's low sizes again for the menu (step 5) - the system's. */
     public const string LOW_STOCK_COUNT = Names::LOW_STOCK_COUNT;
 
+    /** The nightly job that removes low-stock changes older than twelve months (amendment 1) - the system's. */
+    public const string LOW_CHANGES_PRUNE = Names::LOW_CHANGES_PRUNE;
+
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -74,6 +77,7 @@ final class InventoryPermissions
             self::HOLDS_EXPIRE,
             self::ORDERABLE_REBUILD,
             self::LOW_STOCK_COUNT,
+            self::LOW_CHANGES_PRUNE,
         ];
     }
 }

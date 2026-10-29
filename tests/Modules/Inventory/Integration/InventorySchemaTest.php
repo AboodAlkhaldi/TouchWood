@@ -254,7 +254,11 @@ describe('what the database refuses behind the code (§8 #13)', function () {
             'hold_lines_hold' => 'c',
             'hold_lines_variant' => 'r',
             'holds_store' => 'r',
+            // Amendment 1: a store's low set and its change log keep the store; the log names its size
+            // with no key, as the ledger does.
+            'low_changes_store' => 'r',
             'low_counts_store' => 'r',
+            'low_sets_store' => 'r',
             'return_lines_store' => 'r',
             'stock_movements_store' => 'r',
             'stock_product' => 'c',

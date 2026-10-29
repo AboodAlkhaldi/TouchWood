@@ -50,9 +50,11 @@ it('declares the one job of the spec as a job, and nothing else', function () {
     expect(inventoryDeclaredPermissions(reserved: false))->toBe(['inventory.stock.manage']);
 });
 
-it('reserves exactly the three system jobs, and nothing else', function () {
+it('reserves exactly the four system jobs, and nothing else', function () {
     expect(inventoryDeclaredPermissions(reserved: true))->toBe([
         'inventory.holds.expire',
+        // Amendment 1: the change log's nightly prune.
+        'inventory.low_changes.prune',
         'inventory.low_stock.count',
         'inventory.orderable.rebuild',
     ]);

@@ -91,6 +91,47 @@ final readonly class LowStockReader
      */
     public function read(StoreId $store, ?bool $wired = null): LowRead
     {
+        [$low, , $wired, $default] = $this->figures($store, $wired);
+        [$kept, $briefs] = $this->withoutArchived($low);
+
+        return new LowRead($kept, $briefs, $wired, $default);
+    }
+
+    /**
+     * **A recount's read** (amendment 1): the low sizes, as `low()` gives them, and of the sizes the last
+     * recount kept that are not low now, those **no longer on the list for another reason** - archived (or
+     * of an archived product), neither switched on nor stocked, unknown to Catalog - which leave the kept set
+     * silently (§1.7). Still one read of Catalog's briefs, over the low sizes and those leaving.
+     *
+     * @param  list<string>  $previous  the sizes the store's kept set holds
+     */
+    public function recount(StoreId $store, array $previous): LowRecount
+    {
+        [$low, $listed] = $this->figures($store, null);
+        $lowIds = array_flip(array_map(static fn (LowSize $size): string => $size->variantId, $low));
+        $previous = array_values(array_unique($previous));
+        // The kept sizes not low by their figures, still the store's: asked in the same read as the low ones.
+        $others = array_values(array_filter($previous, static fn (string $id): bool => ! isset($lowIds[$id]) && isset($listed[$id])));
+        [$kept, $briefs] = $this->withoutArchived($low, $others);
+        $keptIds = array_flip(array_map(static fn (LowSize $size): string => $size->variantId, $kept));
+
+        // Leaving the list: low by its figures but archived, or no longer the store's, or unknown - silently.
+        $gone = array_values(array_filter($previous, static fn (string $id): bool => ! isset($keptIds[$id])
+            && (! isset($listed[$id]) || ! self::onSale($briefs[$id] ?? null))));
+
+        return new LowRecount($kept, $gone);
+    }
+
+    /**
+     * Every size on the store's list - switched on there, or with a stock row - and those at or below their
+     * threshold, the fewest left first, then by size id. The store's rows in one query, every size switched
+     * on in another.
+     *
+     * @return array{list<LowSize>, array<string, true>, bool, int} the low sizes, every size listed (by id),
+     *                                                              the wiring and the default threshold
+     */
+    private function figures(StoreId $store, ?bool $wired): array
+    {
         $rows = $this->stock->ofStore($store);
         $variantIds = array_values(array_unique([
             ...$this->catalog->switchedOnVariantIds($store),
@@ -111,32 +152,34 @@ final readonly class LowStockReader
         }
 
         usort($low, static fn (LowSize $a, LowSize $b): int => [$a->free, $a->variantId] <=> [$b->free, $b->variantId]);
-        [$kept, $briefs] = $this->withoutArchived($low);
 
-        return new LowRead($kept, $briefs, $wired, $default);
+        return [$low, array_fill_keys($variantIds, true), $wired, $default];
     }
 
     /**
      * An archived size - or a size of an archived product - is left off: staff cannot change its stock
      * until it is restored, and then it is back if it is low (owner, 2026-10-13). A size Catalog no
      * longer has is left off too. One read of Catalog, over the low sizes only - the sizes in brief
-     * (amendment 23(h)), which also name them for the list's order.
+     * (amendment 23(h)), which also name them for the list's order - and any others the caller names.
      *
      * @param  list<LowSize>  $low
+     * @param  list<string>  $alsoBrief
      * @return array{list<LowSize>, array<string, VariantBriefDto>} the sizes kept, and each in brief
      */
-    private function withoutArchived(array $low): array
+    private function withoutArchived(array $low, array $alsoBrief = []): array
     {
-        if ($low === []) {
+        if ($low === [] && $alsoBrief === []) {
             return [[], []];
         }
 
-        $briefs = $this->catalog->variantBriefs(array_map(static fn (LowSize $size): string => $size->variantId, $low));
+        $briefs = $this->catalog->variantBriefs([...array_map(static fn (LowSize $size): string => $size->variantId, $low), ...$alsoBrief]);
 
-        return [array_values(array_filter($low, static function (LowSize $size) use ($briefs): bool {
-            $brief = $briefs[$size->variantId] ?? null;
+        return [array_values(array_filter($low, static fn (LowSize $size): bool => self::onSale($briefs[$size->variantId] ?? null))), $briefs];
+    }
 
-            return $brief !== null && ! $brief->isArchived && $brief->productStage !== ProductStage::Archived;
-        })), $briefs];
+    /** Known to Catalog, and neither the size nor its product archived. */
+    private static function onSale(?VariantBriefDto $brief): bool
+    {
+        return $brief !== null && ! $brief->isArchived && $brief->productStage !== ProductStage::Archived;
     }
 }

@@ -92,6 +92,7 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'feedback.ratings.repush',
         // Reserved: the system's jobs belong to no store (inventory.md §3).
         'inventory.holds.expire',
+        'inventory.low_changes.prune',
         'inventory.low_stock.count',
         'inventory.orderable.rebuild',
         // Reserved: the system's nightly expiry of points (loyalty.md §3).

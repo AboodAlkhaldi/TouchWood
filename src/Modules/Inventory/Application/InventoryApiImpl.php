@@ -7,11 +7,13 @@ namespace Modules\Inventory\Application;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Inventory\Application\Stock\InventoryChange;
 use Modules\Inventory\Application\Stock\SizeInput;
 use Modules\Inventory\Application\Stock\StockDependentSwitch;
 use Modules\Inventory\Application\Stock\StockFacts;
+use Modules\Inventory\Application\Stock\StockLevels;
 use Modules\Inventory\Domain\Exception\AlreadyHeld;
 use Modules\Inventory\Domain\Exception\HoldNotEditable;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
@@ -21,6 +23,7 @@ use Modules\Inventory\Domain\Exception\NotWired;
 use Modules\Inventory\Domain\Exception\QuantityInvalid;
 use Modules\Inventory\Domain\Exception\ShipMoreThanHeld;
 use Modules\Inventory\Domain\Repository\Holds;
+use Modules\Inventory\Domain\Repository\LowSets;
 use Modules\Inventory\Domain\Repository\StockMovements;
 use Modules\Inventory\Domain\Repository\StockRows;
 use Modules\Inventory\Domain\Repository\StoreProducts;
@@ -33,7 +36,9 @@ use Modules\Inventory\Domain\ValueObject\StockLimits;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\StoreWiring;
 use Modules\Inventory\Public\Dto\HoldLineDto;
+use Modules\Inventory\Public\Dto\LowStockChangesDto;
 use Modules\Inventory\Public\Dto\StockDto;
+use Modules\Inventory\Public\Dto\StockLevelsDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -59,6 +64,8 @@ final readonly class InventoryApiImpl implements InventoryApi
         private SizeInput $sizes,
         private InventoryChange $change,
         private StockDependentSwitch $switch,
+        private LowSets $lowSets,
+        private StockLevels $levels,
     ) {}
 
     public function stock(StoreId $store, array $variantIds): array
@@ -334,6 +341,24 @@ final readonly class InventoryApiImpl implements InventoryApi
         // question above - asked again under the lock - nothing happens. The switch is on by default
         // (§9.2 #24), so only a size staff switched off changes.
         return $this->change->run($store, fn (): array => $this->switch->set($store, $products, true) ?? [[], []]);
+    }
+
+    public function lowStockChanges(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): LowStockChangesDto
+    {
+        if ($to < $from) {
+            throw new InvalidArgumentException('The range ends before it starts.');
+        }
+
+        $changes = $this->lowSets->changes($store, $from, $to);
+
+        return new LowStockChangesDto($changes->becameLow, $changes->ranOut, $changes->cameBack);
+    }
+
+    public function stockLevels(StoreId $store, ?string $after = null, int $limit = 100): StockLevelsDto
+    {
+        $this->platform->store($store) ?? throw new InvalidInventoryInput('store');
+
+        return $this->levels->page($store, $after, $limit);
     }
 
     private function endOpen(string $orderId, string $ended): void

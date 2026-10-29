@@ -18,4 +18,7 @@ return [
     'low_stock' => [
         'count' => 'Count Low Stock Again',
     ],
+    'low_changes' => [
+        'prune' => 'Remove Old Low Stock Changes',
+    ],
 ];

@@ -153,6 +153,34 @@ row there. Without stock it gives nothing (`availableAsGift` 0). **An archived s
 archived product — is left off** the list and its count: staff cannot change its stock until it is
 restored, and then it is back if it is low (owner, 2026-10-13).
 
+**What changed at a recount, for Ops** (amendment 1, §9.4; ops.md §1.6 S3, §1.10, §1.11 item 6). Each
+recount keeps the store's **low set** — the list's sizes, each **out** or **low** — beside its count
+(`inventory.low_sets`), compares it with the set it kept last, and writes what changed:
+
+- **Out** = nothing free: available stock 0 (`StockFigures::free`), so a size held beyond its stock
+  (Short) is out, and in a wired store an ordinary product the provider reports at 0 is out too — still
+  orderable (§1.3), but none there. **Low** = on the list with 1 or more free. A threshold of 0 is low
+  only at 0: out at once.
+- A size **became low**: not on the list before, low now. It **ran out**: out now and not out before —
+  from low (LOW→OUT) or from off the list. It **came back**: on the list before, low or out, and now
+  still one of the store's sizes, not archived, and neither low nor out. **OUT→LOW is in nothing.** A
+  size is in at most one list a recount.
+- A size that **leaves the list for another reason** — archived (or its product), switched off with no
+  stock row, gone from Catalog — **leaves the set silently**: it did not come back. Restored still low,
+  it is new on the list again, and said again.
+- **`LowStockChanged`** (§6.1), one per store per recount, **only when a list is not empty**, sent after
+  the recount commits; the changes are written to **`inventory.low_changes`**, each with its moment, for
+  `lowStockChanges` (§2.1).
+- **The first recount of a store** — none kept yet: after this amendment is deployed, and for a store
+  added later — **keeps the set silently**: no event and nothing written to the log, so a deploy does not
+  send every low size as an alert. Changes count from the second recount.
+- **Recounts of one store are one at a time**: each takes the store's low-set lock (not the store's
+  stock lock, so no change of stock waits for it), then reads the list, compares, writes the set, its
+  count, its changes and its event, in one transaction. A recount that started later reads later, so
+  none is reported twice and none is lost; the count keeps its rule, an older count never over a newer.
+- The change log keeps **12 months** (as Ops keeps its daily reports' files), pruned each night by
+  `PruneLowStockChanges` (§3).
+
 ### 1.8 The store's file (catalog.md §2.3)
 
 Inventory's `ImportSection`: the file's page says, per item, the stock that will be set — or that it
@@ -205,6 +233,9 @@ Quantities are whole pieces (≥ 1). **On `main` since #97.**
 | `returned(string $orderId, string $returnId, list<HoldLineDto> $lines): void` | Sales (staff marked a return received; a shipped parcel marked "came back", settled as a whole return — sales.md §1.5, owner 2026-10-10 — after `release`, with its own id in `returnId`) | Puts the lines' pieces back as §1.9 says, by kind of store and size; a gift line on gift rules. Only the pieces going back — for a parcel that came back, those whose stock was taken: every shipped piece in a store with no provider, the ticked lines in a wired store. The store is the order's (its hold). (agreed with stage 6; accepted with #106) |
 | `makeStockDependent(StoreId $store, list<string> $variantIds): list<string>` | Promotions (a gift level saved with its tick box, promotions.md §4.1 M4) | Turns the sizes' stock-dependent switch **on, never off**, in a **wired** store, as `SetStockDependent` does — the flag set on the size's row, the same audit entry (`inventory.stock.stock_dependent_set`), Catalog's facts refreshed, the store's lock then the rows in size-id order (one shared piece of code). A store that does not exist is refused (`store`); then a size that does not exist or is archived (or of an archived product), in every store alike, as staff's switch refuses it — `inventory.invalid_inventory_input`, `variant`, naming them — and nothing changes. Then nothing happens in a store with no provider (every size counts on its stock there already) nor for a size already on — **since the switch is on by default (§9.2 #24), that is every size except one staff switched off**, and a size with no row is on already, so no row is made. The wiring is asked again under the store's lock, which unwiring takes too: a store unwired while the call waited for it is left as it is (staff's switch is refused there, `inventory.not_wired`). Runs in the caller's transaction when one is open (a savepoint in it), its own otherwise. **Call it last in that transaction, take no lock of the caller's own module after it, and keep the transaction short**: Inventory's store lock and Catalog's products lock (the facts) are held until the caller commits. Answers the sizes it turned on, by their own ids, in id order. **No permission inside**: Promotions checks `inventory.stock.manage` in the store itself, by its public name `Modules\Inventory\Public\InventoryPermissions::STOCK_MANAGE` (owner, 2026-10-19; §9.2 #23) |
 
+| `lowStockChanges(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): LowStockChangesDto` | Ops — the daily report's stock (ops.md §1.11 item 6, §2.3; amendment 1) | **The sizes that became low, ran out and came back** in the store (§1.7) from `from` up to but not including `to`, compared as moments; Ops draws the range (midnight in the store's time zone until the button is pressed, or two midnights). **Each list holds the sizes whose change of that kind happened in the range**, each size once, in id order; a size that changed several times may be in more than one list (low, then out, then back: all three). Changes are written by the recount, about 30 seconds after the change of stock (§1.7), so a range ending now may miss the last half minute. `to` before `from` throws, as B2B's `applicationCounts` (the caller's bug); an empty range or a store with nothing gives three empty lists. The log keeps 12 months: nothing older is there. **One query**, no lock; no permission inside. |
+| `stockLevels(StoreId $store, ?string $after = null, int $limit = 100): StockLevelsDto` | Ops — the Stock report (ops.md §1.10, §2.3; amendment 1) | **Each size's stock in the store**, the sizes the Stock screen lists (switched on there, or with a stock row): in stock, held, available, the threshold that applies, whether its stock limits ordering, archived, **low** and **out** as §1.7 says (an archived size neither, as the list leaves it off). In size-id order, keyset-paged by the size id (`after`, the last page's `next`), `limit` 1 to 1000. A store that does not exist is `invalid_inventory_input` (`store`). A fixed number of queries whatever the page — 4, measured warm in an unwired store: the store known, its rows, the sizes switched on, the page's sizes in brief; each page reads the store's rows afresh. No lock; no permission inside: Ops checks `ops.report.view` and Manage Stock there (ops.md §3). |
+
 `ship`, `reducedInProvider`, `release`, `adjustHold` and `returned` are safe to repeat: a line already
 shipped, ticked or freed is left as it is; the same edit twice changes nothing; a return id counts once.
 `ship` has no shipment id: a line shipped in full is left as it is, but a part sent twice would be
@@ -232,6 +263,9 @@ provider by the size. A refusal reaches the caller as `Shared\Domain\Error\Domai
 |---|---|
 | `StockDto` | `variantId` · `countsOnStock` (stock limits ordering here) · `orderable` · `?available` (how many can be ordered now; null where stock does not limit) · `availableAsGift` (how many can be given as a gift — in stock minus held, always a number, since a gift counts on stock in every store; stage 6's review, 2026-10-07) · `endingSoon` |
 | `HoldLineDto` | `variantId` · `quantity` · `gift` (a gift counts on stock in every store) |
+| `LowStockChangesDto` | `becameLow` · `ranOut` · `cameBack` — lists of size ids (amendment 1) |
+| `StockLevelsDto` | `rows` (list of `StockLevelDto`) · `next` — the cursor of the page after it, none on the last (amendment 1) |
+| `StockLevelDto` | `variantId` · `inStock` (a wired store: the provider's last number) · `returnedExtra` (a wired store's, §1.9; 0 otherwise) · `held` · `available` (what can be ordered or given now, never below 0) · `threshold` (its own, or the store's default) · `countsOnStock` · `archived` · `low` · `out` (amendment 1) |
 
 ### 2.3 What Inventory gives Catalog
 
@@ -293,7 +327,7 @@ is (group, kind, reserved) is still declared by `Application\InventoryPermission
 | The screens' reads: a size's stock and history (`ViewStock`, `StockHistory`), the Low Stock list and its count (`LowStock`); with stage 5's screens step 4 the Stock list (`ListStock`), the holds before saving (`HoldsOnSizes`), Add Size's picker (`AddSizeChoices`) | `inventory.stock.manage` | That store |
 | A product's stock in every store (`ViewProductStock`), what the screens may offer (`InventoryActionsForReader`) | `inventory.stock.manage` | Each store the reader holds it in |
 | The store's file — Inventory's section (§1.8) | Catalog's `catalog.listing.fill` (admin roles), checked by Catalog's handler | That store |
-| `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared · `CountLowStock` — a store's Low Stock count kept, or every store's (step 5) | System (reserved): `inventory.holds.expire`, `inventory.low_stock.count`, `inventory.orderable.rebuild` | — |
+| `ReleaseExpiredHolds` — scheduled · `RebuildOrderable` — a repair job, every size's orderability pushed again and compared · `CountLowStock` — a store's Low Stock count kept, or every store's (step 5), and its low set and changes (amendment 1) · `PruneLowStockChanges` — each night, the change log's entries older than 12 months (amendment 1) | System (reserved): `inventory.holds.expire`, `inventory.low_stock.count`, `inventory.orderable.rebuild`, `inventory.low_changes.prune` | — |
 
 **A store that is off**: every change refused to anyone who may not switch stores
 (`inventory.store_off`). **A wired store**: hand changes and "ending soon" refused
@@ -549,6 +583,8 @@ column is written so a NULL cannot slip through (lesson 162).
 | `inventory.stock` | (`store_id` FK `platform.stores` RESTRICT, `variant_id` FK `catalog.variants` CASCADE) PK · `product_id` FK `catalog.products` CASCADE (from Catalog's `variant()`; a size never moves to another product, catalog.md §1.2) · `in_stock` int CHECK ≥ 0 · `held` int CHECK ≥ 0 · `threshold` int NULL CHECK 0–100,000 · `stock_dependent` boolean (wired) DEFAULT true — on by default, a size with no row counted as on (§9.2 #24; migration `2026_10_28_100000` set every row on and the default from false) · `returned_extra` int NOT NULL DEFAULT 0 CHECK ≥ 0 — pieces returned in a wired store, not yet in the provider's number (§1.9, provisional) · `ending_soon` boolean — the last value pushed to Catalog · `orderable` boolean NULL — the same for orderability, null when never pushed (step 4: only a flip is pushed; sizes switched on, the default threshold's change and the repair tell Catalog too) · `updated_at` |
 | `inventory.store_products` | (`store_id` FK `platform.stores` RESTRICT, `product_id` FK `catalog.products` CASCADE) PK · `ending_soon` boolean — "last pieces" switched on for the product (no provider) · `updated_at` |
 | `inventory.low_counts` | `store_id` PK FK `platform.stores` RESTRICT · `low` NULL CHECK ≥ 0 · `counted_at` NULL (both NULL until first counted) · `recount_queued` boolean — the menu's Low Stock count per store, kept (step 5); one recount waits per store |
+| `inventory.low_sets` | `store_id` PK FK `platform.stores` RESTRICT · `low` jsonb, an array of size ids (1 or more free) · `out` jsonb, an array of size ids (none free) · `counted_at` timestamptz(6) — the store's low set as its last recount found it (amendment 1); no row = never recounted since, so the next recount keeps it silently |
+| `inventory.low_changes` | `id` bigint identity PK · `store_id` FK `platform.stores` RESTRICT · `variant_id` — no key, as the ledger's (a deleted size keeps its history) · `change` CHECK (`LOW`, `OUT`, `BACK`) · `changed_at` timestamptz(6) — the recount's moment; index (`store_id`, `changed_at`). Written by the recount only; entries older than 12 months pruned each night (amendment 1) |
 | `inventory.holds` | `id` ULID PK · `store_id` · `order_id` unique · `expires_at` NULL · `created_at` |
 | `inventory.hold_lines` | (`hold_id` FK CASCADE, `variant_id`, `gift`) PK — a bought line and a gift line of the same size are two lines · `quantity` CHECK ≥ 1 · `gift` boolean · `counts_on_stock` boolean · `shipped` int CHECK ≥ 0 · `ended` CHECK (`OPEN`, `SHIPPED`, `REDUCED`, `RELEASED`, `EXPIRED`) · `ended_at` NULL |
 | `inventory.stock_movements` | `id` bigint PK (handoff §5.3) · `store_id` FK RESTRICT · `variant_id` — **no key**, so a deleted draft size keeps its history, as the audit log names its subjects (step 2) · `reason` CHECK (`STOCKTAKE`, `RECEIVED`, `DAMAGED_LOST`, `OFFLINE_SALE`, `CORRECTION`, `SHIPPED`, `RETURNED`, `FILE`, `PROVIDER`) · `change` int · `before` int ≥ 0 · `after` int ≥ 0 = `before` + `change` · `note` NULL, up to 500 characters (required, not blank, for `CORRECTION`) · `note_code` NULL CHECK (`SHIPPED_BEYOND_COUNT`, `UNWIRED`) and `note_values` jsonb NULL, an object, only with a code - Inventory's own note (§1.6; stage 5 step 10, migration `2026_10_23_100000`): a line holds a typed note or a code, never both, and either is the note a `CORRECTION`, or a `SHIPPED` 0 → 0, needs; each code on its own reason with exactly its values (`stock_movements_paired_note`, the review of step 10): `SHIPPED_BEYOND_COUNT` on `SHIPPED` only, `{"count": <number>}`; `UNWIRED` on `CORRECTION` only, no values · `reference` unique · `actor_type` + `actor_id` NULL — the system's alone — and `requested_by_type` + `requested_by_id` NULL — whoever queued the job the system runs — as the audit log records its actor, with the same CHECKs (step 2; one `actor` column before) · each reason's direction CHECKed: Received and Returned in, Damaged / lost, Offline sale and Shipped out, a Correction either way and never 0, a stocktake, the file and the provider any number (owner, 2026-10-11) — and Shipped 0 only as 0 → 0 with a note, not blank: a shipment from a stock already at 0 recording its shortfall (owner, 2026-10-19; migration `2026_10_20_100000`, the check added NOT VALID then validated) · `created_at` — never updated, never deleted (a trigger refuses UPDATE, DELETE and TRUNCATE) |
@@ -563,8 +599,7 @@ column is written so a NULL cannot slip through (lesson 162).
 | Event | When | For |
 |---|---|---|
 | `HoldsShort(eventId, storeId, variantId, orderIds, occurredAt)` | A hand change — a removal or a stocktake — left a size's in stock below its holds: **every** placed order still holding it is named (§1.5; owner, 2026-10-11) | Sales marks them "stock was reduced" for staff; none is blocked (owner, 2026-10-09 and 2026-10-11) (its shape accepted 2026-10-09) |
-
-A low-stock event for Ops comes with Ops (stage 8).
+| `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` | A recount found sizes that became low, ran out or came back (§1.7): one per store per recount, only when a list is not empty, never on a store's first recount; each list the size ids in id order, a size in at most one; `occurredAt` the recount's moment, as written to `inventory.low_changes` (amendment 1) | Ops alerts the staff holding Manage Stock there (ops.md §1.6 S3) |
 
 ### 6.2 Consumed
 
@@ -655,6 +690,12 @@ their one detail stands.
     is the provider's number + extra − held, a differing provider number sets the extra to 0, an equal
     one keeps it; a damaged piece not passed is not counted; the same return id twice counted once;
     "ending soon" and orderable pushed when they flip.
+16. **What changed at a recount** (amendment 1): became low, ran out (from low and from off the list),
+    came back (from low and from out); OUT→LOW and no change send nothing; a store's first recount keeps
+    its set silently; an archived size leaves silently; one event per store, after commit; two recounts
+    of a store one at a time, nothing said twice; `lowStockChanges` over a range's edges (`from` in,
+    `to` out), several stores, a size in more than one list, one query; `stockLevels` paged, its figures
+    and flags, a fixed number of queries; the log pruned after 12 months.
 
 ---
 
@@ -704,3 +745,11 @@ their one detail stands.
 | # | Proposal | Why |
 |---|---|---|
 | S5 | **A stocktake typed in the row**, several then **Save Changes** (one `SetStock`), as Pricing's prices are typed (pricing.md §9.3 S1-S4 hold here too) | A stocktake walks many sizes at once; a dialog per size would be slow |
+
+### 9.4 Amendments during the build
+
+Changes to the accepted spec, each applied in place in the sections named.
+
+| # | Where | Change | Source |
+|---|---|---|---|
+| 1 | §1.7, §2.1, §2.2, §3, §5, §6.1, §8 | **What Ops needs from Inventory** (ops.md §2.3, the Inventory row; §1.6 S3, §1.10, §1.11 item 6). **(a) The low set kept per store** (`inventory.low_sets`): each recount (`CountLowStock`) keeps the list's sizes, each **out** (nothing free — Short included, and a wired ordinary product the provider reports at 0) or **low** (1 or more free), and compares them with the set kept last: **became low** (off the list → low), **ran out** (low or off the list → out), **came back** (low or out → still one of the store's sizes, not archived, neither); OUT→LOW nothing; a size in one list at most; a size leaving the list for another reason (archived, switched off with no row, gone) leaves silently. **(b) `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)`** — ids only, after commit, one per store per recount, only when a list is not empty. **(c) The first recount of a store keeps its set silently** — no event, nothing logged — so the deploy sends no flood of alerts. **(d) Recounts of a store one at a time** under the store's low-set lock (an advisory lock of its own, never the stock lock), the read, the set, the count, the log and the event in one transaction: none said twice, none lost. **(e) `InventoryApi::lowStockChanges(StoreId, from, to): LowStockChangesDto`** over the change log (`inventory.low_changes`): `[from, to)`, each list the sizes whose change of that kind happened in the range, each once, in id order — a size may be in more than one list; `to` before `from` throws; one query; no permission inside. **(f) `InventoryApi::stockLevels(StoreId, after, limit): StockLevelsDto`** for the Stock report — `stock()` answers only the sizes named, not a store's — in stock, returned extra, held, available, threshold, counts on stock, archived, low, out; keyset-paged by size id, 1 to 1000; a fixed number of queries. **(g) The log keeps 12 months**, pruned each night at 04:00 Riyadh by `PruneLowStockChanges` (`inventory.low_changes.prune`, the system's). | Ops spec (#249); the owner's go to the builders, 2026-10-28; the rules of (a) agreed with the Ops session; (c), (e)'s "each change in its list", the meaning of out and (g) recommended in the job's brief |

@@ -6,7 +6,9 @@ namespace Modules\Inventory\Public\Contracts;
 
 use DateTimeImmutable;
 use Modules\Inventory\Public\Dto\HoldLineDto;
+use Modules\Inventory\Public\Dto\LowStockChangesDto;
 use Modules\Inventory\Public\Dto\StockDto;
+use Modules\Inventory\Public\Dto\StockLevelsDto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -107,4 +109,26 @@ interface InventoryApi
      * @return list<string> the sizes it turned on, by their own ids, in id order
      */
     public function makeStockDependent(StoreId $store, array $variantIds): array;
+
+    /**
+     * **The sizes that became low, ran out and came back** in the store from `from` up to but not including
+     * `to` (inventory.md §1.7, §2.1, amendment 1) - for Ops' daily report. Each list holds the sizes whose
+     * change of that kind happened in the range, each once, in id order; a size that changed several times
+     * may be in more than one. Changes are written by the recount, about half a minute after the change of
+     * stock; a store's first recount writes none. The log keeps 12 months. `to` before `from` throws (the
+     * caller's bug). One query, no lock; no permission is checked here.
+     *
+     * @throws \InvalidArgumentException when `to` is before `from`
+     */
+    public function lowStockChanges(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): LowStockChangesDto;
+
+    /**
+     * **Each size's stock in the store** (inventory.md §2.1, amendment 1) - for Ops' Stock report: the sizes
+     * switched on there or with a stock row, in size-id order, keyset-paged by the size id (`after`, the
+     * last page's `next`), `limit` 1 to 1000. In stock, the returned extra, held, available, the threshold
+     * that applies, whether its stock limits ordering, archived, low and out - an archived size neither, as
+     * the Low Stock list leaves it off. A store that does not exist is `inventory.invalid_inventory_input`
+     * (`store`). A fixed number of queries; no permission is checked here.
+     */
+    public function stockLevels(StoreId $store, ?string $after = null, int $limit = 100): StockLevelsDto;
 }
