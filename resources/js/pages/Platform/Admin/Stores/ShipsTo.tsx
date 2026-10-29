@@ -174,6 +174,9 @@ function RemoveDialog({
 }) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
+    // Refused - the store still has carriers there (CountryHasCarriers): the refusal shows in the dialog,
+    // and a link goes to where they are switched off and deleted (shipping.md §4.1 part 1, Q14).
+    const [refused, setRefused] = useState(false);
 
     return (
         <PanelDialog
@@ -193,6 +196,7 @@ function RemoveDialog({
                             preserveScroll: true,
                             onStart: () => setBusy(true),
                             onFinish: () => setBusy(false),
+                            onError: () => setRefused(true),
                             onSuccess: () => {
                                 onRemoved();
                                 onOpenChange(false);
@@ -205,7 +209,11 @@ function RemoveDialog({
                 </ActionButton>
             }
         >
-            {null}
+            {refused ? (
+                <Link href={`/admin/shipping/carriers?store=${encodeURIComponent(store.code)}`} className="text-label-14 text-ink underline underline-offset-4" data-test="open-carriers">
+                    {t(`${S}.open_carriers`, { country: country.name })}
+                </Link>
+            ) : null}
         </PanelDialog>
     );
 }
