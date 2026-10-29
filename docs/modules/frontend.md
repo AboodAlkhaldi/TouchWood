@@ -1377,8 +1377,9 @@ None. The one question here — which module keeps the admin menu registry — w
 ### 8.4 The address form's questions — round 1 (2026-10-29)
 
 Asked by the screens session for §3.6 "F9 on Platform's places". Option **(a)** is the recommended one in each.
-**Answered by the owner, 2026-10-29: every question (a).** With it, the owner fixed the address countries to six —
-Saudi Arabia, Egypt, the UAE, Qatar, Bahrain and Oman — with no Add Country (platform.md §4.3 E8, changed).
+**Answered by the owner, 2026-10-29: every question (a).** With it, the owner set the address countries to start as six —
+Saudi Arabia, Egypt, the UAE, Qatar, Bahrain and Oman — the only ones a customer's address offers; Super Admins
+keep editing the list (platform.md §4.3 E8).
 Q7's (a) holds whatever the size of the lists the backend seeds.
 
 | # | Question | Options and their effect |
