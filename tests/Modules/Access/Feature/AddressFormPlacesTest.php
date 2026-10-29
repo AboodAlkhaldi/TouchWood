@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
@@ -129,59 +128,64 @@ function addressFormQueries(AdminBrowser $browser, string $url): int
     return $count;
 }
 
-describe('the countries offered (Q1, Q2, Q3)', function () {
+describe('the countries offered, read when the form opens (Q1, Q2, Q3; the owner, 2026-10-29)', function () {
     it('offers the address countries, the store\'s own first, and says which another store serves', function () {
-        $places = addressFormPlaces();
+        addressFormPlaces();
         [, $browser] = addressFormCustomer();
         // Qatar: on the list, shipped to by no store (Q3).
         DB::table('platform.address_countries')->insert(['country_code' => 'QA', 'retired' => false, 'created_at' => now(), 'updated_at' => now()]);
 
+        // The page itself carries none of it: only the store's own country, where a new address starts.
         $browser->get('/sa/en/account?tab=addresses')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('addresses.0.storeCode', 'sa')
                 ->where('addresses.0.countryCode', 'SA')
-                ->where('addresses.0.countries.0.code', 'SA')
-                ->where('addresses.0.countries.0.hasPlaces', true)
-                ->where('addresses.0.countries.0.servedBy', null)
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->pluck('code')->sort()->values()->all() === ['AE', 'EG', 'QA', 'SA'])
-                // Egypt belongs to the Egypt store: named, in the page's language (Q2).
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'EG')['servedBy'] === ['code' => 'eg', 'name' => 'Egypt', 'open' => true])
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'QA')['servedBy'] === null)
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'QA')['otherName'] === 'قطر')
-                // The Egypt store's own form starts on Egypt, and points Saudi Arabia to its store.
-                ->where('addresses.1.storeCode', 'eg')
-                ->where('addresses.1.countries.0.code', 'EG')
-                ->where('addresses.1.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'SA')['servedBy']['code'] === 'sa')
+                ->missing('addresses.0.countries')
             );
 
-        expect($places)->toHaveKey('region');
+        $countries = $browser->get('/sa/en/account/address-form?store=sa')->assertOk()->collect('countries');
+
+        expect($countries->first())->toMatchArray(['code' => 'SA', 'hasPlaces' => true, 'servedBy' => null])
+            ->and($countries->pluck('code')->sort()->values()->all())->toBe(['AE', 'EG', 'QA', 'SA'])
+            // Egypt belongs to the Egypt store: named, in the page's language (Q2).
+            ->and($countries->firstWhere('code', 'EG')['servedBy'])->toBe(['code' => 'eg', 'name' => 'Egypt', 'open' => true])
+            ->and($countries->firstWhere('code', 'QA')['servedBy'])->toBeNull()
+            ->and($countries->firstWhere('code', 'QA')['otherName'])->toBe('قطر');
+
+        // The Egypt store's own form starts on Egypt, and points Saudi Arabia to its store.
+        $egypt = $browser->get('/sa/en/account/address-form?store=eg')->assertOk()->collect('countries');
+        expect($egypt->first()['code'])->toBe('EG')
+            ->and($egypt->firstWhere('code', 'SA')['servedBy']['code'])->toBe('sa');
     });
 
-    it('brings the own country\'s regions with the page, and none where it has no list (Q7)', function () {
+    it('brings the own country\'s regions with the form, and none where it has no list', function () {
         $places = addressFormPlaces();
         [, $browser] = addressFormCustomer();
 
-        $browser->get('/sa/en/account?tab=addresses')
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('addresses.0.regions.0.name', 'Makkah Region')
-                ->where('addresses.0.regions.1.id', $places['region'])
-                ->where('addresses.0.regions.1.otherName', 'منطقة الرياض')
-                ->where('addresses.1.storeCode', 'eg')
-                ->where('addresses.1.regions', [])
-            );
+        $browser->get('/sa/en/account/address-form?store=sa')->assertOk()
+            ->assertJsonPath('regions.0.name', 'Makkah Region')
+            ->assertJsonPath('regions.1.id', $places['region'])
+            ->assertJsonPath('regions.1.otherName', 'منطقة الرياض');
+        $browser->get('/sa/en/account/address-form?store=eg')->assertOk()->assertJsonPath('regions', []);
     });
 
-    it('says a switched-off store is closed rather than linking to it', function () {
+    it('says a switched-off store is closed rather than linking to it, and has no form of its own', function () {
         [, $browser] = addressFormCustomer();
         DB::table('platform.stores')->where('code', 'eg')->update(['is_active' => false]);
         // Platform keeps the stores in its cache: changed underneath it, it is read again.
         Cache::flush();
 
-        $browser->get('/sa/en/account?tab=addresses')
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'EG')['servedBy'] === ['code' => 'eg', 'name' => 'Egypt', 'open' => false])
-            );
+        $countries = $browser->get('/sa/en/account/address-form?store=sa')->assertOk()->collect('countries');
+        expect($countries->firstWhere('code', 'EG')['servedBy'])->toBe(['code' => 'eg', 'name' => 'Egypt', 'open' => false]);
+
+        $browser->get('/sa/en/account/address-form?store=eg')->assertNotFound();
+        $browser->get('/sa/en/account/address-form?store=zz')->assertNotFound();
+        $browser->get('/sa/en/account/address-form')->assertNotFound();
+    });
+
+    it('is for a signed-in customer only', function () {
+        (new AdminBrowser)->get('/sa/en/account/address-form?store=sa')->assertRedirect();
     });
 });
 
@@ -266,15 +270,18 @@ describe('the lists, read as the customer picks (Q7)', function () {
         [, $browser] = addressFormCustomer();
 
         $page = addressFormQueries($browser, '/sa/en/account?tab=addresses');
+        $form = addressFormQueries($browser, '/sa/en/account/address-form?store=sa');
         $read = addressFormQueries($browser, '/sa/en/account/places?region='.$places['region']);
         $none = addressFormQueries($browser, '/sa/en/account/places?region=01aaaaaaaaaaaaaaaaaaaaaaaa');
 
-        // Recorded for the PR (owner, 2026-10-19: budgets are targets): the tab 26 (the countries
-        // and each store's ship-to list are 4 of them), a list read 8 - the session's 7 and its
-        // own one; the same read with nothing to find costs the same.
+        // Recorded for the PR (owner, 2026-10-19: budgets are targets): the tab 21 - nothing of the
+        // places read for an empty book; the form's read 12 when Add or Edit is pressed - the
+        // session's 7, the countries, each store's ship-to list and the own regions; a list read 8 -
+        // the session's 7 and its own one, as the same read with nothing to find.
         expect($read)->toBe($none)
             ->and($read)->toBeLessThanOrEqual(8)
-            ->and($page)->toBeLessThanOrEqual(26);
+            ->and($page)->toBeLessThanOrEqual(21)
+            ->and($form)->toBeLessThanOrEqual(12);
     });
 });
 

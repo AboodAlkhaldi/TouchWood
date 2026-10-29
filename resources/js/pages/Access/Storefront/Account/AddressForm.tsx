@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
 import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
@@ -16,6 +17,7 @@ import { useChecks } from '@/lib/use-checks';
 import type {
     AddressBookStore,
     AddressFieldRow,
+    AddressFormData,
     AddressRow,
     PlaceOption,
     ServedByStore,
@@ -27,6 +29,61 @@ import { OTHER, type PlaceList, PlacePicker } from './PlacePicker';
 | it loads only when Add Address or Edit Address is pressed, with the place pickers and the command
 | list under them, so the account page stays within its budget (frontend.md §5).
 */
+
+type Props = {
+    store: AddressBookStore;
+    address: AddressRow | null;
+    returnTo: string | null;
+    onDone: () => void;
+};
+
+/**
+ * What the store's form offers - its countries and the own country's regions - read as it is opened,
+ * and the form once they are here (the owner, 2026-10-29: only what is shown, when it is shown). A
+ * failed read says so, with Try Again; the form never opens on a country list it does not have.
+ */
+export function AddressFormLoader(props: Props) {
+    const t = useTranslator();
+    const link = useLink();
+    const [offer, setOffer] = useState<AddressFormData | 'loading' | 'failed'>('loading');
+    const [attempt, setAttempt] = useState(0);
+    const url = link('storefront.account.address-form', { store: props.store.storeCode });
+
+    useEffect(() => {
+        let current = true;
+        fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+            .then((response) => (response.ok ? (response.json() as Promise<AddressFormData>) : Promise.reject(new Error(String(response.status)))))
+            .then((body) => current && setOffer(body))
+            .catch(() => current && setOffer('failed'));
+
+        return () => {
+            current = false;
+        };
+    }, [url, attempt]);
+
+    if (offer === 'loading') {
+        return (
+            <div className="flex items-center gap-2 py-4 text-copy-14 text-ink-muted" role="status" data-test={`address-form-loading-${props.store.storeCode}`}>
+                <Spinner aria-hidden="true" />
+                {t('access::account.places.loading_form')}
+            </div>
+        );
+    }
+
+    if (offer === 'failed') {
+        return (
+            <Note variant="error" action={
+                <Button type="button" variant="outline" size="sm" onClick={() => { setOffer('loading'); setAttempt((n) => n + 1); }}>
+                    {t('access::account.places.try_again')}
+                </Button>
+            }>
+                {t('access::account.places.form_failed')}
+            </Note>
+        );
+    }
+
+    return <AddressForm {...props} offer={offer} />;
+}
 
 /**
  * The form for one address, new or being changed: shadcn's card-with-form - the fields in the
@@ -41,23 +98,13 @@ import { OTHER, type PlaceList, PlacePicker } from './PlacePicker';
  * first of them stands (§8.4 Q6): a city is chosen in a region, a district in a city, so changing one
  * clears what was under it. The server fills the picked places' names in, in the page's language.
  */
-export function AddressForm({
-    store,
-    address,
-    returnTo,
-    onDone,
-}: {
-    store: AddressBookStore;
-    address: AddressRow | null;
-    returnTo: string | null;
-    onDone: () => void;
-}) {
+function AddressForm({ store, address, returnTo, onDone, offer }: Props & { offer: AddressFormData }) {
     const t = useTranslator();
     const link = useLink();
     const code = store.storeCode;
     const heading = `address-form-${code}-title`;
-    // The list a new address opens on comes with the page: the store's own country's regions (Q7).
-    const lists = usePlaceLists(store.regions.length === 0 ? {} : { [`country:${store.countryCode}`]: store.regions });
+    // The list a new address opens on came with the form: the store's own country's regions.
+    const lists = usePlaceLists(offer.regions.length === 0 ? {} : { [`country:${store.countryCode}`]: offer.regions });
 
     const form = useForm({
         store_id: store.storeId,
@@ -78,7 +125,7 @@ export function AddressForm({
     const [picks, setPicks] = useState(() => initialPicks(address));
     const saved = { region: address?.regionId ?? null, city: address?.cityId ?? null, district: address?.districtId ?? null };
 
-    const countries: CountryOption[] = store.countries.map((country) => ({
+    const countries: CountryOption[] = offer.countries.map((country) => ({
         code: country.code,
         name: country.name,
         otherName: country.otherName,
@@ -89,8 +136,8 @@ export function AddressForm({
     // browser names it: the page carries the names of the countries offered only.
     if (!countries.some((country) => country.code === form.data.country)) countries.push({ code: form.data.country, name: countryName(form.data.country), ours: false });
 
-    const chosen = store.countries.find((country) => country.code === form.data.country);
-    const served = store.countries.filter((country) => country.servedBy !== null);
+    const chosen = offer.countries.find((country) => country.code === form.data.country);
+    const served = offer.countries.filter((country) => country.servedBy !== null);
     const hasList = chosen?.hasPlaces ?? false;
     const keyed = new Map(store.fields.map((field) => [field.key, field]));
     const firstPlace = store.fields.findIndex((field) => PLACE_KEYS.includes(field.key));

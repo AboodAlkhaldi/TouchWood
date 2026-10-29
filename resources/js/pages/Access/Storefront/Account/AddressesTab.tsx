@@ -38,7 +38,7 @@ import type {
 
 // The form, its place pickers and the command list under them load only when Add Address or Edit
 // Address is pressed - not with every account page (frontend.md §5, the page budget).
-const AddressForm = lazy(() => import('./AddressForm').then((module) => ({ default: module.AddressForm })));
+const AddressForm = lazy(() => import('./AddressForm').then((module) => ({ default: module.AddressFormLoader })));
 
 /*
 | F9 - the address book (frontend.md §3.6), on shadcn's parts with Geist's rules (§1.11).

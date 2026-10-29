@@ -43,6 +43,7 @@ use Modules\Access\Presentation\Http\Request\MarketingConsentRequest;
 use Modules\Access\Presentation\Http\Resource\AddressBookStore;
 use Modules\Access\Presentation\Http\Resource\AddressCountryOption;
 use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
+use Modules\Access\Presentation\Http\Resource\AddressFormData;
 use Modules\Access\Presentation\Http\Resource\AddressRow;
 use Modules\Access\Presentation\Http\Resource\CustomerAccountPage;
 use Modules\Access\Presentation\Http\Resource\PlaceOption;
@@ -275,63 +276,40 @@ final readonly class CustomerOwnAccountController
     }
 
     /**
-     * Every country, with what the customer has in each (F9).
+     * Every store, with what the customer has in each (F9).
      *
-     * The names are the page's language; the fields are the store's own, already in its order.
+     * The names are the page's language; the fields are the store's own, already in its order. The
+     * countries a form offers come only when it is opened (addressForm, the owner 2026-10-29): what
+     * the book itself needs of Platform's places is read only when there are addresses to need it.
      *
      * @return list<AddressBookStore>
      */
     private function addressBook(string $locale): array
     {
         $stores = $this->addresses->forCurrentCustomer();
-        $other = $locale === 'ar' ? 'en' : 'ar';
-
-        // The countries offered and the store each ships from, read once for every store's form
-        // (amendment 76(b), (c)): one query for the countries, one per store for its ship-to list.
-        $offered = $this->platform->addressCountries($locale);
-        $shipsFrom = [];
-
-        foreach ($this->platform->allStores() as $shipping) {
-            foreach ($this->platform->storeCountries($shipping->storeId()) as $code) {
-                $shipsFrom[$code] = $shipping;
-            }
-        }
-
-        $withPlaces = [];
-
-        foreach ($offered as $country) {
-            $withPlaces[$country->code] = $country->hasPlaces;
-        }
-
-        // The places every address names, in one read, for the retired ones (76(i)).
         $ids = [];
+        $typed = false;
 
         foreach ($stores as $store) {
             foreach ($store->addresses as $address) {
                 array_push($ids, ...array_values(array_filter([$address->regionId, $address->cityId, $address->districtId])));
+                $typed = $typed || $address->regionId === null;
             }
         }
 
+        // The places every address names, in one read, for the retired ones (76(i)); and, only for a
+        // typed address, which countries have a list now (76(j)) - one query each, none for an empty book.
         $places = $ids === [] ? [] : $this->platform->place(array_values(array_unique($ids)));
+        $withPlaces = [];
 
-        return array_map(function (MyAddressesInStoreDto $store) use ($locale, $other, $offered, $shipsFrom, $withPlaces, $places): AddressBookStore {
+        if ($typed) {
+            foreach ($this->platform->addressCountries($locale) as $country) {
+                $withPlaces[$country->code] = $country->hasPlaces;
+            }
+        }
+
+        return array_map(function (MyAddressesInStoreDto $store) use ($locale, $withPlaces, $places): AddressBookStore {
             $named = $this->platform->store(StoreId::fromString($store->storeId));
-            $own = $named->countryCode ?? '';
-
-            $countries = array_map(static function ($country) use ($locale, $other, $shipsFrom, $store): AddressCountryOption {
-                $by = $shipsFrom[$country->code] ?? null;
-
-                return new AddressCountryOption(
-                    $country->code,
-                    $country->name->in($locale),
-                    $country->name->in($other),
-                    $country->hasPlaces,
-                    $by === null || $by->id === $store->storeId ? null : new ServedByStore($by->code, $by->name->in($locale), $by->isActive),
-                );
-            }, $offered);
-
-            // The store's own country first (Q1), then the rest as the language sorts them.
-            usort($countries, static fn (AddressCountryOption $a, AddressCountryOption $b): int => ($b->code === $own) <=> ($a->code === $own));
 
             return new AddressBookStore(
                 storeId: $store->storeId,
@@ -365,15 +343,63 @@ final readonly class CustomerOwnAccountController
                 ), $store->addresses),
                 limit: $store->limit,
                 full: count($store->addresses) >= $store->limit,
-                countryCode: $own,
-                countries: $countries,
-                // One query per store whose country has a list (KSA's 13 regions, say).
-                regions: ($withPlaces[$own] ?? false) ? array_map(
-                    static fn (PlaceDto $place): PlaceOption => new PlaceOption($place->id, $place->name->in($locale), $place->name->in($other)),
-                    $this->platform->regions($own, $locale),
-                ) : [],
+                countryCode: $named->countryCode ?? '',
             );
         }, $stores);
+    }
+
+    /**
+     * What one store's address form offers, read when Add Address or Edit Address is pressed (the
+     * owner, 2026-10-29): Platform's address countries, the store's own first (Q1), each with the
+     * other store that ships there (76(c), Q2), and the own country's regions where it has a list,
+     * so the first picker opens at once. One query for the countries, one per store for its ship-to
+     * list, one for the regions.
+     */
+    public function addressForm(Request $request): JsonResponse
+    {
+        $locale = $this->app->getLocale();
+        $other = $locale === 'ar' ? 'en' : 'ar';
+        $code = $request->query('store');
+        $store = is_string($code) ? $this->platform->storeByCode(strtolower($code)) : null;
+
+        if ($store === null || ! $store->isActive) {
+            abort(404);
+        }
+
+        $shipsFrom = [];
+
+        foreach ($this->platform->allStores() as $shipping) {
+            foreach ($this->platform->storeCountries($shipping->storeId()) as $country) {
+                $shipsFrom[$country] = $shipping;
+            }
+        }
+
+        $own = $store->countryCode;
+        $ownHasPlaces = false;
+        $countries = [];
+
+        foreach ($this->platform->addressCountries($locale) as $country) {
+            $by = $shipsFrom[$country->code] ?? null;
+            $ownHasPlaces = $ownHasPlaces || ($country->code === $own && $country->hasPlaces);
+            $countries[] = new AddressCountryOption(
+                $country->code,
+                $country->name->in($locale),
+                $country->name->in($other),
+                $country->hasPlaces,
+                $by === null || $by->id === $store->id ? null : new ServedByStore($by->code, $by->name->in($locale), $by->isActive),
+            );
+        }
+
+        // The store's own country first (Q1), then the rest as the language sorts them.
+        usort($countries, static fn (AddressCountryOption $a, AddressCountryOption $b): int => ($b->code === $own) <=> ($a->code === $own));
+
+        return response()->json(new AddressFormData(
+            $countries,
+            $ownHasPlaces ? array_map(
+                static fn (PlaceDto $place): PlaceOption => new PlaceOption($place->id, $place->name->in($locale), $place->name->in($other)),
+                $this->platform->regions($own, $locale),
+            ) : [],
+        ));
     }
 
     /**

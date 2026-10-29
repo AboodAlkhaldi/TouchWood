@@ -179,6 +179,8 @@ return [
         'no_longer_listed' => 'No longer listed',
         'you_wrote' => 'You wrote: :text',
         'loading' => 'Loading the list',
+        'loading_form' => 'Loading the form',
+        'form_failed' => 'The form did not load.',
         'load_failed' => 'The list did not load.',
         'try_again' => 'Try Again',
         'needs_places' => 'Pick this address’s region and city from the list before you order.',

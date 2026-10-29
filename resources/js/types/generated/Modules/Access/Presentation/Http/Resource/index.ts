@@ -29,8 +29,6 @@ addresses: AddressRow[],
 limit: number,
 full: boolean,
 countryCode: string,
-countries: AddressCountryOption[],
-regions: PlaceOption[],
 };
 export type AddressCountryOption = {
 code: string,
@@ -44,6 +42,10 @@ key: string,
 label: string,
 required: boolean,
 maxLength: number,
+};
+export type AddressFormData = {
+countries: AddressCountryOption[],
+regions: PlaceOption[],
 };
 export type AddressFormatField = {
 key: string,
