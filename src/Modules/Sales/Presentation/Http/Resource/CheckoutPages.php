@@ -59,7 +59,7 @@ final readonly class CheckoutPages
         // The default first, else the newest (Access lists them so).
         $chosen ??= $usable[0] ?? null;
         $rows = array_map(static fn (AddressDto $address): CheckoutAddressData => new CheckoutAddressData(
-            $address->id, $address->label, $address->recipientName, $address->phone, $address->formatted, $address->isDefault, $address->isComplete,
+            $address->id, $address->label, $address->recipientName, $address->formatted, $address->isDefault, $address->isComplete,
         ), $addresses);
 
         if ($chosen === null) {

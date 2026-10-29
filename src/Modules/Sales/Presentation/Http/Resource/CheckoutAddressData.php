@@ -15,7 +15,6 @@ final class CheckoutAddressData extends Data
         public string $id,
         public string $label,
         public string $recipientName,
-        public string $phone,
         public string $formatted,
         public bool $isDefault,
         public bool $isComplete,

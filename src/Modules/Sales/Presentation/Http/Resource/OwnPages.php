@@ -82,7 +82,6 @@ final readonly class OwnPages
             $money($order->vat),
             $money($order->total),
             self::text($order->address['recipientName'] ?? ''),
-            self::text($order->address['phone'] ?? ''),
             self::text($order->address['formatted'] ?? ''),
             $order->wayToPay->value,
             $bank === null ? null : new BankData($bank->iban, $bank->bank, $bank->holder),

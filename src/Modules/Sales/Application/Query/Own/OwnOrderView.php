@@ -18,7 +18,7 @@ use Shared\Domain\ValueObject\Money;
 final readonly class OwnOrderView
 {
     /**
-     * @param  array<string, mixed>  $address  as placed (or as staff last set it): label, recipient name, phone, fields, the map point, formatted
+     * @param  array<string, mixed>  $address  as placed (or as staff last set it): label, recipient name, fields, the map point, formatted
      * @param  list<OrderLineView>  $lines
      * @param  list<OwnReturnRow>  $returns
      */
