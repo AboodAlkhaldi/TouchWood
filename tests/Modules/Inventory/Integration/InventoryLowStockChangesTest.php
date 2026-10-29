@@ -361,12 +361,15 @@ describe('lowStockChanges', function () {
 
         $api = app(InventoryApi::class);
         $sa = StoreId::fromString(Ix::storeId('sa'));
+        // Warm, as stockLevels is measured: Platform keeps what it read of the store.
+        $api->lowStockChanges($sa, $from->toDateTimeImmutable(), $to->toDateTimeImmutable());
         $queries = Cx::recordQueries();
         $changes = $api->lowStockChanges($sa, $from->toDateTimeImmutable(), $to->toDateTimeImmutable());
 
         expect($changes->becameLow)->toBe(lowChangesSorted([$x, $z]))
             ->and($changes->ranOut)->toBe([$x])
             ->and($changes->cameBack)->toBe([$x])
+            // Warm: the log; the store's existence answered from what Platform keeps (3 queries cold).
             ->and($queries)->toHaveCount(1);
 
         $other = $api->lowStockChanges(StoreId::fromString(Ix::storeId('ae')), $from->toDateTimeImmutable(), $to->toDateTimeImmutable());
@@ -385,6 +388,28 @@ describe('lowStockChanges', function () {
 
         expect([$empty->becameLow, $empty->ranOut, $empty->cameBack])->toBe([[], [], []])
             ->and(fn () => $api->lowStockChanges($store, $at->toDateTimeImmutable(), $at->subMicrosecond()->toDateTimeImmutable()))->toThrow(InvalidArgumentException::class);
+    });
+
+    it('refuses a store that does not exist, as stockLevels does', function () {
+        $at = CarbonImmutable::now()->toDateTimeImmutable();
+
+        expect(fn () => app(InventoryApi::class)->lowStockChanges(StoreId::fromString(strtolower((string) Str::ulid())), $at, $at))
+            ->toThrow(InvalidInventoryInput::class);
+    });
+
+    it('stamps each change as it is written, after the recount started, so a report read meanwhile cannot miss it', function () {
+        [$a] = lowChangesSizes();
+        $heard = lowChangesHeard();
+
+        Ix::count('sa', [$a => 50]);
+
+        // The set keeps the recount's start (to the microsecond); the change and its event the later write.
+        $started = CarbonImmutable::parse((string) DB::table('inventory.low_sets')->where('store_id', Ix::storeId('sa'))->value('counted_at'));
+        $stamped = CarbonImmutable::parse((string) DB::table('inventory.low_changes')->where('store_id', Ix::storeId('sa'))->value('changed_at'));
+        $event = $heard[0] ?? null;
+
+        expect($stamped->greaterThan($started))->toBeTrue()
+            ->and($event?->occurredAt->format('Y-m-d H:i:s.u'))->toBe($stamped->format('Y-m-d H:i:s.u'));
     });
 
     it('reads what the recounts wrote', function () {

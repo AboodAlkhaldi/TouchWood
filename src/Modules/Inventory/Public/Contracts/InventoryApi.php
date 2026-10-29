@@ -115,8 +115,10 @@ interface InventoryApi
      * `to` (inventory.md §1.7, §2.1, amendment 1) - for Ops' daily report. Each list holds the sizes whose
      * change of that kind happened in the range, each once, in id order; a size that changed several times
      * may be in more than one. Changes are written by the recount, about half a minute after the change of
-     * stock; a store's first recount writes none. The log keeps 12 months. `to` before `from` throws (the
-     * caller's bug). One query, no lock; no permission is checked here.
+     * stock, each stamped as it is written; a store's first recount writes none. The log keeps 12 months.
+     * `to` before `from` throws (the caller's bug); a store that does not exist is
+     * `inventory.invalid_inventory_input` (`store`). The log in one query, no lock; no permission is checked
+     * here.
      *
      * @throws \InvalidArgumentException when `to` is before `from`
      */

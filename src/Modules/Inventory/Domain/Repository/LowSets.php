@@ -24,7 +24,7 @@ interface LowSets
 
     public function save(StoreId $store, LowSet $set, DateTimeImmutable $countedAt): void;
 
-    /** Every change, at the recount's moment - one statement however many. */
+    /** Every change, stamped with the moment it is written (just before the commit) - one statement however many. */
     public function record(StoreId $store, LowChanges $changes, DateTimeImmutable $changedAt): void;
 
     /**

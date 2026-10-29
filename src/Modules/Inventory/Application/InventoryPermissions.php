@@ -16,7 +16,7 @@ use Modules\Inventory\Public\InventoryPermissions as Names;
  *
  * **One permission, per store, any role - Manage Stock** (owner, 2026-10-09): the stock, hand changes,
  * thresholds, the switches and the Low Stock list. It sits in the role editor's Catalog group, as no
- * stock group exists (owner, 2026-10-09). The system's two jobs are reserved: never offered in a role.
+ * stock group exists (owner, 2026-10-09). The system's jobs are reserved: never offered in a role.
  *
  * The names themselves are public (`Modules\Inventory\Public\InventoryPermissions`), so another module
  * can check Manage Stock for itself (owner, 2026-10-19); the constants here are the same names, for the

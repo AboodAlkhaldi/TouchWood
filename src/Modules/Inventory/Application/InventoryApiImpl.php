@@ -349,6 +349,8 @@ final readonly class InventoryApiImpl implements InventoryApi
             throw new InvalidArgumentException('The range ends before it starts.');
         }
 
+        $this->platform->store($store) ?? throw new InvalidInventoryInput('store');
+
         $changes = $this->lowSets->changes($store, $from, $to);
 
         return new LowStockChangesDto($changes->becameLow, $changes->ranOut, $changes->cameBack);

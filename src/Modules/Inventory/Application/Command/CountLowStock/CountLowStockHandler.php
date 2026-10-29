@@ -101,7 +101,11 @@ final readonly class CountLowStockHandler
             return;
         }
 
-        $this->sets->record($store, $changes, $countedAt);
-        $this->events->dispatch(new LowStockChanged((string) Str::uuid(), $store->value, $changes->becameLow, $changes->ranOut, $changes->cameBack, $countedAt));
+        // Stamped as they are written, the last thing before the commit - not at the recount's start: a
+        // report reading [from, to) while this recount runs would otherwise find, later, a change stamped
+        // before its `to` that it never saw, and the next report would start after it.
+        $changedAt = CarbonImmutable::now()->toDateTimeImmutable();
+        $this->sets->record($store, $changes, $changedAt);
+        $this->events->dispatch(new LowStockChanged((string) Str::uuid(), $store->value, $changes->becameLow, $changes->ranOut, $changes->cameBack, $changedAt));
     }
 }

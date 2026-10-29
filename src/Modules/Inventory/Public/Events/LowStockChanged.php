@@ -13,7 +13,8 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
  * list is not empty, never on a store's first recount; a size in one list at most, each list in id order:
  * **became low** (off the list, now 1 or more free and at or below its threshold), **ran out** (nothing
  * free now, and not before - from low too), **came back** (low or out before, neither now). Ids only,
- * sent after the recount commits; `occurredAt` is the recount's moment, as `lowStockChanges` keeps it.
+ * sent after the recount commits; `occurredAt` is the moment the changes were written, as `lowStockChanges`
+ * keeps them.
  */
 final readonly class LowStockChanged implements ShouldDispatchAfterCommit
 {
