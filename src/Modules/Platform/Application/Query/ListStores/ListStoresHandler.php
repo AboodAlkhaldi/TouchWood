@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application\Query\ListStores;
 
+use Modules\Platform\Application\Query\ListAddressCountries\AddressCountryRow;
+use Modules\Platform\Application\Query\ListAddressCountries\ListAddressCountriesHandler;
+use Modules\Platform\Application\Query\NameOrder;
+use Modules\Platform\Application\Query\PlacesPanelReader;
 use Modules\Platform\Application\Query\StoreDirectory;
+use Modules\Platform\Domain\ValueObject\IsoCountries;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
@@ -32,6 +38,8 @@ final readonly class ListStoresHandler
     public function __construct(
         private Authorizer $authorizer,
         private StoreDirectory $directory,
+        private PlacesPanelReader $places,
+        private ListAddressCountriesHandler $countries,
     ) {}
 
     /**
@@ -57,6 +65,7 @@ final readonly class ListStoresHandler
         $mayEdit = $editable === null ? null : array_map(static fn ($store): string => $store->value, $editable);
 
         $summaries = [];
+        $shipsTo = $this->places->shipsTo();
 
         foreach ($this->directory->stores() as $store) {
             if ($maySee !== null && ! in_array($store->id, $maySee, true)) {
@@ -67,7 +76,7 @@ final readonly class ListStoresHandler
                 continue;
             }
 
-            $summaries[] = $this->summary($store, $mayEdit === null || in_array($store->id, $mayEdit, true), $maySwitch, $query->locale);
+            $summaries[] = $this->summary($store, $mayEdit === null || in_array($store->id, $mayEdit, true), $maySwitch, $query->locale, $shipsTo[$store->id] ?? []);
         }
 
         return $summaries;
@@ -83,6 +92,37 @@ final readonly class ListStoresHandler
     }
 
     /**
+     * Whether the person acting may change a store's ship-to countries (platform.md §4.3): the
+     * reserved, store-free `platform.store.countries` - a Super Admin. Offering it is not allowing
+     * it: AddStoreCountry and RemoveStoreCountry ask again.
+     */
+    public function mayChangeCountries(): bool
+    {
+        return $this->authorizer->storesWith(PlatformPermissions::STORE_COUNTRIES) !== [];
+    }
+
+    /**
+     * Add Country's choices on a store's card (platform.md §4.3 B4): the address countries in use,
+     * each with the store that ships there and whether it has its place list - the screen marks those
+     * out of reach, and leaves out what the card's store already ships to. Nobody else is offered
+     * any: empty unless mayChangeCountries().
+     *
+     * @return list<AddressCountryRow>
+     */
+    public function countriesToAdd(string $locale): array
+    {
+        if (! $this->mayChangeCountries()) {
+            return [];
+        }
+
+        return NameOrder::sort(
+            array_values(array_filter($this->countries->rows(), static fn (AddressCountryRow $row): bool => ! $row->retired)),
+            $locale,
+            static fn (AddressCountryRow $row): string => $row->name->in($locale),
+        );
+    }
+
+    /**
      * Whether the person acting may open a store from the stores screen (platform.md §9.7 #3): the
      * reserved, store-free `platform.store.create` - a Super Admin. Offering it is not allowing it:
      * CreateStore asks again.
@@ -92,8 +132,14 @@ final readonly class ListStoresHandler
         return $this->authorizer->storesWith(PlatformPermissions::STORE_CREATE) !== [];
     }
 
-    private function summary(StoreDto $store, bool $editable, bool $maySwitch, string $locale): StoreSummary
+    /**
+     * @param  list<string>  $shipsTo  its ship-to countries, by code
+     */
+    private function summary(StoreDto $store, bool $editable, bool $maySwitch, string $locale, array $shipsTo): StoreSummary
     {
+        // Its own country first: it is always there, and the rest read as what it adds.
+        $others = array_values(array_filter($shipsTo, static fn (string $code): bool => $code !== $store->countryCode));
+
         return new StoreSummary(
             $store->id,
             $store->code,
@@ -109,6 +155,10 @@ final readonly class ListStoresHandler
             $store->isActive,
             $store->isBase,
             $maySwitch && ! $store->isBase,
+            array_map(
+                static fn (string $code): ShipsToCountry => new ShipsToCountry($code, new TranslatedTextDto(IsoCountries::name($code, 'ar'), IsoCountries::name($code, 'en'))),
+                in_array($store->countryCode, $shipsTo, true) ? [$store->countryCode, ...$others] : $others,
+            ),
         );
     }
 }

@@ -35,6 +35,7 @@ use Modules\Platform\Application\Query\AuthorizedStoreChoices;
 use Modules\Platform\Application\Query\ListAudit\AuditReader;
 use Modules\Platform\Application\Query\MediaReader;
 use Modules\Platform\Application\Query\PlaceReader;
+use Modules\Platform\Application\Query\PlacesPanelReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\GuestShoppers;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
@@ -58,6 +59,7 @@ use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseMediaRepository;
 use Modules\Platform\Infrastructure\Eloquent\DatabasePlaceReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabasePlaces;
+use Modules\Platform\Infrastructure\Eloquent\DatabasePlacesPanelReader;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseSettings;
 use Modules\Platform\Infrastructure\Eloquent\DatabaseStoreCountries;
 use Modules\Platform\Infrastructure\Eloquent\EloquentCurrencyRepository;
@@ -120,6 +122,7 @@ final class PlatformServiceProvider extends ServiceProvider
         PlaceRepository::class => DatabasePlaces::class,
         StoreCountryRepository::class => DatabaseStoreCountries::class,
         PlaceReader::class => DatabasePlaceReader::class,
+        PlacesPanelReader::class => DatabasePlacesPanelReader::class,
         LaravelStoreContext::class => LaravelStoreContext::class,
         MediaRepository::class => DatabaseMediaRepository::class,
         MediaInspector::class => FinfoMediaInspector::class,

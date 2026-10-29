@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Platform\Application;
 
-use Collator;
 use DateTimeImmutable;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMedia;
 use Modules\Platform\Application\Command\DeleteMedia\DeleteMediaHandler;
@@ -12,6 +11,7 @@ use Modules\Platform\Application\Command\UploadMedia\UploadMedia;
 use Modules\Platform\Application\Command\UploadMedia\UploadMediaHandler;
 use Modules\Platform\Application\Places\PlaceLocks;
 use Modules\Platform\Application\Query\MediaReader;
+use Modules\Platform\Application\Query\NameOrder;
 use Modules\Platform\Application\Query\PlaceReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Settings\ReadSetting;
@@ -176,11 +176,6 @@ final readonly class PlatformApiImpl implements PlatformApi
      */
     private static function byName(array $items, string $locale): array
     {
-        $collator = Collator::create($locale);
-        usort($items, static fn (AddressCountryDto|PlaceDto $a, AddressCountryDto|PlaceDto $b): int => $collator instanceof Collator
-            ? (int) $collator->compare($a->name->in($locale), $b->name->in($locale))
-            : strcmp($a->name->in($locale), $b->name->in($locale)));
-
-        return $items;
+        return NameOrder::sort($items, $locale, static fn (AddressCountryDto|PlaceDto $item): string => $item->name->in($locale));
     }
 }
