@@ -194,8 +194,13 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   joining, leaving, changing language. **Newsletters are designed and sent in Brevo** (round 3 #12 (a)).
 - **Unsubscribing** in a Brevo email reaches Ops through Brevo's webhook: a guest is removed, a customer's
   consent switches off (Access).
-- *To check against Brevo's documentation before the build:* its contacts and lists API, its webhook and
-  how it is signed. Not verified in this session.
+- *Checked against Brevo's documentation, 2026-10-29 (step 7):* contacts and lists — create a list
+  (`POST /v3/contacts/lists`, `name` + `folderId`), create or update a contact (`POST /v3/contacts`,
+  `listIds`, `updateEnabled`), remove from a list (`POST /v3/contacts/lists/{id}/contacts/remove`),
+  delete a contact (`DELETE /v3/contacts/{email}`); the marketing webhook's `unsubscribed` event, whose body
+  carries `"event": "unsubscribe"` and the `email`. **Brevo signs nothing**: the webhook is authenticated by
+  a custom header Brevo sends with each call, carrying our secret (`X-TouchWood-Secret` =
+  `BREVO_WEBHOOK_SECRET`). The URLs are cited in `BrevoNewsletterList` and `BrevoWebhookController`.
 
 ### 1.10 Reports
 
