@@ -10,7 +10,7 @@ use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 
 /**
- * Ops' permissions (ops.md §3): the six jobs a role may hold, per store, under Messages and reports
+ * Ops' permissions (ops.md §3): the six jobs a role may hold, per store, under Messages and Reports
  * (access.md amendment 86) - a message to many for admins only (owner, round 1 #18).
  *
  * Reading and marking one's own inbox needs no role (§3: "none (own)"): it is held automatically, as

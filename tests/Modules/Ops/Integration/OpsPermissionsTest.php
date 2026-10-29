@@ -16,7 +16,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use function Pest\Laravel\seed;
 
 /*
-| Ops' permissions in Access's catalog (ops.md §3): six jobs per store under Messages and reports
+| Ops' permissions in Access's catalog (ops.md §3): six jobs per store under Messages and Reports
 | (access.md amendment 86), a message to many for admins only; one's own bell held by every customer
 | and every staff member; the nightly removal reserved to the system. Their names in both languages
 | are checked with every module's by Access's PermissionCatalogTest.
@@ -56,7 +56,7 @@ it('declares the six jobs of the spec, the two bells and the system\'s removal',
     ]);
 });
 
-it('makes the six jobs per store, under Messages and reports, a message to many for admins only', function (string $name, bool $adminOnly) {
+it('makes the six jobs per store, under Messages and Reports, a message to many for admins only', function (string $name, bool $adminOnly) {
     $catalog = app(InMemoryPermissionCatalog::class);
     $permission = $catalog->definition($name);
 

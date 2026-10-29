@@ -299,7 +299,7 @@ go (§9.2).
 
 ## 3 · Use cases and permissions
 
-New permission group **Messages and reports** (owner, 2026-10-28); every permission given to admins by
+New permission group **Messages and Reports** (owner, 2026-10-28); every permission given to admins by
 default (roles nest).
 
 | Use case | Permission | Scope |

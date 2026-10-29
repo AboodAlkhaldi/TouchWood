@@ -22,5 +22,5 @@ return [
     'sync' => 'Sync',
     'marketing' => 'Marketing',
     'support' => 'Support',
-    'messages_and_reports' => 'Messages and reports',
+    'messages_and_reports' => 'Messages and Reports',
 ];

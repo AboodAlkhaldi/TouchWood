@@ -280,7 +280,7 @@ it('gives every action a role can hold a business area, and names every area in 
     // jobs Catalog (catalog.md §3), Pricing's jobs Pricing (pricing.md §3), Loyalty's jobs Points
     // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68), Promotions' jobs Marketing
     // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73),
-    // Ops' jobs Messages and reports (ops.md §3, amendment 86).
+    // Ops' jobs Messages and Reports (ops.md §3, amendment 86).
     ksort($used);
     expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'messages_and_reports', 'orders', 'points', 'pricing', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
 });
