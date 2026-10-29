@@ -1081,11 +1081,11 @@ store and language (`/sa/ar/...`).
 - An account's home store is the store it registered in and never changes; the customer may shop
   in any store (access.md §1.1).
 
-#### F9 on Platform's places — the address form (stage 7's screens, part 2) — **[DRAFT, questions in §8.4]**
+#### F9 on Platform's places — the address form (stage 7's screens, part 2) — **[ACCEPTED by the owner, 2026-10-29]**
 
 **Written 2026-10-29** by the screens session, on stage 7 step 2's backend (PR #265, access.md amendment
 76 (a)–(k), as built) and Platform's places (platform.md §4.3, PR #268). Each pick marked **(Q n)** waits on
-§8.4's question n. It must merge before the KSA and Egypt lists are seeded (the backend session holds the
+§8.4's question n — **answered 2026-10-29: every question (a)**. It must merge before the KSA and Egypt lists are seeded (the backend session holds the
 seed PR until then).
 
 **What changes, and what does not.** F9 stays where it is (the account's Addresses tab), grouped by store,
@@ -1377,6 +1377,9 @@ None. The one question here — which module keeps the admin menu registry — w
 ### 8.4 The address form's questions — round 1 (2026-10-29)
 
 Asked by the screens session for §3.6 "F9 on Platform's places". Option **(a)** is the recommended one in each.
+**Answered by the owner, 2026-10-29: every question (a).** With it, the owner fixed the address countries to six —
+Saudi Arabia, Egypt, the UAE, Qatar, Bahrain and Oman — with no Add Country (platform.md §4.3 E8, changed).
+Q7's (a) holds whatever the size of the lists the backend seeds.
 
 | # | Question | Options and their effect |
 |---|---|---|

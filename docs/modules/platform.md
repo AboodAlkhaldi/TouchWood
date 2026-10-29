@@ -605,6 +605,9 @@ offered for `platform.places.manage` — so to Super Admins only (Q1, Q17).
   retired country offers **Restore** instead.
 - **Add Country** at the top: the shared country combobox, every ISO country not on the list, searchable
   in both languages; a retired country is not offered there — it is on the list with Restore (Q10).
+  **Changed by the owner, 2026-10-29** (the address form's round, frontend.md §8.4): **the list is fixed to six
+  countries — Saudi Arabia, Egypt, the UAE, Qatar, Bahrain and Oman — and Add Country leaves the page.** Retire
+  and Restore stay. The three not yet on the list are added by a Platform migration (the backend session's).
 - Sorted by name; retired countries after the others, and only while **Show retired** is on (off at first)
   (Q5). No paging: the list is short (our stores' countries, then what Super Admins add — step 1, Q8).
 
