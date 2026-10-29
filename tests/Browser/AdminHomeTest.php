@@ -74,6 +74,15 @@ it('opens a Super Admin\'s home on All Stores with the cards, switches to one st
     $page->assertDontSeeIn('[data-test="card-platform.system"]', 'Stores On')
         ->assertNoJavaScriptErrors();
 
+    // A phone (frontend.md §2.1): the cards fit, the sidebar becomes the slide-in menu, and it fits too.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the home scrolls sideways');
+    $page->click('[data-sidebar="trigger"]');
+    expect(browserUntil($page, "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')?.getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the slide-in menu does not open within the screen');
+    $page->keys('[data-sidebar="sidebar"][data-mobile="true"]', 'Escape');
+    expect(browserUntil($page, "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]') === null"))->toBeTrue();
+    $page->resize(1280, 800);
+
     // This test's own waiting company opens its own page: its row, found by the company's id in its link.
     $page->click('[data-test="card-b2b.approvals"] [data-test="home-row"][href="/admin/companies/'.$companyId.'"]');
     expect(browserUntil($page, "location.pathname === '/admin/companies/{$companyId}'"))->toBeTrue();

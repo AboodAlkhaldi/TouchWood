@@ -1,9 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { cn } from 'cn';
+import { ChevronDown } from 'lucide-react';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useLink } from '@/lib/routes';
+import { useTranslator } from '@/lib/t';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -22,8 +25,12 @@ import type { SharedProps } from '@/types/page';
 | pages). The list arrives with every shop page, so on one of those pages the account's own
 | headings become links back to their tabs, drawn the same way.
 |
+| This file is the frame of those other pages; the account page's own, with the Tabs, is
+| AccountTabsLayout. Apart, so a page that draws no tabs does not download them (the 60 KB page
+| budget, frontend.md §5: the company page went over it when the phone's menu came, 2026-10-29).
+|
 | On a phone the list sits above the panel rather than beside it; a fourteen-rem column next to a
-| form at 375px leaves room for neither.
+| form at 375px leaves room for neither - and it is folded there, behind one button (AccountMenu).
 |
 | The panel is no card of its own: each section inside it is one (Geist's Fieldset, shadcn's Card),
 | and a card inside a card says the page is built wrong (Geist's Materials).
@@ -32,24 +39,13 @@ import type { SharedProps } from '@/types/page';
 type Props = {
     title: string;
     subtitle?: string;
+    /** The page's key in the list, e.g. "b2b.company". */
+    page: string;
     children: ReactNode;
-} & (
-    | {
-          /** On the account page: the tab open, and how to open another. */
-          tab: string;
-          onTab: (key: string) => void;
-          page?: never;
-      }
-    | {
-          /** On another module's page: its key in the list, e.g. "b2b.company". */
-          page: string;
-          tab?: never;
-          onTab?: never;
-      }
-);
+};
 
 /** A link in the list, drawn as the line tabs under it are: muted, the current one in ink with its bar. */
-function linkClass(current: boolean): string {
+export function accountLinkClass(current: boolean): string {
     return cn(
         'relative flex h-9 w-full items-center rounded-md px-2 text-label-14 font-medium transition-colors',
         'after:absolute after:inset-y-0 after:-end-1 after:w-0.5 after:bg-ink',
@@ -57,76 +53,86 @@ function linkClass(current: boolean): string {
     );
 }
 
-export function AccountLayout({ title, subtitle, children, ...where }: Props) {
-    const { accountMenu } = usePage<SharedProps>().props;
-    const link = useLink();
-    const tabs = accountMenu?.tabs ?? [];
-    const pages = accountMenu?.pages ?? [];
-    // Taken out once, so the callbacks below keep what the check found.
-    const onTab = where.onTab;
+/**
+ * The list, folded on a phone into shadcn's Collapsible, shut, so the page's own content is the first
+ * thing a phone shows (owner, 2026-10-29, the phone audit: eleven links put an order below the first
+ * screen). From tablet width it is always open and its button is gone.
+ *
+ * Its content is always in the page (`forceMount`) and hidden by the stylesheet only on a phone while
+ * shut: the server's HTML is then right at any width, with nothing to flash or move once React wakes.
+ */
+export function AccountMenu({ label, open, onOpenChange, children }: { label: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+    const t = useTranslator();
 
-    const heading = (
+    return (
+        <Collapsible open={open} onOpenChange={onOpenChange} asChild>
+            <nav aria-label={label} className="grid content-start gap-1">
+                <CollapsibleTrigger asChild>
+                    <Button type="button" variant="outline" className="group justify-between md:hidden" data-test="account-menu">
+                        {t('access::auth.account_menu')}
+                        <ChevronDown aria-hidden="true" className="transition-transform group-data-[state=open]:rotate-180" />
+                    </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent forceMount className="grid content-start gap-1 max-md:data-[state=closed]:hidden">
+                    {children}
+                </CollapsibleContent>
+            </nav>
+        </Collapsible>
+    );
+}
+
+/** The page's title and the line under it, at the top of the panel. */
+export function AccountHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+    return (
         <div className="grid gap-1">
             <h1 className="text-heading-24 text-ink">{title}</h1>
             {subtitle ? <p className="text-copy-14 text-ink-muted">{subtitle}</p> : null}
         </div>
     );
+}
 
-    const pageLinks = pages.map((page) => (
+/** The other modules' pages, as links, the one being read marked. */
+export function AccountPageLinks({ current }: { current?: string }) {
+    const { accountMenu } = usePage<SharedProps>().props;
+    const link = useLink();
+
+    return (accountMenu?.pages ?? []).map((page) => (
         <Link
             key={page.key}
             href={link(page.routeName)}
             data-test={`account-page-${page.key}`}
-            aria-current={where.page === page.key ? 'page' : undefined}
-            className={linkClass(where.page === page.key)}
+            aria-current={current === page.key ? 'page' : undefined}
+            className={accountLinkClass(current === page.key)}
         >
             {page.label}
         </Link>
     ));
+}
 
-    if (onTab === undefined) {
-        // Another module's page: the account's headings lead back to their tabs, and the page draws
-        // its own cards (the company page has two columns).
-        return (
-            <StorefrontLayout title={title}>
-                <div className="grid gap-8 md:grid-cols-[14rem_minmax(0,1fr)]">
-                    <nav aria-label={title} className="grid content-start gap-1">
-                        {pageLinks}
-                        {tabs.map((tab) => (
-                            <Link key={tab.key} href={link('storefront.account', { tab: tab.key })} data-test={`tab-${tab.key}`} className={linkClass(false)}>
-                                {tab.label}
-                            </Link>
-                        ))}
-                    </nav>
+export function AccountLayout({ title, subtitle, page, children }: Props) {
+    const { accountMenu } = usePage<SharedProps>().props;
+    const link = useLink();
+    const [menuOpen, setMenuOpen] = useState(false);
 
-                    <section className="grid content-start gap-4">
-                        {heading}
-                        {children}
-                    </section>
-                </div>
-            </StorefrontLayout>
-        );
-    }
-
+    // Another module's page: the account's headings lead back to their tabs, and the page draws its own
+    // cards (the company page has two columns).
     return (
         <StorefrontLayout title={title}>
-            <Tabs orientation="vertical" value={where.tab} onValueChange={onTab} className="grid gap-8 md:grid-cols-[14rem_minmax(0,1fr)]">
-                <nav aria-label={title} className="grid content-start gap-1">
-                    {pageLinks}
-                    <TabsList variant="line" aria-label={title} className="w-full items-stretch">
-                        {tabs.map((tab) => (
-                            <TabsTrigger key={tab.key} value={tab.key} data-test={`tab-${tab.key}`} className="h-9 flex-none px-2 text-label-14">
-                                {tab.label}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                </nav>
+            <div className="grid gap-8 md:grid-cols-[14rem_minmax(0,1fr)]">
+                <AccountMenu label={title} open={menuOpen} onOpenChange={setMenuOpen}>
+                    <AccountPageLinks current={page} />
+                    {(accountMenu?.tabs ?? []).map((tab) => (
+                        <Link key={tab.key} href={link('storefront.account', { tab: tab.key })} data-test={`tab-${tab.key}`} className={accountLinkClass(false)}>
+                            {tab.label}
+                        </Link>
+                    ))}
+                </AccountMenu>
 
-                <TabsContent value={where.tab} className="grid content-start gap-5">
-                    {heading}
+                <section className="grid content-start gap-4">
+                    <AccountHeading title={title} subtitle={subtitle} />
                     {children}
-                </TabsContent>
-            </Tabs>
+                </section>
+            </div>
         </StorefrontLayout>
     );
 }

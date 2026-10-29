@@ -97,4 +97,10 @@ it('writes an Arabic admin page\'s figures, sizes and times in Latin digits', fu
     $page->navigate('/admin/audit');
     expectLatinDigits(latinDigitsTexts($page, '[data-test^="entry-"] time'), eachHasDigit: false);
     $page->assertNoJavaScriptErrors();
+
+    // A phone, right to left (frontend.md §2.1): the audit log and the home fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the audit log scrolls sideways');
+    $page->navigate('/admin', BROWSER_PAGE_LOAD)->assertPresent('[data-test="card-platform.system"]');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the home scrolls sideways');
 });

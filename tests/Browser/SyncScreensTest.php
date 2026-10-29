@@ -218,6 +218,11 @@ it('shows the status line and Problems, dismisses an entry, and queues Sync Now'
         ->and(browserSoon($page, "document.querySelector('[data-test=\"entry-{$bad}\"] [data-test=\"what-product\"]')?.textContent.includes('{$wired['name']}') && document.querySelector('[data-test=\"entry-{$bad}\"]')?.textContent.includes('Not a whole number')"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"tab-problems\"] [data-test=\"problems-count\"]')?.textContent === '2'"))->toBeTrue();
 
+    // A phone (frontend.md §2.1): the status line and Problems fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Sync Report scrolls sideways');
+    $page->resize(1280, 800);
+
     $page->click("[data-test=\"entry-actions-{$entry}\"]")->click('[data-test="dismiss-entry"]');
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-dismiss\"]') !== null"))->toBeTrue();
@@ -317,6 +322,11 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
     $wait('its Reported section', "new URL(window.location.href).searchParams.get('section') === 'reported' && document.querySelectorAll('[data-test=\"reported-row\"]').length === 2");
     $wait('no Codes Asked', "document.querySelector('[data-test=\"section-CODES\"]') === null");
 
+    // A phone (frontend.md §2.1): the read and its sections fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the read scrolls sideways');
+    $page->resize(1280, 800);
+
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
 
     // The panel's own not-found page (frontend.md §2.6): the error's sentence, in the panel's frame, the way back Home.
@@ -350,6 +360,10 @@ it('draws the Provider form with no "being built" note now that Odoo\'s adapter 
         ->and(browserSoon($page, "document.querySelector('[data-test=\"not-ready\"]') === null && ! document.body.innerText.includes('being built')"))->toBeTrue()
         // Odoo asks for nothing beside the address, the key and the secret (§2.4).
         ->and(browserSoon($page, "document.querySelector('[id^=\"provider-setting-\"]') === null"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the form fits, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {

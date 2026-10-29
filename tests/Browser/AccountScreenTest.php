@@ -121,6 +121,29 @@ it('shows another tab when that tab is pressed', function () {
         ->assertNoJavaScriptErrors();
 });
 
+it('fits every tab on a phone, right to left, with nothing scrolling sideways', function () {
+    // Phones are supported (frontend.md §2.1); signed in at a desktop's size first (lesson 118).
+    $page = accountScreenSignedIn();
+    $page->resize(375, 812);
+
+    foreach (['account', 'security', 'sessions', 'notifications'] as $tab) {
+        $page->navigate("/admin/account?tab={$tab}", BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"tab-{$tab}\"][data-state=\"active\"]");
+        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("the {$tab} tab scrolls sideways");
+    }
+
+    // Change Work Email goes under the address on a phone (owner, 2026-10-29): within the screen, below it.
+    $page->navigate('/admin/account', BROWSER_PAGE_LOAD);
+    expect($page->script(<<<'JS'
+        (() => {
+            const button = document.querySelector('[data-test="open-email-dialog"]').getBoundingClientRect();
+            const address = document.querySelector('[data-test="open-email-dialog"]').closest('[data-slot="card-header"]').querySelector('[data-slot="card-description"]').getBoundingClientRect();
+            return button.left >= 0 && button.right <= window.innerWidth && button.top >= address.bottom;
+        })()
+        JS))->toBeTrue('Change Work Email is not under the address within the screen');
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('says why a password change was refused, where the person is looking', function () {
     // A refusal that appears only as a toast at the foot of a tall page, for six seconds, reads as
     // nothing having happened at all.

@@ -75,6 +75,12 @@ it('draws the currencies, shows a sign as a price will, and settles the decimal 
     // Edit steps out while its form is open, so Cancel hands focus back to it (the review of P7).
     $page->click('[data-test="cancel-SAR"]');
     expect(browserUntil($page, "document.activeElement?.dataset.test === 'edit-SAR'"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the list and an open form fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the currencies scroll sideways');
+    $page->click('[data-test="edit-SAR"]')->assertPresent('[data-test="cancel-SAR"]');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the open form scrolls sideways');
 });
 
 it('adds a currency from the screen', function () {

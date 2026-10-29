@@ -78,6 +78,32 @@ it('lets a person see the password they are typing', function () {
     expect($page->script('document.querySelector("#password").type'))->toBe('text');
 });
 
+it('fits the sign-in, the code, the forgotten-password and the reset pages on a phone', function () {
+    // Phones are supported (frontend.md §2.1); the brand panel is hidden there (§3.1). The password is
+    // typed at a desktop's size, the page's React taking the form over first (lesson 118).
+    $email = (string) DB::table('access.staff_users')->where('id', Fx::staff())->value('email');
+    $wide = 'document.documentElement.scrollWidth <= window.innerWidth';
+
+    $page = visit('/admin/sign-in');
+    $page->resize(375, 812);
+    expect($page->script($wide))->toBeTrue('the sign-in page scrolls sideways');
+    $page->resize(1280, 800);
+
+    $page->type('#email', $email)
+        ->type('#password', 'a long enough password')
+        ->click('button[type="submit"]')
+        ->assertPathIs('/admin/sign-in/code');
+    $page->resize(375, 812);
+    expect($page->script($wide))->toBeTrue('the code page scrolls sideways');
+
+    foreach (['/admin/password/forgot', '/admin/password/reset/a-token-this-page-never-reads'] as $address) {
+        $page->navigate($address, BROWSER_PAGE_LOAD)->assertPresent('button[type="submit"]');
+        expect($page->script($wide))->toBeTrue("{$address} scrolls sideways");
+    }
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('takes a code typed on an Arabic keyboard, and signs the person in', function () {
     // The boxes accepted ٠١٢ and sent them on unchanged, so a person who typed their code
     // correctly on an Arabic keyboard was refused for it: a code is compared as a hash, and a hash

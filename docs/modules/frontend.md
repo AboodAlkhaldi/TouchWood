@@ -61,6 +61,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §2.2, §2.3 | **Catalog's screens** (catalog.md §4.4, §4.5, amendment 13): the panel's header search waits for Sales, one search for products and orders; the shop's header gains Catalog's category menu and search box on every shop page, through a small Platform list of the shop frame's parts; shop addresses `/{store}/{locale}/products|categories|brands/{slug}` and `/search` | Owner, 2026-10-07 |
 | §1.7, §2.1, §7 | **Every box checks itself as it is typed**, in every form of every module: a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong — the server still checking everything (catalog.md amendment 16(f)); B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), too | Owner, 2026-10-09: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" |
 | §1.1 | **Catalog's ordered lists are ordered by dragging** — `@dnd-kit` under `dashboard-01`'s handles, saved when dropped, with Move to Top and Move to Bottom on the row's menu — no typed place, no "#" column (catalog.md amendment 16(d)); B2B's type lists and Platform's stores keep theirs | Owner, 2026-10-09 |
+| §2.1, §3.2 B1, §3.6 F8, §6 | **The phone-width audit** (every page at 375×812): on a phone the account's Work Email card puts Change Work Email… **under** the address, not beside it (a long address pushed it off the screen); the shop's account list (other modules' pages and the account's tabs) is **folded behind one Account Menu button** (shadcn's Collapsible, shut) so the page's own content comes first — from tablet width both are as before. Every browser test file checks the phone's width | Owner, 2026-10-29 |
 
 ---
 
@@ -1230,7 +1231,9 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
 - Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
-- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
+- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card; nothing scrolls
+  the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file); the shop's
+  account list folds behind Account Menu (owner, 2026-10-29).
 - With SSR turned off, every page still renders in the browser.
 - The accessibility pass and the keyboard walk-throughs of §6.
 

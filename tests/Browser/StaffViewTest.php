@@ -64,11 +64,18 @@ it('opens the shop from the panel as the staff member, and goes back', function 
         ->assertMissing('[data-test="shopper-menu"]')
         ->assertNoJavaScriptErrors();
 
-    // The menu: the panel and the way out of the view, no account.
+    // From here on a phone (frontend.md §2.1): the staff view's line stays in sight, and nothing
+    // scrolls sideways.
+    $page->resize(375, 812);
+    $page->assertVisible('[data-test="staff-view-line"]');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // The menu: the panel and the way out of the view, no account - within the screen.
     $page->click('[data-test="staff-view-menu"]')
         ->assertPresent('[data-test="staff-view-panel"]')
         ->assertPresent('[data-test="staff-view-leave"]')
         ->assertMissing('[data-test="my-account"]');
+    expect($page->script("document.querySelector('[role=\"menu\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the staff view\'s menu is wider than the screen');
 
     $page->click('[data-test="staff-view-leave"]');
     expect(browserUntil($page, "document.querySelector('[data-test=\"staff-view-line\"]') === null"))->toBeTrue();

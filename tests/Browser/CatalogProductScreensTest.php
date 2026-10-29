@@ -374,6 +374,13 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
         ->and($page->script('document.documentElement.dir'))->toBe('rtl')
         ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
+    // The Photos tab: its hidden file box once took its full width and pushed the page sideways (the phone
+    // audit, 2026-10-29).
+    $page->navigate("/admin/products/{$product}?tab=photos", BROWSER_PAGE_LOAD);
+
+    expect(browserUntil($page, "document.querySelector('[data-test=\"gallery-files\"]') !== null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Photos tab scrolls sideways');
+
     $page->navigate('/admin/products', BROWSER_PAGE_LOAD);
 
     expect(browserUntil($page, "document.querySelector('[data-test=\"product-search\"]') !== null"))->toBeTrue()

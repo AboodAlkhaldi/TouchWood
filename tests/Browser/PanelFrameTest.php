@@ -202,6 +202,36 @@ it('folds the menu into business areas, opens the one being read, lets several s
     $page->assertNoJavaScriptErrors();
 });
 
+it('turns the sidebar into the slide-in menu on a phone, opens a screen from it, and fits the screen', function () {
+    // frontend.md §2.1: below tablet width the sidebar slides in, and nothing scrolls sideways.
+    $staffId = Fx::staffWith([AccessPermissions::STAFF_VIEW, AccessPermissions::ROLE_MANAGE, PlatformPermissions::STORE_VIEW, AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa', 'ae'], RoleLevel::Admin);
+    // Signed in at a desktop's size, then a phone (lesson 118).
+    $page = panelFrameSignIn($staffId);
+    expect(signedInToPanel($page))->toBeTrue();
+    $page->resize(375, 812);
+    $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
+
+    // No sidebar beside the page: the menu is shut until its trigger is pressed.
+    $menu = "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')";
+    expect($page->script("{$menu} === null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
+
+    $page->click('[data-sidebar="trigger"]');
+    expect(browserUntil($page, "{$menu}?.getBoundingClientRect().right <= window.innerWidth && {$menu}.getBoundingClientRect().left >= 0"))->toBeTrue('the menu does not open within the screen');
+
+    // Its areas fold as on a desktop; a screen opens from it, and the menu shuts behind it.
+    $page->click('[data-test="area-store_settings"]')
+        ->click('[data-sidebar="sidebar"][data-mobile="true"] a[href="/admin/stores"]');
+    expect(browserUntil($page, "window.location.pathname === '/admin/stores'"))->toBeTrue()
+        ->and(browserUntil($page, "{$menu} === null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the stores scroll sideways');
+
+    // View Store's menu of stores fits the screen too.
+    $page->click('[data-test="view-store"]')->assertVisible('[data-test="view-store-ae"]');
+    expect($page->script("document.querySelector('[role=\"menu\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('View Store\'s menu is wider than the screen');
+    $page->assertNoJavaScriptErrors();
+});
+
 it('draws thin scrollbars that keep the page\'s room, dark ones in dark mode', function () {
     // The rules are the whole system's, so the sign-in page shows them as well as any.
     $light = visit('/admin/sign-in');
