@@ -8,7 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Modules\Ops\Application\Newsletter\NewsletterSignUps;
-use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
@@ -16,13 +16,16 @@ use Shared\Application\StoreContext;
 
 /*
 | The shop's newsletter box and its links (ops.md §1.9, §3: guest / signed link). JSON; the screens
-| agent builds the box and the two pages the links open.
+| agent builds the box and the pages the links open.
 |
 | - POST newsletter: a guest gives an email. The same answer whether it was on the list or not; a
-|   signed-in customer is told to tick the box in their account instead. At most 5 sign-ups an hour
+|   signed-in customer, or an email that belongs to an account, is told to tick the box in the
+|   account instead (409). At most 5 sign-ups an hour
 |   for one email and 20 from one address: the box sends emails to whatever is typed in it.
 | - GET newsletter/confirm/{token}: what the confirmation link opens; POST confirms. Opening a link
 |   confirms nothing - mail scanners open links too.
+| - GET newsletter/leave/{subscriber}: a guest's link from the confirmation email, signed on its path:
+|   the guest is taken off at once (§3).
 | - GET unsubscribe/{customer}: a marketing email's link, signed: the consent is withdrawn at once,
 |   with no sign-in (§1.3).
 */
@@ -39,7 +42,7 @@ final readonly class NewsletterController
     public function subscribe(Request $request, StoreContext $stores, PlatformApi $platform, ActorContext $actors): JsonResponse
     {
         if ($actors->current()->type === ActorType::Customer) {
-            throw new InvalidOpsInput('email', 'a signed-in customer ticks the box in their account');
+            throw new SubscribeInYourAccount;
         }
 
         $email = Inputs::text($request, 'email') ?? '';
@@ -68,6 +71,13 @@ final readonly class NewsletterController
         $this->signUps->confirm($token);
 
         return new JsonResponse(['confirmed' => true]);
+    }
+
+    public function leave(string $subscriber): JsonResponse
+    {
+        $this->signUps->unsubscribeGuest($subscriber);
+
+        return new JsonResponse(['unsubscribed' => true]);
     }
 
     public function unsubscribe(string $customer): JsonResponse

@@ -221,3 +221,23 @@ it('checks the customer again as the email leaves: consent withdrawn meanwhile, 
 
     expect(CapturedEmails::installed()->sent)->toBe([]);
 });
+
+it('audits writing, changing and cancelling a notice, in the same transaction', function () {
+    Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    $later = CarbonImmutable::now('Asia/Riyadh')->addDay()->format('Y-m-d H:i');
+
+    $id = noticesCreate(sendAt: $later);
+    app(ChangeNoticeHandler::class)->handle(new ChangeNotice($id, 'عرض', 'Offer', 'نص', 'Text', null, true, true, $later));
+    app(CancelNoticeHandler::class)->handle(new CancelNotice($id));
+
+    $entries = DB::table('platform.audit_entries')->where('subject_id', $id)->orderBy('id')->get(['action', 'subject_type', 'store_id', 'changes']);
+    expect($entries->pluck('action')->all())->toBe(['ops.notice.created', 'ops.notice.changed', 'ops.notice.cancelled'])
+        ->and($entries->pluck('subject_type')->unique()->all())->toBe(['ops.notice'])
+        ->and($entries->pluck('store_id')->unique()->all())->toBe([Fx::storeId('sa')])
+        ->and(implode(' ', $entries->pluck('changes')->all()))->toContain('Offer')->toContain('CANCELLED');
+
+    // A refused change writes nothing.
+    expect(fn () => app(CancelNoticeHandler::class)->handle(new CancelNotice($id)))->toThrow(NoticeAlreadyStarted::class)
+        ->and(Fx::audits('ops.notice.cancelled', $id))->toBe(1);
+});

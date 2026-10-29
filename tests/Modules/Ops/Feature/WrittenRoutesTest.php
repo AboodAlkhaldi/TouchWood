@@ -121,6 +121,31 @@ it('signs a guest up from the shop\'s box and confirms them by POST, never by op
     expect(DB::table('ops.subscribers')->value('confirmed_at'))->not->toBeNull();
 });
 
+it('tells a guest whose email belongs to an account, or a signed-in customer, to use the account instead', function () {
+    Fx::customer('sara@example.test');
+
+    postJson('/sa/en/newsletter', ['email' => 'Sara@Example.test'])->assertStatus(409)->assertJsonPath('type', 'ops.subscribe_in_your_account');
+    expect(CapturedEmails::installed()->sent)->toBe([])
+        ->and(DB::table('ops.subscribers')->count())->toBe(0);
+});
+
+it('takes a guest off from the confirmation email\'s signed link; an unsigned one does nothing', function () {
+    postJson('/sa/en/newsletter', ['email' => 'guest@example.test'])->assertStatus(202);
+    postJson(writtenRoutesConfirmPath())->assertOk();
+    preg_match('#(/sa/en/newsletter/leave/[0-9a-z]{26})(\?signature=[0-9a-f]+)#', CapturedEmails::installed()->last()->text, $match);
+    $path = $match[1] ?? throw new LogicException('No leave link.');
+    $signature = $match[2];
+
+    get($path, ['Accept' => 'application/json'])->assertForbidden();
+    expect(DB::table('ops.subscribers')->count())->toBe(1);
+
+    get($path.$signature, ['Accept' => 'application/json'])->assertOk()->assertExactJson(['unsubscribed' => true]);
+    expect(DB::table('ops.subscribers')->count())->toBe(0)
+        ->and(CapturedNewsletterList::installed()->last())->toBe('remove guest@example.test '.Fx::storeId('sa').' en');
+    // Followed again: nothing left to take off.
+    get($path.$signature, ['Accept' => 'application/json'])->assertOk();
+});
+
 it('limits the box to 5 sign-ups an hour for one email', function () {
     foreach (range(1, 5) as $ignored) {
         postJson('/sa/en/newsletter', ['email' => 'guest@example.test'])->assertStatus(202);
@@ -139,7 +164,7 @@ it('switches the consent off from a marketing email\'s signed link, with no sign
     get(URL::signedRoute('storefront.ops.unsubscribe', ['store' => 'sa', 'locale' => 'en', 'customer' => $sara]), ['Accept' => 'application/json'])->assertOk();
     expect(DB::table('access.customers')->where('id', $sara)->first())->toMatchArray(['marketing_consent' => false, 'marketing_consent_source' => 'UNSUBSCRIBE_LINK'])
         ->and(DB::table('ops.subscribers')->count())->toBe(0);
-})->skip('Waits on Access: withdrawMarketingConsent refuses system work queued from a request (requester guest) - reported, ops step 7');
+});
 
 describe('Brevo\'s webhook', function () {
     beforeEach(function () {
@@ -182,5 +207,5 @@ describe('Brevo\'s webhook', function () {
         call('POST', '/newsletter/brevo', [], [], [], $headers, (string) json_encode(['id' => 1, 'event' => 'unsubscribe', 'email' => 'Sara@Example.test', 'list_id' => [41]]))->assertNoContent();
         expect(DB::table('ops.subscribers')->count())->toBe(0)
             ->and(DB::table('access.customers')->where('id', $sara)->value('marketing_consent_source'))->toBe('NEWSLETTER_PROVIDER');
-    })->skip('Waits on Access: withdrawMarketingConsent refuses system work queued from a request (requester guest) - reported, ops step 7');
+    });
 });

@@ -31,6 +31,10 @@ use Shared\Domain\ValueObject\StoreId;
  * - Remove contacts from a list - https://developers.brevo.com/reference/removecontactfromlist
  *   POST https://api.brevo.com/v3/contacts/lists/{listId}/contacts/remove {emails}; 201; 404 when the
  *   list is not found - nothing is left to take out.
+ * - Update a contact - https://developers.brevo.com/reference/updatecontact (read 2026-10-30)
+ *   PUT https://api.brevo.com/v3/contacts/{identifier}, the email urlencoded in the path;
+ *   `emailBlacklisted` "set/unset this field to blacklist/allow the contact for emails" - false lets
+ *   it receive email again; 204; 404 when there is no such contact.
  * - Delete a contact - https://developers.brevo.com/reference/deletecontact
  *   DELETE https://api.brevo.com/v3/contacts/{identifier}, an email or an id in the path; 204; 404
  *   when there is no such contact - already gone.
@@ -80,6 +84,17 @@ final readonly class BrevoNewsletterList implements NewsletterList
 
         if (! $response->successful() && $response->status() !== 404) {
             throw self::refused('the removal from a list', $response);
+        }
+    }
+
+    public function allow(string $email): void
+    {
+        $response = $this->call(fn (PendingRequest $brevo): Response => $brevo->put(self::BASE.'/contacts/'.rawurlencode($email), [
+            'emailBlacklisted' => false,
+        ]));
+
+        if (! $response->successful() && $response->status() !== 404) {
+            throw self::refused('the contact\'s update', $response);
         }
     }
 

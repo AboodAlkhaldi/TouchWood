@@ -46,11 +46,12 @@ final readonly class WrittenEmails
         return $this->email($kind, $values, $locale, $store, $customer->email, trim($customer->firstName.' '.$customer->lastName), $link, $unsubscribe);
     }
 
-    public function newsletterConfirmation(string $email, string $locale, StoreDto $store, string $link): OutgoingEmail
+    /** The guest's confirmation: its link, and the signed link that takes them off again later (§3). */
+    public function newsletterConfirmation(string $email, string $locale, StoreDto $store, string $link, string $leave): OutgoingEmail
     {
         $locale = self::locale($locale);
 
-        return $this->email(MessageKind::NewsletterConfirmation, ['store' => $store->name->in($locale)], $locale, $store, $email, null, $link, null);
+        return $this->email(MessageKind::NewsletterConfirmation, ['store' => $store->name->in($locale)], $locale, $store, $email, null, $link, $leave, 'ops::messages.newsletter_confirmation.leave');
     }
 
     /** A page of the shop, in the store and the language: "/sa/ar/categories/chairs". */
@@ -66,7 +67,7 @@ final readonly class WrittenEmails
     }
 
     /** @param  array<string, string>  $values */
-    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, string $to, ?string $toName, ?string $link, ?string $unsubscribe): OutgoingEmail
+    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, string $to, ?string $toName, ?string $link, ?string $unsubscribe, string $leaveWords = 'ops::messages.unsubscribe'): OutgoingEmail
     {
         $lines = array_values(array_map(
             static fn (mixed $line): string => (string) $line,
@@ -74,8 +75,8 @@ final readonly class WrittenEmails
         ));
         $action = $link === null ? null : (string) $this->translator->get("ops::messages.{$kind->value}.action", $values, $locale);
         $leave = $unsubscribe === null ? null : [
-            'text' => (string) $this->translator->get('ops::messages.unsubscribe.text', $values, $locale),
-            'action' => (string) $this->translator->get('ops::messages.unsubscribe.action', $values, $locale),
+            'text' => (string) $this->translator->get("{$leaveWords}.text", $values, $locale),
+            'action' => (string) $this->translator->get("{$leaveWords}.action", $values, $locale),
         ];
         $brand = $store->name->in($locale);
 

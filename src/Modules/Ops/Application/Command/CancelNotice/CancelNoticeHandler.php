@@ -6,10 +6,12 @@ namespace Modules\Ops\Application\Command\CancelNotice;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Ops\Application\Delivery\WrittenAudit;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\NoticeAlreadyStarted;
 use Modules\Ops\Domain\Exception\NoticeNotFound;
 use Modules\Ops\Domain\Repository\Notices;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -17,6 +19,7 @@ use Shared\Application\Unauthorized;
 /**
  * Cancels a notice until it starts sending (ops.md §1.7), under `ops.notice.manage` in its store. Once
  * sending starts it cannot be recalled; one cancelled already stays as it is - refused the same way.
+ * Audited in the same transaction.
  */
 final readonly class CancelNoticeHandler
 {
@@ -26,6 +29,7 @@ final readonly class CancelNoticeHandler
         private Authorizer $authorizer,
         private Notices $notices,
         private ConnectionInterface $db,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -38,7 +42,9 @@ final readonly class CancelNoticeHandler
 
         $this->db->transaction(function () use ($found): void {
             $notice = $this->notices->lock($found->id) ?? throw new NoticeNotFound;
-            $this->notices->update($notice->cancelled(CarbonImmutable::now()->toDateTimeImmutable()));
+            $cancelled = $notice->cancelled(CarbonImmutable::now()->toDateTimeImmutable());
+            $this->notices->update($cancelled);
+            $this->platform->recordAudit(WrittenAudit::noticeCancelled($notice, $cancelled));
         });
     }
 }

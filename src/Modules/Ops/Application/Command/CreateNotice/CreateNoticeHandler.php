@@ -10,12 +10,14 @@ use Illuminate\Support\Str;
 use Modules\Ops\Application\Delivery\Broadcast;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Delivery\Writers;
+use Modules\Ops\Application\Delivery\WrittenAudit;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Model\BroadcastStatus;
 use Modules\Ops\Domain\Model\Notice;
 use Modules\Ops\Domain\Repository\Notices;
 use Modules\Ops\Domain\ValueObject\WrittenText;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -23,7 +25,7 @@ use Shared\Application\Unauthorized;
 /**
  * Writes an offer notice (ops.md §1.7) under `ops.notice.manage` in its store: sent now - its first
  * batch queued when it is saved - or kept until its time. Refused (§7): no channel, a time already
- * past, a store with no customer to send to.
+ * past, a store with no customer to send to. Audited in the same transaction.
  */
 final readonly class CreateNoticeHandler
 {
@@ -35,6 +37,7 @@ final readonly class CreateNoticeHandler
         private Notices $notices,
         private ConnectionInterface $db,
         private BroadcastQueue $queue,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -55,6 +58,7 @@ final readonly class CreateNoticeHandler
 
         $this->db->transaction(function () use ($notice): void {
             $this->notices->add($notice);
+            $this->platform->recordAudit(WrittenAudit::noticeCreated($notice));
 
             if ($notice->status === BroadcastStatus::Sending) {
                 $this->queue->start(Broadcast::Notice, $notice->id);

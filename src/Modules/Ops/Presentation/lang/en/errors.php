@@ -24,6 +24,10 @@ return [
         'title' => 'Subscriber Not Found',
         'detail' => 'This subscriber isn\'t in the list.',
     ],
+    'subscribe_in_your_account' => [
+        'title' => 'Use Your Account',
+        'detail' => 'This email belongs to an account. Sign in and switch on offers and news in your account.',
+    ],
     'confirmation_link_invalid' => [
         'title' => 'Link Not Valid',
         'detail' => 'This confirmation link isn\'t valid any more. Sign up again to get a new one.',

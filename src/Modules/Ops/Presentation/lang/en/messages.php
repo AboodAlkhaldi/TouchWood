@@ -364,6 +364,11 @@ return [
             'If you did not ask for this, ignore this email and nothing will be sent to you.',
         ],
         'action' => 'Confirm my subscription',
+        // Once confirmed, the guest may leave at any time (§3).
+        'leave' => [
+            'text' => 'Changed your mind later? You can leave the list at any time.',
+            'action' => 'Unsubscribe',
+        ],
     ],
     // Every marketing email ends with this line and its link (§1.3).
     'unsubscribe' => [

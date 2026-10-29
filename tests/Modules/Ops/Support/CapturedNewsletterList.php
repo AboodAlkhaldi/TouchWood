@@ -50,6 +50,11 @@ final class CapturedNewsletterList implements NewsletterList
         $this->call("remove {$email} {$store->value} {$locale}");
     }
 
+    public function allow(string $email): void
+    {
+        $this->call("allow {$email}");
+    }
+
     public function forget(string $email): void
     {
         $this->call("forget {$email}");

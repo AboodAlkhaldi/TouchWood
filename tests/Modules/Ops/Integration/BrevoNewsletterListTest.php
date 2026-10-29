@@ -88,6 +88,19 @@ it('takes an email off its list, nothing when no list was ever made, and deletes
     ]);
 });
 
+it('lets a contact receive email again - Brevo\'s update contact, emailBlacklisted false (https://developers.brevo.com/reference/updatecontact)', function () {
+    Http::fake(['api.brevo.com/v3/contacts/*' => Http::sequence()->push(null, 204)->push(['code' => 'document_not_found', 'message' => 'Contact does not exist'], 404)->push(['code' => 'invalid_parameter', 'message' => 'bad'], 400)]);
+
+    app(NewsletterList::class)->allow('sara+news@example.test');
+    app(NewsletterList::class)->allow('gone@example.test');
+
+    $requests = Http::recorded()->map(fn (array $pair): array => [$pair[0]->method(), $pair[0]->url(), $pair[0]->data()])->all();
+    expect($requests)->toBe([
+        ['PUT', 'https://api.brevo.com/v3/contacts/sara%2Bnews%40example.test', ['emailBlacklisted' => false]],
+        ['PUT', 'https://api.brevo.com/v3/contacts/gone%40example.test', ['emailBlacklisted' => false]],
+    ])->and(fn () => app(NewsletterList::class)->allow('sara@example.test'))->toThrow(ProviderFailed::class, 'HTTP 400');
+});
+
 it('fails for the queue to try again: Brevo refuses, cannot be reached, no key, no folder - never naming the email', function () {
     Http::fake(['api.brevo.com/*' => Http::response(['code' => 'invalid_parameter', 'message' => 'bad'], 400)]);
     DB::table('ops.newsletter_lists')->insert(['store_id' => Fx::storeId('sa'), 'locale' => 'en', 'brevo_list_id' => 41, 'created_at' => now()]);

@@ -120,3 +120,20 @@ it('finds the customer by name in any store, by email only among those the reade
     // The other store's customer: named, never their email.
     expect($emails)->toEqualCanonicalizing([$sara => 'sara@example.test', $other => null]);
 });
+
+it('audits a message to one customer and a message to many, in the same transaction', function () {
+    $omar = Fx::customer('omar@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.message.send_one', 'ops.message.send_many']);
+
+    $one = staffMessagesSend($omar);
+    $many = staffMessagesSend(null);
+
+    expect(Fx::audits('ops.staff_message.sent', $one))->toBe(1)
+        ->and(Fx::audits('ops.staff_message.sent', $many))->toBe(1)
+        ->and((string) DB::table('platform.audit_entries')->where('subject_id', $one)->value('changes'))->toContain($omar)->toContain('ONE')
+        ->and((string) DB::table('platform.audit_entries')->where('subject_id', $many)->value('changes'))->toContain('STORE');
+
+    // A refused message writes nothing.
+    expect(fn () => staffMessagesSend($omar, bell: false, email: false))->toThrow(InvalidOpsInput::class)
+        ->and(DB::table('platform.audit_entries')->where('action', 'ops.staff_message.sent')->count())->toBe(2);
+});

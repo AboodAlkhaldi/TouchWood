@@ -31,6 +31,14 @@ interface NewsletterList
     public function remove(string $email, StoreId $store, string $locale): void;
 
     /**
+     * Lets the provider email the contact again: someone who unsubscribed in a newsletter, and then
+     * agreed again with us - a customer's switch back on, a guest's new confirmed sign-up.
+     *
+     * @throws ProviderFailed
+     */
+    public function allow(string $email): void;
+
+    /**
      * Deletes the contact itself, from every list: the person's account was anonymized (§6).
      *
      * @throws ProviderFailed

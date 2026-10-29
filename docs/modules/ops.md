@@ -164,7 +164,12 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 A **notice** is staff telling customers about an offer: "Ramadan offers have started".
 
 - Written in **both languages**, with an optional link (a category, a product, a page).
-- **Audience:** every customer of the store, or the members of one Promotions segment.
+- **Audience:** every customer of the store, or the members of one Promotions segment. "Every customer
+  of the store" is **every customer registered in that store** — their home store (owner, 2026-10-30,
+  as built in step 7). **The segment audience lands after Stage 6 makes `PromotionsApi::segmentMembers`
+  store-scoped** (`segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)`, another
+  store's segment refused as `SegmentNotFound`): without the store, a notice of one store could reach
+  another store's segment. Built in step 7: the store audience only.
 - **Channels:** bell and email, **both ticked by default**, each untickable (owner, R4-6). The email
   goes only to customers who agreed (§1.3); the bell to all.
 - **Send now or schedule** a date and time in the store's time zone. A scheduled notice can be edited or
@@ -178,12 +183,16 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
 
 - **To one customer**, found by name, email or phone: staff with `ops.message.send_one`.
 - **To every customer of a store, or a segment:** `ops.message.send_many`, **admins only** (round 1
-  #18).
+  #18). Every customer of a store is every customer registered in it (owner, 2026-10-30); the segment
+  waits for the store-scoped `segmentMembers`, as in §1.7.
 - **Bell and email only** (round 3 #10). Free text in both languages; the customer gets their own
   language.
 - A one-customer message is a **service** message (it ignores consent); a message to many is
   **marketing** for email (§1.3) (owner, 2026-10-28, §9.3 #2).
 - Every message is recorded: who sent it, to whom, the channels, when. Nothing can be recalled.
+- **Audited** (owner, 2026-10-30): writing, changing and cancelling an offer notice, and sending a staff
+  message — to one or to many — each write a Platform audit entry in the same transaction
+  (`ops.notice.created|changed|cancelled`, `ops.staff_message.sent`).
 
 ### 1.9 Newsletter subscribers and Brevo
 
@@ -194,10 +203,20 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   joining, leaving, changing language. **Newsletters are designed and sent in Brevo** (round 3 #12 (a)).
 - **Unsubscribing** in a Brevo email reaches Ops through Brevo's webhook: a guest is removed, a customer's
   consent switches off (Access).
+- **A customer is on the list only while they may receive offers by email** (§1.3: agreed, email
+  verified, not blocked, no deletion pending): Ops also listens to `CustomerEmailVerified`,
+  `CustomerBlocked`, `CustomerUnblocked`, `CustomerDeletionScheduled` and `CustomerDeletionCancelled`
+  (owner, 2026-10-30, kept as built in step 7). A contact newly on a list — a customer who agreed again,
+  a guest's new confirmed sign-up — is allowed email again at Brevo (`emailBlacklisted: false`), since an
+  earlier unsubscribe there left Brevo refusing it.
+- **A guest's own unsubscribe link** (§3) is signed and carried by the confirmation email; following it
+  takes the guest off at once. A guest giving an email that belongs to a customer account is told to tick
+  the box in the account instead (`AccessApi::isCustomerEmail`, access.md amendment 79 as built).
 - *Checked against Brevo's documentation, 2026-10-29 (step 7):* contacts and lists — create a list
   (`POST /v3/contacts/lists`, `name` + `folderId`), create or update a contact (`POST /v3/contacts`,
   `listIds`, `updateEnabled`), remove from a list (`POST /v3/contacts/lists/{id}/contacts/remove`),
-  delete a contact (`DELETE /v3/contacts/{email}`); the marketing webhook's `unsubscribed` event, whose body
+  delete a contact (`DELETE /v3/contacts/{email}`), allow a contact email again (`PUT /v3/contacts/{email}`,
+  `emailBlacklisted: false`; checked 2026-10-30); the marketing webhook's `unsubscribed` event, whose body
   carries `"event": "unsubscribe"` and the `email`. **Brevo signs nothing**: the webhook is authenticated by
   a custom header Brevo sends with each call, carrying our secret (`X-TouchWood-Secret` =
   `BREVO_WEBHOOK_SECRET`). The URLs are cited in `BrevoNewsletterList` and `BrevoWebhookController`.

@@ -43,6 +43,13 @@ final readonly class NewsletterSync
 
             if ($subscriber->isConfirmed()) {
                 $this->list->add($subscriber->email, $subscriber->store, $subscriber->locale);
+
+                // Newly on the list - a customer who agreed again, a guest's new confirmed sign-up:
+                // an earlier unsubscribe in a newsletter left the provider refusing to email them.
+                if ($subscriber->brevoEmail === null) {
+                    $this->list->allow($subscriber->email);
+                }
+
                 $this->subscribers->save($subscriber->syncedAs($subscriber->email, $subscriber->locale));
 
                 return;

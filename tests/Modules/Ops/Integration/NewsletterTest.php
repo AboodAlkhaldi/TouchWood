@@ -24,6 +24,7 @@ use Modules\Ops\Application\Query\ListSubscribers\ListSubscribers;
 use Modules\Ops\Application\Query\ListSubscribers\ListSubscribersHandler;
 use Modules\Ops\Domain\Exception\ConfirmationLinkInvalid;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Ops\Domain\Exception\SubscriberNotFound;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -84,7 +85,7 @@ describe('a guest', function () {
 
         expect(DB::table('ops.subscribers')->first())->toMatchArray(['token_hash' => null, 'brevo_email' => 'guest@example.test', 'brevo_locale' => 'ar'])
             ->and(DB::table('ops.subscribers')->value('confirmed_at'))->not->toBeNull()
-            ->and(CapturedNewsletterList::installed()->calls)->toBe(['add guest@example.test '.Fx::storeId('sa').' ar'])
+            ->and(CapturedNewsletterList::installed()->calls)->toBe(['add guest@example.test '.Fx::storeId('sa').' ar', 'allow guest@example.test'])
             // Used once: the same link again confirms nothing.
             ->and(fn () => app(NewsletterSignUps::class)->confirm(newsletterToken(CapturedEmails::installed())))->toThrow(ConfirmationLinkInvalid::class);
     });
@@ -102,6 +103,37 @@ describe('a guest', function () {
         app(NewsletterSignUps::class)->subscribe(newsletterStore(), 'en', 'guest@example.test');
         expect(CapturedEmails::installed()->sent)->toHaveCount(2)
             ->and(DB::table('ops.subscribers')->count())->toBe(1);
+    });
+
+    it('is refused an email that belongs to a customer account, whatever its case', function () {
+        Fx::customer('sara@example.test', 'ae');
+
+        expect(fn () => app(NewsletterSignUps::class)->subscribe(newsletterStore(), 'en', 'SARA@example.test'))->toThrow(SubscribeInYourAccount::class)
+            ->and(CapturedEmails::installed()->sent)->toBe([])
+            ->and(DB::table('ops.subscribers')->count())->toBe(0);
+    });
+
+    it('leaves by the signed link of the confirmation email, once confirmed or not', function () {
+        app(NewsletterSignUps::class)->subscribe(newsletterStore(), 'en', 'guest@example.test');
+        app(NewsletterSignUps::class)->confirm(newsletterToken(CapturedEmails::installed()));
+        $id = (string) DB::table('ops.subscribers')->value('id');
+
+        expect(CapturedEmails::installed()->last()->text)->toContain('/sa/en/newsletter/leave/'.$id.'?signature=');
+
+        app(NewsletterSignUps::class)->unsubscribeGuest($id);
+        app(NewsletterSignUps::class)->unsubscribeGuest($id);
+
+        expect(DB::table('ops.subscribers')->count())->toBe(0)
+            ->and(CapturedNewsletterList::installed()->calls)->toBe(['add guest@example.test '.Fx::storeId('sa').' en', 'allow guest@example.test', 'remove guest@example.test '.Fx::storeId('sa').' en']);
+    });
+
+    it('never takes a customer off by a guest\'s link', function () {
+        $sara = Wx::agreeing('sara@example.test');
+        event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
+
+        app(NewsletterSignUps::class)->unsubscribeGuest((string) DB::table('ops.subscribers')->value('id'));
+
+        expect(DB::table('ops.subscribers')->count())->toBe(1);
     });
 
     it('refuses what is not an email, and a link older than seven days', function () {
@@ -138,11 +170,11 @@ describe('a customer', function () {
 
         $ae = Fx::storeId('ae');
         expect(DB::table('ops.subscribers')->first())->toMatchArray(['customer_id' => $sara, 'store_id' => $ae, 'locale' => 'en', 'kind' => 'CUSTOMER'])
-            ->and(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$ae} en"]);
+            ->and(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$ae} en", 'allow sara@example.test']);
 
         Wx::set($sara, ['locale' => 'ar']);
         event(new CustomerLocaleChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
-        expect(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$ae} en", "remove sara@example.test {$ae} en", "add sara@example.test {$ae} ar"]);
+        expect(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$ae} en", 'allow sara@example.test', "remove sara@example.test {$ae} en", "add sara@example.test {$ae} ar"]);
 
         Wx::set($sara, ['marketing_consent' => false]);
         event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
@@ -185,7 +217,7 @@ describe('a customer', function () {
 
         expect(DB::table('ops.subscribers')->get()->map(fn ($row) => [$row->kind, $row->customer_id])->all())->toBe([['CUSTOMER', $sara]])
             // Held already, in the same list: nothing more to tell the provider.
-            ->and(CapturedNewsletterList::installed()->calls)->toBe(['add sara@example.test '.Fx::storeId('sa').' en']);
+            ->and(CapturedNewsletterList::installed()->calls)->toBe(['add sara@example.test '.Fx::storeId('sa').' en', 'allow sara@example.test']);
     });
 
     it('is forgotten when anonymized: the row, the provider\'s contact, their bell and the messages to them', function () {

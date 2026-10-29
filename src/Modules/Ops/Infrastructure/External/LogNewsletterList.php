@@ -28,6 +28,11 @@ final readonly class LogNewsletterList implements NewsletterList
         $this->log->info('Newsletter list (log driver): remove', ['email' => $email, 'store' => $store->value, 'locale' => $locale]);
     }
 
+    public function allow(string $email): void
+    {
+        $this->log->info('Newsletter list (log driver): allow', ['email' => $email]);
+    }
+
     public function forget(string $email): void
     {
         $this->log->info('Newsletter list (log driver): forget', ['email' => $email]);

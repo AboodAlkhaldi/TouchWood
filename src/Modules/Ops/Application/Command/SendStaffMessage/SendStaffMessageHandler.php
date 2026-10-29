@@ -11,11 +11,13 @@ use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Ops\Application\Delivery\Broadcast;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Delivery\Writers;
+use Modules\Ops\Application\Delivery\WrittenAudit;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Model\StaffMessage;
 use Modules\Ops\Domain\Repository\StaffMessages;
 use Modules\Ops\Domain\ValueObject\WrittenText;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -29,7 +31,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  * - **to every customer of the store** under `ops.message.send_many` - admins only (round 1 #18) -
  *   marketing for its email (§1.3): only those who agreed get it; the bell goes to all.
  *
- * Recorded with who sent it, to whom, the channels and when; nothing can be recalled.
+ * Recorded with who sent it, to whom, the channels and when, and audited in the same transaction;
+ * nothing can be recalled.
  */
 final readonly class SendStaffMessageHandler
 {
@@ -40,6 +43,7 @@ final readonly class SendStaffMessageHandler
         private StaffMessages $messages,
         private ConnectionInterface $db,
         private BroadcastQueue $queue,
+        private PlatformApi $platform,
     ) {}
 
     /**
@@ -71,6 +75,7 @@ final readonly class SendStaffMessageHandler
 
         $this->db->transaction(function () use ($message): void {
             $this->messages->add($message);
+            $this->platform->recordAudit(WrittenAudit::staffMessageSent($message));
             $this->queue->start(Broadcast::StaffMessage, strtolower($message->id));
         });
 

@@ -33,5 +33,6 @@ Route::prefix('{store}/{locale}')
         Route::post('newsletter', [NewsletterController::class, 'subscribe'])->name('storefront.ops.newsletter.subscribe');
         Route::get('newsletter/confirm/{token}', [NewsletterController::class, 'confirmation'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm');
         Route::post('newsletter/confirm/{token}', [NewsletterController::class, 'confirm'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm.post');
+        Route::get('newsletter/leave/{subscriber}', [NewsletterController::class, 'leave'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave');
         Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->middleware('signed')->name('storefront.ops.unsubscribe');
     });
