@@ -357,6 +357,8 @@ describe('a staff member\'s own account', function () {
             'CAMPAIGN_EXPIRY' => [false, true],
             'SYNC_PROBLEMS' => [false, true],
             'PAYMENT_PROBLEMS' => [false, true],
+            'RETURNS' => [false, true],
+            'PAYMENTS_TO_CHECK' => [false, true],
         ])->and(fn () => app(UpdateOwnNotificationPreferencesHandler::class)->handle(new UpdateOwnNotificationPreferences(['GOSSIP' => ['email' => true, 'panel' => true]])))
             ->toThrow(InvalidAccessAttribute::class);
     });

@@ -180,10 +180,10 @@ describe('the account screen', function () {
             $topics = $inertia->toArray()['props']['notifications'];
 
             expect(array_column($topics, 'topic'))
-                ->toBe(['NEW_ORDERS', 'COMPANY_APPLICATIONS', 'LOW_STOCK', 'CAMPAIGN_EXPIRY', 'SYNC_PROBLEMS', 'PAYMENT_PROBLEMS'])
+                ->toBe(['NEW_ORDERS', 'COMPANY_APPLICATIONS', 'LOW_STOCK', 'CAMPAIGN_EXPIRY', 'SYNC_PROBLEMS', 'PAYMENT_PROBLEMS', 'RETURNS', 'PAYMENTS_TO_CHECK'])
                 // A new staff member's: every in-panel toggle on, every email toggle off.
-                ->and(array_column($topics, 'panel'))->toBe([true, true, true, true, true, true])
-                ->and(array_column($topics, 'email'))->toBe([false, false, false, false, false, false]);
+                ->and(array_column($topics, 'panel'))->toBe([true, true, true, true, true, true, true, true])
+                ->and(array_column($topics, 'email'))->toBe([false, false, false, false, false, false, false, false]);
         });
     });
 

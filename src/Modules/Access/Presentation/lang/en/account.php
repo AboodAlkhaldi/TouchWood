@@ -98,6 +98,8 @@ return [
         'CAMPAIGN_EXPIRY' => 'Campaigns About to End',
         'SYNC_PROBLEMS' => 'Sync Problems',
         'PAYMENT_PROBLEMS' => 'Payment Problems',
+        'RETURNS' => 'Returns',
+        'PAYMENTS_TO_CHECK' => 'Payments to Check',
     ],
 
     /*
