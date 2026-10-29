@@ -86,7 +86,11 @@ the recipient's language (round 1 #23). Every number in Latin digits (owner, 202
 - Consent is **one switch for the person** (identity is global, access.md §1.1); the customer is on their
   **home store's** list only, and unsubscribing anywhere switches it off everywhere (owner, 2026-10-28, §9.3 #13).
 - Every marketing email carries an **unsubscribe link**; following it switches the consent off at once,
-  with no sign-in.
+  with no sign-in. The link opens **a page with one "Unsubscribe" button** — opening it changes nothing;
+  the button (a POST to the same signed address) does it (owner, 2026-10-30). The same address is the
+  email's RFC 8058 one-click unsubscribe (`List-Unsubscribe`, `List-Unsubscribe-Post`) — written on
+  every marketing email; **not passed to Brevo**, whose send reference says "standard email headers
+  are not supported" (checked 2026-10-30; Brevo's help centre says it adds its own).
 - **Company accounts:** the same switch, on the customer account (owner, 2026-10-28, §9.3 #1).
 
 ### 1.4 Who receives a staff alert
@@ -177,11 +181,15 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
 - **With Content:** a campaign may carry "send this notice when the campaign goes live"; Content
   publishes the campaign's going live and Ops sends the notice (owner, round 3 #11). Content never calls
   Ops.
-- Sending to thousands goes in batches on the queue; the notice shows how many were sent.
+- Sending to thousands goes in batches on the queue; the notice shows how many were sent. A batch that
+  fails its last attempt shows the notice **FAILED**; the job waits on the failed jobs screen, and
+  retrying it there carries on from where it stopped (step 7: a batch is safe to run again).
 
 ### 1.8 Staff messages to a customer (handoff §13.3)
 
-- **To one customer**, found by name, email or phone: staff with `ops.message.send_one`.
+- **To one customer**, found by name, email or phone: staff with `ops.message.send_one` — only a customer
+  registered in a store where the staff member holds `ops.message.send_one` **and** may view customers;
+  the search offers only those, and any other is refused as unknown (owner, 2026-10-30).
 - **To every customer of a store, or a segment:** `ops.message.send_many`, **admins only** (round 1
   #18). Every customer of a store is every customer registered in it (owner, 2026-10-30); the segment
   waits for the store-scoped `segmentMembers`, as in §1.7.
@@ -203,14 +211,18 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   joining, leaving, changing language. **Newsletters are designed and sent in Brevo** (round 3 #12 (a)).
 - **Unsubscribing** in a Brevo email reaches Ops through Brevo's webhook: a guest is removed, a customer's
   consent switches off (Access).
+- **While a customer may not receive offers, every guest row of their email, in every store, goes too**
+  — including at registration (`CustomerRegistered`, `GuestBecameCustomer`); with a **deletion pending**
+  the provider's contact is deleted at once, so anonymizing finds nothing left (step 7, review fix).
+  Staff see a customer's email in the subscribers list only if they may view that customer.
 - **A customer is on the list only while they may receive offers by email** (§1.3: agreed, email
   verified, not blocked, no deletion pending): Ops also listens to `CustomerEmailVerified`,
   `CustomerBlocked`, `CustomerUnblocked`, `CustomerDeletionScheduled` and `CustomerDeletionCancelled`
   (owner, 2026-10-30, kept as built in step 7). A contact newly on a list — a customer who agreed again,
   a guest's new confirmed sign-up — is allowed email again at Brevo (`emailBlacklisted: false`), since an
   earlier unsubscribe there left Brevo refusing it.
-- **A guest's own unsubscribe link** (§3) is signed and carried by the confirmation email; following it
-  takes the guest off at once. A guest giving an email that belongs to a customer account is told to tick
+- **A guest's own unsubscribe link** (§3) is signed and carried by the confirmation email; it opens the
+  same one-button page, and the button takes the guest off at once. A guest giving an email that belongs to a customer account is told to tick
   the box in the account instead (`AccessApi::isCustomerEmail`, access.md amendment 79 as built).
 - *Checked against Brevo's documentation, 2026-10-29 (step 7):* contacts and lists — create a list
   (`POST /v3/contacts/lists`, `name` + `folderId`), create or update a contact (`POST /v3/contacts`,

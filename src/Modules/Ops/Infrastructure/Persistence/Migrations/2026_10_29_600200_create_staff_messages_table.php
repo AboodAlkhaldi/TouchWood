@@ -54,7 +54,7 @@ return new class extends Migration
                 ADD CONSTRAINT staff_messages_title CHECK (char_length(title_ar) BETWEEN 1 AND 200 AND char_length(title_en) BETWEEN 1 AND 200),
                 ADD CONSTRAINT staff_messages_body CHECK (char_length(body_ar) BETWEEN 1 AND 500 AND char_length(body_en) BETWEEN 1 AND 500),
                 ADD CONSTRAINT staff_messages_channels CHECK (by_bell OR by_email),
-                ADD CONSTRAINT staff_messages_status CHECK (status IN ('SENDING', 'SENT')),
+                ADD CONSTRAINT staff_messages_status CHECK (status IN ('SENDING', 'SENT', 'FAILED')),
                 ADD CONSTRAINT staff_messages_cursor_type CHECK (cursor_type IS NULL OR cursor_type IN ('INDIVIDUAL', 'COMPANY')),
                 ADD CONSTRAINT staff_messages_counts CHECK (bell_count >= 0 AND email_count >= 0 AND failed_count >= 0),
                 ADD CONSTRAINT staff_messages_finished CHECK ((finished_at IS NOT NULL) = (status = 'SENT'))

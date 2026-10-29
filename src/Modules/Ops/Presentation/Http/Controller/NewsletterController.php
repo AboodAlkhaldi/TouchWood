@@ -24,10 +24,10 @@ use Shared\Application\StoreContext;
 |   for one email and 20 from one address: the box sends emails to whatever is typed in it.
 | - GET newsletter/confirm/{token}: what the confirmation link opens; POST confirms. Opening a link
 |   confirms nothing - mail scanners open links too.
-| - GET newsletter/leave/{subscriber}: a guest's link from the confirmation email, signed on its path:
-|   the guest is taken off at once (§3).
-| - GET unsubscribe/{customer}: a marketing email's link, signed: the consent is withdrawn at once,
-|   with no sign-in (§1.3).
+| - newsletter/leave/{subscriber}: a guest's link from the confirmation email (§3); unsubscribe/{customer}:
+|   a marketing email's link (§1.3). Both signed on their path, no sign-in. GET is the page with its one
+|   "Unsubscribe" button (owner, 2026-10-30) and changes nothing; POST, with the same signature, takes
+|   the guest off or withdraws the consent at once - and is the mail client's one-click POST (RFC 8058).
 */
 final readonly class NewsletterController
 {
@@ -73,6 +73,16 @@ final readonly class NewsletterController
         return new JsonResponse(['confirmed' => true]);
     }
 
+    public function leavePage(): JsonResponse
+    {
+        return self::page('leave');
+    }
+
+    public function unsubscribePage(): JsonResponse
+    {
+        return self::page('unsubscribe');
+    }
+
     public function leave(string $subscriber): JsonResponse
     {
         $this->signUps->unsubscribeGuest($subscriber);
@@ -85,5 +95,16 @@ final readonly class NewsletterController
         $this->signUps->unsubscribeCustomer($customer);
 
         return new JsonResponse(['unsubscribed' => true]);
+    }
+
+    /** What the page shows, in the page's language: its title, its line, its one button. Nothing changes. */
+    private static function page(string $which): JsonResponse
+    {
+        return new JsonResponse([
+            'title' => __("ops::unsubscribe.{$which}.title"),
+            'text' => __("ops::unsubscribe.{$which}.text"),
+            'action' => __("ops::unsubscribe.{$which}.action"),
+            'done' => __("ops::unsubscribe.{$which}.done"),
+        ]);
     }
 }

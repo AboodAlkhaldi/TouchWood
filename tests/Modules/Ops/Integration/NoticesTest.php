@@ -18,10 +18,13 @@ use Modules\Ops\Application\Delivery\Broadcast;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Query\ListNotices\ListNotices;
 use Modules\Ops\Application\Query\ListNotices\ListNoticesHandler;
+use Modules\Ops\Application\Query\ViewNotice\ViewNotice;
+use Modules\Ops\Application\Query\ViewNotice\ViewNoticeHandler;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\NoticeAlreadyStarted;
 use Modules\Ops\Domain\Model\BroadcastStatus;
 use Modules\Ops\Domain\Repository\Notices;
+use Modules\Ops\Infrastructure\Queue\SendBroadcastBatchJob;
 use Modules\Ops\Infrastructure\Queue\SendBroadcastEmailJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Shared\Application\Unauthorized;
@@ -240,4 +243,24 @@ it('audits writing, changing and cancelling a notice, in the same transaction', 
     // A refused change writes nothing.
     expect(fn () => app(CancelNoticeHandler::class)->handle(new CancelNotice($id)))->toThrow(NoticeAlreadyStarted::class)
         ->and(Fx::audits('ops.notice.cancelled', $id))->toBe(1);
+});
+
+it('shows a notice whose batch failed for good as FAILED; retrying the job carries on from where it stopped', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    $id = noticesCreate(sendAt: CarbonImmutable::now('Asia/Riyadh')->addHour()->format('Y-m-d H:i'), email: false);
+    DB::table('ops.notices')->where('id', $id)->update(['status' => 'SENDING', 'started_at' => now()]);
+    $job = new SendBroadcastBatchJob(Broadcast::Notice, $id);
+
+    $job->failed();
+    expect(app(ViewNoticeHandler::class)->handle(new ViewNotice($id))->status)->toBe(BroadcastStatus::Failed);
+
+    // The failed jobs screen's retry: the same job again.
+    app()->call([$job, 'handle']);
+    expect(noticesRow($id))->toMatchArray(['status' => 'SENT', 'bell_count' => 1])
+        ->and(DB::table('ops.inbox_entries')->where('customer_id', $sara)->count())->toBe(1);
+
+    // A notice sent already is never set back to FAILED.
+    $job->failed();
+    expect(noticesRow($id)->status)->toBe('SENT');
 });

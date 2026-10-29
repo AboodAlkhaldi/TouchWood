@@ -14,7 +14,9 @@ use Modules\Ops\Infrastructure\Delivery\BroadcastSender;
 /**
  * One batch of a notice or a staff member's message (ops.md §1.7, §1.8): the sender queues the next
  * one itself, in the batch's own transaction. A batch run twice starts from the same cursor and sends
- * nothing twice.
+ * nothing twice - so after its last attempt fails, the row shows FAILED and this job waits on the
+ * failed jobs screen, where retrying it carries on. Chosen over re-queueing stuck rows on a timer: a
+ * lasting failure is seen once and decided by a person, never retried for ever.
  */
 final class SendBroadcastBatchJob implements ShouldQueue
 {
@@ -36,5 +38,10 @@ final class SendBroadcastBatchJob implements ShouldQueue
     public function handle(BroadcastSender $sender): void
     {
         $sender->batch($this->broadcast, $this->id);
+    }
+
+    public function failed(): void
+    {
+        app(BroadcastSender::class)->batchFailed($this->broadcast, $this->id);
     }
 }

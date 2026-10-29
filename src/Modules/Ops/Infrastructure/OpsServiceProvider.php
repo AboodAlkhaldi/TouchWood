@@ -7,6 +7,7 @@ namespace Modules\Ops\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -18,7 +19,9 @@ use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\CustomerDeletionScheduled;
 use Modules\Access\Public\Events\CustomerEmailVerified;
 use Modules\Access\Public\Events\CustomerLocaleChanged;
+use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\CustomerUnblocked;
+use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Inbox\InboxQueries;
@@ -118,8 +121,12 @@ final class OpsServiceProvider extends ServiceProvider
 
         $this->app->make(PermissionCatalog::class)->declare('ops', ...OpsPermissions::definitions());
 
+        // The unsubscribe links' POST is also a mail client's one-click unsubscribe (RFC 8058), which
+        // carries no CSRF token: the URL's signature is its authority (`signed:relative` on the route).
+        PreventRequestForgery::except(['*/*/unsubscribe/*', '*/*/newsletter/leave/*']);
+
         // Access's events (§6): each listener on the queue, once per event.
-        foreach ([MarketingConsentChanged::class, CustomerLocaleChanged::class, CustomerEmailVerified::class, CustomerBlocked::class, CustomerUnblocked::class, CustomerDeletionScheduled::class, CustomerDeletionCancelled::class] as $event) {
+        foreach ([CustomerRegistered::class, GuestBecameCustomer::class, MarketingConsentChanged::class, CustomerLocaleChanged::class, CustomerEmailVerified::class, CustomerBlocked::class, CustomerUnblocked::class, CustomerDeletionScheduled::class, CustomerDeletionCancelled::class] as $event) {
             Event::listen($event, [RefreshNewsletterSubscription::class, 'handle']);
         }
 

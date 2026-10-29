@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Schema;
 | sending, and once sending starts it cannot be recalled.
 |
 | Sending goes in batches (§1.7): `cursor_type` and `cursor_after` are where the next batch starts, so a
-| batch run twice never sends twice; the counts are what the notice shows as sent. A sent or cancelled
+| batch run twice never sends twice; the counts are what the notice shows as sent. FAILED: a batch
+| failed its last attempt; retrying it from the failed jobs screen carries on. A sent or cancelled
 | notice is deleted twelve months after it was made (§5). Each CHECK is the last line: the handlers
 | refuse the value first (NoticeText, the commands).
 */
@@ -57,7 +58,7 @@ return new class extends Migration
                 ADD CONSTRAINT notices_body CHECK (char_length(body_ar) BETWEEN 1 AND 500 AND char_length(body_en) BETWEEN 1 AND 500),
                 ADD CONSTRAINT notices_link CHECK (link IS NULL OR (char_length(link) BETWEEN 1 AND 500 AND link NOT LIKE '/%' AND strpos(link, '//') = 0 AND strpos(link, chr(92)) = 0 AND strpos(link, ':') = 0)),
                 ADD CONSTRAINT notices_channels CHECK (by_bell OR by_email),
-                ADD CONSTRAINT notices_status CHECK (status IN ('SCHEDULED', 'SENDING', 'SENT', 'CANCELLED')),
+                ADD CONSTRAINT notices_status CHECK (status IN ('SCHEDULED', 'SENDING', 'SENT', 'CANCELLED', 'FAILED')),
                 ADD CONSTRAINT notices_cursor_type CHECK (cursor_type IS NULL OR cursor_type IN ('INDIVIDUAL', 'COMPANY')),
                 ADD CONSTRAINT notices_counts CHECK (bell_count >= 0 AND email_count >= 0 AND failed_count >= 0),
                 ADD CONSTRAINT notices_started CHECK ((started_at IS NULL) = (status IN ('SCHEDULED', 'CANCELLED'))),

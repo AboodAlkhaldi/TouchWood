@@ -41,9 +41,12 @@ final readonly class WrittenEmails
             'line' => $locale === 'ar' ? $text->bodyAr : $text->bodyEn,
         ];
         $link = $text->link === null ? null : $this->root().self::shopPath($store, $locale, $text->link);
-        $unsubscribe = $offers ? $this->urls->signedRoute('storefront.ops.unsubscribe', ['store' => $store->code, 'locale' => $locale, 'customer' => strtolower($customer->id)]) : null;
+        // Signed on its path alone (`signed:relative`), on the shop's own address. The same address
+        // takes the mail client's one-click POST (RFC 8058): every marketing email says so.
+        $unsubscribe = $offers ? $this->root().$this->urls->signedRoute('storefront.ops.unsubscribe', ['store' => $store->code, 'locale' => $locale, 'customer' => strtolower($customer->id)], null, false) : null;
+        $headers = $unsubscribe === null ? [] : ['List-Unsubscribe' => "<{$unsubscribe}>", 'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click'];
 
-        return $this->email($kind, $values, $locale, $store, $customer->email, trim($customer->firstName.' '.$customer->lastName), $link, $unsubscribe);
+        return $this->email($kind, $values, $locale, $store, $customer->email, trim($customer->firstName.' '.$customer->lastName), $link, $unsubscribe, headers: $headers);
     }
 
     /** The guest's confirmation: its link, and the signed link that takes them off again later (§3). */
@@ -66,8 +69,11 @@ final readonly class WrittenEmails
         return $locale === 'ar' ? 'ar' : 'en';
     }
 
-    /** @param  array<string, string>  $values */
-    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, string $to, ?string $toName, ?string $link, ?string $unsubscribe, string $leaveWords = 'ops::messages.unsubscribe'): OutgoingEmail
+    /**
+     * @param  array<string, string>  $values
+     * @param  array<string, string>  $headers
+     */
+    private function email(MessageKind $kind, array $values, string $locale, StoreDto $store, string $to, ?string $toName, ?string $link, ?string $unsubscribe, string $leaveWords = 'ops::messages.unsubscribe', array $headers = []): OutgoingEmail
     {
         $lines = array_values(array_map(
             static fn (mixed $line): string => (string) $line,
@@ -101,6 +107,7 @@ final readonly class WrittenEmails
                 ...($link === null ? [] : ["{$action}: {$link}"]),
                 ...($leave === null ? [] : ["{$leave['text']} {$leave['action']}: {$unsubscribe}"]),
             ]),
+            $headers,
         );
     }
 

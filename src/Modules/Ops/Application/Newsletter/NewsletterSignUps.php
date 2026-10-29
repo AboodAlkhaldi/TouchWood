@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use LogicException;
 use Modules\Access\Public\Contracts\AccessApi;
@@ -81,7 +82,9 @@ final readonly class NewsletterSignUps
         $token = Str::random(48);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
 
-        $sendTo = $this->db->transaction(function () use ($store, $locale, $email, $token, $now): ?string {
+        // Two sign-ups of a new email at once both find no row; the second insert meets the unique
+        // index - it is run again, finds the first one's row, and goes on as a second sign-up would.
+        $signUp = fn (): ?string => $this->db->transaction(function () use ($store, $locale, $email, $token, $now): ?string {
             $existing = $this->subscribers->lockByEmail($store->storeId(), $email);
 
             // Already on the list - a confirmed guest, or a customer who agreed: nothing to send.
@@ -103,6 +106,12 @@ final readonly class NewsletterSignUps
 
             return $id;
         });
+
+        try {
+            $sendTo = $signUp();
+        } catch (UniqueConstraintViolationException) {
+            $sendTo = $signUp();
+        }
 
         if ($sendTo !== null) {
             $this->sendConfirmation($store, $locale, $email, $token, $sendTo);

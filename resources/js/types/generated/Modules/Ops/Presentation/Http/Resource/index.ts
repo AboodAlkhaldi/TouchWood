@@ -3,7 +3,7 @@ export type CustomerToMessageData = {
 id: string,
 firstName: string,
 lastName: string,
-email: string | null,
+email: string,
 };
 export type InboxEntryData = {
 id: string,
@@ -46,7 +46,7 @@ next: string | null,
 };
 export type SubscriberData = {
 id: string,
-email: string,
+email: string | null,
 locale: string,
 kind: string,
 confirmed: boolean,

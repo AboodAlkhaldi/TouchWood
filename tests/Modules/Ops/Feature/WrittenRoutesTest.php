@@ -91,7 +91,7 @@ it('refuses the notices to staff without ops.notice.manage', function () {
 
 it('finds a customer and sends them a message from the composer', function () {
     $omar = Fx::customer('omar@example.test');
-    $browser = writtenRoutesStaff(Fx::staffWith(['ops.message.send_one'], ['sa']));
+    $browser = writtenRoutesStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
 
     $found = $browser->get('/admin/messages/customers?store=sa&search=Sara', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json('customers');
     expect(array_column($found, 'id'))->toBe([$omar]);
@@ -137,13 +137,16 @@ it('takes a guest off from the confirmation email\'s signed link; an unsigned on
     $signature = $match[2];
 
     get($path, ['Accept' => 'application/json'])->assertForbidden();
+    postJson($path)->assertForbidden();
+    // Opening the link is the page with its one button: it changes nothing.
+    get($path.$signature, ['Accept' => 'application/json'])->assertOk()->assertJsonPath('action', 'Unsubscribe');
     expect(DB::table('ops.subscribers')->count())->toBe(1);
 
-    get($path.$signature, ['Accept' => 'application/json'])->assertOk()->assertExactJson(['unsubscribed' => true]);
+    postJson($path.$signature)->assertOk()->assertExactJson(['unsubscribed' => true]);
     expect(DB::table('ops.subscribers')->count())->toBe(0)
         ->and(CapturedNewsletterList::installed()->last())->toBe('remove guest@example.test '.Fx::storeId('sa').' en');
-    // Followed again: nothing left to take off.
-    get($path.$signature, ['Accept' => 'application/json'])->assertOk();
+    // Pressed again: nothing left to take off.
+    postJson($path.$signature)->assertOk();
 });
 
 it('limits the box to 5 sign-ups an hour for one email', function () {
@@ -158,10 +161,16 @@ it('switches the consent off from a marketing email\'s signed link, with no sign
     $sara = Wx::agreeing('sara@example.test');
     event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
 
-    get("/sa/en/unsubscribe/{$sara}", ['Accept' => 'application/json'])->assertForbidden();
+    $signed = URL::signedRoute('storefront.ops.unsubscribe', ['store' => 'sa', 'locale' => 'ar', 'customer' => $sara], null, false);
+
+    get("/sa/ar/unsubscribe/{$sara}", ['Accept' => 'application/json'])->assertForbidden();
+    postJson("/sa/ar/unsubscribe/{$sara}")->assertForbidden();
+    // The page: its words, in the page's language; nothing changes.
+    get($signed, ['Accept' => 'application/json'])->assertOk()->assertJsonPath('action', 'إلغاء الاشتراك');
     expect(DB::table('access.customers')->where('id', $sara)->value('marketing_consent'))->toBeTrue();
 
-    get(URL::signedRoute('storefront.ops.unsubscribe', ['store' => 'sa', 'locale' => 'en', 'customer' => $sara]), ['Accept' => 'application/json'])->assertOk();
+    // The button, or the mail client's one-click POST (RFC 8058), to the same signed address.
+    call('POST', $signed, ['List-Unsubscribe' => 'One-Click'])->assertOk();
     expect(DB::table('access.customers')->where('id', $sara)->first())->toMatchArray(['marketing_consent' => false, 'marketing_consent_source' => 'UNSUBSCRIBE_LINK'])
         ->and(DB::table('ops.subscribers')->count())->toBe(0);
 });

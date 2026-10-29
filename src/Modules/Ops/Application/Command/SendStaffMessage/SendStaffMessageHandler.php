@@ -27,7 +27,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  * Sends a staff member's message (ops.md §1.8), at once, on the queue:
  *
  * - **to one customer** under `ops.message.send_one` in the store - a service message, its email sent
- *   whatever their consent (§9.3 #2);
+ *   whatever their consent (§9.3 #2) - registered in a store where the writer holds send_one and may
+ *   view customers (owner, 2026-10-30); any other is refused as an unknown one;
  * - **to every customer of the store** under `ops.message.send_many` - admins only (round 1 #18) -
  *   marketing for its email (§1.3): only those who agreed get it; the bell goes to all.
  *
@@ -66,7 +67,8 @@ final readonly class SendStaffMessageHandler
             $customerId = strtolower(trim($command->customerId));
             $customer = Ulids::valid($customerId) ? $this->access->customer($customerId) : null;
 
-            if ($customer === null || $customer->anonymized) {
+            // Only a customer of a store where the writer may send to one and view customers.
+            if ($customer === null || ! $this->writers->mayWriteToOne($customer)) {
                 throw new InvalidOpsInput('customer', 'a customer');
             }
         }

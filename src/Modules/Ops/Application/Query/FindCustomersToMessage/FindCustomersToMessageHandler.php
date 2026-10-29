@@ -12,13 +12,13 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\Error\DomainError;
-use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Finds the customer a message goes to (ops.md §1.8: "found by name, email or phone"), under
- * `ops.message.send_one` in the store, through Access's own search (AccessApi::customerIdsMatching):
- * a name in any store, an email or a phone only among the customers the reader may view. Anonymized
- * accounts are never offered. At most 20.
+ * `ops.message.send_one` in the store, through Access's own search (AccessApi::customerIdsMatching),
+ * and offers only those a message may reach (Writers::mayWriteToOne; owner, 2026-10-30): registered in
+ * a store where the reader holds send_one and may view customers - so their email is always shown.
+ * Anonymized accounts are never offered. At most 20.
  */
 final readonly class FindCustomersToMessageHandler
 {
@@ -41,21 +41,14 @@ final readonly class FindCustomersToMessageHandler
         $this->authorizer->authorize(OpsPermissions::MESSAGE_SEND_ONE, PermissionScope::store($store->storeId()));
 
         $customers = $this->access->customers($this->access->customerIdsMatching($query->text, self::MOST));
-        $viewable = $this->access->customerViewStores();
-        $viewableIds = $viewable === null ? null : array_map(static fn (StoreId $id): string => $id->value, $viewable);
         $found = [];
 
         foreach ($customers as $customer) {
-            if ($customer->anonymized) {
+            if (! $this->writers->mayWriteToOne($customer)) {
                 continue;
             }
 
-            $found[] = new CustomerToMessage(
-                strtolower($customer->id),
-                $customer->firstName,
-                $customer->lastName,
-                $viewableIds === null || in_array($customer->homeStoreId, $viewableIds, true) ? $customer->email : null,
-            );
+            $found[] = new CustomerToMessage(strtolower($customer->id), $customer->firstName, $customer->lastName, $customer->email);
         }
 
         return $found;

@@ -70,7 +70,7 @@ final readonly class WrittenPages
     {
         return new SubscribersPageData(array_map(static fn (Subscriber $subscriber): SubscriberData => new SubscriberData(
             $subscriber->id,
-            $subscriber->email,
+            in_array($subscriber->id, $page->hiddenEmails, true) ? null : $subscriber->email,
             $subscriber->locale,
             $subscriber->isGuest() ? 'GUEST' : 'CUSTOMER',
             $subscriber->isConfirmed(),

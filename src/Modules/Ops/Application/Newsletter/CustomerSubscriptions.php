@@ -22,8 +22,13 @@ use Shared\Domain\ValueObject\StoreId;
  * - **refresh**: the customer is read again and put on their **home store's** list, in their language,
  *   when they may receive offers by email (MarketingReach: agreed, email verified, not blocked, no
  *   deletion pending), and taken off otherwise. A guest row of the same email in that store becomes
- *   theirs, with what the provider already holds.
- * - **forget** (an anonymized account): the row goes, and the contact is deleted at the provider.
+ *   theirs, with what the provider already holds. While they may not receive offers, **every guest
+ *   row of their email, in every store, goes too**: their consent is the account's switch, never a
+ *   guest's sign-up (§1.3). With a **deletion pending** the provider's contact itself is deleted at
+ *   once - the email is gone from our side before the account is anonymized; a cancelled deletion
+ *   puts them back on, and the provider is told to email them again.
+ * - **forget** (an anonymized account): the row and every guest row of its email go, and the contact
+ *   is deleted at the provider.
  * - **the provider's unsubscribe** (Brevo's webhook): a guest is taken off; a customer's consent is
  *   withdrawn through Access, everywhere - its event then takes the row off.
  */
@@ -54,9 +59,14 @@ final readonly class CustomerSubscriptions
             }
 
             if ($customer === null || $email === null) {
+                // Leaving for good: the contact itself goes, not only its place on a list.
+                $forget = $customer === null || $customer->anonymized || $customer->deletionScheduledFor !== null;
+
                 if ($row !== null) {
-                    $this->drop($row);
+                    $this->drop($row, $forget);
                 }
+
+                $this->dropGuests([$row?->email, $customer === null || $customer->anonymized ? null : $customer->email], $forget);
 
                 return;
             }
@@ -103,6 +113,7 @@ final readonly class CustomerSubscriptions
 
             if ($row !== null) {
                 $this->drop($row, forget: true);
+                $this->dropGuests([$row->email], forget: true);
             }
         });
     }
@@ -125,6 +136,34 @@ final readonly class CustomerSubscriptions
                 $this->queue->withdrawConsent((string) $row->customerId, MarketingConsentSource::NewsletterProvider);
             }
         });
+    }
+
+    /**
+     * Every guest row of these emails, in every store.
+     *
+     * @param  list<string|null>  $emails
+     */
+    private function dropGuests(array $emails, bool $forget): void
+    {
+        foreach (array_unique(array_filter(array_map(self::listed(...), $emails))) as $email) {
+            foreach ($this->subscribers->withEmail($email) as $found) {
+                $guest = $found->isGuest() ? $this->subscribers->lock($found->id) : null;
+
+                if ($guest !== null) {
+                    $this->drop($guest, $forget);
+                }
+            }
+        }
+    }
+
+    /** An email as the lists keep it, or none. */
+    private static function listed(?string $email): ?string
+    {
+        try {
+            return $email === null ? null : Subscriber::email($email);
+        } catch (InvalidOpsInput) {
+            return null;
+        }
     }
 
     private function drop(Subscriber $row, bool $forget = false): void

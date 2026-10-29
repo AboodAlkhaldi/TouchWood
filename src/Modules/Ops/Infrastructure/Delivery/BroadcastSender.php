@@ -73,8 +73,13 @@ final readonly class BroadcastSender
         return $this->db->transaction(function () use ($broadcast, $id): bool {
             $row = $this->row($broadcast, $id, lock: true);
 
-            if ($row === null || $row->status !== 'SENDING') {
+            if ($row === null || ! in_array($row->status, ['SENDING', 'FAILED'], true)) {
                 return false;
+            }
+
+            if ($row->status === 'FAILED') {
+                // Retried from the failed jobs screen: sending again, from the cursor it stopped at.
+                $this->db->update("UPDATE {$this->table($broadcast)} SET status = 'SENDING' WHERE id = ?", [$row->id]);
             }
 
             $store = StoreId::fromString((string) $row->store_id);
@@ -141,6 +146,15 @@ final readonly class BroadcastSender
 
         $this->sent->record($this->sentRow($broadcast, $customer->id, $store->storeId(), $providerId, SendStatus::Sent));
         $this->db->update("UPDATE {$this->table($broadcast)} SET email_count = email_count + 1 WHERE id = ?", [$row->id]);
+    }
+
+    /**
+     * The queue gave up on a batch (its last attempt failed): the notice or message shows FAILED. The
+     * job waits on the failed jobs screen; retrying it there carries on from the cursor.
+     */
+    public function batchFailed(Broadcast $broadcast, string $id): void
+    {
+        $this->db->update("UPDATE {$this->table($broadcast)} SET status = 'FAILED' WHERE id = ? AND status = 'SENDING'", [strtolower($id)]);
     }
 
     /** The queue gave up on one email: recorded as failed and counted - never lost silently (§7). */

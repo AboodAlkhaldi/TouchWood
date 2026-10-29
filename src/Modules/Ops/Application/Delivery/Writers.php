@@ -8,12 +8,15 @@ use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Enums\AccountType;
+use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Throwable;
@@ -29,6 +32,7 @@ final readonly class Writers
         private ActorContext $actors,
         private PlatformApi $platform,
         private AccessApi $access,
+        private Authorizer $authorizer,
     ) {}
 
     /**
@@ -87,6 +91,28 @@ final readonly class Writers
         }
 
         return $at->toDateTimeImmutable();
+    }
+
+    /**
+     * Whether a message to one customer may reach them (owner, 2026-10-30): a customer registered in
+     * a store where the writer holds `ops.message.send_one` **and** may view customers
+     * (AccessApi::customerViewStores). Anyone else is as unknown, never "not yours".
+     */
+    public function mayWriteToOne(CustomerDto $customer): bool
+    {
+        if ($customer->anonymized) {
+            return false;
+        }
+
+        $home = strtolower($customer->homeStoreId);
+
+        foreach ([$this->authorizer->storesWith(OpsPermissions::MESSAGE_SEND_ONE), $this->access->customerViewStores()] as $stores) {
+            if ($stores !== null && ! in_array($home, array_map(static fn (StoreId $store): string => $store->value, $stores), true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

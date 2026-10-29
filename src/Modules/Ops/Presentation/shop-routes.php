@@ -33,6 +33,12 @@ Route::prefix('{store}/{locale}')
         Route::post('newsletter', [NewsletterController::class, 'subscribe'])->name('storefront.ops.newsletter.subscribe');
         Route::get('newsletter/confirm/{token}', [NewsletterController::class, 'confirmation'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm');
         Route::post('newsletter/confirm/{token}', [NewsletterController::class, 'confirm'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm.post');
-        Route::get('newsletter/leave/{subscriber}', [NewsletterController::class, 'leave'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave');
-        Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->middleware('signed')->name('storefront.ops.unsubscribe');
+        // The unsubscribe links (owner, 2026-10-30): GET is the page with its one button and changes
+        // nothing - mail scanners open links too; POST, with the same signature, does it. The POST is
+        // also the mail client's one-click unsubscribe (RFC 8058), so it takes no CSRF token: the
+        // signature is its authority (OpsServiceProvider).
+        Route::get('newsletter/leave/{subscriber}', [NewsletterController::class, 'leavePage'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave');
+        Route::post('newsletter/leave/{subscriber}', [NewsletterController::class, 'leave'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave.post');
+        Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribePage'])->whereUlid('customer')->middleware('signed:relative')->name('storefront.ops.unsubscribe');
+        Route::post('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->middleware('signed:relative')->name('storefront.ops.unsubscribe.post');
     });
