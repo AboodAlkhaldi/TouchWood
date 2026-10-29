@@ -34,6 +34,7 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
 use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\RoleReader;
+use Modules\Access\Application\Query\StaffAlertRecipients;
 use Modules\Access\Application\Query\StaffReader;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\OwnPasswordCheck;
@@ -68,6 +69,7 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseNotificationPreferenceReposit
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleAssignmentRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffAlertRecipients;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
@@ -189,6 +191,7 @@ final class AccessServiceProvider extends ServiceProvider
         $this->app->bind(RoleReader::class, DatabaseRoleReader::class);
         $this->app->bind(CustomerReader::class, DatabaseCustomerReader::class);
         $this->app->bind(StaffReader::class, DatabaseStaffReader::class);
+        $this->app->bind(StaffAlertRecipients::class, DatabaseStaffAlertRecipients::class);
         // Read once per web request (amendment 65). Scoped: what it remembers lasts one request,
         // and a queued job or the console is never answered from memory.
         $this->app->scoped(GrantsReader::class, RequestGrantsReader::class);

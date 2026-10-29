@@ -143,6 +143,7 @@ Route::prefix('admin')
             Route::post('account/phone', [StaffOwnAccountController::class, 'requestPhoneChange'])->name('access.staff.account.phone');
             Route::post('account/phone/code', [StaffOwnAccountController::class, 'confirmPhoneChange'])->name('access.staff.account.phone.confirm');
             Route::post('account/notifications', [StaffOwnAccountController::class, 'updateNotifications'])->name('access.staff.account.notifications');
+            Route::post('account/critical-sms', [StaffOwnAccountController::class, 'updateCriticalSms'])->name('access.staff.account.critical-sms');
 
             /*
             | Where I am signed in, and which browsers skip my sign-in code (owner, 2026-09-26).

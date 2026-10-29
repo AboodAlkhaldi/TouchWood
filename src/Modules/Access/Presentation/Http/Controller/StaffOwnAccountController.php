@@ -18,6 +18,8 @@ use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChan
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
 use Modules\Access\Application\Command\RevokeTrustedBrowser\RevokeTrustedBrowser;
 use Modules\Access\Application\Command\RevokeTrustedBrowser\RevokeTrustedBrowserHandler;
+use Modules\Access\Application\Command\SetOwnCriticalSms\SetOwnCriticalSms;
+use Modules\Access\Application\Command\SetOwnCriticalSms\SetOwnCriticalSmsHandler;
 use Modules\Access\Application\Command\SignOutEverywhere\SignOutEverywhere;
 use Modules\Access\Application\Command\SignOutEverywhere\SignOutEverywhereHandler;
 use Modules\Access\Application\Command\UpdateOwnNotificationPreferences\UpdateOwnNotificationPreferences;
@@ -34,6 +36,7 @@ use Modules\Access\Application\Query\MySessions\MySessionsForStaff;
 use Modules\Access\Application\Query\MySessions\StaffSessionDto;
 use Modules\Access\Application\Query\MySessions\TrustedBrowserDto;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Presentation\Http\Request\CriticalSmsRequest;
 use Modules\Access\Presentation\Http\Request\EmailRequest;
 use Modules\Access\Presentation\Http\Request\NotificationSwitchRequest;
 use Modules\Access\Presentation\Http\Request\OwnPhoneChangeRequest;
@@ -108,6 +111,7 @@ final readonly class StaffOwnAccountController
             // a new address is a way to take an account over (amendment 17).
             canChangeEmail: $account->isSuperAdmin,
             notifications: $this->notifications($account),
+            criticalSms: $account->criticalSms,
             countries: $this->countries(),
             passwordMinLength: $this->settings->passwordMinLength(),
             codeLength: $this->settings->codeLength(),
@@ -269,6 +273,18 @@ final readonly class StaffOwnAccountController
             $handler->handle(new UpdateOwnNotificationPreferences([
                 $request->text('topic') => ['email' => $request->boolean('email'), 'panel' => $request->boolean('panel')],
             ]));
+        } catch (DomainError $error) {
+            return $this->refused($request, $error);
+        }
+
+        return $this->backTo('notifications')->with('status', __('access::account.saved'));
+    }
+
+    /** The critical-SMS switch (amendment 81), a Super Admin's only; saved the moment it is flipped. */
+    public function updateCriticalSms(CriticalSmsRequest $request, SetOwnCriticalSmsHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new SetOwnCriticalSms($request->boolean('critical_sms')));
         } catch (DomainError $error) {
             return $this->refused($request, $error);
         }

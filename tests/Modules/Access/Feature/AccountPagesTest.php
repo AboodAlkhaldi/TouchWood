@@ -515,6 +515,32 @@ describe('B4 - the notifications', function () {
     });
 });
 
+describe('the critical-SMS switch (amendment 81)', function () {
+    it('is on the page for a Super Admin, on by default, and saves as it is flipped', function () {
+        $superAdminId = Fx::staff(StaffStatus::Active, superAdmin: true);
+        $browser = accountSignIn($superAdminId);
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', true));
+
+        $response = $browser->post('/admin/account/critical-sms', ['critical_sms' => false]);
+        $response->assertRedirect('/admin/account?tab=notifications');
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', false));
+        expect(Fx::audits('access.staff_user.critical_sms_changed', $superAdminId))->toBe(1);
+    });
+
+    it('is not on anyone else\'s page, and refused when they post it anyway', function () {
+        [$browser, $staffId] = accountOrdinary();
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', null));
+
+        $response = $browser->post('/admin/account/critical-sms', ['critical_sms' => false]);
+        $response->assertRedirect();
+        expect(accountFieldError($response, 'form'))->not->toBeNull()
+            ->and((bool) DB::table('access.staff_users')->where('id', $staffId)->value('critical_sms'))->toBeTrue();
+    });
+});
+
 describe('the routes themselves', function () {
     it('gives the account page to the admin group and to no other', function () {
         [$browser] = accountOrdinary();

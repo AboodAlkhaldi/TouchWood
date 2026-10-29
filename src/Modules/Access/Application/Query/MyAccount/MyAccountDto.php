@@ -29,6 +29,8 @@ final readonly class MyAccountDto
      *                              proved who they are
      * @param  string|null  $pendingEmail  the address a change is waiting on; null when none is
      * @param  array<string, array{email: bool, panel: bool}>  $notifications  topic => toggles
+     * @param  bool|null  $criticalSms  whether Ops' critical SMS reaches them (amendment 81); null
+     *                                  for anyone but a Super Admin, who alone is sent it and sees it
      */
     public function __construct(
         /** Their own id, which the panel already knows: the shell carries it on every page. */
@@ -52,5 +54,6 @@ final readonly class MyAccountDto
         public bool $isSuperAdmin,
         public ?string $pendingEmail,
         public array $notifications,
+        public ?bool $criticalSms,
     ) {}
 }

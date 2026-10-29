@@ -6,6 +6,7 @@ namespace Modules\Access\Application\Query\StoresForStaff;
 
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Domain\ValueObject\StoreChoice;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
@@ -51,16 +52,29 @@ final readonly class StoresForStaff
             return $this->platform->allStores();
         }
 
-        $choice = $this->grants->forStaff($actor->id)?->stores;
+        return $this->onAndCovered($this->grants->forStaff($actor->id)?->stores);
+    }
 
-        if ($choice === null) {
+    /**
+     * Another module's question about one staff member (amendment 88; Ops' staff bell): the same
+     * stores, read for the id given rather than for whoever is signed in. None for an account that
+     * is not active - their grants are not used while it is not - nor for an id no staff member has.
+     *
+     * @return list<StoreDto> in the stores' own order
+     */
+    public function of(string $staffId): array
+    {
+        $staff = $this->grants->forStaff($staffId);
+
+        if ($staff === null || ! $staff->isActive()) {
             return [];
         }
 
-        return array_values(array_filter(
-            $this->platform->allStores(),
-            static fn (StoreDto $store): bool => $store->isActive && $choice->covers(StoreId::fromString($store->id)),
-        ));
+        if ($staff->superAdmin) {
+            return $this->platform->allStores();
+        }
+
+        return $this->onAndCovered($staff->stores);
     }
 
     /**
@@ -77,5 +91,22 @@ final readonly class StoresForStaff
         }
 
         return null;
+    }
+
+    /**
+     * The stores a store row covers that are on; none without a row (no role).
+     *
+     * @return list<StoreDto>
+     */
+    private function onAndCovered(?StoreChoice $choice): array
+    {
+        if ($choice === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->platform->allStores(),
+            static fn (StoreDto $store): bool => $store->isActive && $choice->covers(StoreId::fromString($store->id)),
+        ));
     }
 }

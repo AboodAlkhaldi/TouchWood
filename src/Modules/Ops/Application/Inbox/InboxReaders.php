@@ -4,24 +4,21 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Application\Inbox;
 
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\ValueObject\InboxOwner;
-use Modules\Platform\Public\Contracts\PlatformApi;
-use Modules\Platform\Public\Dto\StoreDto;
-use Modules\Platform\Public\PlatformPermissions;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
-use Shared\Application\Authorizer;
 use Shared\Application\StoreContext;
 use Shared\Application\Unauthorized;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * Who is reading a bell, and over which stores (ops.md §1.2): a customer reads their own entries in the
- * shop's store; a staff member their own over the stores they may view - a Super Admin every store,
- * the ones that are off too (whoever may switch stores, as Platform's StoreChoices answers); anyone
- * else the stores that are on. Nobody else has a bell.
+ * shop's store; a staff member their own over the stores they may view, as Access answers them
+ * (access.md amendment 88) - a Super Admin every store, the ones that are off too; anyone else the
+ * stores their assignment covers that are on. Nobody else has a bell.
  *
  * Every handler asks `permission()` and authorizes it before `owner()`.
  */
@@ -32,9 +29,8 @@ final readonly class InboxReaders
 
     public function __construct(
         private ActorContext $actors,
-        private Authorizer $authorizer,
         private StoreContext $stores,
-        private PlatformApi $platform,
+        private AccessApi $access,
     ) {}
 
     /**
@@ -65,12 +61,7 @@ final readonly class InboxReaders
             return InboxOwner::customer($id, $this->stores->current());
         }
 
-        $mayOpenOff = $this->authorizer->storesWith(PlatformPermissions::STORE_SWITCH) !== [];
-
-        return InboxOwner::staff($id, array_values(array_map(
-            static fn (StoreDto $store) => $store->storeId(),
-            array_filter($this->platform->allStores(), static fn (StoreDto $store): bool => $mayOpenOff || $store->isActive),
-        )));
+        return InboxOwner::staff($id, $this->access->staffStores($id));
     }
 
     /**

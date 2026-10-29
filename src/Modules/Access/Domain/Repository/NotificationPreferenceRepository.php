@@ -20,4 +20,11 @@ interface NotificationPreferenceRepository
     public function of(string $staffId): array;
 
     public function set(string $staffId, StaffNotificationTopic $topic, bool $email, bool $panel): void;
+
+    /**
+     * Whether the person receives Ops' critical SMS (amendment 81): on unless they switched it off.
+     */
+    public function criticalSms(string $staffId): bool;
+
+    public function setCriticalSms(string $staffId, bool $on): void;
 }

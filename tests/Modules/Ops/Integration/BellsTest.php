@@ -154,6 +154,25 @@ describe('a staff member\'s bell', function () {
         expect(bellsIds(app(ViewInboxHandler::class)->handle(new ViewInbox('en'))))->toBe([$superEg])
             ->and(app(MarkAllInboxReadHandler::class)->handle(new MarkAllInboxRead))->toBe(1);
     });
+
+    it('leaves out a store that is on but not theirs, and follows a change of their stores (access.md amendment 88)', function () {
+        $staff = Fx::staffWith(['ops.report.view'], ['sa']);
+        $sa = Ox::staffEntry($staff, 'sa');
+        $ae = Ox::staffEntry($staff, 'ae', CarbonImmutable::now()->subMinute());
+
+        Fx::actAsStaff($staff);
+        expect(bellsIds(app(ViewInboxHandler::class)->handle(new ViewInbox('en'))))->toBe([$sa])
+            ->and(app(CountUnreadHandler::class)->handle(new CountUnread))->toBe(1)
+            ->and(fn () => app(MarkInboxEntryReadHandler::class)->handle(new MarkInboxEntryRead($ae)))->toThrow(InboxEntryNotFound::class)
+            ->and(app(MarkAllInboxReadHandler::class)->handle(new MarkAllInboxRead))->toBe(1)
+            ->and(DB::table('ops.inbox_entries')->where('id', $ae)->value('read_at'))->toBeNull();
+
+        Fx::assign($staff, Fx::roleOf($staff), ['ae']);
+        Fx::actAsStaff($staff);
+
+        expect(bellsIds(app(ViewInboxHandler::class)->handle(new ViewInbox('en'))))->toBe([$ae])
+            ->and(app(CountUnreadHandler::class)->handle(new CountUnread))->toBe(1);
+    });
 });
 
 it('has no bell for a guest or the system', function () {

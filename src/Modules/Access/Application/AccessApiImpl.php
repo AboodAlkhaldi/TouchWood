@@ -12,6 +12,9 @@ use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketin
 use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketingConsentHandler;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Application\Query\StaffAlertRecipients;
+use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\StaffDisplayNames;
 use Modules\Access\Application\Staff\StaffMapper;
@@ -28,7 +31,10 @@ use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\MarketingConsentSource;
+use Modules\Access\Public\Enums\PermissionAudience;
+use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Authorizer;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -45,6 +51,9 @@ final readonly class AccessApiImpl implements AccessApi
         private StaffDisplayNames $displayNames,
         private Authorizer $authorizer,
         private WithdrawMarketingConsentHandler $withdrawConsent,
+        private InMemoryPermissionCatalog $catalog,
+        private StaffAlertRecipients $alertRecipients,
+        private StoresForStaff $staffStores,
         private ServedPhones $phones,
     ) {}
 
@@ -145,6 +154,33 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $preferences;
+    }
+
+    public function staffToAlert(StoreId $store, StaffNotificationTopic $topic, string $permission): array
+    {
+        $definition = $this->catalog->definition($permission)
+            ?? throw new InvalidArgumentException("\"{$permission}\" is not a declared permission.");
+
+        // RoleAuthorizer's rules: a Super Admin holds everything; every active staff member the
+        // automatic staff permissions; a role the role permissions that are not reserved, an admin
+        // role alone the admin-only ones. Anything else - reserved, or a customer's or a guest's -
+        // only a Super Admin.
+        $byRole = $definition->audience === PermissionAudience::Role && ! $definition->reserved;
+
+        return $this->alertRecipients->recipients(
+            $store->value,
+            $topic,
+            $permission,
+            everyStaff: $definition->audience === PermissionAudience::EveryStaff,
+            byRole: $byRole,
+            adminOnly: $byRole && $this->catalog->isAdminOnly($permission),
+            storeFree: $definition->kind === PermissionKind::Global,
+        );
+    }
+
+    public function staffStores(string $staffId): array
+    {
+        return array_map(static fn (StoreDto $store): StoreId => $store->storeId(), $this->staffStores->of($staffId));
     }
 
     /**

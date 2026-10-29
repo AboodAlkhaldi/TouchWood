@@ -35,6 +35,8 @@ final class AccountPage extends Data
      * @param  bool  $canChangeEmail  a Super Admin changes their own address (amendment 17);
      *                                anyone else is told to ask an admin
      * @param  list<NotificationSetting>  $notifications  every topic, in the order they are shown
+     * @param  bool|null  $criticalSms  the critical-SMS switch (amendment 81); null, and not shown,
+     *                                  for anyone but a Super Admin
      * @param  list<CountryOption>  $countries  every ISO country, named in the page's language
      * @param  int  $passwordMinLength  from the setting, never written into the screen
      * @param  int  $codeLength  how many digits the SMS code has, from the setting: the Change Phone
@@ -55,6 +57,7 @@ final class AccountPage extends Data
         public ?string $phone,
         public bool $canChangeEmail,
         public array $notifications,
+        public ?bool $criticalSms,
         public array $countries,
         public int $passwordMinLength,
         public int $codeLength,
