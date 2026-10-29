@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-// The security messages Access sends until Ops exists (spec §2.3).
+// C18, the security messages (ops.md §1.5 C18; access.md §2.3): codes by SMS, links by email, in the
+// person's language - the wording Access approved, moved here unchanged when Ops bound its own sender.
+// Not a bell's words: these are never shown on a screen.
 return [
     'email_verification' => [
         'subject' => 'Confirm your email address',
@@ -47,7 +49,7 @@ return [
         ],
         'action' => 'Choose a new password',
     ],
-    // B2B's decisions about a company, until Ops (amendment 48). One plain link, to the shop.
+    // B2B's decisions about a company (access.md amendment 48). One plain link, to the shop.
     'company_approved' => [
         'subject' => 'Your company account is approved',
         'lines' => [

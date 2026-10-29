@@ -7,6 +7,10 @@ return [
     'invalid_access_attribute' => [
         'title' => 'Invalid Details',
         'detail' => 'Couldn\'t save: the :attribute isn\'t valid. Check it and try again.',
+        'rules' => [
+            // Amendment 87: the number's country is not on the SMS countries list.
+            'phone_country' => 'Couldn\'t use this mobile number: we can\'t send codes to numbers from its country. Enter a number from another country.',
+        ],
     ],
     'invalid_address' => [
         'title' => 'Check the Address',

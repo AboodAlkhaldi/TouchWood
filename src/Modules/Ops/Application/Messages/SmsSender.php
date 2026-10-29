@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Messages;
 
 /**
- * Where Ops' SMS leave (ops.md §2.2): the application log until the owner names the provider (Mobily
- * is being checked) - chosen by configuration (`OPS_SMS_DRIVER`).
+ * One SMS provider (ops.md §2.2): the application log until the owner names a real one (Mobily is
+ * being checked). Which one sends is chosen per number, by its country (SmsSenders; access.md
+ * amendment 87).
  */
 interface SmsSender
 {

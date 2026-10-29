@@ -32,6 +32,18 @@ return [
         'title' => 'Link Not Valid',
         'detail' => 'This confirmation link isn\'t valid any more. Sign up again to get a new one.',
     ],
+    'sms_country_not_found' => [
+        'title' => 'Country Not on the List',
+        'detail' => 'Couldn\'t find ":country" on the SMS countries. Reload the list and try again.',
+    ],
+    'sms_country_taken' => [
+        'title' => 'Country Already Listed',
+        'detail' => 'Couldn\'t add ":country": it is already on the SMS countries. Change its provider or calling code there.',
+    ],
+    'calling_code_taken' => [
+        'title' => 'Calling Code in Use',
+        'detail' => 'Couldn\'t use the calling code :calling_code: it is already the code of ":country". Check the code and try again.',
+    ],
 
     'fields' => [
         'after' => 'place in the list',
@@ -55,5 +67,8 @@ return [
         'email' => 'email',
         'locale' => 'language',
         'token' => 'confirmation link',
+        'country_code' => 'country',
+        'calling_code' => 'calling code',
+        'provider' => 'provider',
     ],
 ];

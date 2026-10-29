@@ -8,13 +8,6 @@ declare(strict_types=1);
 */
 
 return [
-    'sms' => [
-        // Where SMS codes go. "log" writes them to the application log, for development and tests,
-        // until the owner names the SMS provider; its adapter is then added and chosen here
-        // (owner's decision, 2026-09-18). Never "log" on a live system.
-        'driver' => env('ACCESS_SMS_DRIVER', 'log'),
-    ],
-
     'admin' => [
         // The admin panel's own session cookie, apart from the storefront's, so its idle limit,
         // two-factor and sign-out never touch a customer session in the same browser (spec §1.8).

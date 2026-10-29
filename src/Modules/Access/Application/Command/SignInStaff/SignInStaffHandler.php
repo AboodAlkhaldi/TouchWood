@@ -11,6 +11,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
@@ -48,6 +49,7 @@ final readonly class SignInStaffHandler
         private StaffSessions $sessions,
         private PlatformApi $platform,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -130,11 +132,14 @@ final readonly class SignInStaffHandler
             $this->sessions->end();
         }
 
-        $phone = $staff->phone();
+        // A phone whose country was taken off the SMS countries list counts as none: no code can reach
+        // it (amendment 87).
+        $phone = $this->phones->reaches($staff->phone()) ? $staff->phone() : null;
 
         if ($phone === null) {
-            // Only a Super Admin whose phone was reset chooses a new number here (amendment 14);
-            // anyone else would pass the code step with the password alone. An admin gives them one.
+            // Only a Super Admin whose phone was reset, or whose phone SMS no longer reaches, chooses a
+            // new number here (amendments 14, 87); anyone else would pass the code step with the
+            // password alone. An admin gives them one.
             if (! $staff->isSuperAdmin()) {
                 throw new SignInRefused;
             }

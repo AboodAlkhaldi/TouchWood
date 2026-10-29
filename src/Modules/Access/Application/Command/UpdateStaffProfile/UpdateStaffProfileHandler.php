@@ -9,6 +9,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\Avatars;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -37,6 +38,7 @@ final readonly class UpdateStaffProfileHandler
         private Avatars $avatars,
         private PlatformApi $platform,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(UpdateStaffProfile $command): void
@@ -45,6 +47,8 @@ final readonly class UpdateStaffProfileHandler
 
         $profile = StaffProfile::of($command->firstName, $command->lastName, $command->jobTitle, $command->dateOfBirth, $command->country, $command->address);
         $phone = PhoneNumber::of($command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        $this->phones->require($phone);
         $this->avatars->requireUsable($command->avatarMediaId);
 
         $this->db->transaction(function () use ($command, $profile, $phone): void {

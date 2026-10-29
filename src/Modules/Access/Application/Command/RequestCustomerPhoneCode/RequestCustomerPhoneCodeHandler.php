@@ -9,6 +9,7 @@ use Illuminate\Database\Connection;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\CustomerPhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Repository\CustomerRepository;
@@ -32,6 +33,7 @@ final readonly class RequestCustomerPhoneCodeHandler
         private CustomerRepository $customers,
         private CustomerPhoneVerification $verification,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -42,6 +44,8 @@ final readonly class RequestCustomerPhoneCodeHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $customerId = $this->current->id(self::PERMISSION);
         $phone = PhoneNumber::of($command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        $this->phones->require($phone);
 
         $this->db->transaction(function () use ($customerId, $phone): void {
             $customer = $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);

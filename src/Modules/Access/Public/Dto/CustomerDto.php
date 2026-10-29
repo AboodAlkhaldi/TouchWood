@@ -23,6 +23,7 @@ final readonly class CustomerDto
         public string $email,
         public ?string $phone,
         public bool $emailVerified,
+        /** False too while the phone's country is not on the SMS countries list (amendment 87). */
         public bool $phoneVerified,
         public string $locale,
         /**

@@ -9,6 +9,7 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Model\PhoneCode;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
@@ -20,7 +21,8 @@ use Modules\Access\Public\Contracts\SecurityMessages;
 /**
  * Verifying a staff phone by SMS code (spec §1.3, §4.2): a code of the set length, valid for the set
  * minutes; a new one no sooner than the resend interval, and at most so many an hour per number;
- * after the set wrong tries the code is dead. A new request replaces the previous code.
+ * after the set wrong tries the code is dead. A new request replaces the previous code. No code goes to
+ * a number whose country is not on the SMS countries list (amendment 87).
  */
 final readonly class PhoneVerification
 {
@@ -31,15 +33,19 @@ final readonly class PhoneVerification
         private SecurityMessages $messages,
         private RateLimiter $limiter,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
      * Call inside the transaction of the change: the SMS leaves only once it commits.
      *
-     * @throws CodeRequestTooSoon
+     * @throws CodeRequestTooSoon|InvalidAccessAttribute
      */
     public function send(string $staffId, PhoneNumber $phone, PhoneCodePurpose $purpose, Language $language, DateTimeImmutable $now): void
     {
+        // Before anything is counted: a refused number uses none of the limits.
+        $this->phones->require($phone);
+
         $previous = $this->tokens->phoneCode($staffId, $purpose);
         $wait = $previous === null ? 0 : $previous->sentAt->getTimestamp() + $this->settings->codeResendSeconds() - $now->getTimestamp();
 

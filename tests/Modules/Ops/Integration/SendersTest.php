@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
-use Modules\Ops\Application\Messages\SmsSender;
+use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
@@ -18,8 +18,9 @@ use Monolog\Logger;
 use Monolog\LogRecord;
 
 /*
-| The adapters (ops.md §2.2): chosen by configuration - `log` in development and tests, Brevo for email
-| - and Brevo's request exactly as its reference shows it
+| The adapters (ops.md §2.2): email chosen by configuration - `log` in development and tests, Brevo -
+| and SMS by the phone's country (SmsSenders; access.md amendment 87, tested with the security
+| messages) - and Brevo's request exactly as its reference shows it
 | (https://developers.brevo.com/reference/sendtransacemail). No real network: Http::fake answers, and
 | refuses anything not faked.
 */
@@ -35,9 +36,8 @@ function sendersEmail(): OutgoingEmail
 
 it('uses the log drivers by default, and writes what would be sent to the log', function () {
     expect(config('ops.email.driver'))->toBe('log')
-        ->and(config('ops.sms.driver'))->toBe('log')
         ->and(app(EmailSender::class))->toBeInstanceOf(LogEmailSender::class)
-        ->and(app(SmsSender::class))->toBeInstanceOf(LogSmsSender::class);
+        ->and(app(SmsSenders::class)->named('log'))->toBeInstanceOf(LogSmsSender::class);
 
     $handler = new TestHandler;
     $logger = new Logger('ops', [$handler]);
@@ -63,15 +63,14 @@ it('refuses a driver it does not have, and the log drivers on a live system', fu
     config(['ops.email.driver' => 'carrier-pigeon']);
     expect(fn () => app(EmailSender::class))->toThrow(InvalidArgumentException::class, 'OPS_EMAIL_DRIVER');
 
-    config(['ops.sms.driver' => 'mobily']);
-    expect(fn () => app(SmsSender::class))->toThrow(InvalidArgumentException::class, 'OPS_SMS_DRIVER');
+    expect(fn () => app(SmsSenders::class)->named('mobily'))->toThrow(ProviderFailed::class, 'No SMS provider is called "mobily"');
 
-    config(['ops.email.driver' => 'log', 'ops.sms.driver' => 'log']);
+    config(['ops.email.driver' => 'log']);
     app()->detectEnvironment(fn (): string => 'production');
 
     try {
         expect(fn () => app(EmailSender::class))->toThrow(InvalidArgumentException::class, 'never runs in production')
-            ->and(fn () => app(SmsSender::class))->toThrow(InvalidArgumentException::class, 'never runs in production');
+            ->and(fn () => app(SmsSenders::class)->named('log'))->toThrow(ProviderFailed::class, 'never runs in production');
     } finally {
         app()->detectEnvironment(fn (): string => 'testing');
     }

@@ -9,6 +9,7 @@ use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
 use Modules\Access\Domain\Exception\InvalidCode;
@@ -41,6 +42,7 @@ final readonly class VerifyStaffSignInCodeHandler
         private TrustedBrowsers $trusted,
         private PlatformApi $platform,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -66,7 +68,7 @@ final readonly class VerifyStaffSignInCodeHandler
                 }
 
                 // A password changed or a phone given since: the sign-in starts again.
-                if (! $pending->stillFor($staff)) {
+                if (! $pending->stillFor($staff, $this->phones)) {
                     throw new InvalidCode(requestNewCode: true);
                 }
 
@@ -77,7 +79,9 @@ final readonly class VerifyStaffSignInCodeHandler
                     return $phone;
                 }
 
-                $current = $staff->phone();
+                // A saved phone SMS no longer reaches counts as none (amendment 87): the Super Admin's new
+                // number replaces it.
+                $current = $this->phones->reaches($staff->phone()) ? $staff->phone() : null;
 
                 // A code counts only for the number the account has now, or for the number a Super Admin
                 // with none entered: a code sent before an admin changed the number cannot bring the old

@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Contracts\PhoneCountries;
+use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
 use Modules\Access\Public\Events\CustomerDeletionCancelled;
@@ -26,14 +28,17 @@ use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Inbox\InboxQueries;
 use Modules\Ops\Application\Messages\EmailSender;
+use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\SmsSender;
+use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Domain\Repository\Notices;
 use Modules\Ops\Domain\Repository\OpsLog;
 use Modules\Ops\Domain\Repository\SentMessages;
+use Modules\Ops\Domain\Repository\SmsCountries;
 use Modules\Ops\Domain\Repository\StaffMessages;
 use Modules\Ops\Domain\Repository\Subscribers;
 use Modules\Ops\Infrastructure\Delivery\QueuedBroadcasts;
@@ -42,15 +47,18 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseInboxQueries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseNotices;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseOpsLog;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSentMessages;
+use Modules\Ops\Infrastructure\Eloquent\DatabaseSmsCountries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
+use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogNewsletterList;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
 use Modules\Ops\Infrastructure\Listener\RefreshNewsletterSubscription;
+use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
 use Modules\Ops\Infrastructure\Queue\PruneOpsLogJob;
 use Modules\Ops\Infrastructure\Queue\PruneWrittenMessagesJob;
@@ -63,8 +71,9 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  * through Access's public catalog; nothing depends on it (handoff §4.4).
  *
  * Step 2 (the foundation): the schema and its three tables, the permissions, the adapters, the bells
- * and the nightly removal. Step 7: offer notices, staff messages, the newsletter's subscribers and
- * Brevo's lists, and Access's consent, locale and anonymizing events.
+ * and the nightly removal. Step 3: the security messages (C18) in place of Access's temporary sender,
+ * and the SMS countries (access.md amendment 87). Step 7: offer notices, staff messages, the
+ * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
  */
 final class OpsServiceProvider extends ServiceProvider
 {
@@ -92,12 +101,18 @@ final class OpsServiceProvider extends ServiceProvider
                 : $app->make(LogEmailSender::class),
             default => throw new InvalidArgumentException('OPS_EMAIL_DRIVER names no email driver Ops has: "brevo" or "log".'),
         });
-        $this->app->bind(SmsSender::class, fn (Application $app): SmsSender => match ($app->make('config')->get('ops.sms.driver')) {
-            'log' => $app->environment('production')
-                ? throw new InvalidArgumentException('The "log" SMS driver writes messages to the log and never runs in production: set OPS_SMS_DRIVER to a real provider.')
-                : $app->make(LogSmsSender::class),
-            default => throw new InvalidArgumentException('OPS_SMS_DRIVER names no SMS driver Ops has; only "log" exists until the provider is chosen.'),
-        });
+        // SMS go through the provider of the phone's country on the SMS countries list (access.md
+        // amendment 87): a new provider is a new adapter and a line here, its keys in .env.
+        $this->app->bind(SmsSenders::class, fn (Application $app): SmsSenders => new BuiltSmsSenders([
+            'log' => fn (): SmsSender => $app->make(LogSmsSender::class),
+        ], $app->environment('production')));
+        $this->app->bind(SmsCountries::class, DatabaseSmsCountries::class);
+
+        // Access's contracts, which Ops fulfils so that Access never depends on Ops (access.md §2.3,
+        // amendment 87): the security messages, and whether a phone's country is on the SMS list.
+        $this->app->bind(PhoneCountries::class, ListedPhoneCountries::class);
+        $this->app->bind(SecurityMessages::class, OpsSecurityMessages::class);
+
         $this->app->bind(NewsletterList::class, fn (Application $app): NewsletterList => match ($app->make('config')->get('ops.newsletter.driver')) {
             'brevo' => new BrevoNewsletterList(
                 $app->make(Factory::class),

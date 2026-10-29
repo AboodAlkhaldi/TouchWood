@@ -24,7 +24,8 @@ interface AccessApi
 
     /**
      * The person's part of handoff §7.4: active, email and phone verified, no deletion pending.
-     * Sales adds the company's part for a company account, which B2B owns (spec §1.1).
+     * Sales adds the company's part for a company account, which B2B owns (spec §1.1). A phone whose
+     * country is not on the SMS countries list counts as unverified (amendment 87).
      */
     public function customerMayOrder(string $customerId): bool;
 

@@ -152,6 +152,8 @@ it('refuses in the code first what a sent message may never be', function () {
         ->and(fn () => $message(MessageKind::OrderTaken, MessageChannel::Email, provider: ''))->toThrow(InvalidOpsInput::class, 'provider_id');
 
     $customerId = Fx::customer();
+    // Registering sent the customer's email-verification link, and left its own row.
+    DB::table('ops.sent_messages')->delete();
     app(SentMessages::class)->record(new SentMessage(
         strtolower((string) Str::ulid()), MessageKind::Security, $customerId, null, null, MessageChannel::Sms, 'sms-1', SendStatus::Sent, CarbonImmutable::parse('2026-10-29 13:00:00', 'Asia/Riyadh')->toDateTimeImmutable(),
     ));

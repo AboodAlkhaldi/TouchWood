@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Session;
 
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Domain\Model\StaffUser;
 use Modules\Access\Public\Enums\StaffStatus;
 
 /**
  * Someone who gave the right password in this browser and has not entered the code yet.
- * $needsPhone: a Super Admin whose phone was reset first enters a new number (amendment 14).
+ * $needsPhone: a Super Admin whose phone was reset, or whose phone SMS no longer reaches, first enters a
+ * new number (amendments 14, 87).
  */
 final readonly class PendingSignIn
 {
@@ -28,14 +30,14 @@ final readonly class PendingSignIn
     /**
      * Whether the account is still as it was when the password was given: active, the same password
      * (a reset or change raises the session version) and, for a new number, still a Super Admin with
-     * no phone (review of step 3b).
+     * no phone SMS reaches (review of step 3b; amendment 87).
      */
-    public function stillFor(?StaffUser $staff): bool
+    public function stillFor(?StaffUser $staff, ServedPhones $phones): bool
     {
         return $staff !== null
             && $staff->id() === $this->staffId
             && $staff->status() === StaffStatus::Active
             && $staff->sessionVersion() === $this->sessionVersion
-            && (! $this->needsPhone || ($staff->isSuperAdmin() && $staff->phone() === null));
+            && (! $this->needsPhone || ($staff->isSuperAdmin() && ! $phones->reaches($staff->phone())));
     }
 }

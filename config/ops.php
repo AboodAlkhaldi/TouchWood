@@ -15,11 +15,9 @@ return [
         'driver' => env('OPS_EMAIL_DRIVER', 'log'),
     ],
 
-    'sms' => [
-        // Where Ops' SMS go: "log" until the owner names the provider (ops.md §2.2; Mobily is being
-        // checked). Never "log" on a live system.
-        'driver' => env('OPS_SMS_DRIVER', 'log'),
-    ],
+    // SMS have no driver here: each goes through the provider of the phone's country on the SMS
+    // countries list (access.md amendment 87). A provider is an adapter, bound in OpsServiceProvider;
+    // its keys go in .env and are read here.
 
     'newsletter' => [
         // Where the newsletter's lists are kept (ops.md §1.9): "log" writes the changes to the

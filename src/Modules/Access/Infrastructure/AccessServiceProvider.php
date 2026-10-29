@@ -30,7 +30,6 @@ use Modules\Access\Application\Customer\CustomerShopperType;
 use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
 use Modules\Access\Application\Customer\RequestCustomers;
-use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
@@ -85,8 +84,6 @@ use Modules\Access\Infrastructure\Http\RequestActorContext;
 use Modules\Access\Infrastructure\Http\StaffSessionHandler;
 use Modules\Access\Infrastructure\Listener\WriteStartingAddressFormat;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
-use Modules\Access\Infrastructure\Messages\LogSmsGateway;
-use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Infrastructure\Messages\UrlCustomerLinks;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
@@ -114,7 +111,6 @@ use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\GuestIdentity;
 use Modules\Access\Public\Contracts\PermissionCatalog;
-use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Contracts\ShopperLines;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionGroup;
@@ -220,16 +216,8 @@ final class AccessServiceProvider extends ServiceProvider
         // SMS codes are stored as an HMAC keyed with the application key (Codes).
         $this->app->singleton(Codes::class, fn (Application $app): Codes => new HmacCodes((string) $app->make('config')->get('app.key')));
 
-        // Access sends its own security messages until Ops binds its own: one binding changes
-        // (owner's decision, 2026-09-18).
-        $this->app->bind(SecurityMessages::class, TemporarySecurityMessages::class);
-        $this->app->bind(SmsGateway::class, fn (Application $app): SmsGateway => match ($app->make('config')->get('access.sms.driver')) {
-            // It writes every code to the log: never on a live system.
-            'log' => $app->environment('production')
-                ? throw new InvalidArgumentException('The "log" SMS driver writes codes to the log and never runs in production: set ACCESS_SMS_DRIVER to a real provider.')
-                : $app->make(LogSmsGateway::class),
-            default => throw new InvalidArgumentException('ACCESS_SMS_DRIVER names no SMS driver Access has; only "log" exists until the provider is chosen.'),
-        });
+        // SecurityMessages and PhoneCountries are Ops' to bind (access.md §2.3, amendment 87): Ops sends
+        // the security messages and keeps the SMS countries, and Access never depends on Ops.
 
         // Who is acting (spec §2.5): a web request's session names them, else a guest; outside a web
         // request the system. Scoped, never instance(): Platform wraps this binding so a queued job
@@ -262,7 +250,6 @@ final class AccessServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
         $this->loadTranslationsFrom($presentation.'/lang', 'access');
-        $this->loadViewsFrom($presentation.'/views', 'access');
 
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);

@@ -13,6 +13,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
@@ -60,6 +61,7 @@ final readonly class CreateSuperAdminHandler
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -90,6 +92,8 @@ final readonly class CreateSuperAdminHandler
     {
         $profile = StaffProfile::of((string) $command->firstName, (string) $command->lastName, (string) $command->jobTitle, (string) $command->dateOfBirth, (string) $command->country, $command->address);
         $phone = PhoneNumber::of((string) $command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        $this->phones->require($phone);
 
         // One email, one account (amendment 13): the console is no exception, and a customer's
         // address is taken as surely as a colleague's (review of step 7).

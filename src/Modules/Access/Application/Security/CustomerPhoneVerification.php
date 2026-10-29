@@ -9,6 +9,7 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
+use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Model\CustomerPhoneCode;
 use Modules\Access\Domain\Repository\CustomerTokenRepository;
@@ -23,7 +24,8 @@ use Shared\Application\StoreContext;
  * the set length, valid for the set minutes; a new one no sooner than the resend interval, and at
  * most so many an hour per number, per account and in the store (amendment 85); after the set wrong
  * tries the code is dead. A new request
- * replaces the previous code, so a customer has one live code at a time.
+ * replaces the previous code, so a customer has one live code at a time. No code goes to a number whose
+ * country is not on the SMS countries list (amendment 87).
  */
 final readonly class CustomerPhoneVerification
 {
@@ -35,15 +37,19 @@ final readonly class CustomerPhoneVerification
         private RateLimiter $limiter,
         private Connection $db,
         private StoreContext $stores,
+        private ServedPhones $phones,
     ) {}
 
     /**
      * Call inside the transaction of the change: the SMS leaves only once it commits.
      *
-     * @throws CodeRequestTooSoon
+     * @throws CodeRequestTooSoon|InvalidAccessAttribute
      */
     public function send(string $customerId, PhoneNumber $phone, CustomerPhoneCodePurpose $purpose, Language $language, DateTimeImmutable $now): void
     {
+        // Before anything is counted: a refused number uses none of the limits.
+        $this->phones->require($phone);
+
         $previous = $this->tokens->phoneCode($customerId);
         $wait = $previous === null ? 0 : $previous->sentAt->getTimestamp() + $this->settings->codeResendSeconds() - $now->getTimestamp();
 
