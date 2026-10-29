@@ -373,7 +373,7 @@ Everything is in step 3's Application layer (§9.4): `ListCarriers`, `ViewCarrie
 `ChangeCarrier`, `SwitchCarrier`, `OrderCarriers`, `DeleteCarrier`, `UploadCarrierLogo`. The routes,
 controllers, page resources and words are the screens session's, in Shipping's Presentation layer (Q13). The
 logo's address is read from Platform's media (`PlatformApi`) in Presentation, as Catalog's brand list does —
-**to confirm with the backend session** that no Application read is wanted for it.
+**confirmed by the backend session, 2026-10-29**: `CarrierRow` stays as it is (deptrac already allows it).
 
 ---
 
