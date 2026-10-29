@@ -171,6 +171,23 @@ describe('a country with a place list', function () {
             ->and($address?->isComplete)->toBeTrue();
     });
 
+    it('takes a picked region and a typed city where the list stops at its regions (owner, 2026-10-29)', function () {
+        $customer = Fx::customer();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $dubai = app(AddPlaceHandler::class)->handle(new AddPlace('AE', 'REGION', null, 'إمارة دبي', 'Emirate of Dubai'));
+        Fx::actAsCustomer($customer);
+
+        $id = addressPlacesSave(['storeId' => Fx::storeId('ae'), 'country' => 'AE', 'region' => $dubai, 'language' => 'en', 'fields' => ['administrative_area' => 'x', 'city' => 'Jumeirah', 'district' => 'Al Safa', 'street' => 'Al Wasl Road', 'building' => '7']]);
+        $address = app(AccessApi::class)->address($id);
+
+        expect($address?->regionId)->toBe($dubai)
+            ->and($address?->cityId)->toBeNull()
+            ->and($address?->fields['administrative_area'] ?? null)->toBe('Emirate of Dubai')
+            ->and($address?->fields['city'] ?? null)->toBe('Jumeirah')
+            // Without the region, a country with a list refuses the address.
+            ->and(fn () => addressPlacesSave(['storeId' => Fx::storeId('ae'), 'country' => 'AE']))->toThrow(InvalidAddress::class, 'administrative_area');
+    });
+
     it('refuses what does not fit the list', function (Closure $with) {
         $customer = Fx::customer();
         Fx::actAsCustomer($customer);

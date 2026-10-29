@@ -19,7 +19,7 @@ final class PlaceCountryRow extends Data
         public string $name,
         public string $otherName,
         public bool $retired,
-        /** A city in use: else customers type their places there, and no store may ship there. */
+        /** A region in use: else customers type their places there, and no store may ship there. */
         public bool $hasPlaces,
         /** The store whose ship-to list holds it, off ones too; null when none does. */
         public ?PlaceStoreRow $store,

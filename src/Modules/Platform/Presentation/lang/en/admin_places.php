@@ -18,7 +18,7 @@ return [
     'no_store' => 'No store',
     'store_off' => ':name (Off)',
     'no_places' => 'No place list yet',
-    'no_places_hint' => 'Customers type their places here, and no store can ship here until it has a city.',
+    'no_places_hint' => 'Customers type their places here, and no store can ship here until it has a region.',
     'retired' => 'Retired',
     'show_retired' => 'Show retired',
     'filter' => 'Filter by name',

@@ -390,15 +390,13 @@ describe('the migration, over stores that already exist', function () {
 });
 
 describe('the ship-to countries', function () {
-    it('adds a country only once it has a city in use (Q5)', function () {
+    it('adds a country only once it has a region in use (owner, 2026-10-29)', function () {
         app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA'));
 
         expect(fn () => app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'QA')))->toThrow(CountryWithoutPlaces::class);
 
-        // A region alone is no list; a city whose region is retired is none either.
+        // A region is a list, its cities typed; a retired region is none, a city under it neither.
         $region = placesAdd('QA', PlaceKind::Region, null, 'الدوحة', 'Doha Municipality');
-        expect(fn () => app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'QA')))->toThrow(CountryWithoutPlaces::class);
-
         placesAdd('QA', PlaceKind::City, $region, 'الدوحة', 'Doha');
         app(RetirePlaceHandler::class)->handle(new RetirePlace($region));
         expect(fn () => app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'QA')))->toThrow(CountryWithoutPlaces::class);
@@ -410,6 +408,15 @@ describe('the ship-to countries', function () {
         expect(placesApi()->storeCountries(placesStoreId('sa')))->toBe(['QA', 'SA'])
             ->and(placesApi()->countryStore('QA')?->code)->toBe('sa')
             ->and(placesAuditCount('platform.store_country.added'))->toBe(4);
+    });
+
+    it('adds a country whose list stops at its regions, with no city at all (owner, 2026-10-29)', function () {
+        app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('BH'));
+        placesAdd('BH', PlaceKind::Region, null, 'محافظة العاصمة', 'Capital Governorate');
+
+        app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'BH'));
+
+        expect(placesApi()->countryStore('BH')?->code)->toBe('sa');
     });
 
     it('refuses a country another store ships to, a retired one and one not on the list (R3, Q1)', function () {

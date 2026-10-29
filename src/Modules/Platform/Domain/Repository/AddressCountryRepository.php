@@ -27,8 +27,8 @@ interface AddressCountryRepository
     public function update(AddressCountry $country): void;
 
     /**
-     * Whether the country has a city in use - neither it nor its region retired: what "has its
-     * place list" means for a ship-to country (stage 7 step 1, Q5).
+     * Whether the country has a region in use: what "has its place list" means (owner, 2026-10-29,
+     * changing stage 7 step 1 Q5 - a list may stop at its regions, the city then typed).
      */
-    public function hasLiveCity(string $code): bool;
+    public function hasLiveRegion(string $code): bool;
 }

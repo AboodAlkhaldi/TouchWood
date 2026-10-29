@@ -138,6 +138,9 @@ describe('saving a form', function () {
             ['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100],
             ['key' => 'street', 'label_ar' => 'الشارع', 'label_en' => 'Street', 'required' => true, 'max_length' => 200],
             ['key' => 'postal_code', 'label_ar' => 'الرمز البريدي', 'label_en' => 'Postal code', 'required' => false, 'max_length' => 20],
+            // The three place fields stay in every format (Q12).
+            ['key' => 'administrative_area', 'label_ar' => 'المنطقة', 'label_en' => 'Region', 'required' => false, 'max_length' => 100],
+            ['key' => 'district', 'label_ar' => 'الحي', 'label_en' => 'District', 'required' => false, 'max_length' => 100],
         ], "{street}\n{city} {postal_code}"))
             // Back to the same country, named the way the page names it - a redirect carrying an
             // id would answer 404, because the editor asks for a store by its code.
@@ -146,11 +149,12 @@ describe('saving a form', function () {
         // Nobody typed a position: the order is the order of the list, numbered by the server.
         $browser->get('/admin/address-formats?store=sa')
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('fields', 3)
+                ->has('fields', 5)
                 ->where('fields.0.key', 'city')
                 ->where('fields.1.key', 'street')
                 ->where('fields.2.key', 'postal_code')
                 ->where('fields.2.required', false)
+                ->where('fields.4.key', 'district')
                 ->where('displayTemplate', "{street}\n{city} {postal_code}")
             );
 
@@ -165,7 +169,7 @@ describe('saving a form', function () {
         $shopper->get('/sa/en/account?tab=addresses')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->has('addresses.0.fields', 3)
+                ->has('addresses.0.fields', 5)
                 ->where('addresses.0.fields.0.key', 'city')
                 ->where('addresses.0.fields.0.label', 'City')
             );

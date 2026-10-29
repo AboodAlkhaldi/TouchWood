@@ -12,6 +12,10 @@ return [
         'title' => 'Check the Address',
         'detail' => 'Couldn\'t save the address: the :field isn\'t valid for this country. Check it and try again.',
     ],
+    'address_format_needs_places' => [
+        'title' => 'Keep the Place Fields',
+        'detail' => 'Couldn\'t save the format: Region, City and District must stay in it, each taking at least 100 characters, because customers pick them from the place list.',
+    ],
     'address_not_found' => [
         'title' => 'Address Not Found',
         'detail' => 'Couldn\'t find this address in your address book. Reload the page.',

@@ -34,10 +34,8 @@ final readonly class DatabasePlaceReader implements PlaceReader
             ->selectRaw(<<<'SQL'
                 country.country_code,
                 EXISTS (
-                    SELECT 1 FROM platform.places city
-                    JOIN platform.places region ON region.id = city.parent_id
-                    WHERE city.country_code = country.country_code AND city.kind = 'CITY'
-                        AND NOT city.retired AND NOT region.retired
+                    SELECT 1 FROM platform.places region
+                    WHERE region.country_code = country.country_code AND region.kind = 'REGION' AND NOT region.retired
                 ) AS has_places
                 SQL)
             ->get();
