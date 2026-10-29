@@ -308,7 +308,8 @@ All stores: each store's report, then the totals per currency.
 ### 2.2 Adapters
 
 - `EmailSender` — **Brevo** (transactional email); `log` in development and tests.
-- `SmsSender` — `log` until the owner names the provider (Mobily is being checked); then its adapter.
+- `SmsSender` — `log` until the owner names the provider (Mobily is being checked); then its adapter. **Which
+  provider sends an SMS is the phone's country's**, on the SMS countries list (access.md amendment 87).
 - `NewsletterList` — **Brevo** contacts and lists; `log` in development and tests.
 
 Every adapter is chosen by configuration; a new provider is a new class and a binding.
@@ -348,6 +349,7 @@ default (roles nest).
 | View and download reports | `ops.report.view`; the Stock report also needs `inventory.stock.manage` there | Stores they may view |
 | Make, list and download daily reports; switch on the daily email | `ops.report.daily` | Stores they may view; all stores: super admin |
 | Subscribe to the newsletter; confirm; unsubscribe | guest / signed link | — |
+| Manage the SMS countries — list, add, change provider or calling code, remove **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]** | `ops.sms_countries.manage` (reserved: Super Admins) | Global |
 
 ## 4 · What the screens agent gets
 
@@ -368,6 +370,7 @@ the subscribers list, the reports page (filters, preview rows, Excel download), 
 | `ops.subscribers` | store, email, locale, kind (guest / customer), `customer_id` (null for a guest), confirmation token **hash**, created_at, confirmed_at, brevo_synced_at. A guest whose email belongs to a customer is told to tick the box in their account instead |
 | `ops.daily_reports` | store (or all), day, made_by, made_at, file, emailed |
 | `ops.daily_report_settings` | staff, store (or all), auto email on/off, the time |
+| `ops.sms_countries` | country code (ISO), calling code (typed, unique), provider — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 87 |
 
 Deleted after 12 months: inbox entries, sent messages, handled events, staff messages, sent notices,
 daily report files (owner, 2026-10-28). Unconfirmed guests: after 7 days (from created_at).
@@ -440,3 +443,12 @@ publishes none; the four moments handed to stage 8.
 15. **Answered** (owner, 2026-10-28): the email is the button's report at the chosen time; store time zone,
     all stores in Riyadh time — written into §1.11.
 16. **Answered** (owner, 2026-10-29): a voided payment sends no message of its own.
+17. **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]** **SMS countries** (access.md amendment 87): the SMS
+    provider is chosen by the phone number's country (its calling code), for staff and customers, not by store.
+    A list of countries — ISO country, calling code typed by a Super Admin, provider (one may serve many) —
+    starting with Saudi Arabia 966 and Egypt 20 on `log`; reserved to Super Admins and audited; provider keys
+    in .env only, a new provider a new adapter. A phone from an unlisted country is refused when any account
+    phone is entered and no code goes to it (address phones are their own job after this step). Removing a
+    country is allowed: a Super Admin with such a phone enters a new one at sign-in, other staff get theirs
+    changed by an admin, a customer reads as phone-unverified until they change it. Email stays global
+    (Brevo). C18 is bound here (§1.5): Access's temporary sender is deleted.
