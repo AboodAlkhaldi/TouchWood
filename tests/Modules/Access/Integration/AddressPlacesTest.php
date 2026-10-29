@@ -11,6 +11,7 @@ use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\Access\Domain\Exception\AddressCountryServedByAnotherStore;
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountry;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountryHandler;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
@@ -102,12 +103,15 @@ describe('the country', function () {
 
         DB::table('platform.stores')->where('code', 'eg')->update(['is_active' => false]);
 
+        $refused = null;
+
         try {
             addressPlacesSave(['country' => 'EG']);
-            $this->fail('Saved an address in a country another store ships to.');
         } catch (AddressCountryServedByAnotherStore $e) {
-            expect($e->storeCode)->toBe('eg');
+            $refused = $e;
         }
+
+        expect($refused?->storeCode)->toBe('eg');
     });
 
     it('refuses a country not on the address list, and takes one no store ships to (OUTSIDE)', function () {
@@ -220,6 +224,94 @@ describe('a country with a place list', function () {
         addressPlacesList($customer);
 
         expect(app(AccessApi::class)->address($id)?->isComplete)->toBeFalse();
+    });
+});
+
+describe('the edges the review of step 2 named', function () {
+    it('keeps an address abroad abroad when an edit gives no country', function () {
+        $customer = Fx::customer();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA'));
+        Fx::actAsCustomer($customer);
+        $id = addressPlacesSave(['country' => 'QA']);
+
+        addressPlacesSave(['addressId' => $id]);
+
+        expect(addressPlacesRow($id)->country_code)->toBe('QA');
+    });
+
+    it('refuses a district of another city', function () {
+        $customer = Fx::customer();
+        Fx::actAsCustomer($customer);
+        $p = addressPlacesList($customer);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $otherDistrict = app(AddPlaceHandler::class)->handle(new AddPlace('SA', 'DISTRICT', $p['other_city'], 'البلد', 'Al Balad'));
+        Fx::actAsCustomer($customer);
+
+        expect(fn () => addressPlacesSave(['country' => 'SA', 'region' => $p['region'], 'city' => $p['city'], 'district' => $otherDistrict]))
+            ->toThrow(InvalidAddress::class);
+    });
+
+    it('keeps a region retired since while left as it was', function () {
+        $customer = Fx::customer();
+        Fx::actAsCustomer($customer);
+        $p = addressPlacesList($customer);
+        $id = addressPlacesSave(['country' => 'SA', 'region' => $p['region']]);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(RetirePlaceHandler::class)->handle(new RetirePlace($p['region']));
+        Fx::actAsCustomer($customer);
+
+        addressPlacesSave(['addressId' => $id, 'country' => 'SA', 'region' => $p['region']]);
+
+        expect(addressPlacesRow($id)->region_id)->toBe($p['region'])
+            ->and(fn () => addressPlacesSave(['country' => 'SA', 'region' => $p['region']]))->toThrow(InvalidAddress::class);
+    });
+
+    it('treats places kept under another country as new choices', function () {
+        $customer = Fx::customer();
+        Fx::actAsCustomer($customer);
+        $p = addressPlacesList($customer);
+        $id = addressPlacesSave(['country' => 'SA', 'region' => $p['region']]);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        app(AddAddressCountryHandler::class)->handle(new AddAddressCountry('QA'));
+        Fx::actAsCustomer($customer);
+
+        expect(fn () => addressPlacesSave(['addressId' => $id, 'country' => 'QA', 'region' => $p['region']]))->toThrow(InvalidAddress::class);
+    });
+
+    it('audits a change of country and places as "changed" only', function () {
+        $customer = Fx::customer();
+        Fx::actAsCustomer($customer);
+        $p = addressPlacesList($customer);
+        $id = addressPlacesSave(['country' => 'SA', 'region' => $p['region']]);
+
+        addressPlacesSave(['addressId' => $id, 'country' => 'SA', 'region' => $p['region'], 'city' => $p['city']]);
+
+        $changes = json_decode((string) DB::table('platform.audit_entries')->where('action', 'access.customer.address_updated')->latest('id')->value('changes'), true);
+
+        expect($changes)->toMatchArray(['places' => 'changed']);
+    });
+
+    it('names the other store by its name, in each language', function () {
+        Fx::actAsCustomer(Fx::customer());
+
+        $refused = null;
+
+        try {
+            addressPlacesSave(['country' => 'EG']);
+        } catch (AddressCountryServedByAnotherStore $e) {
+            $refused = $e;
+        }
+
+        expect($refused?->context())->toBe(['country' => 'EG', 'store' => 'eg', 'store_ar' => 'مصر', 'store_en' => 'Egypt'])
+            ->and(trans('access::errors.address_country_served_by_another_store.detail', ['store_en' => 'Egypt'], 'en'))->toContain('our Egypt store');
+    });
+
+    it('places the Shipping and Payments groups right after Orders (Q4)', function () {
+        $cases = array_map(static fn (PermissionGroup $group): string => $group->value, PermissionGroup::cases());
+        $orders = array_search('orders', $cases, true);
+
+        expect(array_slice($cases, (int) $orders, 3))->toBe(['orders', 'shipping', 'payments']);
     });
 });
 

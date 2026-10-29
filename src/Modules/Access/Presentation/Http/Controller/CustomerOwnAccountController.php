@@ -128,8 +128,8 @@ final readonly class CustomerOwnAccountController
      * F9 - one address saved, new or changed.
      *
      * Which fields it must carry is the store's format, not this controller's: staff change that
-     * as data, and the domain checks the values against it. An address never moves country - one
-     * in another store is a new address there (access.md §1.9).
+     * as data, and the domain checks the values against it. An address never moves to another store;
+     * its country and places are Platform's (access.md amendment 76).
      */
     public function saveAddress(CustomerAddressRequest $request, SaveAddressHandler $handler): RedirectResponse
     {
@@ -149,7 +149,7 @@ final readonly class CustomerOwnAccountController
                 language: app()->getLocale(),
             ));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields']);
+            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields', 'country', 'places', 'administrative_area', 'city', 'district']);
         }
 
         // Back to the page that sent them here, if it is one of their account's (amendment 51).

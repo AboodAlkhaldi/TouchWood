@@ -13,8 +13,12 @@ use Shared\Domain\Error\ErrorCategory;
  */
 final class AddressCountryServedByAnotherStore extends AccessError
 {
-    public function __construct(public readonly string $countryCode, public readonly string $storeCode)
-    {
+    public function __construct(
+        public readonly string $countryCode,
+        public readonly string $storeCode,
+        public readonly string $storeNameAr,
+        public readonly string $storeNameEn,
+    ) {
         parent::__construct("Addresses in \"{$countryCode}\" are served by the store \"{$storeCode}\".");
     }
 
@@ -30,6 +34,7 @@ final class AddressCountryServedByAnotherStore extends AccessError
 
     public function context(): array
     {
-        return ['country' => $this->countryCode, 'store' => $this->storeCode];
+        // The code for the link to that store; its name for the words, in each language.
+        return ['country' => $this->countryCode, 'store' => $this->storeCode, 'store_ar' => $this->storeNameAr, 'store_en' => $this->storeNameEn];
     }
 }

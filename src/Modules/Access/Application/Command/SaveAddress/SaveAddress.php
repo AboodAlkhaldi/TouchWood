@@ -11,7 +11,8 @@ namespace Modules\Access\Application\Command\SaveAddress;
  * $fields carries the store format's values, by key. $isDefault true makes this the store's default;
  * false leaves the flag where it is, because a store that has addresses always has a default.
  *
- * $countryCode is one of Platform's address countries — the store's own when none is given. Where
+ * $countryCode is one of Platform's address countries — for a new address the store's own when none
+ * is given; an edit given none keeps the address's own country and places. Where
  * Platform has a place list for it, $regionId is picked, and $cityId and $districtId are picked or
  * left NULL for "Other" (typed in $fields). $language is the page's: the picked places' names fill
  * their fields in it (amendment 76(d), (e)).

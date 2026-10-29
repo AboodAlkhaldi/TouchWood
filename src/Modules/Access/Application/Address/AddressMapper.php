@@ -21,7 +21,7 @@ use Modules\Platform\Public\Dto\AddressCountryDto;
  *
  * The format is read for every address: it comes from the cache, and keeping a copy here would
  * outlive a change made in the same request (review of step 5). The countries with a list are read
- * once per call.
+ * once per call, and only when an address was typed.
  */
 final readonly class AddressMapper
 {
@@ -32,7 +32,7 @@ final readonly class AddressMapper
 
     public function toDto(Address $address): AddressDto
     {
-        return $this->map($address, $this->countriesWithPlaces());
+        return $this->map($address, $this->countriesWithPlaces([$address]));
     }
 
     /**
@@ -45,7 +45,7 @@ final readonly class AddressMapper
             return [];
         }
 
-        $listed = $this->countriesWithPlaces();
+        $listed = $this->countriesWithPlaces($addresses);
 
         return array_map(fn (Address $address): AddressDto => $this->map($address, $listed), $addresses);
     }
@@ -84,10 +84,20 @@ final readonly class AddressMapper
     }
 
     /**
+     * Read only when one of the addresses was typed: an address with its region picked needs no
+     * answer, so a page of picked addresses costs no query here.
+     *
+     * @param  list<Address>  $addresses
      * @return list<string>
      */
-    private function countriesWithPlaces(): array
+    private function countriesWithPlaces(array $addresses): array
     {
+        $typed = array_filter($addresses, static fn (Address $address): bool => $address->places()->regionId === null);
+
+        if ($typed === []) {
+            return [];
+        }
+
         return array_values(array_map(
             static fn (AddressCountryDto $country): string => $country->code,
             array_filter($this->platform->addressCountries('en'), static fn (AddressCountryDto $country): bool => $country->hasPlaces),

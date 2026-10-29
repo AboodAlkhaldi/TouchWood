@@ -26,7 +26,7 @@ return [
     ],
     'address_country_served_by_another_store' => [
         'title' => 'Served by Another Store',
-        'detail' => 'Couldn\'t save the address: addresses in this country are served by our store ":store". Order from there.',
+        'detail' => 'Couldn\'t save the address: addresses in this country are served by our :store_en store. Order from there.',
     ],
     'too_many_addresses' => [
         'title' => 'Address Book Full',

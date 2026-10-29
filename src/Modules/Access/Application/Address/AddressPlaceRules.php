@@ -54,7 +54,7 @@ final readonly class AddressPlaceRules
         $servedBy = $this->platform->countryStore($code);
 
         if ($servedBy !== null && $servedBy->id !== strtolower($storeId)) {
-            throw new AddressCountryServedByAnotherStore($code, $servedBy->code);
+            throw new AddressCountryServedByAnotherStore($code, $servedBy->code, $servedBy->name->ar, $servedBy->name->en);
         }
 
         $kept = $before !== null && $before->countryCode === $code;
@@ -66,7 +66,7 @@ final readonly class AddressPlaceRules
                 throw new InvalidAddress('places', 'typed: this country has no place list');
             }
 
-            return $fields;
+            return $this->named($places, $fields);
         }
 
         if ($places->regionId === null) {
@@ -85,6 +85,27 @@ final readonly class AddressPlaceRules
         if ($places->districtId !== null) {
             $district = $this->picked($found, $places->districtId, PlaceKind::District, $code, (string) $places->cityId, $kept ? $before->districtId : null);
             $fields['district'] = $district->name->in($places->language);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * The names of places kept as they were, so the text never says one place while the id names
+     * another.
+     *
+     * @param  array<string, string>  $fields
+     * @return array<string, string>
+     */
+    private function named(AddressPlaces $places, array $fields): array
+    {
+        $found = $this->platform->place($places->ids());
+        $keys = ['administrative_area' => $places->regionId, 'city' => $places->cityId, 'district' => $places->districtId];
+
+        foreach ($keys as $field => $id) {
+            if ($id !== null && isset($found[$id])) {
+                $fields[$field] = $found[$id]->name->in($places->language);
+            }
         }
 
         return $fields;
