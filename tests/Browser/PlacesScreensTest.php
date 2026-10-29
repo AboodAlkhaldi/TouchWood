@@ -100,4 +100,8 @@ it('adds a region, follows the trail, and fits a phone', function () {
         ->assertPresent('[data-test="add-ship-to-sa"]')
         ->assertNoJavaScriptErrors();
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    // Retired again: nothing rolls this file back, and a Saudi region in use makes Saudi Arabia a
+    // country whose places are picked, so the later files' typed Saudi addresses would be refused.
+    DB::table('platform.places')->where('id', $id)->update(['retired' => true]);
 });
