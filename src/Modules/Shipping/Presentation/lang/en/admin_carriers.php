@@ -14,7 +14,6 @@ return [
     'edit_title' => 'Edit Carrier',
     'edit_body' => 'Its country stays as it is.',
     'save' => 'Save Changes',
-    'actions' => 'Actions for :name',
     'column' => [
         'order' => 'Order',
         'name' => 'Name',
@@ -37,8 +36,10 @@ return [
         'off_confirm' => 'Switch Off',
     ],
     'delete' => 'Delete',
-    'delete_title' => 'Delete ":name"?',
-    'delete_body' => 'Its prices go with it. Orders already placed keep its name and their tracking links. This can\'t be undone.',
+    'delete_title' => 'Delete Carrier',
+    'delete_body' => '":name" and its prices are deleted. Orders already placed keep its name and their tracking links.',
+    'delete_irreversible' => 'Deleting ":name" can\'t be undone.',
+    'verification_label' => 'carrier name',
     'delete_reason_on' => 'Switch it off first',
     'field' => [
         'country' => 'Country',
@@ -58,6 +59,7 @@ return [
         'example' => 'A tracking number 12345 opens: :url',
         'https' => 'Start the link with https://.',
         'number' => 'Put {number} in the link exactly once.',
+        'website' => 'Start the website with https://.',
     ],
     'logo_not_arrived' => 'The logo didn\'t arrive. Try a smaller image.',
     'toast' => [

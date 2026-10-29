@@ -83,7 +83,14 @@ export default function Show({ carrier, countryName, mayManage, storeCode }: Car
                             </CardTitle>
                             {other !== '' && other !== name ? <span className="text-copy-13 text-ink-muted">{other}</span> : null}
                         </div>
-                        {mayManage ? <CarrierSwitch carrier={carrier} name={name} storeCode={storeCode} /> : null}
+                        {mayManage ? (
+                            <CarrierSwitch carrier={carrier} name={name} storeCode={storeCode} />
+                        ) : (
+                            // Read-only (Q12): its state in words, on as well as off.
+                            <span className="text-copy-14" data-test="carrier-state">
+                                {carrier.active ? t(`${C}.column.on`) : t(`${C}.off`)}
+                            </span>
+                        )}
                     </CardHeader>
                     <CardContent>
                         <h2 className="sr-only">{t(`${C}.page.details`)}</h2>

@@ -78,14 +78,21 @@ it('adds a carrier, switches it off through the question, deletes it, and fits a
     $page->click('[data-test="confirm-carrier-off"]');
     expect(browserSoon($page, "document.querySelector('{$row} [data-test=\"carrier-off\"]') !== null"))->toBeTrue();
 
-    // A phone: nothing scrolls sideways.
+    // A phone: a card each, its switch on it, and nothing scrolls sideways - nor on its own page.
     $page->resize(375, 812);
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    $page->assertVisible("[data-test=\"carrier-card-{$id}\"]")->assertVisible("[data-test=\"carrier-card-switch-{$id}\"]");
+    $page->navigate("/admin/shipping/carriers/{$id}?store=sa");
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    $page->navigate('/admin/shipping/carriers?store=sa');
     $page->resize(1280, 800);
 
     // Off, it is deleted through its dialog.
     $page->click("[data-test=\"carrier-actions-{$id}\"]");
-    $page->click('[data-test="delete-carrier"]')->click('[data-test="confirm-delete-carrier"]');
+    // Geist's Destructive Action Modal: the carrier's name typed to confirm (C1 "Delete").
+    $page->click('[data-test="delete-carrier"]')
+        ->type('[data-test="destructive-verification"]', $name)
+        ->click('[data-test="destructive-confirm"]');
     expect(browserSoon($page, "document.querySelector('{$row}') === null"))->toBeTrue()
         ->and(DB::table('shipping.carriers')->where('id', $id)->exists())->toBeFalse();
     $page->assertNoJavaScriptErrors();
@@ -126,7 +133,7 @@ it('links a refused ship-to removal to the carriers that hold the country (Q14)'
         $page->assertSeeIn('[data-test="open-carriers"]', 'Open the carriers of')
             ->click('[data-test="open-carriers"]');
         expect(browserSoon($page, "location.pathname === '/admin/shipping/carriers' && location.search === '?store=sa'"))->toBeTrue();
-        $page->assertSeeIn('[data-test="carriers-JO"]', 'Jordan Carrier')->assertNoJavaScriptErrors();
+        $page->assertSeeIn('[data-test="carriers-JO"] [data-test="carrier-name"]', 'Jordan Carrier')->assertNoJavaScriptErrors();
     } finally {
         DB::table('shipping.carriers')->where('id', $carrier)->delete();
         DB::table('platform.store_countries')->where('store_id', $store)->where('country_code', 'JO')->delete();

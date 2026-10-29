@@ -94,7 +94,8 @@ function CountrySection({ country, page, open }: { country: CarrierCountryData; 
     const add = (trigger: HTMLElement | null) => open({ action: 'add', country }, trigger);
 
     return (
-        <section aria-labelledby={heading} className="grid gap-3" data-test={`carriers-${country.code}`}>
+        // Its id is the Stores page's link target when a ship-to removal is refused for its carriers (Q14).
+        <section id={`carriers-${country.code}`} aria-labelledby={heading} className="grid scroll-mt-20 gap-3" data-test={`carriers-${country.code}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 id={heading} className="flex items-center gap-2 text-heading-16 text-ink">
                     {country.name}
@@ -126,8 +127,24 @@ function CountrySection({ country, page, open }: { country: CarrierCountryData; 
                     ) : null}
                 </Empty>
             ) : (
+                <>
+                {/* A phone: a card each, ordered from the ⋯ menu (Move to Top / Bottom) - no table to scroll. */}
+                <ul className="grid gap-3 sm:hidden" data-test={`carrier-cards-${country.code}`}>
+                    {rows.map((carrier, index) => (
+                        <Card
+                            key={carrier.id}
+                            carrier={carrier}
+                            page={page}
+                            first={index === 0}
+                            last={index === rows.length - 1}
+                            toTop={() => toTop(carrier.id)}
+                            toBottom={() => toBottom(carrier.id)}
+                            open={(action, trigger) => open({ action, carrier, country }, trigger)}
+                        />
+                    ))}
+                </ul>
                 <SortableGroups groups={{ [country.code]: order }} labelOf={(id) => (byId.has(id) ? nameOf(byId.get(id) as CarrierData) : id)} onMove={(_, ids) => move(ids)}>
-                    <div className="material-base">
+                    <div className="material-base hidden sm:block">
                         <Table>
                             <TableCaption className="sr-only">{country.name}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
@@ -167,6 +184,7 @@ function CountrySection({ country, page, open }: { country: CarrierCountryData; 
                         </Table>
                     </div>
                 </SortableGroups>
+                </>
             )}
         </section>
     );
@@ -192,7 +210,6 @@ function Row({
     const t = useTranslator();
     const nameOf = useCarrierName();
     const otherOf = useOtherName();
-    const more = useRef<HTMLButtonElement>(null);
     const name = nameOf(carrier);
     const other = otherOf(carrier);
     const row = useSortableRow(carrier.id, !page.mayManage);
@@ -241,23 +258,79 @@ function Row({
             </TableCell>
             {page.mayManage ? (
                 <TableCell className="text-end">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <MoreButton ref={more} name={name} data-test={`carrier-actions-${carrier.id}`} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-56">
-                            <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-carrier">
-                                {t(`${C}.edit`)}
-                            </DropdownMenuItem>
-                            <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
-                            {/* Destructive items last, after a divider (Geist's Menu). */}
-                            <DropdownMenuSeparator />
-                            <Guarded destructive label={t(`${C}.delete`)} reason={carrier.active ? t(`${C}.delete_reason_on`) : null} onSelect={() => open('delete', more.current)} test="delete-carrier" />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <RowActions carrier={carrier} name={name} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`carrier-actions-${carrier.id}`} />
                 </TableCell>
             ) : null}
         </TableRow>
+    );
+}
+
+type RowProps = {
+    carrier: CarrierData;
+    page: CarriersPage;
+    first: boolean;
+    last: boolean;
+    toTop: () => void;
+    toBottom: () => void;
+    open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void;
+};
+
+/** A carrier on a phone (C1: "a card each on a phone"): everything its row has, stacked. */
+function Card({ carrier, page, first, last, toTop, toBottom, open }: RowProps) {
+    const t = useTranslator();
+    const nameOf = useCarrierName();
+    const otherOf = useOtherName();
+    const name = nameOf(carrier);
+    const other = otherOf(carrier);
+
+    return (
+        <li className={`material-base grid gap-3 p-4 ${carrier.active ? '' : 'text-ink-muted'}`} data-test={`carrier-card-${carrier.id}`}>
+            <div className="flex items-start gap-3">
+                <CarrierLogo carrier={carrier} name={name} />
+                <div className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="flex flex-wrap items-center gap-2">
+                        <Link href={`${LIST}/${carrier.id}?store=${encodeURIComponent(page.storeCode)}`} className="break-words text-label-14 text-ink underline-offset-4 hover:underline">
+                            {name}
+                        </Link>
+                        {carrier.active ? null : <Badge className={tone('gray-subtle')}>{t(`${C}.off`)}</Badge>}
+                    </span>
+                    {other !== '' && other !== name ? <span className="break-words text-copy-13 text-ink-muted">{other}</span> : null}
+                </div>
+                {page.mayManage ? <RowActions carrier={carrier} name={name} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`carrier-card-actions-${carrier.id}`} /> : null}
+            </div>
+            <Contact carrier={carrier} />
+            <div className="flex items-center justify-between gap-3 text-copy-14">
+                <span>{carrier.trackingPattern !== null ? t(`${C}.tracking_yes`) : t(`${C}.tracking_no`)}</span>
+                {page.mayManage ? (
+                    <CarrierSwitch carrier={carrier} name={name} storeCode={page.storeCode} test={`carrier-card-switch-${carrier.id}`} />
+                ) : (
+                    <span>{carrier.active ? t(`${C}.column.on`) : t(`${C}.off`)}</span>
+                )}
+            </div>
+        </li>
+    );
+}
+
+/** The ⋯ menu: Edit, Move to Top / Bottom, and Delete last - out of reach while the carrier is on (Q6, Q7). */
+function RowActions({ carrier, name, first, last, toTop, toBottom, open, test }: Omit<RowProps, 'page'> & { name: string; test: string }) {
+    const t = useTranslator();
+    const more = useRef<HTMLButtonElement>(null);
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <MoreButton ref={more} name={name} data-test={test} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-carrier">
+                    {t(`${C}.edit`)}
+                </DropdownMenuItem>
+                <MoveItems first={first} last={last} onTop={toTop} onBottom={toBottom} />
+                {/* Destructive items last, after a divider (Geist's Menu). */}
+                <DropdownMenuSeparator />
+                <Guarded destructive label={t(`${C}.delete`)} reason={carrier.active ? t(`${C}.delete_reason_on`) : null} onSelect={() => open('delete', more.current)} test="delete-carrier" />
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }
 

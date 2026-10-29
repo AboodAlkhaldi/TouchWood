@@ -154,7 +154,10 @@ final readonly class CarriersController
      */
     private static function storeOf(Request $request, StoreChoices $choices): StoreDto
     {
-        return $choices->chosen(self::text($request, 'store'), ShippingPermissions::CARRIERS_MANAGE) ?? throw new Unauthorized(ShippingPermissions::CARRIERS_MANAGE);
+        // Named, never guessed: without a store, `chosen()` would take the first one that is on.
+        $code = self::text($request, 'store') ?? throw new Unauthorized(ShippingPermissions::CARRIERS_MANAGE);
+
+        return $choices->chosen($code, ShippingPermissions::CARRIERS_MANAGE) ?? throw new Unauthorized(ShippingPermissions::CARRIERS_MANAGE);
     }
 
     /**

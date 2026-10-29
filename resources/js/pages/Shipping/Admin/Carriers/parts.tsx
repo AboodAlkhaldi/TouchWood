@@ -1,6 +1,7 @@
 import { useState, type RefObject } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
+import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
@@ -38,7 +39,10 @@ export function CarrierLogo({ carrier, name, size = 'size-8' }: { carrier: Carri
     return (
         <Avatar className={`${size} rounded-md border border-line`} data-test={`carrier-logo-${carrier.id}`}>
             {carrier.logo !== null ? <AvatarImage src={carrier.logo} alt="" className="object-contain" /> : null}
-            <AvatarFallback className="rounded-md text-label-12">{initials(name)}</AvatarFallback>
+            {/* The name is said beside it: the initials are not read out first. */}
+            <AvatarFallback aria-hidden="true" className="rounded-md text-label-12">
+                {initials(name)}
+            </AvatarFallback>
         </Avatar>
     );
 }
@@ -69,7 +73,7 @@ export function trackingProblem(pattern: string, t: (key: string) => string): st
  * The on/off switch (Q5): switching on is saved at once; switching off asks first, saying it leaves every
  * new checkout and that placed orders keep it.
  */
-export function CarrierSwitch({ carrier, name, storeCode }: { carrier: CarrierData; name: string; storeCode: string }) {
+export function CarrierSwitch({ carrier, name, storeCode, test }: { carrier: CarrierData; name: string; storeCode: string; test?: string }) {
     const t = useTranslator();
     const [asking, setAsking] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -88,7 +92,7 @@ export function CarrierSwitch({ carrier, name, storeCode }: { carrier: CarrierDa
                 onCheckedChange={(on) => (on ? send(true) : setAsking(true))}
                 aria-label={t(`${C}.switch.label`, { name })}
                 className="data-[state=unchecked]:bg-ink-subtle"
-                data-test={`carrier-switch-${carrier.id}`}
+                data-test={test ?? `carrier-switch-${carrier.id}`}
             />
             <PanelDialog
                 open={asking}
@@ -108,7 +112,11 @@ export function CarrierSwitch({ carrier, name, storeCode }: { carrier: CarrierDa
     );
 }
 
-/** Delete, while the carrier is off (Q6): its prices go with it; placed orders keep its name and links. */
+/**
+ * Delete, while the carrier is off (Q6): Geist's Destructive Action Modal - the carrier's name typed to
+ * confirm, the red band for what cannot be undone - saying its prices go with it and placed orders keep
+ * its name and links. A refusal (switched on meanwhile) is said inside, and the dialog stays.
+ */
 export function DeleteCarrierDialog({
     carrier,
     name,
@@ -127,35 +135,39 @@ export function DeleteCarrierDialog({
     returnFocusTo?: RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
+    const { errors } = usePage<SharedProps>().props;
     const [busy, setBusy] = useState(false);
+    const [refused, setRefused] = useState(false);
 
     return (
-        <PanelDialog
-            destructive
+        <DestructiveActionDialog
             open={open}
             onOpenChange={onOpenChange}
+            title={t(`${C}.delete_title`)}
+            confirmLabel={t(`${C}.delete_title`)}
+            description={t(`${C}.delete_body`, { name })}
+            irreversibleDescription={t(`${C}.delete_irreversible`, { name })}
+            verificationPhrase={name}
+            verificationLabel={t(`${C}.verification_label`)}
+            loading={busy}
+            error={refused ? errors.form : undefined}
             returnFocusTo={returnFocusTo}
-            title={t(`${C}.delete_title`, { name })}
-            description={t(`${C}.delete_body`)}
-            busy={busy}
-            confirm={
-                <ActionButton
-                    variant="destructive"
-                    loading={busy}
-                    onClick={() =>
-                        router.post(
-                            `${LIST}/${carrier.id}/delete`,
-                            { store: storeCode, from_page: fromPage },
-                            { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) },
-                        )
-                    }
-                    data-test="confirm-delete-carrier"
-                >
-                    {t(`${C}.delete`)}
-                </ActionButton>
+            onConfirm={() =>
+                router.post(
+                    `${LIST}/${carrier.id}/delete`,
+                    { store: storeCode, from_page: fromPage },
+                    {
+                        preserveScroll: true,
+                        onStart: () => {
+                            setBusy(true);
+                            setRefused(false);
+                        },
+                        onFinish: () => setBusy(false),
+                        onError: () => setRefused(true),
+                        onSuccess: () => onOpenChange(false),
+                    },
+                )
             }
-        >
-            {null}
-        </PanelDialog>
+        />
     );
 }

@@ -27,8 +27,12 @@ use Shared\Application\Unauthorized;
  */
 final readonly class CarrierPages
 {
-    /** Either opens the carriers screens of a store (§3). */
-    public const array JOBS = [ShippingPermissions::CARRIERS_VIEW, ShippingPermissions::CARRIERS_MANAGE];
+    /**
+     * What opens the carriers screens of a store: viewing them (§4.1 part 1, C1 "The menu"). Managing
+     * alone does not - the reads authorize `carriers.view`, a plain role permission ticked per role
+     * (§9.4 #1), so a role that manages carriers ticks it too.
+     */
+    public const array JOBS = [ShippingPermissions::CARRIERS_VIEW];
 
     public function __construct(
         private Application $app,

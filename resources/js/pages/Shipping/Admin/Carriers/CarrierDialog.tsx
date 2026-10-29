@@ -89,7 +89,7 @@ export function CarrierDialog({
             id: 'carrier-website',
             label: t(`${C}.field.website`),
             value: form.data.website,
-            rules: { ...web, own: (text) => (text.trim() === '' || /^https:\/\//i.test(text.trim()) ? null : t(`${C}.tracking.https`)) },
+            rules: { ...web, own: (text) => (text.trim() === '' || /^https:\/\//i.test(text.trim()) ? null : t(`${C}.tracking.website`)) },
         },
         { id: 'carrier-tracking', label: t(`${C}.field.tracking`), value: form.data.tracking_pattern, rules: { ...web, own: (text) => trackingProblem(text, t) } },
     ]);

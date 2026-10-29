@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -142,9 +143,17 @@ function carriersScreenQueries(AdminBrowser $browser, string $uri): int
 }
 
 describe('the menu and who may open the screens', function () {
-    it('offers Carriers in the Shipping group to whoever may view or manage them, and to no one else', function () {
-        expect(carriersScreenMenu(carriersScreenSignIn(Fx::staffWith([P::CARRIERS_VIEW], ['sa']))->get('/admin')))->toContain('shipping/carriers')
-            ->and(carriersScreenMenu(carriersScreenSignIn(Fx::staffWith([P::CARRIERS_MANAGE], ['sa'], RoleLevel::Admin))->get('/admin')))->toContain('shipping/carriers');
+    it('offers Carriers in the Shipping group to whoever may view them, and to no one else', function () {
+        expect(carriersScreenMenu(carriersScreenSignIn(Fx::staffWith([P::CARRIERS_VIEW], ['sa']))->get('/admin')))->toContain('shipping/carriers');
+
+        $admin = carriersScreenSignIn(Fx::staffWith([P::CARRIERS_VIEW, P::CARRIERS_MANAGE], ['sa'], RoleLevel::Admin));
+        expect(carriersScreenMenu($admin->get('/admin')))->toContain('shipping/carriers');
+        $admin->get('/admin/shipping/carriers')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('mayManage', true));
+
+        // Managing alone does not open them: the reads take viewing, a plain role permission (§9.4 #1), so
+        // the entry is not offered rather than leading to the refusal page.
+        $manager = carriersScreenSignIn(Fx::staffWith([P::CARRIERS_MANAGE], ['sa'], RoleLevel::Admin));
+        expect(carriersScreenMenu($manager->get('/admin')))->not->toContain('shipping/carriers');
 
         // Someone with a job elsewhere in the panel, none in Shipping.
         $nobody = carriersScreenSignIn(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));
@@ -181,7 +190,7 @@ describe('C1 · the carriers by country', function () {
             ->where('countries.0.carriers.0.active', true)
             ->where('countries.0.carriers.1.id', $smsa)
             ->where('countries.0.carriers.1.active', false)
-            ->where('stores', fn ($stores): bool => collect($stores)->pluck('code')->contains('eg')));
+            ->where('stores', fn (Collection $stores): bool => $stores->pluck('code')->contains('eg')));
     });
 
     it('keeps a country with no carrier, empty (Q11)', function () {
@@ -198,6 +207,22 @@ describe('C1 · the carriers by country', function () {
 
         expect(AdminBrowser::formError($refused))->not->toBeNull()
             ->and(DB::table('shipping.carriers')->where('name_en', 'SMSA')->exists())->toBeFalse();
+    });
+
+    it('refuses every change of whoever may only view, the handlers asking again', function () {
+        $id = carriersScreenAdd(carriersScreenSuper(), 'Aramex');
+        $viewer = carriersScreenSignIn(Fx::staffWith([P::CARRIERS_VIEW], ['sa']));
+
+        foreach ([
+            "/admin/shipping/carriers/{$id}" => ['store' => 'sa', 'name_ar' => 'غير', 'name_en' => 'Changed'],
+            "/admin/shipping/carriers/{$id}/switch" => ['store' => 'sa', 'active' => false],
+            "/admin/shipping/carriers/{$id}/delete" => ['store' => 'sa'],
+            '/admin/shipping/carriers/order?store=sa&country=SA' => ['ids' => [$id]],
+        ] as $uri => $form) {
+            expect(AdminBrowser::formError($viewer->post($uri, $form)))->not->toBeNull();
+        }
+
+        expect((array) DB::table('shipping.carriers')->where('id', $id)->first(['name_en', 'active']))->toBe(['name_en' => 'Aramex', 'active' => true]);
     });
 
     it('reads the page in a bounded number of queries', function () {
@@ -254,6 +279,28 @@ describe('C2 · adding and changing a carrier', function () {
 
         $browser->post("/admin/shipping/carriers/{$id}", ['store' => 'sa', 'name_ar' => 'ناقل Aramex', 'name_en' => 'Aramex', 'logo_media_id' => $logo, 'remove_logo' => true])->assertRedirect();
         expect(DB::table('shipping.carriers')->where('id', $id)->value('logo_media_id'))->toBeNull();
+    });
+
+    it('refuses a post that names no store, rather than taking the first one', function () {
+        $refused = carriersScreenSuper()->post('/admin/shipping/carriers', ['country' => 'SA', 'name_ar' => 'سمسا', 'name_en' => 'SMSA']);
+
+        expect(AdminBrowser::formError($refused))->not->toBeNull()
+            ->and(DB::table('shipping.carriers')->count())->toBe(0);
+    });
+
+    it('finds no carrier of another store: changing, switching and deleting it there are refused', function () {
+        $browser = carriersScreenSuper();
+        $id = carriersScreenAdd($browser, 'Aramex');
+
+        foreach ([
+            "/admin/shipping/carriers/{$id}" => ['store' => 'eg', 'name_ar' => 'غير', 'name_en' => 'Changed'],
+            "/admin/shipping/carriers/{$id}/switch" => ['store' => 'eg', 'active' => false],
+            "/admin/shipping/carriers/{$id}/delete" => ['store' => 'eg'],
+        ] as $uri => $form) {
+            expect(AdminBrowser::formError($browser->post($uri, $form)))->not->toBeNull();
+        }
+
+        expect((array) DB::table('shipping.carriers')->where('id', $id)->first(['name_en', 'active']))->toBe(['name_en' => 'Aramex', 'active' => true]);
     });
 
     it('changes the details, the country staying', function () {
@@ -323,5 +370,28 @@ describe('C3 · a carrier\'s page', function () {
 
         $browser->get("/admin/shipping/carriers/{$id}?store=eg")->assertNotFound();
         $browser->get('/admin/shipping/carriers/01JZZZZZZZZZZZZZZZZZZZZZZZ?store=sa')->assertNotFound();
+    });
+});
+
+describe('the ship-to refusal on the Stores page (Q14)', function () {
+    it('names the country whose carriers hold it, beside the refusal, and nothing for another refusal', function () {
+        $browser = carriersScreenSuper();
+        // Bahrain on the Saudi store's list, through the panel: a place list first (Platform's rule).
+        $browser->post('/admin/places', ['country' => 'BH'])->assertRedirect();
+        $browser->post('/admin/places/bh/places', ['kind' => 'REGION', 'parent' => '', 'name_ar' => 'العاصمة', 'name_en' => 'Capital'])->assertRedirect();
+        $region = (string) DB::table('platform.places')->where('country_code', 'BH')->value('id');
+        $browser->post('/admin/places/bh/places', ['kind' => 'CITY', 'parent' => $region, 'name_ar' => 'المنامة', 'name_en' => 'Manama'])->assertRedirect();
+        $browser->post('/admin/stores/sa/countries', ['country' => 'BH'])->assertRedirect();
+        $browser->post('/admin/shipping/carriers', ['store' => 'sa', 'country' => 'BH', 'name_ar' => 'ناقل', 'name_en' => 'Bahrain Carrier', 'active' => false])->assertRedirect();
+        expect(DB::table('shipping.carriers')->where('country_code', 'BH')->exists())->toBeTrue();
+
+        $refused = carriersScreenErrors($browser->post('/admin/stores/sa/countries/bh/remove'));
+        expect($refused)->toHaveKeys(['form', 'carriers'])
+            ->and($refused['carriers'])->toBe(['BH']);
+
+        // The store's own country is refused for its own reason: no link.
+        $own = carriersScreenErrors($browser->post('/admin/stores/sa/countries/sa/remove'));
+        expect($own)->toHaveKey('form')
+            ->and(array_key_exists('carriers', $own))->toBeFalse();
     });
 });

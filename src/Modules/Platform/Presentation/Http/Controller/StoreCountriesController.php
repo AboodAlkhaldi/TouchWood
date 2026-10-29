@@ -36,6 +36,12 @@ final readonly class StoreCountriesController
         try {
             $handler->handle(new RemoveStoreCountry($store, $country));
         } catch (DomainError $error) {
+            // The store still has carriers there (Shipping's guard): the dialog says so and links to them
+            // (shipping.md §4.1 part 1, Q14) - named by its type, so Platform needs nothing of Shipping's.
+            if ($error->type() === 'shipping.country_has_carriers') {
+                return back()->withErrors(['form' => FormErrors::message($error), 'carriers' => strtoupper($country)]);
+            }
+
             return FormErrors::back($request, $error);
         }
 
