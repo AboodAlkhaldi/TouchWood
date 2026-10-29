@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
@@ -38,6 +42,23 @@ use function Pest\Laravel\seed;
 */
 
 uses(RefreshDatabase::class);
+
+/** Ops' kind of job, here so Access is tested alone: queued by a request, it runs as the system on the requester's behalf. */
+final class MarketingConsentTestWithdrawJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public int $tries = 1;
+
+    public function __construct(public string $customerId) {}
+
+    public function handle(AccessApi $access): void
+    {
+        $access->withdrawMarketingConsent($this->customerId, MarketingConsentSource::UnsubscribeLink);
+    }
+}
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
@@ -153,6 +174,37 @@ describe('an unsubscribe Ops received', function () {
             ->and(consentRow($id)['marketing_consent_source'])->toBe('UNSUBSCRIBE_LINK')
             ->and(Fx::audits('access.customer.marketing_consent_withdrawn', $id))->toBe(1);
         Event::assertDispatchedTimes(MarketingConsentChanged::class, 1);
+    });
+
+    it('withdraws consent in a job that a guest\'s or a customer\'s request queued (as built)', function () {
+        $byLink = consentRegister('link@example.test', true);
+        $byCustomer = consentRegister('own@example.test', true);
+
+        // The unsubscribe link and the provider's webhook are a guest's requests; a signed-in customer may follow a link too.
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+        dispatch(new MarketingConsentTestWithdrawJob($byLink));
+        Fx::actAsCustomer($byCustomer);
+        dispatch(new MarketingConsentTestWithdrawJob($byCustomer));
+
+        expect(consentRow($byLink)['marketing_consent'])->toBeFalse()
+            ->and(consentRow($byCustomer)['marketing_consent'])->toBeFalse()
+            ->and(DB::table('platform.audit_entries')->where('action', 'access.customer.marketing_consent_withdrawn')->where('subject_id', $byLink)->value('requested_by_type'))->toBe('GUEST');
+    });
+
+    it('is refused to a job a staff member queued: staff never change consent', function () {
+        $id = consentRegister('on@example.test', true);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(fn () => dispatch(new MarketingConsentTestWithdrawJob($id)))->toThrow(Unauthorized::class)
+            ->and(consentRow($id)['marketing_consent'])->toBeTrue();
+    });
+
+    it('is refused to a guest\'s own request, outside a job', function () {
+        $id = consentRegister('on@example.test', true);
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+
+        expect(fn () => app(AccessApi::class)->withdrawMarketingConsent($id, MarketingConsentSource::UnsubscribeLink))->toThrow(Unauthorized::class)
+            ->and(consentRow($id)['marketing_consent'])->toBeTrue();
     });
 
     it('is refused to a Super Admin, who holds every reserved permission but is not the system', function () {

@@ -19,6 +19,7 @@ use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
+use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
@@ -162,6 +163,15 @@ final readonly class AccessApiImpl implements AccessApi
         }
 
         return $this->addressMapper->toDtos($this->addresses->forCustomerInStore($customerId, $storeId));
+    }
+
+    public function isCustomerEmail(string $email): bool
+    {
+        try {
+            return $this->customers->emailInUse(EmailAddress::of($email));
+        } catch (InvalidAccessAttribute) {
+            return false;
+        }
     }
 
     public function customersRegistered(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array

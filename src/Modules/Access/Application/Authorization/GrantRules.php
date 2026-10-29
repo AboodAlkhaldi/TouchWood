@@ -102,6 +102,22 @@ final readonly class GrantRules
     }
 
     /**
+     * The system only - the console, or a job queued by a visitor's own request: a guest following an
+     * unsubscribe link, the newsletter provider's call, a customer. Never a person directly, and never
+     * a job a staff member or an integration queued: staff never change a customer's consent
+     * (amendment 79, as built). Only withdrawing marketing consent asks this.
+     */
+    public function requireSystemForVisitor(string $permission): void
+    {
+        $actor = $this->actors->current();
+        $requester = $actor->requestedBy?->type;
+
+        if ($actor->type !== ActorType::System || ! in_array($requester, [null, ActorType::Guest, ActorType::Customer], true)) {
+            throw new Unauthorized($permission);
+        }
+    }
+
+    /**
      * Each action may go into a role of this level, and the author holds it.
      *
      * @param  list<string>  $permissions
