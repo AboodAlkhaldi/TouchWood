@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Access\Application\Command\UpdateCustomerProfile;
 
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
+use Illuminate\Support\Str;
 use Modules\Access\Application\Audit\CustomerAudit;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
@@ -12,6 +15,7 @@ use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\ValueObject\Language;
+use Modules\Access\Public\Events\CustomerLocaleChanged;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -31,6 +35,7 @@ final readonly class UpdateCustomerProfileHandler
         private CurrentCustomer $current,
         private CustomerRepository $customers,
         private PlatformApi $platform,
+        private Dispatcher $events,
         private Connection $db,
     ) {}
 
@@ -59,6 +64,11 @@ final readonly class UpdateCustomerProfileHandler
 
             $this->customers->update($customer);
             $this->platform->recordAudit(CustomerAudit::updated('access.customer.profile_updated', $before, $customer, $changed));
+
+            // Ops moves them to that language's newsletter list (amendment 79).
+            if (in_array('locale', $changed, true)) {
+                $this->events->dispatch(new CustomerLocaleChanged((string) Str::uuid(), $customer->id(), CarbonImmutable::now()));
+            }
         }, 3);
     }
 

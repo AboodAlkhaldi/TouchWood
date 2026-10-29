@@ -17,7 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 | empty search says what was typed, quoted (Geist's Combobox: No {items} match "{query}").
 */
 
-export type CountryOption = { code: string; name: string; ours: boolean };
+/** `otherName`, when given, is searched too: a page offering the countries in both languages. */
+export type CountryOption = { code: string; name: string; ours: boolean; otherName?: string };
 
 /**
  * The picker's own words, given by the page: a page carries only its own modules' word files, so
@@ -56,7 +57,7 @@ export function CountryCombobox({ id, label, countries, value, onChange, error, 
     };
 
     const item = (country: CountryOption, group: string) => (
-        <CommandItem key={`${group}-${country.code}`} value={`${group}-${country.code}`} keywords={[country.name, country.code]} onSelect={() => choose(country.code)}>
+        <CommandItem key={`${group}-${country.code}`} value={`${group}-${country.code}`} keywords={[country.name, country.otherName ?? '', country.code]} onSelect={() => choose(country.code)}>
             {country.name}
             <Check aria-hidden="true" className={cn('ms-auto', value === country.code ? 'opacity-100' : 'opacity-0')} />
         </CommandItem>

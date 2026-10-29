@@ -22,7 +22,9 @@ final class LogSsrFailure
     {
         Log::warning('A page could not be rendered on the server; the browser rendered it instead.', [
             'component' => $event->page['component'] ?? null,
-            'url' => $event->page['url'] ?? null,
+            // The route's name, not the address: an address may carry a one-time token (a reset or
+            // verification link), and a log is no place for one (audit run-2 job F).
+            'route' => request()->route()?->getName(),
             'type' => $event->type->value,
             'error' => $event->error,
             'hint' => $event->hint,

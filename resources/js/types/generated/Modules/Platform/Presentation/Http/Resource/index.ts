@@ -1,3 +1,9 @@
+export type AddableCountry = {
+code: string,
+name: string,
+otherName: string,
+ours: boolean,
+};
 export type AuditChangeRow = {
 attribute: string,
 from: string | null,
@@ -112,6 +118,49 @@ zones: Record<string, string>,
 exponents: number[],
 nextPosition: number,
 };
+export type PlaceCountryRow = {
+code: string,
+name: string,
+otherName: string,
+retired: boolean,
+hasPlaces: boolean,
+store: PlaceStoreRow | null,
+regions: number,
+cities: number,
+};
+export type PlaceCrumb = {
+id: string,
+kind: string,
+name: string,
+retired: boolean,
+};
+export type PlaceLevelPage = {
+country: PlaceCountryRow,
+parents: PlaceCrumb[],
+kind: string,
+places: PlaceRow[],
+hiddenBy: string | null,
+};
+export type PlaceRow = {
+id: string,
+kind: string,
+name: string,
+otherName: string,
+nameAr: string,
+nameEn: string,
+retired: boolean,
+cities: number,
+districts: number,
+};
+export type PlaceStoreRow = {
+code: string,
+name: string,
+active: boolean,
+};
+export type PlacesPage = {
+countries: PlaceCountryRow[],
+addable: AddableCountry[],
+};
 export type SettingGroup = {
 module: string,
 label: string,
@@ -136,6 +185,17 @@ storeName: string | null,
 storeCode: string | null,
 stores: StoreOption[],
 storeTimezone: string | null,
+};
+export type ShipToChoice = {
+code: string,
+name: string,
+hasPlaces: boolean,
+store: PlaceStoreRow | null,
+};
+export type ShipToRow = {
+code: string,
+name: string,
+own: boolean,
 };
 export type StoreChoiceRow = {
 code: string,
@@ -177,10 +237,12 @@ editable: boolean,
 isActive: boolean,
 isBase: boolean,
 switchable: boolean,
+shipsTo: ShipToRow[],
 };
 export type StoresPage = {
 stores: StoreRow[],
 timezones: string[],
 maySwitch: boolean,
 add: NewStoreForm | null,
+shipToChoices: ShipToChoice[] | null,
 };

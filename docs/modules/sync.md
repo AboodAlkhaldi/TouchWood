@@ -203,6 +203,10 @@ provider's adapter also checks its own **address** (`address()`, before any call
 Nothing new for Sales or Catalog. Sync **binds** the wiring question Pricing and Inventory already ask
 (§2.3) and registers its menu count with Platform.
 
+**For Ops' daily report** (ops.md §1.11 item 6, §2.3; amendment 1): **`SyncApi::readsAndProblemsPerDay`**,
+the reads finished and the problems opened per store and per day, in each store's own day - written out in
+§9.5, amendment 1.
+
 ### 2.3 What Sync needs from other modules
 
 | From | What | State |
@@ -716,3 +720,12 @@ things the owner asked for. They change §1.4 #5, §1.6, §3 and §5 as below.
 | S6 | **A Sync section in the admin menu** (platform.md §9.4: `sync` joins the menu's business areas, after Pricing; its icon `sync`, Lucide's `RefreshCw`) | The owner chose the screens by module (2026-10-18); the permissions already sit in their own Sync group (access.md amendment 68) |
 | S7 | **`ViewConnection` gains the last full read and the notice address** (to copy into the provider's settings) | The Super Admin wiring a store needs the address the provider calls; the last full read says when the night's read last worked |
 | S8 | **`SyncStatus`**, a read for the report's viewers: the provider and its state, the last reads, the failure's reason - never the address, settings or key | The report's header needs the state; `ViewConnection` is the Super Admin's alone |
+
+### 9.5 Amendments during the build
+
+Changes to the spec accepted on 2026-10-13, each with the owner's agreement, applied in place in the
+sections named.
+
+| # | Where | Change | Source |
+|---|---|---|---|
+| 1 | §2.2 | **Reads and problems per day, for Ops' daily report** (ops.md §1.11 item 6: "stock reads from Sync and their problems"; ops.md §2.3). Sync's first Public contract: **`Modules\Sync\Public\Contracts\SyncApi::readsAndProblemsPerDay(list<StoreId> $stores, string $fromDay, string $toDay, DateTimeImmutable $until): list<SyncDayDto>`**. (a) **The day** is each store's own calendar day (`Y-m-d`) in its own time zone (Platform's `timezone`): from midnight to the next midnight - a day of 23 or 25 hours where the clocks change - and the day `$until` falls in is cut at `$until` (the moment the button is pressed, or the email's time; ops.md §1.11). `$fromDay` to `$toDay`, both included; a day that has not begun by `$until` in a store is left out for that store. (b) **One `SyncDayDto` per store and day**, in the stores' order given (a store named twice answered once), then by day, **zeros when nothing happened** - a store never wired too: `storeId`, `day`, `readsDone`, `readsFailed`, `readsStopped` (each a count per read kind - `NOTIFIED`, `HOURLY`, `NIGHTLY`, `NOW`, `CODE` - every kind present), `pricesChanged`, `stockChanged`, `skipped` (the day's totals over every read counted), `problemsOpened` (a count per report kind, the eight of §1.6, every kind present), `complete`. Ops adds up the all-stores totals itself. (c) **A read counts on the day it finished** (`finished_at`, state `DONE` or `FAILED`); one waiting or running at `$until` is not counted. **Done**: `DONE`. **Stopped**: `FAILED` by Sync itself - `UNWIRED`, `STOPPED_REWIRED`, `SUPERSEDED` (§4.1.1, Q31) - which opens no Read Failed entry. **Failed**: every other `FAILED` read - the provider's reasons, `WORKER_GONE`, `JOB_FAILED`. A done read's prices, stock and skipped are its own counts; a failed or stopped read's are counted from what it wrote, as the Reads tab counts them (Q30). (d) **Problems are the report entries opened that day** (`opened_at`), per kind, `READ_FAILED` included; an entry already open and seen again that day is not counted again. (e) **Kept 90 days** (§1.6): a day that began more than 90 days before now answers what remains, with **`complete: false`**; every later day `true`. (f) **Who may call it**: module to module, no permission checked - Ops' use case checks `ops.report.daily` (as `InventoryApi`). An off store is answered too (§1.1 rule 8). Refused with `InvalidSyncInput`: a store that does not exist (`store`), a day that is not one or `$fromDay` after `$toDay` (`day`). (g) **A fixed number of queries** whatever the stores and days: the stores' time zones from Platform (`allStores`), one grouped query over `sync.reads`, one over `sync.report_entries`, each joined to the stores' day windows passed as one list. | Ops' daily report needs Sync's reads and problems for each store's own day (ops.md §1.11); Ops never reads Sync's tables (deptrac). | Owner, 2026-10-28 ("accept all recommended": entries opened that day per kind; a read on the day it finished; stopped reads counted apart; per state and kind with the day's totals; `complete: false` past 90 days) |

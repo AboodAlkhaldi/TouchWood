@@ -31,8 +31,9 @@ import { tone } from '@/lib/tones';
 import { useChecks } from '@/lib/use-checks';
 import { useFocusBack } from '@/lib/use-focus-back';
 import { useReturnFocus } from '@/lib/use-return-focus';
-import type { NewStoreForm, StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { NewStoreForm, ShipToChoice, StoreRow, StoresPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
+import { ShipsTo } from './ShipsTo';
 
 /*
 | E1 - the stores, with E2 as the form on each card (frontend.md §3.5), each store one of shadcn's
@@ -60,7 +61,7 @@ import type { SharedProps } from '@/types/page';
 
 type Props = StoresPage;
 
-export default function Index({ stores, timezones, maySwitch, add }: Props) {
+export default function Index({ stores, timezones, maySwitch, add, shipToChoices }: Props) {
     const t = useTranslator();
     const [editing, setEditing] = useState<string | null>(null);
     const [adding, setAdding] = useState(false);
@@ -101,6 +102,7 @@ export default function Index({ stores, timezones, maySwitch, add }: Props) {
                             key={store.id}
                             store={store}
                             maySwitch={maySwitch}
+                            shipToChoices={shipToChoices}
                             timezones={timezones}
                             open={editing === store.id}
                             onOpenChange={(open) => setEditing(open ? store.id : null)}
@@ -436,12 +438,13 @@ function AddStoreForm({ add, timezones, onDone }: { add: NewStoreForm; timezones
 type CardProps = {
     store: StoreRow;
     maySwitch: boolean;
+    shipToChoices: ShipToChoice[] | null;
     timezones: string[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
 
-function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProps) {
+function StoreCard({ store, maySwitch, shipToChoices, timezones, open, onOpenChange }: CardProps) {
     const t = useTranslator();
     const [confirmingOff, setConfirmingOff] = useState(false);
     const [switching, setSwitching] = useState(false);
@@ -481,7 +484,7 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
 
     return (
         <Collapsible open={open} onOpenChange={onOpenChange} asChild>
-            <Card className="material-base gap-0 overflow-hidden border-0 py-0" data-test={`store-${store.code}`}>
+            <Card id={`store-${store.code}`} className="material-base scroll-mt-20 gap-0 overflow-hidden border-0 py-0" data-test={`store-${store.code}`}>
                 <CardHeader className="px-5 py-4">
                     <CardTitle className="flex flex-wrap items-center gap-2">
                         <h2 className="text-heading-16 text-ink">{store.name}</h2>
@@ -526,6 +529,8 @@ function StoreCard({ store, maySwitch, timezones, open, onOpenChange }: CardProp
                         </Note>
                     </div>
                 ) : null}
+
+                <ShipsTo store={store} choices={shipToChoices} />
 
                 <AlertDialog open={confirmingOff} onOpenChange={(next) => (switching ? undefined : setConfirmingOff(next))}>
                     <AlertDialogContent onCloseAutoFocus={returnFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 data-[size=default]:sm:max-w-md">

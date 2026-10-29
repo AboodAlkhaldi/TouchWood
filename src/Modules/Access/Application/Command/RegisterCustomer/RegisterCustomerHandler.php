@@ -28,6 +28,7 @@ use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\GuestBecameCustomer;
+use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -94,7 +95,9 @@ final readonly class RegisterCustomerHandler
         $termsVersion = $this->settings->termsVersion();
         $verificationHours = $this->settings->emailVerificationHours();
 
-        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours): Customer {
+        $marketingConsent = $command->marketingConsent;
+
+        $customer = $this->db->transaction(function () use ($email, $language, $accountType, $firstName, $lastName, $passwordHash, $storeId, $storeCode, $termsVersion, $verificationHours, $marketingConsent): Customer {
             // One email, one account (amendment 13) — and a staff address is answered exactly like a
             // customer's, so this public form never tells a stranger who works here (owner,
             // 2026-09-20, after the step 4a review).
@@ -105,12 +108,16 @@ final readonly class RegisterCustomerHandler
             $now = CarbonImmutable::now();
             $customer = Customer::register(
                 $this->customers->nextId(), $email, $passwordHash, $firstName, $lastName,
-                $accountType, $language, $storeId, $termsVersion, $now,
+                $accountType, $language, $storeId, $termsVersion, $now, $marketingConsent,
             );
 
             $this->customers->add($customer);
             $this->platform->recordAudit(CustomerAudit::registered($customer));
             $this->events->dispatch(new CustomerRegistered((string) Str::uuid(), $customer->id(), $accountType, $storeId, $now));
+
+            if ($marketingConsent) {
+                $this->events->dispatch(new MarketingConsentChanged((string) Str::uuid(), $customer->id(), $now));
+            }
 
             $guestId = $this->guests->current();
 

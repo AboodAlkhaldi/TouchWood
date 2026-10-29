@@ -6,6 +6,7 @@ declare(strict_types=1);
 return [
     'stores' => 'Stores',
     'currencies' => 'Currencies',
+    'places' => 'Countries and Places',
     'settings' => 'Settings',
     'media' => 'Media Library',
     'audit' => 'Audit Log',

@@ -126,8 +126,9 @@ must publish it (§2.3).
 | C13 | Points changed by hand | An admin adds or removes | **new** `PointsChangedByHand` | The admin's reason when given |
 | C14 | Points expiring | **7 days** before a lot expires | A nightly Ops job over a **new** Loyalty read (§2.3) | One message per customer per day, summing every lot that expires that day |
 | C15 | Coupon assigned | Staff assign one | **new** `CouponAssigned` | |
-| C16 | Question answered | Staff answer | **new** `QuestionAnswered` | |
-| C17 | Review not published | Staff decline it **with a reason** | **new** `ReviewNotPublished` | **No reason, no message** (feedback.md:75) |
+| C16 | Question answered | Staff answer a waiting question (a corrected answer sends nothing) | `QuestionAnswered` (feedback.md §2.5, #252) | Read through `FeedbackApi::questionForMessage`; **sent only if the question is still answered** — events are kept in order per order only |
+| C17 | Review not published | Staff reject a review, or take an approved one down, **with a reason** | `ReviewNotPublished` (#252) | **No reason, no message** (feedback.md:75); read through `reviewForMessage`, sent only if it is still not published |
+| C17b | Question not published | Staff reject a question, or take an answered one down, **with a reason** | `QuestionNotPublished` (#252) | Added by the owner, 2026-10-28 (feedback.md §1.3). **No reason, no message**; sent only if it is still not published |
 | C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again". Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
 
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
@@ -154,6 +155,7 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
   super admins can renew the key). Each super admin may switch it off (access.md amendment 81: a switch
   on the staff account, **on by default**, shown to super admins only).
 - `HoldsShort` sends nothing — the orders are flagged already (Stage 5's recommendation, round 1 #14).
+- **A switched-off store still sends** (owner, 2026-10-29): a customer whose question a Super Admin answers there is told, as anywhere.
 - An alert **links to its page** (the order, the report) and never copies details that may be stale
   (Stage 5's rule for Sync).
 
@@ -283,11 +285,11 @@ go (§9.2).
 
 | Module (builder) | Events | Reads |
 |---|---|---|
-| **Sales** (Stage 6 session) | `OrderApproved`, `OrderRejected`, `OrderEdited`, `OrderShipped`, `OrderCameBack`, `ReturnRequested`, `ReturnReceived`, `ReturnAccepted`, `ReturnRefused`, `PaymentRecorded`, `RefundRecorded`, `TransferOverdue` — ids only, through the outbox, like its four | `orderForMessage(orderId, locale)` — one value: number, store, lines as sold, totals (goods, discounts, points, shipping, VAT, total), way to pay, carrier, tracking link, reason; `revenueByDay(store, from, to)` — refunds on the return's asked day, and the waiting returns' estimated refund; `productSales(store, from, to, after, limit)` — per size, units and value without VAT after line discounts; the daily report's counts (cancelled, rejected, came back, refunds, individuals/companies); payments in per day by way; transfers waiting and overdue |
-| **Loyalty** (Stage 6) | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
-| **Promotions** (Stage 6) | `CouponAssigned` | `segmentMembers` (exists); coupons used per day and their discount |
-| **Feedback** (Stage 6) | `QuestionAnswered`, `ReviewNotPublished` (only with a reason) | `favouriteCounts(store, after, limit)`; new reviews and waiting questions per day |
-| **Catalog** (Stage 6) | — | `searchSummary(store?, from, to, after, limit)` — grouped, no person (catalog.md §1.11) |
+| **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for online payments) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)` (the tracking link is Stage 7's); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off. An unknown store is refused |
+| **Loyalty** (Stage 6) — **built (#256)** | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
+| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` (exists); coupons used per day and their discount |
+| **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
+| **Catalog** (Stage 6) | — | **Built (#251, catalog.md amendment 37):** `searchSummary(?store, from, to, after, limit)` — {query, storeId, locale, searches, noResults}, most searched first; no person (catalog.md §1.11) |
 | **Inventory** (Stage 5 session) | `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — ids only, only when a list is non-empty, after commit; needs a new table of the store's last low set (today only a count is kept, `CountLowStockHandler.php:58`); LOW→OUT is in `ranOut`, OUT→LOW in nothing | `lowStockChanges(store, from, to)` over a small change log; stock per size for the Stock report |
 | **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | Reads and problems per day — a new read over `sync.reads` and `sync.report_entries` |
 | **B2B** (Stage 5) | `CompanyApplicationSubmitted` (exists; **carries no store** — add `storeId`, or a read by application) | Applications submitted and approved per day — a new read; Ops never counts from events |
@@ -401,3 +403,4 @@ publishes none; the four moments handed to stage 8.
     pending.
 15. **Answered** (owner, 2026-10-28): the email is the button's report at the chosen time; store time zone,
     all stores in Riyadh time — written into §1.11.
+16. **Answered** (owner, 2026-10-29): a voided payment sends no message of its own.

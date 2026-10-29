@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Exceptions\QueryErrorLog;
 use App\Http\Middleware\AssignCorrelationId;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\KeepNoCopy;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\ProblemDetails;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(AssignCorrelationId::class);
+        // Outermost, so a response another global middleware answers (maintenance, too large) has them too.
+        $middleware->prepend(SecurityHeaders::class);
+        $middleware->alias([KeepNoCopy::ALIAS => KeepNoCopy::class]);
         // Every page of both areas is an Inertia page (frontend.md 1.3). This decides the shell,
         // the asset version and the theme; what a module shares on top is the module's own.
         $middleware->web(append: [HandleInertiaRequests::class]);

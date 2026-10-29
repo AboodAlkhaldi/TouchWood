@@ -40,6 +40,8 @@ return [
     'customer.email_verified' => 'Customer email verified',
     'customer.phone_verified' => 'Customer mobile verified',
     'customer.profile_updated' => 'Customer profile changed',
+    'customer.marketing_consent_changed' => 'Customer changed offers and news',
+    'customer.marketing_consent_withdrawn' => 'Customer unsubscribed from offers and news',
     'customer.password_changed' => 'Customer password changed',
     'customer.password_reset' => 'Customer password reset',
     'customer.blocked' => 'Customer blocked',

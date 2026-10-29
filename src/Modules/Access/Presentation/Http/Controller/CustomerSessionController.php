@@ -62,6 +62,7 @@ final readonly class CustomerSessionController
                 $request->text('locale'),
                 $request->boolean('terms'),
                 (string) $request->ip(),
+                $request->boolean('marketing_consent'),
             ));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['email']);

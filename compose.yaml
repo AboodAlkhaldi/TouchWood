@@ -2,7 +2,8 @@
 #   docker compose up -d
 #
 # Postgres is published on 5433 so it does not collide with a locally
-# installed PostgreSQL on 5432.
+# installed PostgreSQL on 5432, and only on this computer (127.0.0.1): the
+# password below is no secret, so nobody else on the network may reach it.
 #
 # No Redis for now (owner, 2026-09-18): sessions, cache and queues run on PostgreSQL.
 
@@ -14,7 +15,7 @@ services:
             POSTGRES_USER: touchwood
             POSTGRES_PASSWORD: secret
         ports:
-            - "${FORWARD_DB_PORT:-5433}:5432"
+            - "127.0.0.1:${FORWARD_DB_PORT:-5433}:5432"
         volumes:
             - postgres-data:/var/lib/postgresql/data
             - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro

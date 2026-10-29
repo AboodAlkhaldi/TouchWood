@@ -5,8 +5,10 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ViewStoreButton } from '@/components/ViewStoreButton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
     Breadcrumb,
+    BreadcrumbEllipsis,
     BreadcrumbItem,
     BreadcrumbLink,
     BreadcrumbList,
@@ -54,16 +56,24 @@ type Props = {
      * which is why it is only a default.
      */
     breadcrumbs?: Crumb[];
+    /**
+     * On a phone the trail shows the page only; `lastTwo` keeps the step above it too and folds the
+     * rest into shadcn's ellipsis menu - for a deep trail, the places' (platform.md §4.3).
+     */
+    phoneTrail?: 'page' | 'lastTwo';
     children: ReactNode;
 };
 
-export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: Props) {
+export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail = 'page', children }: Props) {
     const page = usePage<SharedProps>();
     const { menu, sidebarOpen } = page.props;
     const here = pathOf(page.url);
     const t = useTranslator();
 
     const trail: Crumb[] = [...(breadcrumbs ?? defaultTrail(menu, here)), { label: title }];
+    // Shown on a phone from this step on; what is before it is in the ellipsis menu, when kept.
+    const phoneFrom = phoneTrail === 'lastTwo' ? Math.max(trail.length - 2, 0) : trail.length - 1;
+    const folded = phoneTrail === 'lastTwo' ? trail.slice(0, phoneFrom) : [];
 
     return (
         <>
@@ -87,25 +97,52 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, children }: 
                             {/* Its landmark named in the page's language, not shadcn's English. */}
                             <Breadcrumb aria-label={t('ui.breadcrumbs')} className="min-w-0">
                                 <BreadcrumbList>
+                                    {folded.length > 0 ? (
+                                        <>
+                                            <BreadcrumbItem className="md:hidden">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger className="rounded-sm focus-visible:outline-2" aria-label={t('ui.breadcrumbs_more')} data-test="trail-more">
+                                                        <BreadcrumbEllipsis className="size-6" />
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="start">
+                                                        {folded.map((crumb, index) =>
+                                                            crumb.href === undefined ? null : (
+                                                                <DropdownMenuItem key={`${index}-${crumb.label}`} asChild>
+                                                                    <Link href={crumb.href}>{crumb.label}</Link>
+                                                                </DropdownMenuItem>
+                                                            ),
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </BreadcrumbItem>
+                                            <BreadcrumbSeparator className="md:hidden">
+                                                <ChevronRight className="rtl:rotate-180" />
+                                            </BreadcrumbSeparator>
+                                        </>
+                                    ) : null}
                                     {trail.map((crumb, index) => {
                                         const last = index === trail.length - 1;
+                                        const onPhone = index >= phoneFrom;
 
                                         return (
                                             <Fragment key={`${index}-${crumb.label}`}>
-                                                {/* On a phone only the page itself shows, as the block does. */}
-                                                <BreadcrumbItem className={last ? 'min-w-0' : 'hidden md:block'}>
+                                                {/* On a phone only the page itself shows, as the block does - or the step
+                                                    above it too, with `lastTwo`. */}
+                                                <BreadcrumbItem className={last ? 'min-w-0' : onPhone ? 'min-w-0 shrink' : 'hidden md:block'}>
                                                     {last || crumb.href === undefined ? (
                                                         <BreadcrumbPage className="block truncate">{crumb.label}</BreadcrumbPage>
                                                     ) : (
                                                         <BreadcrumbLink asChild>
-                                                            <Link href={crumb.href}>{crumb.label}</Link>
+                                                            <Link href={crumb.href} className={onPhone ? 'block truncate' : undefined}>
+                                                                {crumb.label}
+                                                            </Link>
                                                         </BreadcrumbLink>
                                                     )}
                                                 </BreadcrumbItem>
                                                 {/* Pointing onward in the page's own direction: in
                                                     Arabic the trail reads right to left. */}
                                                 {last ? null : (
-                                                    <BreadcrumbSeparator className="hidden md:block">
+                                                    <BreadcrumbSeparator className={onPhone ? undefined : 'hidden md:block'}>
                                                         <ChevronRight className="rtl:rotate-180" />
                                                     </BreadcrumbSeparator>
                                                 )}

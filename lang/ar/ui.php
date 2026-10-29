@@ -21,6 +21,7 @@ return [
     // screen reader.
     'more_actions' => 'إجراءات أخرى',
     'breadcrumbs' => 'مسار التنقل',
+    'breadcrumbs_more' => 'الخطوات السابقة',
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'الشريط الجانبي',
     'sidebar_description' => 'يعرض الشريط الجانبي على الهاتف.',

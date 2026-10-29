@@ -9,7 +9,9 @@ use Modules\Platform\Presentation\Http\Controller\CurrenciesController;
 use Modules\Platform\Presentation\Http\Controller\FailedJobsController;
 use Modules\Platform\Presentation\Http\Controller\MediaController;
 use Modules\Platform\Presentation\Http\Controller\PanelNotFoundController;
+use Modules\Platform\Presentation\Http\Controller\PlacesController;
 use Modules\Platform\Presentation\Http\Controller\SettingsController;
+use Modules\Platform\Presentation\Http\Controller\StoreCountriesController;
 use Modules\Platform\Presentation\Http\Controller\StoresController;
 
 /*
@@ -39,6 +41,27 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('currencies/{currency}', [CurrenciesController::class, 'update'])->name('platform.admin.currencies.update');
         // Only a currency no store uses (platform.md §9.7).
         Route::post('currencies/{currency}/delete', [CurrenciesController::class, 'destroy'])->name('platform.admin.currencies.delete');
+
+        // A store's ship-to countries, from its card (platform.md §4.3): Super Admins only, reserved.
+        Route::post('stores/{store}/countries', [StoreCountriesController::class, 'add'])->name('platform.admin.stores.countries.add');
+        Route::post('stores/{store}/countries/{country}/remove', [StoreCountriesController::class, 'remove'])
+            ->where('country', '[A-Za-z]{2}')->name('platform.admin.stores.countries.remove');
+
+        // E8 - the address countries and their places (platform.md §4.3): global, both permissions
+        // reserved, so only a Super Admin reaches them. A page per level, each a step of the trail.
+        Route::get('places', [PlacesController::class, 'index'])->name('platform.admin.places');
+        Route::post('places', [PlacesController::class, 'addCountry'])->name('platform.admin.places.countries.add');
+        Route::prefix('places/{country}')->where(['country' => '[A-Za-z]{2}', 'region' => '[0-9a-z]{26}', 'city' => '[0-9a-z]{26}', 'place' => '[0-9a-z]{26}'])->group(function (): void {
+            Route::get('', [PlacesController::class, 'regions'])->name('platform.admin.places.regions');
+            Route::get('{region}', [PlacesController::class, 'cities'])->name('platform.admin.places.cities');
+            Route::get('{region}/{city}', [PlacesController::class, 'districts'])->name('platform.admin.places.districts');
+            Route::post('retire', [PlacesController::class, 'retireCountry'])->name('platform.admin.places.countries.retire');
+            Route::post('restore', [PlacesController::class, 'restoreCountry'])->name('platform.admin.places.countries.restore');
+            Route::post('places', [PlacesController::class, 'addPlace'])->name('platform.admin.places.add');
+            Route::post('places/{place}', [PlacesController::class, 'renamePlace'])->name('platform.admin.places.rename');
+            Route::post('places/{place}/retire', [PlacesController::class, 'retirePlace'])->name('platform.admin.places.retire');
+            Route::post('places/{place}/restore', [PlacesController::class, 'restorePlace'])->name('platform.admin.places.restore');
+        });
 
         // Every declared setting this person may change, whichever module declared it. A store
         // setting applies to the store in the header, which is where the store comes from.
