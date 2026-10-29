@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Ops\Presentation\Http\Controller\BellController;
+use Modules\Ops\Presentation\Http\Controller\NewsletterController;
 
 /*
 | The shop's bell (ops.md §1.2, §4), under the store and language as every shop page is, for a
@@ -20,4 +21,17 @@ Route::prefix('{store}/{locale}')
         // Every entry, named before one entry's own route takes the word.
         Route::post('account/notifications/read-all', [BellController::class, 'readAll'])->name('storefront.ops.bell.read-all');
         Route::post('account/notifications/{entry}/read', [BellController::class, 'read'])->name('storefront.ops.bell.read');
+    });
+
+/*
+| The newsletter box and its links (ops.md §1.9, §1.3), open to anyone: the box is a guest's; the
+| confirmation link carries its token; the unsubscribe link is signed and needs no sign-in.
+*/
+Route::prefix('{store}/{locale}')
+    ->middleware(StorefrontArea::MIDDLEWARE)
+    ->group(function (): void {
+        Route::post('newsletter', [NewsletterController::class, 'subscribe'])->name('storefront.ops.newsletter.subscribe');
+        Route::get('newsletter/confirm/{token}', [NewsletterController::class, 'confirmation'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm');
+        Route::post('newsletter/confirm/{token}', [NewsletterController::class, 'confirm'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm.post');
+        Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->middleware('signed')->name('storefront.ops.unsubscribe');
     });

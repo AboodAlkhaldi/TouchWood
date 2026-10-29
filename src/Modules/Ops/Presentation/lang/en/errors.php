@@ -12,6 +12,22 @@ return [
         'title' => 'Check the Details',
         'detail' => 'The :attribute isn\'t valid. Check it and try again.',
     ],
+    'notice_not_found' => [
+        'title' => 'Notice Not Found',
+        'detail' => 'This notice isn\'t in the list.',
+    ],
+    'notice_already_started' => [
+        'title' => 'Notice Can\'t Be Changed',
+        'detail' => 'This notice has started sending or was cancelled, so it can\'t be changed any more.',
+    ],
+    'subscriber_not_found' => [
+        'title' => 'Subscriber Not Found',
+        'detail' => 'This subscriber isn\'t in the list.',
+    ],
+    'confirmation_link_invalid' => [
+        'title' => 'Link Not Valid',
+        'detail' => 'This confirmation link isn\'t valid any more. Sign up again to get a new one.',
+    ],
 
     'fields' => [
         'after' => 'place in the list',
@@ -25,5 +41,15 @@ return [
         'person' => 'person',
         'channel' => 'channel',
         'provider_id' => 'provider id',
+        'body_ar' => 'Arabic text',
+        'body_en' => 'English text',
+        'channels' => 'channels',
+        'send_at' => 'sending time',
+        'store' => 'store',
+        'audience' => 'audience',
+        'customer' => 'customer',
+        'email' => 'email',
+        'locale' => 'language',
+        'token' => 'confirmation link',
     ],
 ];

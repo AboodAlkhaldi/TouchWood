@@ -334,4 +334,40 @@ return [
             'A customer asked for a return of order :order in :store. It waits under Returns.',
         ],
     ],
+
+    // Step 7 (§1.7-§1.9). NOT YET APPROVED by the owner: the frame around what staff write, the
+    // unsubscribe line, and the newsletter's confirmation. :title and :line are the staff's own words.
+    'offer_notice' => [
+        'title' => ':title',
+        'line' => ':line',
+        'subject' => ':title',
+        'lines' => [
+            'Hello :name,',
+            ':line',
+        ],
+        'action' => 'See the offer',
+    ],
+    'staff_message' => [
+        'title' => ':title',
+        'line' => ':line',
+        'subject' => ':title',
+        'lines' => [
+            'Hello :name,',
+            ':line',
+        ],
+    ],
+    'newsletter_confirmation' => [
+        'subject' => 'Confirm your subscription to :store news',
+        'lines' => [
+            'Hello,',
+            'Confirm that you want to receive offers and news from :store by email.',
+            'If you did not ask for this, ignore this email and nothing will be sent to you.',
+        ],
+        'action' => 'Confirm my subscription',
+    ],
+    // Every marketing email ends with this line and its link (§1.3).
+    'unsubscribe' => [
+        'text' => 'You get this email because you agreed to receive offers and news from :store.',
+        'action' => 'Unsubscribe',
+    ],
 ];

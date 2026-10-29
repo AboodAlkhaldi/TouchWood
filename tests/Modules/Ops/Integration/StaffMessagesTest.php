@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types=1);
+
+use Database\Seeders\PlatformSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessage;
+use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler;
+use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessage;
+use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessageHandler;
+use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Shared\Application\Unauthorized;
+use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Ops\Support\CapturedEmails;
+use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
+
+use function Pest\Laravel\seed;
+
+/*
+| Staff messages (ops.md §1.8): to one customer - a service message, its email whatever their consent
+| - under ops.message.send_one; to every customer of the store - marketing for its email - under
+| ops.message.send_many, admins only. Bell and email, as ticked; recorded with who sent it, to whom.
+|
+| Every helper here is named after this file's subject: a Pest file's functions are global.
+*/
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    seed(PlatformSeeder::class);
+    CapturedEmails::install();
+});
+
+function staffMessagesSend(?string $customerId, string $storeCode = 'sa', bool $bell = true, bool $email = true): string
+{
+    return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(
+        Fx::storeId($storeCode),
+        $customerId,
+        'بخصوص طلبك',
+        'About your order',
+        "شكرًا لصبرك.\nسنتواصل معك.",
+        "Thank you for your patience.\nWe will be in touch.",
+        $bell,
+        $email,
+    ));
+}
+
+it('writes to one customer: bell and email, whatever their consent, recorded with sender and customer', function () {
+    $omar = Fx::customer('omar@example.test');
+    $staff = Fx::staffWith(['ops.message.send_one'], ['sa']);
+    Fx::actAsStaff($staff);
+
+    $id = staffMessagesSend($omar);
+
+    $row = DB::table('ops.staff_messages')->where('id', $id)->first();
+    expect($row)->toMatchArray(['audience' => 'ONE', 'customer_id' => $omar, 'sender_id' => $staff, 'status' => 'SENT', 'bell_count' => 1, 'email_count' => 1])
+        ->and(CapturedEmails::installed()->to())->toBe(['omar@example.test'])
+        ->and(CapturedEmails::installed()->sent[0]->subject)->toBe('About your order')
+        // A service message carries no unsubscribe link.
+        ->and(CapturedEmails::installed()->sent[0]->text)->not->toContain('unsubscribe')
+        ->and(CapturedEmails::installed()->sent[0]->html)->toContain('Thank you for your patience.<br />')
+        ->and(DB::table('ops.inbox_entries')->where('customer_id', $omar)->value('kind'))->toBe('staff_message');
+});
+
+it('writes to every customer of the store: the bell to all, the email only to those who agreed', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    $omar = Fx::customer('omar@example.test');
+    Fx::customer('ae@example.test', 'ae');
+    Fx::actAsAdmin(['sa'], ['ops.message.send_many']);
+
+    $id = staffMessagesSend(null);
+
+    expect(DB::table('ops.staff_messages')->where('id', $id)->first())->toMatchArray(['audience' => 'STORE', 'customer_id' => null, 'bell_count' => 2, 'email_count' => 1])
+        ->and(DB::table('ops.inbox_entries')->pluck('customer_id')->sort()->values()->all())->toBe(collect([$sara, $omar])->sort()->values()->all())
+        ->and(CapturedEmails::installed()->to())->toBe(['sara@example.test'])
+        ->and(CapturedEmails::installed()->sent[0]->text)->toContain('/sa/en/unsubscribe/'.$sara);
+});
+
+it('keeps a message to many for those holding ops.message.send_many, and one for those holding send_one', function () {
+    $omar = Fx::customer('omar@example.test');
+    Fx::actAsStaff(Fx::staffWith(['ops.message.send_one'], ['sa']));
+    expect(fn () => staffMessagesSend(null))->toThrow(Unauthorized::class);
+
+    Fx::actAsStaff(Fx::staffWith(['ops.notice.manage'], ['sa']));
+    expect(fn () => staffMessagesSend($omar))->toThrow(Unauthorized::class)
+        ->and(DB::table('ops.staff_messages')->count())->toBe(0);
+});
+
+it('refuses no channel, an unknown or anonymized customer, and a store with no customers', function () {
+    $omar = Fx::customer('omar@example.test');
+    Fx::actAsAdmin(['sa', 'ae'], ['ops.message.send_one', 'ops.message.send_many']);
+
+    expect(fn () => staffMessagesSend($omar, bell: false, email: false))->toThrow(InvalidOpsInput::class, 'Invalid channels')
+        ->and(fn () => staffMessagesSend('01JAAAAAAAAAAAAAAAAAAAAAAA'))->toThrow(InvalidOpsInput::class, 'Invalid customer')
+        ->and(fn () => staffMessagesSend('not-an-id'))->toThrow(InvalidOpsInput::class, 'Invalid customer')
+        ->and(fn () => staffMessagesSend(null, 'ae'))->toThrow(InvalidOpsInput::class, 'Invalid audience');
+
+    Wx::set($omar, ['anonymized_at' => now()->toIso8601String()]);
+    expect(fn () => staffMessagesSend($omar))->toThrow(InvalidOpsInput::class, 'Invalid customer');
+});
+
+it('finds the customer by name in any store, by email only among those the reader may view', function () {
+    $sara = Fx::customer('sara@example.test');
+    $other = Fx::customer('sara.ae@example.test', 'ae');
+    // Without access.customer.view, no email at all: names only.
+    Fx::actAsStaff(Fx::staffWith(['ops.message.send_one'], ['sa']));
+    $names = app(FindCustomersToMessageHandler::class)->handle(new FindCustomersToMessage(Fx::storeId('sa'), 'Sara'));
+    expect(array_map(static fn ($customer) => $customer->email, $names))->toBe([null, null]);
+
+    Fx::actAsAdmin(['sa'], ['ops.message.send_one', 'access.customer.view']);
+
+    $found = app(FindCustomersToMessageHandler::class)->handle(new FindCustomersToMessage(Fx::storeId('sa'), 'Sara'));
+    $emails = [];
+
+    foreach ($found as $customer) {
+        $emails[$customer->id] = $customer->email;
+    }
+
+    // The other store's customer: named, never their email.
+    expect($emails)->toEqualCanonicalizing([$sara => 'sara@example.test', $other => null]);
+});
