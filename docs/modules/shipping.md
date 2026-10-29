@@ -95,8 +95,9 @@ country would leave every price pointing at places of the wrong country).
   cannot see Sales's orders, never has to ask whether an order still names the carrier.
 - A store may have **no carrier**: every address in its countries is then `NOT_COVERED`.
 - **The countries a store ships to** (Platform's, set by Super Admins — §9.2) — **[ACCEPTED 2026-10-28]**: the
-  store's own country is always one of them; a country is added only once Platform has its place list
-  (otherwise its carriers could never be priced, and every address there would stay `NOT_COVERED`); a
+  store's own country is always one of them; a country is added only once Platform has its place list —
+  a region in use (owner, 2026-10-29) — otherwise its carriers could never be priced, and every address
+  there would stay `NOT_COVERED`; a
   country is removed, or moved to another store, only once the store has no carrier there (they are
   switched off first) (owner, 2026-10-27, §9.3 #9).
 
@@ -107,7 +108,10 @@ them as the owner described (2026-10-17):
 
 1. Type the amount (in the store's currency, two decimals; 0 allowed = delivered for free there).
 2. Pick **cities** — several at once, with **Select all** for the whole country's list — and/or
-   **districts** of a city — several at once, with **Select all** for the whole city.
+   **districts** of a city — several at once, with **Select all** for the whole city. **A whole region**
+   may be picked too (owner, 2026-10-29, built in step 4): where a country's list stops at its regions
+   (the UAE's emirates, Qatar's municipalities, Bahrain's governorates — the customer types the city),
+   the region is what a carrier is priced by.
 3. Confirm. The group is saved for that carrier.
 
 The rules, checked on every save:
@@ -319,7 +323,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | `CarrierNameTaken` | CONFLICT | A name another carrier of the store has, in either language, ignoring case and outer spaces — names it in both languages (§9.4 #4) |
 | `CountryNotShipped` | INVALID | A carrier for a country the store does not ship to |
 | `CountryHasCarriers` | CONFLICT | Removing a ship-to country, or moving it to another store, while the store has carriers there (Platform asks Shipping through a hook it declares — §9.2) |
-| `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) — raised by Platform, which owns the ship-to list (platform.md, stage 7 step 1) |
+| `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for — no region in use (§1.3; owner, 2026-10-29) — raised by Platform, which owns the ship-to list (platform.md, stage 7 step 1) |
 | `PlaceAlreadyPriced` | CONFLICT | A place already in another group of this carrier (§1.4) — names the place and its amount |
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
 | `PlaceNotInCountry` | INVALID | A city or district not in the carrier's country, or a district of another city |

@@ -40,14 +40,12 @@ final readonly class DatabaseAddressCountries implements AddressCountryRepositor
         ]);
     }
 
-    public function hasLiveCity(string $code): bool
+    public function hasLiveRegion(string $code): bool
     {
-        return $this->db->table('platform.places as city')
-            ->join('platform.places as region', 'region.id', '=', 'city.parent_id')
-            ->where('city.country_code', $code)
-            ->where('city.kind', 'CITY')
-            ->where('city.retired', false)
-            ->where('region.retired', false)
+        return $this->db->table('platform.places')
+            ->where('country_code', $code)
+            ->where('kind', 'REGION')
+            ->where('retired', false)
             ->exists();
     }
 }

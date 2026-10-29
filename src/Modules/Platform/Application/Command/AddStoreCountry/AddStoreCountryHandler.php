@@ -62,7 +62,7 @@ final readonly class AddStoreCountryHandler
                 throw new CountryShippedByAnotherStore($code, $this->directory->storeById($current->value)->code ?? $current->value);
             }
 
-            if (! $this->countries->hasLiveCity($code)) {
+            if (! $this->countries->hasLiveRegion($code)) {
                 throw new CountryWithoutPlaces($code);
             }
 

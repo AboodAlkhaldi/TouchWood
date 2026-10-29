@@ -159,13 +159,17 @@ describe('the address countries (B1)', function () {
             ->and($rows['SA']->name->en)->toBe('Saudi Arabia');
     });
 
-    it('reads a country whose cities are all in retired regions as having no place list', function () {
+    it('reads a region with no city as a place list, and a country whose regions are all retired as none', function () {
         $p = placesPanelSaudi();
         app(RetirePlaceHandler::class)->handle(new RetirePlace($p['riyadh_region']));
 
         $saudi = placesPanelCountries()['SA'];
+        expect([$saudi->hasPlaces, $saudi->regions, $saudi->cities])->toBe([true, 1, 0]);
 
-        expect([$saudi->hasPlaces, $saudi->regions, $saudi->cities])->toBe([false, 1, 0]);
+        app(RetirePlaceHandler::class)->handle(new RetirePlace($p['eastern']));
+
+        $saudi = placesPanelCountries()['SA'];
+        expect([$saudi->hasPlaces, $saudi->regions, $saudi->cities])->toBe([false, 0, 0]);
     });
 
     it('reads the countries in a fixed number of statements', function () {

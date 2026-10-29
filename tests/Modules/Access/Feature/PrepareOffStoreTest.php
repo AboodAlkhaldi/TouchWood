@@ -64,6 +64,20 @@ function prepareOffStoreEgyptOff(): string
     return $egypt;
 }
 
+/**
+ * A short form: the city asked for, the region and district kept in it as every format keeps them (Q12).
+ *
+ * @return list<array<string, mixed>>
+ */
+function prepareOffStorePlaceFields(): array
+{
+    return [
+        ['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100],
+        ['key' => 'administrative_area', 'label_ar' => 'المنطقة', 'label_en' => 'Region', 'required' => false, 'max_length' => 100],
+        ['key' => 'district', 'label_ar' => 'الحي', 'label_en' => 'District', 'required' => false, 'max_length' => 100],
+    ];
+}
+
 /** A Super Admin signed in, with Egypt off. */
 function prepareOffStoreSuperAdmin(): AdminBrowser
 {
@@ -124,7 +138,7 @@ describe('a Super Admin preparing an off store', function () {
             );
 
         $browser->post("/admin/address-formats/{$egypt}", [
-            'fields' => [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100]],
+            'fields' => prepareOffStorePlaceFields(),
             'display_template' => '{city}',
         ])->assertRedirect('/admin/address-formats?store=eg');
 
@@ -194,13 +208,13 @@ describe('a staff member who covers an off store', function () {
         $browser = prepareOffStoreSignIn($staffId);
 
         $refused = $browser->post("/admin/address-formats/{$egypt}", [
-            'fields' => [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100]],
+            'fields' => prepareOffStorePlaceFields(),
             'display_template' => '{city}',
         ]);
 
         // The same form, sent for Saudi Arabia, saves: so the refusal is the store's, not the form's.
         $browser->post('/admin/address-formats/'.Fx::storeId('sa'), [
-            'fields' => [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100]],
+            'fields' => prepareOffStorePlaceFields(),
             'display_template' => '{city}',
         ])->assertRedirect('/admin/address-formats?store=sa');
 
