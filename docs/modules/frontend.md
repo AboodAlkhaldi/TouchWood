@@ -1112,7 +1112,9 @@ things are new:
      **district** picker until a city is (Geist's disabled-with-reason);
    - **"Other"** is the city list's last item — and the district list's (Q5) — and shows a box to type the
      name in, required as the format says. An "Other" city has no district list, so its district is typed;
-   - a picked city **with no district list**: the district is typed, as today (76(d));
+   - a picked city **with no district list**: the district is typed, as today (76(d)); likewise a picked
+     region **with no city listed** (a country listed to its top level only): the city is typed (found in
+     building, 2026-10-29);
    - changing a region clears the city and district; changing a city clears the district;
    - the lists arrive as they are needed (Q7): the countries with the page; a country's regions when it is
      picked (or with the page, for the store's own country); a region's cities when it is picked; a city's
@@ -1377,9 +1379,9 @@ None. The one question here — which module keeps the admin menu registry — w
 ### 8.4 The address form's questions — round 1 (2026-10-29)
 
 Asked by the screens session for §3.6 "F9 on Platform's places". Option **(a)** is the recommended one in each.
-**Answered by the owner, 2026-10-29: every question (a).** With it, the owner set the address countries to start as six —
-Saudi Arabia, Egypt, the UAE, Qatar, Bahrain and Oman — the only ones a customer's address offers; Super Admins
-keep editing the list (platform.md §4.3 E8).
+**Answered by the owner, 2026-10-29: every question (a).** With it, the owner set the address countries to start as five —
+Saudi Arabia, Egypt, the UAE, Qatar and Bahrain (Oman withdrawn the same day) — the only ones a customer's address
+offers; Super Admins keep editing the list (platform.md §4.3 E8).
 Q7's (a) holds whatever the size of the lists the backend seeds.
 
 | # | Question | Options and their effect |
