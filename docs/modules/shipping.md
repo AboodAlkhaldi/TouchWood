@@ -276,7 +276,7 @@ both languages, Geist/shadcn parts) in the screens spec round (owner's method, 2
 | **A carrier** — `/admin/shipping/carriers/{id}` | Its details and logo; its **price groups** (amount, places as chips, edit, delete); "Add a price": amount, then the city picker (search, Select all) and, per city with districts, the district picker (search, Select all); "Move here" for places already priced (§1.4) |
 | **Boxes** — `/admin/shipping/boxes?store=` | The box list and the padding (§1.7) |
 
-#### Part 1 — the carriers (screens round 1, 2026-10-29) — **[DRAFT for the owner]**
+#### Part 1 — the carriers (screens round 1, 2026-10-29) — **[ACCEPTED by the owner, 2026-10-29]**
 
 Written by the screens session on the owner's word of 2026-10-29 ("start the Shipping screens spec now: the
 carriers part and its questions; price groups and boxes when steps 4 and 5 merge"). It uses only what step 3
@@ -566,8 +566,9 @@ Asked while building the carriers (plan-stage7 step 3); each is now the rule.
 
 ### 9.5 The carriers screens' questions — round 1 (2026-10-29)
 
-Asked by the screens session for §4.1 part 1. Option **(a)** is the recommended one in each. Price groups, free
-shipping and places no carrier serves (step 4), and boxes (step 5), come in their own rounds when those steps merge.
+Asked by the screens session for §4.1 part 1. Option **(a)** is the recommended one in each. **Answered by the
+owner, 2026-10-29, one by one: (a) in all sixteen.** No round 2. Price groups, free shipping and places no carrier
+serves (step 4), and boxes (step 5), come in their own rounds when those steps merge.
 
 | # | Question | Options and their effect |
 |---|---|---|
