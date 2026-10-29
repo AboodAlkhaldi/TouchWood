@@ -75,9 +75,10 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
         ->and($text($page, '[data-test="price-before"]'))->toContain('30.00')
         ->and($text($page, '[data-test="price-off"]'))->toBe('−20%');
 
-    // 100 cm, sold wholesale only: priced at its minimum of 5 (the band from 5), its bands under the choice.
+    // 100 cm, sold wholesale only: priced at its minimum of 5 (the band from 5), its bands under the choice. The
+    // quantity turns to 5 a render after the price, so the wait is for the band it highlights.
     $page->click('100 cm');
-    expect(browserUntil($page, "document.querySelector('[data-test=\"wholesale-price\"]')?.textContent.includes('35.00')"))->toBeTrue()
+    expect(browserUntil($page, "document.querySelector('[data-test=\"wholesale-price\"]')?.textContent.includes('35.00') && document.querySelector('[data-test=\"band-current\"]')?.textContent.includes('From 5 pieces')"))->toBeTrue()
         ->and($text($page, '[data-test="band-current"]'))->toContain('From 5 pieces')->toContain('35.00')
         ->and($text($page, '[data-test="bands"]'))->toContain('From 20 pieces')->toContain('32.00');
 

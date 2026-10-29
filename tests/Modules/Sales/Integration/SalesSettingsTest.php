@@ -34,13 +34,13 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-it('declares the five settings of the spec, the store ones with their defaults', function () {
+it('declares the six settings of the spec, the store ones with their defaults', function () {
     $declared = array_values(array_filter(
         array_map(static fn (SettingDefinitionDto $definition): string => $definition->key, app(InMemorySettingsRegistry::class)->all()),
         static fn (string $key): bool => str_starts_with($key, 'sales.'),
     ));
 
-    expect($declared)->toBe([SalesSettings::FLAT_FEE, SalesSettings::FREE_ABOVE, SalesSettings::RETURN_WINDOW_DAYS, SalesSettings::COUPON_WRONG_CODES, SalesSettings::COUPON_WINDOW_MINUTES]);
+    expect($declared)->toBe([SalesSettings::FLAT_FEE, SalesSettings::FREE_ABOVE, SalesSettings::RETURN_WINDOW_DAYS, SalesSettings::COUPON_WRONG_CODES, SalesSettings::COUPON_WINDOW_MINUTES, SalesSettings::WAITING_ORDERS]);
 
     foreach ([SalesSettings::FLAT_FEE => 0, SalesSettings::FREE_ABOVE => 0, SalesSettings::RETURN_WINDOW_DAYS => 14] as $key => $default) {
         $definition = app(SettingsRegistry::class)->definition($key);
@@ -76,7 +76,7 @@ it('refuses them to staff who run the store\'s orders, and to an admin of anothe
 
 // The coupon box's limit (answer 50; owner, 2026-10-28): one pair for every store, 5 and 10 by default.
 it('declares the coupon box\'s limit once for every store, 5 codes in 10 minutes, admin-only', function () {
-    foreach ([SalesSettings::COUPON_WRONG_CODES => 5, SalesSettings::COUPON_WINDOW_MINUTES => 10] as $key => $default) {
+    foreach ([SalesSettings::COUPON_WRONG_CODES => 5, SalesSettings::COUPON_WINDOW_MINUTES => 10, SalesSettings::WAITING_ORDERS => 3] as $key => $default) {
         $definition = app(SettingsRegistry::class)->definition($key);
 
         expect([$definition?->scope, $definition?->type, $definition?->permission, $definition?->sensitive])->toBe([SettingScope::Global, SettingType::Integer, SalesPermissions::SETTINGS_UPDATE, false])
@@ -97,14 +97,18 @@ it('lets an admin of every store change the coupon box\'s limit within its range
 })->with([
     'the codes' => [SalesSettings::COUPON_WRONG_CODES, 20],
     'the minutes' => [SalesSettings::COUPON_WINDOW_MINUTES, 60],
+    'the orders waiting' => [SalesSettings::WAITING_ORDERS, 20],
 ]);
 
-it('refuses the coupon box\'s limit to an admin of one store', function () {
+it('refuses the settings for every store to an admin of one store', function (string $key, int $default) {
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin));
 
-    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::COUPON_WRONG_CODES, null, 20)))->toThrow(Unauthorized::class)
-        ->and(app(PlatformApi::class)->setting(SalesSettings::COUPON_WRONG_CODES)->int())->toBe(5);
-});
+    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, null, 20)))->toThrow(Unauthorized::class)
+        ->and(app(PlatformApi::class)->setting($key)->int())->toBe($default);
+})->with([
+    'the codes' => [SalesSettings::COUPON_WRONG_CODES, 5],
+    'the orders waiting' => [SalesSettings::WAITING_ORDERS, 3],
+]);
 
 it('names the section and each setting in both languages', function () {
     foreach (['ar', 'en'] as $locale) {

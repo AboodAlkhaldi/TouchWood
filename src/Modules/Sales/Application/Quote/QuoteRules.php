@@ -16,10 +16,13 @@ use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
+use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
+use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
+use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Public\Enums\OrderAudience;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Domain\ValueObject\Money;
@@ -28,7 +31,7 @@ use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * The rules of a quote that can change in 15 minutes (sales.md §1.2 steps 1–3, 8, 11): who may order,
- * what may be bought, the address, the gift, the ways to pay. Checked on the cart's lines at checkout
+ * the orders already waiting, what may be bought, the address, the gift, the ways to pay. Checked on the cart's lines at checkout
  * and again on the quote's lines when the order is placed (§1.3 step 3). Reads only.
  */
 final readonly class QuoteRules
@@ -40,6 +43,7 @@ final readonly class QuoteRules
         private CatalogApi $catalog,
         private InventoryApi $inventory,
         private PromotionsApi $promotions,
+        private Orders $orders,
     ) {}
 
     /**
@@ -58,6 +62,21 @@ final readonly class QuoteRules
         }
 
         return $this->b2b->isApproved($customerId, $store->value) ? OrderAudience::Company : throw new MayNotOrder;
+    }
+
+    /**
+     * Fewer orders waiting for approval in the store than allowed — 3 unless an admin of every store
+     * changed it (owner, 2026-10-28, answer 51). Placing checks it under `Orders::lockCustomer`.
+     *
+     * @throws TooManyWaitingOrders
+     */
+    public function waiting(StoreId $store, string $customerId): void
+    {
+        $most = $this->platform->setting(SalesSettings::WAITING_ORDERS)->int();
+
+        if ($this->orders->waitingCount($store->value, $customerId) >= $most) {
+            throw new TooManyWaitingOrders($most);
+        }
     }
 
     /**

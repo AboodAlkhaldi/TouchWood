@@ -11,4 +11,5 @@ return [
     'returns.window_days' => 'Return Window (Days After Delivery)',
     'coupons.wrong_codes' => 'Wrong Coupon Codes Allowed (Per Customer, Every Store)',
     'coupons.window_minutes' => 'Wrong Coupon Codes Window (Minutes, Every Store)',
+    'orders.waiting_most' => 'Orders Waiting for Approval Allowed (Per Customer in Each Store, Every Store)',
 ];

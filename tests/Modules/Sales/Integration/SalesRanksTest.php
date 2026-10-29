@@ -32,7 +32,7 @@ use function Pest\Laravel\seed;
 
 /*
 | The shop's Best-Selling ranks, each night (sales.md §1.13): per store, products by the pieces sold in its
-| orders of the last 90 days not cancelled, rejected or undelivered — a gift not sold — pushed to Catalog
+| orders of the last 90 days approved or later, not cancelled, rejected or undelivered — a gift not sold — pushed to Catalog
 | whole, every store; the system only.
 */
 
@@ -62,6 +62,16 @@ function ranksRun(): int
     return Fx::asSystem(fn () => app(PushSalesRanksHandler::class)->handle(new PushSalesRanks));
 }
 
+/** Every order waiting, approved by staff: only approved orders and later count (answer 51). */
+function ranksApproveAll(): void
+{
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE], ['sa']));
+
+    foreach (DB::table('sales.orders')->where('status', 'PENDING_APPROVAL')->pluck('id') as $order) {
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder((string) $order));
+    }
+}
+
 it('ranks a store products by the pieces sold, the gift left out', function () {
     $ready = Cx::ready();
     // The gift is a size of the first product: counted, it would put that product first.
@@ -72,6 +82,7 @@ it('ranks a store products by the pieces sold, the gift left out', function () {
     $more = Cx::ready();
     Cx::add($more['variants'][0], 5);
     Cx::place(Cx::start($more['address'])->id);
+    ranksApproveAll();
     $pushed = ranksPushed();
 
     // 3, 3 and 8 pieces sold, each order with a gift of the first product's: a tie between the first two goes to the newer.
@@ -81,7 +92,7 @@ it('ranks a store products by the pieces sold, the gift left out', function () {
         ->and($pushed->ranks[Fx::storeId('eg')])->toBe([]);
 });
 
-it('leaves out an order cancelled, rejected or undelivered', function (Closure $end) {
+it('leaves out an order waiting, cancelled, rejected or undelivered', function (Closure $end) {
     $ready = Cx::ready();
     Cx::place(Cx::start($ready['address'])->id);
     $other = Cx::ready();
@@ -92,6 +103,8 @@ it('leaves out an order cancelled, rejected or undelivered', function (Closure $
     $lost = Cx::place(Cx::start($ready['address'])->id)->id;
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_CANCEL, SalesPermissions::ORDER_FULFIL], ['sa']));
     $end($lost);
+    DB::table('sales.orders')->where('id', '!=', $lost)->where('status', 'PENDING_APPROVAL')->pluck('id')
+        ->each(fn ($order) => app(ApproveOrderHandler::class)->handle(new ApproveOrder((string) $order)));
     $pushed = ranksPushed();
 
     ranksRun();
@@ -99,6 +112,8 @@ it('leaves out an order cancelled, rejected or undelivered', function (Closure $
     // 3 pieces each: the newer product first.
     expect($pushed->ranks[Fx::storeId('sa')])->toBe([$other['product'] => 1, $ready['product'] => 2]);
 })->with([
+    // Waiting for approval: not yet sold (owner, 2026-10-28, answer 51).
+    'waiting' => [fn (string $order) => null],
     'cancelled' => [fn (string $order) => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Out of stock'))],
     'rejected' => [fn (string $order) => app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Not for us'))],
     'undelivered' => [function (string $order) {
@@ -112,6 +127,7 @@ it('leaves out an order cancelled, rejected or undelivered', function (Closure $
 it('counts only the last 90 days', function () {
     $ready = Cx::ready();
     $order = Cx::place(Cx::start($ready['address'])->id)->id;
+    ranksApproveAll();
     $pushed = ranksPushed();
     $placed = CarbonImmutable::parse((string) DB::table('sales.orders')->where('id', $order)->value('placed_at'));
 

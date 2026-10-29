@@ -125,9 +125,11 @@ it('filters the unpaid and the flagged short', function () {
 });
 
 it('pages 50 at a time, going on after the last order id', function () {
-    ['address' => $address, 'variants' => $variants] = staffOrder();
+    ['address' => $address, 'variants' => $variants, 'customer' => $customer] = staffOrder();
 
     foreach (range(1, 50) as $n) {
+        // Under the cap of orders waiting.
+        Cx::approveWaiting($customer);
         Cx::add($variants[1]);
         Cx::place(Cx::start($address)->id);
     }

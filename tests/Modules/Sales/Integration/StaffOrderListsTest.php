@@ -186,6 +186,8 @@ it('shows a customer\'s latest orders on the staff customer page, none to a read
 
     foreach (range(1, 10) as $n) {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+        // Under the cap of orders waiting.
+        Cx::approveWaiting($customer);
         Cx::add($variants[1]);
         Cx::place(Cx::start($address)->id);
     }
