@@ -74,12 +74,13 @@ interface PromotionsApi
     public function updateCouponUse(UpdateCouponUse $change): void;
 
     /**
-     * Ops later — newsletters, notifications (§1.5: segments are reusable): a segment's customer ids,
-     * keyset-paged by id, at most `$limit` (1 to 1000) after `$after`. Reads only.
+     * Ops — newsletters, offer notices (§1.5: segments are reusable; ops.md §1.7): **the store's** segment's
+     * customer ids, keyset-paged by id, at most `$limit` (1 to 1000) after `$after`. Another store's segment
+     * is refused as an unknown one, so a notice sent in one store never reaches another's. Reads only.
      *
      * @return list<string>
      */
-    public function segmentMembers(string $segmentId, ?string $after, int $limit): array;
+    public function segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit): array;
 
     /**
      * Ops' daily report (ops.md §1.11 item 7): **the store's coupon uses** from `from` up to `to` (not

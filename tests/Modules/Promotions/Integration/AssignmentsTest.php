@@ -27,6 +27,7 @@ use Modules\Promotions\Public\Dto\CouponResult;
 use Modules\Promotions\Public\Enums\Audience;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
@@ -38,7 +39,7 @@ use function Pest\Laravel\seed;
 | segment's members of that moment become the coupon's customers and stay; assigning again adds the
 | new ones only; only an ASSIGNED coupon is assigned (owner, 2026-10-18, answer 24), from a segment of
 | its own store and of an audience it allows; an unused assignment can be removed. And
-| `segmentMembers`, keyset-paged, for Ops later.
+| `segmentMembers` for Ops, keyset-paged: the store's segment only, another store's refused as unknown.
 */
 
 uses(RefreshDatabase::class);
@@ -216,7 +217,7 @@ it('lets only someone managing coupons assign', function () {
         ->and(fn () => app(RemoveAssignmentHandler::class)->handle(new RemoveAssignment($coupon, Pr::orderId())))->toThrow(Unauthorized::class);
 });
 
-it('pages a segment\'s members by id for Ops, refusing an unknown segment and a page out of bounds', function () {
+it('pages a store\'s segment\'s members by id for Ops, refusing an unknown segment, another store\'s and a page out of bounds', function () {
     $ids = [];
 
     foreach (range(1, 5) as $n) {
@@ -226,14 +227,17 @@ it('pages a segment\'s members by id for Ops, refusing an unknown segment and a 
     sort($ids);
     marketer();
     $segment = neverOrderedSegment();
-    $first = Pr::api()->segmentMembers($segment, null, 2);
-    $second = Pr::api()->segmentMembers($segment, $first[1], 2);
-    $last = Pr::api()->segmentMembers($segment, $second[1], 2);
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    $first = Pr::api()->segmentMembers($sa, $segment, null, 2);
+    $second = Pr::api()->segmentMembers($sa, $segment, $first[1], 2);
+    $last = Pr::api()->segmentMembers($sa, $segment, $second[1], 2);
 
     expect([...$first, ...$second, ...$last])->toBe($ids)
-        ->and(Pr::api()->segmentMembers($segment, $last[0], 2))->toBe([])
-        ->and(fn () => Pr::api()->segmentMembers(Pr::orderId(), null, 2))->toThrow(SegmentNotFound::class)
-        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
-        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
-        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($segment, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
+        ->and(Pr::api()->segmentMembers($sa, $segment, $last[0], 2))->toBe([])
+        ->and(fn () => Pr::api()->segmentMembers($sa, Pr::orderId(), null, 2))->toThrow(SegmentNotFound::class)
+        ->and(fn () => Pr::api()->segmentMembers(StoreId::fromString(Fx::storeId('ae')), $segment, null, 2))->toThrow(SegmentNotFound::class)
+        ->and(fn () => Pr::api()->segmentMembers(StoreId::fromString(Fx::storeId('ae')), $segment, 'not-an-id', 2))->toThrow(SegmentNotFound::class)
+        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
+        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
+        ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
 });
