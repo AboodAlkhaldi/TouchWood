@@ -49,7 +49,7 @@ function addressScreenPlaces(int $number): array
         $region = $add('REGION', null, "Region {$number}");
         $city = $add('CITY', $region, "City {$number}");
         $add('DISTRICT', $city, "District {$number}");
-        $add('REGION', null, "Second {$number}");
+        $add('CITY', $add('REGION', null, "Second {$number}"), "Town {$number}");
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -84,7 +84,7 @@ it('picks the region, city and district, clears what a change leaves behind, and
         ->click('[data-test="sa-country-JO"]');
 
     // The city waits for the region (Geist's disabled-with-reason).
-    $page->assertSee('Choose the region first');
+    $page->assertSee('Pick the region first');
 
     $choose = function (string $picker, string $name) use ($page): void {
         $page->click("[data-test=\"sa-{$picker}-pick\"]");
@@ -101,7 +101,7 @@ it('picks the region, city and district, clears what a change leaves behind, and
     // A new region clears the city and the district under it.
     $choose('region', $places['other']);
     $page->assertSeeIn('[data-test="sa-city-pick"]', 'Choose')
-        ->assertSee('Choose the city first');
+        ->assertSee('Pick the city first');
 
     // "Other": the city typed; its district is typed too.
     $page->click('[data-test="sa-city-pick"]');

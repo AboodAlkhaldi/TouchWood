@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
@@ -145,7 +146,7 @@ describe('the countries offered (Q1, Q2, Q3)', function () {
                 ->where('addresses.0.countries.0.servedBy', null)
                 ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->pluck('code')->sort()->values()->all() === ['AE', 'EG', 'QA', 'SA'])
                 // Egypt belongs to the Egypt store: named, in the page's language (Q2).
-                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'EG')['servedBy'] === ['code' => 'eg', 'name' => 'Egypt'])
+                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'EG')['servedBy'] === ['code' => 'eg', 'name' => 'Egypt', 'open' => true])
                 ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'QA')['servedBy'] === null)
                 ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'QA')['otherName'] === 'قطر')
                 // The Egypt store's own form starts on Egypt, and points Saudi Arabia to its store.
@@ -155,6 +156,32 @@ describe('the countries offered (Q1, Q2, Q3)', function () {
             );
 
         expect($places)->toHaveKey('region');
+    });
+
+    it('brings the own country\'s regions with the page, and none where it has no list (Q7)', function () {
+        $places = addressFormPlaces();
+        [, $browser] = addressFormCustomer();
+
+        $browser->get('/sa/en/account?tab=addresses')
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('addresses.0.regions.0.name', 'Makkah Region')
+                ->where('addresses.0.regions.1.id', $places['region'])
+                ->where('addresses.0.regions.1.otherName', 'منطقة الرياض')
+                ->where('addresses.1.storeCode', 'eg')
+                ->where('addresses.1.regions', [])
+            );
+    });
+
+    it('says a switched-off store is closed rather than linking to it', function () {
+        [, $browser] = addressFormCustomer();
+        DB::table('platform.stores')->where('code', 'eg')->update(['is_active' => false]);
+        // Platform keeps the stores in its cache: changed underneath it, it is read again.
+        Cache::flush();
+
+        $browser->get('/sa/en/account?tab=addresses')
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('addresses.0.countries', fn (Collection $countries): bool => $countries->firstWhere('code', 'EG')['servedBy'] === ['code' => 'eg', 'name' => 'Egypt', 'open' => false])
+            );
     });
 });
 
@@ -260,7 +287,7 @@ describe('saving the picks', function () {
             'country' => 'SA', 'region_id' => $places['region'], 'city_id' => $places['city'], 'district_id' => $places['district'],
         ]))->assertRedirect();
 
-        $row = DB::table('access.addresses')->where('customer_id', $customerId)->first();
+        $row = DB::table('access.addresses')->where('customer_id', $customerId)->sole();
         expect($row->region_id)->toBe($places['region'])
             ->and($row->district_id)->toBe($places['district'])
             ->and(json_decode((string) $row->fields, true)['city'])->toBe('الرياض');
@@ -275,9 +302,21 @@ describe('saving the picks', function () {
             'fields' => ['city' => 'Diriyah', 'district' => 'Turaif', 'street' => 'King Fahd Road', 'building' => '7'],
         ]))->assertRedirect();
 
-        $row = DB::table('access.addresses')->where('customer_id', $customerId)->first();
+        $row = DB::table('access.addresses')->where('customer_id', $customerId)->sole();
         expect($row->city_id)->toBeNull()
             ->and(json_decode((string) $row->fields, true))->toMatchArray(['administrative_area' => 'Riyadh Region', 'city' => 'Diriyah']);
+    });
+
+    it('saves an address in a country no store ships to, typed (Q3)', function () {
+        [$customerId, $browser] = addressFormCustomer();
+        DB::table('platform.address_countries')->insert(['country_code' => 'QA', 'retired' => false, 'created_at' => now(), 'updated_at' => now()]);
+
+        $browser->post('/sa/en/account/addresses', addressFormSent([
+            'country' => 'QA', 'region_id' => '', 'city_id' => '', 'district_id' => '',
+            'fields' => ['administrative_area' => 'Doha', 'city' => 'Doha', 'district' => 'West Bay', 'street' => 'Corniche', 'building' => '7'],
+        ]))->assertRedirect();
+
+        expect(DB::table('access.addresses')->where('customer_id', $customerId)->value('country_code'))->toBe('QA');
     });
 
     it('refuses a city of another region, in its own words', function () {

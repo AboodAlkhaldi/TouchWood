@@ -165,6 +165,8 @@ return [
         'served_by' => 'يخدمها متجرنا في :store',
         'served_note' => 'العناوين في :country يخدمها متجرنا في :store.',
         'served_link' => 'أضِفه تحت :store',
+        'served_by_closed' => 'يخدمها متجرنا في :store، وهو مغلق الآن',
+        'served_note_closed' => 'العناوين في :country يخدمها متجرنا في :store، وهو مغلق الآن.',
         'search' => 'ابحث',
         'no_match' => 'لا شيء يطابق «:query»',
         'other' => 'أخرى',

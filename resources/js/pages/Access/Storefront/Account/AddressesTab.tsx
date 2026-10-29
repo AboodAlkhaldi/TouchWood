@@ -43,6 +43,7 @@ import type {
     AddressRow,
     CustomerAccountPage,
     PlaceOption,
+    ServedByStore,
 } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 import { OTHER, type PlaceList, PlacePicker } from './PlacePicker';
 
@@ -148,6 +149,9 @@ function StoreAddresses({ store, returnTo }: { store: AddressBookStore; returnTo
 
                     {editing === null ? null : (
                         <AddressForm
+                            // A form of its own per address: Edit on another row starts it afresh
+                            // rather than keeping the first one's values (the review of this job).
+                            key={editing === 'new' ? 'new' : editing.id}
                             store={store}
                             address={editing === 'new' ? null : editing}
                             returnTo={returnTo}
@@ -335,7 +339,8 @@ function AddressForm({
     const link = useLink();
     const code = store.storeCode;
     const heading = `address-form-${code}-title`;
-    const lists = usePlaceLists();
+    // The list a new address opens on comes with the page: the store's own country's regions (Q7).
+    const lists = usePlaceLists(store.regions.length === 0 ? {} : { [`country:${store.countryCode}`]: store.regions });
 
     const form = useForm({
         store_id: store.storeId,
@@ -361,10 +366,11 @@ function AddressForm({
         name: country.name,
         otherName: country.otherName,
         ours: false,
-        reason: country.servedBy === null ? undefined : t('access::account.places.served_by', { store: country.servedBy.name }),
+        reason: country.servedBy === null ? undefined : t(`access::account.places.${country.servedBy.open ? 'served_by' : 'served_by_closed'}`, { store: country.servedBy.name }),
     }));
-    // A country taken off the list since keeps the address it was saved in (76(f)).
-    if (!countries.some((country) => country.code === form.data.country)) countries.push({ code: form.data.country, name: form.data.country, ours: false });
+    // A country taken off the list since keeps the address it was saved in (76(f)), named as the
+    // browser names it: the page carries the names of the countries offered only.
+    if (!countries.some((country) => country.code === form.data.country)) countries.push({ code: form.data.country, name: countryName(form.data.country), ours: false });
 
     const chosen = store.countries.find((country) => country.code === form.data.country);
     const served = store.countries.filter((country) => country.servedBy !== null);
@@ -375,13 +381,21 @@ function AddressForm({
     const cities = isPlace(picks.region) ? lists.of(`region:${picks.region}`) : IDLE;
     const districts = isPlace(picks.city) ? lists.of(`city:${picks.city}`) : IDLE;
     // A district is typed for an "Other" city, and in a city with no district list (76(d)).
-    const districtTyped = picks.city === OTHER || (districts.state === 'ready' && districts.places.length === 0);
+    // A region with no city listed (a country listed to its top level only): the city is typed.
+    const cityNoList = cities.state === 'ready' && cities.places.length === 0 && !isPlace(picks.city);
+    // A saved district stays picked though its city's list now reads empty - retired since (76(i)).
+    const districtTyped =
+        picks.city === OTHER || cityNoList || (districts.state === 'ready' && districts.places.length === 0 && !isPlace(picks.district));
 
     // The picked city's districts decide whether the district is picked or typed: read at once.
     const { load } = lists;
     useEffect(() => {
         if (hasList && isPlace(picks.city)) load(`city:${picks.city}`, { city: picks.city });
     }, [hasList, picks.city, load]);
+    // And the picked region's cities, which decide whether the city is picked or typed.
+    useEffect(() => {
+        if (hasList && isPlace(picks.region)) load(`region:${picks.region}`, { region: picks.region });
+    }, [hasList, picks.region, load]);
 
     const setField = (key: string, value: string) => form.setData('fields', { ...form.data.fields, [key]: value });
     const clearFields = (keys: string[]) => form.setData('fields', { ...form.data.fields, ...Object.fromEntries(keys.map((key) => [key, ''])) });
@@ -421,6 +435,8 @@ function AddressForm({
             if (!hasList || !PLACE_KEYS.includes(field.key)) return [fieldBox(field)];
             if (field.key === 'administrative_area') return [{ id: `${code}-region-pick`, label: field.label, value: picks.region, rules: { required: true } }];
             if (field.key === 'city') {
+                if (cityNoList) return [fieldBox(field)];
+
                 return [
                     { id: `${code}-city-pick`, label: field.label, value: picks.city, rules: { required: field.required }, off: picks.region === '' },
                     ...(picks.city === OTHER ? [fieldBox(field)] : []),
@@ -438,7 +454,7 @@ function AddressForm({
     const errors = form.errors as Record<string, string | undefined>;
     const refusal = (key: string) => errors[key] ?? errors[`fields.${key}`];
     // A country another store serves is never saved here (76(c)): its note says where it belongs.
-    const servedReason = chosen?.servedBy ? t('access::account.places.served_note', { country: chosen.name, store: chosen.servedBy.name }) : undefined;
+    const servedReason = chosen?.servedBy ? servedNote(t, chosen.name, chosen.servedBy) : undefined;
 
     const textField = (field: AddressFieldRow, helper?: string) => (
         <TextField
@@ -475,35 +491,37 @@ function AddressForm({
                         retired={address?.retiredPlaces.includes(picks.region) ?? false}
                         other={false}
                         helper={wrote('administrative_area', picks.region)}
-                        check={checks.box(`${code}-region-pick`, refusal('administrative_area') ?? errors.places)}
+                        check={checks.box(`${code}-region-pick`, refusal('administrative_area'))}
                         onOpen={() => lists.load(`country:${form.data.country}`, { country: form.data.country })}
                         onPick={(value) => pick('region', value)}
                     />
                 ) : null}
                 {city ? (
                     <>
-                        <PlacePicker
-                            id={`${code}-city-pick`}
-                            label={city.label}
-                            list={cities}
-                            value={picks.city}
-                            shownName={isPlace(picks.city) && picks.city === saved.city ? address?.fields.city : undefined}
-                            retired={address?.retiredPlaces.includes(picks.city) ?? false}
-                            other
-                            disabledReason={picks.region === '' ? t('access::account.places.region_first') : undefined}
-                            helper={wrote('city', picks.city)}
-                            check={checks.box(`${code}-city-pick`, picks.city === OTHER ? undefined : refusal('city'))}
-                            onOpen={() => lists.load(`region:${picks.region}`, { region: picks.region })}
-                            onPick={(value) => pick('city', value)}
-                        />
-                        {picks.city === OTHER ? textField(city, t('access::account.places.other_hint')) : null}
+                        {cityNoList ? null : (
+                            <PlacePicker
+                                id={`${code}-city-pick`}
+                                label={city.label}
+                                list={cities}
+                                value={picks.city}
+                                shownName={isPlace(picks.city) && picks.city === saved.city ? address?.fields.city : undefined}
+                                retired={address?.retiredPlaces.includes(picks.city) ?? false}
+                                other
+                                disabledReason={picks.region === '' ? t('access::account.places.region_first') : undefined}
+                                helper={wrote('city', picks.city)}
+                                check={checks.box(`${code}-city-pick`, picks.city === OTHER ? undefined : refusal('city'))}
+                                onOpen={() => lists.load(`region:${picks.region}`, { region: picks.region })}
+                                onPick={(value) => pick('city', value)}
+                            />
+                        )}
+                        {cityNoList || picks.city === OTHER ? textField(city, cityNoList ? undefined : t('access::account.places.other_hint')) : null}
                     </>
                 ) : null}
+                {/* The picker and the typed box keep their places, so the box is not drawn anew -
+                    and focus lost - when the city's list arrives empty (the review of this job). */}
                 {district ? (
-                    districtTyped ? (
-                        textField(district)
-                    ) : (
-                        <>
+                    <>
+                        {districtTyped ? null : (
                             <PlacePicker
                                 id={`${code}-district-pick`}
                                 label={district.label}
@@ -518,9 +536,9 @@ function AddressForm({
                                 onOpen={() => lists.load(`city:${picks.city}`, { city: picks.city })}
                                 onPick={(value) => pick('district', value)}
                             />
-                            {picks.district === OTHER ? textField(district, t('access::account.places.other_hint')) : null}
-                        </>
-                    )
+                        )}
+                        {districtTyped || picks.district === OTHER ? textField(district, districtTyped ? undefined : t('access::account.places.other_hint')) : null}
+                    </>
                 ) : null}
             </Fragment>
         );
@@ -534,12 +552,15 @@ function AddressForm({
                     event.preventDefault();
                     if (servedReason !== undefined) return;
                     checks.submit(() => {
-                        // The ids picked, each empty where typed (76(e)).
+                        // The ids picked, each empty where typed (76(e)). A country that lost its list
+                        // or left the list since keeps the places the address had, as Access does
+                        // while they are left as they were (AddressPlaceRules).
+                        const kept = !hasList && address !== null && form.data.country === address.countryCode;
                         form.transform((data) => ({
                             ...data,
-                            region_id: hasList && isPlace(picks.region) ? picks.region : '',
-                            city_id: hasList && isPlace(picks.city) ? picks.city : '',
-                            district_id: hasList && !districtTyped && isPlace(picks.district) ? picks.district : '',
+                            region_id: kept ? (address.regionId ?? '') : hasList && isPlace(picks.region) ? picks.region : '',
+                            city_id: kept ? (address.cityId ?? '') : hasList && isPlace(picks.city) ? picks.city : '',
+                            district_id: kept ? (address.districtId ?? '') : hasList && !districtTyped && isPlace(picks.district) ? picks.district : '',
                         }));
                         form.post(link('storefront.account.addresses.save'), {
                             preserveScroll: true,
@@ -617,21 +638,18 @@ function AddressForm({
                                     setPicks({ region: '', city: '', district: '' });
                                 }}
                             />
+                            {/* A list item cannot hold a link, so where each served country belongs is
+                                said under the picker, with the way to that store's addresses; a
+                                closed store has no part on this tab, so no link (shipping.md §1.2). */}
                             {servedReason !== undefined && chosen?.servedBy ? (
                                 <Note variant="warning" size="small" data-test={`${code}-served`}>
-                                    {servedReason}{' '}
-                                    <a href={`#addresses-${chosen.servedBy.code}`} className="underline underline-offset-4">
-                                        {t('access::account.places.served_link', { store: chosen.servedBy.name })}
-                                    </a>
+                                    {servedReason} <ServedLink store={chosen.servedBy} />
                                 </Note>
                             ) : (
                                 served.map((country) =>
                                     country.servedBy === null ? null : (
                                         <p key={country.code} className="text-copy-13 text-ink-muted" data-test={`${code}-served-${country.code}`}>
-                                            {t('access::account.places.served_note', { country: country.name, store: country.servedBy.name })}{' '}
-                                            <a href={`#addresses-${country.servedBy.code}`} className="underline underline-offset-4">
-                                                {t('access::account.places.served_link', { store: country.servedBy.name })}
-                                            </a>
+                                            {servedNote(t, country.name, country.servedBy)} <ServedLink store={country.servedBy} />
                                         </p>
                                     ),
                                 )
@@ -676,6 +694,29 @@ function AddressForm({
     );
 }
 
+function servedNote(t: ReturnType<typeof useTranslator>, country: string, store: ServedByStore): string {
+    return t(`access::account.places.${store.open ? 'served_note' : 'served_note_closed'}`, { country, store: store.name });
+}
+
+function ServedLink({ store }: { store: ServedByStore }) {
+    const t = useTranslator();
+
+    return store.open ? (
+        <a href={`#addresses-${store.code}`} className="underline underline-offset-4">
+            {t('access::account.places.served_link', { store: store.name })}
+        </a>
+    ) : null;
+}
+
+/** A country's name in the page's language, for one the page was not given (76(f)). */
+function countryName(code: string): string {
+    try {
+        return new Intl.DisplayNames([document.documentElement.lang || 'en'], { type: 'region' }).of(code) ?? code;
+    } catch {
+        return code;
+    }
+}
+
 /** The format keys a place list fills (AddressPlaceRules). */
 const PLACE_KEYS = ['administrative_area', 'city', 'district'];
 
@@ -700,12 +741,14 @@ function initialPicks(address: AddressRow | null): { region: string; city: strin
  * The place lists read so far, by key ("country:SA", "region:<id>", "city:<id>"), each read once
  * (§8.4 Q7); one that failed is read again when asked for again (Try Again).
  */
-function usePlaceLists() {
+function usePlaceLists(given: Record<string, PlaceOption[]>) {
     const link = useLink();
     const linked = useRef(link);
-    const [lists, setLists] = useState<Record<string, PlaceList>>({});
+    const [lists, setLists] = useState<Record<string, PlaceList>>(() =>
+        Object.fromEntries(Object.entries(given).map(([key, places]): [string, PlaceList] => [key, { state: 'ready', places }])),
+    );
     // Asked for and not failed: a failed list is asked for again when its picker is opened again.
-    const asked = useRef(new Set<string>());
+    const asked = useRef(new Set<string>(Object.keys(given)));
 
     useEffect(() => {
         linked.current = link;

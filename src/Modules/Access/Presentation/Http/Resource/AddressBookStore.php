@@ -27,6 +27,8 @@ final class AddressBookStore extends Data
      *                      until one is removed
      * @param  string  $countryCode  the store's own country, where a new address starts (Q1)
      * @param  list<AddressCountryOption>  $countries  the address countries, the store's own first
+     * @param  list<PlaceOption>  $regions  the own country's regions, where it has a place list: the
+     *                                      list a new address opens on comes with the page (§8.4 Q7)
      */
     public function __construct(
         public string $storeId,
@@ -39,5 +41,6 @@ final class AddressBookStore extends Data
         public bool $full,
         public string $countryCode = '',
         public array $countries = [],
+        public array $regions = [],
     ) {}
 }

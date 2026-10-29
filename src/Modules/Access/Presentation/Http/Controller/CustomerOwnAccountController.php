@@ -326,7 +326,7 @@ final readonly class CustomerOwnAccountController
                     $country->name->in($locale),
                     $country->name->in($other),
                     $country->hasPlaces,
-                    $by === null || $by->id === $store->storeId ? null : new ServedByStore($by->code, $by->name->in($locale)),
+                    $by === null || $by->id === $store->storeId ? null : new ServedByStore($by->code, $by->name->in($locale), $by->isActive),
                 );
             }, $offered);
 
@@ -367,6 +367,11 @@ final readonly class CustomerOwnAccountController
                 full: count($store->addresses) >= $store->limit,
                 countryCode: $own,
                 countries: $countries,
+                // One query per store whose country has a list (KSA's 13 regions, say).
+                regions: ($withPlaces[$own] ?? false) ? array_map(
+                    static fn (PlaceDto $place): PlaceOption => new PlaceOption($place->id, $place->name->in($locale), $place->name->in($other)),
+                    $this->platform->regions($own, $locale),
+                ) : [],
             );
         }, $stores);
     }

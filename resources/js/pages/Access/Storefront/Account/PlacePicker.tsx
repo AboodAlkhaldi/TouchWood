@@ -72,6 +72,9 @@ export function PlacePicker({ id, label, list, value, shownName, retired = false
             <Popover
                 open={open}
                 onOpenChange={(next) => {
+                    // Out of reach, it says why and stays in the tab order (aria-disabled, never
+                    // disabled: ActionButton's rule), but does not open.
+                    if (next && disabledReason !== undefined) return;
                     setOpen(next);
                     if (next) onOpen();
                     else check.onLeave();
@@ -88,8 +91,8 @@ export function PlacePicker({ id, label, list, value, shownName, retired = false
                         aria-invalid={check.message ? true : undefined}
                         aria-describedby={described === '' ? undefined : described}
                         aria-required={check.required || undefined}
-                        disabled={disabledReason !== undefined}
-                        className="w-full justify-between font-normal"
+                        aria-disabled={disabledReason !== undefined || undefined}
+                        className="w-full justify-between font-normal aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         data-test={id}
                     >
                         <span id={`${id}-value`} className="flex min-w-0 items-center gap-2">
@@ -107,7 +110,8 @@ export function PlacePicker({ id, label, list, value, shownName, retired = false
                     {list.state === 'ready' ? (
                         // Scored on both names only: an item's value is its id (the CountryCombobox's rule).
                         <Command filter={(_value, search, keywords) => (keywords?.[0] === OTHER ? 1 : defaultFilter((keywords ?? []).join(' '), search))}>
-                            <CommandInput placeholder={t('access::account.places.search')} value={query} onValueChange={setQuery} className="h-9" />
+                            {/* Focused as it arrives: the list may come after its spinner, with focus left on the popover. */}
+                            <CommandInput autoFocus placeholder={t('access::account.places.search')} value={query} onValueChange={setQuery} className="h-9" />
                             <CommandList>
                                 <CommandEmpty>{t('access::account.places.no_match', { query })}</CommandEmpty>
                                 <CommandGroup>

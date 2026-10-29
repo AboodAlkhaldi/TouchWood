@@ -30,6 +30,7 @@ limit: number,
 full: boolean,
 countryCode: string,
 countries: AddressCountryOption[],
+regions: PlaceOption[],
 };
 export type AddressCountryOption = {
 code: string,
@@ -293,6 +294,7 @@ mayCreate: boolean,
 export type ServedByStore = {
 code: string,
 name: string,
+open: boolean,
 };
 export type SignInCodePage = {
 maskedPhone: string | null,
