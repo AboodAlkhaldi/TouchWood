@@ -61,6 +61,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §2.2, §2.3 | **Catalog's screens** (catalog.md §4.4, §4.5, amendment 13): the panel's header search waits for Sales, one search for products and orders; the shop's header gains Catalog's category menu and search box on every shop page, through a small Platform list of the shop frame's parts; shop addresses `/{store}/{locale}/products|categories|brands/{slug}` and `/search` | Owner, 2026-10-07 |
 | §1.7, §2.1, §7 | **Every box checks itself as it is typed**, in every form of every module: a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong — the server still checking everything (catalog.md amendment 16(f)); B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), too | Owner, 2026-10-09: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" |
 | §1.1 | **Catalog's ordered lists are ordered by dragging** — `@dnd-kit` under `dashboard-01`'s handles, saved when dropped, with Move to Top and Move to Bottom on the row's menu — no typed place, no "#" column (catalog.md amendment 16(d)); B2B's type lists and Platform's stores keep theirs | Owner, 2026-10-09 |
+| §2.1, §3.2 B1, §3.6 F8, §7 | **The phone-width audit** (every page at 375×812): on a phone the account's Work Email card puts Change Work Email… **under** the address, not beside it (a long address pushed it off the screen); the shop's account list (other modules' pages and the account's tabs) is **folded behind one Account Menu button** (shadcn's Collapsible, shut) so the page's own content comes first — from tablet width both are as before. Every browser test file checks the phone's width | Owner, 2026-10-29 |
 
 ---
 
@@ -497,7 +498,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
   nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
   besides `light` and `dark`. **A first visit, before any choice, is System** (owner, 2026-10-02),
   replacing "Light until the person chooses" of 2026-09-19. The app sends no Content-Security-Policy
-  today (checked 2026-10-02); if hosting adds one, that script needs its nonce or hash.
+  limiting scripts (checked 2026-10-02; since 2026-10-29 only `frame-ancestors 'self'`, handoff
+  §15.4); if one is added, that script needs its nonce or hash.
 - **Toasts**: shadcn's Sonner (edit 2).
 - **The pieces neither system has — the owner's answers** (2026-10-02, one by one, each with a
   picture):
@@ -1081,6 +1083,97 @@ store and language (`/sa/ar/...`).
 - An account's home store is the store it registered in and never changes; the customer may shop
   in any store (access.md §1.1).
 
+#### F9 on Platform's places — the address form (stage 7's screens, part 2) — **[ACCEPTED by the owner, 2026-10-29]**
+
+**Written 2026-10-29** by the screens session, on stage 7 step 2's backend (PR #265, access.md amendment
+76 (a)–(k), as built) and Platform's places (platform.md §4.3, PR #268). Each pick marked **(Q n)** waits on
+§8.4's question n — **answered 2026-10-29: every question (a)**. It must merge before the KSA and Egypt lists are seeded (the backend session holds the
+seed PR until then).
+
+**What changes, and what does not.** F9 stays where it is (the account's Addresses tab), grouped by store,
+with its limit of 10 per store, Usual Address, Edit, Delete, and `return` (amendments 51, 52). The form keeps
+its name, recipient and phone boxes and the store format's own fields, each checking itself as typed. Three
+things are new:
+
+1. **A Country picker** (Q1, Q2, Q3). A new address starts on the store's own country. The list is
+   Platform's address countries in use (76(b)), sorted as the page's language sorts, the store's own first,
+   searchable in both languages — the shared `CountryCombobox`.
+   - A country **another of our stores ships to** (Egypt in the KSA store) stays in the list, out of reach,
+     with "Served by our :store store" and a link to that store's group on this same tab, where the
+     address can be added — every store's addresses are on this tab (Q2). The server refuses it
+     anyway (`AddressCountryServedByAnotherStore`, 76(k)); if that refusal comes back (a store's countries
+     changed meanwhile), the form's error says the same words, with the same link.
+   - A country **no store ships to** (Qatar in the KSA store): picked and saved as any other (Q3).
+   - Changing the country clears the region, city and district, picked or typed.
+2. **The region, city and district pickers**, where the country has a place list (76(d)), in that order,
+   drawn in the place of the format's `administrative_area`, `city` and `district` fields and with their
+   labels (Q6):
+   - each one a searchable list — shadcn's Combobox (a Popover holding a Command), searchable in both
+     languages, names in the page's language (Q4);
+   - the **city** picker is out of reach until a region is picked ("Pick the region first"), the
+     **district** picker until a city is (Geist's disabled-with-reason);
+   - **"Other"** is the city list's last item — and the district list's (Q5) — and shows a box to type the
+     name in, required as the format says. An "Other" city has no district list, so its district is typed;
+   - a picked city **with no district list**: the district is typed, as today (76(d)); likewise a picked
+     region **with no city listed** (a country listed to its top level only): the city is typed (found in
+     building, 2026-10-29);
+   - changing a region clears the city and district; changing a city clears the district;
+   - the lists arrive as they are needed (Q7): the countries with the page; a country's regions when it is
+     picked (or with the page, for the store's own country); a region's cities when it is picked; a city's
+     districts when it is picked. Each list opens with its spinner while it loads, and a failed load says
+     so with Try Again.
+3. **A country with no place list** (76(d), R4): the three fields are typed boxes, exactly as today.
+
+**Saving** sends `country`, `region_id`, `city_id`, `district_id` (empty where typed) beside the fields and
+the page's language (76(e)). The names of the picked places are filled in by the server, in the page's
+language — the form does not send them.
+
+**Editing an address**:
+- a picked address opens with its country and places picked — **the names in the language it was saved
+  in, until the customer changes a pick** (Q8);
+- a place **retired since** (76(i)) stays picked and is marked **No longer listed**; the address saves as
+  it is while that pick is left alone; once changed, the retired place is not in the list to go back to
+  (Q9);
+- a **typed** address in a country that has a list now (76(j); "Incomplete" on its row): it opens with the
+  pickers empty and, under each one, **"You wrote: :text"** — what the address had — so the customer can find
+  it in the list (Q10). The row's Incomplete note says why: "Pick this address's region and city from the
+  list before you order" (Q10).
+
+**The address book** (Q11): each address's country is the last line of its printed address already (76(h)),
+so the rows do not change. The tab's hint stops saying "in each country": "We deliver to the Usual Address
+in each store unless you pick another." A store's group heading stays its name.
+
+**Staff's Address Formats page** (Q12): a Note above the fields — "Where a country has a place list
+(Countries and Places), the customer picks the region, city and district from it; these three fields must
+stay in the format." — and the three keys cannot be removed there (for the backend session, below).
+
+**What every part keeps** — Geist's rules on shadcn's code (§1.11), nothing built that either has, every box
+checking itself as typed, digits made Latin, both languages and right-to-left, a phone's width with nothing
+scrolling sideways, focus to the form when it opens and to the field a refusal names, each refusal in its own
+words (`lang/{ar,en}/errors.php`, 76(k)'s already worded). The storefront budget (8 queries, §5) for the
+Addresses tab, and **1 query** for each list read.
+
+**What the screen needs from the backend** — none new in the Application layer; all in Access's Presentation,
+built by this session (Q13):
+- `AddressRow` gains `countryCode`, `regionId`, `cityId`, `districtId` and each picked place's name and
+  retired mark (from `AddressDto` and `PlatformApi::place`), so Edit opens picked;
+- `AddressBookStore` gains the countries offered (`PlatformApi::addressCountries`, each with `hasPlaces` and
+  the store that ships to it, from `countryStore`), and the store's own country's regions;
+- one storefront read for the lists, signed-in customers only, throttled as the account's other reads:
+  `GET /{store}/{lang}/account/places?country=SA` (regions), `?region=…` (cities), `?city=…` (districts),
+  each place `{id, name in both languages}` — from `PlatformApi::regions`, `cities`, `districts`;
+- `saveAddress` passes `country`, `region_id`, `city_id`, `district_id` to `SaveAddress`.
+
+**For the backend session to confirm** (not the screen's to change): a store format without
+`administrative_area`, `city` or `district` would have `AddressPlaceRules` fill a key the format refuses
+(`StoreAddressFormat::accept`). Q12 asks whether staff may remove them.
+
+**Tests**: feature — the tab's props (countries, the own country's regions, the picked address's places),
+each list read and its query count, the save with picks, "Other", a typed country, the served-elsewhere
+refusal with its link, a retired pick kept, a wrong pair (a city of another region) refused in its words;
+browser — pick region, city, district; Other; change the region and see the city cleared; edit an
+incomplete address and see "You wrote"; a phone's width.
+
 ### 3.7 Customers, seen by staff
 
 access.md §3.3. Staff see the customers of their own stores — those whose home store is one of
@@ -1230,7 +1323,11 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
 - Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
-- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
+- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card; nothing scrolls
+  the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
+  because headless Chromium keeps a 10 px scrollbar gutter a phone does not have, so it lets an
+  overflow of up to 10 px through); the shop's
+  account list folds behind Account Menu (owner, 2026-10-29).
 - With SSR turned off, every page still renders in the browser.
 - The accessibility pass and the keyboard walk-throughs of §6.
 
@@ -1284,6 +1381,31 @@ None. The one question here — which module keeps the admin menu registry — w
 | 8 | Where the SSR process runs, and on which Node version (§1.3) | Hosting (handoff §15.4) |
 | 9 | The currency signs (§1.8) | Rechecking the fonts the build installs; on today's evidence both signs stay cleared |
 | 10 | Registration continuing into the company wizard (§3.6 F3) | B2B, stage 3 |
+
+### 8.4 The address form's questions — round 1 (2026-10-29)
+
+Asked by the screens session for §3.6 "F9 on Platform's places". Option **(a)** is the recommended one in each.
+**Answered by the owner, 2026-10-29: every question (a).** With it, the owner set the address countries to start as five —
+Saudi Arabia, Egypt, the UAE, Qatar and Bahrain (Oman withdrawn the same day) — the only ones a customer's address
+offers; Super Admins keep editing the list (platform.md §4.3 E8).
+Q7's (a) holds whatever the size of the lists the backend seeds.
+
+| # | Question | Options and their effect |
+|---|---|---|
+| 1 | Where is the country chosen? | **(a)** A Country picker in the form, just above the region, starting on the store's own country — one form, one save. (b) A first step "Which country?" before the form opens — one more click for every address. |
+| 2 | A country another of our stores ships to (Egypt in the KSA store)? | **(a)** In the list, out of reach, "Served by our Egypt store" with a link to the Egypt store's addresses on the same tab — the customer sees why before typing anything, and adds it there. (b) Left out of the list — nothing says why Egypt is missing. (c) Pickable, refused on Save. |
+| 3 | A country no store of ours ships to (Qatar in the KSA store)? | **(a)** Saved like any other, no note — the customer learns at checkout that staff will contact them, as you decided for a place no carrier serves (shipping.md §1.2, S10). (b) A neutral note under the picker: "We don't ship to Qatar yet — when you order, our team will contact you about the shipping." |
+| 4 | The region, city and district pickers? | **(a)** A searchable list each (shadcn's Combobox), in both languages — Riyadh region alone has hundreds of cities. (b) A plain dropdown — no search. |
+| 5 | A city or district not in the list? | **(a)** "Other" as the list's last item, also offered when a search finds nothing; it shows a box to type the name in (your C2 and shipping.md §9.3 #10). (b) A "My city isn't listed" link under the picker. |
+| 6 | Where do the three pickers sit in the form? | **(a)** Together, region › city › district, where the format's first of the three is — the order the picks depend on. (b) Exactly where the store's format puts each field — a format that put the city before the region would ask for the city first. |
+| 7 | How do the lists reach the page? (KSA has 4,354 cities) | **(a)** As they are needed: the countries with the page, the regions of a country when it is picked (the store's own with the page), the cities of a region when it is picked, the districts of a city when it is picked — one small read each, the page stays light. (b) The whole country's list with the page — no wait on a pick, but about 8,000 places sent to every customer who opens Addresses. |
+| 8 | Editing an address saved on the other language's page? | **(a)** Its places show in the language they were saved in until a pick is changed; saving on this page fills them in this language (76(e)). (b) Always shown in the page's language — the form then shows names the printed address does not. |
+| 9 | A place retired since the address was saved (76(i))? | **(a)** It stays picked, marked **No longer listed**; saved as it is while left alone. (b) Shown picked, no mark — the customer cannot tell why it is missing from the list. |
+| 10 | A typed address in a country that now has a list ("Incomplete", 76(j))? | **(a)** Edit opens with the pickers empty and "You wrote: Jeddah" under each, and the row's note says "Pick this address's region and city from the list before you order." (b) Pickers empty, no hint — the customer retypes from memory. |
+| 11 | The address book's look? | **(a)** Unchanged: the country is already the printed address's last line; the hint says "in each store" instead of "in each country". (b) A country badge on each row as well. |
+| 12 | Staff's Address Formats page? | **(a)** A Note saying the three place fields come from the list where the country has one, and the three cannot be removed from a format (a small backend check for the backend session). (b) Nothing — a format without `district` would refuse every address with a picked district. |
+| 13 | Who builds what the form needs (§3.6 above: the rows' places, the countries offered, the list read, the save's new fields)? | **(a)** This session, in Access's Presentation layer only — the Application layer already has every read (`PlatformApi`). (b) The backend session. |
+| 14 | The picker on a phone? | **(a)** The same Combobox, full width — nothing new to add. (b) A bottom sheet (shadcn's Drawer) — larger, but a new package (`vaul`) and component. |
 - Uploading gives the same answer for an image already stored: Platform returns the existing one
   (platform.md §1.4), and the library simply shows it.
 

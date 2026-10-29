@@ -80,6 +80,10 @@ it('draws the roles screen, and offers it from the menu', function () {
         // The comparison table the design asked to keep: areas down the side, roles across.
         ->assertSee('Permissions by Role')
         ->assertNoJavaScriptErrors();
+
+    // A phone (frontend.md §2.1): the roles and their comparison table fit, the table scrolling inside its card.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('groups the actions by business area in the editor, rather than by declaration order', function () {
@@ -101,6 +105,10 @@ it('groups the actions by business area in the editor, rather than by declaratio
     $page->assertSee('Staff and Permissions')
         ->assertSee('Store Settings and Tax')
         ->assertNoJavaScriptErrors();
+
+    // A phone (frontend.md §2.1): the editor fits, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('creates a role from the screen, ticking an action and saving it', function () {
@@ -177,7 +185,9 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
         ->click('button[type="submit"]');
 
     expect(signedInToPanel($page))->toBeTrue();
-    $page->navigate('/admin/roles');
+    // Five seconds to load, not the plugin's one: a slow load was asked for twice and the two collided
+    // (lesson 166; seen here in the phone audit's second suite run, 2026-10-29).
+    $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
 
     $page->assertSee('Permissions by Role')->assertNoJavaScriptErrors();
 

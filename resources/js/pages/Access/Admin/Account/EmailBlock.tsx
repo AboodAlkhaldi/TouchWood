@@ -46,14 +46,16 @@ export function EmailBlock({ account }: Props) {
 
     return (
         <Card className="material-base gap-3 border-0 py-5">
-            <CardHeader className="px-6">
+            {/* On a phone the button goes under the address (owner, 2026-10-29, the phone audit): beside a
+                long address it was pushed off the screen. An address too long for the card wraps. */}
+            <CardHeader className="px-6 max-sm:has-data-[slot=card-action]:grid-cols-1">
                 <CardTitle className="text-heading-20 text-ink">
                     <h2>{t('access::account.email')}</h2>
                 </CardTitle>
-                <CardDescription className="text-copy-14 text-ink-muted">
+                <CardDescription className="text-copy-14 text-ink-muted [overflow-wrap:anywhere]">
                     <bdi dir="ltr">{account.email}</bdi>
                 </CardDescription>
-                <CardAction>
+                <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
                     <ActionButton
                         type="button"
                         variant="outline"

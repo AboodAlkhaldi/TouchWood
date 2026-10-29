@@ -225,6 +225,49 @@ it('opens the account from the header and shows what is still missing', function
         ->assertNoJavaScriptErrors();
 });
 
+it('fits the register and sign-in pages and every account tab on a phone', function () {
+    // Phones are supported (frontend.md §2.1). The visitor's pages first; the account is made at a
+    // desktop's size, the page's React taking the form over first (lesson 118).
+    // Each page measured once React has drawn it: an empty page fits anything.
+    $wide = 'document.documentElement.scrollWidth <= window.innerWidth';
+    $visitor = visit('/sa/en/register');
+    $visitor->resize(375, 812);
+    expect(browserUntil($visitor, "document.querySelector('[data-test=\"account-type-individual\"]') !== null && {$wide}"))->toBeTrue('the register page scrolls sideways');
+    $visitor->navigate('/sa/en/sign-in', BROWSER_PAGE_LOAD);
+    expect(browserUntil($visitor, "document.querySelector('#email') !== null && {$wide}"))->toBeTrue('the sign-in page scrolls sideways');
+
+    [, $page] = shopSignedIn();
+    $page->resize(375, 812);
+
+    foreach (['profile', 'security', 'phone', 'addresses', 'close'] as $tab) {
+        $page->navigate("/sa/en/account?tab={$tab}", BROWSER_PAGE_LOAD);
+        expect(browserUntil($page, "document.querySelector('[data-test=\"tab-{$tab}\"]')?.getAttribute('aria-selected') === 'true' && {$wide}"))->toBeTrue("the {$tab} tab scrolls sideways");
+    }
+
+    // The account's list is folded behind Account Menu (owner, 2026-10-29), so the tab's own content is
+    // the first thing on the screen; unfolded, a tab chosen from it folds it again and shows its panel.
+    $shown = "document.querySelector('[data-test=\"tab-phone\"]').checkVisibility()";
+    $page->assertVisible('[data-test="account-menu"]')->assertMissing('[data-test="tab-phone"]');
+    $page->click('[data-test="account-menu"]');
+    expect(browserUntil($page, $shown))->toBeTrue('Account Menu did not unfold the list');
+
+    // An arrow key only walks the tabs (Radix opens each as it is reached): the list stays unfolded, the
+    // focus on the tab reached (the review of the phone audit).
+    $page->keys('[data-test="tab-close"]', 'ArrowUp');
+    expect(browserUntil($page, "document.activeElement?.dataset.test === 'tab-addresses' && {$shown}"))->toBeTrue('an arrow key folded the list');
+
+    // Pressed, a tab folds it, and the focus goes to its panel rather than to the hidden tab.
+    $page->click('[data-test="tab-phone"]');
+    expect(browserUntil($page, "new URLSearchParams(location.search).get('tab') === 'phone' && !{$shown}"))->toBeTrue('the list stayed open after a tab was chosen')
+        ->and(browserUntil($page, "document.activeElement?.getAttribute('role') === 'tabpanel'"))->toBeTrue('the focus did not go to the panel');
+    $page->assertSee('Add Phone Number')->assertNoJavaScriptErrors();
+
+    // From a tablet's width the list is always there, and the button is gone.
+    $page->resize(1024, 800);
+    expect(browserUntil($page, $shown))->toBeTrue('the list is folded at a tablet\'s width');
+    $page->assertMissing('[data-test="account-menu"]');
+});
+
 it('saves a new name and comes back to the tab it was sent from', function () {
     [, $page] = shopSignedIn();
 
@@ -370,6 +413,12 @@ it('sets another usual address and asks before deleting one, from the address\'s
     }
 
     expect($page->script('document.activeElement?.dataset.test'))->toBe($work);
+
+    // A phone (frontend.md §2.1): the addresses and an address's ⋯ menu fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the addresses scroll sideways');
+    $page->click("[data-test=\"{$work}\"]")->assertPresent("[data-test=\"delete-address-{$id}\"]");
+    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"menu\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the address\'s menu is wider than the screen');
 
     $page->assertNoJavaScriptErrors();
 });

@@ -22,4 +22,5 @@ return [
     'sync' => 'المزامنة',
     'marketing' => 'التسويق',
     'support' => 'الدعم',
+    'messages_and_reports' => 'الرسائل والتقارير',
 ];

@@ -80,6 +80,10 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
     expect((string) DB::table('access.store_address_formats')->where('store_id', Fx::storeId('sa'))->value('fields'))
         ->toContain($key);
 
+    // A phone (frontend.md §2.1): the field rows fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    $page->navigate('/admin/address-formats', BROWSER_PAGE_LOAD)->assertPresent('[data-test="add-field"]');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 /*
