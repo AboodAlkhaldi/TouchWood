@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Http\Middleware\KeepNoCopy;
+
 /**
  * The shop as a place a module can put a page (frontend.md §2.3).
  *
@@ -37,6 +39,12 @@ final class StorefrontArea
     /** Who is here: the customer signed in, or nobody, in which case a guest. */
     public const string IDENTIFY = 'access.identify-customer';
 
+    /**
+     * Where that middleware marks, on the request, a staff member looking at the shop from the panel
+     * (access.md §1.11): such a page keeps no browser copy, like a signed-in customer's (KeepNoCopy).
+     */
+    public const string STAFF_VIEW = 'access.staff-view';
+
     /** What travels with every page of the shop: the store, the languages, whoever is signed in. */
     public const string PAGE = 'storefront.page';
 
@@ -62,7 +70,7 @@ final class StorefrontArea
      *
      * @var list<string>
      */
-    public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::SHOP, self::IDENTIFY, self::PAGE];
+    public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
 
     /**
      * And the same without a store, for the country page.

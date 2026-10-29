@@ -497,7 +497,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
   nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
   besides `light` and `dark`. **A first visit, before any choice, is System** (owner, 2026-10-02),
   replacing "Light until the person chooses" of 2026-09-19. The app sends no Content-Security-Policy
-  today (checked 2026-10-02); if hosting adds one, that script needs its nonce or hash.
+  limiting scripts (checked 2026-10-02; since 2026-10-29 only `frame-ancestors 'self'`, handoff
+  §15.4); if one is added, that script needs its nonce or hash.
 - **Toasts**: shadcn's Sonner (edit 2).
 - **The pieces neither system has — the owner's answers** (2026-10-02, one by one, each with a
   picture):
