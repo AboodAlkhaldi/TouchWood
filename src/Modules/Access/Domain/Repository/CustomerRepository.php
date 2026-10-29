@@ -44,6 +44,14 @@ interface CustomerRepository
     public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array;
 
     /**
+     * How many accounts of each type registered in the store from `$from` (included) to `$to`
+     * (excluded), anonymized ones too — they were new then (amendment 83).
+     *
+     * @return array{individuals: int, companies: int}
+     */
+    public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array;
+
+    /**
      * The customers, not anonymized, whose first or last name holds the text in any store, or whose
      * email or phone holds it among those registered in `$contactStoreIds` — null for every store,
      * an empty list for none — by id, at most `$limit` (amendment 72(b)). Matched as the staff list's

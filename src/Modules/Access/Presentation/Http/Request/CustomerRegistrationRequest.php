@@ -23,6 +23,7 @@ final class CustomerRegistrationRequest extends AccessFormRequest
             'account_type' => ['required', 'string', 'max:16'],
             'locale' => ['required', 'string', 'max:2'],
             'terms' => 'accepted',
+            'marketing_consent' => ['sometimes', 'boolean'],
         ];
     }
 }

@@ -28,6 +28,7 @@ final readonly class CustomerMapper
             $customer->homeStoreId(),
             $customer->deletionScheduledFor()?->format(DATE_ATOM),
             $customer->isAnonymized(),
+            $customer->marketingConsent(),
         );
     }
 }

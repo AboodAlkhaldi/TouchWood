@@ -50,5 +50,7 @@ final readonly class MyCustomerAccountDto
         public bool $mayOrder,
         public string $homeStoreId,
         public ?string $deletionScheduledFor,
+        /** The "offers and news" switch (amendment 79). */
+        public bool $marketingConsent = false,
     ) {}
 }

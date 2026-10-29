@@ -22,6 +22,8 @@ use Modules\Access\Application\Command\SaveAddress\SaveAddress;
 use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddress;
 use Modules\Access\Application\Command\SetDefaultAddress\SetDefaultAddressHandler;
+use Modules\Access\Application\Command\SetOwnMarketingConsent\SetOwnMarketingConsent;
+use Modules\Access\Application\Command\SetOwnMarketingConsent\SetOwnMarketingConsentHandler;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfile;
 use Modules\Access\Application\Command\UpdateCustomerProfile\UpdateCustomerProfileHandler;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
@@ -36,6 +38,7 @@ use Modules\Access\Presentation\Http\Request\CustomerAddressRequest;
 use Modules\Access\Presentation\Http\Request\CustomerCodeRequest;
 use Modules\Access\Presentation\Http\Request\CustomerPhoneRequest;
 use Modules\Access\Presentation\Http\Request\CustomerProfileRequest;
+use Modules\Access\Presentation\Http\Request\MarketingConsentRequest;
 use Modules\Access\Presentation\Http\Resource\AddressBookStore;
 use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
 use Modules\Access\Presentation\Http\Resource\AddressRow;
@@ -89,6 +92,18 @@ final readonly class CustomerOwnAccountController
             ));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['first_name', 'last_name', 'locale']);
+        }
+
+        return $this->backTo('profile', 'access::account.saved');
+    }
+
+    /** The "offers and news" switch (amendment 79), on the profile tab. */
+    public function updateMarketingConsent(MarketingConsentRequest $request, SetOwnMarketingConsentHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new SetOwnMarketingConsent($request->boolean('marketing_consent')));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error, ['marketing_consent']);
         }
 
         return $this->backTo('profile', 'access::account.saved');
@@ -237,6 +252,7 @@ final readonly class CustomerOwnAccountController
             deletionDays: RequestAccountDeletionHandler::DAYS,
             returnTo: $this->returnPage($request->query('return'), $account->accountType)?->name(),
             codeLength: $this->settings->codeLength(),
+            marketingConsent: $account->marketingConsent,
         );
     }
 

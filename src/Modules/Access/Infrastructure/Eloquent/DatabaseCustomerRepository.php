@@ -7,6 +7,7 @@ namespace Modules\Access\Infrastructure\Eloquent;
 use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -20,6 +21,7 @@ use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\CustomerStatus;
+use Modules\Access\Public\Enums\MarketingConsentSource;
 use Shared\Domain\Text\LatinDigits;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
@@ -91,6 +93,28 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             ->limit($limit)
             ->pluck('id')
             ->all()));
+    }
+
+    public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        $counts = $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            // In UTC with its offset: Laravel's own format drops the zone and the session reads UTC.
+            ->where('created_at', '>=', self::utc($from))
+            ->where('created_at', '<', self::utc($to))
+            ->groupBy('account_type')
+            ->selectRaw('account_type, count(*) AS total')
+            ->pluck('total', 'account_type');
+
+        return [
+            'individuals' => (int) ($counts[AccountType::Individual->value] ?? 0),
+            'companies' => (int) ($counts[AccountType::Company->value] ?? 0),
+        ];
+    }
+
+    private static function utc(DateTimeImmutable $at): string
+    {
+        return $at->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
     }
 
     public function idsMatching(string $text, ?array $contactStoreIds, int $limit): array
@@ -223,6 +247,9 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             'deletion_scheduled_for' => $customer->deletionScheduledFor(),
             'anonymized_at' => $customer->anonymizedAt(),
             'session_version' => $customer->sessionVersion(),
+            'marketing_consent' => $customer->marketingConsent(),
+            'marketing_consent_changed_at' => $customer->marketingConsentChangedAt(),
+            'marketing_consent_source' => $customer->marketingConsentSource()?->value,
         ];
     }
 
@@ -247,6 +274,9 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             $row->deletion_scheduled_for === null ? null : CarbonImmutable::parse((string) $row->deletion_scheduled_for),
             $row->anonymized_at === null ? null : CarbonImmutable::parse((string) $row->anonymized_at),
             (int) $row->session_version,
+            (bool) $row->marketing_consent,
+            $row->marketing_consent_changed_at === null ? null : CarbonImmutable::parse((string) $row->marketing_consent_changed_at),
+            $row->marketing_consent_source === null ? null : MarketingConsentSource::from((string) $row->marketing_consent_source),
         );
     }
 }

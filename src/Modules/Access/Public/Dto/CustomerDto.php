@@ -34,5 +34,7 @@ final readonly class CustomerDto
         public ?string $deletionScheduledFor = null,
         /** True once the fourteen days passed and the account was emptied: the name and email are placeholders. */
         public bool $anonymized = false,
+        /** Agreed to offers and news (amendment 79): marketing email only when true. Service messages ignore it. */
+        public bool $marketingConsent = false,
     ) {}
 }

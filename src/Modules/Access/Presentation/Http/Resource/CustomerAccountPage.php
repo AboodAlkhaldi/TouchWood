@@ -60,5 +60,7 @@ final class CustomerAccountPage extends Data
         public int $deletionDays,
         public ?string $returnTo,
         public int $codeLength,
+        /** The "offers and news" switch (amendment 79). */
+        public bool $marketingConsent = false,
     ) {}
 }

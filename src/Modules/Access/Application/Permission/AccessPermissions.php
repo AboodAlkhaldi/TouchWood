@@ -87,6 +87,9 @@ final class AccessPermissions
 
     public const string ACCOUNT_ANONYMIZE = 'access.account.anonymize';
 
+    /** An unsubscribe Ops received withdraws marketing consent (amendment 79). */
+    public const string MARKETING_CONSENT_WITHDRAW = 'access.marketing_consent.withdraw';
+
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -136,6 +139,7 @@ final class AccessPermissions
 
             new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true, kind: $storeFree),
+            new PermissionDefinitionDto(self::MARKETING_CONSENT_WITHDRAW, reserved: true, kind: $storeFree),
         ];
     }
 
