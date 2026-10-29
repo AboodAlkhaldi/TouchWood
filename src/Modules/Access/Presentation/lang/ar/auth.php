@@ -23,6 +23,8 @@ return [
     'sign_out' => 'تسجيل الخروج',
     // The shopper's menu in the shop's header (owner's #4, 2026-10-02).
     'my_account' => 'حسابي',
+    // The button that unfolds the account's list on a phone (owner, 2026-10-29).
+    'account_menu' => 'قائمة الحساب',
     'email' => 'بريد العمل',
     'password' => 'كلمة المرور',
     'forgot_password' => 'إعادة تعيين كلمة المرور',

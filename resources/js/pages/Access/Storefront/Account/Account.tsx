@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
-import { AccountLayout } from '@/layouts/AccountLayout';
+import { AccountTabsLayout } from '@/layouts/AccountTabsLayout';
 import { useTranslator } from '@/lib/t';
 import { AddressesTab } from '@/pages/Access/Storefront/Account/AddressesTab';
 import { CloseTab } from '@/pages/Access/Storefront/Account/CloseTab';
@@ -54,7 +54,7 @@ export default function Account(account: Props) {
     }
 
     return (
-        <AccountLayout
+        <AccountTabsLayout
             title={t('access::account.shop_title')}
             subtitle={t('access::account.shop_subtitle')}
             // The headings themselves arrive with every shop page (amendment 50), beside the pages
@@ -67,6 +67,6 @@ export default function Account(account: Props) {
             {open === 'phone' ? <PhoneTab account={account} /> : null}
             {open === 'addresses' ? <AddressesTab account={account} /> : null}
             {open === 'close' ? <CloseTab account={account} /> : null}
-        </AccountLayout>
+        </AccountTabsLayout>
     );
 }

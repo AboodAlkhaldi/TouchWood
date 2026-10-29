@@ -116,6 +116,12 @@ it('finds a waiting company in the list and approves it with a note', function (
     $page->assertMissing('[data-test="approve"]')
         ->assertMissing('[data-test="reject"]')
         ->assertNoJavaScriptErrors();
+
+    // A phone (frontend.md §2.1): the company's page and the list fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the company page scrolls sideways');
+    $page->navigate('/admin/companies', BROWSER_PAGE_LOAD)->assertPresent('nav[aria-label="Pages"]');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the companies list scrolls sideways');
 });
 
 it('rejects with a marked item and a request, then suspends from the menu and reinstates', function () {
@@ -307,6 +313,10 @@ it('lays a type list out in the page\'s language, and keeps it right to left aft
     // right until the next click (the owner's fix list, 2026-10-04).
     expect(browserUntil($page, "document.querySelector('[data-slot=\"tabs\"]')?.getAttribute('dir') === 'rtl'"))->toBeTrue()
         ->and($page->script("getComputedStyle(document.querySelector('table')).direction"))->toBe('rtl');
+
+    // A phone, right to left (frontend.md §2.1): the list fits, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();
 });

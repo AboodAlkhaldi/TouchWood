@@ -179,7 +179,9 @@ export default function Index({ customers, total, page, perPage, search, status,
                         : t('ui.range', { from: Math.min((page - 1) * perPage + 1, total), to: Math.min(page * perPage, total), total })}
                 </p>
 
-                <div>
+                {/* It may shrink: without it the grid gives it the table's whole width, and the page,
+                    not the card, scrolls sideways on a phone (frontend.md §2.1; the phone audit). */}
+                <div className="min-w-0">
                     {customers.length === 0 ? (
                         <Empty className="material-base" data-test="customers-empty">
                             <EmptyHeader>
