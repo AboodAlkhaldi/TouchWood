@@ -144,7 +144,7 @@ describe('the countries offered, read when the form opens (Q1, Q2, Q3; the owner
                 ->missing('addresses.0.countries')
             );
 
-        $countries = $browser->get('/sa/en/account/address-form?store=sa')->assertOk()->collect('countries');
+        $countries = $browser->get('/sa/en/account/address-form?book=sa')->assertOk()->collect('countries');
 
         expect($countries->first())->toMatchArray(['code' => 'SA', 'hasPlaces' => true, 'servedBy' => null])
             ->and($countries->pluck('code')->sort()->values()->all())->toBe(['AE', 'EG', 'QA', 'SA'])
@@ -154,7 +154,7 @@ describe('the countries offered, read when the form opens (Q1, Q2, Q3; the owner
             ->and($countries->firstWhere('code', 'QA')['otherName'])->toBe('قطر');
 
         // The Egypt store's own form starts on Egypt, and points Saudi Arabia to its store.
-        $egypt = $browser->get('/sa/en/account/address-form?store=eg')->assertOk()->collect('countries');
+        $egypt = $browser->get('/sa/en/account/address-form?book=eg')->assertOk()->collect('countries');
         expect($egypt->first()['code'])->toBe('EG')
             ->and($egypt->firstWhere('code', 'SA')['servedBy']['code'])->toBe('sa');
     });
@@ -163,11 +163,11 @@ describe('the countries offered, read when the form opens (Q1, Q2, Q3; the owner
         $places = addressFormPlaces();
         [, $browser] = addressFormCustomer();
 
-        $browser->get('/sa/en/account/address-form?store=sa')->assertOk()
+        $browser->get('/sa/en/account/address-form?book=sa')->assertOk()
             ->assertJsonPath('regions.0.name', 'Makkah Region')
             ->assertJsonPath('regions.1.id', $places['region'])
             ->assertJsonPath('regions.1.otherName', 'منطقة الرياض');
-        $browser->get('/sa/en/account/address-form?store=eg')->assertOk()->assertJsonPath('regions', []);
+        $browser->get('/sa/en/account/address-form?book=eg')->assertOk()->assertJsonPath('regions', []);
     });
 
     it('says a switched-off store is closed rather than linking to it, and has no form of its own', function () {
@@ -176,16 +176,16 @@ describe('the countries offered, read when the form opens (Q1, Q2, Q3; the owner
         // Platform keeps the stores in its cache: changed underneath it, it is read again.
         Cache::flush();
 
-        $countries = $browser->get('/sa/en/account/address-form?store=sa')->assertOk()->collect('countries');
+        $countries = $browser->get('/sa/en/account/address-form?book=sa')->assertOk()->collect('countries');
         expect($countries->firstWhere('code', 'EG')['servedBy'])->toBe(['code' => 'eg', 'name' => 'Egypt', 'open' => false]);
 
-        $browser->get('/sa/en/account/address-form?store=eg')->assertNotFound();
-        $browser->get('/sa/en/account/address-form?store=zz')->assertNotFound();
+        $browser->get('/sa/en/account/address-form?book=eg')->assertNotFound();
+        $browser->get('/sa/en/account/address-form?book=zz')->assertNotFound();
         $browser->get('/sa/en/account/address-form')->assertNotFound();
     });
 
     it('is for a signed-in customer only', function () {
-        (new AdminBrowser)->get('/sa/en/account/address-form?store=sa')->assertRedirect();
+        (new AdminBrowser)->get('/sa/en/account/address-form?book=sa')->assertRedirect();
     });
 });
 
@@ -270,7 +270,7 @@ describe('the lists, read as the customer picks (Q7)', function () {
         [, $browser] = addressFormCustomer();
 
         $page = addressFormQueries($browser, '/sa/en/account?tab=addresses');
-        $form = addressFormQueries($browser, '/sa/en/account/address-form?store=sa');
+        $form = addressFormQueries($browser, '/sa/en/account/address-form?book=sa');
         $read = addressFormQueries($browser, '/sa/en/account/places?region='.$places['region']);
         $none = addressFormQueries($browser, '/sa/en/account/places?region=01aaaaaaaaaaaaaaaaaaaaaaaa');
 

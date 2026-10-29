@@ -1160,7 +1160,7 @@ built by this session (Q13):
   retired mark (from `AddressDto` and `PlatformApi::place`), so Edit opens picked;
 - `AddressBookStore` gains only the store's own country code; the countries offered
   (`PlatformApi::addressCountries`, each with `hasPlaces` and the store that ships to it, from
-  `countryStore`) and the own country's regions come from `GET /{store}/{lang}/account/address-form?store=sa`
+  `countryStore`) and the own country's regions come from `GET /{store}/{lang}/account/address-form?book=sa`
   (`AddressFormData`), read when the form opens (the owner, 2026-10-29);
 - one storefront read for the lists, signed-in customers only, throttled as the account's other reads:
   `GET /{store}/{lang}/account/places?country=SA` (regions), `?region=…` (cities), `?city=…` (districts),

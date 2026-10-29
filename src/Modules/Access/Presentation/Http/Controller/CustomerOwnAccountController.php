@@ -353,13 +353,14 @@ final readonly class CustomerOwnAccountController
      * owner, 2026-10-29): Platform's address countries, the store's own first (Q1), each with the
      * other store that ships there (76(c), Q2), and the own country's regions where it has a list,
      * so the first picker opens at once. One query for the countries, one per store for its ship-to
-     * list, one for the regions.
+     * list, one for the regions. The book's store comes as `?book=`: `{store}` is already the
+     * storefront's own, in the path.
      */
     public function addressForm(Request $request): JsonResponse
     {
         $locale = $this->app->getLocale();
         $other = $locale === 'ar' ? 'en' : 'ar';
-        $code = $request->query('store');
+        $code = $request->query('book');
         $store = is_string($code) ? $this->platform->storeByCode(strtolower($code)) : null;
 
         if ($store === null || ! $store->isActive) {

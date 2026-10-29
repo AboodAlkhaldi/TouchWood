@@ -47,7 +47,7 @@ export function AddressFormLoader(props: Props) {
     const link = useLink();
     const [offer, setOffer] = useState<AddressFormData | 'loading' | 'failed'>('loading');
     const [attempt, setAttempt] = useState(0);
-    const url = link('storefront.account.address-form', { store: props.store.storeCode });
+    const url = link('storefront.account.address-form', { book: props.store.storeCode });
 
     useEffect(() => {
         let current = true;
