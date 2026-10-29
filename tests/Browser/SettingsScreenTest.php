@@ -82,6 +82,10 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('platform.settings')->where('key', $key)->value('value'))->toBe('27');
+
+    // A phone (frontend.md §2.1): the settings fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 /*
@@ -182,6 +186,10 @@ it('says in the Companies section whether bank transfer is on, and names no valu
         ->assertSee('Bank transfer: on')
         ->assertDontSee('temporarily off')
         ->assertNoJavaScriptErrors();
+
+    // A phone (frontend.md §2.1): the section, the IBAN in it, fits, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $empty();
 });

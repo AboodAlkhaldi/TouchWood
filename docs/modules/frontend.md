@@ -61,6 +61,7 @@ not final acceptance (see the notice above); each is confirmed again before it i
 | §2.2, §2.3 | **Catalog's screens** (catalog.md §4.4, §4.5, amendment 13): the panel's header search waits for Sales, one search for products and orders; the shop's header gains Catalog's category menu and search box on every shop page, through a small Platform list of the shop frame's parts; shop addresses `/{store}/{locale}/products|categories|brands/{slug}` and `/search` | Owner, 2026-10-07 |
 | §1.7, §2.1, §7 | **Every box checks itself as it is typed**, in every form of every module: a number box refuses letters at once, ranges and lengths said under the box while typing, Save out of reach while a box is wrong — the server still checking everything (catalog.md amendment 16(f)); B2B's company page, whose boxes were checked once left (b2b.md amendment 22(a)), too | Owner, 2026-10-09: "we dont wanna wait until request returns red to a numeric value that was entered character, it must be from the moment typed" |
 | §1.1 | **Catalog's ordered lists are ordered by dragging** — `@dnd-kit` under `dashboard-01`'s handles, saved when dropped, with Move to Top and Move to Bottom on the row's menu — no typed place, no "#" column (catalog.md amendment 16(d)); B2B's type lists and Platform's stores keep theirs | Owner, 2026-10-09 |
+| §2.1, §3.2 B1, §3.6 F8, §7 | **The phone-width audit** (every page at 375×812): on a phone the account's Work Email card puts Change Work Email… **under** the address, not beside it (a long address pushed it off the screen); the shop's account list (other modules' pages and the account's tabs) is **folded behind one Account Menu button** (shadcn's Collapsible, shut) so the page's own content comes first — from tablet width both are as before. Every browser test file checks the phone's width | Owner, 2026-10-29 |
 
 ---
 
@@ -497,7 +498,8 @@ and examples. Only when neither has it, show the owner what was searched and ask
   nothing flashes; campaign themes are unaffected. Access's preferences endpoint accepts `system`
   besides `light` and `dark`. **A first visit, before any choice, is System** (owner, 2026-10-02),
   replacing "Light until the person chooses" of 2026-09-19. The app sends no Content-Security-Policy
-  today (checked 2026-10-02); if hosting adds one, that script needs its nonce or hash.
+  limiting scripts (checked 2026-10-02; since 2026-10-29 only `frame-ancestors 'self'`, handoff
+  §15.4); if one is added, that script needs its nonce or hash.
 - **Toasts**: shadcn's Sonner (edit 2).
 - **The pieces neither system has — the owner's answers** (2026-10-02, one by one, each with a
   picture):
@@ -1116,10 +1118,11 @@ things are new:
      region **with no city listed** (a country listed to its top level only): the city is typed (found in
      building, 2026-10-29);
    - changing a region clears the city and district; changing a city clears the district;
-   - the lists arrive as they are needed (Q7): the countries with the page; a country's regions when it is
-     picked (or with the page, for the store's own country); a region's cities when it is picked; a city's
-     districts when it is picked. Each list opens with its spinner while it loads, and a failed load says
-     so with Try Again.
+   - the lists arrive as they are needed (Q7): the countries, which store serves each, and the store's own
+     country's regions when **Add or Edit is pressed** (the owner, 2026-10-29: only what is shown, when it is
+     shown; the page itself carries none of it); another country's regions when it is picked; a region's
+     cities when it is picked; a city's districts when it is picked. The form shows its spinner while it
+     loads, each list opens with its spinner while it loads, and a failed load says so with Try Again.
 3. **A country with no place list** (76(d), R4): the three fields are typed boxes, exactly as today.
 
 **Saving** sends `country`, `region_id`, `city_id`, `district_id` (empty where typed) beside the fields and
@@ -1155,18 +1158,22 @@ Addresses tab, and **1 query** for each list read.
 built by this session (Q13):
 - `AddressRow` gains `countryCode`, `regionId`, `cityId`, `districtId` and each picked place's name and
   retired mark (from `AddressDto` and `PlatformApi::place`), so Edit opens picked;
-- `AddressBookStore` gains the countries offered (`PlatformApi::addressCountries`, each with `hasPlaces` and
-  the store that ships to it, from `countryStore`), and the store's own country's regions;
+- `AddressBookStore` gains only the store's own country code; the countries offered
+  (`PlatformApi::addressCountries`, each with `hasPlaces` and the store that ships to it, from
+  `countryStore`) and the own country's regions come from `GET /{store}/{lang}/account/address-form?book=sa`
+  (`AddressFormData`), read when the form opens (the owner, 2026-10-29);
 - one storefront read for the lists, signed-in customers only, throttled as the account's other reads:
   `GET /{store}/{lang}/account/places?country=SA` (regions), `?region=…` (cities), `?city=…` (districts),
   each place `{id, name in both languages}` — from `PlatformApi::regions`, `cities`, `districts`;
 - `saveAddress` passes `country`, `region_id`, `city_id`, `district_id` to `SaveAddress`.
 
-**For the backend session to confirm** (not the screen's to change): a store format without
-`administrative_area`, `city` or `district` would have `AddressPlaceRules` fill a key the format refuses
-(`StoreAddressFormat::accept`). Q12 asks whether staff may remove them.
+**Settled by the backend session (Q12, the owner, 2026-10-29):** a store's format must keep
+`administrative_area`, `city` and `district`, each taking at least 100 characters; saving one without them is
+refused as `access.address_format_needs_places` (its `missing` names the keys), nothing saved. The Address
+Formats page may stop it before saving.
 
-**Tests**: feature — the tab's props (countries, the own country's regions, the picked address's places),
+**Tests**: feature — the tab's props (the picked address's places), the form read (countries, the own
+country's regions) and its query count,
 each list read and its query count, the save with picks, "Other", a typed country, the served-elsewhere
 refusal with its link, a retired pick kept, a wrong pair (a city of another region) refused in its words;
 browser — pick region, city, district; Other; change the region and see the city cleared; edit an
@@ -1321,7 +1328,11 @@ Pest, as the rest of the project (§1.1). Browser tests run with the suite (`com
 - The theme and display-language toggles survive a reload, and the pages come back in that theme
   with no flash.
 - Arabic mirrors the layout, the sidebar sits on the right, and figures show Latin digits (§1.8).
-- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card.
+- Phone width: the sidebar becomes a slide-in menu; tables scroll inside their card; nothing scrolls
+  the page sideways (`scrollWidth <= innerWidth` at 375×812, in every browser test file - `innerWidth`
+  because headless Chromium keeps a 10 px scrollbar gutter a phone does not have, so it lets an
+  overflow of up to 10 px through); the shop's
+  account list folds behind Account Menu (owner, 2026-10-29).
 - With SSR turned off, every page still renders in the browser.
 - The accessibility pass and the keyboard walk-throughs of §6.
 

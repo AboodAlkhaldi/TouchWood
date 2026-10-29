@@ -30,8 +30,13 @@ use Modules\Pricing\Presentation\Http\Resource\ProductResultsData;
  */
 final readonly class CategoryDiscountsController
 {
-    /** @var list<string> */
-    public const array WORDS = ['pricing::admin', 'pricing::admin_discounts', 'admin'];
+    /**
+     * The list's state and sort switches read Offers' words (pricing::admin_offers.filters), so that file is
+     * sent too: without it the switches showed their keys (the phone audit, 2026-10-29).
+     *
+     * @var list<string>
+     */
+    public const array WORDS = ['pricing::admin', 'pricing::admin_discounts', 'pricing::admin_offers', 'admin'];
 
     /** The dialog's fields, where a refusal naming one is said. */
     private const array FIELDS = ['category', 'percent', 'amount', 'lines', 'starts_at', 'ends_at', 'left_out'];

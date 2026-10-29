@@ -89,4 +89,10 @@ it('draws the list, opens a customer, and blocks them with a reason', function (
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('access.customers')->where('id', $customerId)->value('status'))->toBe('BLOCKED');
+
+    // A phone (frontend.md §2.1): the customer and the list fit, the table scrolling inside its card.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the customer page scrolls sideways');
+    $page->navigate('/admin/customers', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"customer-{$customerId}\"]");
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the customers list scrolls sideways');
 });

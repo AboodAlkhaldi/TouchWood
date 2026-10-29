@@ -64,6 +64,23 @@ it('moves to another country and keeps the language it was being read in', funct
         ->assertNoJavaScriptErrors();
 });
 
+it('fits the country page and the shop\'s header on a phone, both ways round', function () {
+    // Phones are supported (frontend.md §2.1): the header's switches, the logo and the menus fit the
+    // screen, in English and in Arabic, with nothing scrolling sideways.
+    $page = visit('/');
+    $page->resize(375, 812);
+    $page->assertSee('اختر دولتك');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the country page scrolls sideways');
+
+    foreach (['/sa/en', '/sa/ar', '/eg/en'] as $address) {
+        $page->navigate($address, BROWSER_PAGE_LOAD)->assertPresent('[data-test="country-switch"]');
+        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$address} scrolls sideways")
+            ->and($page->script("document.querySelector('header').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue("{$address}'s header is wider than the screen");
+    }
+
+    $page->assertNoJavaScriptErrors();
+});
+
 it('turns the shop dark when the button is pressed', function () {
     // The button posted to the panel's endpoint, behind the panel's session, so the shop's token
     // was never the right one: every press was refused, and a refused press leaves the page

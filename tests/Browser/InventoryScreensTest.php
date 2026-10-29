@@ -299,6 +299,11 @@ it('opens a size\'s side panel from its row, with its History, and closes it wit
         ->and(browserSoon($page, "document.querySelectorAll('[data-test=\"drawer-history\"] [data-test=\"history-line\"]').length === 2"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"drawer-history\"]')?.textContent.includes('Stocktake')"))->toBeTrue();
 
+    // A phone (frontend.md §2.1): the open panel fits the screen, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Stock scrolls sideways')
+        ->and($page->script("document.querySelector('[data-test=\"drawer-body\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the side panel is wider than the screen');
+
     $page->keys('[data-test="drawer-adjust"]', 'Escape');
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') === null"))->toBeTrue();
@@ -324,6 +329,12 @@ it('lists a low size on Low Stock, which opens it on Stock', function () {
     $page->click("[data-test=\"open-size-{$low}\"]");
 
     expect(browserSoon($page, "window.location.pathname === '/admin/stock' && document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): Low Stock fits, its table scrolling inside its card.
+    $page->resize(375, 812);
+    $page->navigate('/admin/low-stock', BROWSER_SLOW_PAGE_LOAD);
+    expect(browserSoon($page, "document.querySelector('[data-test^=\"low-row-\"]') !== null"))->toBeTrue()
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('draws the product page\'s Inventory section in two store cards, each with boxes of its own', function () {
@@ -357,4 +368,8 @@ it('draws Stock right to left in Arabic', function () {
     expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('h1')?.textContent.includes('المخزون')"))->toBeTrue()
         ->and(browserSoon($page, "document.getElementById('count-{$ready['sizes'][0]}')?.value === '4'"))->toBeTrue();
+
+    // A phone, right to left (frontend.md §2.1): nothing scrolls sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });

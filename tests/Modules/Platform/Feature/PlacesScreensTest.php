@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -158,12 +159,20 @@ it('refuses every change to an admin, in the panel\'s words: both permissions ar
  */
 function placesScreenQueries(Closure $read): int
 {
-    $read();
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-    $read();
-    $count = count(DB::getQueryLog());
-    DB::disableQueryLog();
+    // One clock for both reads: the staff pass writes its last-seen time once a minute, and a minute
+    // turning between them (a slow CI run) would count that write against the page.
+    CarbonImmutable::setTestNow(CarbonImmutable::now());
+
+    try {
+        $read();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $read();
+        $count = count(DB::getQueryLog());
+        DB::disableQueryLog();
+    } finally {
+        CarbonImmutable::setTestNow();
+    }
 
     return $count;
 }

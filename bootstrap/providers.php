@@ -10,6 +10,7 @@ use Modules\Catalog\Infrastructure\CatalogServiceProvider;
 use Modules\Feedback\Infrastructure\FeedbackServiceProvider;
 use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
+use Modules\Ops\Infrastructure\OpsServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
 use Modules\Pricing\Infrastructure\PricingServiceProvider;
 use Modules\Promotions\Infrastructure\PromotionsServiceProvider;
@@ -46,4 +47,7 @@ return [
     // After Access, Catalog and Sales: Feedback declares its permissions through Access, reads Catalog
     // and asks Sales for the verified purchase (handoff §4.4, feedback.md §2.3).
     FeedbackServiceProvider::class,
+    // Last: Ops reads every module's public surface and declares its permissions through Access;
+    // nothing depends on it (handoff §4.4, ops.md §2).
+    OpsServiceProvider::class,
 ];

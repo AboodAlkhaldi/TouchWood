@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\AdminArea;
 use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Access\Presentation\Http\Controller\AddressFormatController;
@@ -21,11 +22,8 @@ use Modules\Access\Presentation\Http\Controller\StaffOwnAccountController;
 use Modules\Access\Presentation\Http\Controller\StaffSignInController;
 use Modules\Access\Presentation\Http\Controller\StaffViewController;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
-use Modules\Access\Presentation\Http\Middleware\IdentifyStaff;
 use Modules\Access\Presentation\Http\Middleware\RequireCustomer;
 use Modules\Access\Presentation\Http\Middleware\RequireStaff;
-use Modules\Access\Presentation\Http\Middleware\ShareAdminPage;
-use Modules\Access\Presentation\Http\Middleware\UseAdminSession;
 use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 
 /*
@@ -35,7 +33,7 @@ use Modules\Access\Presentation\Http\Middleware\UseStorefrontSession;
 */
 
 Route::prefix('admin')
-    ->middleware([UseAdminSession::ALIAS, 'web', IdentifyStaff::ALIAS, ShareAdminPage::ALIAS])
+    ->middleware(AdminArea::MIDDLEWARE)
     ->group(function (): void {
         /*
         | The pages themselves (stage 2b step 1, frontend.md 3.1 A1-A9). Each is a plain GET that
@@ -240,6 +238,10 @@ Route::prefix('{store}/{locale}')
             // in the path because it names one of the customer's own rows, and the handler checks
             // it belongs to whoever is asking.
             Route::post('account/addresses', [CustomerOwnAccountController::class, 'saveAddress'])->name('storefront.account.addresses.save');
+            // F9's region, city and district lists, read as the customer picks (frontend.md §8.4 Q7).
+            Route::get('account/places', [CustomerOwnAccountController::class, 'places'])->name('storefront.account.places');
+            // What a store's address form offers, read when it is opened (the owner, 2026-10-29).
+            Route::get('account/address-form', [CustomerOwnAccountController::class, 'addressForm'])->name('storefront.account.address-form');
             Route::post('account/addresses/{address}/default', [CustomerOwnAccountController::class, 'setDefaultAddress'])->name('storefront.account.addresses.default');
             Route::post('account/addresses/{address}/delete', [CustomerOwnAccountController::class, 'deleteAddress'])->name('storefront.account.addresses.delete');
             Route::post('account/close', [CustomerOwnAccountController::class, 'close'])->name('storefront.account.close');

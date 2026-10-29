@@ -290,16 +290,16 @@ go (§9.2).
 | **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` (exists); coupons used per day and their discount |
 | **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
 | **Catalog** (Stage 6) | — | **Built (#251, catalog.md amendment 37):** `searchSummary(?store, from, to, after, limit)` — {query, storeId, locale, searches, noResults}, most searched first; no person (catalog.md §1.11) |
-| **Inventory** (Stage 5 session) | `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — ids only, only when a list is non-empty, after commit; needs a new table of the store's last low set (today only a count is kept, `CountLowStockHandler.php:58`); LOW→OUT is in `ranOut`, OUT→LOW in nothing | `lowStockChanges(store, from, to)` over a small change log; stock per size for the Stock report |
-| **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | Reads and problems per day — a new read over `sync.reads` and `sync.report_entries` |
-| **B2B** (Stage 5) | `CompanyApplicationSubmitted` (exists; **carries no store** — add `storeId`, or a read by application) | Applications submitted and approved per day — a new read; Ops never counts from events |
+| **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |
+| **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | **Built (#262, sync.md amendment 1):** `readsAndProblemsPerDay(stores, fromDay, toDay, until)` → `list<SyncDayDto>` |
+| **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
 | **Payments** (Stage 7 session) | **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; **new** `GatewayKeyExpiring`, `GatewayKeyRejected`, `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
 | **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84) |
 | **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
 
 ## 3 · Use cases and permissions
 
-New permission group **Messages and reports** (owner, 2026-10-28); every permission given to admins by
+New permission group **Messages and Reports** (owner, 2026-10-28); every permission given to admins by
 default (roles nest).
 
 | Use case | Permission | Scope |

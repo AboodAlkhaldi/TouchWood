@@ -209,6 +209,11 @@ it('types a price, saves it from the save bar, marks a refused row, and opens a 
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"drawer-body\"]') !== null"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"size-drawer\"]')?.textContent.includes('What Reaches It')"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the open drawer fits the screen, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Prices scrolls sideways')
+        ->and($page->script("document.querySelector('[data-test=\"drawer-body\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the drawer is wider than the screen');
 });
 
 it('drops the open drawer\'s size with the store it belongs to when another store is chosen, keeping the search (stage 5 step 10)', function () {
@@ -239,6 +244,10 @@ it('draws Prices right to left in Arabic', function () {
 
     expect(browserSoon($page, "document.documentElement.dir === 'rtl'"))->toBeTrue()
         ->and(browserSoon($page, "document.body.textContent.includes('سعر التجزئة') && document.body.textContent.includes('مُدخل هنا')"))->toBeTrue();
+
+    // A phone, right to left (frontend.md §2.1): nothing scrolls sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('adds an offer through its dialog - product, sizes, date and time, the note - and ends it', function () {
@@ -289,6 +298,12 @@ it('adds an offer through its dialog - product, sizes, date and time, the note -
         ->and(browserSoon($page, "document.body.textContent.includes('Offer ended')"))->toBeTrue()
         // The dialog closed, focus is back on the ended offer's ⋯ - its row stays - never the page's start.
         ->and(browserSoon($page, "document.querySelector('[role=\"alertdialog\"]') === null && document.activeElement?.getAttribute('data-test') === 'offer-actions-{$sale->id}'"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the offers and the Add Offer dialog fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the offers scroll sideways');
+    $page->click('[data-test="add-offer"]');
+    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"dialog\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the Add Offer dialog is wider than the screen');
 });
 
 it('removes a scheduled offer, focus going to the next offer\'s menu, else to Add Offer', function () {
@@ -354,6 +369,15 @@ it('adds a category discount with its live preview, and opens the discount\'s pa
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"discount-fields\"]')?.textContent.includes('{$category}')"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"discount-preview\"]')?.textContent.includes('Reaches 2 sizes in 1 product')"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): the discount's page and the list fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the discount\'s page scrolls sideways');
+    // The state switch in words, not its keys (they were sent without them until the phone audit, 2026-10-29).
+    $page->navigate('/admin/category-discounts', BROWSER_SLOW_PAGE_LOAD);
+    $state = "document.querySelector('[data-test=\"discounts-state\"]')?.textContent ?? ''";
+    expect(browserSoon($page, "({$state}).includes('Running') && !({$state}).includes('pricing::')"))->toBeTrue('the state switch shows no words')
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the discounts scroll sideways');
 });
 
 it('adds a band in the bands dialog, and removes it', function () {
@@ -382,6 +406,12 @@ it('adds a band in the bands dialog, and removes it', function () {
 
     expect(browserSoon($page, "document.querySelector('[data-test=\"band-1-remove\"]') !== null"))->toBeTrue();
 
+    // A phone (frontend.md §2.1): the open bands dialog fits the screen, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Wholesale Prices scrolls sideways')
+        ->and(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"dialog\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the bands dialog is wider than the screen');
+    $page->resize(1280, 800);
+
     $page->click('[data-test="band-1-remove"]')->click('[data-test="confirm-bands"]');
 
     expect(pricingBrowserSoon($page, $bands, fn (int $count): bool => $count === 1))->toBe(1);
@@ -399,6 +429,10 @@ it('prices a size off Needs a Price, which then leaves the list', function () {
 
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('sa', $size), fn (?int $minor): bool => $minor === 9900))->toBe(9900)
         ->and(browserSoon($page, "document.querySelector('[data-test=\"needs-row-{$size}\"]') === null"))->toBeTrue();
+
+    // A phone (frontend.md §2.1): Needs a Price fits, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('draws the product page\'s Pricing section in two store cards, each with boxes of its own', function () {
@@ -421,6 +455,10 @@ it('draws the product page\'s Pricing section in two store cards, each with boxe
 
     expect(pricingBrowserSoon($page, fn (): ?int => pricingBrowserRetail('eg', $size), fn (?int $minor): bool => $minor === 160000))->toBe(160000)
         ->and(pricingBrowserRetail('sa', $size))->toBe(12000);
+
+    // A phone (frontend.md §2.1): the two store cards fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('gives focus back inside the store\'s own card when its last offer is removed on a product\'s Stores tab', function () {

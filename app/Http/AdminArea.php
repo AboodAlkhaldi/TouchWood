@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Http\Middleware\KeepNoCopy;
+
 /**
  * The admin panel as a place a module can put a page (frontend.md §4.1).
  *
@@ -43,5 +45,5 @@ final class AdminArea
      *
      * @var list<string>
      */
-    public const array MIDDLEWARE = [self::SESSION, 'web', self::IDENTIFY, self::PAGE];
+    public const array MIDDLEWARE = [self::SESSION, 'web', self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
 }
