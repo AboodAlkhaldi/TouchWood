@@ -11,10 +11,13 @@ use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerP
 use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCodeHandler;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhoneHandler;
+use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Public\Events\CustomerPhoneVerified;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -185,6 +188,71 @@ describe('a customer\'s phone (spec §1.3)', function () {
         customerAskForCode('+966501234567');
 
         expect(signInCodesToNumber())->toBe(4);
+    });
+
+    it('sends at most 5 codes an hour to one account, whatever the numbers (amendment 85)', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+
+        foreach (range(1, 5) as $sent) {
+            customerAskForCode('+96650123456'.$sent);
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        }
+
+        expect(RecordingSecurityMessages::installed()->codes)->toHaveCount(5)
+            ->and(fn () => customerAskForCode('+966501234569'))->toThrow(CodeRequestTooSoon::class);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(61));
+        customerAskForCode('+966501234569');
+
+        expect(RecordingSecurityMessages::installed()->codes)->toHaveCount(6);
+    });
+
+    it('counts no limit for a refused request (amendment 85)', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+
+        foreach (range(1, 3) as $sent) {
+            customerAskForCode('+966501234567');
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        }
+
+        // The 4th to the same number is refused by the number's limit; had it counted for the account,
+        // the second new number below would be its 5th code and the third its 6th.
+        expect(fn () => customerAskForCode('+966501234567'))->toThrow(CodeRequestTooSoon::class);
+        customerAskForCode('+966501234561');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+        customerAskForCode('+966501234562');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+
+        expect(RecordingSecurityMessages::installed()->codes)->toHaveCount(5)
+            ->and(fn () => customerAskForCode('+966501234563'))->toThrow(CodeRequestTooSoon::class);
+    });
+
+    it('sends at most the store\'s codes an hour across its customers, a spend guard (amendment 85)', function () {
+        $defaults = array_column(array_map(fn ($each) => ['key' => $each->key, 'default' => $each->default], CustomerSecuritySettings::definitions()), 'default', 'key');
+        expect($defaults[CustomerSecuritySettings::CODES_PER_STORE_HOUR])->toBe(500)
+            ->and($defaults[CustomerSecuritySettings::CODES_PER_ACCOUNT_HOUR])->toBe(5);
+        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(CustomerSecuritySettings::CODES_PER_STORE_HOUR, 'sa', 2)));
+
+        foreach (['first', 'second'] as $at => $name) {
+            Fx::actAsCustomer(Fx::customer("{$name}@example.test"));
+            customerAskForCode('+96650123456'.$at);
+        }
+
+        Fx::actAsCustomer(Fx::customer('third@example.test'));
+
+        expect(fn () => customerAskForCode('+966501234569'))->toThrow(CodeRequestTooSoon::class)
+            ->and(RecordingSecurityMessages::installed()->codes)->toHaveCount(2);
+    });
+
+    it('follows the account\'s setting (amendment 85)', function () {
+        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(CustomerSecuritySettings::CODES_PER_ACCOUNT_HOUR, 'sa', 1)));
+        Fx::actAsCustomer(Fx::customer());
+        customerAskForCode('+966501234561');
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
+
+        expect(fn () => customerAskForCode('+966501234562'))->toThrow(CodeRequestTooSoon::class);
     });
 
     it('keeps the number itself out of the rate-limit keys', function () {

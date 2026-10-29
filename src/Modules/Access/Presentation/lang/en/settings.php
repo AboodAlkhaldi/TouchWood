@@ -36,6 +36,8 @@ return [
     'customer.sms_code_minutes' => 'A Code Lasts (Minutes)',
     'customer.sms_resend_seconds' => 'Wait Before Sending Another (Seconds)',
     'customer.sms_codes_per_hour' => 'Codes an Hour',
+    'customer.sms_codes_per_account_hour' => 'Codes an Hour per Account',
+    'customer.sms_codes_per_store_hour' => 'Codes an Hour in the Store',
     'customer.sms_code_attempts' => 'Tries at a Code',
     'customer.lockout_attempts' => 'Wrong Passwords Before an Account Waits',
     'customer.lockout_minutes' => 'How Long It Waits (Minutes)',

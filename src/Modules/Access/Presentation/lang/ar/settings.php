@@ -36,6 +36,8 @@ return [
     'customer.sms_code_minutes' => 'مدة صلاحية الرمز (دقائق)',
     'customer.sms_resend_seconds' => 'الانتظار قبل إرسال رمز آخر (ثوانٍ)',
     'customer.sms_codes_per_hour' => 'عدد الرموز في الساعة',
+    'customer.sms_codes_per_account_hour' => 'عدد الرموز في الساعة لكل حساب',
+    'customer.sms_codes_per_store_hour' => 'عدد الرموز في الساعة في المتجر',
     'customer.sms_code_attempts' => 'محاولات إدخال الرمز',
     'customer.lockout_attempts' => 'محاولات خاطئة قبل إيقاف الحساب مؤقتًا',
     'customer.lockout_minutes' => 'مدة الإيقاف المؤقت (دقائق)',

@@ -107,7 +107,7 @@ Handoff §7.3. One phone per account; adding and changing both go through an SMS
 - A number already used by another customer is refused when it is **entered**, not after the code.
 - **SMS codes [DECIDED 2026-09-18]** (provisional until the SMS provider is chosen, handoff §15.3):
   6 digits, valid **5 minutes**, resend after **60 seconds**, at most **3 per hour** per number
-  (amendment 28),
+  (amendment 28), at most **5 per hour** per account and **500 per hour** in the store (amendment 85),
   **5 wrong tries** and the code is dead — a new one must be requested. Codes are stored only as a
   hash.
 
@@ -900,7 +900,7 @@ AccessError
 ├── TooManyRequests               FORBIDDEN    too many registrations or reset requests from one address (amendment 40)
 ├── InvalidOrExpiredLink          INVALID
 ├── InvalidCode                   INVALID      wrong or expired SMS code
-├── CodeRequestTooSoon            CONFLICT     resend limits
+├── CodeRequestTooSoon            CONFLICT     resend limits; per number, per account, per store (amendment 85)
 ├── PasswordTooWeak               INVALID      too short, or found in a leak
 ├── CustomerNotFound / StaffNotFound / RoleNotFound / AddressNotFound   NOT_FOUND
 ├── PermissionEscalation          FORBIDDEN    granting more than you hold
@@ -1131,3 +1131,4 @@ admin's name and role only, and a Super Admin not at all (owner, 2026-09-20; ame
 | 82 | §1.4 | **[PROPOSED — stage 8, Ops; ops.md §1.6 S9]** **A seventh notification topic, Returns** (owner, 2026-10-28): `StaffNotificationTopic::Returns` (`RETURNS`), named "Returns" / "المرتجعات": a customer asked for a return. Ops sends it to the store's holders of `sales.return.manage`, on Sales' new `ReturnRequested`. **Built after amendment 78's migration** (Payment problems); its migration swaps the topic CHECK to list every topic then present, explicitly, with a reversible `down()` that deletes the topic's rows first (the pattern of `2026_10_18_100000_add_sync_problems_topic.php`); words in `account.php`, both languages. No row reads as its default (amendment 19). | Staff should see a return request at once, and turn it off apart from New orders. | Proposed 2026-10-28 |
 | 83 | §2.1 | **[PROPOSED — stage 8, Ops; ops.md §1.11]** **New customers per day, for the daily report.** `AccessApi::customersRegistered(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array{individuals: int, companies: int}` — customers whose home store is that store, registered in the range, anonymized ones included (they were new that day). Counts only; no person. | The daily report counts new customers (owner, 2026-10-28); only Access knows when an account was made. | Proposed 2026-10-28 |
 | 84 | §1.4 | **[PROPOSED — stage 8, Ops; ops.md §1.6 S6, S7]** **An eighth notification topic, Payments to check** (owner, 2026-10-28, ops.md §9.3 #11): `StaffNotificationTopic::PaymentsToCheck` (`PAYMENTS_TO_CHECK`), named "Payments to Check" / "مدفوعات للمراجعة": a bank transfer still unchecked 72 hours after its receipt was uploaded, or a payment not accepted (a refund owed). Ops sends it to the store's holders of `sales.payment.record`. Built after amendment 82, like it (CHECK swap, reversible `down()`, words in both languages; no row reads as its default). | Payment problems (amendment 78) stays super-admin-only, for the key; these two moments belong to the staff who record payments. | Proposed 2026-10-28 |
+| 85 | §1.3, §7 | **[ACCEPTED — security audit run-2, job E, owner 2026-10-29]** **SMS codes capped per account and per store**, on top of the 3 per number an hour (amendment 28): (a) at most **5 codes an hour per customer account** (setting `access.customer.sms_codes_per_account_hour`, per store, 1–100), so one account cannot make the shop text many numbers; (b) at most **500 codes an hour in the store** (setting `access.customer.sms_codes_per_store_hour`, per store, 1–100000), a spend guard: a flood in one store does not stop codes in another. Every limit is checked before any is counted, so a refused request uses none of them; a refusal is `CodeRequestTooSoon` with the wait. (c) **Staff codes are not counted** and keep their own per-number limit, so staff can always sign in during a customer flood. (d) **A limit per IP address waits for job G** (trusted proxies): until then every visitor may share the proxy's address. | An account could otherwise send codes to number after number, each within its own 3 an hour, at the shop's SMS cost. | Owner, 2026-10-29 (audit run-2 decision 5, job E answers) |
