@@ -123,3 +123,9 @@ Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSetti
   handlers), `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` (their return handlers),
   `PaymentRecorded`, `RefundRecorded` (`Application/Order/MoneyRecording`) — each through the outbox in its change's
   transaction. Tests: `tests/Modules/Sales/Integration/SalesOpsEventsTest.php`.
+
+## Ops' reads (sales.md §2.5; 2026-10-29)
+
+- `Public/Contracts/SalesReports` (bound to `Infrastructure/Eloquent/DatabaseSalesReports`): `orderForMessage`,
+  `returnForMessage`, `counts`, `moneyOn`, `transfersWaiting`, `revenueByDay` (refunds by the return's asked day,
+  the waiting ones estimated with `Domain/Service/ReturnRefunds`), `productSales`. Tests: `tests/Modules/Sales/Integration/SalesReportsTest.php`.

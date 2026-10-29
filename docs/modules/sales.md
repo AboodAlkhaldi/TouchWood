@@ -677,6 +677,22 @@ Declared in those modules' `Public/Contracts`, implemented in stage 7 — **with
 
 ---
 
+### 2.5 What Sales offers Ops — `Modules\Sales\Public\Contracts\SalesReports`
+
+Added 2026-10-28/29 for Ops (ops.md §1.5, §1.10, §1.11, §2.3; the owner's go to the builders). A contract of its
+own, apart from `SalesApi` (Feedback's, faked in its tests). Reads only, no permission of their own — Ops asks
+who may see them; amounts in the order's or the store's currency, never converted.
+
+| Method | Answers |
+|---|---|
+| `orderForMessage(string $orderId, string $locale): ?OrderMessageDto` | An order as its messages need it: number, store, customer, its language, `status`, `shipment_status`, `way_to_pay`; the lines as sold or edited (`OrderMessageLineDto{name, values, quantity, total, gift}`, names and values in `ar` or else English); subtotal, coupon and points discounts, shipping, VAT, total; carrier and number; staff's words when rejected; the cancel reason. The tracking link comes with stage 7 |
+| `returnForMessage(string $returnId): ?ReturnMessageDto` | A return: its order's number, store, customer, `status`, the store's words when refused, the refund once completed |
+| `counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): SalesCountsDto` | The daily report's orders over the range (`to` not included): placed — individuals and companies apart — and of those the ones that count as sales (`counted`); of orders placed any day, cancelled, rejected, come back in it. One query |
+| `moneyOn(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): MoneyDaysDto` | Payments in and refunds out by the day the money moved (`happened_on`, the store's own date — only the date is read), both days included, by way (`MoneyByWayDto{way, records, amount}`); voided records never. Test-mode payments are stage 7's to leave out |
+| `transfersWaiting(StoreId $store): TransfersWaitingDto` | Open orders to be paid by transfer holding less than they owe (`PENDING_APPROVAL`, `APPROVED`, or delivered unpaid), and how much. Overdue is stage 7's mark (§9.5 #9). An unknown store refused |
+| `revenueByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): list<RevenueDayDto>` | **Revenue by the store's own day** (ops.md §1.10; the owner, 2026-10-28), each day with anything in it: the orders placed that count — **never a cancelled, rejected or come-back one**, judged by what it is now, so a past day may change — and **what their customers pay for the goods after the coupon and the points (`goods_total`), without VAT and without shipping**; their VAT and shipping apart. **Refunds on the day the return was asked**: the goods refunded by those completed (`refunds`), and those not finished (`waitingRefunds`, each in `waiting` as `WaitingRefundDto{returnId, orderNumber, estimate}` — no customer) estimated with `ReturnRefunds` over the pieces received, or else asked, against the returns completed before. The shipping never rides along. An unknown store refused |
+| `productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto` | **Each size's sales** in the orders placed in the range that count: units, and the lines' totals less their coupon and points shares (`ProductSaleDto{variantId, productId, units, revenue}`), the gift never; most sold first, then by size, keyset-paged (`units:variantId`), 1 to 1000. Returns are not taken off here: they come off revenue by their own day. An unknown store refused |
+
 ## 3 · Use cases
 
 Every command and query handler authorizes first (`CommandHandlersAuthorizeTest`); staff actions are

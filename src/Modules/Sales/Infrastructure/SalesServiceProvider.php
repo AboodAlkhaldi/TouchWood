@@ -40,6 +40,7 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseOwnReads;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
+use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesReports;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReads;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseStaffReturnReads;
 use Modules\Sales\Infrastructure\Eloquent\OrderNumberSequences;
@@ -55,6 +56,7 @@ use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Modules\Sales\Presentation\Storefront\CartSection;
 use Modules\Sales\Presentation\Storefront\SalesFramePart;
 use Modules\Sales\Public\Contracts\SalesApi;
+use Modules\Sales\Public\Contracts\SalesReports;
 
 /**
  * Sales (sales.md). Registered after Access and Platform: it declares its permissions through
@@ -66,6 +68,8 @@ final class SalesServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SalesApi::class, DatabaseSalesApi::class);
+        // Ops' reads (§2.3).
+        $this->app->bind(SalesReports::class, DatabaseSalesReports::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(OrderNumbers::class, OrderNumberSequences::class);
