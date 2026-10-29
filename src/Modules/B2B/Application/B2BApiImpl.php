@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\B2B\Application;
 
+use DateTimeImmutable;
 use InvalidArgumentException;
+use Modules\B2B\Application\Query\ApplicationCounts\ApplicationCounts;
 use Modules\B2B\Application\Settings\StoreBankAccount;
 use Modules\B2B\Domain\Model\Company;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Public\Contracts\B2BApi;
+use Modules\B2B\Public\Dto\ApplicationCountsDto;
 use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\B2B\Public\Dto\CompanyDto;
 use Modules\B2B\Public\Enums\CompanyStatus;
@@ -27,6 +30,7 @@ final readonly class B2BApiImpl implements B2BApi
         private CompanyTypeRepository $companyTypes,
         private StoreBankAccount $bankAccount,
         private PlatformApi $platform,
+        private ApplicationCounts $applicationCounts,
     ) {}
 
     public function company(string $customerId, string $storeId): ?CompanyDto
@@ -56,6 +60,17 @@ final readonly class B2BApiImpl implements B2BApi
     public function bankAccount(string $storeId): ?BankAccountDto
     {
         return $this->bankAccount->for(StoreId::fromString($storeId));
+    }
+
+    public function applicationCounts(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): ApplicationCountsDto
+    {
+        $store = StoreId::fromString($storeId);
+
+        if ($to < $from) {
+            throw new InvalidArgumentException('The range ends before it starts.');
+        }
+
+        return $this->applicationCounts->in($store, $from, $to);
     }
 
     private function storeIsOn(string $storeId): bool

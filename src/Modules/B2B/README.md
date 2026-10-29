@@ -19,10 +19,10 @@ with each step.
 
 | Folder | What is in it |
 |---|---|
-| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order, and a store's bank account while bank transfer is on |
-| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents nor an "Other" company's words; `BankAccountDto` |
+| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order, a store's bank account while bank transfer is on, and a store's applications sent and approved in a range, for Ops's daily report (amendment 34) |
+| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents nor an "Other" company's words; `BankAccountDto`; `ApplicationCountsDto`, two numbers |
 | `Public/Enums` | `CompanyStatus` — the four statuses, and the only company status in the system |
-| `Public/Events` | `CompanyStatusChanged`, `CompanyApplicationSubmitted` — ids only, after commit |
+| `Public/Events` | `CompanyStatusChanged`, `CompanyApplicationSubmitted` (with the application's store, amendment 34) — ids only, after commit |
 | `Domain/Model` | `Company` and its state machine; `Application`, draft to decision, with its files, a rejection's flags and requests, and a draft's answers; `CompanyType`, `DocumentType` — the two lists staff manage, one of each per store; `StoreTypeLists`, each store's "copied, not yet reviewed" flag over its two lists |
 | `Domain/ValueObject` | The company's values — `CompanyName`, `RegistrationNumber`, `CompanyAddress`, `CompanyTypeChoice` (a listed type or "Other"), `CompanyDetails` (all five, as sent) — and `Remark` for reasons, notes and text answers; `CompanyText`, the two ways typed text is accepted; `ApplicationState`, `AttachedDocument`, `TypeName`, `TypePosition`, `InactiveTypeDisplay` (hidden or greyed); `ApplicationFlag` and `FlaggedField`, `ApplicationRequest` and `RequestKind`, `RequestAnswer` |
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
@@ -32,13 +32,13 @@ with each step.
 | `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits; `StoreBankAccount`, the one reader of the three — no account while any is empty |
 | `Application/Events` | `CompanyEvents`: the two events, dispatched inside a use case's transaction |
 | `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
-| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both; for the staff screens (step 7), `StaffCompanyActionsForReader` — what a reader may do next to one company, and which stores the list may be filtered by — and `ViewTypeLists`, one store's list of one kind with what the reader may do to it |
+| `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both; for the staff screens (step 7), `StaffCompanyActionsForReader` — what a reader may do next to one company, and which stores the list may be filtered by — and `ViewTypeLists`, one store's list of one kind with what the reader may do to it; `ApplicationCounts`, the read behind `B2BApi::applicationCounts` (amendment 34) |
 | `Application/Staff` | `StaffCompanyAction` (which store, what a stranger is told, who decides), `CompanyTypeCorrection` (every change of a company's type), `CompanyTypeHolders` (every holder of a type moved to another), `CompanyMessages` (the decision emails, after commit) |
 | `Application/Account` | `CurrentCompanyAccount`: the signed-in company account every use case above starts from; `CompanyAnonymizer`: what anonymizing an account reaches here |
 | `Application/Draft` | `OpenDrafts`: the account's open draft, read under its locks, refused in the one order every draft action shares |
 | `Application/Files` | `ApplicationFiles`: B2B's own uploads (private, under its own permission) and letting go of what no application holds |
 | `Application/Audit` | `CompanyAccountAudit`: the three company actions the audit log keeps, and the company emptied when its account is anonymized; `StaffCompanyAudit` and `TypeAudit`: staff's |
-| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query |
+| `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationCounts`, a store's applications sent and approved in a range, in one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
 | `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
@@ -318,6 +318,15 @@ An individual account, or a company account whose first application is still a d
 company: null, null, false. `bankAccount(store)` gives the store's account, or null while bank
 transfer is temporarily off (below). Plain reads: a type's row is read, never locked.
 
+**For Ops's daily report** (amendment 34), `applicationCounts(store, from, to)` gives how many of the
+store's applications were **sent** and how many **approved** from `from` up to but not including
+`to`, in one query (`ApplicationCounts`, read by `DatabaseApplicationCounts`). A send counts once, on
+the day it was sent — a send after a rejection is a new application and counts again; an approval
+counts on the day of the decision, and stays counted whatever the company does next. The caller
+draws the range — the store's midnight in its time zone, to now or to the next midnight — and the
+moments go to PostgreSQL with their offset. `to` before `from`, or a store id that is not a ULID,
+throws; a store with nothing in the range gives 0 and 0.
+
 **A company is never approved as "Other"** (amendment 13(b)): `Company::approve` refuses it with
 `CompanyTypeNotSet`, after the status check, and staff correct the type to a listed one first — one
 that exists, or one an admin adds for it. `Company::correctType` never makes an approved company
@@ -328,7 +337,7 @@ transaction (`CompanyEvents`), so a change rolled back — or refused — tells 
 `CompanyStatusChanged` goes on every status change: a send (from no status when the first
 application creates the company), an approval, a rejection, a suspension, a reinstatement, with the
 reason the company now carries. `CompanyApplicationSubmitted` goes when an application leaves its
-draft. A type corrected or an address changed is not a status change and tells nobody.
+draft, with the store it was made in (amendment 34), so Ops alerts that store's reviewers. A type corrected or an address changed is not a status change and tells nobody.
 
 **The bank account an approved company transfers to** (amendment 12(b)) is three **per-store
 Platform settings** B2B declares — `b2b.bank.iban`, `b2b.bank.name`, `b2b.bank.holder` — changed only

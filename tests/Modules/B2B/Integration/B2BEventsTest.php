@@ -35,6 +35,8 @@ use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Public\Enums\CompanyStatus;
 use Modules\B2B\Public\Events\CompanyApplicationSubmitted;
 use Modules\B2B\Public\Events\CompanyStatusChanged;
+use Shared\Application\StoreContext;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -129,10 +131,44 @@ describe('an application sent', function () {
         expect($companyId)->not->toBe('')
             ->and($submitted?->companyId)->toBe($companyId)
             ->and($submitted?->applicationId)->toBe($draft->id())
+            ->and($submitted?->storeId)->toBe(Fx::storeId('sa'))
             ->and(Str::isUuid((string) $submitted?->eventId))->toBeTrue()
             ->and(companyEventsStatusChanges())->toBe([[$customerId, $companyId, null, CompanyStatus::Pending, null]])
             ->and($changed?->eventId)->not->toBe($submitted?->eventId)
             ->and($changed?->occurredAt)->toBeInstanceOf(DateTimeImmutable::class);
+    });
+
+    it('names the store the application was made in, so Ops alerts that store\'s reviewers (amendment 34)', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        $draft = B2BFixtures::storedDraft($customerId, null, 'eg');
+        Fx::actAsCustomer($customerId);
+        companyEventsFake();
+
+        // The account's home store is 'sa'; the application, and so the company, is Egypt's.
+        app(StoreContext::class)->runIn(
+            StoreId::fromString(Fx::storeId('eg')),
+            fn () => app(SubmitApplicationHandler::class)->handle(new SubmitApplication),
+        );
+
+        $submitted = Event::dispatched(CompanyApplicationSubmitted::class)->first()[0] ?? null;
+
+        Event::assertDispatchedTimes(CompanyApplicationSubmitted::class, 1);
+        expect(Fx::storeId('eg'))->not->toBe(Fx::storeId('sa'))
+            ->and($submitted?->applicationId)->toBe($draft->id())
+            ->and($submitted?->storeId)->toBe(Fx::storeId('eg'))
+            ->and(app(CompanyRepository::class)->forCustomer($customerId, Fx::storeId('eg'))?->id())->toBe($submitted?->companyId);
+    });
+
+    it('names the store again when a company sends a later one', function () {
+        $customerId = B2BFixtures::verifiedCompanyAccount();
+        B2BFixtures::rejected($customerId);
+        companyEventsFake();
+
+        companyEventsSendAgain($customerId);
+
+        $submitted = Event::dispatched(CompanyApplicationSubmitted::class)->first()[0] ?? null;
+
+        expect($submitted?->storeId)->toBe(Fx::storeId('sa'));
     });
 
     it('tells that a later one sends the company back to PENDING, from where it was', function (Closure $arrange, CompanyStatus $from) {
