@@ -30,6 +30,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Ops' email provider (ops.md §2.2): the key of Brevo's transactional API, empty until the
+    // server's environment sets it. Used only when OPS_EMAIL_DRIVER is "brevo" (config/ops.php).
+    'brevo' => [
+        'key' => env('BREVO_API_KEY', ''),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
