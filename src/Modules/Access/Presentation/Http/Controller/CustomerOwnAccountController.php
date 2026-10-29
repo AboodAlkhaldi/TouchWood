@@ -9,6 +9,7 @@ use App\Http\Page;
 use App\Http\StorefrontArea;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Response;
@@ -40,14 +41,18 @@ use Modules\Access\Presentation\Http\Request\CustomerPhoneRequest;
 use Modules\Access\Presentation\Http\Request\CustomerProfileRequest;
 use Modules\Access\Presentation\Http\Request\MarketingConsentRequest;
 use Modules\Access\Presentation\Http\Resource\AddressBookStore;
+use Modules\Access\Presentation\Http\Resource\AddressCountryOption;
 use Modules\Access\Presentation\Http\Resource\AddressFieldRow;
 use Modules\Access\Presentation\Http\Resource\AddressRow;
 use Modules\Access\Presentation\Http\Resource\CustomerAccountPage;
+use Modules\Access\Presentation\Http\Resource\PlaceOption;
+use Modules\Access\Presentation\Http\Resource\ServedByStore;
 use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Dto\PlaceDto;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -159,12 +164,16 @@ final readonly class CustomerOwnAccountController
                 // half-filled is worse than none (frontend.md §3.6, decided 2026-09-19).
                 isDefault: $request->boolean('is_default'),
                 addressId: $request->text('address_id') === '' ? null : $request->text('address_id'),
-                // The store's own country, typed, until the form picks from Platform's places
-                // (amendment 76; the screens session's).
+                // The country and the places picked, each empty where typed (amendment 76(d), (e));
+                // the picked places' names are filled in by Access, in the page's language.
+                countryCode: $request->text('country') === '' ? null : $request->text('country'),
+                regionId: $request->text('region_id') === '' ? null : $request->text('region_id'),
+                cityId: $request->text('city_id') === '' ? null : $request->text('city_id'),
+                districtId: $request->text('district_id') === '' ? null : $request->text('district_id'),
                 language: app()->getLocale(),
             ));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields', 'country', 'places', 'administrative_area', 'city', 'district']);
+            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields', 'country', 'region_id', 'city_id', 'district_id', 'places', 'administrative_area', 'city', 'district']);
         }
 
         // Back to the page that sent them here, if it is one of their account's (amendment 51).
@@ -274,8 +283,55 @@ final readonly class CustomerOwnAccountController
      */
     private function addressBook(string $locale): array
     {
-        return array_map(function (MyAddressesInStoreDto $store) use ($locale): AddressBookStore {
+        $stores = $this->addresses->forCurrentCustomer();
+        $other = $locale === 'ar' ? 'en' : 'ar';
+
+        // The countries offered and the store each ships from, read once for every store's form
+        // (amendment 76(b), (c)): one query for the countries, one per store for its ship-to list.
+        $offered = $this->platform->addressCountries($locale);
+        $shipsFrom = [];
+
+        foreach ($this->platform->allStores() as $shipping) {
+            foreach ($this->platform->storeCountries($shipping->storeId()) as $code) {
+                $shipsFrom[$code] = $shipping;
+            }
+        }
+
+        $withPlaces = [];
+
+        foreach ($offered as $country) {
+            $withPlaces[$country->code] = $country->hasPlaces;
+        }
+
+        // The places every address names, in one read, for the retired ones (76(i)).
+        $ids = [];
+
+        foreach ($stores as $store) {
+            foreach ($store->addresses as $address) {
+                array_push($ids, ...array_values(array_filter([$address->regionId, $address->cityId, $address->districtId])));
+            }
+        }
+
+        $places = $ids === [] ? [] : $this->platform->place(array_values(array_unique($ids)));
+
+        return array_map(function (MyAddressesInStoreDto $store) use ($locale, $other, $offered, $shipsFrom, $withPlaces, $places): AddressBookStore {
             $named = $this->platform->store(StoreId::fromString($store->storeId));
+            $own = $named->countryCode ?? '';
+
+            $countries = array_map(static function ($country) use ($locale, $other, $shipsFrom, $store): AddressCountryOption {
+                $by = $shipsFrom[$country->code] ?? null;
+
+                return new AddressCountryOption(
+                    $country->code,
+                    $country->name->in($locale),
+                    $country->name->in($other),
+                    $country->hasPlaces,
+                    $by === null || $by->id === $store->storeId ? null : new ServedByStore($by->code, $by->name->in($locale)),
+                );
+            }, $offered);
+
+            // The store's own country first (Q1), then the rest as the language sorts them.
+            usort($countries, static fn (AddressCountryOption $a, AddressCountryOption $b): int => ($b->code === $own) <=> ($a->code === $own));
 
             return new AddressBookStore(
                 storeId: $store->storeId,
@@ -297,11 +353,47 @@ final readonly class CustomerOwnAccountController
                     $address->formatted,
                     $address->isDefault,
                     $address->isComplete,
+                    $address->countryCode,
+                    $address->regionId,
+                    $address->cityId,
+                    $address->districtId,
+                    array_values(array_filter(
+                        [$address->regionId, $address->cityId, $address->districtId],
+                        static fn (?string $id): bool => $id !== null && ($places[$id]->retired ?? false),
+                    )),
+                    $address->regionId === null && ($withPlaces[$address->countryCode] ?? false),
                 ), $store->addresses),
                 limit: $store->limit,
                 full: count($store->addresses) >= $store->limit,
+                countryCode: $own,
+                countries: $countries,
             );
-        }, $this->addresses->forCurrentCustomer());
+        }, $stores);
+    }
+
+    /**
+     * F9's lists, read as the customer picks (frontend.md §8.4 Q7): a country's regions, a region's
+     * cities or a city's districts - in use only, sorted as the page's language sorts. One query each.
+     */
+    public function places(Request $request): JsonResponse
+    {
+        $locale = $this->app->getLocale();
+        $other = $locale === 'ar' ? 'en' : 'ar';
+        $country = $request->query('country');
+        $region = $request->query('region');
+        $city = $request->query('city');
+
+        $found = match (true) {
+            is_string($country) && preg_match('/\A[A-Za-z]{2}\z/', $country) === 1 => $this->platform->regions($country, $locale),
+            is_string($region) && $region !== '' => $this->platform->cities(strtolower($region), $locale),
+            is_string($city) && $city !== '' => $this->platform->districts(strtolower($city), $locale),
+            default => abort(404),
+        };
+
+        return response()->json(['places' => array_map(
+            static fn (PlaceDto $place): PlaceOption => new PlaceOption($place->id, $place->name->in($locale), $place->name->in($other)),
+            $found,
+        )]);
     }
 
     /**

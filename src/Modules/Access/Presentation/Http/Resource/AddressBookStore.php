@@ -25,6 +25,8 @@ final class AddressBookStore extends Data
      * @param  list<AddressRow>  $addresses  the default first, then the newest
      * @param  bool  $full  they hold as many as this store allows, so nothing more may be added
      *                      until one is removed
+     * @param  string  $countryCode  the store's own country, where a new address starts (Q1)
+     * @param  list<AddressCountryOption>  $countries  the address countries, the store's own first
      */
     public function __construct(
         public string $storeId,
@@ -35,5 +37,7 @@ final class AddressBookStore extends Data
         public array $addresses,
         public int $limit,
         public bool $full,
+        public string $countryCode = '',
+        public array $countries = [],
     ) {}
 }

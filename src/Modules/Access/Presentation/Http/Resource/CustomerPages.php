@@ -137,6 +137,10 @@ final readonly class CustomerPages
             $address->formatted,
             $address->isDefault,
             $address->isComplete,
+            $address->countryCode,
+            $address->regionId,
+            $address->cityId,
+            $address->districtId,
         );
     }
 

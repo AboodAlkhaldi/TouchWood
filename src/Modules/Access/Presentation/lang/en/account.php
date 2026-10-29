@@ -139,7 +139,7 @@ return [
 
     // F9 - the address book, and F10 - closing the account.
     'addresses' => 'Addresses',
-    'addresses_hint' => 'We deliver to the Usual Address in each country unless you pick another.',
+    'addresses_hint' => 'We deliver to the Usual Address in each store unless you pick another.',
     'no_addresses' => 'Add one to have orders delivered in this country.',
     'no_format' => 'We are not delivering to this country yet.',
     'address_full' => 'You have as many addresses as this country allows (:count); delete one to add another.',
@@ -158,6 +158,29 @@ return [
     'address_saved' => 'Address saved',
     'address_default_set' => 'Usual address set',
     'address_deleted' => 'Address deleted',
+
+    // F9 on Platform's places (frontend.md §3.6, §8.4; amendment 76).
+    'places' => [
+        'country' => 'Country',
+        'search_country' => 'Search countries',
+        'no_country' => 'No countries match “:query”',
+        'served_by' => 'Served by our :store store',
+        'served_note' => 'Addresses in :country are served by our :store store.',
+        'served_link' => 'Add it under :store',
+        'search' => 'Search',
+        'no_match' => 'Nothing matches “:query”',
+        'other' => 'Other',
+        'other_hint' => 'Not in the list? Type it here.',
+        'pick' => 'Choose',
+        'region_first' => 'Choose the region first',
+        'city_first' => 'Choose the city first',
+        'no_longer_listed' => 'No longer listed',
+        'you_wrote' => 'You wrote: :text',
+        'loading' => 'Loading the list',
+        'load_failed' => 'The list did not load.',
+        'try_again' => 'Try Again',
+        'needs_places' => 'Choose this address’s region and city from the list before you order.',
+    ],
     'confirm_delete_address' => 'Delete Address “:label”',
     'confirm_delete_address_body' => 'Orders already placed keep the address they were sent to. This cannot be undone.',
 
