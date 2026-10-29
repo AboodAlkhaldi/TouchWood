@@ -7,6 +7,11 @@ on:
     branches: [main]
   pull_request:
 
+# The run reads the code and nothing more; a job that needs to write asks for it on its own
+# (audit run-2, job H, 2026-10-29).
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -38,10 +43,12 @@ jobs:
       DB_USERNAME: touchwood
       DB_PASSWORD: secret
 
+    # Each action is pinned to a full commit, its version in the comment: a tag can be moved to other
+    # code, a commit cannot (audit run-2, job H).
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'
           # gd (with AVIF and WebP), exif and fileinfo are needed for media uploads and image variants.
@@ -49,7 +56,7 @@ jobs:
           extensions: pdo_pgsql, pgsql, intl, bcmath, mbstring, gd, exif, fileinfo, sockets, zip
           coverage: none
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20.19'
           cache: npm
@@ -61,6 +68,13 @@ jobs:
 
       - name: Install front-end dependencies
         run: npm ci
+
+      # A known advisory in a package we ship or build with: high and critical fail the run, medium and
+      # low are printed and pass (owner, 2026-10-29). Abandoned packages are reported, not failed.
+      - name: Audit PHP packages
+        run: composer audit --locked --no-interaction --abandoned=report --ignore-severity=low --ignore-severity=medium
+      - name: Audit front-end packages
+        run: npm audit --audit-level=high
 
       - name: Prepare environment
         run: |
