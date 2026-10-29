@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
 use Modules\Platform\Application\Command\AddPlace\AddPlaceHandler;
@@ -19,7 +20,9 @@ use function Pest\Laravel\seed;
 | §8.4): a customer picks the region, then the city, then the district, each list read as it is
 | opened; changing the region clears the city; "Other" asks for the city typed; the form fits a phone.
 |
-| No RefreshDatabase, as the other browser files: every name here is this run's own.
+| No RefreshDatabase, as the other browser files: every name here is this run's own. The places are
+| Jordan's, a country no store and no other test uses, so the other address tests keep typing theirs:
+| this suite keeps what it writes.
 */
 
 beforeEach(function () {
@@ -41,7 +44,8 @@ function addressScreenPlaces(int $number): array
     Fx::actAsStaff(Fx::staff(superAdmin: true));
 
     try {
-        $add = fn (string $kind, ?string $parent, string $name): string => app(AddPlaceHandler::class)->handle(new AddPlace('SA', $kind, $parent, "{$name} ع", $name));
+        DB::table('platform.address_countries')->insertOrIgnore(['country_code' => 'JO', 'retired' => false, 'created_at' => now(), 'updated_at' => now()]);
+        $add = fn (string $kind, ?string $parent, string $name): string => app(AddPlaceHandler::class)->handle(new AddPlace('JO', $kind, $parent, "{$name} ع", $name));
         $region = $add('REGION', null, "Region {$number}");
         $city = $add('CITY', $region, "City {$number}");
         $add('DISTRICT', $city, "District {$number}");
@@ -73,6 +77,11 @@ it('picks the region, city and district, clears what a change leaves behind, and
         ->type('#label-sa', 'Home')
         ->type('#recipient-sa', 'Noura Saleh')
         ->type('#phone-sa', '+966512345678');
+
+    // The country: Jordan, which no store ships to, so it is offered here (Q3).
+    $page->click('[data-test="sa-country"]')
+        ->type('[cmdk-input]', 'Jordan')
+        ->click('[data-test="sa-country-JO"]');
 
     // The city waits for the region (Geist's disabled-with-reason).
     $page->assertSee('Choose the region first');

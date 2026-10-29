@@ -324,7 +324,7 @@ it('keeps the open tab in the address, and moves between the tabs with the arrow
     // Radix's tabs: the arrow keys move along them, upright, and open the one they reach.
     $page->keys('[data-test="tab-phone"]', 'ArrowDown')
         ->assertAttribute('[data-test="tab-addresses"]', 'aria-selected', 'true')
-        ->assertSee('We deliver to the Usual Address in each country unless you pick another.')
+        ->assertSee('We deliver to the Usual Address in each store unless you pick another.')
         ->assertNoJavaScriptErrors();
 });
 
