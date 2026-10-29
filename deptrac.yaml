@@ -212,9 +212,9 @@ deptrac:
     LoyaltyPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
     Loyalty: [+LoyaltyPublic, AppHttp]
 
-    # Shipping → Platform, Catalog
+    # Shipping → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-28).
     ShippingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
-    Shipping: [+ShippingPublic]
+    Shipping: [+ShippingPublic, AccessPublic]
 
     # Payments → Platform. Takes an order id and an amount, nothing more.
     PaymentsPublic: [Shared, Vendor, PlatformPublic]
