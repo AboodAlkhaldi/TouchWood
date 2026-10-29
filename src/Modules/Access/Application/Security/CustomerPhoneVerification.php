@@ -16,11 +16,13 @@ use Modules\Access\Domain\ValueObject\CustomerPhoneCodePurpose;
 use Modules\Access\Domain\ValueObject\Language;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Shared\Application\StoreContext;
 
 /**
  * Verifying a customer's phone by SMS code (spec §1.3, §4.2), with that store's numbers: a code of
  * the set length, valid for the set minutes; a new one no sooner than the resend interval, and at
- * most so many an hour per number; after the set wrong tries the code is dead. A new request
+ * most so many an hour per number, per account and in the store (amendment 85); after the set wrong
+ * tries the code is dead. A new request
  * replaces the previous code, so a customer has one live code at a time.
  */
 final readonly class CustomerPhoneVerification
@@ -32,6 +34,7 @@ final readonly class CustomerPhoneVerification
         private SecurityMessages $messages,
         private RateLimiter $limiter,
         private Connection $db,
+        private StoreContext $stores,
     ) {}
 
     /**
@@ -48,14 +51,24 @@ final readonly class CustomerPhoneVerification
             throw new CodeRequestTooSoon($wait);
         }
 
-        // Per number, not per account: nobody can make one phone ring by registering many accounts.
-        $hourly = 'access:customer-sms:'.hash('sha256', $phone->value);
+        // Per number: nobody can make one phone ring by registering many accounts. Per account: one account
+        // cannot text number after number. Per store: a spend guard (amendment 85). Every limit is checked
+        // before any is counted, so a refused request uses none of them.
+        $limits = [
+            'access:customer-sms:'.hash('sha256', $phone->value) => $this->settings->codesPerHour(),
+            'access:customer-sms-account:'.$customerId => $this->settings->codesPerAccountHour(),
+            'access:customer-sms-store:'.$this->stores->current()->value => $this->settings->codesPerStoreHour(),
+        ];
 
-        if ($this->limiter->tooManyAttempts($hourly, $this->settings->codesPerHour())) {
-            throw new CodeRequestTooSoon($this->limiter->availableIn($hourly));
+        foreach ($limits as $key => $most) {
+            if ($this->limiter->tooManyAttempts($key, $most)) {
+                throw new CodeRequestTooSoon($this->limiter->availableIn($key));
+            }
         }
 
-        $this->limiter->hit($hourly, 3600);
+        foreach (array_keys($limits) as $key) {
+            $this->limiter->hit($key, 3600);
+        }
 
         $code = $this->codes->generate($this->settings->codeLength());
         $this->tokens->putPhoneCode(new CustomerPhoneCode(

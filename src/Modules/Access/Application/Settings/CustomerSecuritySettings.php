@@ -36,6 +36,12 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
 
     public const string CODES_PER_HOUR = 'access.customer.sms_codes_per_hour';
 
+    /** Codes to one account an hour, whatever the numbers (amendment 85: five). */
+    public const string CODES_PER_ACCOUNT_HOUR = 'access.customer.sms_codes_per_account_hour';
+
+    /** Codes in the store an hour, a spend guard (amendment 85: 500). */
+    public const string CODES_PER_STORE_HOUR = 'access.customer.sms_codes_per_store_hour';
+
     public const string CODE_ATTEMPTS = 'access.customer.sms_code_attempts';
 
     /** Wrong passwords for one account before it is locked (spec §1.8). */
@@ -89,6 +95,8 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
             $number(self::CODE_MINUTES, 5, 1, 60),
             $number(self::CODE_RESEND_SECONDS, 60, 0, 3600),
             $number(self::CODES_PER_HOUR, 3, 1, 100),
+            $number(self::CODES_PER_ACCOUNT_HOUR, 5, 1, 100),
+            $number(self::CODES_PER_STORE_HOUR, 500, 1, 100000),
             $number(self::CODE_ATTEMPTS, 5, 1, 20),
             $number(self::LOCKOUT_ATTEMPTS, 5, 3, 20),
             $number(self::LOCKOUT_MINUTES, 15, 1, 1440),
@@ -139,6 +147,16 @@ final readonly class CustomerSecuritySettings implements LockoutLimits
     public function codesPerHour(): int
     {
         return $this->int(self::CODES_PER_HOUR);
+    }
+
+    public function codesPerAccountHour(): int
+    {
+        return $this->int(self::CODES_PER_ACCOUNT_HOUR);
+    }
+
+    public function codesPerStoreHour(): int
+    {
+        return $this->int(self::CODES_PER_STORE_HOUR);
     }
 
     public function codeAttempts(): int
