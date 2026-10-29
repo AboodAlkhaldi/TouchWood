@@ -314,8 +314,7 @@ it('adds an address in the country it belongs to, and marks it as the usual one'
         ->click('[data-test="add-address-sa"]')
         ->type('#label-sa', 'Home')
         ->type('#recipient-sa', 'Noura Saleh')
-        ->type('#phone-sa', '+966512345678')
-        // The fields under those three are the store's own, drawn from its format rather than
+        // The fields under those two are the store's own, drawn from its format rather than
         // written into the page: these are the ones Saudi Arabia asks for.
         ->type('#sa-administrative_area', 'Riyadh Region')
         ->type('#sa-city', 'Riyadh')
@@ -380,7 +379,6 @@ it('sets another usual address and asks before deleting one, from the address\'s
         $page->click('[data-test="add-address-sa"]')
             ->type('#label-sa', $label)
             ->type('#recipient-sa', 'Noura Saleh')
-            ->type('#phone-sa', '+966512345678')
             ->type('#sa-administrative_area', 'Riyadh Region')
             ->type('#sa-city', 'Riyadh')
             ->type('#sa-district', 'Al Olaya')

@@ -417,9 +417,6 @@ function Contact({ order }: { order: OrderPage }) {
                     <span className="text-copy-13 text-ink-muted">{t(`${W}.show.address`)}</span>
                     <span>{order.recipientName}</span>
                     <AddressLines text={order.address} />
-                    <bdi dir="ltr" className="tw-figure text-copy-13">
-                        {order.addressPhone}
-                    </bdi>
                 </div>
             </div>
         </Section>

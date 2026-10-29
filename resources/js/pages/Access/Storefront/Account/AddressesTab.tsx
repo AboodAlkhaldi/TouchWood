@@ -191,11 +191,6 @@ function SavedAddress({ address, returnTo, onEdit }: { address: AddressRow; retu
 
                 <ItemDescription className="text-copy-13 text-ink-muted">{address.recipientName}</ItemDescription>
 
-                {/* A dialled number reads left to right, in Latin digits, in any language. */}
-                <ItemDescription className="tw-figure text-copy-13 text-ink-muted">
-                    <bdi dir="ltr">{address.phone}</bdi>
-                </ItemDescription>
-
                 {/* The store's own template, which may hold several lines. */}
                 <ItemDescription className="line-clamp-none text-copy-13 text-ink-muted">
                     <AddressLines text={address.formatted} />

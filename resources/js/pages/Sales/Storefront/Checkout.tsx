@@ -106,10 +106,7 @@ function Addresses({ page, busy, choose }: Part) {
                                     {address.isDefault ? <Badge variant="outline">{t(`${W}.address.default`)}</Badge> : null}
                                 </span>
                                 <span className="text-copy-13 text-ink-muted">
-                                    <bdi>{address.recipientName}</bdi> ·{' '}
-                                    <bdi dir="ltr" className="tw-figure">
-                                        {address.phone}
-                                    </bdi>
+                                    <bdi>{address.recipientName}</bdi>
                                 </span>
                                 <span className="text-copy-13 whitespace-pre-line text-ink-muted">{address.formatted}</span>
                                 {address.isComplete ? null : <span className="text-copy-13 text-ink">{t(`${W}.address.incomplete`)}</span>}

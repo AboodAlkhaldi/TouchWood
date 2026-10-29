@@ -45,7 +45,7 @@ export default function Print(slip: PrintPage) {
                     <div className="grid gap-0.5 text-copy-14">
                         <span className="text-label-14">{slip.recipientName === '' ? slip.contactName : slip.recipientName}</span>
                         <bdi dir="ltr" className="tw-figure">
-                            {slip.addressPhone === '' ? slip.contactPhone : slip.addressPhone}
+                            {slip.contactPhone}
                         </bdi>
                         <AddressLines text={slip.address} />
                     </div>
