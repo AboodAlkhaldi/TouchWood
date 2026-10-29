@@ -280,6 +280,105 @@ both languages, Geist/shadcn parts) in the screens spec round (owner's method, 2
 | **A carrier** — `/admin/shipping/carriers/{id}` | Its details and logo; its **price groups** (amount, places as chips, edit, delete); "Add a price": amount, then the city picker (search, Select all) and, per city with districts, the district picker (search, Select all); "Move here" for places already priced (§1.4) |
 | **Boxes** — `/admin/shipping/boxes?store=` | The box list and the padding (§1.7) |
 
+#### Part 1 — the carriers (screens round 1, 2026-10-29) — **[ACCEPTED by the owner, 2026-10-29]**
+
+Written by the screens session on the owner's word of 2026-10-29 ("start the Shipping screens spec now: the
+carriers part and its questions; price groups and boxes when steps 4 and 5 merge"). It uses only what step 3
+built (§9.4; merged 1cbaea2d). Its questions are §9.5; option **(a)** is the recommended one in each, and the
+Q numbers below point at them. **Part 2** (price groups, free shipping, places no carrier serves — step 4) and
+**Part 3** (boxes, the padding — step 5) are written when those steps merge.
+
+**What every screen keeps** — as every panel screen: Geist's rules on shadcn's code (frontend.md §1.11),
+nothing built that either has (`PanelDialog`, `DestructiveActionDialog`, `Empty`, `Badge`, `Switch`, `RowMenu`,
+`ActionButton` with its disabled reason, Catalog's `SortableList` for dragging), every box checking itself as
+it is typed with the server's own rules (names 1–100 characters in each language, both required; phone E.164;
+website and tracking link HTTPS, at most 500 characters, the link with exactly one `{number}`), digits made
+Latin as typed, names in the page's language first and the other language under them, every page at a phone's
+width with nothing scrolling sideways, both languages, and **each refusal in its own words** (the six errors of
+step 3, already worded in Shipping's `lang/{ar,en}/errors.php`). The store is the panel's store filter
+(`?store=`, frontend.md §2.2), as on every store-scoped page. A button the item's state stops is **shown out
+of reach, with the reason** (Feedback's rule); a button the person's permissions do not allow is **not shown**
+(Q12). Every change is audited by step 3; the audit log shows it.
+
+##### C1 · Carriers — `/admin/shipping/carriers?store=` (Q1, Q2, Q11, Q16)
+
+**The menu**: an entry **Carriers** in the **Shipping** group (access.md, stage 7 step 2: Shipping and Payments
+groups after Orders), offered for `shipping.carriers.view` (Q1, Q16).
+
+**The page** — one section per country the store ships to, **the store's own country first**, then by name
+(as `ListCarriers` returns them) (Q2):
+- the section's heading: the country's name, **Own** on the store's own country;
+- **Add Carrier** in each section (Q3) — the carrier's country is the section's and is fixed once it exists
+  (§1.3);
+- its carriers, in their order, as a table (a card each on a phone): the **drag handle**, the **logo** (or the
+  carrier's initials when it has none — Q15), the **name** in the page's language and the other under it, the
+  **phone** and the **website** (a link, opening in a new tab), **Tracking link** or **No tracking link**,
+  the **on/off switch** (Q5), and the row menu: **Edit**, **Move to Top**, **Move to Bottom**, **Delete** (Q6,
+  Q7);
+- an off carrier keeps its place in the order, greyed, marked **Off**;
+- **a country with no carrier** (Q11): `Empty` — "No carriers in :country yet. Until one is added and priced,
+  orders to :country are handled by staff: no carrier, the fee confirmed later, no online payment." with Add
+  Carrier.
+
+**Order** (Q7): dragged by the handle within its country, saved when dropped (`OrderCarriers`, the country's
+full order); **Move to Top / Move to Bottom** in the row menu do the same without dragging (catalog.md
+amendment 16, as everywhere). A carrier never moves to another country.
+
+**On/off** (Q5): the switch in the row. **Switching off** asks first — "Switch off ":carrier"? It leaves every
+new checkout at once. Orders already placed keep it and their fee." (`PanelDialog`); **switching on** asks
+nothing. A toast says which it did.
+
+**Delete** (Q6): in the row menu; **out of reach while the carrier is on**, with the reason "Switch it off
+first". Off: `DestructiveActionDialog` — "Delete ":carrier"? Its prices go with it. Orders already placed keep
+its name and their tracking links. This can't be undone." A refusal the page could not foresee (switched on by
+someone else meanwhile: `CarrierStillOn`) comes back in its own words.
+
+**Part 2 adds to this page**: the store-wide free-above amount, each carrier's free-above amount, and
+**Places no carrier serves** per country (§1.5, §1.6).
+
+##### C2 · Add Carrier / Edit Carrier — a dialog (Q3, Q8, Q9, Q10)
+
+A `PanelDialog`, loaded when it is first opened (its own file, so C1 stays within its page budget — frontend.md
+§5), as Catalog's brand dialog:
+- **Country** — shown, not editable: the section's on Add, the carrier's on Edit (§1.3);
+- **Arabic name**, **English name** — both required, 1–100 characters; a name another carrier of the store
+  uses, ignoring case, is refused under the box (`CarrierNameTaken`, naming it — §9.4 #4);
+- **Logo** (Q10) — optional: pick an image (the media library's rules: type and size, as a brand logo),
+  shown as it will look, with **Remove**; uploaded when the dialog is saved (`UploadCarrierLogo`, then its
+  media id with the carrier);
+- **Phone** — optional, the panel's phone box as on the staff account page (E.164, Latin digits) (Q9);
+- **Website** — optional, `https://` only, at most 500 characters;
+- **Tracking link** — optional (Q8): a web address with `{number}` where the tracking number goes; under it,
+  as it is typed, "A tracking number 12345 opens: https://…12345" — or what is wrong (not https, no
+  `{number}`, two of them, too long);
+- on Add only, **Switched on** — on at first (`CreateCarrier`'s `active`);
+- **Save** / **Cancel**; a server refusal is shown at the top of the dialog in its own words and the boxes
+  keep what was typed.
+
+##### C3 · A carrier — `/admin/shipping/carriers/{id}?store=` (Q4)
+
+Opened from the carrier's name on C1. The trail **Carriers › :carrier**; its header: logo, names, country,
+**On/Off** with the switch, **Edit** (C2) and the row menu's **Delete**. Its details card: phone, website,
+tracking link (with the example above). **Part 2 fills the rest of this page with the carrier's price groups**
+(§4.1's table: amount, places as chips, Add a price, Move here); until then, a note: "Prices come with the next
+step of the shipping screens." — **not shown in production**: part 2 merges before the store goes live (Q4).
+A carrier of another store, or none, is the panel's not-found page.
+
+##### The ship-to refusal on the Stores page (Q14)
+
+Removing a country from a store's ship-to list while the store has carriers there is refused by Platform with
+`CountryHasCarriers` (§9.4 #3: on or off). The remove dialog already shows a refusal inside it, in its own
+words (`PanelDialog`'s `DialogError`). Added under it: a link **Open the carriers of :country** to C1 for that
+store, where they are switched off and deleted (Q14).
+
+##### What these screens need from the backend
+
+Everything is in step 3's Application layer (§9.4): `ListCarriers`, `ViewCarrier`, `CreateCarrier`,
+`ChangeCarrier`, `SwitchCarrier`, `OrderCarriers`, `DeleteCarrier`, `UploadCarrierLogo`. The routes,
+controllers, page resources and words are the screens session's, in Shipping's Presentation layer (Q13). The
+logo's address is read from Platform's media (`PlatformApi`) in Presentation, as Catalog's brand list does —
+**confirmed by the backend session, 2026-10-29**: `CarrierRow` stays as it is (deptrac already allows it).
+
 ---
 
 ## 5 · Tables
@@ -468,3 +567,28 @@ Asked while building the carriers (plan-stage7 step 3); each is now the rule.
 7. **Deleting a carrier** (only while off) deletes its row; its logo stays in the media library, no longer
    named by it; the audit keeps its names in both languages. A logo deleted from the media library leaves
    its carriers with none (`CarrierLogoUsage`, audited `shipping.carrier.logo_detached`).
+
+### 9.5 The carriers screens' questions — round 1 (2026-10-29)
+
+Asked by the screens session for §4.1 part 1. Option **(a)** is the recommended one in each. **Answered by the
+owner, 2026-10-29, one by one: (a) in all sixteen.** No round 2. Price groups, free shipping and places no carrier
+serves (step 4), and boxes (step 5), come in their own rounds when those steps merge.
+
+| # | Question | Options and their effect |
+|---|---|---|
+| 1 | Where do the carriers live in the menu? | **(a)** An entry **Carriers** in the **Shipping** group (made in stage 7 step 2, after Orders) — Boxes joins it in part 3. (b) In Store Settings — beside the places, but Shipping's own group would stay empty. |
+| 2 | How is the carriers page laid out? | **(a)** One section per ship-to country, the store's own first, each with its carriers and its own Add Carrier — dragging stays within a country, as the rule is (§9.4 #5). (b) One table with a country filter — one country at a time, and a country with no carrier is easy to miss. |
+| 3 | Adding and editing a carrier? | **(a)** A dialog (as a brand's): names, logo, phone, website, tracking link — quick, the list stays in view. (b) A page of its own — more room, one more page load each time. |
+| 4 | A carrier's own page (`/admin/shipping/carriers/{id}`), which part 2 fills with its price groups? | **(a)** Built now with its details, so part 2 only adds the groups; until part 2 merges it says prices come next (never seen live: part 2 merges before the store goes live). (b) Built with part 2 — until then a carrier is only its row and its dialog. |
+| 5 | The on/off switch? | **(a)** In the row; **switching off asks first** ("it leaves every new checkout at once; orders already placed keep it"), switching on asks nothing. (b) Both at once, no question — one slip takes a carrier out of checkout. (c) Both ask. |
+| 6 | Delete while the carrier is on (the server refuses it — §1.3)? | **(a)** Delete shown out of reach with "Switch it off first" — Feedback's rule; off, a dialog says its prices go with it and placed orders keep its name and tracking links. (b) Offered, and refused by the server. |
+| 7 | Ordering the carriers? | **(a)** Drag by the handle within the country, saved when dropped, plus **Move to Top / Move to Bottom** in the row menu — catalog.md amendment 16, as everywhere. (b) Move to Top / Bottom only — no dragging. |
+| 8 | The tracking link box? | **(a)** A web address with `{number}`, and under it as it is typed what a tracking number would open ("12345 opens: https://…12345"), or what is wrong — staff see the link works before saving. (b) A plain box, checked on Save. |
+| 9 | The carrier's phone box? | **(a)** The panel's phone box, as on the staff account page — E.164, Latin digits, the same checks as every phone (§9.4 #2). (b) A plain text box — any format, refused on Save if not E.164. |
+| 10 | The carrier's logo? | **(a)** Uploaded in the dialog (pick an image, see it, Remove), as a brand's logo. (b) Uploaded, or chosen from the media library — a second picker for a rare need. |
+| 11 | A ship-to country with no carrier? | **(a)** Its section stays, with "No carriers in :country yet — until one is added and priced, orders there are handled by staff: no carrier, the fee confirmed later, no online payment" and Add Carrier. (b) A plain "No carriers yet". (c) The country is hidden until it has a carrier. |
+| 12 | A person who may only view (`shipping.carriers.view` without `.manage`)? | **(a)** Sees the page read-only: Add, Edit, the switch, the drag handles and Delete are not shown. (b) Sees them out of reach, with "Admins only" — the page looks the same for everyone, cluttered for those who can't act. |
+| 13 | Who builds the routes, controllers and page data? | **(a)** The screens session, in Shipping's Presentation layer, with the screens — step 3's Application layer has every read and command they call. (b) The backend session — one more hand-off before the screens start. |
+| 14 | Removing a ship-to country that still has carriers (`CountryHasCarriers`)? The remove dialog already shows the refusal in its own words. | **(a)** Add under it a link **Open the carriers of :country**, to the carriers page for that store — one click to where they are switched off and deleted. (b) The words only. |
+| 15 | A carrier with no logo? | **(a)** Its initials in a circle (shadcn's `Avatar` fallback) — rows line up and stay told apart. (b) A plain truck icon for all. (c) Nothing — the name only. |
+| 16 | The menu entry's and page's name? | **(a)** **Carriers** / **شركات الشحن**. (b) **Shipping Companies** / **شركات التوصيل**. (c) **Couriers** / **المناديب**. |
