@@ -35,5 +35,7 @@ final readonly class StoreSummary
          * and it is not the base store, which is always on.
          */
         public bool $switchable = false,
+        /** @var list<ShipsToCountry> the countries it ships to, its own first, then by code (platform.md §4.3 B4) */
+        public array $shipsTo = [],
     ) {}
 }
