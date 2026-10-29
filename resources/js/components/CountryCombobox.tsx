@@ -17,8 +17,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 | empty search says what was typed, quoted (Geist's Combobox: No {items} match "{query}").
 */
 
-/** `otherName`, when given, is searched too: a page offering the countries in both languages. */
-export type CountryOption = { code: string; name: string; ours: boolean; otherName?: string };
+/**
+ * `otherName`, when given, is searched too: a page offering the countries in both languages.
+ * `reason`, when given, keeps the country in the list out of reach and says why under its name - an
+ * address country another of our stores serves (frontend.md §8.4 Q2).
+ */
+export type CountryOption = { code: string; name: string; ours: boolean; otherName?: string; reason?: string };
 
 /**
  * The picker's own words, given by the page: a page carries only its own modules' word files, so
@@ -57,8 +61,22 @@ export function CountryCombobox({ id, label, countries, value, onChange, error, 
     };
 
     const item = (country: CountryOption, group: string) => (
-        <CommandItem key={`${group}-${country.code}`} value={`${group}-${country.code}`} keywords={[country.name, country.otherName ?? '', country.code]} onSelect={() => choose(country.code)}>
-            {country.name}
+        <CommandItem
+            key={`${group}-${country.code}`}
+            value={`${group}-${country.code}`}
+            keywords={[country.name, country.otherName ?? '', country.code]}
+            disabled={country.reason !== undefined}
+            onSelect={() => choose(country.code)}
+            data-test={group === 'all' ? `${id}-${country.code}` : undefined}
+        >
+            {country.reason === undefined ? (
+                country.name
+            ) : (
+                <span className="grid gap-0.5">
+                    <span>{country.name}</span>
+                    <span className="text-copy-12 text-ink-muted">{country.reason}</span>
+                </span>
+            )}
             <Check aria-hidden="true" className={cn('ms-auto', value === country.code ? 'opacity-100' : 'opacity-0')} />
         </CommandItem>
     );

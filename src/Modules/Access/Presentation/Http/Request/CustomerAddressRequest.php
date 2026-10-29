@@ -28,6 +28,12 @@ final class CustomerAddressRequest extends AccessFormRequest
             'recipient_name' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string', 'max:32'],
             'is_default' => ['sometimes', 'boolean'],
+            // The country and the places picked (amendment 76(d), (e)): empty where typed. Their
+            // rules are Access's; these only bound what may arrive.
+            'country' => ['nullable', 'string', 'max:2'],
+            'region_id' => ['nullable', 'string', 'max:26'],
+            'city_id' => ['nullable', 'string', 'max:26'],
+            'district_id' => ['nullable', 'string', 'max:26'],
             // At most sixty, as a format may hold (amendment 42): a map with more than that cannot
             // have come from one of our forms.
             'fields' => ['required', 'array', 'max:60'],

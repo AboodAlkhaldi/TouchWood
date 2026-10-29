@@ -1118,10 +1118,11 @@ things are new:
      region **with no city listed** (a country listed to its top level only): the city is typed (found in
      building, 2026-10-29);
    - changing a region clears the city and district; changing a city clears the district;
-   - the lists arrive as they are needed (Q7): the countries with the page; a country's regions when it is
-     picked (or with the page, for the store's own country); a region's cities when it is picked; a city's
-     districts when it is picked. Each list opens with its spinner while it loads, and a failed load says
-     so with Try Again.
+   - the lists arrive as they are needed (Q7): the countries, which store serves each, and the store's own
+     country's regions when **Add or Edit is pressed** (the owner, 2026-10-29: only what is shown, when it is
+     shown; the page itself carries none of it); another country's regions when it is picked; a region's
+     cities when it is picked; a city's districts when it is picked. The form shows its spinner while it
+     loads, each list opens with its spinner while it loads, and a failed load says so with Try Again.
 3. **A country with no place list** (76(d), R4): the three fields are typed boxes, exactly as today.
 
 **Saving** sends `country`, `region_id`, `city_id`, `district_id` (empty where typed) beside the fields and
@@ -1157,18 +1158,22 @@ Addresses tab, and **1 query** for each list read.
 built by this session (Q13):
 - `AddressRow` gains `countryCode`, `regionId`, `cityId`, `districtId` and each picked place's name and
   retired mark (from `AddressDto` and `PlatformApi::place`), so Edit opens picked;
-- `AddressBookStore` gains the countries offered (`PlatformApi::addressCountries`, each with `hasPlaces` and
-  the store that ships to it, from `countryStore`), and the store's own country's regions;
+- `AddressBookStore` gains only the store's own country code; the countries offered
+  (`PlatformApi::addressCountries`, each with `hasPlaces` and the store that ships to it, from
+  `countryStore`) and the own country's regions come from `GET /{store}/{lang}/account/address-form?book=sa`
+  (`AddressFormData`), read when the form opens (the owner, 2026-10-29);
 - one storefront read for the lists, signed-in customers only, throttled as the account's other reads:
   `GET /{store}/{lang}/account/places?country=SA` (regions), `?region=…` (cities), `?city=…` (districts),
   each place `{id, name in both languages}` — from `PlatformApi::regions`, `cities`, `districts`;
 - `saveAddress` passes `country`, `region_id`, `city_id`, `district_id` to `SaveAddress`.
 
-**For the backend session to confirm** (not the screen's to change): a store format without
-`administrative_area`, `city` or `district` would have `AddressPlaceRules` fill a key the format refuses
-(`StoreAddressFormat::accept`). Q12 asks whether staff may remove them.
+**Settled by the backend session (Q12, the owner, 2026-10-29):** a store's format must keep
+`administrative_area`, `city` and `district`, each taking at least 100 characters; saving one without them is
+refused as `access.address_format_needs_places` (its `missing` names the keys), nothing saved. The Address
+Formats page may stop it before saving.
 
-**Tests**: feature — the tab's props (countries, the own country's regions, the picked address's places),
+**Tests**: feature — the tab's props (the picked address's places), the form read (countries, the own
+country's regions) and its query count,
 each list read and its query count, the save with picks, "Other", a typed country, the served-elsewhere
 refusal with its link, a retired pick kept, a wrong pair (a city of another region) refused in its words;
 browser — pick region, city, district; Other; change the region and see the city cleared; edit an

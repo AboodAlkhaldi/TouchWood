@@ -28,12 +28,24 @@ fields: AddressFieldRow[],
 addresses: AddressRow[],
 limit: number,
 full: boolean,
+countryCode: string,
+};
+export type AddressCountryOption = {
+code: string,
+name: string,
+otherName: string,
+hasPlaces: boolean,
+servedBy: ServedByStore | null,
 };
 export type AddressFieldRow = {
 key: string,
 label: string,
 required: boolean,
 maxLength: number,
+};
+export type AddressFormData = {
+countries: AddressCountryOption[],
+regions: PlaceOption[],
 };
 export type AddressFormatField = {
 key: string,
@@ -67,6 +79,12 @@ fields: Record<string, string>,
 formatted: string,
 isDefault: boolean,
 isComplete: boolean,
+countryCode: string,
+regionId: string | null,
+cityId: string | null,
+districtId: string | null,
+retiredPlaces: string[],
+needsPlaces: boolean,
 };
 export type ComingSoonPage = {
 label: string,
@@ -216,6 +234,11 @@ export type PermissionGroupRow = {
 key: string,
 label: string,
 };
+export type PlaceOption = {
+id: string,
+name: string,
+otherName: string,
+};
 export type ResetPasswordPage = {
 token: string,
 minimumLength: number,
@@ -269,6 +292,11 @@ groups: PermissionGroupRow[],
 permissions: RolePermissionRow[],
 permissionsByRole: Record<string, string[]>,
 mayCreate: boolean,
+};
+export type ServedByStore = {
+code: string,
+name: string,
+open: boolean,
 };
 export type SignInCodePage = {
 maskedPhone: string | null,
