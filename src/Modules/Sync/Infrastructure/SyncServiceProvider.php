@@ -19,9 +19,11 @@ use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Pricing\Public\Contracts\StoreWiring as PricingWiring;
 use Modules\Pricing\Public\Events\DiscountReachChecked;
 use Modules\Sync\Application\Connections\NoticeAddresses;
+use Modules\Sync\Application\Report\SyncDays;
 use Modules\Sync\Application\Report\SyncLog;
 use Modules\Sync\Application\Report\SyncReportCount;
 use Modules\Sync\Application\Report\SyncWords;
+use Modules\Sync\Application\SyncApiImpl;
 use Modules\Sync\Application\SyncPermissions;
 use Modules\Sync\Domain\Provider\ProviderAdapters;
 use Modules\Sync\Domain\Repository\Connections;
@@ -34,6 +36,7 @@ use Modules\Sync\Infrastructure\Eloquent\DatabaseReadLines;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReadReports;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReads;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseReportEntries;
+use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncDays;
 use Modules\Sync\Infrastructure\Eloquent\DatabaseSyncLog;
 use Modules\Sync\Infrastructure\External\ConnectionWiring;
 use Modules\Sync\Infrastructure\External\UrlNoticeAddresses;
@@ -45,6 +48,7 @@ use Modules\Sync\Infrastructure\Provider\OdooAdapter;
 use Modules\Sync\Infrastructure\Queue\PruneSyncLogJob;
 use Modules\Sync\Infrastructure\Queue\QueueHourlyReadsJob;
 use Modules\Sync\Infrastructure\Queue\QueueNightlyReadsJob;
+use Modules\Sync\Public\Contracts\SyncApi;
 
 /**
  * Reading a store's provider - Odoo the first - one way: the base price and the stock of each size, by
@@ -67,6 +71,9 @@ final class SyncServiceProvider extends ServiceProvider
         $this->app->bind(ReadLines::class, DatabaseReadLines::class);
         $this->app->bind(ReadReports::class, DatabaseReadReports::class);
         $this->app->bind(SyncLog::class, DatabaseSyncLog::class);
+        $this->app->bind(SyncDays::class, DatabaseSyncDays::class);
+        // For Ops' daily report (sync.md amendment 1).
+        $this->app->bind(SyncApi::class, SyncApiImpl::class);
         $this->app->bind(ProviderAdapters::class, ContainerProviderAdapters::class);
         // One a worker: it keeps each store's pace between its calls, a read after a read too (sync.md §2.4).
         $this->app->singleton(OdooAdapter::class);
