@@ -247,10 +247,10 @@ interface ShippingApi
 
 | Use case | Permission | Scope |
 |---|---|---|
-| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `MoveCarrier` (order), `DeleteCarrier` (only when off — §1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
+| `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `OrderCarriers` (order within a country — §9.4 #5), `DeleteCarrier` (only when off — §1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
 | `SetPriceGroup` (create, change amount, add/move/remove places — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
 | `SetCarrierFreeAbove`, the store-wide free-above setting | **`shipping.prices.manage`** | That store |
-| `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — staff who manage orders get it by default (**[ACCEPTED 2026-10-28]**) | That store |
+| `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — a plain role permission, ticked per role (owner, 2026-10-29, §9.4 #1) | That store |
 | `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, the padding, a size's auto/manual | **`shipping.boxes.manage`** — Admins by default, and any staff role it is given to (owner, 2026-10-28: admins and staff) | That store |
 | `Quote`, `TrackingLink`, `SuggestBox` | — (called by Sales inside its own permission) | — |
 
@@ -316,6 +316,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 |---|---|---|
 | `CarrierNotFound` | NOT_FOUND | A carrier that is not there (or of another store) |
 | `CarrierStillOn` | CONFLICT | Deleting a carrier that is switched on (§1.3) |
+| `CarrierNameTaken` | CONFLICT | A name another carrier of the store has, in either language, ignoring case and outer spaces — names it in both languages (§9.4 #4) |
 | `CountryNotShipped` | INVALID | A carrier for a country the store does not ship to |
 | `CountryHasCarriers` | CONFLICT | Removing a ship-to country, or moving it to another store, while the store has carriers there (Platform asks Shipping through a hook it declares — §9.2) |
 | `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for (§1.3) — raised by Platform, which owns the ship-to list (platform.md, stage 7 step 1) |
@@ -439,3 +440,27 @@ they were asked. Nothing in Shipping is open.
 13. **VAT on an order shipped abroad** (`OUTSIDE`, e.g. Qatar from the KSA store — exports are often
     0-rated): for the owner's accountant. (a) The store's VAT as usual until the accountant says
     otherwise **[Recommended]**; (b) 0 VAT on goods for an address outside the store's country.
+
+### 9.4 Stage 7 step 3 — the owner's answers (2026-10-29, "Rec all")
+
+Asked while building the carriers (plan-stage7 step 3); each is now the rule.
+
+1. **`shipping.carriers.view` is a plain role permission** in the Shipping group: admins have it, a
+   staff role has it when it is ticked. There is no "by default" — the code has no default roles — and
+   order staff do not need it: Sales's Ship dialog lists the store's carriers from its own orders under
+   `sales.order.fulfil`. This replaces "staff who manage orders get it by default" in §3.
+2. **One phone rule for every module**: E.164, kept in the shared kernel (`Shared\Domain\Text\PhoneNumbers`);
+   Access's `PhoneNumber` and the carrier's phone both use it, each refusing in its own error. A carrier's
+   phone is audited as "changed" only, as every phone is.
+3. **The ship-to guard is filled with the carriers** (step 3, not step 4): Platform's removal of a country
+   asks `CarriersHoldCountry`, which takes the store's carriers' lock — the lock every carrier change takes —
+   and refuses with `CountryHasCarriers` while any carrier, on or off, is there.
+4. **Carrier names are unique in the store ignoring case and outer spaces**, in each language: a clash is
+   `CarrierNameTaken` (CONFLICT), naming the other carrier in both languages. Another store may use the
+   same name.
+5. **Carriers are ordered within their country**: a new one goes last in its country; `OrderCarriers`
+   takes one country's ids in their new order, those not sent after them.
+6. **The website is HTTPS only, at most 500 characters**, as the tracking pattern.
+7. **Deleting a carrier** (only while off) deletes its row; its logo stays in the media library, no longer
+   named by it; the audit keeps its names in both languages. A logo deleted from the media library leaves
+   its carriers with none (`CarrierLogoUsage`, audited `shipping.carrier.logo_detached`).

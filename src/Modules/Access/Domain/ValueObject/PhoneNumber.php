@@ -5,35 +5,23 @@ declare(strict_types=1);
 namespace Modules\Access\Domain\ValueObject;
 
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
-use Shared\Domain\Text\LatinDigits;
+use Shared\Domain\Text\PhoneNumbers;
 
 /**
- * A phone number in E.164 (+9665…), any country (owner's decision, 2026-09-18). Spaces, dashes,
- * dots and brackets are dropped, a leading 00 becomes +, and digits typed on an Arabic keyboard are
- * the same digits (amendment 63) - the screens turn them already, and so does this, for every other
- * way a number arrives.
+ * A phone number in E.164 (+9665…), any country (owner's decision, 2026-09-18), by the rule every
+ * module shares (`PhoneNumbers`, stage 7 step 3): spaces, dashes, dots and brackets dropped, a
+ * leading 00 made +, Arabic-keyboard digits the same digits (amendment 63).
  */
 final readonly class PhoneNumber
 {
-    private const string E164 = '/\A\+[1-9]\d{6,14}\z/';
-
     private function __construct(
         public string $value,
     ) {}
 
     public static function of(string $value): self
     {
-        $digits = (string) preg_replace('/[\s\-.()]/', '', LatinDigits::of(trim($value)));
-
-        if (str_starts_with($digits, '00')) {
-            $digits = '+'.substr($digits, 2);
-        }
-
-        if (preg_match(self::E164, $digits) !== 1) {
-            throw new InvalidAccessAttribute('phone', 'expected an international number such as +966501234567');
-        }
-
-        return new self($digits);
+        return new self(PhoneNumbers::normalize($value)
+            ?? throw new InvalidAccessAttribute('phone', 'expected an international number such as +966501234567'));
     }
 
     public function equals(self $other): bool
