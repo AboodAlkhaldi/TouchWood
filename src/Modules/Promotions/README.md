@@ -112,7 +112,8 @@ The module was built in seven steps (the execution plan, approved 2026-10-17) �
   the coupon. Known limits, by the letter of §1.1 and §1.4: the audience lock rests on the segments the
   coupon came from, so deleting a segment releases it; and assigning writes the stored members, so one
   anonymized since the last refresh is assigned too (harmless: an anonymized account cannot order).
-  `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000.
+  `PromotionsApi::segmentMembers` pages a segment's members by id, 1 to 1000, for the store named only —
+  another store's segment is refused as unknown (2026-10-30, for Ops' offer notices).
   **The hand-picker's search** (`Query/SearchSegmentCandidates`, `promotions.segment.manage`): Access's
   `customerIdsMatching` (amendment 72(b)) kept by `SegmentMembership::eligible` — the same rule a save
   enforces — names only, at most 50, members marked.
