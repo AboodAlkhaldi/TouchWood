@@ -73,7 +73,7 @@ final readonly class ListAddressCountriesHandler
                 $code,
                 new TranslatedTextDto(IsoCountries::name($code, 'ar'), IsoCountries::name($code, 'en')),
                 $country['retired'],
-                $country['cities'] > 0,
+                $country['regions'] > 0,
                 $store instanceof StoreDto ? new ShippingStore($store->id, $store->code, $store->name, $store->isActive) : null,
                 $country['regions'],
                 $country['cities'],

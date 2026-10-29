@@ -7,7 +7,7 @@ namespace Modules\Platform\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * Adding a ship-to country Platform has no place list for (shipping.md §1.3, §7): its carriers could never be priced. A list means at least one city in use (stage 7 step 1, Q5).
+ * Adding a ship-to country Platform has no place list for (shipping.md §1.3, §7): its carriers could never be priced. A list means at least one region in use, and a carrier may be priced by a whole region (owner, 2026-10-29).
  */
 final class CountryWithoutPlaces extends PlatformError
 {

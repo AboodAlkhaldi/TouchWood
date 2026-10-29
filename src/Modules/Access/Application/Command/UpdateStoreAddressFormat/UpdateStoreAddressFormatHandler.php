@@ -7,6 +7,7 @@ namespace Modules\Access\Application\Command\UpdateStoreAddressFormat;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Address\StoreIds;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Domain\Exception\AddressFormatNeedsPlaces;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\Model\StoreAddressFormat;
@@ -29,6 +30,11 @@ final readonly class UpdateStoreAddressFormatHandler
 {
     public const string PERMISSION = AccessPermissions::ADDRESS_FORMAT_UPDATE;
 
+    private const array PLACE_KEYS = ['administrative_area', 'city', 'district'];
+
+    /** As long as a place's name may be (Platform's places, 100), so a picked place always fits. */
+    private const int PLACE_LENGTH_MIN = 100;
+
     public function __construct(
         private Authorizer $authorizer,
         private StoreAddressFormatRepository $formats,
@@ -37,7 +43,7 @@ final readonly class UpdateStoreAddressFormatHandler
     ) {}
 
     /**
-     * @throws InvalidAddress|InvalidAccessAttribute
+     * @throws InvalidAddress|InvalidAccessAttribute|AddressFormatNeedsPlaces
      */
     public function handle(UpdateStoreAddressFormat $command): void
     {
@@ -57,6 +63,14 @@ final readonly class UpdateStoreAddressFormatHandler
         $fields = array_map(static fn (array $field): AddressField => AddressField::fromArray($field), $command->fields);
 
         $format = StoreAddressFormat::of($storeId, $fields, $command->displayTemplate);
+
+        // The places a customer picks fill these three keys (frontend.md §8.4 Q12), so each stays,
+        // long enough for any place's name (owner, 2026-10-29).
+        $missing = array_values(array_filter(self::PLACE_KEYS, static fn (string $key): bool => ($format->field($key)->maxLength ?? 0) < self::PLACE_LENGTH_MIN));
+
+        if ($missing !== []) {
+            throw new AddressFormatNeedsPlaces($missing);
+        }
 
         $this->db->transaction(function () use ($format, $storeId): void {
             $before = $this->formats->forStore($storeId);

@@ -8,7 +8,7 @@ use Modules\Platform\Public\Dto\TranslatedTextDto;
 
 /**
  * One address country on the places pages (platform.md §4.3 B1): its own mark; whether it has a
- * place list (a city in use - what adding it to a store's ship-to list needs); the store that ships
+ * place list (a region in use - what adding it to a store's ship-to list needs); the store that ships
  * there, off ones too; and the regions and cities in use.
  */
 final readonly class AddressCountryRow

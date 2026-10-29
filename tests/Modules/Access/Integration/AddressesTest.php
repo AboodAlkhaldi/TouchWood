@@ -19,6 +19,7 @@ use Modules\Access\Application\Command\UpdateStoreAddressFormat\UpdateStoreAddre
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\AddressFormatMissing;
+use Modules\Access\Domain\Exception\AddressFormatNeedsPlaces;
 use Modules\Access\Domain\Exception\AddressNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidAddress;
@@ -80,6 +81,37 @@ function addressBookFields(array $overrides = []): array
 function addressRow(string $addressId): ?stdClass
 {
     return DB::table('access.addresses')->where('id', $addressId)->first();
+}
+
+/**
+ * The place fields a format is refused for missing (Q12), or null when it saves.
+ *
+ * @param  list<array<string, mixed>>  $fields
+ * @return list<string>|null
+ */
+function addressesFormatMissing(array $fields, string $template): ?array
+{
+    try {
+        app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(Fx::storeId('sa'), $fields, $template));
+    } catch (AddressFormatNeedsPlaces $refused) {
+        return $refused->missing;
+    }
+
+    return null;
+}
+
+/**
+ * A short format: the city asked for, the region and district kept in it as every format keeps them (Q12).
+ *
+ * @return list<array<string, mixed>>
+ */
+function addressesPlaceFields(): array
+{
+    return [
+        ['key' => 'administrative_area', 'label_ar' => 'المنطقة', 'label_en' => 'Region', 'required' => false, 'max_length' => 100, 'order' => 0],
+        ['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100, 'order' => 1],
+        ['key' => 'district', 'label_ar' => 'الحي', 'label_en' => 'District', 'required' => false, 'max_length' => 100, 'order' => 2],
+    ];
 }
 
 describe('a customer\'s addresses (spec §1.9)', function () {
@@ -246,7 +278,12 @@ describe('a customer\'s addresses (spec §1.9)', function () {
         Fx::actAsStaff(Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa']));
         app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(
             Fx::storeId('sa'),
-            [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => false, 'max_length' => 100, 'order' => 0]],
+            // The three place fields stay in every format (Q12); none of them asked for.
+            [
+                ['key' => 'administrative_area', 'label_ar' => 'المنطقة', 'label_en' => 'Region', 'required' => false, 'max_length' => 100, 'order' => 0],
+                ['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => false, 'max_length' => 100, 'order' => 1],
+                ['key' => 'district', 'label_ar' => 'الحي', 'label_en' => 'District', 'required' => false, 'max_length' => 100, 'order' => 2],
+            ],
             '{city}',
         ));
 
@@ -375,7 +412,7 @@ describe('a store\'s address format (spec §3.3)', function () {
 
         app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(
             Fx::storeId('sa'),
-            [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100, 'order' => 0]],
+            addressesPlaceFields(),
             '{city}',
         ));
 
@@ -385,6 +422,33 @@ describe('a store\'s address format (spec §3.3)', function () {
             // The Emirates keep the scheme they had.
             ->and(fn () => saveAddress(['storeId' => Fx::storeId('ae'), 'fields' => ['city' => 'Dubai']]))
             ->toThrow(InvalidAddress::class, 'administrative_area');
+    });
+
+    it('refuses a format without the region, city or district, naming those missing, and keeps the one it had (Q12)', function () {
+        Fx::actAsStaff(Fx::staffWith([AccessPermissions::ADDRESS_FORMAT_UPDATE], ['sa']));
+        $before = DB::table('access.store_address_formats')->where('store_id', Fx::storeId('sa'))->value('fields');
+
+        foreach (['administrative_area', 'city', 'district'] as $key) {
+            $fields = array_values(array_filter(addressesPlaceFields(), static fn (array $field): bool => $field['key'] !== $key));
+
+            // The template names a field still there, so only the missing place field is refused.
+            expect(addressesFormatMissing($fields, '{'.$fields[0]['key'].'}'))->toBe([$key]);
+        }
+
+        $street = [['key' => 'street', 'label_ar' => 'الشارع', 'label_en' => 'Street', 'required' => true, 'max_length' => 200, 'order' => 0]];
+
+        // Kept, but too short for a place's name: a picked city could never fit (owner, 2026-10-29).
+        $short = addressesPlaceFields();
+        $short[1]['max_length'] = 99;
+        expect(addressesFormatMissing($short, '{city}'))->toBe(['city']);
+
+        expect(addressesFormatMissing($street, '{street}'))->toBe(['administrative_area', 'city', 'district'])
+            ->and(DB::table('access.store_address_formats')->where('store_id', Fx::storeId('sa'))->value('fields'))->toBe($before)
+            ->and(DB::table('platform.audit_entries')->where('action', 'access.store_address_format.updated')->count())->toBe(0);
+
+        // At 100 it saves.
+        $short[1]['max_length'] = 100;
+        expect(addressesFormatMissing($short, '{city}'))->toBeNull();
     });
 
     it('is refused to staff who do not have that store', function () {
@@ -402,7 +466,7 @@ describe('a store\'s address format (spec §3.3)', function () {
 
         app(UpdateStoreAddressFormatHandler::class)->handle(new UpdateStoreAddressFormat(
             Fx::storeId('sa'),
-            [['key' => 'city', 'label_ar' => 'المدينة', 'label_en' => 'City', 'required' => true, 'max_length' => 100, 'order' => 0]],
+            addressesPlaceFields(),
             '{city}',
         ));
 
@@ -410,7 +474,7 @@ describe('a store\'s address format (spec §3.3)', function () {
         $changes = json_decode((string) $entry?->changes, true);
 
         expect($entry?->store_id)->toBe(Fx::storeId('sa'))
-            ->and($changes['fields'][1] ?? null)->toBe(['city'])
+            ->and($changes['fields'][1] ?? null)->toBe(['administrative_area', 'city', 'district'])
             ->and($changes['required_fields'][1] ?? null)->toBe(['city'])
             ->and($changes['display_template'][1] ?? null)->toBe('{city}');
     });

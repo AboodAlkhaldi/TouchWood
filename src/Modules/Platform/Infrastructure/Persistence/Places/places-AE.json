@@ -1,0 +1,40 @@
+{
+ "country": "AE",
+ "regions": [
+  {
+   "ar": "إمارة أبوظبي",
+   "en": "Emirate of Abu Dhabi",
+   "cities": []
+  },
+  {
+   "ar": "إمارة دبي",
+   "en": "Emirate of Dubai",
+   "cities": []
+  },
+  {
+   "ar": "إمارة الشارقة",
+   "en": "Emirate of Sharjah",
+   "cities": []
+  },
+  {
+   "ar": "إمارة عجمان",
+   "en": "Emirate of Ajman",
+   "cities": []
+  },
+  {
+   "ar": "إمارة أم القيوين",
+   "en": "Emirate of Umm Al Quwain",
+   "cities": []
+  },
+  {
+   "ar": "إمارة رأس الخيمة",
+   "en": "Emirate of Ras Al Khaimah",
+   "cities": []
+  },
+  {
+   "ar": "إمارة الفجيرة",
+   "en": "Emirate of Fujairah",
+   "cities": []
+  }
+ ]
+}

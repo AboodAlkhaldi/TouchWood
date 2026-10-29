@@ -82,7 +82,7 @@ export function NarrowBar({ id, text, setText, retired, setRetired, anyRetired }
     );
 }
 
-/** No city in use: customers type their places there, and no store may ship there (amber). */
+/** No region in use: customers type their places there, and no store may ship there (amber). */
 export function NoPlaces() {
     const t = useTranslator();
 
