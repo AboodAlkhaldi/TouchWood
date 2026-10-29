@@ -80,6 +80,7 @@ it('refuses in the database what the inbox may never hold', function (array $cha
     'a line too long' => [['line_en' => str_repeat('a', 501)], 'inbox_entries_line'],
     'a link off the site' => [['link' => 'https://elsewhere.test/'], 'inbox_entries_link'],
     'a link to another host' => [['link' => '//elsewhere.test/'], 'inbox_entries_link'],
+    'a backslash a browser reads as another host' => [['link' => '/\elsewhere.test/'], 'inbox_entries_link'],
     'read before it came' => [['read_at' => '2026-10-28 10:00:00.000000+00:00'], 'inbox_entries_read'],
 ]);
 
@@ -101,6 +102,7 @@ it('refuses in the code first what the inbox CHECKs refuse', function (Closure $
     'a line too long' => [fn (string $c, StoreId $s) => InboxEntry::forCustomer('01jbzzzzzzzzzzzzzzzzzzzzzz', $c, $s, MessageKind::OrderTaken, 'ع', 'T', str_repeat('س', 501), 'L', null, new DateTimeImmutable), 'line_ar'],
     'a link off the site' => [fn (string $c, StoreId $s) => InboxEntry::forCustomer('01jbzzzzzzzzzzzzzzzzzzzzzz', $c, $s, MessageKind::OrderTaken, 'ع', 'T', 'س', 'L', 'https://elsewhere.test/', new DateTimeImmutable), 'link'],
     'a link to another host' => [fn (string $c, StoreId $s) => InboxEntry::forCustomer('01jbzzzzzzzzzzzzzzzzzzzzzz', $c, $s, MessageKind::OrderTaken, 'ع', 'T', 'س', 'L', '//elsewhere.test/', new DateTimeImmutable), 'link'],
+    'a backslash a browser reads as another host' => [fn (string $c, StoreId $s) => InboxEntry::forCustomer('01jbzzzzzzzzzzzzzzzzzzzzzz', $c, $s, MessageKind::OrderTaken, 'ع', 'T', 'س', 'L', '/\elsewhere.test/', new DateTimeImmutable), 'link'],
 ]);
 
 it('keeps no code, link, text or address of a sent message: there is no column for one', function () {

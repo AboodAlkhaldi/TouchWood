@@ -62,7 +62,7 @@ return new class extends Migration
                 )) = (staff_id IS NOT NULL)),
                 ADD CONSTRAINT inbox_entries_title CHECK (char_length(title_ar) BETWEEN 1 AND 200 AND char_length(title_en) BETWEEN 1 AND 200),
                 ADD CONSTRAINT inbox_entries_line CHECK (char_length(line_ar) BETWEEN 1 AND 500 AND char_length(line_en) BETWEEN 1 AND 500),
-                ADD CONSTRAINT inbox_entries_link CHECK (link IS NULL OR (char_length(link) BETWEEN 1 AND 2000 AND link LIKE '/%' AND link NOT LIKE '//%')),
+                ADD CONSTRAINT inbox_entries_link CHECK (link IS NULL OR (char_length(link) BETWEEN 1 AND 2000 AND link LIKE '/%' AND link NOT LIKE '//%' AND strpos(link, chr(92)) = 0)),
                 ADD CONSTRAINT inbox_entries_read CHECK (read_at IS NULL OR read_at >= created_at)
             SQL);
 

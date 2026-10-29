@@ -73,7 +73,8 @@ final readonly class InboxEntry
             }
         }
 
-        if ($link !== null && (mb_strlen($link) < 1 || mb_strlen($link) > self::LINK_MAX || ! str_starts_with($link, '/') || str_starts_with($link, '//'))) {
+        if ($link !== null && (mb_strlen($link) < 1 || mb_strlen($link) > self::LINK_MAX || ! str_starts_with($link, '/') || str_starts_with($link, '//') || str_contains($link, '\\'))) {
+            // A browser reads "/\host" as "//host": no backslash anywhere, so a link never leaves the site.
             throw new InvalidOpsInput('link', 'a path inside the site');
         }
 
