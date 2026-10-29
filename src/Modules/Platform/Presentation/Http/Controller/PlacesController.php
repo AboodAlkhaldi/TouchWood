@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Modules\Platform\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
+use App\Http\Page;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Response;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountry;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountryHandler;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
@@ -22,6 +24,11 @@ use Modules\Platform\Application\Command\RetireAddressCountry\RetireAddressCount
 use Modules\Platform\Application\Command\RetireAddressCountry\RetireAddressCountryHandler;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlace;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlaceHandler;
+use Modules\Platform\Application\Query\ListAddressCountries\ListAddressCountriesHandler;
+use Modules\Platform\Application\Query\ListPlaces\ListPlacesHandler;
+use Modules\Platform\Application\Query\PlaceReader;
+use Modules\Platform\Domain\Exception\PlaceNotFound;
+use Modules\Platform\Presentation\Http\Resource\PlacePages;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -36,6 +43,39 @@ final readonly class PlacesController
 {
     /** @var list<string> The add and rename dialog's fields, kept when it is refused. */
     private const array NAME_FIELDS = ['name_ar', 'name_en'];
+
+    /** @var list<string> */
+    private const array WORDS = ['platform::admin_places', 'platform::errors', 'access::errors', 'admin'];
+
+    public function __construct(
+        private Page $page,
+        private PlacePages $pages,
+        private PlaceReader $places,
+    ) {}
+
+    /** The countries page. */
+    public function index(ListAddressCountriesHandler $handler): Response
+    {
+        return $this->page->render('Platform/Admin/Places/Index', $this->pages->countries($handler)->toArray(), self::WORDS);
+    }
+
+    /** A country's regions. An unknown country is the panel's not-found page: ListPlaces refuses it. */
+    public function regions(ListPlacesHandler $handler, string $country): Response
+    {
+        return $this->level($handler, $country, null, null);
+    }
+
+    /** A region's cities: a region of another country is not found. */
+    public function cities(ListPlacesHandler $handler, string $country, string $region): Response
+    {
+        return $this->level($handler, $country, $region, null);
+    }
+
+    /** A city's districts: a city outside the region named is not found. */
+    public function districts(ListPlacesHandler $handler, string $country, string $region, string $city): Response
+    {
+        return $this->level($handler, $country, $region, $city);
+    }
 
     public function addCountry(Request $request, AddAddressCountryHandler $handler): RedirectResponse
     {
@@ -68,17 +108,46 @@ final readonly class PlacesController
 
     public function renamePlace(Request $request, string $country, string $place, RenamePlaceHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new RenamePlace($place, $request->string('name_ar')->toString(), $request->string('name_en')->toString())), 'place_renamed', self::NAME_FIELDS);
+        return self::act($request, function () use ($request, $country, $place, $handler): void {
+            $this->inCountry($country, $place);
+            $handler->handle(new RenamePlace($place, $request->string('name_ar')->toString(), $request->string('name_en')->toString()));
+        }, 'place_renamed', self::NAME_FIELDS);
     }
 
     public function retirePlace(Request $request, string $country, string $place, RetirePlaceHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new RetirePlace($place)), 'place_retired');
+        return self::act($request, function () use ($country, $place, $handler): void {
+            $this->inCountry($country, $place);
+            $handler->handle(new RetirePlace($place));
+        }, 'place_retired');
     }
 
     public function restorePlace(Request $request, string $country, string $place, RestorePlaceHandler $handler): RedirectResponse
     {
-        return self::act($request, fn () => $handler->handle(new RestorePlace($place)), 'place_restored');
+        return self::act($request, function () use ($country, $place, $handler): void {
+            $this->inCountry($country, $place);
+            $handler->handle(new RestorePlace($place));
+        }, 'place_restored');
+    }
+
+    /**
+     * The address names the country as well as the place: a place of another country is not found,
+     * as the page that shows it would not be (the review of this job).
+     *
+     * @throws PlaceNotFound
+     */
+    private function inCountry(string $country, string $place): void
+    {
+        $found = $this->places->places([strtolower(trim($place))])[strtolower(trim($place))] ?? null;
+
+        if ($found === null || $found->countryCode !== strtoupper(trim($country))) {
+            throw new PlaceNotFound($place);
+        }
+    }
+
+    private function level(ListPlacesHandler $handler, string $country, ?string $region, ?string $city): Response
+    {
+        return $this->page->render('Platform/Admin/Places/Level', $this->pages->level($handler, $country, $region, $city)->toArray(), self::WORDS);
     }
 
     /**

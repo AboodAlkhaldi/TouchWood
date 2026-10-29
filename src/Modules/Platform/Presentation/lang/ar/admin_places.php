@@ -13,7 +13,6 @@ return [
         'places' => 'الأماكن',
         'name' => 'الاسم',
         'under' => 'ما فيه',
-        'state' => 'الحالة',
         'actions' => 'الإجراءات',
     ],
     'no_store' => 'لا متجر',
@@ -24,8 +23,8 @@ return [
     'show_retired' => 'إظهار المُوقَف',
     'filter' => 'تصفية بالاسم',
 
-    'regions' => ['zero' => ':count منطقة', 'one' => 'منطقة واحدة', 'two' => 'منطقتان', 'few' => ':count مناطق', 'many' => ':count منطقة', 'other' => ':count منطقة'],
-    'cities' => ['zero' => ':count مدينة', 'one' => 'مدينة واحدة', 'two' => 'مدينتان', 'few' => ':count مدن', 'many' => ':count مدينة', 'other' => ':count مدينة'],
+    'regions' => ['zero' => ':count منطقة', 'one' => 'منطقة واحدة', 'two' => 'منطقتان', 'few' => ':count مناطق', 'many' => ':count منطقةً', 'other' => ':count منطقة'],
+    'cities' => ['zero' => ':count مدينة', 'one' => 'مدينة واحدة', 'two' => 'مدينتان', 'few' => ':count مدن', 'many' => ':count مدينةً', 'other' => ':count مدينة'],
     'districts' => ['zero' => ':count حي', 'one' => 'حي واحد', 'two' => 'حيّان', 'few' => ':count أحياء', 'many' => ':count حيًّا', 'other' => ':count حي'],
 
     // صفحة الدول.
@@ -36,6 +35,7 @@ return [
     'country_none' => 'لا دول تطابق «:query»',
     'pick_country' => 'اختر دولة أولًا.',
     'open' => 'فتح',
+    'open_store' => 'فتح المتجر ":store"',
     'retire_country' => 'إيقاف الدولة',
     'retire_country_body' => 'لن يتمكن العملاء من اختيار ":country" في عنوان، وتخرج أماكنها من كل القوائم. العناوين التي تذكرها تبقى كما هي. يمكنك إعادتها.',
     'restore_country' => 'إعادة الدولة',
@@ -92,6 +92,7 @@ return [
         'DISTRICT' => ['title' => 'لا أحياء في هذه المدينة', 'body' => 'لا تحتاج المدينة إلى أحياء: لا يطلب نموذج العنوان حيًّا عندئذٍ.'],
     ],
     'none_found' => 'لا شيء هنا باسم ":text".',
+    'all_retired' => 'كل ما هنا مُوقَف. شغِّل «إظهار المُوقَف» لرؤيته.',
 
     'toast' => [
         'country_added' => 'أُضيفت الدولة',

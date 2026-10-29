@@ -6,8 +6,10 @@ namespace Modules\Platform\Presentation\Http\Resource;
 
 use DateTimeZone;
 use Illuminate\Contracts\Foundation\Application;
+use Modules\Platform\Application\Query\ListAddressCountries\AddressCountryRow;
 use Modules\Platform\Application\Query\ListStores\ListStores;
 use Modules\Platform\Application\Query\ListStores\ListStoresHandler;
+use Modules\Platform\Application\Query\ListStores\ShipsToCountry;
 use Modules\Platform\Application\Query\ListStores\StoreSummary;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Domain\Model\Currency;
@@ -38,6 +40,10 @@ final readonly class StorePages
             self::timezones(),
             $handler->maySwitch(),
             $handler->mayCreate() ? $this->newStoreForm() : null,
+            // Add Country on each card (platform.md §4.3 B4); the card leaves out its own store's.
+            $handler->mayChangeCountries()
+                ? array_map(fn (AddressCountryRow $row): ShipToChoice => new ShipToChoice($row->code, $row->name->in($this->locale()), $row->hasPlaces, PlacePages::store($row->store, $this->locale())), $handler->countriesToAdd($this->locale()))
+                : null,
         );
     }
 
@@ -81,6 +87,7 @@ final readonly class StorePages
             $store->isActive,
             $store->isBase,
             $store->switchable,
+            array_map(fn (ShipsToCountry $country): ShipToRow => new ShipToRow($country->code, $country->name->in($this->locale()), $country->code === $store->countryCode), $store->shipsTo),
         );
     }
 

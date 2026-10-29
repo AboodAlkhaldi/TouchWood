@@ -13,7 +13,6 @@ return [
         'places' => 'Places',
         'name' => 'Name',
         'under' => 'In It',
-        'state' => 'State',
         'actions' => 'Actions',
     ],
     'no_store' => 'No store',
@@ -36,6 +35,7 @@ return [
     'country_none' => 'No countries match “:query”',
     'pick_country' => 'Choose a country first.',
     'open' => 'Open',
+    'open_store' => 'Open the Store ":store"',
     'retire_country' => 'Retire Country',
     'retire_country_body' => 'Customers can no longer choose ":country" in an address, and its places leave every picker. Addresses that already name it keep it. You can restore it.',
     'restore_country' => 'Restore Country',
@@ -92,6 +92,7 @@ return [
         'DISTRICT' => ['title' => 'No Districts in This City', 'body' => 'A city needs no districts: the address form then asks for none.'],
     ],
     'none_found' => 'Nothing here is called ":text".',
+    'all_retired' => 'Everything here is retired. Turn on Show retired to see it.',
 
     'toast' => [
         'country_added' => 'Country added',

@@ -14,7 +14,7 @@ import { toLatinDigits } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { PlaceLevelPage, PlaceRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
-import { NarrowBar, Names, P, RetiredBadge, plural, useLocale, useNarrowed } from './parts';
+import { NarrowBar, Names, NoPlaces, NoneShown, P, RetiredBadge, ShipsFrom, plural, useLocale, useNarrowed } from './parts';
 
 /*
 | A level of E8 (platform.md §4.3; the owner, 2026-10-29, Q4): a country's regions, a region's cities,
@@ -65,6 +65,7 @@ export default function Level({ country, parents, kind, places, hiddenBy }: Plac
             title={holder}
             subtitle={t(`${P}.list.${level}`)}
             breadcrumbs={trail}
+            phoneTrail="lastTwo"
             action={
                 <ActionButton ref={addButton} type="button" onClick={add} disabledReason={addReason} data-test="add-place">
                     {addLabel}
@@ -73,6 +74,21 @@ export default function Level({ country, parents, kind, places, hiddenBy }: Plac
         >
             <div className="grid gap-4">
                 <FormError />
+                {/* The page's marks (§4.3): the country's as on its row, then this page's own Retired. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-copy-14 text-ink-muted" data-test="page-marks">
+                    {above === undefined ? null : <bdi className="text-ink">{country.name}</bdi>}
+                    {country.retired ? <RetiredBadge /> : null}
+                    <span>
+                        {t(`${P}.column.ships_from`)}: <ShipsFrom store={country.store} />
+                    </span>
+                    {country.hasPlaces ? null : <NoPlaces />}
+                    {above?.retired === true && !country.retired ? (
+                        <span className="flex items-center gap-2">
+                            <bdi className="text-ink">{above.name}</bdi>
+                            <RetiredBadge />
+                        </span>
+                    ) : null}
+                </div>
                 {hiddenBy !== null ? (
                     <Note variant="warning" data-test="under-retired">
                         {t(`${P}.under_retired`, { kind: t(`${P}.kind_lower.${hiddenBy}`) })}
@@ -94,9 +110,7 @@ export default function Level({ country, parents, kind, places, hiddenBy }: Plac
                     <>
                         <NarrowBar id="places" {...narrow} />
                         {narrow.shown.length === 0 ? (
-                            <p className="text-copy-14 text-ink-muted" data-test="places-none">
-                                {t(`${P}.none_found`, { text: narrow.text.trim() })}
-                            </p>
+                            <NoneShown text={narrow.text} test="places-none" />
                         ) : (
                             <div className="material-base overflow-x-auto">
                                 <Table>
@@ -133,7 +147,17 @@ export default function Level({ country, parents, kind, places, hiddenBy }: Plac
 
             {dialog?.action === 'add' ? <NameDialog base={base} kind={level} parentId={parentId} holder={holder} place={null} open onOpenChange={close} returnFocusTo={opener} /> : null}
             {dialog?.action === 'rename' ? <NameDialog base={base} kind={level} parentId={parentId} holder={holder} place={dialog.place} open onOpenChange={close} returnFocusTo={opener} /> : null}
-            {dialog?.action === 'retire' ? <RetireDialog base={base} place={dialog.place} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog?.action === 'retire' ? (
+                <RetireDialog
+                    base={base}
+                    place={dialog.place}
+                    open
+                    onOpenChange={close}
+                    returnFocusTo={opener}
+                    // Its row leaves the list while Show retired is off: focus goes to the Add button.
+                    onRetired={() => (narrow.retired ? undefined : (opener.current = addButton.current))}
+                />
+            ) : null}
         </AdminLayout>
     );
 }
@@ -263,7 +287,21 @@ function NameDialog({
     );
 }
 
-function RetireDialog({ base, place, open, onOpenChange, returnFocusTo }: { base: string; place: PlaceRow; open: boolean; onOpenChange: (open: boolean) => void; returnFocusTo: RefObject<HTMLElement | null> }) {
+function RetireDialog({
+    base,
+    place,
+    open,
+    onOpenChange,
+    returnFocusTo,
+    onRetired,
+}: {
+    base: string;
+    place: PlaceRow;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo: RefObject<HTMLElement | null>;
+    onRetired: () => void;
+}) {
     const t = useTranslator();
     const locale = useLocale();
     const [busy, setBusy] = useState(false);
@@ -281,7 +319,17 @@ function RetireDialog({ base, place, open, onOpenChange, returnFocusTo }: { base
                 <ActionButton
                     variant="destructive"
                     loading={busy}
-                    onClick={() => router.post(`${base}/places/${place.id}/retire`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })}
+                    onClick={() =>
+                        router.post(`${base}/places/${place.id}/retire`, {}, {
+                            preserveScroll: true,
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                            onSuccess: () => {
+                                onRetired();
+                                onOpenChange(false);
+                            },
+                        })
+                    }
                     data-test="confirm-retire-place"
                 >
                     {t(`${P}.retire`)}

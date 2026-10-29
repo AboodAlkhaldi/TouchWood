@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -148,4 +150,125 @@ it('refuses every change to an admin, in the panel\'s words: both permissions ar
         ->and(AdminBrowser::formError($browser->post('/admin/places/sa/places', ['kind' => 'REGION', 'parent' => '', 'name_ar' => 'منطقة', 'name_en' => 'Region'])))->toBe($words)
         ->and(AdminBrowser::formError($browser->post('/admin/stores/sa/countries', ['country' => 'KW'])))->toBe($words)
         ->and(DB::table('platform.address_countries')->where('country_code', 'KW')->exists())->toBeFalse();
+});
+
+/**
+ * The queries one page read runs, from the request in. Read once first: the session's first page
+ * warms what every later page reuses (the menu, the permissions), and that is no page's own.
+ */
+function placesScreenQueries(Closure $read): int
+{
+    $read();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $read();
+    $count = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    return $count;
+}
+
+describe('the pages', function () {
+    it('lists the address countries with their stores, and offers only countries not on the list', function () {
+        $browser = placesScreenSignIn(Fx::staff(superAdmin: true));
+        placesScreenSeed($browser);
+
+        $queries = placesScreenQueries(fn () => $browser->get('/admin/places')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->component('Platform/Admin/Places/Index')
+            ->has('countries', 3)
+            ->where('countries', fn (Collection $rows): bool => $rows->firstWhere('code', 'SA')['store']['code'] === 'sa'
+                && $rows->firstWhere('code', 'SA')['hasPlaces'] === true
+                && $rows->firstWhere('code', 'SA')['regions'] === 1
+                && $rows->firstWhere('code', 'EG')['hasPlaces'] === false)
+            // Found by either language's name (Q10): the other one travels with it.
+            ->where('addable', fn (Collection $options): bool => $options->whereIn('code', ['SA', 'EG', 'AE'])->isEmpty()
+                && $options->firstWhere('code', 'KW')['otherName'] !== $options->firstWhere('code', 'KW')['name'])));
+
+        // Measured 15 on 2026-10-29: the countries with their counts, the stores, the session.
+        expect($queries)->toBeLessThanOrEqual(15);
+    });
+
+    it('opens a level per page with its trail, and says what retired above it hides', function () {
+        $browser = placesScreenSignIn(Fx::staff(superAdmin: true));
+        placesScreenSeed($browser);
+        [$region, $city] = [placesScreenId('SA', 'Riyadh Region'), placesScreenId('SA', 'Riyadh')];
+
+        $counts = [];
+        $counts['regions'] = placesScreenQueries(fn () => $browser->get('/admin/places/sa')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->component('Platform/Admin/Places/Level')
+            ->where('country.code', 'SA')->where('kind', 'REGION')->where('parents', [])->where('hiddenBy', null)
+            ->has('places', 1)->where('places.0.id', $region)->where('places.0.cities', 1)->where('places.0.districts', 1)));
+        $counts['cities'] = placesScreenQueries(fn () => $browser->get("/admin/places/sa/{$region}")->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('kind', 'CITY')->has('parents', 1)->where('parents.0.id', $region)->where('places.0.id', $city)->where('places.0.nameEn', 'Riyadh')));
+        $counts['districts'] = placesScreenQueries(fn () => $browser->get("/admin/places/sa/{$region}/{$city}")->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('kind', 'DISTRICT')->has('parents', 2)->where('parents.1.id', $city)->where('places.0.nameEn', 'Olaya')));
+
+        $browser->post("/admin/places/sa/places/{$region}/retire")->assertRedirect();
+        $browser->get("/admin/places/sa/{$region}/{$city}")->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('hiddenBy', 'REGION'));
+
+        // The city's own mark, once the region is back; and a retired country above all of it.
+        $browser->post("/admin/places/sa/places/{$region}/restore")->assertRedirect();
+        $browser->post("/admin/places/sa/places/{$city}/retire")->assertRedirect();
+        $browser->get("/admin/places/sa/{$region}/{$city}")->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('hiddenBy', 'CITY'));
+        $browser->get("/admin/places/sa/{$region}")->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('hiddenBy', null)->where('places.0.retired', true));
+
+        $browser->post('/admin/places', ['country' => 'KW'])->assertRedirect();
+        $browser->post('/admin/places/kw/retire')->assertRedirect();
+        $browser->get('/admin/places/kw')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('hiddenBy', 'COUNTRY')->where('country.retired', true));
+
+        // Measured 16, 17 and 17 on 2026-10-29: the trail is one more read.
+        expect($counts['regions'])->toBeLessThanOrEqual(16)
+            ->and($counts['cities'])->toBeLessThanOrEqual(17)
+            ->and($counts['districts'])->toBeLessThanOrEqual(17);
+    });
+
+    it('answers a trail that does not hold together, or an unknown country, with the not-found page', function () {
+        $browser = placesScreenSignIn(Fx::staff(superAdmin: true));
+        placesScreenSeed($browser);
+        [$region, $city] = [placesScreenId('SA', 'Riyadh Region'), placesScreenId('SA', 'Riyadh')];
+
+        $browser->get('/admin/places/eg/'.$region)->assertNotFound();
+        $browser->get("/admin/places/sa/{$city}")->assertNotFound();
+        $browser->get("/admin/places/sa/{$region}/{$region}")->assertNotFound();
+        $browser->get('/admin/places/zz')->assertNotFound();
+    });
+
+    it('shows each store\'s ship-to countries, and Add Country\'s choices to a Super Admin only', function () {
+        $super = placesScreenSignIn(Fx::staff(superAdmin: true));
+
+        $queries = placesScreenQueries(fn () => $super->get('/admin/stores')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('stores', fn (Collection $stores): bool => $stores->firstWhere('code', 'sa')['shipsTo'][0]['code'] === 'SA'
+                && $stores->firstWhere('code', 'sa')['shipsTo'][0]['own'] === true)
+            ->where('shipToChoices', fn (Collection $choices): bool => $choices->firstWhere('code', 'EG')['store']['code'] === 'eg')));
+
+        // A retired country is offered to no store: it comes back on the places page first.
+        $super->post('/admin/places', ['country' => 'KW'])->assertRedirect();
+        $super->post('/admin/places/kw/retire')->assertRedirect();
+        $super->get('/admin/stores')->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('shipToChoices', fn (Collection $choices): bool => ! $choices->contains('code', 'KW')));
+
+        // Measured 16 on 2026-10-29, with the ship-to lists and Add Country's choices.
+        expect($queries)->toBeLessThanOrEqual(16);
+
+        placesScreenSignIn(Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['sa'], RoleLevel::Admin))
+            ->get('/admin/stores')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('shipToChoices', null)->has('stores.0.shipsTo', 1));
+    });
+
+    it('changes no place through the address of another country', function () {
+        $browser = placesScreenSignIn(Fx::staff(superAdmin: true));
+        placesScreenSeed($browser);
+        $city = placesScreenId('SA', 'Riyadh');
+
+        expect(AdminBrowser::formError($browser->post("/admin/places/eg/places/{$city}/retire")))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post("/admin/places/eg/places/{$city}", ['name_ar' => 'اسم', 'name_en' => 'Name'])))->not->toBeNull()
+            ->and(DB::table('platform.places')->where('id', $city)->value('retired'))->toBeFalse()
+            ->and(DB::table('platform.places')->where('id', $city)->value('name->en'))->toBe('Riyadh');
+    });
+
+    it('refuses the places pages to an admin', function () {
+        $browser = placesScreenSignIn(Fx::staffWith([PlatformPermissions::STORE_UPDATE], ['sa'], RoleLevel::Admin));
+
+        $browser->get('/admin/places')->assertForbidden();
+        $browser->get('/admin/places/sa')->assertForbidden();
+    });
 });

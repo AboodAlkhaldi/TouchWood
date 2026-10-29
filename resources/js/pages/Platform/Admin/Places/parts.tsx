@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { SearchField } from '@/components/SearchField';
 import { Badge } from '@/components/ui/badge';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { figure, intlLocale } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
+import type { PlaceStoreRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -78,5 +79,42 @@ export function NarrowBar({ id, text, setText, retired, setRetired, anyRetired }
                 </Field>
             ) : null}
         </div>
+    );
+}
+
+/** No city in use: customers type their places there, and no store may ship there (amber). */
+export function NoPlaces() {
+    const t = useTranslator();
+
+    return (
+        <Badge className={tone('amber-subtle')} title={t(`${P}.no_places_hint`)} data-test="no-places">
+            {t(`${P}.no_places`)}
+        </Badge>
+    );
+}
+
+/** Ships from: a link to that store's card on the Stores page (an off one marked), or No store. */
+export function ShipsFrom({ store }: { store: PlaceStoreRow | null }) {
+    const t = useTranslator();
+
+    if (store === null) {
+        return <span className="text-ink-muted">{t(`${P}.no_store`)}</span>;
+    }
+
+    return (
+        <Link href={`/admin/stores#store-${store.code}`} className="underline-offset-4 hover:underline">
+            {store.active ? store.name : t(`${P}.store_off`, { name: store.name })}
+        </Link>
+    );
+}
+
+/** Nothing shown: either nothing matches what was typed, or everything here is retired. */
+export function NoneShown({ text, test }: { text: string; test: string }) {
+    const t = useTranslator();
+
+    return (
+        <p className="text-copy-14 text-ink-muted" data-test={test}>
+            {text.trim() === '' ? t(`${P}.all_retired`) : t(`${P}.none_found`, { text: text.trim() })}
+        </p>
     );
 }

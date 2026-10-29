@@ -6,15 +6,12 @@ import { CountryCombobox } from '@/components/CountryCombobox';
 import { FormError } from '@/components/FormError';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Guarded, MoreButton } from '@/components/RowMenu';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTranslator } from '@/lib/t';
-import { tone } from '@/lib/tones';
 import type { PlaceCountryRow, PlacesPage } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
-import { NarrowBar, Names, P, RetiredBadge, plural, useLocale, useNarrowed } from './parts';
+import { NarrowBar, Names, NoPlaces, NoneShown, P, RetiredBadge, ShipsFrom, plural, useLocale, useNarrowed } from './parts';
 
 /*
 | E8 - the countries a customer may choose in an address (platform.md §4.3; the owner, 2026-10-29).
@@ -60,13 +57,7 @@ export default function Index({ countries, addable }: PlacesPage) {
                 <FormError />
                 <NarrowBar id="countries" {...narrow} />
                 {narrow.shown.length === 0 ? (
-                    <Empty className="material-base" data-test="countries-none">
-                        <EmptyHeader>
-                            <EmptyDescription className="text-copy-14 text-ink-muted">
-                                {t(`${P}.none_found`, { text: narrow.text.trim() })}
-                            </EmptyDescription>
-                        </EmptyHeader>
-                    </Empty>
+                    <NoneShown text={narrow.text} test="countries-none" />
                 ) : (
                     <div className="material-base overflow-x-auto">
                         <Table>
@@ -99,7 +90,16 @@ export default function Index({ countries, addable }: PlacesPage) {
             </div>
 
             {dialog?.action === 'add' ? <AddCountryDialog addable={addable} open onOpenChange={close} returnFocusTo={opener} /> : null}
-            {dialog?.action === 'retire' ? <RetireCountryDialog country={dialog.country} open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog?.action === 'retire' ? (
+                <RetireCountryDialog
+                    country={dialog.country}
+                    open
+                    onOpenChange={close}
+                    returnFocusTo={opener}
+                    // Its row leaves the list while Show retired is off: focus goes to Add Country.
+                    onRetired={() => (narrow.retired ? undefined : (opener.current = addButton.current))}
+                />
+            ) : null}
         </AdminLayout>
     );
 }
@@ -111,7 +111,6 @@ function CountryRow({ country, retire }: { country: PlaceCountryRow; retire: (tr
     const [busy, setBusy] = useState(false);
     const more = useRef<HTMLButtonElement>(null);
     const href = `/admin/places/${country.code.toLowerCase()}`;
-    const shipsFrom = country.store === null ? t(`${P}.no_store`) : country.store.active ? country.store.name : t(`${P}.store_off`, { name: country.store.name });
     const places = country.hasPlaces ? `${plural(t, locale, `${P}.regions`, country.regions)} · ${plural(t, locale, `${P}.cities`, country.cities)}` : null;
     const retireReason = country.store === null ? null : t(`${P}.reason.shipped`, { store: country.store.name });
 
@@ -124,12 +123,18 @@ function CountryRow({ country, retire }: { country: PlaceCountryRow; retire: (tr
                     </Names>
                 </Link>
                 <span className="mt-1 grid gap-1 text-copy-13 text-ink-muted sm:hidden">
-                    <span>{shipsFrom}</span>
-                    {places ?? <NoPlaces />}
+                    <span>
+                        <ShipsFrom store={country.store} />
+                    </span>
+                    {places ?? (
+                        <span>
+                            <NoPlaces />
+                        </span>
+                    )}
                 </span>
             </TableCell>
             <TableCell className="hidden sm:table-cell" data-test="ships-from">
-                {country.store === null ? <span className="text-ink-muted">{shipsFrom}</span> : <Link href="/admin/stores" className="underline-offset-4 hover:underline">{shipsFrom}</Link>}
+                <ShipsFrom store={country.store} />
             </TableCell>
             <TableCell className="hidden md:table-cell" data-test="places">
                 {places === null ? <NoPlaces /> : <span className="tw-figure">{places}</span>}
@@ -149,22 +154,18 @@ function CountryRow({ country, retire }: { country: PlaceCountryRow; retire: (tr
                                 test="restore-country"
                             />
                         ) : (
-                            <Guarded label={t(`${P}.retire_country`)} reason={retireReason} destructive onSelect={() => retire(more.current)} test="retire-country" />
+                            <>
+                                <Guarded label={t(`${P}.retire_country`)} reason={retireReason} destructive onSelect={() => retire(more.current)} test="retire-country" />
+                                {/* Out of reach while a store ships there: the way to that store beside it (Q8). */}
+                                {country.store === null ? null : (
+                                    <Guarded label={t(`${P}.open_store`, { store: country.store.name })} onSelect={() => router.visit(`/admin/stores#store-${country.store?.code ?? ''}`)} test="open-store" />
+                                )}
+                            </>
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </TableCell>
         </TableRow>
-    );
-}
-
-function NoPlaces() {
-    const t = useTranslator();
-
-    return (
-        <Badge className={tone('amber-subtle')} title={t(`${P}.no_places_hint`)} data-test="no-places">
-            {t(`${P}.no_places`)}
-        </Badge>
     );
 }
 
@@ -206,7 +207,19 @@ function AddCountryDialog({ addable, open, onOpenChange, returnFocusTo }: { adda
     );
 }
 
-function RetireCountryDialog({ country, open, onOpenChange, returnFocusTo }: { country: PlaceCountryRow; open: boolean; onOpenChange: (open: boolean) => void; returnFocusTo: RefObject<HTMLElement | null> }) {
+function RetireCountryDialog({
+    country,
+    open,
+    onOpenChange,
+    returnFocusTo,
+    onRetired,
+}: {
+    country: PlaceCountryRow;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo: RefObject<HTMLElement | null>;
+    onRetired: () => void;
+}) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
 
@@ -224,7 +237,15 @@ function RetireCountryDialog({ country, open, onOpenChange, returnFocusTo }: { c
                     variant="destructive"
                     loading={busy}
                     onClick={() =>
-                        router.post(`/admin/places/${country.code.toLowerCase()}/retire`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })
+                        router.post(`/admin/places/${country.code.toLowerCase()}/retire`, {}, {
+                            preserveScroll: true,
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                            onSuccess: () => {
+                                onRetired();
+                                onOpenChange(false);
+                            },
+                        })
                     }
                     data-test="confirm-retire-country"
                 >

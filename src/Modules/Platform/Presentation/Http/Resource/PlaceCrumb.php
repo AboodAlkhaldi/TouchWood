@@ -17,7 +17,7 @@ final class PlaceCrumb extends Data
         public string $id,
         public string $kind,
         public string $name,
-        /** Its own mark: retired itself. */
+        /** Retired as the pickers see it: itself, or something above it. */
         public bool $retired,
     ) {}
 }

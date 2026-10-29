@@ -1,3 +1,9 @@
+export type AddableCountry = {
+code: string,
+name: string,
+otherName: string,
+ours: boolean,
+};
 export type AuditChangeRow = {
 attribute: string,
 from: string | null,
@@ -153,7 +159,7 @@ active: boolean,
 };
 export type PlacesPage = {
 countries: PlaceCountryRow[],
-addable: StoreCountryOption[],
+addable: AddableCountry[],
 };
 export type SettingGroup = {
 module: string,

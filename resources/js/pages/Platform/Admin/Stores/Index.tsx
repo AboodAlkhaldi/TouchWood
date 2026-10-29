@@ -484,7 +484,7 @@ function StoreCard({ store, maySwitch, shipToChoices, timezones, open, onOpenCha
 
     return (
         <Collapsible open={open} onOpenChange={onOpenChange} asChild>
-            <Card className="material-base gap-0 overflow-hidden border-0 py-0" data-test={`store-${store.code}`}>
+            <Card id={`store-${store.code}`} className="material-base scroll-mt-20 gap-0 overflow-hidden border-0 py-0" data-test={`store-${store.code}`}>
                 <CardHeader className="px-5 py-4">
                     <CardTitle className="flex flex-wrap items-center gap-2">
                         <h2 className="text-heading-16 text-ink">{store.name}</h2>

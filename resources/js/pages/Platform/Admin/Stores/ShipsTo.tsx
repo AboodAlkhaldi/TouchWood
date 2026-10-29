@@ -1,5 +1,6 @@
 import { type RefObject, useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
+import { Check } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Badge } from '@/components/ui/badge';
@@ -67,7 +68,16 @@ export function ShipsTo({ store, choices }: { store: StoreRow; choices: ShipToCh
             </ul>
 
             {may && adding ? <AddDialog store={store} choices={choices} onOpenChange={setAdding} returnFocusTo={addButton} /> : null}
-            {removing !== null ? <RemoveDialog store={store} country={removing} onOpenChange={(open) => (open ? undefined : setRemoving(null))} returnFocusTo={opener} /> : null}
+            {removing !== null ? (
+                <RemoveDialog
+                    store={store}
+                    country={removing}
+                    onOpenChange={(open) => (open ? undefined : setRemoving(null))}
+                    returnFocusTo={opener}
+                    // Its item leaves the list: focus goes to Add Country.
+                    onRemoved={() => (opener.current = addButton.current)}
+                />
+            ) : null}
         </div>
     );
 }
@@ -130,22 +140,38 @@ function AddDialog({ store, choices, onOpenChange, returnFocusTo }: { store: Sto
                                         </span>
                                         {reason !== null ? <span className="text-copy-12 text-ink-muted">{reason}</span> : null}
                                     </span>
+                                    {picked === choice.code ? <Check className="ms-auto size-4" aria-hidden /> : null}
                                 </CommandItem>
                             );
                         })}
                     </CommandList>
                 </Command>
             )}
-            {offered.some((choice) => choice.store === null && !choice.hasPlaces) ? (
-                <Link href="/admin/places" className="text-copy-13 underline underline-offset-4">
-                    {t(`${S}.places_link`)}
-                </Link>
-            ) : null}
+            {/* A country with no place list: the way to its places, beside its reason (Q14). */}
+            {offered
+                .filter((choice) => choice.store === null && !choice.hasPlaces)
+                .map((choice) => (
+                    <Link key={choice.code} href={`/admin/places/${choice.code.toLowerCase()}`} className="text-copy-13 underline underline-offset-4" data-test={`places-of-${choice.code}`}>
+                        {t(`${S}.places_link`, { country: choice.name })}
+                    </Link>
+                ))}
         </PanelDialog>
     );
 }
 
-function RemoveDialog({ store, country, onOpenChange, returnFocusTo }: { store: StoreRow; country: ShipToRow; onOpenChange: (open: boolean) => void; returnFocusTo: RefObject<HTMLElement | null> }) {
+function RemoveDialog({
+    store,
+    country,
+    onOpenChange,
+    returnFocusTo,
+    onRemoved,
+}: {
+    store: StoreRow;
+    country: ShipToRow;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo: RefObject<HTMLElement | null>;
+    onRemoved: () => void;
+}) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
 
@@ -163,7 +189,15 @@ function RemoveDialog({ store, country, onOpenChange, returnFocusTo }: { store: 
                     variant="destructive"
                     loading={busy}
                     onClick={() =>
-                        router.post(`/admin/stores/${store.code}/countries/${country.code.toLowerCase()}/remove`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })
+                        router.post(`/admin/stores/${store.code}/countries/${country.code.toLowerCase()}/remove`, {}, {
+                            preserveScroll: true,
+                            onStart: () => setBusy(true),
+                            onFinish: () => setBusy(false),
+                            onSuccess: () => {
+                                onRemoved();
+                                onOpenChange(false);
+                            },
+                        })
                     }
                     data-test="confirm-remove-ship-to"
                 >

@@ -15,7 +15,7 @@ final class PlacesPage extends Data
 {
     /**
      * @param  list<PlaceCountryRow>  $countries  sorted by name in the page's language, retired ones too
-     * @param  list<StoreCountryOption>  $addable  every ISO country not on the list
+     * @param  list<AddableCountry>  $addable  every ISO country not on the list
      */
     public function __construct(
         public array $countries,
