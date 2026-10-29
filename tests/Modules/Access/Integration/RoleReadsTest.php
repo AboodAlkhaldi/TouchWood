@@ -164,6 +164,8 @@ describe('what may I do', function () {
             PlatformPermissions::MEDIA_UPLOAD => null,
             AccessPermissions::OWN_ACCOUNT_UPDATE => null,
             AccessPermissions::STAFF_VIEW_OPEN => null,
+            // Every staff member's own bell in the panel (ops.md §1.2, §3).
+            'ops.panel_inbox.view_own' => null,
         ]);
     });
 

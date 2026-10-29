@@ -6,7 +6,6 @@ import { Attachment, AttachmentContent, AttachmentMedia, AttachmentTitle } from 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FieldDescription, FieldError } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { PhotoData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
@@ -97,7 +96,10 @@ export function PhotoGrid({
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">
-                <Input
+                {/* A plain input, as the account's avatar picker: hidden, the button beside it is the
+                    control. shadcn's Input kept its own full width over `sr-only`, and the invisible
+                    box pushed a phone's page sideways (the phone audit, 2026-10-29). */}
+                <input
                     ref={files}
                     id={`${testPrefix}-files`}
                     type="file"

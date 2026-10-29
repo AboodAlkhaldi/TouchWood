@@ -99,6 +99,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'inventory.orderable.rebuild',
         // Reserved: the system's nightly expiry of points (loyalty.md §3).
         'loyalty.points.expire',
+        // Reserved: the system's nightly removal of old notifications and message records (ops.md §5).
+        'ops.log.prune',
         'platform.currency.create',
         // Reserved, as creating one is (platform.md §9.7, owner 2026-10-04).
         'platform.currency.delete',
@@ -189,14 +191,17 @@ it('passes its own check of the renames and removals every module declared', fun
 it('gives every command handler a PERMISSION constant, save those that read it from elsewhere', function () {
     // UpdateSetting takes its permission from the setting's own definition, and Loyalty's Earn and
     // Redeem, and the three settlements, take the calling module's, named by Sales on each call (loyalty.md §2.1), so they
-    // declare none — as Promotions' three writes for Sales (promotions.md §2.1); every other handler must, or
-    // handlerPermissions() would pass over it.
+    // declare none — as Promotions' three writes for Sales (promotions.md §2.1), and Ops' two marks of a
+    // bell, which take the reader's own bell's, the shop's or the panel's (ops.md §1.2); every other
+    // handler must, or handlerPermissions() would pass over it.
     expect(handlersWithoutPermissionConstant())->toBe([
         'Modules\Loyalty\Application\Command\Earn\EarnHandler',
         'Modules\Loyalty\Application\Command\Redeem\RedeemHandler',
         'Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrderHandler',
         'Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrderHandler',
         'Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrderHandler',
+        'Modules\Ops\Application\Command\MarkAllInboxRead\MarkAllInboxReadHandler',
+        'Modules\Ops\Application\Command\MarkInboxEntryRead\MarkInboxEntryReadHandler',
         'Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler',
         'Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler',
         'Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler',
@@ -275,9 +280,10 @@ it('gives every action a role can hold a business area, and names every area in 
     // jobs Catalog (catalog.md §3), Pricing's jobs Pricing (pricing.md §3), Loyalty's jobs Points
     // (loyalty.md §3, amendment 66), Sync's jobs Sync (sync.md §3, amendment 68), Promotions' jobs Marketing
     // (promotions.md §3, amendment 69), Feedback's reviews and questions Support (feedback.md §3, amendment 73),
-    // Shipping's jobs Shipping (shipping.md §3, amendment 77).
+    // Shipping's jobs Shipping (shipping.md §3, amendment 77), Ops' jobs Messages and Reports (ops.md §3,
+    // amendment 86).
     ksort($used);
-    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'orders', 'points', 'pricing', 'shipping', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
+    expect(array_keys($used))->toBe(['audit', 'catalog', 'companies', 'customers', 'marketing', 'media', 'messages_and_reports', 'orders', 'points', 'pricing', 'shipping', 'staff_and_permissions', 'store_settings', 'support', 'sync', 'system']);
 });
 
 it('names every permission in Arabic and English', function () {

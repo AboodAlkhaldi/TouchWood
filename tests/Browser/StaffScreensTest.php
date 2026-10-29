@@ -82,6 +82,15 @@ it('draws the staff list grouped by store, and opens one person', function () {
         // Their role reaches one store, and the screen says which by name rather than by id.
         ->assertSee('Store Settings and Tax')
         ->assertNoJavaScriptErrors();
+
+    // A phone (frontend.md §2.1): the person's page, the list and the role editor fit, with nothing
+    // scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the person\'s page scrolls sideways');
+    $page->navigate('/admin/staff', BROWSER_PAGE_LOAD)->assertSee($name);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the staff list scrolls sideways');
+    $page->navigate("/admin/staff/{$staffId}/role", BROWSER_PAGE_LOAD)->assertSee('Change Role and Stores');
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the role editor scrolls sideways');
 });
 
 it('saves a role and its stores from the editor', function () {
@@ -275,4 +284,8 @@ it('walks the invitation through its three steps, sending nothing before the las
         ->assertNoJavaScriptErrors();
 
     expect(DB::table('access.staff_users')->where('email', $email)->exists())->toBeFalse();
+
+    // A phone (frontend.md §2.1): the steps' line and the step fit, with nothing scrolling sideways.
+    $page->resize(375, 812);
+    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
