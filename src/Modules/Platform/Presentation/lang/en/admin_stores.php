@@ -64,4 +64,26 @@ return [
     'turn_off_confirm' => 'The :name shop closes and the store disappears from every store list. Nothing is deleted.',
     'turned_on' => 'Store turned on',
     'turned_off' => 'Store turned off',
+
+    // A store's ship-to countries (platform.md §4.3, E1 addition).
+    'ships_to' => [
+        'title' => 'Ships To',
+        'own' => 'Own',
+        'own_hint' => 'A store always ships to its own country.',
+        'add' => 'Add Country',
+        'add_title' => 'Add a Country to :store',
+        'add_body' => 'Customers there can then order from this store, priced by its carriers.',
+        'pick_first' => 'Choose a country first.',
+        'search' => 'Search countries',
+        'no_match' => 'No countries match.',
+        'shipped_elsewhere' => 'Ships from ":store"',
+        'no_places' => 'No place list yet: add its places first',
+        'none_left' => 'Every country on the address list is already shipped to.',
+        'places_link' => 'Add places for :country',
+        'remove' => 'Remove',
+        'remove_title' => 'Remove :country',
+        'remove_body' => '":store" stops shipping to ":country". Saved addresses there stay. Until another store ships there, orders to ":country" are handled by staff: no carrier, the fee confirmed later, no online payment.',
+        'added' => 'Country added',
+        'removed' => 'Country removed',
+    ],
 ];

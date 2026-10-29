@@ -260,6 +260,8 @@ final class PlatformServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('platform', 'stores', 'store_settings', 'platform.admin.stores', PlatformPermissions::STORE_VIEW, 10, icon: 'stores'),
             new MenuEntryDto('platform', 'currencies', 'store_settings', 'platform.admin.currencies', PlatformPermissions::CURRENCY_UPDATE, 20, icon: 'billing'),
+            // After Currencies (platform.md §4.3; the owner, 2026-10-29, Q1): reserved, so Super Admins only.
+            new MenuEntryDto('platform', 'places', 'store_settings', 'platform.admin.places', PlatformPermissions::PLACES_MANAGE, 25, icon: 'places'),
             new MenuEntryDto('platform', 'settings', 'store_settings', 'platform.admin.settings', PlatformPermissions::SETTINGS_VIEW, 30, icon: 'dashboard'),
             new MenuEntryDto('platform', 'media', 'media', 'platform.admin.media', PlatformPermissions::MEDIA_UPLOAD, 10, icon: 'media'),
             new MenuEntryDto('platform', 'audit', 'audit', 'platform.admin.audit', PlatformPermissions::AUDIT_VIEW, 10, icon: 'audit'),

@@ -25,6 +25,7 @@ return [
     // screen reader.
     'more_actions' => 'More Actions',
     'breadcrumbs' => 'Breadcrumbs',
+    'breadcrumbs_more' => 'Earlier Steps',
     // The phone's sidebar, which shadcn names in English (frontend.md §1.11, edit 5).
     'sidebar' => 'Sidebar',
     'sidebar_description' => 'Displays the mobile sidebar.',

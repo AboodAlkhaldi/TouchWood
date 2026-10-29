@@ -6,6 +6,7 @@ declare(strict_types=1);
 return [
     'stores' => 'المتاجر',
     'currencies' => 'العملات',
+    'places' => 'الدول والأماكن',
     'settings' => 'الإعدادات',
     'media' => 'مكتبة الوسائط',
     'audit' => 'سجل التدقيق',
