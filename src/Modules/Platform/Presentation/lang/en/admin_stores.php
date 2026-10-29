@@ -85,5 +85,6 @@ return [
         'remove_body' => '":store" stops shipping to ":country". Saved addresses there stay. Until another store ships there, orders to ":country" are handled by staff: no carrier, the fee confirmed later, no online payment.',
         'added' => 'Country added',
         'removed' => 'Country removed',
+        'open_carriers' => 'Open the carriers of :country',
     ],
 ];

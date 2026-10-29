@@ -27,6 +27,7 @@ import {
     Tags,
     TicketPercent,
     TriangleAlert,
+    Truck,
     Users,
 } from 'lucide-react';
 
@@ -51,6 +52,8 @@ const ICONS = {
     marketing: Megaphone,
     // Sync's area and its screens (sync.md §4.1.2, platform.md §9.4).
     sync: RefreshCw,
+    // Shipping's area and its Carriers (shipping.md §4.1 part 1): one new icon, the one a carrier is.
+    shipping: Truck,
     staff_and_permissions: ShieldCheck,
     store_settings: SlidersHorizontal,
     system: Server,
@@ -85,6 +88,7 @@ const ICONS = {
     reasons: ListChecks,
     // Sales's Returns (sales.md §4.1): an icon the panel already draws.
     returns: RefreshCw,
+    carriers: Truck,
 } as const;
 
 type Props = {
