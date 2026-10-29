@@ -11,7 +11,7 @@ code is organised and why.
 in with a password and an SMS code, on a browser they may keep trusted for twelve hours; one role
 each, with the stores it reaches, and nobody grants more than they hold. A customer registers in a
 store and is signed in at once, verifies their email by link and their phone by code, keeps an
-address book in every country they order from, and may ask for the account to be deleted — which
+address book in every store they order from, and may ask for the account to be deleted — which
 locks it, signs them out everywhere, and anonymizes it fourteen days later unless they come back.
 Staff see the customers and the colleagues of their own stores, block, unblock, and delete on a
 customer's request. Every check is a declared permission, every change is audited, and a web request
@@ -111,7 +111,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | Folder | Contents |
 |---|---|
 | `Public/` | Contracts `PermissionCatalog`, `AccessApi`, `SecurityMessages`; DTOs `PermissionDefinitionDto`, `StaffDto`, `CustomerDto`, `StaffNotificationPreferenceDto`; enums `PermissionAudience`, `PermissionKind`, `AccessLevel`, `StaffStatus`, `CustomerStatus`, `AccountType`, `StaffNotificationTopic`; events `StaffActivated`, `StaffDisabled`, `CustomerRegistered`, `CustomerEmailVerified`, `CustomerPhoneVerified`, `GuestBecameCustomer`, `CustomerBlocked`, `CustomerUnblocked`, `CustomerDeletionScheduled`, `CustomerDeletionCancelled`, `CustomerAnonymized`; `AddressDto` for the addresses Sales and Shipping read.; `Contracts/GuestIdentity` — the guest this browser is (amendment 74) |
-| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`, `Address` (one customer, one store, never moved), `StoreAddressFormat` (a country's fields and how an address is printed). |
+| `Domain/Model` | `Role` (saved or personal, admin or staff level, at least one action), `RoleAssignment` (a staff member's one role, their store row, and each action's own stores), `StaffUser` (invited → active ⇄ disabled, or invited → cancelled; profile, phone, email, language, Super Admin, who invited them, session version), `Customer` (one account for every store: email, account type and home store fixed; verifications only move forward), `StaffInvitation`, `StaffEmailChange`, `PhoneCode`, `CustomerPhoneCode`, `StaffPasswordReset`, `CustomerPasswordReset`, `TrustedBrowser`, `Address` (one customer, one store, never moved), `AddressPlaces` (its country and the places picked, amendment 76), `StoreAddressFormat` (a country's fields and how an address is printed). |
 | `Domain/ValueObject` | `RoleName`, `StoreChoice` (all stores, or at least one chosen store), `RoleKind`, `RoleLevel`, `EmailAddress`, `PhoneNumber` (E.164, any country), `CountryCode` (the 249 ISO countries), `Language` (ar/en), `StaffProfile`, `PhoneCodePurpose`, `CustomerPhoneCodePurpose`, `AddressField`, `MapPin` (both coordinates or neither). |
 | `Domain/Exception` | `AccessError` and its subclasses, with messages in `Presentation/lang/{ar,en}/errors.php`. |
 | `Application/Permission` | `InMemoryPermissionCatalog` (declarations, renames, removals, checked at boot), `AccessPermissions` (Access's list, and which actions are admin-only), `InvalidPermissionDefinition` (a declaration that contradicts itself, refused at boot). |
@@ -518,11 +518,19 @@ sign in ───▶ email + password ──▶ signed in, in the store they sig
   or `SIGNED_IN`), with the guest id from the storefront's encrypted cookie; Sales moves or merges
   the cart. Access only reads that cookie.
 
-### Addresses: the country first, then that country's form
+### Addresses: the store's form, on Platform's places
 
-- **An address belongs to one store** — the country it is in — and never moves: an address in
-  another country is a new address there. A customer keeps one address book per store, at most ten
-  (a per-store setting), each with a label, a recipient, a phone and an optional map pin.
+- **An address belongs to the store it is saved in**, whatever its country (amendment 76), and never
+  moves to another store. A customer keeps one address book per store, at most ten (a per-store
+  setting), each with a label, a recipient, a phone and an optional map pin.
+- **Its country is one of Platform's address countries** (the store's own when none is given; an
+  edit given none keeps its own). A country **another store ships to is refused**, naming that store
+  (`AddressCountryServedByAnotherStore`; an off store's countries count too). Where Platform has a
+  place list for the country, **the region is picked, the city picked or typed as "Other", the
+  district picked or typed** (`AddressPlaceRules`); the ids are kept beside the text by value, and
+  the picked places' names fill `administrative_area`, `city` and `district` in the page's language,
+  which the address keeps. A place retired since stays while left as it was; a typed address in a
+  country that has a list since is incomplete. `AddressDto.formatted` ends with the country's name.
 - **Each store owns its form** (`access.store_address_formats`): the fields it asks for, their
   names in both languages, how long each may be, their order, and a display template. Changing one
   country's form leaves the others exactly as they were.

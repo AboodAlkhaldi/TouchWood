@@ -49,6 +49,9 @@ function staffViewAddress(string $customerId): void
         'phone' => '+966501234567',
         'fields' => json_encode(['city' => 'Riyadh']),
         'is_default' => true,
+        // Every address has its country and the language it was saved in (access.md amendment 76).
+        'country_code' => 'SA',
+        'language' => 'ar',
         'created_at' => now(),
         'updated_at' => now(),
     ]);

@@ -97,6 +97,7 @@ return [
         'LOW_STOCK' => 'Low Stock',
         'CAMPAIGN_EXPIRY' => 'Campaigns About to End',
         'SYNC_PROBLEMS' => 'Sync Problems',
+        'PAYMENT_PROBLEMS' => 'Payment Problems',
     ],
 
     /*

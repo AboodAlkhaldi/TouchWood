@@ -112,6 +112,9 @@ describe('a customer\'s addresses (spec §1.9)', function () {
             'fields' => 'changed',
             // Where someone lives is personal too: only "changed" (review of step 7).
             'map_pin' => 'changed',
+            // And which country and places (amendment 76).
+            'country' => 'changed',
+            'places' => 'changed',
             'is_default' => [null, true],
         ]);
     });
@@ -292,7 +295,8 @@ describe('the addresses other modules read (spec §2.1)', function () {
             ->and($addresses[0]->isDefault)->toBeTrue()
             ->and($addresses[0]->isComplete)->toBeTrue()
             ->and($addresses[0]->latitude)->toBe(24.713612)
-            ->and($addresses[0]->formatted)->toBe("7 King Fahd Road\nAl Olaya\nRiyadh\nRiyadh")
+            // The country's name last, in the language it was saved in (step 2 Q1; Arabic by default).
+            ->and($addresses[0]->formatted)->toBe("7 King Fahd Road\nAl Olaya\nRiyadh\nRiyadh\n".Locale::getDisplayRegion('-SA', 'ar'))
             ->and($addresses[1]->isDefault)->toBeFalse();
     });
 
@@ -311,7 +315,7 @@ describe('the addresses other modules read (spec §2.1)', function () {
 
         expect($address?->isComplete)->toBeFalse()
             ->and($address?->fields)->toBe(addressBookFields())
-            ->and($address?->formatted)->toBe('King Fahd Road');
+            ->and($address?->formatted)->toBe("King Fahd Road\n".Locale::getDisplayRegion('-SA', 'ar'));
     });
 
     it('keeps a second country\'s address for the next order there', function () {

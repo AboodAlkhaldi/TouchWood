@@ -10,8 +10,8 @@ use Modules\Access\Domain\ValueObject\PhoneNumber;
 
 /**
  * Where a customer's order goes (spec §1.9). An address belongs to one customer and one store — the
- * store of the country it is in — and never moves to another: an address in one country cannot
- * become an address in another by being edited. Its values are checked against that store's format
+ * store it was saved in, whatever its country (amendment 76(a)) — and never moves to another store.
+ * Its country and places are AddressPlaces. Its values are checked against that store's format
  * before they are ever set (StoreAddressFormat).
  *
  * Every field is personal data: the audit log keeps only that it changed (spec §3.3).
@@ -38,6 +38,7 @@ final class Address
         private array $fields,
         private ?MapPin $pin,
         private bool $isDefault,
+        private AddressPlaces $places,
     ) {}
 
     /**
@@ -55,12 +56,13 @@ final class Address
         array $fields,
         ?MapPin $pin,
         bool $isDefault,
+        AddressPlaces $places,
     ): self {
         return new self(
             $id, $customerId, $storeId,
             self::text('label', $label, self::LABEL_MAX),
             self::text('recipient_name', $recipientName, self::RECIPIENT_MAX),
-            $phone, $fields, $pin, $isDefault,
+            $phone, $fields, $pin, $isDefault, $places,
         );
     }
 
@@ -77,19 +79,20 @@ final class Address
         array $fields,
         ?MapPin $pin,
         bool $isDefault,
+        AddressPlaces $places,
     ): self {
-        return new self($id, $customerId, $storeId, $label, $recipientName, $phone, $fields, $pin, $isDefault);
+        return new self($id, $customerId, $storeId, $label, $recipientName, $phone, $fields, $pin, $isDefault, $places);
     }
 
     /**
-     * Everything the customer may change. The store never changes: an address in another country is
-     * a new address there (spec §1.9).
+     * Everything the customer may change, its country and places included. The store never changes
+     * (amendment 76(a)).
      *
      * @param  array<string, string>  $fields  already accepted by the store's format
      *
      * @throws InvalidAddress
      */
-    public function change(string $label, string $recipientName, PhoneNumber $phone, array $fields, ?MapPin $pin): void
+    public function change(string $label, string $recipientName, PhoneNumber $phone, array $fields, ?MapPin $pin, AddressPlaces $places): void
     {
         $label = self::text('label', $label, self::LABEL_MAX);
         $recipientName = self::text('recipient_name', $recipientName, self::RECIPIENT_MAX);
@@ -118,6 +121,16 @@ final class Address
             $this->pin = $pin;
             $this->markChanged('map_pin');
         }
+
+        if ($places->countryCode !== $this->places->countryCode) {
+            $this->markChanged('country');
+        }
+
+        if (! $places->samePlacesAs($this->places)) {
+            $this->markChanged('places');
+        }
+
+        $this->places = $places;
     }
 
     public function makeDefault(): void
@@ -176,6 +189,11 @@ final class Address
     public function isDefault(): bool
     {
         return $this->isDefault;
+    }
+
+    public function places(): AddressPlaces
+    {
+        return $this->places;
     }
 
     public function belongsTo(string $customerId): bool

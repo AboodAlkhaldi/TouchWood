@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Access\Domain\Model\Address;
+use Modules\Access\Domain\Model\AddressPlaces;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\ValueObject\MapPin;
 use Modules\Access\Domain\ValueObject\PhoneNumber;
@@ -166,6 +167,11 @@ final readonly class DatabaseAddressRepository implements AddressRepository
             'latitude' => $address->pin()?->latitude,
             'longitude' => $address->pin()?->longitude,
             'is_default' => $address->isDefault(),
+            'country_code' => $address->places()->countryCode,
+            'region_id' => $address->places()->regionId,
+            'city_id' => $address->places()->cityId,
+            'district_id' => $address->places()->districtId,
+            'language' => $address->places()->language,
         ];
     }
 
@@ -187,6 +193,13 @@ final readonly class DatabaseAddressRepository implements AddressRepository
                 $row->longitude === null ? null : (float) $row->longitude,
             ),
             (bool) $row->is_default,
+            AddressPlaces::reconstitute(
+                (string) $row->country_code,
+                $row->region_id === null ? null : (string) $row->region_id,
+                $row->city_id === null ? null : (string) $row->city_id,
+                $row->district_id === null ? null : (string) $row->district_id,
+                (string) $row->language,
+            ),
         );
     }
 }

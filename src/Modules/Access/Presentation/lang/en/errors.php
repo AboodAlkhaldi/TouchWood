@@ -24,6 +24,10 @@ return [
         'title' => 'Nothing to Change',
         'detail' => 'Couldn\'t make that change: this account\'s state doesn\'t allow it. Reload the page.',
     ],
+    'address_country_served_by_another_store' => [
+        'title' => 'Served by Another Store',
+        'detail' => 'Couldn\'t save the address: addresses in this country are served by our :store_en store. Order from there.',
+    ],
     'too_many_addresses' => [
         'title' => 'Address Book Full',
         'detail' => 'Couldn\'t add the address: you can keep :limit in this store. Delete one to add another.',

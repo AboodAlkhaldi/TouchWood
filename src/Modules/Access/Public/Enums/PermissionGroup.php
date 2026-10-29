@@ -40,6 +40,12 @@ enum PermissionGroup: string
     /** For Sales, still to be built (handoff §14 and the design's own grouping). */
     case Orders = 'orders';
 
+    /** Shipping's jobs: carriers, prices, free shipping, boxes (shipping.md §3, access.md amendment 77); after Orders (owner, 2026-10-29, step 2 Q4). */
+    case Shipping = 'shipping';
+
+    /** Payments' jobs: the bank account, releasing an attempt (payments.md §3, access.md amendment 78). */
+    case Payments = 'payments';
+
     /** B2B's staff jobs (b2b.md amendment 10). */
     case Companies = 'companies';
 
