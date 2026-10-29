@@ -61,6 +61,9 @@ enum PermissionGroup: string
     /** Feedback's staff jobs: reviews, product questions, the ratings switch (feedback.md §3, access.md amendment 73). */
     case Support = 'support';
 
+    /** Ops' jobs: messages to customers, offer notices, newsletter subscribers, the reports (ops.md §3, access.md amendment 86). */
+    case MessagesAndReports = 'messages_and_reports';
+
     public function labelKey(): string
     {
         return "access::permission_groups.{$this->value}";
