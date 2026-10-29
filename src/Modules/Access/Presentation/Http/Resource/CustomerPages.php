@@ -132,7 +132,6 @@ final readonly class CustomerPages
             $address->id,
             $address->label,
             $address->recipientName,
-            $address->phone,
             $address->fields,
             $address->formatted,
             $address->isDefault,

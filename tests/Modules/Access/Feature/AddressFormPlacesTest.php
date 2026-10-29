@@ -109,7 +109,6 @@ function addressFormSent(array $extra = []): array
         'store_id' => Fx::storeId('sa'),
         'label' => 'Home',
         'recipient_name' => 'Sara Ali',
-        'phone' => '+966512345678',
         'fields' => ['street' => 'King Fahd Road', 'building' => '7'],
         ...$extra,
     ];

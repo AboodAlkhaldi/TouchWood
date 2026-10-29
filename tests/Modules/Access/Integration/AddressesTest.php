@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Access\Application\Address\GiveEveryStoreAnAddressFormat;
 use Modules\Access\Application\Address\StartingAddressFormat;
 use Modules\Access\Application\Command\DeleteAddress\DeleteAddress;
@@ -51,7 +52,6 @@ function saveAddress(array $overrides = []): string
         storeId: $overrides['storeId'] ?? Fx::storeId('sa'),
         label: $overrides['label'] ?? 'Home',
         recipientName: $overrides['recipientName'] ?? 'Sara Ali',
-        phone: $overrides['phone'] ?? '+966501234567',
         fields: $overrides['fields'] ?? addressBookFields(),
         latitude: $overrides['latitude'] ?? null,
         longitude: $overrides['longitude'] ?? null,
@@ -129,6 +129,17 @@ describe('a customer\'s addresses (spec §1.9)', function () {
             ->and(Fx::audits('access.customer.address_added', $customerId))->toBe(1);
     });
 
+    it('saves an address with no phone of its own, before the account has a verified phone (amendment 89)', function () {
+        $customerId = Fx::customer();
+        Fx::actAsCustomer($customerId);
+
+        $addressId = saveAddress();
+
+        expect(DB::table('access.customers')->where('id', $customerId)->value('phone_verified_at'))->toBeNull()
+            ->and(Schema::hasColumn('access.addresses', 'phone'))->toBeFalse()
+            ->and(addressRow($addressId))->not->toBeNull();
+    });
+
     it('keeps every address field out of the audit log', function () {
         $customerId = Fx::customer();
         Fx::actAsCustomer($customerId);
@@ -140,7 +151,6 @@ describe('a customer\'s addresses (spec §1.9)', function () {
         expect($changes)->toEqualCanonicalizing([
             'label' => 'changed',
             'recipient_name' => 'changed',
-            'phone' => 'changed',
             'fields' => 'changed',
             // Where someone lives is personal too: only "changed" (review of step 7).
             'map_pin' => 'changed',

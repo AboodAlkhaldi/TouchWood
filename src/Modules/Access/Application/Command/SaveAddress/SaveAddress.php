@@ -26,7 +26,6 @@ final readonly class SaveAddress
         public string $storeId,
         public string $label,
         public string $recipientName,
-        public string $phone,
         public array $fields,
         public ?float $latitude = null,
         public ?float $longitude = null,

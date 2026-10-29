@@ -94,7 +94,6 @@ final class B2BFixtures
                 storeId: Fx::storeId($storeCode),
                 label: $label,
                 recipientName: 'Sara Ali',
-                phone: '+966501234567',
                 fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => $street, 'building' => '7'],
                 latitude: null,
                 longitude: null,

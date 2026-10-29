@@ -6,7 +6,6 @@ namespace Modules\Access\Domain\Model;
 
 use Modules\Access\Domain\Exception\InvalidAddress;
 use Modules\Access\Domain\ValueObject\MapPin;
-use Modules\Access\Domain\ValueObject\PhoneNumber;
 
 /**
  * Where a customer's order goes (spec §1.9). An address belongs to one customer and one store — the
@@ -34,7 +33,6 @@ final class Address
         private readonly string $storeId,
         private string $label,
         private string $recipientName,
-        private PhoneNumber $phone,
         private array $fields,
         private ?MapPin $pin,
         private bool $isDefault,
@@ -52,7 +50,6 @@ final class Address
         string $storeId,
         string $label,
         string $recipientName,
-        PhoneNumber $phone,
         array $fields,
         ?MapPin $pin,
         bool $isDefault,
@@ -62,7 +59,7 @@ final class Address
             $id, $customerId, $storeId,
             self::text('label', $label, self::LABEL_MAX),
             self::text('recipient_name', $recipientName, self::RECIPIENT_MAX),
-            $phone, $fields, $pin, $isDefault, $places,
+            $fields, $pin, $isDefault, $places,
         );
     }
 
@@ -75,13 +72,12 @@ final class Address
         string $storeId,
         string $label,
         string $recipientName,
-        PhoneNumber $phone,
         array $fields,
         ?MapPin $pin,
         bool $isDefault,
         AddressPlaces $places,
     ): self {
-        return new self($id, $customerId, $storeId, $label, $recipientName, $phone, $fields, $pin, $isDefault, $places);
+        return new self($id, $customerId, $storeId, $label, $recipientName, $fields, $pin, $isDefault, $places);
     }
 
     /**
@@ -92,7 +88,7 @@ final class Address
      *
      * @throws InvalidAddress
      */
-    public function change(string $label, string $recipientName, PhoneNumber $phone, array $fields, ?MapPin $pin, AddressPlaces $places): void
+    public function change(string $label, string $recipientName, array $fields, ?MapPin $pin, AddressPlaces $places): void
     {
         $label = self::text('label', $label, self::LABEL_MAX);
         $recipientName = self::text('recipient_name', $recipientName, self::RECIPIENT_MAX);
@@ -105,11 +101,6 @@ final class Address
         if ($recipientName !== $this->recipientName) {
             $this->recipientName = $recipientName;
             $this->markChanged('recipient_name');
-        }
-
-        if ($phone->value !== $this->phone->value) {
-            $this->phone = $phone;
-            $this->markChanged('phone');
         }
 
         if ($fields !== $this->fields) {
@@ -166,11 +157,6 @@ final class Address
     public function recipientName(): string
     {
         return $this->recipientName;
-    }
-
-    public function phone(): PhoneNumber
-    {
-        return $this->phone;
     }
 
     /**

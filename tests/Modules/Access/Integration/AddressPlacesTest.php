@@ -67,7 +67,6 @@ function addressPlacesSave(array $with = []): string
         storeId: $with['storeId'] ?? Fx::storeId('sa'),
         label: 'Home',
         recipientName: 'Sara Ali',
-        phone: '+966501234567',
         fields: $with['fields'] ?? ['administrative_area' => 'typed', 'city' => 'typed', 'district' => 'typed', 'street' => 'King Fahd Road', 'building' => '7'],
         addressId: $with['addressId'] ?? null,
         countryCode: $with['country'] ?? null,

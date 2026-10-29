@@ -147,8 +147,6 @@ return [
     'address_label' => 'اسم له',
     'address_label_hint' => 'لك وحدك، مثل المنزل أو العمل.',
     'recipient_name' => 'من يستلمه',
-    'address_phone' => 'جوال للتوصيل',
-    'address_phone_hint' => 'مع رمز الدولة، مثل ‎+966501234567.',
     'default_address' => 'وصّل هنا افتراضيًا',
     'is_default' => 'العنوان المعتاد',
     'make_default' => 'تعيين العنوان المعتاد',

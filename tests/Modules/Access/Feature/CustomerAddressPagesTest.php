@@ -63,7 +63,6 @@ function addressForm(string $storeId, array $extra = []): array
         'store_id' => $storeId,
         'label' => 'Home',
         'recipient_name' => 'Sara Ali',
-        'phone' => '+966512345678',
         'fields' => [
             'administrative_area' => 'Riyadh Region',
             'city' => 'Riyadh',

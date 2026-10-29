@@ -69,7 +69,6 @@ final readonly class AddressMapper
             $address->storeId(),
             $address->label(),
             $address->recipientName(),
-            $address->phone()->value,
             $fields,
             $address->pin()?->latitude,
             $address->pin()?->longitude,

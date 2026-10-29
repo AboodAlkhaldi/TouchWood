@@ -149,8 +149,6 @@ return [
     'address_label' => 'Address Name',
     'address_label_hint' => 'For you alone, such as Home or Work.',
     'recipient_name' => 'Recipient Name',
-    'address_phone' => 'Delivery Phone',
-    'address_phone_hint' => 'With its country code, such as +966501234567.',
     'default_address' => 'Deliver Here by Default',
     'is_default' => 'Usual Address',
     'make_default' => 'Set as Usual Address',

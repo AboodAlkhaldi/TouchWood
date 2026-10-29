@@ -26,7 +26,6 @@ final class CustomerAddressRequest extends AccessFormRequest
             'address_id' => ['nullable', 'string', 'max:64'],
             'label' => ['required', 'string', 'max:50'],
             'recipient_name' => ['required', 'string', 'max:100'],
-            'phone' => ['required', 'string', 'max:32'],
             'is_default' => ['sometimes', 'boolean'],
             // The country and the places picked (amendment 76(d), (e)): empty where typed. Their
             // rules are Access's; these only bound what may arrive.

@@ -159,7 +159,6 @@ final readonly class CustomerOwnAccountController
                 storeId: $request->text('store_id'),
                 label: $request->text('label'),
                 recipientName: $request->text('recipient_name'),
-                phone: $request->text('phone'),
                 fields: $request->fields(),
                 // The map pin stays empty in this stage: no map provider is chosen, and a pin
                 // half-filled is worse than none (frontend.md §3.6, decided 2026-09-19).
@@ -327,7 +326,6 @@ final readonly class CustomerOwnAccountController
                     $address->id,
                     $address->label,
                     $address->recipientName,
-                    $address->phone,
                     $address->fields,
                     $address->formatted,
                     $address->isDefault,
