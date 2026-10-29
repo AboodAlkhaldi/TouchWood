@@ -75,7 +75,7 @@ it('opens the shop from the panel as the staff member, and goes back', function 
         ->assertPresent('[data-test="staff-view-panel"]')
         ->assertPresent('[data-test="staff-view-leave"]')
         ->assertMissing('[data-test="my-account"]');
-    expect($page->script("document.querySelector('[role=\"menu\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the staff view\'s menu is wider than the screen');
+    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"menu\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the staff view\'s menu is wider than the screen');
 
     $page->click('[data-test="staff-view-leave"]');
     expect(browserUntil($page, "document.querySelector('[data-test=\"staff-view-line\"]') === null"))->toBeTrue();

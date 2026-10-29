@@ -84,9 +84,10 @@ it('fits the sign-in, the code, the forgotten-password and the reset pages on a 
     $email = (string) DB::table('access.staff_users')->where('id', Fx::staff())->value('email');
     $wide = 'document.documentElement.scrollWidth <= window.innerWidth';
 
+    // Each page measured once React has drawn it: an empty page fits anything.
     $page = visit('/admin/sign-in');
     $page->resize(375, 812);
-    expect($page->script($wide))->toBeTrue('the sign-in page scrolls sideways');
+    expect(browserUntil($page, "document.querySelector('#email') !== null && {$wide}"))->toBeTrue('the sign-in page scrolls sideways');
     $page->resize(1280, 800);
 
     $page->type('#email', $email)
@@ -94,11 +95,11 @@ it('fits the sign-in, the code, the forgotten-password and the reset pages on a 
         ->click('button[type="submit"]')
         ->assertPathIs('/admin/sign-in/code');
     $page->resize(375, 812);
-    expect($page->script($wide))->toBeTrue('the code page scrolls sideways');
+    expect(browserUntil($page, "document.querySelector('input[autocomplete=\"one-time-code\"]') !== null && {$wide}"))->toBeTrue('the code page scrolls sideways');
 
     foreach (['/admin/password/forgot', '/admin/password/reset/a-token-this-page-never-reads'] as $address) {
-        $page->navigate($address, BROWSER_PAGE_LOAD)->assertPresent('button[type="submit"]');
-        expect($page->script($wide))->toBeTrue("{$address} scrolls sideways");
+        $page->navigate($address, BROWSER_PAGE_LOAD);
+        expect(browserUntil($page, "document.querySelector('button[type=\"submit\"]') !== null && {$wide}"))->toBeTrue("{$address} scrolls sideways");
     }
 
     $page->assertNoJavaScriptErrors();

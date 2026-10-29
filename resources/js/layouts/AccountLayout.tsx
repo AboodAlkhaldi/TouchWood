@@ -45,7 +45,7 @@ type Props = {
 };
 
 /** A link in the list, drawn as the line tabs under it are: muted, the current one in ink with its bar. */
-export function accountLinkClass(current: boolean): string {
+function accountLinkClass(current: boolean): string {
     return cn(
         'relative flex h-9 w-full items-center rounded-md px-2 text-label-14 font-medium transition-colors',
         'after:absolute after:inset-y-0 after:-end-1 after:w-0.5 after:bg-ink',

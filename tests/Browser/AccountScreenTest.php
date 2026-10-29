@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Pest\Browser\Api\PendingAwaitablePage;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -127,17 +128,26 @@ it('fits every tab on a phone, right to left, with nothing scrolling sideways', 
     $page->resize(375, 812);
 
     foreach (['account', 'security', 'sessions', 'notifications'] as $tab) {
-        $page->navigate("/admin/account?tab={$tab}", BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"tab-{$tab}\"][data-state=\"active\"]");
-        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("the {$tab} tab scrolls sideways");
+        $page->navigate("/admin/account?tab={$tab}", BROWSER_PAGE_LOAD);
+        expect(browserUntil($page, "document.querySelector('[data-test=\"tab-{$tab}\"][data-state=\"active\"]') !== null && document.documentElement.scrollWidth <= window.innerWidth"))->toBeTrue("the {$tab} tab scrolls sideways");
     }
 
-    // Change Work Email goes under the address on a phone (owner, 2026-10-29): within the screen, below it.
+    // Change Work Email goes under the address on a phone (owner, 2026-10-29): within the screen, below it,
+    // with an address longer than the card is wide - the case the phone audit found - wrapped inside it.
     $page->navigate('/admin/account', BROWSER_PAGE_LOAD);
-    expect($page->script(<<<'JS'
+    $shownEmail = "document.querySelector('[data-test=\"open-email-dialog\"]')?.closest('[data-slot=\"card-header\"]')?.querySelector('bdi')?.textContent";
+    expect(browserUntil($page, "({$shownEmail} ?? '') !== ''"))->toBeTrue();
+    $long = 'a.very.long.work.address.'.strtolower(Str::random(10)).'@touchwood-trading-company.example.test';
+    expect(DB::table('access.staff_users')->where('email', (string) $page->script($shownEmail))->update(['email' => $long]))->toBe(1);
+    $page->navigate('/admin/account', BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, <<<JS
         (() => {
-            const button = document.querySelector('[data-test="open-email-dialog"]').getBoundingClientRect();
-            const address = document.querySelector('[data-test="open-email-dialog"]').closest('[data-slot="card-header"]').querySelector('[data-slot="card-description"]').getBoundingClientRect();
-            return button.left >= 0 && button.right <= window.innerWidth && button.top >= address.bottom;
+            const button = document.querySelector('[data-test="open-email-dialog"]');
+            const address = button?.closest('[data-slot="card-header"]')?.querySelector('[data-slot="card-description"]');
+            if (!button || !address || !address.textContent.includes('{$long}')) return false;
+            const b = button.getBoundingClientRect(), a = address.getBoundingClientRect();
+            return b.left >= 0 && b.right <= window.innerWidth && b.top >= a.bottom && a.right <= window.innerWidth
+                && document.documentElement.scrollWidth <= window.innerWidth;
         })()
         JS))->toBeTrue('Change Work Email is not under the address within the screen');
 

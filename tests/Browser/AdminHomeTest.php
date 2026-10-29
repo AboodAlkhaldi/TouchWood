@@ -78,7 +78,8 @@ it('opens a Super Admin\'s home on All Stores with the cards, switches to one st
     $page->resize(375, 812);
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the home scrolls sideways');
     $page->click('[data-sidebar="trigger"]');
-    expect(browserUntil($page, "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')?.getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the slide-in menu does not open within the screen');
+    // Both edges: on its first frame it is still off the screen's start, right edge near 0.
+    expect(browserUntil($page, "(() => { const menu = document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')?.getBoundingClientRect(); return menu !== undefined && menu.left >= 0 && menu.right <= window.innerWidth; })()"))->toBeTrue('the slide-in menu does not open within the screen');
     $page->keys('[data-sidebar="sidebar"][data-mobile="true"]', 'Escape');
     expect(browserUntil($page, "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]') === null"))->toBeTrue();
     $page->resize(1280, 800);

@@ -211,9 +211,10 @@ it('turns the sidebar into the slide-in menu on a phone, opens a screen from it,
     $page->resize(375, 812);
     $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
 
-    // No sidebar beside the page: the menu is shut until its trigger is pressed.
+    // No sidebar beside the page, once React has drawn it: the menu is shut until its trigger is pressed.
     $menu = "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')";
-    expect($page->script("{$menu} === null"))->toBeTrue()
+    expect(browserUntil($page, "document.querySelector('[data-sidebar=\"trigger\"]') !== null && document.querySelector('h1') !== null"))->toBeTrue()
+        ->and($page->script("{$menu} === null"))->toBeTrue()
         ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
 
     $page->click('[data-sidebar="trigger"]');
@@ -228,7 +229,7 @@ it('turns the sidebar into the slide-in menu on a phone, opens a screen from it,
 
     // View Store's menu of stores fits the screen too.
     $page->click('[data-test="view-store"]')->assertVisible('[data-test="view-store-ae"]');
-    expect($page->script("document.querySelector('[role=\"menu\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('View Store\'s menu is wider than the screen');
+    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"menu\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('View Store\'s menu is wider than the screen');
     $page->assertNoJavaScriptErrors();
 });
 

@@ -185,7 +185,9 @@ it('lets somebody narrow the permissions table by area, and hide the roles they 
         ->click('button[type="submit"]');
 
     expect(signedInToPanel($page))->toBeTrue();
-    $page->navigate('/admin/roles');
+    // Five seconds to load, not the plugin's one: a slow load was asked for twice and the two collided
+    // (lesson 166; seen here in the phone audit's second suite run, 2026-10-29).
+    $page->navigate('/admin/roles', BROWSER_PAGE_LOAD);
 
     $page->assertSee('Permissions by Role')->assertNoJavaScriptErrors();
 

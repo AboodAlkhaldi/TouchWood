@@ -303,7 +303,7 @@ it('adds an offer through its dialog - product, sizes, date and time, the note -
     $page->resize(375, 812);
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the offers scroll sideways');
     $page->click('[data-test="add-offer"]');
-    expect(browserSoon($page, "document.querySelector('[role=\"dialog\"]')?.getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the Add Offer dialog is wider than the screen');
+    expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"dialog\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the Add Offer dialog is wider than the screen');
 });
 
 it('removes a scheduled offer, focus going to the next offer\'s menu, else to Add Offer', function () {
@@ -374,10 +374,10 @@ it('adds a category discount with its live preview, and opens the discount\'s pa
     $page->resize(375, 812);
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the discount\'s page scrolls sideways');
     // The state switch in words, not its keys (they were sent without them until the phone audit, 2026-10-29).
-    $page->navigate('/admin/category-discounts', BROWSER_SLOW_PAGE_LOAD)
-        ->assertSeeIn('[data-test="discounts-state"]', 'Running')
-        ->assertDontSeeIn('[data-test="discounts-state"]', 'pricing::');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the discounts scroll sideways');
+    $page->navigate('/admin/category-discounts', BROWSER_SLOW_PAGE_LOAD);
+    $state = "document.querySelector('[data-test=\"discounts-state\"]')?.textContent ?? ''";
+    expect(browserSoon($page, "({$state}).includes('Running') && !({$state}).includes('pricing::')"))->toBeTrue('the state switch shows no words')
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the discounts scroll sideways');
 });
 
 it('adds a band in the bands dialog, and removes it', function () {
@@ -409,7 +409,7 @@ it('adds a band in the bands dialog, and removes it', function () {
     // A phone (frontend.md §2.1): the open bands dialog fits the screen, with nothing scrolling sideways.
     $page->resize(375, 812);
     expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Wholesale Prices scrolls sideways')
-        ->and($page->script("document.querySelector('[role=\"dialog\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the bands dialog is wider than the screen');
+        ->and(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"dialog\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the bands dialog is wider than the screen');
     $page->resize(1280, 800);
 
     $page->click('[data-test="band-1-remove"]')->click('[data-test="confirm-bands"]');
