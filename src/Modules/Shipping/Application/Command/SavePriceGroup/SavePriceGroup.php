@@ -9,7 +9,9 @@ namespace Modules\Shipping\Application\Command\SavePriceGroup;
  * amount, and exactly these places. A place already in another group of the carrier is refused unless
  * it is among the moves ("Move here"), which take it out of there in the same save. `allUnpriced` adds
  * the country's "Select all": every city not yet priced in the carrier, nor under a priced region - or,
- * where the country has no city, every region not yet priced (owner, 2026-10-29, gap 4.2).
+ * where the country has no city, every region not yet priced (owner, 2026-10-29, gap 4.2) - added to the
+ * places sent, so a group saved with Select all sends its own places too. `seenVersion` is the version
+ * the page read (`ListPriceGroups`): another save since is refused with PricesChanged.
  */
 final readonly class SavePriceGroup
 {
@@ -23,6 +25,7 @@ final readonly class SavePriceGroup
         public ?string $groupId,
         public int $amountMinor,
         public array $placeIds,
+        public string $seenVersion,
         public array $moveIds = [],
         public bool $allUnpriced = false,
     ) {}

@@ -37,6 +37,10 @@ return [
         'title' => 'Amount Already Used',
         'detail' => 'This carrier already has a :amount price. Add the places there.',
     ],
+    'prices_changed' => [
+        'title' => 'Prices Changed',
+        'detail' => 'Someone else changed this carrier\'s prices meanwhile. Reload the page and try again.',
+    ],
     'place_not_in_country' => [
         'title' => 'Place Not Available',
         'detail' => 'One of the places isn\'t in use in this carrier\'s country. Reload the page and choose again.',

@@ -65,18 +65,20 @@ final readonly class ShippingApiImpl implements ShippingApi
             }
         }
 
-        if ($best === []) {
-            return new ShippingQuoteDto(ShippingCoverage::NotCovered);
-        }
-
-        $storeWide = $this->platform->setting(ShippingSettings::FREE_ABOVE_ALL, $store)->int();
         $carriers = [];
 
-        foreach ($this->carriers->inStore($store->value) as $carrier) {
+        foreach ($best === [] ? [] : $this->carriers->inStore($store->value) as $carrier) {
             if (isset($best[$carrier->id]) && $carrier->isActive()) {
                 $carriers[] = $carrier;
             }
         }
+
+        // Decided on the carriers read last: one switched off between the two reads is in neither.
+        if ($carriers === []) {
+            return new ShippingQuoteDto(ShippingCoverage::NotCovered);
+        }
+
+        $storeWide = $this->platform->setting(ShippingSettings::FREE_ABOVE_ALL, $store)->int();
 
         $logos = $this->logos($carriers);
         $options = [];

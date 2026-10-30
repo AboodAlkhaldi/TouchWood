@@ -15,8 +15,8 @@ use Shared\Domain\ValueObject\Money;
 /**
  * A change of a carrier's prices, audited on the carrier (shipping.md §1.4: who, which carrier, which
  * places, from what amount to what): one attribute per amount that changed - "price 20.00" - from the
- * places it had to the places it has, named in English, the first 30 and how many more. A group whose
- * amount changed reads as one amount emptied and another filled.
+ * places that left it to the places that came, named in English, the first 30 and how many more. A
+ * group whose amount changed reads as its places leaving one amount and coming to another.
  */
 final class PriceAudit
 {
@@ -43,10 +43,14 @@ final class PriceAudit
             return [];
         }
 
+        $left = [];
+        $came = [];
         $ids = [];
 
         foreach ($changed as $amount) {
-            array_push($ids, ...($was[$amount] ?? []), ...($now[$amount] ?? []));
+            $left[$amount] = array_values(array_diff($was[$amount] ?? [], $now[$amount] ?? []));
+            $came[$amount] = array_values(array_diff($now[$amount] ?? [], $was[$amount] ?? []));
+            array_push($ids, ...$left[$amount], ...$came[$amount]);
         }
 
         $names = [];
@@ -60,8 +64,8 @@ final class PriceAudit
 
         foreach ($changed as $amount) {
             $key = 'price '.Money::of($amount, $store->currencyCode)->format($store->currencyExponent);
-            $from[$key] = self::named($was[$amount] ?? [], $names);
-            $to[$key] = self::named($now[$amount] ?? [], $names);
+            $from[$key] = self::named($left[$amount], $names);
+            $to[$key] = self::named($came[$amount], $names);
         }
 
         return [ShippingAudit::entry('carrier', 'prices_changed', $carrier->id, $store->id, $from, $to)];

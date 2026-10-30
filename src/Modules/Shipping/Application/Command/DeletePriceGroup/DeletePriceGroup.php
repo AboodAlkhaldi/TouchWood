@@ -14,5 +14,6 @@ final readonly class DeletePriceGroup
         public string $storeId,
         public string $carrierId,
         public string $groupId,
+        public string $seenVersion,
     ) {}
 }

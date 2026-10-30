@@ -145,9 +145,9 @@ The rules, checked on every save:
   It may stay in the group that has it when that group is saved again; it cannot be added anew.
 - A group with no places left is deleted.
 - **One save at a time per carrier**: every change of a carrier's prices locks the carrier first, so two
-  staff saving at once never break rules 3 and 4 between them; the second is told to reload.
+  staff saving at once never break rules 3 and 4 between them; the second is told to reload: a save or a delete sends back the version of the carrier's prices it read (`ListPriceGroups`), and is refused with `PricesChanged` when another came first.
 - Every change is **audited** on the carrier (`shipping.carrier.prices_changed`): who, which carrier, and
-  for each amount that changed ("price 20.00") the places it had and has, named in English — the first
+  for each amount that changed ("price 20.00") the places that left it and the places that came, named in English — the first
   30 and how many more.
 
 **The fee for an address** in one carrier: the district's own price if it has one, otherwise its city's,
@@ -347,6 +347,7 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | `PlaceAlreadyPriced` | CONFLICT | A place already in another group of this carrier (§1.4) — names the place and its amount |
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
 | `PriceGroupNotFound` | NOT_FOUND | A price group that is not there, or another carrier's (step 4) |
+| `PricesChanged` | CONFLICT | The carrier's prices changed since the page read them — reload (§1.4, §8 #3; step 4) |
 | `PlaceNotInCountry` | INVALID | A place that is not Platform's, not in the carrier's country, or retired and not already in that group (§1.4) |
 | `InvalidShippingInput` | INVALID | A field out of range — named by its field and rule (`tracking_pattern_number`, `https`, …) |
 
@@ -511,3 +512,4 @@ noted), and the small picks the owner left to me ("simple — handle it with rec
 8. Mine: the menu's count is kept per store and counted again after each change and every ten minutes
    (§1.6); the list itself is live.
 9. Mine: the price changes are audited on the carrier, one attribute per amount that changed (§1.4).
+10. Mine (the review): a save or delete carries the version it read and a later one is refused (`PricesChanged`), as §1.4 says ("the second is told to reload"); Select all leaves out the cities under a region picked in the same save; a place already in the group a changed one merges into is not refused.

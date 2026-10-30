@@ -31,6 +31,20 @@ final class PriceGroup
         return new self($id, $carrierId, $storeId, $amountMinor, self::sorted($placeIds));
     }
 
+    /**
+     * The version of a carrier's prices: changes whenever any group's amount or places change, so a page
+     * that read an older one is told to reload (§1.4, §8 #3).
+     *
+     * @param  list<self>  $groups
+     */
+    public static function versionOf(array $groups): string
+    {
+        $lines = array_map(static fn (self $group): string => $group->amountMinor.':'.implode(',', $group->placeIds), $groups);
+        sort($lines);
+
+        return sha1(implode("\n", $lines));
+    }
+
     public function amountMinor(): int
     {
         return $this->amountMinor;

@@ -11,6 +11,7 @@ use Modules\Shipping\Application\Query\PlaceRow;
 use Modules\Shipping\Application\ShippingPermissions;
 use Modules\Shipping\Domain\Exception\CarrierNotFound;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
+use Modules\Shipping\Domain\Model\PriceGroup;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Modules\Shipping\Domain\Repository\PriceGroupRepository;
 use Shared\Application\Unauthorized;
@@ -31,11 +32,11 @@ final readonly class ListPriceGroupsHandler
     ) {}
 
     /**
-     * @return list<PriceGroupRow>
+     * @return CarrierPrices the groups, and the version a save sends back
      *
      * @throws CarrierNotFound|InvalidShippingInput|Unauthorized
      */
-    public function handle(ListPriceGroups $query): array
+    public function handle(ListPriceGroups $query): CarrierPrices
     {
         $store = $this->change->authorize(self::PERMISSION, $query->storeId);
         $carrier = $this->carriers->byId($store->id, $query->carrierId) ?? throw new CarrierNotFound($query->carrierId);
@@ -64,6 +65,6 @@ final readonly class ListPriceGroupsHandler
             $rows[] = new PriceGroupRow($group->id, $group->amountMinor(), $own);
         }
 
-        return $rows;
+        return new CarrierPrices(PriceGroup::versionOf($groups), $rows);
     }
 }

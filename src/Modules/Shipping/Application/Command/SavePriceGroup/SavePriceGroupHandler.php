@@ -17,6 +17,7 @@ use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Exception\PlaceAlreadyPriced;
 use Modules\Shipping\Domain\Exception\PlaceNotInCountry;
 use Modules\Shipping\Domain\Exception\PriceGroupNotFound;
+use Modules\Shipping\Domain\Exception\PricesChanged;
 use Modules\Shipping\Domain\Model\Carrier;
 use Modules\Shipping\Domain\Model\PriceGroup;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
@@ -55,7 +56,7 @@ final readonly class SavePriceGroupHandler
      * @return string the saved group's id - the group merged into, when the amount met another's (a
      *                group emptied by its own save is deleted, and the id it had is returned)
      *
-     * @throws AmountAlreadyUsed|CarrierNotFound|InvalidShippingInput|PlaceAlreadyPriced|PlaceNotInCountry|PriceGroupNotFound|Unauthorized
+     * @throws AmountAlreadyUsed|CarrierNotFound|InvalidShippingInput|PlaceAlreadyPriced|PlaceNotInCountry|PriceGroupNotFound|PricesChanged|Unauthorized
      */
     public function handle(SavePriceGroup $command): string
     {
@@ -68,7 +69,7 @@ final readonly class SavePriceGroupHandler
         $placeIds = self::ids($command->placeIds);
         $moveIds = self::ids($command->moveIds);
 
-        if (count($placeIds) > self::MOST_PLACES) {
+        if (count($placeIds) > self::MOST_PLACES || count($moveIds) > self::MOST_PLACES) {
             throw new InvalidShippingInput('places', 'at most '.self::MOST_PLACES);
         }
 
@@ -80,12 +81,21 @@ final readonly class SavePriceGroupHandler
                 $groups[$group->id] = $group;
             }
 
+            // Another save came first: told to reload, never written over (§8 #3).
+            if (PriceGroup::versionOf(array_values($groups)) !== $command->seenVersion) {
+                throw new PricesChanged($carrier->id);
+            }
+
             $groupId = $command->groupId === null ? null : strtolower(trim($command->groupId));
             $target = $groupId === null ? null : ($groups[$groupId] ?? throw new PriceGroupNotFound($groupId));
             $before = array_map(static fn (PriceGroup $group): PriceGroup => clone $group, $groups);
 
             if ($command->allUnpriced) {
-                $placeIds = array_values(array_unique([...$placeIds, ...$this->unpriced($carrier, $groups)]));
+                $placeIds = array_values(array_unique([...$placeIds, ...$this->unpriced($carrier, $groups, $placeIds)]));
+
+                if (count($placeIds) > self::MOST_PLACES) {
+                    throw new InvalidShippingInput('places', 'at most '.self::MOST_PLACES);
+                }
             }
 
             $places = $this->places($carrier, $placeIds, $target);
@@ -94,22 +104,7 @@ final readonly class SavePriceGroupHandler
                 throw new InvalidShippingInput('places', 'at least one place');
             }
 
-            // Rule 3: another group's place is refused unless it moves here.
-            foreach ($placeIds as $placeId) {
-                foreach ($groups as $group) {
-                    if ($group->id === $target?->id || ! $group->has($placeId)) {
-                        continue;
-                    }
-
-                    if (! in_array($placeId, $moveIds, true)) {
-                        throw new PlaceAlreadyPriced($placeId, $places[$placeId]->name->ar, $places[$placeId]->name->en, $group->id, self::amount($group->amountMinor(), $store));
-                    }
-
-                    $group->remove($placeId);
-                }
-            }
-
-            // Rule 4: an amount another group has.
+            // Rule 4: an amount another group has - refused for a new group, merged for a changed one.
             $other = null;
 
             foreach ($groups as $group) {
@@ -120,6 +115,32 @@ final readonly class SavePriceGroupHandler
 
             if ($target === null && $other !== null) {
                 throw new AmountAlreadyUsed($other->id, self::amount($other->amountMinor(), $store));
+            }
+
+            // Rule 3: another group's place is refused unless it moves here - or is in the group this one
+            // merges into, where it ends up anyway.
+            $owners = [];
+
+            foreach ($groups as $group) {
+                foreach ($group->placeIds() as $placeId) {
+                    $owners[$placeId] = $group;
+                }
+            }
+
+            $moving = array_flip($moveIds);
+
+            foreach ($placeIds as $placeId) {
+                $owner = $owners[$placeId] ?? null;
+
+                if ($owner === null || $owner === $target || $owner === $other) {
+                    continue;
+                }
+
+                if (! isset($moving[$placeId])) {
+                    throw new PlaceAlreadyPriced($placeId, $places[$placeId]->name->ar, $places[$placeId]->name->en, $owner->id, self::amount($owner->amountMinor(), $store));
+                }
+
+                $owner->remove($placeId);
             }
 
             if ($target === null) {
@@ -181,14 +202,16 @@ final readonly class SavePriceGroupHandler
 
     /**
      * The country's "Select all" (gap 4.2): every city in use not yet priced in this carrier and not under
-     * a region it prices - or, where the country has no city in use, every region not yet priced.
+     * a region it prices - or, where the country has no city in use, every region not yet priced. The
+     * places of this very save count as priced: a region picked with Select all keeps its cities out.
      *
      * @param  array<string, PriceGroup>  $groups
+     * @param  list<string>  $picked
      * @return list<string>
      */
-    private function unpriced(Carrier $carrier, array $groups): array
+    private function unpriced(Carrier $carrier, array $groups, array $picked): array
     {
-        $priced = [];
+        $priced = array_fill_keys($picked, true);
 
         foreach ($groups as $group) {
             foreach ($group->placeIds() as $placeId) {

@@ -11,6 +11,7 @@ use Modules\Shipping\Application\ShippingPermissions;
 use Modules\Shipping\Domain\Exception\CarrierNotFound;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Exception\PriceGroupNotFound;
+use Modules\Shipping\Domain\Exception\PricesChanged;
 use Modules\Shipping\Domain\Model\PriceGroup;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Modules\Shipping\Domain\Repository\PriceGroupRepository;
@@ -28,7 +29,7 @@ final readonly class DeletePriceGroupHandler
     ) {}
 
     /**
-     * @throws CarrierNotFound|InvalidShippingInput|PriceGroupNotFound|Unauthorized
+     * @throws CarrierNotFound|InvalidShippingInput|PriceGroupNotFound|PricesChanged|Unauthorized
      */
     public function handle(DeletePriceGroup $command): void
     {
@@ -46,6 +47,10 @@ final readonly class DeletePriceGroupHandler
 
             if (! isset($groups[$groupId])) {
                 throw new PriceGroupNotFound($groupId);
+            }
+
+            if (PriceGroup::versionOf(array_values($groups)) !== $command->seenVersion) {
+                throw new PricesChanged($carrier->id);
             }
 
             $kept = array_values(array_filter($groups, static fn (PriceGroup $group): bool => $group->id !== $groupId));

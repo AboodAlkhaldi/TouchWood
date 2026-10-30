@@ -12,6 +12,8 @@ use Modules\Platform\Application\Command\AddPlace\AddPlace;
 use Modules\Platform\Application\Command\AddPlace\AddPlaceHandler;
 use Modules\Platform\Application\Command\AddStoreCountry\AddStoreCountry;
 use Modules\Platform\Application\Command\AddStoreCountry\AddStoreCountryHandler;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
+use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlace;
 use Modules\Platform\Application\Command\RetirePlace\RetirePlaceHandler;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
@@ -41,10 +43,14 @@ use Modules\Shipping\Application\Uncovered\UncoveredCounts;
 use Modules\Shipping\Application\Uncovered\UncoveredPlaces;
 use Modules\Shipping\Application\Uncovered\UncoveredPlacesCount;
 use Modules\Shipping\Domain\Exception\AmountAlreadyUsed;
+use Modules\Shipping\Domain\Exception\CarrierNotFound;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Exception\PlaceAlreadyPriced;
 use Modules\Shipping\Domain\Exception\PlaceNotInCountry;
 use Modules\Shipping\Domain\Exception\PriceGroupNotFound;
+use Modules\Shipping\Domain\Exception\PricesChanged;
+use Modules\Shipping\Domain\Model\PriceGroup;
+use Modules\Shipping\Domain\Repository\PriceGroupRepository;
 use Modules\Shipping\Infrastructure\Queue\CountUncoveredPlacesJob;
 use Modules\Shipping\Public\Contracts\ShippingApi;
 use Modules\Shipping\Public\Dto\ShippingDestinationDto;
@@ -119,9 +125,20 @@ function pricesCarrier(string $nameEn, bool $active = true, string $store = 'sa'
  * @param  list<string>  $places
  * @param  list<string>  $moves
  */
-function pricesSave(string $carrier, int $amount, array $places, ?string $group = null, array $moves = [], bool $all = false): string
+function pricesSave(string $carrier, int $amount, array $places, ?string $group = null, array $moves = [], bool $all = false, ?string $version = null): string
 {
-    return app(SavePriceGroupHandler::class)->handle(new SavePriceGroup(pricesStore(), $carrier, $group, $amount, $places, $moves, $all));
+    return app(SavePriceGroupHandler::class)->handle(new SavePriceGroup(pricesStore(), $carrier, $group, $amount, $places, $version ?? pricesVersion($carrier), $moves, $all));
+}
+
+/** The version of the carrier's prices a page reads now (as ListPriceGroups gives it). */
+function pricesVersion(string $carrier): string
+{
+    return PriceGroup::versionOf(app(PriceGroupRepository::class)->ofCarrier(strtolower($carrier)));
+}
+
+function pricesDelete(string $carrier, string $group, ?string $version = null): void
+{
+    app(DeletePriceGroupHandler::class)->handle(new DeletePriceGroup(pricesStore(), $carrier, $group, $version ?? pricesVersion($carrier)));
 }
 
 /**
@@ -130,10 +147,10 @@ function pricesSave(string $carrier, int $amount, array $places, ?string $group 
  * @param  list<string>  $places
  * @param  list<string>  $moves
  */
-function pricesRefusal(string $carrier, int $amount, array $places, ?string $group = null, array $moves = []): ?Throwable
+function pricesRefusal(string $carrier, int $amount, array $places, ?string $group = null, array $moves = [], bool $all = false, ?string $version = null): ?Throwable
 {
     try {
-        pricesSave($carrier, $amount, $places, $group, $moves);
+        pricesSave($carrier, $amount, $places, $group, $moves, $all, $version);
 
         return null;
     } catch (Throwable $refusal) {
@@ -148,7 +165,7 @@ function pricesGroups(string $carrier): array
 {
     $out = [];
 
-    foreach (app(ListPriceGroupsHandler::class)->handle(new ListPriceGroups(pricesStore(), $carrier, 'en')) as $group) {
+    foreach (app(ListPriceGroupsHandler::class)->handle(new ListPriceGroups(pricesStore(), $carrier, 'en'))->groups as $group) {
         $out[$group->amountMinor] = array_map(static fn (PlaceRow $place): string => $place->name->en, $group->places);
     }
 
@@ -180,6 +197,14 @@ function pricesUncovered(): array
     }
 
     return $out;
+}
+
+/**
+ * @return array<string, mixed> the last price change's audited attributes: amount => [left, came]
+ */
+function pricesAudit(): array
+{
+    return json_decode((string) DB::table('platform.audit_entries')->where('action', 'shipping.carrier.prices_changed')->orderByDesc('id')->value('changes'), true);
 }
 
 function pricesFreeForAll(int $amount): void
@@ -253,11 +278,13 @@ describe('the quote (§1.2)', function () {
             ->and(pricesQuote(city: 'not-an-id')->coverage)->toBe(ShippingCoverage::NotCovered);
     });
 
-    it('takes 0 as a price: delivered free there, not "free because"', function () {
+    it('takes 0 as a price: delivered free there, not "free because", even above the free amount', function () {
         $places = pricesSaudiPlaces();
-        pricesSave(pricesCarrier('Aramex'), 0, [$places['Riyadh']]);
+        $aramex = pricesCarrier('Aramex');
+        pricesSave($aramex, 0, [$places['Riyadh']]);
+        app(SetCarrierFreeAboveHandler::class)->handle(new SetCarrierFreeAbove(pricesStore(), $aramex, 5000));
 
-        $option = pricesQuote(city: $places['Riyadh'])->options[0];
+        $option = pricesQuote(city: $places['Riyadh'], goods: 9000)->options[0];
 
         expect([$option->fee->minorUnits, $option->freeBecause])->toBe([0, null]);
     });
@@ -322,10 +349,43 @@ describe('the price groups (§1.4)', function () {
         $aramex = pricesCarrier('Aramex');
         pricesSave($aramex, 2500, [$places['Riyadh'], $places['Eastern Region'], $places['Olaya']]);
 
-        $audit = json_decode((string) DB::table('platform.audit_entries')->where('action', 'shipping.carrier.prices_changed')->value('changes'), true);
-
         expect(pricesGroups($aramex))->toBe([2500 => ['Eastern Region', 'Olaya', 'Riyadh']])
-            ->and(json_encode($audit))->toContain('price 25.00')->toContain('Eastern Region, Olaya, Riyadh');
+            ->and(pricesAudit())->toBe(['price 25.00' => [null, 'Eastern Region, Olaya, Riyadh']]);
+    });
+
+    it('audits the places that left an amount and came to one, a merge and a delete, and nothing for no change', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        $twenty = pricesSave($aramex, 2000, [$places['Riyadh'], $places['Dammam']]);
+        $thirty = pricesSave($aramex, 3000, [$places['Diriyah']]);
+        pricesSave($aramex, 2000, [$places['Riyadh'], $places['Olaya']], $twenty);
+
+        expect(pricesAudit())->toBe(['price 20.00' => ['Dammam', 'Olaya']]);
+
+        pricesSave($aramex, 2000, [$places['Diriyah']], $thirty);
+
+        expect(pricesAudit())->toBe(['price 20.00' => [null, 'Diriyah'], 'price 30.00' => ['Diriyah', null]]);
+
+        $count = DB::table('platform.audit_entries')->where('action', 'shipping.carrier.prices_changed')->count();
+        pricesSave($aramex, 2000, [$places['Diriyah'], $places['Olaya'], $places['Riyadh']], $twenty);
+
+        expect(DB::table('platform.audit_entries')->where('action', 'shipping.carrier.prices_changed')->count())->toBe($count);
+
+        pricesDelete($aramex, $twenty);
+
+        expect(pricesAudit())->toBe(['price 20.00' => ['Diriyah, Olaya, Riyadh', null]]);
+    });
+
+    it('tells the second of two saves made from the same page to reload, and writes nothing (§8 #3)', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        $group = pricesSave($aramex, 2000, [$places['Riyadh'], $places['Dammam']]);
+        $read = pricesVersion($aramex);
+        pricesSave($aramex, 2000, [$places['Riyadh']], $group, version: $read);
+
+        expect(pricesRefusal($aramex, 2000, [$places['Riyadh'], $places['Dammam'], $places['Diriyah']], $group, version: $read))->toBeInstanceOf(PricesChanged::class)
+            ->and(fn () => pricesDelete($aramex, $group, $read))->toThrow(PricesChanged::class)
+            ->and(pricesGroups($aramex))->toBe([2000 => ['Riyadh']]);
     });
 
     it('refuses a place another group of the carrier has, naming it and that amount; another carrier may have it', function () {
@@ -435,10 +495,10 @@ describe('the price groups (§1.4)', function () {
         $aramex = pricesCarrier('Aramex');
         $group = pricesSave($aramex, 2000, [$places['Riyadh']]);
         pricesSave($aramex, 3000, [$places['Dammam']]);
-        app(DeletePriceGroupHandler::class)->handle(new DeletePriceGroup(pricesStore(), $aramex, $group));
+        pricesDelete($aramex, $group);
 
         expect(pricesGroups($aramex))->toBe([3000 => ['Dammam']])
-            ->and(fn () => app(DeletePriceGroupHandler::class)->handle(new DeletePriceGroup(pricesStore(), $aramex, $group)))->toThrow(PriceGroupNotFound::class);
+            ->and(fn () => pricesDelete($aramex, $group))->toThrow(PriceGroupNotFound::class);
 
         app(SwitchCarrierHandler::class)->handle(new SwitchCarrier(pricesStore(), $aramex, false));
         app(DeleteCarrierHandler::class)->handle(new DeleteCarrier(pricesStore(), $aramex));
@@ -524,5 +584,90 @@ describe('places no carrier serves (§1.6, gap 4.3)', function () {
         (new CountUncoveredPlacesJob)->handle(app(PlatformApi::class), app(UncoveredPlaces::class), app(UncoveredCounts::class));
 
         expect(app(UncoveredPlacesCount::class)->count())->toBe(3);
+    });
+
+    it('leaves a retired place out, and lists every country the store ships to', function () {
+        $places = pricesSaudiPlaces();
+        app(RetirePlaceHandler::class)->handle(new RetirePlace($places['Eastern Region']));
+        pricesPlace(PlaceKind::Region->value, null, 'Capital', 'BH');
+        app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'BH'));
+
+        expect(pricesUncovered())->toBe(['SA' => ['Riyadh Region'], 'BH' => ['Capital']])
+            ->and(app(UncoveredPlacesCount::class)->count())->toBe(2);
+    });
+
+    it('lets only those who see carriers in that store read the list', function () {
+        Fx::actAsStaff(Fx::staffWith([ShippingPermissions::CARRIERS_VIEW], ['eg']));
+
+        expect(fn () => pricesUncovered())->toThrow(Unauthorized::class);
+    });
+});
+
+describe('what the review asked (step 4)', function () {
+    it('leaves out the cities under a region picked in the same Select all save', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        pricesSave($aramex, 4000, [$places['Riyadh Region']], all: true);
+
+        expect(pricesGroups($aramex))->toBe([4000 => ['Dammam', 'Riyadh Region']]);
+    });
+
+    it('leaves a retired city out of Select all', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        app(RetirePlaceHandler::class)->handle(new RetirePlace($places['Diriyah']));
+        pricesSave($aramex, 4000, [], all: true);
+
+        expect(pricesGroups($aramex))->toBe([4000 => ['Dammam', 'Riyadh']]);
+    });
+
+    it('refuses more than 10,000 places in a save, or in its moves', function () {
+        $aramex = pricesCarrier('Aramex');
+        $many = array_map(static fn (int $i): string => "p{$i}", range(0, 10000));
+
+        expect(pricesRefusal($aramex, 2000, $many))->toBeInstanceOf(InvalidShippingInput::class)
+            ->and(pricesRefusal($aramex, 2000, ['p'], moves: $many))->toBeInstanceOf(InvalidShippingInput::class);
+    });
+
+    it('refuses a retired place moved into another group', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        pricesSave($aramex, 2000, [$places['Dammam']]);
+        app(RetirePlaceHandler::class)->handle(new RetirePlace($places['Dammam']));
+
+        expect(pricesRefusal($aramex, 3000, [$places['Dammam']], moves: [$places['Dammam']]))->toBeInstanceOf(PlaceNotInCountry::class)
+            ->and(pricesGroups($aramex))->toBe([2000 => ['Dammam']]);
+    });
+
+    it('does not refuse a place already in the group a changed one merges into', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        $twenty = pricesSave($aramex, 2000, [$places['Riyadh']]);
+        $thirty = pricesSave($aramex, 3000, [$places['Dammam']]);
+
+        expect(pricesSave($aramex, 2000, [$places['Dammam'], $places['Riyadh']], $thirty))->toBe($twenty)
+            ->and(pricesGroups($aramex))->toBe([2000 => ['Dammam', 'Riyadh']]);
+    });
+
+    it('answers CarrierNotFound for another store\'s carrier, saving or reading', function () {
+        $egypt = pricesCarrier('Bosta', store: 'eg', country: 'EG');
+
+        expect(pricesRefusal($egypt, 2000, []))->toBeInstanceOf(CarrierNotFound::class)
+            ->and(fn () => pricesGroups($egypt))->toThrow(CarrierNotFound::class);
+    });
+
+    it('answers OTHER_STORE for a switched-off store\'s country (§1.2)', function () {
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        $quote = pricesQuote(country: 'EG');
+
+        expect([$quote->coverage, $quote->otherStoreId])->toBe([ShippingCoverage::OtherStore, pricesStore('eg')]);
+    });
+
+    it('gives no tracking link once the carrier is deleted', function () {
+        $patterned = app(CreateCarrierHandler::class)->handle(new CreateCarrier(pricesStore(), 'SA', 'ناقل', 'Patterned', trackingPattern: 'https://track.example/?n={number}', active: false));
+        app(DeleteCarrierHandler::class)->handle(new DeleteCarrier(pricesStore(), $patterned));
+
+        expect(app(ShippingApi::class)->trackingLink($patterned, '123'))->toBeNull();
     });
 });
