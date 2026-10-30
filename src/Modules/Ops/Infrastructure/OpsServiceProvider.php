@@ -130,6 +130,8 @@ final class OpsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        self::requireRealEmailDriver($this->app);
+
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
         $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'ops');
         $this->loadViewsFrom(dirname(__DIR__).'/Presentation/views', 'ops');
@@ -170,5 +172,35 @@ final class OpsServiceProvider extends ServiceProvider
     private static function folderId(mixed $value): ?int
     {
         return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /**
+     * Invitation and password reset links go by email, through Ops' EmailSender (ops.md §1.5 C18). A
+     * production server on the `log` driver would write them to the log file and send nothing, so it
+     * refuses to start - the guard Access kept on Laravel's mailer (access.md amendment 36(d)) until
+     * Ops sent its emails (amendment 87). The binding refuses `log` there too, but only when an email
+     * is sent; this stops the server at boot.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function requireRealEmailDriver(Application $app): void
+    {
+        $config = $app->make('config');
+        $key = $config->get('app.key');
+
+        // An application with no key is not configured at all: a fresh checkout, where Laravel
+        // reports "production" only because there is no .env yet (composer install runs
+        // package:discover before it exists). Nothing can be sent from it, so there is nothing to
+        // protect; a real production server always has a key.
+        if (! is_string($key) || $key === '') {
+            return;
+        }
+
+        $driver = $config->get('ops.email.driver');
+        $name = is_string($driver) ? $driver : '';
+
+        if ($app->environment('production') && $name !== 'brevo') {
+            throw new InvalidArgumentException('OPS_EMAIL_DRIVER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real email driver.');
+        }
     }
 }

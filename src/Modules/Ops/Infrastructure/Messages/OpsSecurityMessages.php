@@ -48,6 +48,13 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class OpsSecurityMessages implements SecurityMessages
 {
+    /**
+     * The cream tile at the top of every email (frontend.md §1.11), a public file of the site. Linked
+     * at its address on APP_URL: EmailSender takes the body as HTML and text only, so the image cannot
+     * travel inside the email as Laravel's mailer embedded it.
+     */
+    public const string LOGO = 'icons/email-logo.png';
+
     public function __construct(
         private EmailSender $emails,
         private SmsSenders $sms,
@@ -181,6 +188,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
                 'link' => $link,
                 'locale' => $locale,
                 'brand' => $brand,
+                'logo' => $this->appUrl().'/'.self::LOGO,
                 'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
             ])->render(),
             implode("\n\n", [...$lines, ...($link === null ? [] : ["{$action}: {$link}"])]),
@@ -275,6 +283,12 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      * lands where anybody typing the address would. Never the request's host (review of step 3b).
      */
     private function shopFrontDoor(): string
+    {
+        return $this->appUrl();
+    }
+
+    /** APP_URL without its trailing slash: every address an email carries is built on it. */
+    private function appUrl(): string
     {
         $root = $this->config->get('app.url');
 

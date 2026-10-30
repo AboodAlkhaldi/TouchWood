@@ -23,6 +23,8 @@ final readonly class CustomerMapper
 
     public function toDto(Customer $customer): CustomerDto
     {
+        $countryAllowed = $customer->phone() === null || $this->phones->reaches($customer->phone());
+
         return new CustomerDto(
             $customer->id(),
             $customer->accountType(),
@@ -32,7 +34,8 @@ final readonly class CustomerMapper
             $customer->email()->value,
             $customer->phone()?->value,
             $customer->emailVerifiedAt() !== null,
-            $customer->phoneVerifiedAt() !== null && $this->phones->reaches($customer->phone()),
+            $customer->phoneVerifiedAt() !== null && $countryAllowed,
+            $countryAllowed,
             $customer->language()->value,
             $customer->homeStoreId(),
             $customer->deletionScheduledFor()?->format(DATE_ATOM),

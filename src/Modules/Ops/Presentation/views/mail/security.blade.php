@@ -6,8 +6,10 @@
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
     {{-- A security message (ops.md §1.5 C18), as Access's own email showed it. The logo on its cream
-         tile (frontend.md §1.11) is not carried yet: it was embedded by Laravel's mailer, and Ops sends
-         through EmailSender, which takes the body as HTML and text only. --}}
+         tile (frontend.md §1.11) is linked at its address on APP_URL: Ops sends through EmailSender,
+         which takes the body as HTML and text only, so the image cannot be embedded. --}}
+    <p><img src="{{ $logo }}" width="96" height="96" alt="TouchWood" style="display: block; border: 0;"></p>
+
     @foreach ($lines as $line)
         <p>{{ $line }}</p>
     @endforeach

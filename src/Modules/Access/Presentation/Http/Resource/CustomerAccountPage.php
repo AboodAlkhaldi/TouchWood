@@ -52,6 +52,11 @@ final class CustomerAccountPage extends Data
         public ?string $phone,
         public bool $emailVerified,
         public bool $phoneVerified,
+        /**
+         * Their saved phone's country is not on the SMS countries list (amendment 87): the screen asks
+         * them to change it - no code reaches it, and ordering waits. $phoneVerified keeps its meaning.
+         */
+        public bool $phoneCountryUnlisted,
         /** Both done: until then they may look around and fill a basket, but not order. */
         public bool $mayOrder,
         public string $homeStore,

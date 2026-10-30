@@ -7,6 +7,7 @@ namespace Modules\Access\Application\Query\MyAccount;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\CustomerReader;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Shared\Application\Authorizer;
@@ -33,6 +34,7 @@ final readonly class MyAccountForCustomer
         private Authorizer $authorizer,
         private CurrentCustomer $current,
         private CustomerRepository $customers,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -43,6 +45,9 @@ final readonly class MyAccountForCustomer
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $customerId = $this->current->id(self::PERMISSION);
         $customer = $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
+        // A saved number whose country left the SMS countries list (amendment 87): still verified, but
+        // no code reaches it, and ordering waits until they change it.
+        $phoneCountryUnlisted = $customer->phone() !== null && ! $this->phones->reaches($customer->phone());
 
         return new MyCustomerAccountDto(
             id: $customer->id(),
@@ -54,9 +59,11 @@ final readonly class MyAccountForCustomer
             phone: $customer->phone()?->value,
             emailVerified: $customer->emailVerifiedAt() !== null,
             phoneVerified: $customer->phoneVerifiedAt() !== null,
+            phoneCountryUnlisted: $phoneCountryUnlisted,
             // The domain's own answer, never this page's arithmetic: what ordering waits for is
-            // Access's rule and it may grow (§1.2).
-            mayOrder: $customer->mayOrder(),
+            // Access's rule and it may grow (§1.2) - with the SMS countries' part, as
+            // AccessApi::customerMayOrder answers Sales (amendment 87).
+            mayOrder: $customer->mayOrder() && ! $phoneCountryUnlisted,
             homeStoreId: $customer->homeStoreId(),
             deletionScheduledFor: $customer->deletionScheduledFor()?->format('Y-m-d'),
             marketingConsent: $customer->marketingConsent(),

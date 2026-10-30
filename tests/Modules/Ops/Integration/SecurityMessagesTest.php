@@ -58,7 +58,7 @@ function securityCustomer(string $locale): CustomerDto
 {
     $customer = app(AccessApi::class)->customer(Fx::customer('holder'.random_int(1, 999_999).'@example.test')) ?? throw new LogicException('No customer.');
 
-    return new CustomerDto($customer->id, $customer->accountType, $customer->status, $customer->firstName, $customer->lastName, $customer->email, $customer->phone, $customer->emailVerified, $customer->phoneVerified, $locale, $customer->homeStoreId);
+    return new CustomerDto($customer->id, $customer->accountType, $customer->status, $customer->firstName, $customer->lastName, $customer->email, $customer->phone, $customer->emailVerified, $customer->phoneVerified, $customer->phoneCountryAllowed, $locale, $customer->homeStoreId);
 }
 
 /**
@@ -102,6 +102,18 @@ describe('links, by email', function () {
         'Arabic' => ['ar', 'دعوتك إلى لوحة الإدارة', 'rtl'],
         'English' => ['en', 'Your invitation to the admin panel', 'ltr'],
     ]);
+
+    it('carries the logo on its cream tile, linked at its address on APP_URL (frontend.md §1.11)', function () {
+        config(['app.url' => 'https://shop.touchwood.test/']);
+        $staff = securityStaff('en');
+        $emails = RecordingEmailSender::install();
+
+        securityMessages()->staffInvitation($staff, 'https://example.test/admin/invitation/abc');
+
+        expect($emails->last()->html)->toContain('<img src="https://shop.touchwood.test/icons/email-logo.png" width="96" height="96" alt="TouchWood"')
+            // The file the address names is the site's own.
+            ->and(is_file(public_path(OpsSecurityMessages::LOGO)))->toBeTrue();
+    });
 
     it('sends the email-change link to the new address, not the current one', function () {
         $staff = securityStaff('en');

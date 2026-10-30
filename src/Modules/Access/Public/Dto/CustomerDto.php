@@ -25,6 +25,12 @@ final readonly class CustomerDto
         public bool $emailVerified,
         /** False too while the phone's country is not on the SMS countries list (amendment 87). */
         public bool $phoneVerified,
+        /**
+         * Whether the saved phone's country is on the SMS countries list (amendment 87): true with no
+         * phone saved, false while a saved number's country is not listed - the one reason a verified
+         * phone reads as unverified above, for a screen or the cart to name.
+         */
+        public bool $phoneCountryAllowed,
         public string $locale,
         /**
          * The store the account registered in, which never changes (spec §1.1): it decides which

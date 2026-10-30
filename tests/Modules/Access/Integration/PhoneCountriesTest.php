@@ -19,6 +19,7 @@ use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChan
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfile;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHandler;
+use Modules\Access\Application\Query\MyAccount\MyAccountForCustomer;
 use Modules\Access\Application\Security\CustomerPhoneVerification;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -134,6 +135,61 @@ it('reads a customer\'s verified phone as unverified once its country leaves the
         ->and(app(AccessApi::class)->customerMayOrder($customerId))->toBeFalse()
         // The number itself stays on the account until they change it.
         ->and(app(AccessApi::class)->customer($customerId)?->phone)->toBe('+201001234567');
+});
+
+it('says on the customer whether their phone\'s country is allowed, true with no phone at all', function () {
+    $listed = Fx::customer('listed@example.test');
+    $unlisted = Fx::customer('unlisted@example.test');
+    $none = Fx::customer('none@example.test');
+    DB::table('access.customers')->where('id', $listed)->update(['phone' => '+966501234567', 'phone_verified_at' => now()]);
+    DB::table('access.customers')->where('id', $unlisted)->update(['phone' => PHONE_COUNTRIES_UNLISTED, 'phone_verified_at' => now()]);
+
+    $read = app(AccessApi::class)->customers([$listed, $unlisted, $none]);
+
+    expect([$read[$listed]->phoneCountryAllowed, $read[$listed]->phoneVerified])->toBe([true, true])
+        ->and([$read[$unlisted]->phoneCountryAllowed, $read[$unlisted]->phoneVerified])->toBe([false, false])
+        ->and([$read[$none]->phoneCountryAllowed, $read[$none]->phoneVerified])->toBe([true, false]);
+});
+
+it('lets an admin edit a staff member whose saved number left the list, and asks only a new number', function () {
+    $staffId = Fx::staff();
+    DB::table('access.staff_users')->where('id', $staffId)->update(['phone' => PHONE_COUNTRIES_UNLISTED]);
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $edit = fn (string $phone, string $lastName) => app(UpdateStaffProfileHandler::class)->handle(
+        new UpdateStaffProfile($staffId, 'Staff', $lastName, 'Tester', '1990-01-01', 'SA', 'Riyadh', $phone, null),
+    );
+
+    // The same number: the rest of the edit goes through.
+    $edit(PHONE_COUNTRIES_UNLISTED, 'Renamed');
+
+    expect(DB::table('access.staff_users')->where('id', $staffId)->value('last_name'))->toBe('Renamed')
+        ->and(fn () => $edit('+971509999999', 'Again'))->toThrow(phoneCountriesRefused());
+
+    // A listed one replaces it.
+    $edit('+966509999999', 'Fixed');
+
+    expect(DB::table('access.staff_users')->where('id', $staffId)->value('phone'))->toBe('+966509999999');
+});
+
+it('tells the customer on their own account page that their number\'s country left the list', function () {
+    $customerId = Fx::customer();
+    DB::table('access.customers')->where('id', $customerId)->update(['phone' => '+201001234567', 'phone_verified_at' => now(), 'email_verified_at' => now()]);
+    Fx::actAsCustomer($customerId);
+
+    $before = app(MyAccountForCustomer::class)->forCurrentCustomer();
+    DB::table('ops.sms_countries')->where('country_code', 'EG')->delete();
+    $after = app(MyAccountForCustomer::class)->forCurrentCustomer();
+
+    expect([$before->phoneVerified, $before->phoneCountryUnlisted, $before->mayOrder])->toBe([true, false, true])
+        // Still verified - that keeps its meaning - but the screen can ask them to change it, and
+        // ordering waits as Sales' cart does.
+        ->and([$after->phoneVerified, $after->phoneCountryUnlisted, $after->mayOrder])->toBe([true, true, false]);
+});
+
+it('says nothing about a country when no phone is saved', function () {
+    Fx::actAsCustomer(Fx::customer());
+
+    expect(app(MyAccountForCustomer::class)->forCurrentCustomer()->phoneCountryUnlisted)->toBeFalse();
 });
 
 it('leaves the address book\'s recipient phones alone: they receive no code', function () {

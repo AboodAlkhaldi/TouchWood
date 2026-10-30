@@ -47,8 +47,6 @@ final readonly class UpdateStaffProfileHandler
 
         $profile = StaffProfile::of($command->firstName, $command->lastName, $command->jobTitle, $command->dateOfBirth, $command->country, $command->address);
         $phone = PhoneNumber::of($command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
-        $this->phones->require($phone);
         $this->avatars->requireUsable($command->avatarMediaId);
 
         $this->db->transaction(function () use ($command, $profile, $phone): void {
@@ -68,9 +66,12 @@ final readonly class UpdateStaffProfileHandler
                 throw new InvalidStaffStatus($target->status());
             }
 
-            // A new phone receives the sign-in codes: it needs every action of their role.
+            // A new phone receives the sign-in codes: it needs every action of their role, and a country
+            // SMS reaches (amendment 87). Only a new one: a saved number whose country left the list
+            // never blocks the rest of an edit - changing it is how the admin fixes it.
             if ($target->phone() === null || ! $target->phone()->equals($phone)) {
                 $this->rules->requireCoversActionsOf($author, $targetGrants);
+                $this->phones->require($phone);
             }
 
             if ($this->staff->phoneInUse($phone, $target->id())) {

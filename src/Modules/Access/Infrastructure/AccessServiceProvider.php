@@ -16,7 +16,6 @@ use Illuminate\Routing\Router;
 use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
-use InvalidArgumentException;
 use LogicException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -244,8 +243,6 @@ final class AccessServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        self::requireRealMailer($this->app);
-
         $presentation = dirname(__DIR__).'/Presentation';
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
@@ -383,34 +380,6 @@ final class AccessServiceProvider extends ServiceProvider
             "Platform puts \"{$permission}\" in the business area \"{$group}\", which Access does not know. The areas are: "
             .implode(', ', array_map(static fn (PermissionGroup $area): string => $area->value, PermissionGroup::cases())).'.'
         );
-    }
-
-    /**
-     * Invitation and password reset links go by email. A production server with no real mailer —
-     * Laravel's default is `log` — would write them to the log file and send nothing, so it refuses
-     * to start, as the `log` SMS driver refuses to send (owner's decision, 2026-09-19).
-     *
-     * @throws InvalidArgumentException
-     */
-    public static function requireRealMailer(Application $app): void
-    {
-        $config = $app->make('config');
-        $key = $config->get('app.key');
-
-        // An application with no key is not configured at all: a fresh checkout, where Laravel
-        // reports "production" only because there is no .env yet (composer install runs
-        // package:discover before it exists). Nothing can be sent from it, so there is nothing to
-        // protect; a real production server always has a key.
-        if (! is_string($key) || $key === '') {
-            return;
-        }
-
-        $mailer = $config->get('mail.default');
-        $name = is_string($mailer) ? $mailer : '';
-
-        if ($app->environment('production') && in_array($name, ['', 'log', 'array'], true)) {
-            throw new InvalidArgumentException('MAIL_MAILER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real mailer.');
-        }
     }
 
     /**
