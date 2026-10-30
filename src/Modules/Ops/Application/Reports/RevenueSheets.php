@@ -5,36 +5,34 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Reports;
 
 use Generator;
-use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Dto\StoreDto;
-use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
 use Shared\Domain\ValueObject\Money;
 
 /**
- * The Revenue report (ops.md §1.10), from Sales' `revenueByDay` and `productSales`, Catalog for the
- * categories - each store in its own days, then one total per currency, never converted.
+ * The Revenue report (ops.md §1.10), from Sales' `revenueByDay` and `moneyOn` - each store in its own days,
+ * then one total per currency, never converted.
  *
  * **Revenue is net of refunds** (owner, 2026-10-28; §1.10): what customers pay for the goods after the coupon
  * and the points, without VAT and shipping, less the refunds of the returns asked that day and completed.
  * Where returns are still waiting, "revenue if the waiting refunds go through" takes their estimate off too,
  * and the Waiting refunds sheet names them by return and order number - never a customer.
  *
- * **VAT waits for Sales**: VAT net of refunds needs the refunds' VAT, which `revenueByDay` does not give yet
- * (owner, 2026-10-30) - its cells say so, never a number.
+ * **Waiting for Sales** - said, never a figure (owner, 2026-10-30):
+ * - VAT net of refunds needs the refunds' VAT, which `revenueByDay` does not give yet;
+ * - revenue **by category** must be net of refunds too, so the categories add up to the net total - and no
+ *   Sales read gives refunds by product yet. Its sheet holds the columns and the note, no rows.
  *
- * **By category** is the goods sold, returns left in: only `productSales` gives revenue by product, and it
- * does not take returns off - they come off revenue on the day they were asked. Its note says so.
+ * **Money received** is beside it, by the day the money moved (§1.10: "shown beside it, by the day the
+ * payment arrived"): payments in and refunds out, by way. `moneyOn` sums a range, so it is asked once for
+ * the whole range - a store with none is passed over - then once per day or month.
  */
 final readonly class RevenueSheets
 {
-    private const int PAGE = 1000;
-
     public function __construct(
         private SalesReports $sales,
-        private CatalogApi $catalog,
-        private SizeNames $names,
     ) {}
 
     /**
@@ -47,13 +45,15 @@ final readonly class RevenueSheets
         foreach ($stores as $store) {
             $days[$store->id] = $this->sales->revenueByDay($store->storeId(), $period->start($store), $period->end($store));
         }
+        $totals = count($stores) > 1 ? [$words->get('notes.totals')] : [];
+        $when = $byMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day);
 
         return [
             new ReportSheet(
                 $words->get('sheets.revenue'),
                 [
                     $words->column('store', ColumnType::Text),
-                    $byMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day),
+                    $when,
                     $words->column('currency', ColumnType::Text),
                     $words->column('orders', ColumnType::Count),
                     $words->column('revenue', ColumnType::Money),
@@ -63,8 +63,23 @@ final readonly class RevenueSheets
                     $words->column('refunds', ColumnType::Money),
                     $words->column('waiting_refunds', ColumnType::Money),
                 ],
-                [$words->get('notes.revenue'), $words->get('notes.waiting'), $words->get('notes.vat'), ...(count($stores) > 1 ? [$words->get('notes.totals')] : [])],
+                [$words->get('notes.revenue'), $words->get('notes.waiting'), $words->get('notes.vat'), ...$totals],
                 $this->revenueRows($stores, $days, $byMonth, $words),
+            ),
+            new ReportSheet(
+                $words->get('sheets.money'),
+                [
+                    $words->column('store', ColumnType::Text),
+                    $when,
+                    $words->column('currency', ColumnType::Text),
+                    $words->column('way', ColumnType::Text),
+                    $words->column('payments', ColumnType::Count),
+                    $words->column('received', ColumnType::Money),
+                    $words->column('refunds_made', ColumnType::Count),
+                    $words->column('refunded', ColumnType::Money),
+                ],
+                [$words->get('notes.money'), ...$totals],
+                $this->moneyRows($stores, $period, $byMonth, $words),
             ),
             new ReportSheet(
                 $words->get('sheets.waiting_refunds'),
@@ -85,11 +100,10 @@ final readonly class RevenueSheets
                     $words->column('store', ColumnType::Text),
                     $words->column('category', ColumnType::Text),
                     $words->column('currency', ColumnType::Text),
-                    $words->column('units', ColumnType::Count),
-                    $words->column('sold', ColumnType::Money),
+                    $words->column('revenue', ColumnType::Money),
                 ],
                 [$words->get('notes.categories')],
-                $this->categoryRows($stores, $period, $words),
+                [],
             ),
         ];
     }
@@ -110,7 +124,7 @@ final readonly class RevenueSheets
 
         foreach ($stores as $store) {
             foreach (self::periods($days[$store->id], $byMonth, $store->currencyCode) as $period => $figures) {
-                yield self::revenueRow($words->store($store), $period, $store->currencyCode, $store->currencyExponent, $figures, $words);
+                yield self::revenueRow($words->store($store), (string) $period, $store->currencyCode, $store->currencyExponent, $figures, $words);
                 $totals[$store->currencyCode] = self::add($totals[$store->currencyCode], $figures);
             }
         }
@@ -191,6 +205,74 @@ final readonly class RevenueSheets
     }
 
     /**
+     * Payments in and refunds out by way, per day or month, then one total per currency and way.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @return Generator<int, list<string|int|ReportMoney|null>>
+     */
+    private function moneyRows(array $stores, ReportPeriod $period, bool $byMonth, ReportWords $words): Generator
+    {
+        /** @var array<string, int> $exponents */
+        $exponents = [];
+        /** @var array<string, array<string, array{int, Money, int, Money}>> $totals by currency, then way */
+        $totals = [];
+
+        foreach ($stores as $store) {
+            $exponents[$store->currencyCode] = $store->currencyExponent;
+            $periods = $period->periods($store, $byMonth);
+            if ($periods === []) {
+                continue;
+            }
+            // The whole range first: a store that moved no money is not asked day by day.
+            if (self::byWay($this->sales->moneyOn($store->storeId(), $periods[0][1], $periods[array_key_last($periods)][2]), $store->currencyCode) === []) {
+                continue;
+            }
+
+            foreach ($periods as [$key, $first, $last]) {
+                foreach (self::byWay($this->sales->moneyOn($store->storeId(), $first, $last), $store->currencyCode) as $way => $figures) {
+                    yield self::moneyRow($words->store($store), $key, $store->currencyCode, $store->currencyExponent, $way, $figures, $words);
+                    $sum = $totals[$store->currencyCode][$way] ?? [0, Money::zero($store->currencyCode), 0, Money::zero($store->currencyCode)];
+                    $totals[$store->currencyCode][$way] = [$sum[0] + $figures[0], $sum[1]->add($figures[1]), $sum[2] + $figures[2], $sum[3]->add($figures[3])];
+                }
+            }
+        }
+
+        foreach ($totals as $currency => $ways) {
+            foreach ($ways as $way => $figures) {
+                yield self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words);
+            }
+        }
+    }
+
+    /**
+     * Payments and refunds side by side, by way, in Sales' order of the ways.
+     *
+     * @return array<string, array{int, Money, int, Money}> records in, amount in, records out, amount out
+     */
+    private static function byWay(MoneyDaysDto $money, string $currency): array
+    {
+        $ways = [];
+        $zero = Money::zero($currency);
+        foreach ($money->payments as $payment) {
+            $ways[$payment->way] = [$payment->records, $payment->amount, 0, $zero];
+        }
+        foreach ($money->refunds as $refund) {
+            $ways[$refund->way] = [$ways[$refund->way][0] ?? 0, $ways[$refund->way][1] ?? $zero, $refund->records, $refund->amount];
+        }
+
+        return array_filter($ways, static fn (array $figures): bool => $figures[0] > 0 || $figures[2] > 0);
+    }
+
+    /**
+     * @param  array{int, Money, int, Money}  $figures
+     * @return list<string|int|ReportMoney|null>
+     */
+    private static function moneyRow(string $store, ?string $period, string $currency, int $exponent, string $way, array $figures, ReportWords $words): array
+    {
+        return [$store, $period, $currency, $words->way($way), $figures[0], new ReportMoney($figures[1], $exponent), $figures[2], new ReportMoney($figures[3], $exponent)];
+    }
+
+    /**
      * @param  non-empty-list<StoreDto>  $stores
      * @param  array<string, list<RevenueDayDto>>  $days
      * @return Generator<int, list<string|int|ReportMoney|null>>
@@ -202,46 +284,6 @@ final readonly class RevenueSheets
                 foreach ($day->waiting as $waiting) {
                     yield [$words->store($store), $day->day, $waiting->returnId, $waiting->orderNumber, $store->currencyCode, new ReportMoney($waiting->estimate, $store->currencyExponent)];
                 }
-            }
-        }
-    }
-
-    /**
-     * Every size sold, grouped by its product's own category, most revenue first - per store.
-     *
-     * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
-     */
-    private function categoryRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
-    {
-        foreach ($stores as $store) {
-            /** @var array<string, array{?string, int, Money}> $groups */
-            $groups = [];
-            $after = null;
-            do {
-                $page = $this->sales->productSales($store->storeId(), $period->start($store), $period->end($store), $after, self::PAGE);
-                $products = $this->names->products(array_map(static fn ($row): string => $row->productId, $page->rows));
-                foreach ($page->rows as $row) {
-                    $category = ($products[$row->productId] ?? null)?->categoryId;
-                    $groups[$category ?? ''] ??= [$category, 0, Money::zero($store->currencyCode)];
-                    $groups[$category ?? ''][1] += $row->units;
-                    $groups[$category ?? ''][2] = $groups[$category ?? ''][2]->add($row->revenue);
-                }
-                $after = $page->next;
-            } while ($after !== null);
-
-            uasort($groups, static fn (array $a, array $b): int => $b[2]->compareTo($a[2]));
-            $paths = $this->catalog->categoriesWithPaths(array_values(array_filter(array_map(static fn (array $group): ?string => $group[0], array_values($groups)))));
-
-            foreach ($groups as [$category, $units, $revenue]) {
-                $path = $category === null ? null : ($paths[$category] ?? null);
-                yield [
-                    $words->store($store),
-                    $path === null ? $words->get('no_category') : implode(' › ', array_map(static fn (TranslatedTextDto $name): string => $name->in($words->locale), $path->path)),
-                    $store->currencyCode,
-                    $units,
-                    new ReportMoney($revenue, $store->currencyExponent),
-                ];
             }
         }
     }

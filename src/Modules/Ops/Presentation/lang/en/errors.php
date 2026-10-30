@@ -32,6 +32,16 @@ return [
         'title' => 'Use Your Account',
         'detail' => 'This email belongs to an account. Sign in and switch on offers and news in your account.',
     ],
+    // Step 8's reports (§1.10, §7). NOT YET APPROVED by the owner.
+    'report_range_refused' => [
+        'title' => 'Choose Other Days',
+        'detail' => 'A report can\'t cover these days.',
+        'rules' => [
+            'years' => 'Choose days from 2020 to the end of next year.',
+            'too_long' => 'A report covers at most 5 years. Choose fewer days.',
+            'searches_too_long' => 'The searches report covers at most 12 months: the search log keeps no more.',
+        ],
+    ],
     'confirmation_link_invalid' => [
         'title' => 'Link Not Valid',
         'detail' => 'This confirmation link isn\'t valid any more. Sign up again to get a new one.',

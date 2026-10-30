@@ -265,6 +265,12 @@ arrived (§1.11, round 3 #9).
 
 **All stores together:** each store, then **one total per currency** — never converted (round 3 #4).
 
+**Built in step 8** (the owner's answers of 2026-10-30): revenue **by category** must be net of refunds, so the
+categories add up to the net total — until Sales gives refunds by product, that sheet says it waits for Sales,
+with no figures; Favourites keep archived products, marked; Searches cover at most 12 months, every other report
+at most 5 years, from 2020 to next year. A range that includes today is read until the moment it was asked,
+the same for every page, and says so; an all-stores report names that moment in the base store's time zone.
+
 ### 1.11 The daily report
 
 The owner's report "of everything that happened today, to help business decisions" (2026-10-28).
@@ -278,7 +284,7 @@ The owner's report "of everything that happened today, to help business decision
 - **Sent by email automatically** if the person switches it on, **at the time they choose** (owner,
   2026-10-28; round 3 #8). Off by default. The email is **exactly the report the button would give at
   that time** — midnight until then. The time is read in the store's time zone; a super admin's
-  all-stores report uses Riyadh time, each store's section still its own day. One time per person per
+  all-stores report uses the base store's time zone (Riyadh), each store's section still its own day. One time per person per
   store, or one for all stores (owner, 2026-10-28, §9.3 #15).
 
 **Contents**, in this order:

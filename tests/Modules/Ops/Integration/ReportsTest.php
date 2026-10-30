@@ -7,6 +7,7 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
 use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Search\SearchLog;
@@ -23,10 +24,35 @@ use Modules\Inventory\Public\InventoryPermissions;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\DownloadReport\DownloadReport;
 use Modules\Ops\Application\Query\DownloadReport\DownloadReportHandler;
+use Modules\Ops\Application\Reports\ReportMoney;
+use Modules\Ops\Application\Reports\ReportPeriod;
+use Modules\Ops\Application\Reports\ReportWords;
+use Modules\Ops\Application\Reports\RevenueSheets;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\ReportRangeRefused;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
+use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
+use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
+use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
+use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\OrderMessageDto;
+use Modules\Sales\Public\Dto\ProductSalesPageDto;
+use Modules\Sales\Public\Dto\ReturnMessageDto;
+use Modules\Sales\Public\Dto\RevenueDayDto;
+use Modules\Sales\Public\Dto\SalesCountsDto;
+use Modules\Sales\Public\Dto\TransfersWaitingDto;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Ops\Support\ReportFixtures as Rx;
@@ -48,6 +74,9 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
+    // The clock pinned half an hour past the next whole hour: never behind the real time, never on a
+    // midnight, so "today" is one day for the orders made and the report read (lesson 221).
+    CarbonImmutable::setTestNow(Cx::clockAhead()->addMinutes(30));
 });
 
 function reportsToday(): string
@@ -55,10 +84,23 @@ function reportsToday(): string
     return CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d');
 }
 
+/** The report is read a minute after the day's work: a range that includes today ends at the moment asked. */
+function reportsAMinuteLater(): void
+{
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+}
+
+/** The search log stamps its own time (the database's): moved to a minute before the pinned clock. */
+function reportsSearchedNow(): void
+{
+    DB::table('catalog.search_log')->update(['searched_at' => CarbonImmutable::now()->subMinute()]);
+}
+
 function reportsReader(string ...$stores): string
 {
     $staff = Fx::staffWith([OpsPermissions::REPORT_VIEW], $stores === [] ? ['sa'] : array_values($stores));
     Fx::actAsStaff($staff);
+    reportsAMinuteLater();
 
     return $staff;
 }
@@ -73,8 +115,12 @@ it('counts revenue as the orders counted by hand: the cancelled and rejected lef
 
     $preview = Rx::preview('revenue', Fx::storeId('sa'), $today, $today);
     $waits = 'Waits for Sales (VAT of refunds)';
+    $paid = (int) $order?->paid_minor;
+    $time = CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d H:i');
 
-    expect(array_map(static fn ($sheet): string => $sheet->name, $preview->report->sheets))->toBe(['Revenue', 'Waiting refunds', 'By category'])
+    expect(array_map(static fn ($sheet): string => $sheet->name, $preview->report->sheets))->toBe(['Revenue', 'Money received', 'Waiting refunds', 'By category'])
+        // Today is read until the moment asked, and every sheet says so.
+        ->and(array_map(static fn ($sheet): string => $sheet->notes[0], $preview->report->sheets))->toBe(array_fill(0, 4, "The range includes today: it is counted until {$time}."))
         ->and([$preview->report->title, $preview->report->subtitle, $preview->report->locale, $preview->report->filename])
         ->toBe(['Revenue', "Saudi Arabia · {$today} to {$today}", 'en', "revenue-sa-{$today}-{$today}.xlsx"])
         // One order counts: 250.00 sold, 100.00 refunded, 50.00 waiting - 150.00, and 100.00 if the waiting go through.
@@ -83,10 +129,17 @@ it('counts revenue as the orders counted by hand: the cancelled and rejected lef
             ['Total', null, 'SAR', 1, $money($goods - 100_00), $money($goods - 150_00), $waits, $money((int) $order?->shipping_fee_minor), '100.00', '50.00'],
         ])
         ->and($goods)->toBe(250_00)
+        // The money received, by the day it arrived and by way; then the total per currency.
+        ->and(Rx::rows($preview, 1))->toBe([
+            ['Saudi Arabia', $today, 'SAR', 'Bank transfer', 1, $money($paid), 0, '0.00'],
+            ['Total', null, 'SAR', 'Bank transfer', 1, $money($paid), 0, '0.00'],
+        ])
+        ->and($paid)->toBeGreaterThan(0)
         // The return still waiting, by return and order number - no customer.
-        ->and(Rx::rows($preview, 1))->toBe([['Saudi Arabia', $today, $day['open'], $day['number'], 'SAR', '50.00']])
-        // By category: the goods sold, returns left in.
-        ->and(array_map(static fn (array $row): array => array_slice($row, 2), Rx::rows($preview, 2)))->toBe([['SAR', 3, '250.00']]);
+        ->and(Rx::rows($preview, 2))->toBe([['Saudi Arabia', $today, $day['open'], $day['number'], 'SAR', '50.00']])
+        // By category waits for Sales' refunds by product (owner, 2026-10-30): no figures at all.
+        ->and(Rx::rows($preview, 3))->toBe([])
+        ->and($preview->report->sheets[3]->notes[1])->toStartWith('Waits for Sales');
 });
 
 it('sums the days of a month, and leaves the waiting figure empty when nothing waits', function () {
@@ -102,13 +155,15 @@ it('sums the days of a month, and leaves the waiting figure empty when nothing w
     $byDay = Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), '2026-09-01', '2026-09-30'));
     $byMonth = Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), '2026-09-01', '2026-09-30', 'month'));
 
-    expect(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4], $row[5]], $byDay))->toBe([['2026-09-03', 1, '250.00', null], ['2026-09-20', 1, '250.00', null], [null, 2, '500.00', null]])
+    expect(Rx::preview('revenue', Fx::storeId('sa'), '2026-09-01', '2026-09-30')->report->sheets[0]->notes[0])->toStartWith('Revenue is what')
+        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4], $row[5]], $byDay))->toBe([['2026-09-03', 1, '250.00', null], ['2026-09-20', 1, '250.00', null], [null, 2, '500.00', null]])
         ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4]], $byMonth))->toBe([['2026-09', 2, '500.00'], [null, 2, '500.00']]);
 });
 
 it('gives every store\'s report each store in its own days, the off ones marked, then one total per currency - a super admin\'s alone', function () {
     Rx::aDay();
     $today = reportsToday();
+    reportsAMinuteLater();
 
     // An admin of every store is still not a super admin; nor is anyone else.
     Fx::actAsAdmin(['sa', 'eg', 'ae'], [OpsPermissions::REPORT_VIEW]);
@@ -136,6 +191,7 @@ it('gives every store\'s report each store in its own days, the off ones marked,
     // The switched-off store is named, marked, wherever it has a row.
     $search = app(SearchLog::class);
     $search->record($egypt, 'ar', 'باب', 0);
+    reportsSearchedNow();
     expect(array_map(static fn (array $row): string => (string) $row[0], Rx::rows(Rx::preview('searches', 'all', $today, $today))))->toBe(['Egypt (switched off)']);
 });
 
@@ -191,6 +247,7 @@ it('lists the searches per phrase in each store\'s own days, and refuses more th
     $search->record(Fx::storeId('sa'), 'en', 'oak door', 0);
     $search->record(Fx::storeId('sa'), 'ar', 'باب', 0);
     $search->record(Fx::storeId('ae'), 'en', 'drawer', 1);
+    reportsSearchedNow();
     $today = reportsToday();
     reportsReader();
 
@@ -199,7 +256,7 @@ it('lists the searches per phrase in each store\'s own days, and refuses more th
         ['Saudi Arabia', 'Arabic', 'باب', 1, 1],
     ])
         ->and(Rx::rows(Rx::preview('searches', Fx::storeId('sa'), '2025-11-01', '2026-10-31')))->toBeArray()
-        ->and(fn () => Rx::preview('searches', Fx::storeId('sa'), '2025-11-01', '2026-11-01'))->toThrow(InvalidOpsInput::class);
+        ->and(fn () => Rx::preview('searches', Fx::storeId('sa'), '2025-11-01', '2026-11-01'))->toThrow(ReportRangeRefused::class);
 });
 
 it('lists the products customers saved, an archived one kept and marked', function () {
@@ -241,6 +298,7 @@ it('shows each sheet\'s first 50 rows in the preview, and says there are more', 
     foreach (range(1, 51) as $index) {
         $search->record(Fx::storeId('sa'), 'en', "phrase {$index}", 1);
     }
+    reportsSearchedNow();
     $today = reportsToday();
     reportsReader();
 
@@ -259,26 +317,29 @@ it('writes the reader\'s language: Arabic headers and words, the sheet right to 
     $file = Rx::download('revenue', Fx::storeId('sa'), $today, $today);
     $sheet = $file['sheets']['الإيرادات'];
 
-    expect(array_keys($file['sheets']))->toBe(['الإيرادات', 'مبالغ مستردة منتظرة', 'حسب الفئة'])
+    expect(array_keys($file['sheets']))->toBe(['الإيرادات', 'المبالغ المستلمة', 'مبالغ مستردة منتظرة', 'حسب الفئة'])
         ->and($sheet[0])->toBe(['الإيرادات'])
         ->and($sheet[1][0])->toBe("السعودية · من {$today} إلى {$today}")
-        ->and($sheet[6])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد إذا تمت المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
-        ->and($sheet[7][6])->toBe('بانتظار وحدة المبيعات (ضريبة المبالغ المستردة)')
+        ->and($sheet[2][0])->toStartWith('تشمل الفترة اليوم: يُحتسب حتى ')
+        ->and($sheet[7])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد إذا تمت المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
+        ->and($sheet[8][6])->toBe('بانتظار وحدة المبيعات (ضريبة المبالغ المستردة)')
         ->and($file['xml']['sheet1'])->toContain('rightToLeft="true"');
 });
 
 it('writes numbers as numbers, amounts with two decimals, days as dates, and a phrase starting with "=" as text', function () {
     Rx::aDay();
     app(SearchLog::class)->record(Fx::storeId('sa'), 'en', '=HYPERLINK("http://x.test","y")', 0);
+    reportsSearchedNow();
     $today = reportsToday();
     reportsReader();
 
     $revenue = Rx::download('revenue', Fx::storeId('sa'), $today, $today);
-    $row = $revenue['sheets']['Revenue'][7];
+    // The title, its line, four notes (until, revenue, waiting, VAT), a blank row, the headers: row 8.
+    $row = $revenue['sheets']['Revenue'][8];
     $searches = Rx::download('searches', Fx::storeId('sa'), $today, $today);
 
     expect($revenue['filename'])->toBe("revenue-sa-{$today}-{$today}.xlsx")
-        ->and($revenue['sheets']['Revenue'][6][0])->toBe('Store')
+        ->and($revenue['sheets']['Revenue'][7][0])->toBe('Store')
         ->and($row[0])->toBe('Saudi Arabia')
         ->and($row[1])->toBeInstanceOf(DateTimeImmutable::class)
         ->and($row[1]->format('Y-m-d'))->toBe($today)
@@ -286,8 +347,8 @@ it('writes numbers as numbers, amounts with two decimals, days as dates, and a p
         ->and($revenue['xml']['styles'])->toContain('<xf numFmtId="4"')
         ->and($revenue['xml']['styles'])->toContain('formatCode="yyyy-mm-dd"')
         ->and($revenue['xml']['sheet1'])->toContain('rightToLeft="false"')
-        ->and($searches['sheets']['Searches'][4])->toBe(['Store', 'Language', 'Search', 'Searches', 'With no results'])
-        ->and($searches['sheets']['Searches'][5][2])->toBe('=HYPERLINK("http://x.test","y")')
+        ->and($searches['sheets']['Searches'][5])->toBe(['Store', 'Language', 'Search', 'Searches', 'With no results'])
+        ->and($searches['sheets']['Searches'][6][2])->toBe('=HYPERLINK("http://x.test","y")')
         ->and($searches['xml']['sheet1'])->not->toContain('<f>');
 });
 
@@ -358,4 +419,143 @@ it('reads the rows as the file is written: the preview asks one page, and 30,000
         ->and($rows[5 + 29_999][3])->toBe(1)
         ->and($asked->pages)->toBe(30)
         ->and($peak)->toBeLessThan(4 * 1024 * 1024);
+});
+
+it('refuses years before 2020 or after next year, more than five years, and more than twelve months of searches', function (string $report, string $from, string $to, string $rule) {
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $next = (string) ((int) CarbonImmutable::now()->format('Y') + 1);
+    $day = static fn (string $value): string => str_replace('NEXT', $next, $value);
+
+    try {
+        Rx::preview($report, Fx::storeId('sa'), $day($from), $day($to));
+        $refused = null;
+    } catch (ReportRangeRefused $error) {
+        $refused = $error->context();
+    }
+
+    expect($refused)->toBe(['attribute' => $rule === 'years' && $from === '2019-12-31' ? 'from' : 'to', 'rule' => $rule]);
+})->with([
+    'before 2020' => ['revenue', '2019-12-31', '2020-01-02', 'years'],
+    'after next year' => ['revenue', 'NEXT-12-01', ((string) ((int) date('Y') + 2)).'-01-01', 'years'],
+    'over five years' => ['product-sales', '2020-01-01', '2025-01-01', 'too_long'],
+    'over twelve months of searches' => ['searches', '2025-01-01', '2026-01-01', 'searches_too_long'],
+]);
+
+it('reads five years at once, and the last day of next year', function () {
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    $next = (int) CarbonImmutable::now()->format('Y') + 1;
+
+    expect(Rx::rows(Rx::preview('product-sales', Fx::storeId('sa'), '2020-01-01', '2024-12-31')))->toBe([['Total', null, null, null, 'SAR', 0, '0.00']])
+        ->and(Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), "{$next}-12-01", "{$next}-12-31")))->toHaveCount(1);
+});
+
+it('never counts an order that came back', function () {
+    $staff = Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL, SalesPermissions::PAYMENT_RECORD], ['sa']);
+    $ready = Cx::ready();
+    $back = Cx::place(Cx::start($ready['address'])->id)->id;
+    $kept = Cx::ready();
+    Cx::place(Cx::start($kept['address'])->id);
+    Fx::actAsStaff($staff);
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($back));
+    app(RecordPaymentHandler::class)->handle(new RecordPayment($back, 'BANK_TRANSFER', 'T-2', null, reportsToday(), (string) Str::uuid()));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($back, 'SMSA', 'TRK-2'));
+    app(MarkCameBackHandler::class)->handle(new MarkCameBack($back, [['variantId' => $ready['variants'][0], 'quantity' => 2], ['variantId' => $ready['variants'][1], 'quantity' => 1]]));
+    $today = reportsToday();
+    reportsReader();
+
+    expect(DB::table('sales.orders')->where('id', $back)->value('status'))->toBe('UNDELIVERED')
+        ->and(array_map(static fn (array $row): array => [$row[3], $row[4]], Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), $today, $today))))->toBe([[1, '250.00'], [1, '250.00']]);
+});
+
+/**
+ * Sales answering one day of revenue for every store asked, the same for each: the read the test controls.
+ */
+function reportsOneDayEach(string $day): void
+{
+    app()->instance(SalesReports::class, new readonly class($day) implements SalesReports
+    {
+        public function __construct(private string $day) {}
+
+        public function orderForMessage(string $orderId, string $locale): ?OrderMessageDto
+        {
+            return null;
+        }
+
+        public function returnForMessage(string $returnId): ?ReturnMessageDto
+        {
+            return null;
+        }
+
+        public function counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): SalesCountsDto
+        {
+            throw new LogicException('Not read by the reports.');
+        }
+
+        public function moneyOn(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): MoneyDaysDto
+        {
+            return new MoneyDaysDto([], []);
+        }
+
+        public function transfersWaiting(StoreId $store): TransfersWaitingDto
+        {
+            throw new LogicException('Not read by the reports.');
+        }
+
+        public function revenueByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
+        {
+            $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');
+
+            return [new RevenueDayDto($this->day, 2, $sar(300_00), $sar(45_00), $sar(20_00), $sar(50_00), $sar(0), [])];
+        }
+
+        public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto
+        {
+            return new ProductSalesPageDto([], null);
+        }
+    });
+}
+
+it('sums two stores of one currency into one total, never converted', function () {
+    reportsOneDayEach('2026-09-10');
+    $store = static fn (string $id, string $code, string $name): StoreDto => new StoreDto(
+        $id, $code, new TranslatedTextDto($name, $name), 'SA', 'SAR', 2, null, new TranslatedTextDto('ر.س', 'SAR'), 1500, 'Asia/Riyadh', 1,
+    );
+    $period = ReportPeriod::of('2026-09-01', '2026-09-30', CarbonImmutable::now()->toDateTimeImmutable());
+    $sheets = app(RevenueSheets::class)->sheets([$store('01jbxqz2y8k4n6p9r3t5v7w1xa', 'one', 'One'), $store('01jbxqz2y8k4n6p9r3t5v7w1xb', 'two', 'Two')], $period, false, new ReportWords(app('translator'), 'en'));
+    $rows = [];
+    foreach ($sheets[0]->rows as $row) {
+        $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, [$row[0], $row[2], $row[3], $row[4], $row[8]]);
+    }
+
+    expect($rows)->toBe([
+        ['One', 'SAR', 2, '250.00', '50.00'],
+        ['Two', 'SAR', 2, '250.00', '50.00'],
+        ['Total', 'SAR', 4, '500.00', '100.00'],
+    ]);
+});
+
+it('reads a preview in a fixed number of queries', function () {
+    Rx::aDay();
+    $today = reportsToday();
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    reportsAMinuteLater();
+    $count = static function (string $report, string $store) use ($today): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        Rx::preview($report, $store, $today, $today);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+    // Warm the caches (the stores, the permissions), as a second request finds them.
+    Rx::preview('revenue', 'all', $today, $today);
+
+    $counts = [$count('revenue', Fx::storeId('sa')), $count('revenue', 'all'), $count('product-sales', Fx::storeId('sa'))];
+
+    // Measured 2026-10-30, a one-day range. Revenue, one store: the reader (1), revenueByDay (4), moneyOn
+    // over the range (2) and for its one day (2) = 9; each further day with money adds moneyOn's 2. Every
+    // store: the reader, revenueByDay (4 for the store with orders, 2 for each of the two without), moneyOn
+    // over the range for each (6), and the day for the one that moved money (2) = 17. Product sales: the
+    // reader, productSales (1), the names (3) = 5.
+    expect($counts)->toBe([9, 17, 5]);
 });

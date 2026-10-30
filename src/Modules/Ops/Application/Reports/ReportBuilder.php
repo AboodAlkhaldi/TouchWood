@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Translation\Translator;
 use LogicException;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\ReportRangeRefused;
 use Shared\Application\Unauthorized;
 
 /**
@@ -31,7 +32,7 @@ final readonly class ReportBuilder
     /**
      * The report of an ask whose permissions its handler has checked.
      *
-     * @throws Unauthorized|InvalidOpsInput
+     * @throws Unauthorized|InvalidOpsInput|ReportRangeRefused
      */
     public function build(ReportAsk $ask, ?string $from, ?string $to, ?string $by): Report
     {
@@ -43,20 +44,29 @@ final readonly class ReportBuilder
         $where = $all ? $words->get('all_stores') : $words->store($stores[0]);
         $code = $all ? 'all' : $stores[0]->code;
 
+        // One moment for the whole request: every page of every sheet reads up to it (a range that includes
+        // today ends there), and a report of now is as at it - shown in the store's time zone, or the base
+        // store's for every store's (ops.md §1.11).
+        $now = CarbonImmutable::now($all ? $this->readers->baseZone() : $stores[0]->timezone)->toDateTimeImmutable();
+        $time = $now->format('Y-m-d H:i');
+
         if (! $kind->hasRange()) {
-            $now = CarbonImmutable::now($all ? $this->readers->baseZone() : $stores[0]->timezone);
             $sheet = $kind === ReportKind::Stock ? $this->lists->stock($stores, $words) : $this->lists->favourites($stores, $words);
 
-            return new Report($kind, $words->locale, $words->get('titles.'.$kind->value), $words->get('as_at', ['store' => $where, 'time' => $now->format('Y-m-d H:i')]), [$sheet], "{$kind->value}-{$code}-{$now->format('Y-m-d')}.xlsx");
+            return new Report($kind, $words->locale, $words->get('titles.'.$kind->value), $words->get('as_at', ['store' => $where, 'time' => $time]), [$sheet], "{$kind->value}-{$code}-{$now->format('Y-m-d')}.xlsx");
         }
 
-        $period = ReportPeriod::of($from, $to);
+        $period = ReportPeriod::of($from, $to, $now, $kind === ReportKind::Searches);
         $sheets = match ($kind) {
             ReportKind::Revenue => $this->revenue->sheets($stores, $period, self::byMonth($by), $words),
             ReportKind::ProductSales => [$this->lists->productSales($stores, $period, $words)],
-            ReportKind::Searches => $period->withinTwelveMonths() ? [$this->lists->searches($stores, $period, $words)] : throw new InvalidOpsInput('to', 'more than twelve months after the first day'),
+            ReportKind::Searches => [$this->lists->searches($stores, $period, $words)],
             ReportKind::Stock, ReportKind::Favourites => throw new LogicException('A report of now has no days.'),
         };
+        if ($period->cutAtNow(...$stores)) {
+            $until = $words->get('notes.until', ['time' => $time]);
+            $sheets = array_map(static fn (ReportSheet $sheet): ReportSheet => new ReportSheet($sheet->name, $sheet->columns, [$until, ...$sheet->notes], $sheet->rows), $sheets);
+        }
 
         return new Report(
             $kind,

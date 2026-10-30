@@ -14,6 +14,7 @@ return [
     ],
     'sheets' => [
         'revenue' => 'Revenue',
+        'money' => 'Money received',
         'waiting_refunds' => 'Waiting refunds',
         'categories' => 'By category',
         'product_sales' => 'Product sales',
@@ -33,6 +34,11 @@ return [
         'ar' => 'Arabic',
         'en' => 'English',
     ],
+    'ways' => [
+        'BANK_TRANSFER' => 'Bank transfer',
+        'ONLINE' => 'Online',
+        'OTHER' => 'Other',
+    ],
     'waits_sales' => 'Waits for Sales (VAT of refunds)',
     'notes' => [
         'revenue' => 'Revenue is what customers pay for the goods after coupons and points, without VAT and without shipping, less the refunds of the returns asked that day. Cancelled, rejected and returned orders never count.',
@@ -40,7 +46,9 @@ return [
         'vat' => 'VAT net of refunds waits for Sales to give the VAT of each refund.',
         'totals' => 'All stores: each store, then one total per currency, never converted.',
         'waiting_list' => 'Returns asked and not finished, on the day they were asked, with the refund they would make.',
-        'categories' => 'Goods sold by category, returns left in: returns come off revenue on the day they were asked.',
+        'categories' => 'Waits for Sales: revenue by category, net of refunds so the categories add up to the revenue, needs the refunds by product from Sales.',
+        'money' => 'The money that moved, by the day it moved: payments in and refunds out, by way. Test payments never count.',
+        'until' => 'The range includes today: it is counted until :time.',
         'product_sales' => 'Returns are not taken off here: they come off revenue on the day they were asked.',
         'stock' => 'Stock as it stands now. Available never goes below 0.',
         'searches' => 'What shoppers searched for, as the search log keeps it (12 months).',
@@ -82,5 +90,10 @@ return [
         'searches' => 'Searches',
         'no_results' => 'With no results',
         'customers' => 'Customers who saved it',
+        'way' => 'Way',
+        'payments' => 'Payments',
+        'received' => 'Received',
+        'refunds_made' => 'Refunds made',
+        'refunded' => 'Refunded',
     ],
 ];

@@ -9,6 +9,7 @@ use Modules\Ops\Application\Reports\ReportBuilder;
 use Modules\Ops\Application\Reports\ReportReaders;
 use Modules\Ops\Application\Reports\ReportSheet;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\ReportRangeRefused;
 use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 
@@ -26,7 +27,7 @@ final readonly class ViewReportHandler
         private ReportBuilder $reports,
     ) {}
 
-    /** @throws Unauthorized|InvalidOpsInput */
+    /** @throws Unauthorized|InvalidOpsInput|ReportRangeRefused */
     public function handle(ViewReport $query): ReportPreview
     {
         $ask = $this->readers->ask($query->report, $query->store);

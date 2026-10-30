@@ -24,6 +24,9 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 */
 final readonly class ReportsController
 {
+    /** The longest a download may take to write. */
+    public const int DOWNLOAD_SECONDS = 600;
+
     public function show(Request $request, string $report, ViewReportHandler $view): JsonResponse
     {
         $choices = self::choices($request);
@@ -57,6 +60,8 @@ final readonly class ReportsController
 
     public function download(Request $request, string $report, DownloadReportHandler $download): BinaryFileResponse
     {
+        // Five years of a busy store's days take longer than a page's 30 seconds to write; ten minutes at most.
+        set_time_limit(self::DOWNLOAD_SECONDS);
         $choices = self::choices($request);
         $file = $download->handle(new DownloadReport($report, $choices['store'] ?? '', $choices['from'] ?? null, $choices['to'] ?? null, $choices['by'] ?? null));
 

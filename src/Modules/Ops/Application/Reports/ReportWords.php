@@ -40,6 +40,14 @@ final readonly class ReportWords
         return $store->isActive ? $name : $this->get('switched_off', ['store' => $name]);
     }
 
+    /** A way money moved (`BANK_TRANSFER`, `ONLINE`, `OTHER`), in words; one Ops does not know, as Sales names it. */
+    public function way(string $way): string
+    {
+        $words = $this->translator->get('ops::reports.ways', [], $this->locale);
+
+        return is_array($words) && is_string($words[$way] ?? null) ? $words[$way] : $way;
+    }
+
     public function yesNo(bool $value): string
     {
         return $this->get($value ? 'yes' : 'no');
