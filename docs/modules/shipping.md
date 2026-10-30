@@ -398,7 +398,7 @@ controllers, page resources and words are the screens session's, in Shipping's P
 logo's address is read from Platform's media (`PlatformApi`) in Presentation, as Catalog's brand list does —
 **confirmed by the backend session, 2026-10-29**: `CarrierRow` stays as it is (deptrac already allows it).
 
-#### Part 2 — prices, free shipping, places no carrier serves (screens round 2, 2026-10-30) — **[DRAFT for the owner]**
+#### Part 2 — prices, free shipping, places no carrier serves (screens round 2, 2026-10-30) — **[ACCEPTED by the owner, 2026-10-30]**
 
 Written by the screens session once step 4 merged (658b4c01, #282), on the owner's word of 2026-10-29 ("add
 price groups and boxes when steps 4 and 5 merge"). It uses only what step 4 built (§1.4–§1.6, §9.6). Its
@@ -439,6 +439,11 @@ Part 1's note "Prices come with the next step" gives way to two cards under the 
     every city not yet priced nor under a priced region, or every unpriced region where the country has no
     city, §1.4) (R6). On a region's or a city's level, **Select all** ticks the region or the city itself —
     priced whole — rather than every row under it (§1.4 "Select all means").
+  - **Select all, moving the others here** beside it, on the country's level (R6, the owner's (c),
+    2026-10-30): every region of the country priced whole in this price, **and** every place in this
+    carrier's other prices moved here (`moveIds`) — one price for the whole country. The other prices,
+    emptied, are deleted (§1.4). It asks first: "Every place moves into this price, and :count other prices
+    are deleted."
   - A place **in another group** of this carrier shows **At :amount** and stays unticked; ticking it asks
     **Move here?** under its name — taking it out of its old group in the same save (`moveIds`) (R5).
   - A place **covered by one above it** — a city whose region is in a group, a district whose city is —
@@ -731,8 +736,10 @@ noted), and the small picks the owner left to me ("simple — handle it with rec
 
 ### 9.7 The prices screens' questions — round 2 (2026-10-30)
 
-Asked by the screens session for §4.1 part 2. Option **(a)** is the recommended one in each. Boxes (step 5)
-come in their own round when that step merges.
+Asked by the screens session for §4.1 part 2. Option **(a)** is the recommended one in each. **Answered by the
+owner, 2026-10-30: (a) in fifteen; R6 (c)** — after asking how to bring everything into one price: both
+buttons, the safe Select all and "Select all, moving the others here". No round 3. Boxes (step 5) come in
+their own round when that step merges.
 
 | # | Question | Options and their effect |
 |---|---|---|
@@ -741,7 +748,7 @@ come in their own round when that step merges.
 | 3 | The place picker? | **(a)** One level at a time with a trail, as the places pages: the country's regions, a region's cities, a city's districts, a tick box on each — ticking a region or a city prices it whole. (b) One tree that opens level by level in place — long once a region with hundreds of cities is open. |
 | 4 | Finding a place in the picker? | **(a)** A filter box on the open level, in either language — the level is already loaded. (b) One search across the whole country — needs a new backend read (Saudi Arabia has 4,354 places). |
 | 5 | A place already in another of this carrier's prices? | **(a)** Shown with **At :amount**, unticked; ticking it asks **Move here?** and moves it in the same save. (b) Hidden from the picker — moving means editing the other price first. |
-| 6 | **Select all** on the country's level? | **(a)** Every place not yet priced in this carrier (the backend's "all unpriced": the cities, or the regions where the country lists none) — places in other prices stay where they are. (b) Every place on the level, moving the ones in other prices too. |
+| 6 | **Select all** on the country's level? | **(a)** Every place not yet priced in this carrier (the backend's "all unpriced": the cities, or the regions where the country lists none) — places in other prices stay where they are. (b) Every place on the level, moving the ones in other prices too. (c) Both, as two buttons — the owner's answer. |
 | 7 | Changing a price's amount to one this carrier already has (the two merge, §1.4)? | **(a)** Said under the amount box before saving: "This joins the :amount price: its places and these become one group." (b) Merged on save with only the toast saying so. |
 | 8 | Deleting a price? | **(a)** A dialog saying its :count places stop being served by this carrier unless another of its prices covers them — no typed name (a price is quickly re-made). (b) The typed-name dialog, as a carrier's delete. (c) No dialog. |
 | 9 | A price with many places (a Select all can make hundreds)? | **(a)** Its first 12 places as chips and **+:count more**, opening the rest. (b) Only a count, with **Show places**. |
