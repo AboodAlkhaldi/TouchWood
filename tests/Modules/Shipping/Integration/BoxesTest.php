@@ -250,9 +250,18 @@ describe('the suggestion (§1.7, gap 5.2)', function () {
         expect(boxesSuggest([$chair => 1])?->boxName)->toBe('One chair')
             ->and(boxesSuggest([$chair => 10]))->toEqual(BoxSuggestionDto::byHand(BoxSuggestionReason::NothingFits));
 
-        boxesCreate('Light', 2000, 2000, 2000, 4999);
+        // Smaller than "One chair" and the chair fits it, but it takes 4,999 g and the chair weighs 5,000 g.
+        boxesCreate('Light', 600, 600, 900, 4999);
 
         expect(boxesSuggest([$chair => 1])?->boxName)->toBe('One chair');
+    });
+
+    it('needs each piece to fit on its own, not only their total size', function () {
+        // A rod 1,000 mm long: its volume fits a cube with 500 mm inside, its length does not.
+        $rod = boxesSize('2301', 1000, 1000, 50, 50);
+        boxesCreate('Cube', 520, 520, 520);
+
+        expect(boxesSuggest([$rod => 1]))->toEqual(BoxSuggestionDto::byHand(BoxSuggestionReason::NothingFits));
     });
 
     it('gives a tie to the first box in the list', function () {
