@@ -409,6 +409,102 @@ controllers, page resources and words are the screens session's, in Shipping's P
 logo's address is read from Platform's media (`PlatformApi`) in Presentation, as Catalog's brand list does —
 **confirmed by the backend session, 2026-10-29**: `CarrierRow` stays as it is (deptrac already allows it).
 
+#### Part 2 — prices, free shipping, places no carrier serves (screens round 2, 2026-10-30) — **[ACCEPTED by the owner, 2026-10-30]**
+
+Written by the screens session once step 4 merged (658b4c01, #282), on the owner's word of 2026-10-29 ("add
+price groups and boxes when steps 4 and 5 merge"). It uses only what step 4 built (§1.4–§1.6, §9.6). Its
+questions are §9.7; option **(a)** is the recommended one in each, and the R numbers below point at them.
+**Part 3** (boxes, the padding — step 5) is written when step 5 merges.
+
+**What every part keeps** — part 1's rules hold here too (Geist on shadcn, checks as typed, Latin digits,
+both languages, phone width, each refusal in its own words — step 4's five new errors are already worded in
+Shipping's `lang/{ar,en}/errors.php`). **Amounts** are typed and shown in the store's currency with its
+decimals (two for SAR and EGP), as the Pricing screens' price box does (R15): a price 0–1,000,000.00, a
+free-above 0–10,000,000.00 (§9.6 #5); a price of 0 reads **Free**. Prices are changed by whoever holds
+`shipping.prices.manage` (Admins, §3); everyone who may open the carriers screens sees them read-only, with
+no button they cannot use (R14, as part 1's Q12).
+
+##### C3 addition · A carrier's prices (R1–R10)
+
+Part 1's note "Prices come with the next step" gives way to two cards under the carrier's details (R1):
+
+**Prices** — the carrier's groups (`ListPriceGroups`), cheapest first:
+- each group a row: its **amount** (or **Free**), its **places** as chips, each named with what it is under
+  when that helps ("Olaya · Riyadh", "Riyadh · Riyadh Region") and a **Retired** mark on a retired one
+  (R16); a group with many places shows its first 12 chips and **+:count more**, opening the rest (R9);
+  **Edit** and **Delete** for a price manager;
+- **Add Price** at the top; empty: "No prices yet. Until this carrier has a price for a place, it isn't
+  offered there." with Add Price.
+
+**Add Price / Edit Price** — a wide dialog (a sheet on a phone) (R2):
+- **Amount** — the price box; on Edit, changing it to an amount another group of this carrier already has
+  says under the box, before saving: "This joins the :amount price: its places and these become one
+  group." (R7). On Add, the same amount is refused by the server (`AmountAlreadyUsed`), in its own words,
+  with **Open the :amount price**, which opens that group's Edit instead.
+- **Places** — the place picker, one level at a time with a trail (R3), as the places pages are:
+  **:country › :region › :city**. At the country's level, its regions; opening a region, its cities;
+  opening a city, its districts. Each row has a tick box: ticking a region prices it whole (its cities and
+  districts follow it); ticking a city prices it whole (its districts follow it).
+  - A **filter box** narrows the open level as it is typed, in either language (R4).
+  - **Select all** on the country's level: every place not yet priced in this carrier (`allUnpriced` —
+    every city not yet priced nor under a priced region, or every unpriced region where the country has no
+    city, §1.4) (R6). On a region's or a city's level, **Select all** ticks the region or the city itself —
+    priced whole — rather than every row under it (§1.4 "Select all means").
+  - **Select all, moving the others here** beside it, on the country's level (R6, the owner's (c),
+    2026-10-30): every region of the country priced whole in this price, **and** every place in this
+    carrier's other prices moved here (`moveIds`) — one price for the whole country. The other prices,
+    emptied, are deleted (§1.4). It asks first: "Every place moves into this price, and :count other prices
+    are deleted."
+  - A place **in another group** of this carrier shows **At :amount** and stays unticked; ticking it asks
+    **Move here?** under its name — taking it out of its old group in the same save (`moveIds`) (R5).
+  - A place **covered by one above it** — a city whose region is in a group, a district whose city is —
+    shows **Covered by :place at :amount**: ticking it gives it its own price, the more precise place
+    winning (rule 5).
+  - A **retired** place is not offered (step 1's pickers): one already in the group stays as a chip, with
+    its ✕ to take it out (R16).
+  - Under the picker: **:count places in this price** and the chips of what is ticked, each with ✕.
+- **Save Price** / **Cancel**; a refusal is said at the top of the dialog in its own words, what was ticked
+  kept. `PlaceAlreadyPriced` names the place and its group ("Riyadh is already at 20.00 in this carrier"),
+  ticked meanwhile by someone else.
+
+**Delete Price** — a dialog saying what follows (R8): "Delete the :amount price? Its :count places stop
+being served by :carrier, unless another of its prices covers them." Deleting it asks no typed name: a
+price is re-made in a minute, and nothing outside the carrier names it.
+
+**Someone else changed the prices meanwhile** (R10): every save and delete sends the version the page read;
+`PricesChanged` comes back as "The prices changed while you were editing. Reload to see them." with
+**Reload**, which reads the page again (what was ticked is lost — the list it was ticked against is gone).
+
+**Free Shipping** — a card under Prices (R11): **Free above** — the carrier's own amount, the price box with
+**Save** and **Clear** ("never free"); `SetCarrierFreeAbove`. While the store-wide amount is set (below), the
+card says "The store's :amount for every carrier applies now; this amount is kept for when it is cleared."
+and the box is shown, not hidden. C1's rows show **Free above :amount** under the carrier's name when one
+applies.
+
+##### C1 additions · The store-wide amount and the places no carrier serves (R12, R13)
+
+**Free shipping for every carrier** — a card at the top of C1 (R12): "Orders of :amount or more ship free
+with every carrier." with **Edit** (a small dialog: the price box, **Save**, **Turn Off**), or "Off — each
+carrier's own amount applies." It is Platform's store setting `shipping.free.above_all` (0 = off), saved
+through `UpdateSetting` under `shipping.prices.manage`. The Settings page lists every setting, this one
+too, as a plain number in the currency's smallest unit (halalas) — see R12.
+
+**Places no carrier serves** — in each country's section on C1, under its carriers (R13): the biggest places
+nothing switched on serves (`ListUncoveredPlaces`, live): a whole region, else a city, else a district,
+each named with what it is under. Its heading carries the count; the first 10 are shown, with **Show all**.
+It says what that means: "Orders to these places are handled by staff: no carrier, the fee confirmed later,
+no online payment." None: "Every place in :country is served." The menu's count on Carriers is
+`UncoveredPlacesCount` (§1.6), kept by the backend.
+
+##### What these screens need from the backend
+
+Everything is in step 4's Application layer: `ListPriceGroups`, `SavePriceGroup`, `DeletePriceGroup`,
+`SetCarrierFreeAbove`, `ListUncoveredPlaces`; the store-wide amount through Platform's `UpdateSetting`. The
+picker's levels are read in Shipping's Presentation layer from Platform's own picker reads
+(`PlatformApi::regions`, `cities`, `districts` — nothing retired), one level at a time, as the address
+form's (frontend.md §3.6, F9) — no new Application read. Which group a listed place is in, or what covers it,
+is worked out on the page from the carrier's groups it already has.
+
 ---
 
 ## 5 · Tables
@@ -651,7 +747,33 @@ noted), and the small picks the owner left to me ("simple — handle it with rec
 9. Mine: the price changes are audited on the carrier, one attribute per amount that changed (§1.4).
 10. Mine (the review): a save or delete carries the version it read and a later one is refused (`PricesChanged`), as §1.4 says ("the second is told to reload"); Select all leaves out the cities under a region picked in the same save; a place already in the group a changed one merges into is not refused.
 
-### 9.7 Stage 7 step 5 — the owner's answers and my picks (2026-10-30)
+### 9.7 The prices screens' questions — round 2 (2026-10-30)
+
+Asked by the screens session for §4.1 part 2. Option **(a)** is the recommended one in each. **Answered by the
+owner, 2026-10-30: (a) in fifteen; R6 (c)** — after asking how to bring everything into one price: both
+buttons, the safe Select all and "Select all, moving the others here". No round 3. Boxes (step 5) come in
+their own round when that step merges.
+
+| # | Question | Options and their effect |
+|---|---|---|
+| 1 | Where are a carrier's prices? | **(a)** On its own page (C3), under its details: a Prices card and a Free Shipping card — everything about one carrier in one place. (b) A page of their own per carrier — one more page, the details a click away. |
+| 2 | Adding and editing a price? | **(a)** A wide dialog (a sheet on a phone): the amount, then the places — the prices list stays behind it. (b) A page of its own — more room for a long place list, one more page load each time. |
+| 3 | The place picker? | **(a)** One level at a time with a trail, as the places pages: the country's regions, a region's cities, a city's districts, a tick box on each — ticking a region or a city prices it whole. (b) One tree that opens level by level in place — long once a region with hundreds of cities is open. |
+| 4 | Finding a place in the picker? | **(a)** A filter box on the open level, in either language — the level is already loaded. (b) One search across the whole country — needs a new backend read (Saudi Arabia has 4,354 places). |
+| 5 | A place already in another of this carrier's prices? | **(a)** Shown with **At :amount**, unticked; ticking it asks **Move here?** and moves it in the same save. (b) Hidden from the picker — moving means editing the other price first. |
+| 6 | **Select all** on the country's level? | **(a)** Every place not yet priced in this carrier (the backend's "all unpriced": the cities, or the regions where the country lists none) — places in other prices stay where they are. (b) Every place on the level, moving the ones in other prices too. (c) Both, as two buttons — the owner's answer. |
+| 7 | Changing a price's amount to one this carrier already has (the two merge, §1.4)? | **(a)** Said under the amount box before saving: "This joins the :amount price: its places and these become one group." (b) Merged on save with only the toast saying so. |
+| 8 | Deleting a price? | **(a)** A dialog saying its :count places stop being served by this carrier unless another of its prices covers them — no typed name (a price is quickly re-made). (b) The typed-name dialog, as a carrier's delete. (c) No dialog. |
+| 9 | A price with many places (a Select all can make hundreds)? | **(a)** Its first 12 places as chips and **+:count more**, opening the rest. (b) Only a count, with **Show places**. |
+| 10 | Someone else changed this carrier's prices meanwhile (the save is refused)? | **(a)** "The prices changed while you were editing. Reload to see them." with **Reload** — what was ticked is lost. (b) Reload by itself, without a word. |
+| 11 | A carrier's own free-shipping amount? | **(a)** On its page, a Free Shipping card: **Free above**, Save and Clear; C1's row shows **Free above :amount** when one applies. (b) In the carrier's Edit dialog — but that dialog is for `carriers.manage`, this amount for `prices.manage`. |
+| 12 | The store-wide amount for every carrier (Platform's setting)? | **(a)** A card at the top of the carriers page with Edit, in the store's currency; and the Settings page stops listing it (one line for the backend session: today it would show there as a plain number in halalas). (b) The card, and the Settings page keeps listing it in halalas. (c) Only on the Settings page, in halalas. |
+| 13 | Places no carrier serves? | **(a)** In each country's section of the carriers page, under its carriers: the biggest places nothing serves, the first 10 and **Show all**, with what it means for their orders. (b) A page of its own, from the menu's count. |
+| 14 | Whoever may see the carriers but not change prices? | **(a)** Sees the prices and the free-shipping amounts read-only; Add, Edit, Delete, Save and Select all are not shown — as part 1's Q12. (b) Sees them out of reach with "Admins only". |
+| 15 | The amount box? | **(a)** The Pricing screens' price box: the store's currency and decimals, Latin digits as typed; 0 reads **Free** in the list. (b) A plain number box in the currency's smallest unit (halalas). |
+| 16 | A retired place still in a price (its price still applies to saved addresses, §1.4)? | **(a)** Its chip stays, marked **Retired**, with ✕ to take it out; it is never offered in the picker again. (b) Hidden from the list — its price still applies, unseen. |
+
+### 9.8 Stage 7 step 5 — the owner's answers and my picks (2026-10-30)
 
 1. **The suggestion is worked out when shown, never stored** (gap 5.1 (a)): Sales's staff order page and
    packing slip ask `suggestBox` live — Sales's side, built with step 6 or after it.
