@@ -17,7 +17,7 @@
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "mpdf/mpdf": "8.3.1",
-        "openspout/openspout": "5.13.0",
+        "openspout/openspout": "^5.13",
         "spatie/laravel-data": "^4.23",
         "spatie/laravel-typescript-transformer": "^3.3",
         "tightenco/ziggy": "^2.6"
