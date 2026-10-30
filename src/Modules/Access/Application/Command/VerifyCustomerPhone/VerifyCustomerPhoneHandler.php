@@ -12,6 +12,7 @@ use Modules\Access\Application\Audit\CustomerAudit;
 use Modules\Access\Application\Customer\CurrentCustomer;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\CustomerPhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -38,6 +39,7 @@ final readonly class VerifyCustomerPhoneHandler
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -58,6 +60,9 @@ final readonly class VerifyCustomerPhoneHandler
             if ($phone instanceof InvalidCode) {
                 return $phone;
             }
+
+            // The country may have left the SMS countries list since the code was sent (amendment 90).
+            $this->phones->require($phone);
 
             if ($this->customers->phoneInUse($phone, $customer->id())) {
                 throw new PhoneAlreadyInUse;

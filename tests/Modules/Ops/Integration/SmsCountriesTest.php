@@ -20,6 +20,7 @@ use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ListSmsCountries\ListSmsCountries;
 use Modules\Ops\Application\Query\ListSmsCountries\ListSmsCountriesHandler;
 use Modules\Ops\Application\Query\ListSmsCountries\SmsCountryRow;
+use Modules\Ops\Domain\Exception\CallingCodeOverlaps;
 use Modules\Ops\Domain\Exception\CallingCodeTaken;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\SmsCountryNotFound;
@@ -141,7 +142,8 @@ it('removes a country even while saved phones use it: from then on its numbers a
 });
 
 it('reads a number\'s country by the calling code it starts with, the longest when two would match', function () {
-    // Calling codes are prefix-free (ITU); a list typed by hand might not be.
+    // Calling codes are prefix-free (ITU), and the commands refuse a list that is not; one written
+    // around them still reads.
     DB::table('ops.sms_countries')->insert(['country_code' => 'US', 'calling_code' => '9', 'provider' => 'log', 'created_at' => now(), 'updated_at' => now()]);
     $countries = app(ListedPhoneCountries::class);
 
@@ -200,4 +202,34 @@ it('names every action it audits, in both languages', function () {
     $en = require dirname(__DIR__, 4).'/src/Modules/Ops/Presentation/lang/en/audit.php';
 
     expect(array_keys($ar))->toBe(array_keys($en));
+});
+
+it('refuses a calling code that is the start of another listed code, or starts with one (owner, 2026-10-30)', function (string $callingCode, string $other) {
+    expect(fn () => smsCountriesAdd('AE', $callingCode))
+        ->toThrow(CallingCodeOverlaps::class, "overlaps {$other}");
+
+    // On a change too: Egypt's 20 may not become one that overlaps Saudi Arabia's 966, or the reverse.
+    if ($other === '966') {
+        expect(fn () => app(ChangeSmsCountryCallingCodeHandler::class)->handle(new ChangeSmsCountryCallingCode('EG', $callingCode)))
+            ->toThrow(CallingCodeOverlaps::class, 'overlaps 966');
+    }
+
+    expect(smsCountriesListed())->toBe(['EG 20 log', 'SA 966 log']);
+})->with([
+    '96, the start of 966' => ['96', '966'],
+    '9, the start of 966' => ['9', '966'],
+    '2, the start of 20' => ['2', '20'],
+    '201, started by 20' => ['201', '20'],
+]);
+
+it('takes the real neighbours of 966 and 20', function () {
+    foreach (['PS' => '970', 'IL' => '972', 'BH' => '973', 'TR' => '90', 'KW' => '965', 'LY' => '218'] as $country => $callingCode) {
+        smsCountriesAdd($country, $callingCode);
+    }
+
+    app(ChangeSmsCountryCallingCodeHandler::class)->handle(new ChangeSmsCountryCallingCode('KW', '968'));
+
+    expect(smsCountriesListed())->toHaveCount(8)
+        ->and(Fx::audits('ops.sms_country.added'))->toBe(6)
+        ->and(Fx::audits('ops.sms_country.calling_code_changed', 'KW'))->toBe(1);
 });

@@ -41,6 +41,16 @@ return [
         ],
         'action' => 'Confirm this email',
     ],
+    // NOT YET APPROVED by the owner (written 2026-10-30, amendment 90): sent when a Super Admin with no
+    // phone SMS reaches sets a new number at sign-in. It names no number.
+    'staff_phone_changed' => [
+        'subject' => 'Your phone number was changed',
+        'lines' => [
+            'Hello :name,',
+            'The phone number of your admin panel account was changed while signing in. Sign-in codes now go to the new number.',
+            'If you did not do this, contact another Super Admin now.',
+        ],
+    ],
     'password_reset' => [
         'subject' => 'Choose a new password',
         'lines' => [

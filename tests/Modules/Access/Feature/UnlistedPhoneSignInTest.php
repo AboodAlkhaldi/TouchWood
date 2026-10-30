@@ -98,3 +98,87 @@ it('signs in with a listed phone exactly as before', function () {
     unlistedPhoneSignIn($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
 });
+
+it('never shows the new-number screen to a wrong password', function () {
+    $superAdmin = unlistedPhoneStaff(superAdmin: true);
+    $browser = new AdminBrowser;
+
+    $wrong = $browser->post('/admin/sign-in', [
+        'email' => (string) DB::table('access.staff_users')->where('id', $superAdmin)->value('email'),
+        'password' => 'not the password at all',
+    ]);
+
+    expect(AdminBrowser::formError($wrong))->toBe((string) __('access::errors.invalid_credentials.detail'))
+        ->and($wrong->headers->get('Location'))->not->toContain('/admin/sign-in/phone');
+
+    // And nothing waits there for that browser: a number posted now is refused like a stale step.
+    expect(AdminBrowser::formError($browser->post('/admin/sign-in/phone', ['phone' => '+966507777777'])))->toBe((string) __('access::errors.invalid_code.detail'))
+        ->and(RecordingSecurityMessages::installed()->codes)->toBe([]);
+});
+
+it('lets a browser trusted before the country left the list in, as it skips the code step altogether', function () {
+    // Known and kept (amendment 90): a trusted browser never asks for a code, so the phone is not read.
+    $superAdmin = Fx::staff(superAdmin: true);
+    $browser = new AdminBrowser;
+    unlistedPhoneSignIn($browser, $superAdmin)->assertRedirect('/admin/sign-in/code');
+    $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode(), 'trust_browser' => true])->assertRedirect('/admin');
+    $browser->post('/admin/sign-out');
+
+    DB::table('access.staff_users')->where('id', $superAdmin)->update(['phone' => '+971501234567']);
+
+    unlistedPhoneSignIn($browser, $superAdmin)->assertRedirect('/admin');
+});
+
+it('starts the sign-in again when the phone\'s country leaves the list between the password and the code', function () {
+    $staffId = Fx::staff();
+    $browser = new AdminBrowser;
+    unlistedPhoneSignIn($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+    $code = RecordingSecurityMessages::installed()->lastCode();
+
+    DB::table('ops.sms_countries')->where('country_code', 'SA')->delete();
+
+    // Neither the code nor a resend: the sign-in starts again, never a phone error on the code screen.
+    expect(AdminBrowser::formError($browser->post('/admin/sign-in/code/resend')))->toBe((string) __('access::errors.invalid_code.detail'))
+        ->and(AdminBrowser::formError($browser->post('/admin/sign-in/code', ['code' => $code])))->toBe((string) __('access::errors.invalid_code.detail'))
+        ->and(RecordingSecurityMessages::installed()->codes)->toHaveCount(1)
+        ->and(Fx::audits('access.staff_user.signed_in', $staffId))->toBe(0);
+});
+
+it('refuses the Super Admin\'s new number when its country leaves the list before the code comes back', function () {
+    $superAdmin = unlistedPhoneStaff(superAdmin: true);
+    $browser = new AdminBrowser;
+    unlistedPhoneSignIn($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+    $browser->post('/admin/sign-in/phone', ['phone' => '+201001234567'])->assertRedirect('/admin/sign-in/code');
+
+    DB::table('ops.sms_countries')->where('country_code', 'EG')->delete();
+
+    $refused = $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()]);
+
+    expect(AdminBrowser::formError($refused))->toBe((string) __('access::errors.invalid_access_attribute.rules.phone_country'))
+        ->and(DB::table('access.staff_users')->where('id', $superAdmin)->value('phone'))->toBe('+971501234567')
+        ->and(Fx::audits('access.staff_user.signed_in', $superAdmin))->toBe(0);
+});
+
+it('emails the account when the Super Admin\'s phone is replaced at sign-in, naming no number (owner, 2026-10-30)', function () {
+    $superAdmin = unlistedPhoneStaff(superAdmin: true);
+    $browser = new AdminBrowser;
+    unlistedPhoneSignIn($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+    $browser->post('/admin/sign-in/phone', ['phone' => '+966507777777']);
+
+    expect(RecordingSecurityMessages::installed()->phoneChanges)->toBe([]);
+
+    $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+
+    expect(RecordingSecurityMessages::installed()->phoneChanges)->toBe([
+        ['staff' => $superAdmin, 'to' => (string) DB::table('access.staff_users')->where('id', $superAdmin)->value('email')],
+    ]);
+});
+
+it('sends no such email on an ordinary sign-in', function () {
+    $staffId = Fx::staff(superAdmin: true);
+    $browser = new AdminBrowser;
+    unlistedPhoneSignIn($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+    $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+
+    expect(RecordingSecurityMessages::installed()->phoneChanges)->toBe([]);
+});

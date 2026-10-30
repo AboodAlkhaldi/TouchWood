@@ -13,7 +13,9 @@ use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Ops\Application\Command\AddSmsCountry\AddSmsCountry;
 use Modules\Ops\Application\Command\AddSmsCountry\AddSmsCountryHandler;
+use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
+use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
@@ -362,3 +364,57 @@ it('has every message in both languages, with the same placeholders', function (
 
     expect($inArabic)->toBe($inEnglish);
 });
+
+it('refuses the log SMS provider on a live system when a code is really sent, recorded as failed', function () {
+    // A real send through the bound providers: the email driver a live system needs, the start list's
+    // `log` for Saudi Arabia, which must never write a code to a production log.
+    config(['ops.email.driver' => 'brevo', 'services.brevo.key' => 'test-key']);
+    DB::table('ops.sent_messages')->delete();
+    app()->detectEnvironment(fn (): string => 'production');
+
+    try {
+        expect(fn () => app(SecurityMessages::class)->phoneCode('+966501234567', 'en', '482913'))
+            ->toThrow(ProviderFailed::class, 'never runs in production');
+    } finally {
+        app()->detectEnvironment(fn (): string => 'testing');
+    }
+
+    expect(array_column(securitySentRows(), 'status'))->toBe(['FAILED']);
+});
+
+it('records any failure as failed, not only a provider\'s refusal, and passes it on', function () {
+    $staff = securityStaff('en');
+    app()->instance(EmailSender::class, new class implements EmailSender
+    {
+        public function send(OutgoingEmail $email): ?string
+        {
+            throw new RuntimeException('The connection broke.');
+        }
+    });
+    DB::table('ops.sent_messages')->delete();
+
+    expect(fn () => securityMessages()->staffInvitation($staff, 'https://example.test/admin/invitation/abc'))
+        ->toThrow(RuntimeException::class, 'The connection broke.')
+        ->and(array_column(securitySentRows(), 'status'))->toBe(['FAILED']);
+});
+
+it('tells the account its phone was changed, in its language, naming no number, and records it as security', function (string $locale, string $subject) {
+    $staff = securityStaff($locale);
+    $emails = RecordingEmailSender::install();
+    DB::table('ops.sent_messages')->delete();
+
+    securityMessages()->staffPhoneChanged($staff);
+
+    $rows = securitySentRows();
+
+    expect($emails->last()->toEmail)->toBe($staff->email)
+        ->and($emails->last()->subject)->toBe($subject)
+        ->and($emails->last()->html)->not->toContain((string) $staff->phone)
+        ->and($emails->last()->text)->not->toContain((string) $staff->phone)
+        ->and($rows)->toHaveCount(1)
+        ->and([$rows[0]['kind'], $rows[0]['channel'], $rows[0]['staff_id']])->toBe(['security', 'EMAIL', $staff->id])
+        ->and((string) json_encode($rows[0]))->not->toContain(substr((string) $staff->phone, 1));
+})->with([
+    'English' => ['en', 'Your phone number was changed'],
+    'Arabic' => ['ar', 'تم تغيير رقم جوالك'],
+]);

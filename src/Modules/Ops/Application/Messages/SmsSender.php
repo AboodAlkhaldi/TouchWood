@@ -16,5 +16,5 @@ interface SmsSender
      *
      * @throws ProviderFailed when the provider did not take it
      */
-    public function send(string $phone, string $message): ?string;
+    public function send(string $phone, #[\SensitiveParameter] string $message): ?string;
 }

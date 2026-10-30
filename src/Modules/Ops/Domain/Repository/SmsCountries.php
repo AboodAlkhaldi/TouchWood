@@ -25,6 +25,11 @@ interface SmsCountries
 
     public function byCallingCode(string $callingCode): ?SmsCountry;
 
+    /**
+     * Another listed country whose calling code overlaps this one (SmsCountry::overlaps), if any.
+     */
+    public function overlapping(SmsCountry $country): ?SmsCountry;
+
     public function add(SmsCountry $country): void;
 
     public function update(SmsCountry $country): void;

@@ -30,6 +30,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\StoreContext;
 use Shared\Domain\ValueObject\StoreId;
+use Throwable;
 
 /**
  * C18, the security messages (ops.md §1.5 C18; access.md §2.3), in place of Access's temporary sender
@@ -67,7 +68,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         private Config $config,
     ) {}
 
-    public function emailVerification(CustomerDto $customer, string $link): void
+    public function emailVerification(CustomerDto $customer, #[\SensitiveParameter] string $link): void
     {
         $this->email('email_verification', ['name' => $customer->firstName, 'link' => $link], $customer->locale, $customer->email, $customer, null);
     }
@@ -77,27 +78,32 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         $this->email('customer_deletion_scheduled', ['name' => $customer->firstName, 'date' => $on->format('Y-m-d')], $customer->locale, $customer->email, $customer, null);
     }
 
-    public function staffInvitation(StaffDto $staff, string $link): void
+    public function staffInvitation(StaffDto $staff, #[\SensitiveParameter] string $link): void
     {
         $this->email('staff_invitation', ['name' => $staff->firstName, 'link' => $link], $staff->locale, $staff->email, null, $staff);
     }
 
-    public function passwordReset(string $email, string $locale, string $link): void
+    public function passwordReset(string $email, string $locale, #[\SensitiveParameter] string $link): void
     {
         $this->email('password_reset', ['link' => $link], $locale, $email, null, null);
     }
 
-    public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
+    public function staffEmailChange(StaffDto $staff, string $newEmail, #[\SensitiveParameter] string $link): void
     {
         $this->email('staff_email_change', ['name' => $staff->firstName, 'link' => $link], $staff->locale, $newEmail, null, $staff);
     }
 
-    public function phoneCode(string $phone, string $locale, string $code): void
+    public function staffPhoneChanged(StaffDto $staff): void
+    {
+        $this->email('staff_phone_changed', ['name' => $staff->firstName], $staff->locale, $staff->email, null, $staff);
+    }
+
+    public function phoneCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
         $this->sms($phone, (string) $this->translator->get('ops::security.phone_code', ['code' => $code], $locale));
     }
 
-    public function staffSignInCode(string $phone, string $locale, string $code): void
+    public function staffSignInCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
         $this->sms($phone, (string) $this->translator->get('ops::security.sign_in_code', ['code' => $code], $locale));
     }
@@ -167,34 +173,37 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      *
      * @throws ProviderFailed
      */
-    private function email(string $message, array $values, string $locale, string $to, ?CustomerDto $customer, ?StaffDto $staff, ?StoreDto $store = null, array $moreLines = []): void
+    private function email(string $message, #[\SensitiveParameter] array $values, string $locale, string $to, ?CustomerDto $customer, ?StaffDto $staff, ?StoreDto $store = null, array $moreLines = []): void
     {
         $store ??= $this->requestStore();
-        $link = $values['link'] ?? null;
-        $action = $link === null ? null : (string) $this->translator->get("ops::security.{$message}.action", $values, $locale);
-        $lines = [...(array) $this->translator->get("ops::security.{$message}.lines", $values, $locale), ...$moreLines];
-        $lines = array_values(array_map(static fn (mixed $line): string => (string) $line, $lines));
-        $brand = $store?->name->in($locale) ?? (string) $this->config->get('mail.from.name');
+        // Written inside the send, so a message that breaks while it is written is recorded as failed too.
+        $this->record(MessageChannel::Email, $customer?->id, $staff?->id, $store, function () use ($message, $values, $locale, $to, $customer, $staff, $store, $moreLines): ?string {
+            $link = $values['link'] ?? null;
+            $action = $link === null ? null : (string) $this->translator->get("ops::security.{$message}.action", $values, $locale);
+            $lines = [...(array) $this->translator->get("ops::security.{$message}.lines", $values, $locale), ...$moreLines];
+            $lines = array_values(array_map(static fn (mixed $line): string => (string) $line, $lines));
+            $brand = $store?->name->in($locale) ?? (string) $this->config->get('mail.from.name');
 
-        $email = new OutgoingEmail(
-            (string) $this->config->get('mail.from.address'),
-            $brand,
-            $to,
-            $customer !== null ? trim($customer->firstName.' '.$customer->lastName) : ($staff !== null ? trim($staff->firstName.' '.$staff->lastName) : null),
-            (string) $this->translator->get("ops::security.{$message}.subject", $values, $locale),
-            $this->views->make('ops::mail.security', [
-                'lines' => $lines,
-                'action' => $action,
-                'link' => $link,
-                'locale' => $locale,
-                'brand' => $brand,
-                'logo' => $this->appUrl().'/'.self::LOGO,
-                'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
-            ])->render(),
-            implode("\n\n", [...$lines, ...($link === null ? [] : ["{$action}: {$link}"])]),
-        );
+            $email = new OutgoingEmail(
+                (string) $this->config->get('mail.from.address'),
+                $brand,
+                $to,
+                $customer !== null ? trim($customer->firstName.' '.$customer->lastName) : ($staff !== null ? trim($staff->firstName.' '.$staff->lastName) : null),
+                (string) $this->translator->get("ops::security.{$message}.subject", $values, $locale),
+                $this->views->make('ops::mail.security', [
+                    'lines' => $lines,
+                    'action' => $action,
+                    'link' => $link,
+                    'locale' => $locale,
+                    'brand' => $brand,
+                    'logo' => $this->appUrl().'/'.self::LOGO,
+                    'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
+                ])->render(),
+                implode("\n\n", [...$lines, ...($link === null ? [] : ["{$action}: {$link}"])]),
+            );
 
-        $this->record(MessageChannel::Email, $customer?->id, $staff?->id, $store, fn (): ?string => $this->emails->send($email));
+            return $this->emails->send($email);
+        });
     }
 
     /**
@@ -203,7 +212,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      *
      * @throws ProviderFailed
      */
-    private function sms(string $phone, string $text): void
+    private function sms(string $phone, #[\SensitiveParameter] string $text): void
     {
         $this->record(MessageChannel::Sms, null, null, $this->requestStore(), function () use ($phone, $text): ?string {
             $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');
@@ -213,18 +222,20 @@ final readonly class OpsSecurityMessages implements SecurityMessages
     }
 
     /**
-     * The one row a send leaves (ops.md §5): sent with the provider's id, or failed - and then the
-     * failure goes on to the caller.
+     * The one row a send leaves (ops.md §5): sent with the provider's id, or failed - whatever the
+     * failure was - and then the failure goes on to the caller.
      *
      * @param  Closure(): ?string  $send
      *
-     * @throws ProviderFailed
+     * @throws Throwable
      */
     private function record(MessageChannel $channel, ?string $customerId, ?string $staffId, ?StoreDto $store, Closure $send): void
     {
         try {
             $providerId = $send();
-        } catch (ProviderFailed $failed) {
+        } catch (Throwable $failed) {
+            // Any failure, not only a provider's refusal: a send that broke on the way - a template, a
+            // connection - is never lost silently either.
             $this->sent->record($this->row($channel, $customerId, $staffId, $store, null, SendStatus::Failed));
 
             throw $failed;

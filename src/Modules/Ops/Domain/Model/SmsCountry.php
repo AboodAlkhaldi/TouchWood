@@ -96,6 +96,17 @@ final class SmsCountry
     }
 
     /**
+     * Whether another calling code is the start of this one, or starts with it - 96 beside 966, 2 beside
+     * 20 - so a number's country would be unclear. Refused on the list (owner, 2026-10-30; access.md
+     * amendment 90); real neighbours such as 970, 972, 965 or 90 beside 966 do not overlap.
+     */
+    public function overlaps(string $callingCode): bool
+    {
+        return $callingCode !== $this->callingCode
+            && (str_starts_with($callingCode, $this->callingCode) || str_starts_with($this->callingCode, $callingCode));
+    }
+
+    /**
      * Whether an E.164 number (+9665…) begins with this country's calling code.
      */
     public function serves(string $phone): bool

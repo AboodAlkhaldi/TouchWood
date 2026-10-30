@@ -8,6 +8,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Ops\Application\Audit\SmsCountryAudit;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Domain\Exception\CallingCodeOverlaps;
 use Modules\Ops\Domain\Exception\CallingCodeTaken;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\SmsCountryTaken;
@@ -35,7 +36,7 @@ final readonly class AddSmsCountryHandler
     ) {}
 
     /**
-     * @throws InvalidOpsInput|SmsCountryTaken|CallingCodeTaken
+     * @throws InvalidOpsInput|SmsCountryTaken|CallingCodeTaken|CallingCodeOverlaps
      */
     public function handle(AddSmsCountry $command): void
     {
@@ -57,6 +58,14 @@ final readonly class AddSmsCountryHandler
 
             if ($holder !== null) {
                 throw new CallingCodeTaken($country->callingCode(), $holder->countryCode);
+            }
+
+            // The start of another listed code, or started by one: a number's country would be unclear
+            // (owner, 2026-10-30).
+            $overlapping = $this->countries->overlapping($country);
+
+            if ($overlapping !== null) {
+                throw new CallingCodeOverlaps($country->callingCode(), $overlapping->callingCode(), $overlapping->countryCode);
             }
 
             $this->countries->add($country);

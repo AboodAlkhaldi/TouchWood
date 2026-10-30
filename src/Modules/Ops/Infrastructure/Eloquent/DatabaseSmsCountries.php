@@ -43,6 +43,17 @@ final readonly class DatabaseSmsCountries implements SmsCountries
         return $row === null ? null : self::country($row);
     }
 
+    public function overlapping(SmsCountry $country): ?SmsCountry
+    {
+        foreach ($this->all() as $other) {
+            if ($other->countryCode !== $country->countryCode && $other->overlaps($country->callingCode())) {
+                return $other;
+            }
+        }
+
+        return null;
+    }
+
     public function add(SmsCountry $country): void
     {
         $this->db->table('ops.sms_countries')->insert([

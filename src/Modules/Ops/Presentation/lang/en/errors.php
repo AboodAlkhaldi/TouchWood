@@ -40,6 +40,10 @@ return [
         'title' => 'Country Already Listed',
         'detail' => 'Couldn\'t add ":country": it is already on the SMS countries. Change its provider or calling code there.',
     ],
+    'calling_code_overlaps' => [
+        'title' => 'Calling Code Overlaps',
+        'detail' => 'Couldn\'t use the calling code :calling_code: it overlaps :other_code, the code of ":country", so a number\'s country would be unclear. Check the code and try again.',
+    ],
     'calling_code_taken' => [
         'title' => 'Calling Code in Use',
         'detail' => 'Couldn\'t use the calling code :calling_code: it is already the code of ":country". Check the code and try again.',
@@ -69,6 +73,7 @@ return [
         'token' => 'confirmation link',
         'country_code' => 'country',
         'calling_code' => 'calling code',
+        'other_code' => 'other calling code',
         'provider' => 'provider',
     ],
 ];

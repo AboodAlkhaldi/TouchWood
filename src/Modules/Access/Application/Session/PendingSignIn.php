@@ -30,7 +30,9 @@ final readonly class PendingSignIn
     /**
      * Whether the account is still as it was when the password was given: active, the same password
      * (a reset or change raises the session version) and, for a new number, still a Super Admin with
-     * no phone SMS reaches (review of step 3b; amendment 90).
+     * no phone SMS reaches (review of step 3b; amendment 90) - otherwise a phone SMS still reaches: a
+     * country taken off the list since the password restarts the sign-in, rather than refusing the
+     * number on the code screen.
      */
     public function stillFor(?StaffUser $staff, ServedPhones $phones): bool
     {
@@ -38,6 +40,8 @@ final readonly class PendingSignIn
             && $staff->id() === $this->staffId
             && $staff->status() === StaffStatus::Active
             && $staff->sessionVersion() === $this->sessionVersion
-            && (! $this->needsPhone || ($staff->isSuperAdmin() && ! $phones->reaches($staff->phone())));
+            && ($this->needsPhone
+                ? $staff->isSuperAdmin() && ! $phones->reaches($staff->phone())
+                : $phones->reaches($staff->phone()));
     }
 }

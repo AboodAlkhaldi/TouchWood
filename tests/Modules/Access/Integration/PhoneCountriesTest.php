@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitation;
 use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitationHandler;
+use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitation;
+use Modules\Access\Application\Command\ConfirmStaffInvitation\ConfirmStaffInvitationHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
 use Modules\Access\Application\Command\InviteStaff\InviteStaff;
@@ -17,8 +20,14 @@ use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerP
 use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCodeHandler;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChange;
 use Modules\Access\Application\Command\RequestOwnPhoneChange\RequestOwnPhoneChangeHandler;
+use Modules\Access\Application\Command\SaveAddress\SaveAddress;
+use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfile;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHandler;
+use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
+use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhoneHandler;
+use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange;
+use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChangeHandler;
 use Modules\Access\Application\Query\MyAccount\MyAccountForCustomer;
 use Modules\Access\Application\Security\CustomerPhoneVerification;
 use Modules\Access\Application\Security\PhoneVerification;
@@ -118,7 +127,75 @@ it('sends no code to an unlisted number, whoever asks, before any limit is count
         ->toThrow(phoneCountriesRefused())
         ->and(RecordingSecurityMessages::installed()->codes)->toBe([])
         ->and(DB::table('access.staff_sign_in_codes')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+
+    // Not one of the hourly limits was counted: the per-number one for staff, and the customer's three
+    // (per number, per account, per store; amendment 85).
+    $limiter = app(RateLimiter::class);
+    $number = hash('sha256', PHONE_COUNTRIES_UNLISTED);
+
+    foreach (["access:staff-sms:{$number}", "access:customer-sms:{$number}", "access:customer-sms-account:{$customerId}", 'access:customer-sms-store:'.Fx::storeId('sa')] as $key) {
+        expect($limiter->attempts($key))->toBe(0, $key);
+    }
 });
+
+it('checks the country again when the code comes back, in case it left the list in between', function (Closure $ask, Closure $answer, Closure $took) {
+    $ask();
+    DB::table('ops.sms_countries')->where('country_code', 'EG')->delete();
+
+    // Refused, and the number was not taken: the code's whole transaction rolled back.
+    expect($answer)->toThrow(phoneCountriesRefused())
+        ->and($took())->toBeFalse();
+})->with([
+    'a customer adding theirs' => (function () {
+        $customerId = '';
+
+        return [
+            function () use (&$customerId) {
+                $customerId = Fx::customer();
+                Fx::actAsCustomer($customerId);
+                Fx::inStoreCode('sa', fn () => app(RequestCustomerPhoneCodeHandler::class)->handle(new RequestCustomerPhoneCode('+201001234567')));
+            },
+            fn () => Fx::inStoreCode('sa', fn () => app(VerifyCustomerPhoneHandler::class)->handle(new VerifyCustomerPhone(RecordingSecurityMessages::installed()->lastCode()))),
+            function () use (&$customerId) {
+                return DB::table('access.customers')->where('id', $customerId)->value('phone') === '+201001234567';
+            },
+        ];
+    })(),
+    'a staff member changing their own' => (function () {
+        $staffId = '';
+
+        return [
+            function () use (&$staffId) {
+                $staffId = Fx::staff();
+                Fx::actAsStaff($staffId);
+                app(RequestOwnPhoneChangeHandler::class)->handle(new RequestOwnPhoneChange('+201001234567', Fx::STAFF_PASSWORD, '10.0.0.1'));
+            },
+            fn () => app(VerifyOwnPhoneChangeHandler::class)->handle(new VerifyOwnPhoneChange(RecordingSecurityMessages::installed()->lastCode())),
+            function () use (&$staffId) {
+                return DB::table('access.staff_users')->where('id', $staffId)->value('phone') === '+201001234567';
+            },
+        ];
+    })(),
+    'accepting an invitation' => (function () {
+        $staffId = '';
+
+        return [
+            function () use (&$staffId) {
+                Fx::actAsStaff(Fx::staff(superAdmin: true));
+                $staffId = app(InviteStaffHandler::class)->handle(new InviteStaff(
+                    'noura@example.test', 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+201001234567', 'en',
+                    AccessLevel::SelectedStores, [Fx::storeId('sa')], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]),
+                ));
+                Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+                app(AcceptStaffInvitationHandler::class)->handle(new AcceptStaffInvitation(RecordingSecurityMessages::installed()->lastInvitationToken(), 'a long enough password', '+201001234567'));
+            },
+            fn () => app(ConfirmStaffInvitationHandler::class)->handle(new ConfirmStaffInvitation(RecordingSecurityMessages::installed()->lastInvitationToken(), RecordingSecurityMessages::installed()->lastCode())),
+            function () use (&$staffId) {
+                return DB::table('access.staff_users')->where('id', $staffId)->value('status') === 'ACTIVE';
+            },
+        ];
+    })(),
+]);
 
 it('reads a customer\'s verified phone as unverified once its country leaves the list, so they cannot order', function () {
     $customerId = Fx::customer();
@@ -194,6 +271,19 @@ it('says nothing about a country when no phone is saved', function () {
 
 it('leaves the address book\'s recipient phones alone: they receive no code', function () {
     // SaveAddress is not asked (owner, 2026-10-29: its own job after this step).
-    expect((string) file_get_contents(base_path('src/Modules/Access/Application/Command/SaveAddress/SaveAddressHandler.php')))
-        ->not->toContain('ServedPhones');
+    $customerId = Fx::customer();
+    Fx::actAsCustomer($customerId);
+
+    $addressId = app(SaveAddressHandler::class)->handle(new SaveAddress(
+        storeId: Fx::storeId('sa'),
+        label: 'Home',
+        recipientName: 'Sara Ali',
+        phone: PHONE_COUNTRIES_UNLISTED,
+        fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => 'King Fahd Road', 'building' => '7'],
+        latitude: null,
+        longitude: null,
+        isDefault: false,
+    ));
+
+    expect(DB::table('access.addresses')->where('id', $addressId)->value('phone'))->toBe(PHONE_COUNTRIES_UNLISTED);
 });
