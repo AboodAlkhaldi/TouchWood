@@ -25,10 +25,11 @@ final class ShippingSettings
     public static function definitions(): array
     {
         return [
-            // Both edited on Shipping's own screens - the amount in the currency on Carriers, the padding on
-            // Boxes (§4.1) - so not on Platform's Settings page, where the amount would read in halalas.
-            new SettingDefinitionDto(self::FREE_ABOVE_ALL, SettingScope::Store, SettingType::Integer, ['min:0', 'max:1000000000'], 0, ShippingPermissions::PRICES_MANAGE, onSettingsPage: false),
-            new SettingDefinitionDto(self::PADDING_MM, SettingScope::Store, SettingType::Integer, ['min:0', 'max:100'], 10, ShippingPermissions::BOXES_MANAGE, onSettingsPage: false),
+            // Both to be edited on Shipping's own screens - the amount in the currency on Carriers, the padding
+            // on Boxes (§4.1). Each stays on Platform's Settings page until its screen's field ships; the
+            // screens session sets `onSettingsPage: false` with it, so neither is ever without a screen.
+            new SettingDefinitionDto(self::FREE_ABOVE_ALL, SettingScope::Store, SettingType::Integer, ['min:0', 'max:1000000000'], 0, ShippingPermissions::PRICES_MANAGE),
+            new SettingDefinitionDto(self::PADDING_MM, SettingScope::Store, SettingType::Integer, ['min:0', 'max:100'], 10, ShippingPermissions::BOXES_MANAGE),
         ];
     }
 }

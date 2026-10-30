@@ -9,6 +9,11 @@ use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Query\ListSettings\ListSettings;
 use Modules\Platform\Application\Query\ListSettings\ListSettingsHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Platform\Public\Contracts\SettingsRegistry;
+use Modules\Platform\Public\Dto\SettingDefinitionDto;
+use Modules\Platform\Public\Enums\SettingScope;
+use Modules\Platform\Public\Enums\SettingType;
 use Modules\Shipping\Application\Command\ChangeBox\ChangeBox;
 use Modules\Shipping\Application\Command\ChangeBox\ChangeBoxHandler;
 use Modules\Shipping\Application\Command\CreateBox\CreateBox;
@@ -182,13 +187,46 @@ describe('the box list (§1.7)', function () {
         expect(fn () => boxesListed())->toThrow(Unauthorized::class);
     });
 
-    it('keeps the padding and the free-shipping amount off Platform\'s Settings page; their screens edit them', function () {
+    it('leaves a setting marked so off Platform\'s Settings page, still changed through Platform', function () {
+        app(SettingsRegistry::class)->define('boxestest', new SettingDefinitionDto('boxestest.area.hidden', SettingScope::Store, SettingType::Integer, ['min:0'], 1, ShippingPermissions::BOXES_MANAGE, onSettingsPage: false));
         $keys = array_map(static fn ($row): string => $row->key, app(ListSettingsHandler::class)->handle(new ListSettings(boxesStore())));
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting('boxestest.area.hidden', 'sa', 7));
+
+        // The padding stays on the page until the Boxes screen's field ships (§1.7).
+        expect($keys)->toContain(ShippingSettings::PADDING_MM)
+            ->and(in_array('boxestest.area.hidden', $keys, true))->toBeFalse()
+            ->and(app(PlatformApi::class)->setting('boxestest.area.hidden', StoreId::fromString(boxesStore()))->int())->toBe(7);
+    });
+
+    it('lets staff who manage boxes change the padding', function () {
+        Fx::actAsStaff(Fx::staffWith([ShippingPermissions::BOXES_MANAGE], ['sa']));
         boxesPadding(15);
 
-        expect(array_intersect($keys, [ShippingSettings::PADDING_MM, ShippingSettings::FREE_ABOVE_ALL]))->toBe([])
-            ->and($keys)->not->toBeEmpty()
-            ->and(app(ListBoxesHandler::class)->handle(new ListBoxes(boxesStore()))->paddingMm)->toBe(15);
+        expect(app(ListBoxesHandler::class)->handle(new ListBoxes(boxesStore()))->paddingMm)->toBe(15);
+    });
+
+    it('puts a new box last, after a gap a delete left', function () {
+        $first = boxesCreate('A', 300, 200, 100);
+        $second = boxesCreate('B', 300, 200, 100);
+        boxesCreate('C', 300, 200, 100);
+        boxesCreate('D', 300, 200, 100);
+        app(DeleteBoxHandler::class)->handle(new DeleteBox(boxesStore(), $first));
+        app(DeleteBoxHandler::class)->handle(new DeleteBox(boxesStore(), $second));
+        boxesCreate('E', 300, 200, 100);
+
+        expect(boxesListed())->toBe(['C', 'D', 'E']);
+    });
+
+    it('refuses a change to a name another box has, and keeps its own name in another case', function () {
+        $small = boxesCreate('Small', 300, 200, 100);
+        boxesCreate('Large', 600, 400, 300);
+
+        expect(fn () => app(ChangeBoxHandler::class)->handle(new ChangeBox(boxesStore(), $small, 'LARGE', 300, 200, 100, 50000)))->toThrow(BoxNameTaken::class);
+
+        app(ChangeBoxHandler::class)->handle(new ChangeBox(boxesStore(), $small, 'SMALL', 300, 200, 100, 50000));
+
+        expect(boxesListed())->toBe(['SMALL', 'Large'])
+            ->and(fn () => app(SwitchBoxHandler::class)->handle(new SwitchBox(boxesStore(), 'nope', false)))->toThrow(BoxNotFound::class);
     });
 });
 
@@ -271,6 +309,66 @@ describe('the suggestion (§1.7, gap 5.2)', function () {
         app(OrderBoxesHandler::class)->handle(new OrderBoxes(boxesStore(), [(string) DB::table('shipping.boxes')->where('name', 'First')->value('id'), $second]));
 
         expect(boxesSuggest([$chair => 1])?->boxName)->toBe('First');
+    });
+
+    it('counts the padding in the total size: two pieces fit the box as entered but not with the padding', function () {
+        // Each 270 × 270 × 100 = 7,290,000 mm³; two = 14,580,000. The box 300 × 300 × 200 holds 18,000,000 as
+        // entered, but 280 × 280 × 180 = 14,112,000 less 10 mm on every side - and each piece alone fits that.
+        $tile = boxesSize('2401', 100, 270, 270, 100);
+        boxesCreate('Flat', 300, 300, 200);
+
+        expect(boxesSuggest([$tile => 1])?->boxName)->toBe('Flat')
+            ->and(boxesSuggest([$tile => 2]))->toEqual(BoxSuggestionDto::byHand(BoxSuggestionReason::NothingFits));
+    });
+
+    it('adds the weights of different sizes in one order', function () {
+        $chair = boxesSize('2501', 5000, 100, 100, 100);
+        $stool = boxesSize('2502', 4000, 100, 100, 100);
+        boxesCreate('Rated', 900, 900, 900, 9000);
+
+        expect(boxesSuggest([$chair => 1, $stool => 1])?->boxName)->toBe('Rated')
+            ->and(boxesSuggest([$chair => 1, $stool => 2]))->toEqual(BoxSuggestionDto::byHand(BoxSuggestionReason::NothingFits));
+    });
+
+    it('needs the bigger box when one size of a mixed order is too long for the smaller', function () {
+        $cup = boxesSize('2601', 100, 50, 50, 50);
+        $rod = boxesSize('2602', 500, 700, 40, 40);
+        boxesCreate('Small', 300, 300, 300);
+        boxesCreate('Long', 800, 300, 300);
+
+        expect(boxesSuggest([$cup => 1])?->boxName)->toBe('Small')
+            ->and(boxesSuggest([$cup => 1, $rod => 1])?->boxName)->toBe('Long');
+    });
+
+    it('suggests nothing for an order with no piece', function () {
+        $cup = boxesSize('2701', 100, 50, 50, 50);
+        boxesCreate('Small', 300, 300, 300);
+
+        expect(boxesSuggest([]))->toBeNull()
+            ->and(boxesSuggest([$cup => 0]))->toBeNull();
+    });
+
+    it('ranks boxes by their inner sizes as entered, not after the padding (§1.7)', function () {
+        $pin = boxesSize('2801', 10, 50, 5, 5);
+        boxesCreate('Cube', 100, 100, 100);
+        boxesCreate('Tube', 2000, 25, 25);
+
+        // Entered: Cube 1,000,000 < Tube 1,250,000; after 10 mm padding Tube would be the smaller.
+        expect(boxesSuggest([$pin => 1])?->boxName)->toBe('Cube');
+    });
+
+    it('refuses an archived size by hand, lets one go back, and lists archived ones only where they are by hand', function () {
+        $chair = boxesSize('2901', 5000, 500, 500, 500);
+        $set = static fn (bool $byHand) => app(SetSizePackingHandler::class)->handle(new SetSizePacking(boxesStore(), $chair, $byHand));
+        $set(true);
+        DB::table('catalog.variants')->where('id', $chair)->update(['is_archived' => true]);
+
+        expect(app(ListPackingSizesHandler::class)->handle(new ListPackingSizes(boxesStore(), true))->total)->toBe(1)
+            ->and(collect(app(ListPackingSizesHandler::class)->handle(new ListPackingSizes(boxesStore(), false))->rows)->pluck('variantId')->all())->not->toContain($chair);
+
+        $set(false);
+
+        expect(fn () => $set(true))->toThrow(InvalidShippingInput::class);
     });
 
     it('says pack by hand for a size marked so, or one Catalog has no weight or sizes for', function () {

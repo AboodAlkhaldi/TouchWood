@@ -209,8 +209,9 @@ from Platform from its most specific place, never taken from the caller.
   an order, a shipment or the store going live. It is **worked out when it is shown, never stored**
   (gap 5.1): the staff order page and the packing slip ask `suggestBox` live — Sales's side.
 - With **no switched-on box in the list**, the suggestion is simply not shown (`suggestBox` → null).
-- The padding and the store-wide free-shipping amount are **edited on Shipping's own screens** (Boxes,
-  Carriers), not on Platform's Settings page (`SettingDefinitionDto::$onSettingsPage` false; step 5).
+- The padding and the store-wide free-shipping amount are to be **edited on Shipping's own screens** (Boxes,
+  Carriers). Each stays on Platform's Settings page until its screen's field ships; the screens session then
+  sets `SettingDefinitionDto::$onSettingsPage` false in the same change, so neither is ever without a screen.
 - **Hand-packed sizes** are set on the Boxes page (gap 5.3): `SetSizePacking`; `ListPackingSizes` pages
   the hand-packed ones and, for the box that adds one, the store's sizes not yet hand-packed (Catalog's
   `searchVariants`, archived sizes left out). A size is marked by hand only while it is Catalog's and not
@@ -662,6 +663,8 @@ noted), and the small picks the owner left to me ("simple — handle it with rec
    suggestion; a tie goes to the first box in the list.
 5. Mine: a box may be deleted on or off — nothing names a box; box names are unique in the store ignoring
    case; boxes are ordered as carriers are (`OrderBoxes`).
-6. Mine (asked by the screens session): the padding and the store-wide free-shipping amount are left off
-   Platform's Settings page (`SettingDefinitionDto::$onSettingsPage`, platform.md row 2026-10-30) — their
-   own screens edit them in their own words.
+6. Mine (asked by the screens session): Platform can leave a setting off its Settings page
+   (`SettingDefinitionDto::$onSettingsPage`, platform.md row 2026-10-30). The padding and the store-wide
+   free-shipping amount stay on it until their own screens' fields ship (the review: never without a screen).
+7. Mine (the review): a new box goes after the highest place, so a delete's gap is never filled; an order
+   with no piece gets no suggestion; "smallest" is by the inner sizes as entered, before the padding.

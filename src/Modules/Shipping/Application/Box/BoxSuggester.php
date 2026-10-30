@@ -47,6 +47,12 @@ final readonly class BoxSuggester
         }
 
         $lines = array_values(array_filter($lines, static fn (ParcelLineDto $line): bool => $line->quantity > 0));
+
+        // Nothing to pack: nothing to suggest.
+        if ($lines === []) {
+            return null;
+        }
+
         $ids = array_values(array_unique(array_map(static fn (ParcelLineDto $line): string => strtolower($line->variantId), $lines)));
 
         if ($this->boxes->handPacked($store->value, $ids) !== []) {
@@ -90,9 +96,10 @@ final readonly class BoxSuggester
                 }
             }
 
-            $boxVolume = $inner[0] * $inner[1] * $inner[2];
+            [$length, $width, $height] = $box->sizes();
+            $boxVolume = $length * $width * $height;
 
-            // The smallest; a tie keeps the first in the list.
+            // The smallest by its inner sizes as entered (§1.7); a tie keeps the first in the list.
             if ($bestVolume === null || $boxVolume < $bestVolume) {
                 [$best, $bestVolume] = [$box, $boxVolume];
             }

@@ -34,7 +34,8 @@ final readonly class CreateBoxHandler
             $box = Box::create(
                 $this->boxes->nextId(), $store->id, $command->name,
                 $command->lengthMm, $command->widthMm, $command->heightMm, $command->maxWeightG,
-                $command->active, count($this->boxes->inStore($store->id)) + 1,
+                // Last in the list, after the highest place - a deleted box leaves a gap a count would fill.
+                $command->active, max([0, ...array_map(static fn (Box $box): int => $box->position, $this->boxes->inStore($store->id))]) + 1,
             );
 
             $other = $this->boxes->named($store->id, $box->name(), null);
