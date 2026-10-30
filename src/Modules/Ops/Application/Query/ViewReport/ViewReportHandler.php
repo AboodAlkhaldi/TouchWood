@@ -6,8 +6,10 @@ namespace Modules\Ops\Application\Query\ViewReport;
 
 use Modules\Ops\Application\Reports\Report;
 use Modules\Ops\Application\Reports\ReportBuilder;
+use Modules\Ops\Application\Reports\ReportReaders;
 use Modules\Ops\Application\Reports\ReportSheet;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 
 /**
@@ -19,13 +21,19 @@ final readonly class ViewReportHandler
     public const int ROWS = 50;
 
     public function __construct(
+        private Authorizer $authorizer,
+        private ReportReaders $readers,
         private ReportBuilder $reports,
     ) {}
 
     /** @throws Unauthorized|InvalidOpsInput */
     public function handle(ViewReport $query): ReportPreview
     {
-        $report = $this->reports->build($query->report, $query->store, $query->from, $query->to, $query->by);
+        $ask = $this->readers->ask($query->report, $query->store);
+        foreach ($ask->permissions as $permission) {
+            $this->authorizer->authorize($permission, $ask->scope());
+        }
+        $report = $this->reports->build($ask, $query->from, $query->to, $query->by);
         $sheets = [];
         $more = [];
 

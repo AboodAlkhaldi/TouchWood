@@ -14,8 +14,6 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
-use Shared\Application\Authorizer;
-use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
@@ -28,9 +26,11 @@ use Shared\Infrastructure\Persistence\Ulids;
  */
 final readonly class ReportReaders
 {
+    /** What a request names for every store's report - a super admin's alone. */
+    public const string ALL = 'all';
+
     public function __construct(
         private ActorContext $actors,
-        private Authorizer $authorizer,
         private AccessApi $access,
         private PlatformApi $platform,
     ) {}
@@ -49,35 +49,46 @@ final readonly class ReportReaders
     }
 
     /**
-     * The stores of the report: the one named, or every store when none is.
+     * The report a request names, and its store - `all` for every store's - with the permissions its handler
+     * checks there. Nothing is authorized here: the handler does it, then asks `stores()`.
+     *
+     * @throws Unauthorized|InvalidOpsInput
+     */
+    public function ask(string $kind, string $store): ReportAsk
+    {
+        $kind = ReportKind::tryFrom($kind) ?? throw new InvalidOpsInput('report', 'not a report');
+        $person = $this->person();
+        $permissions = $kind === ReportKind::Stock ? [OpsPermissions::REPORT_VIEW, InventoryPermissions::STOCK_MANAGE] : [OpsPermissions::REPORT_VIEW];
+
+        if ($store === self::ALL) {
+            return new ReportAsk($kind, $person, null, $permissions);
+        }
+
+        $id = strtolower(trim($store));
+        $found = (Ulids::valid($id) ? $this->platform->store(StoreId::fromString($id)) : null) ?? throw new InvalidOpsInput('store', 'not a store');
+
+        return new ReportAsk($kind, $person, $found, $permissions);
+    }
+
+    /**
+     * The stores of the report, once its permissions are checked: the one named, or every store - on and
+     * off - for a super admin alone.
      *
      * @return non-empty-list<StoreDto>
      *
      * @throws Unauthorized|InvalidOpsInput
      */
-    public function stores(ReportKind $kind, ?string $storeId, StaffDto $person): array
+    public function stores(ReportAsk $ask): array
     {
-        $permissions = $kind === ReportKind::Stock ? [OpsPermissions::REPORT_VIEW, InventoryPermissions::STOCK_MANAGE] : [OpsPermissions::REPORT_VIEW];
-
-        if ($storeId === null) {
-            foreach ($permissions as $permission) {
-                $this->authorizer->authorize($permission, PermissionScope::allStores());
-            }
-            if (! $person->isSuperAdmin) {
-                throw new Unauthorized(OpsPermissions::REPORT_VIEW);
-            }
-            $stores = $this->platform->allStores();
-
-            return $stores !== [] ? $stores : throw new InvalidOpsInput('store', 'no store');
+        if ($ask->store !== null) {
+            return [$ask->store];
         }
-
-        $id = strtolower(trim($storeId));
-        $store = (Ulids::valid($id) ? $this->platform->store(StoreId::fromString($id)) : null) ?? throw new InvalidOpsInput('store', 'not a store');
-        foreach ($permissions as $permission) {
-            $this->authorizer->authorize($permission, PermissionScope::store($store->storeId()));
+        if (! $ask->person->isSuperAdmin) {
+            throw new Unauthorized(OpsPermissions::REPORT_VIEW);
         }
+        $stores = $this->platform->allStores();
 
-        return [$store];
+        return $stores !== [] ? $stores : throw new InvalidOpsInput('store', 'no store');
     }
 
     /** The time zone a report of every store names its moment in: the base store's (ops.md §1.11). */

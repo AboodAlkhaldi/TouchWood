@@ -11,8 +11,9 @@ use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Shared\Application\Unauthorized;
 
 /**
- * A report as a request asks for it (ops.md §1.10, §3, §7): who may read it and which stores it covers are
- * settled here, before a row is read; the rows are read as the sheet is written.
+ * A report as a request asks for it (ops.md §1.10, §7), once its handler has checked the permissions (§3):
+ * which stores it covers - every store's a super admin's alone - and its days are settled here, before a
+ * row is read; the rows are read as the sheet is written.
  *
  * In the reader's language (their account's), with a title, the store - or "All stores" - and its days
  * (or the moment, for Stock and Favourites, read in the store's time zone, or the base store's for every
@@ -20,9 +21,6 @@ use Shared\Application\Unauthorized;
  */
 final readonly class ReportBuilder
 {
-    /** What a request names for every store's report - a super admin's alone. */
-    public const string ALL = 'all';
-
     public function __construct(
         private ReportReaders $readers,
         private Translator $translator,
@@ -31,16 +29,16 @@ final readonly class ReportBuilder
     ) {}
 
     /**
-     * `$store` is a store's id, or `all`.
+     * The report of an ask whose permissions its handler has checked.
      *
      * @throws Unauthorized|InvalidOpsInput
      */
-    public function build(string $kind, string $store, ?string $from, ?string $to, ?string $by): Report
+    public function build(ReportAsk $ask, ?string $from, ?string $to, ?string $by): Report
     {
-        $kind = ReportKind::tryFrom($kind) ?? throw new InvalidOpsInput('report', 'not a report');
-        $person = $this->readers->person();
-        $all = $store === self::ALL;
-        $stores = $this->readers->stores($kind, $all ? null : $store, $person);
+        $kind = $ask->kind;
+        $person = $ask->person;
+        $stores = $this->readers->stores($ask);
+        $all = $ask->store === null;
         $words = new ReportWords($this->translator, $person->locale === 'en' ? 'en' : 'ar');
         $where = $all ? $words->get('all_stores') : $words->store($stores[0]);
         $code = $all ? 'all' : $stores[0]->code;

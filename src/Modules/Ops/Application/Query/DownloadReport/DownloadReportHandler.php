@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Query\DownloadReport;
 
 use Modules\Ops\Application\Reports\ReportBuilder;
+use Modules\Ops\Application\Reports\ReportReaders;
 use Modules\Ops\Application\Reports\ReportWriter;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use RuntimeException;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 use Throwable;
 
@@ -19,6 +21,8 @@ use Throwable;
 final readonly class DownloadReportHandler
 {
     public function __construct(
+        private Authorizer $authorizer,
+        private ReportReaders $readers,
         private ReportBuilder $reports,
         private ReportWriter $writer,
     ) {}
@@ -26,7 +30,11 @@ final readonly class DownloadReportHandler
     /** @throws Unauthorized|InvalidOpsInput */
     public function handle(DownloadReport $query): ReportFile
     {
-        $report = $this->reports->build($query->report, $query->store, $query->from, $query->to, $query->by);
+        $ask = $this->readers->ask($query->report, $query->store);
+        foreach ($ask->permissions as $permission) {
+            $this->authorizer->authorize($permission, $ask->scope());
+        }
+        $report = $this->reports->build($ask, $query->from, $query->to, $query->by);
         $path = tempnam(sys_get_temp_dir(), 'tw-report-');
         if ($path === false) {
             throw new RuntimeException('No temporary file for the report.');
