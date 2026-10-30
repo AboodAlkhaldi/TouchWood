@@ -55,6 +55,11 @@ return [
 
     'fields' => [
         'after' => 'place in the list',
+        // Step 8's reports (§1.10). NOT YET APPROVED by the owner.
+        'report' => 'report',
+        'from' => 'first day',
+        'to' => 'last day',
+        'by' => 'grouping (day or month)',
         'entry' => 'notification',
         'kind' => 'kind',
         'title_ar' => 'Arabic title',

@@ -55,6 +55,11 @@ return [
 
     'fields' => [
         'after' => 'الموضع في القائمة',
+        // Step 8's reports (§1.10). NOT YET APPROVED by the owner.
+        'report' => 'التقرير',
+        'from' => 'اليوم الأول',
+        'to' => 'اليوم الأخير',
+        'by' => 'التجميع (يوم أو شهر)',
         'entry' => 'الإشعار',
         'kind' => 'النوع',
         'title_ar' => 'العنوان بالعربية',

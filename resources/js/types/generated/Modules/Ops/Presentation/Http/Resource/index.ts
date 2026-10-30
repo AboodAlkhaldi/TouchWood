@@ -69,6 +69,28 @@ export type NoticesPageData = {
 notices: NoticeData[],
 next: string | null,
 };
+export type ReportColumnData = {
+key: string,
+label: string,
+type: string,
+};
+export type ReportPreviewData = {
+report: string,
+locale: string,
+rightToLeft: boolean,
+title: string,
+subtitle: string,
+sheets: ReportSheetData[],
+filename: string,
+downloadUrl: string,
+};
+export type ReportSheetData = {
+name: string,
+columns: ReportColumnData[],
+notes: string[],
+rows: (string| number| null)[][],
+more: boolean,
+};
 export type SubscriberData = {
 id: string,
 email: string | null,
