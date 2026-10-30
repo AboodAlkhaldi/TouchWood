@@ -269,8 +269,8 @@ it('says nothing about a country when no phone is saved', function () {
     expect(app(MyAccountForCustomer::class)->forCurrentCustomer()->phoneCountryUnlisted)->toBeFalse();
 });
 
-it('leaves the address book\'s recipient phones alone: they receive no code', function () {
-    // SaveAddress is not asked (owner, 2026-10-29: its own job after this step).
+it('saves an address without asking the list: an address has no phone', function () {
+    // Addresses keep no phone (amendment 89), so the list is never asked when one is saved.
     $customerId = Fx::customer();
     Fx::actAsCustomer($customerId);
 
@@ -278,12 +278,11 @@ it('leaves the address book\'s recipient phones alone: they receive no code', fu
         storeId: Fx::storeId('sa'),
         label: 'Home',
         recipientName: 'Sara Ali',
-        phone: PHONE_COUNTRIES_UNLISTED,
         fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => 'King Fahd Road', 'building' => '7'],
         latitude: null,
         longitude: null,
         isDefault: false,
     ));
 
-    expect(DB::table('access.addresses')->where('id', $addressId)->value('phone'))->toBe(PHONE_COUNTRIES_UNLISTED);
+    expect(DB::table('access.addresses')->where('id', $addressId)->exists())->toBeTrue();
 });
