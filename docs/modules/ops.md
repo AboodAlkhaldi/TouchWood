@@ -69,7 +69,8 @@ the recipient's language (round 1 #23). Every number in Latin digits (owner, 202
 - Opening an entry marks it read; "Mark all as read" marks every entry. The bell shows the unread count.
 - A customer's inbox is **per store** — the shop shows the store's own entries. A staff member's inbox
   shows the stores they may view (access.md amendment 64), read through `AccessApi::staffStores` (access.md
-  amendment 88, built in Ops step 4): their assigned stores that are on; a Super Admin every store.
+  amendment 88, built in Ops step 4): every store they are assigned to, on or off (owner, 2026-10-30); a Super
+  Admin every store.
 - Entries older than **12 months** are deleted (owner, round 3 #14).
 
 ### 1.3 Marketing consent (an Access amendment)
