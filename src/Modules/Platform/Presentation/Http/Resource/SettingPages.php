@@ -81,7 +81,8 @@ final readonly class SettingPages
         $permissions = [];
 
         foreach ($this->registry->all() as $definition) {
-            if ($definition->scope === SettingScope::Store) {
+            // A setting edited on its module's own screen offers no store here: the page would list nothing.
+            if ($definition->scope === SettingScope::Store && $definition->onSettingsPage) {
                 $permissions[$definition->permission] = true;
             }
         }
