@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
-import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -16,7 +15,9 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { PickPlaceData, PriceGroupData, PricePlaceData } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { LIST } from './parts';
-import { AmountBox, amountProblem, P, PlaceChip, PRICE_MAX } from './prices';
+import { AmountBox, amountProblem, PRICE_MAX } from './amount';
+import { P, PlaceChip } from './prices';
+import { StaleNote } from './StaleNote';
 
 /*
 | Add Price / Edit Price (shipping.md §4.1 part 2; the owner, 2026-10-30): a module of its own, loaded when it
@@ -78,6 +79,9 @@ export function PriceDialog({
     const [filter, setFilter] = useState('');
     const [busy, setBusy] = useState(false);
     const [refused, setRefused] = useState(false);
+    // The version the dialog was opened on (R10): a page refreshed under it never makes a stale save fresh.
+    const [seen] = useState(version);
+    const stale = refused && errors.stale !== undefined;
 
     // Every place of this carrier's other prices, by id: what "At :amount" and Move here read (R5).
     const owners = useMemo(() => {
@@ -114,7 +118,6 @@ export function PriceDialog({
     const problem = amountProblem(typed, decimals, PRICE_MAX, t);
     const minor = minorOf(typed, decimals);
     const joins = group !== null && minor !== null && minor !== group.amount.minor ? others.find((each) => each.amount.minor === minor) : undefined;
-    const ownAmount = minor === null ? t(`${P}.dialog.places`) : `${typedOf(minor, decimals)} ${currency}`;
 
     /** A row of the open level as a place in this price: its kind and what it is under come from the level. */
     function asPlace(row: PickPlaceData): PricePlaceData {
@@ -153,12 +156,12 @@ export function PriceDialog({
     }
 
     /** What covers a place of the open level, from above: its region, or for a district its city first (rule 5). */
-    function coveredBy(): { name: string; amount: string } | null {
+    function coveredBy(): { name: string; amount: string | null } | null {
         const above = level.kind === 'city' ? [level.id, level.region.id] : level.kind === 'region' ? [level.id] : [];
 
         for (const id of above) {
             if (picked.has(id)) {
-                return { name: picked.get(id)?.name ?? '', amount: ownAmount };
+                return { name: picked.get(id)?.name ?? '', amount: null };
             }
 
             const owner = owners.get(id);
@@ -188,8 +191,11 @@ export function PriceDialog({
         }
 
         for (const [id, owner] of owners) {
-            next.set(id, owner.place);
-            moved.add(id);
+            // A retired place can stay in its price but never be added to another (§1.4): it stays.
+            if (!owner.place.retired) {
+                next.set(id, owner.place);
+                moved.add(id);
+            }
         }
 
         setPicked(next);
@@ -204,7 +210,7 @@ export function PriceDialog({
                 store: storeCode,
                 group: group?.id ?? '',
                 amount: typed,
-                version,
+                version: seen,
                 places: [...picked.keys()],
                 moves: [...moves].filter((id) => picked.has(id)),
                 all_unpriced: allUnpriced,
@@ -237,17 +243,18 @@ export function PriceDialog({
             description={group === null ? t(`${P}.dialog.add_body`) : t(`${P}.dialog.edit_body`)}
             busy={busy}
             confirm={
-                <ActionButton loading={busy} disabledReason={problem ?? (typed.trim() === '' ? t(`${P}.dialog.amount`) : nothing ? t(`${P}.dialog.none`) : undefined)} onClick={submit} data-test="confirm-price">
+                <ActionButton
+                    loading={busy}
+                    disabledReason={stale ? t(`${P}.stale`) : (problem ?? (typed.trim() === '' ? t(`${P}.dialog.amount`) : nothing || (group !== null && picked.size === 0) ? t(`${P}.dialog.none`) : undefined))}
+                    onClick={submit}
+                    data-test="confirm-price"
+                >
                     {t(`${P}.dialog.save`)}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
-                {refused && errors.stale ? (
-                    <Note variant="warning" action={<Button type="button" variant="outline" size="sm" onClick={() => router.reload()} data-test="reload-prices">{t(`${P}.reload`)}</Button>}>
-                        {t(`${P}.stale`)}
-                    </Note>
-                ) : null}
+                {stale ? <StaleNote onReload={() => onOpenChange(false)} /> : null}
                 {refused && errors.existing ? (
                     <Button type="button" variant="link" className="justify-self-start px-0" onClick={() => onOpenGroup(errors.existing ?? "")} data-test="open-existing-price">
                         {t(`${P}.dialog.open_existing`, { amount: groups.find((each) => each.id === errors.existing)?.amount.text ?? '' })}
@@ -271,13 +278,19 @@ export function PriceDialog({
 
                     {/* The trail: the country, the region, the city - each a way back (R3). */}
                     <nav aria-label={t(`${P}.dialog.places`)} className="flex flex-wrap items-center gap-1 text-copy-14" data-test="picker-trail">
-                        <Button type="button" variant="link" size="sm" className="px-0" onClick={() => setLevel({ kind: 'country' })} aria-current={level.kind === 'country' ? 'page' : undefined}>
+                        <Button type="button" variant="link" size="sm" className="px-0" onClick={() => {
+                            setFilter('');
+                            setLevel({ kind: 'country' });
+                        }} aria-current={level.kind === 'country' ? 'page' : undefined}>
                             {countryName}
                         </Button>
                         {level.kind !== 'country' ? (
                             <>
                                 <ChevronRight className="size-3.5 rtl:rotate-180" aria-hidden="true" />
-                                <Button type="button" variant="link" size="sm" className="px-0" onClick={() => setLevel(level.kind === 'city' ? { kind: 'region', ...level.region } : level)} aria-current={level.kind === 'region' ? 'page' : undefined}>
+                                <Button type="button" variant="link" size="sm" className="px-0" onClick={() => {
+                                    setFilter('');
+                                    setLevel(level.kind === 'city' ? { kind: 'region', ...level.region } : level);
+                                }} aria-current={level.kind === 'region' ? 'page' : undefined}>
                                     {level.kind === 'city' ? level.region.name : level.name}
                                 </Button>
                             </>
@@ -376,7 +389,11 @@ export function PriceDialog({
                                                             row.otherName !== row.name ? row.otherName : null,
                                                             isPicked && moves.has(row.id) && owner !== undefined ? t(`${P}.picker.moving`, { amount: owner.amount.text }) : null,
                                                             !isPicked && owner !== undefined ? t(`${P}.picker.at`, { amount: owner.amount.text }) : null,
-                                                            !isPicked && owner === undefined && covered !== null ? t(`${P}.picker.covered`, { place: covered.name, amount: covered.amount }) : null,
+                                                            !isPicked && owner === undefined && covered !== null
+                                                                ? covered.amount === null
+                                                                    ? t(`${P}.picker.covered_here`, { place: covered.name })
+                                                                    : t(`${P}.picker.covered`, { place: covered.name, amount: covered.amount })
+                                                                : null,
                                                         ]
                                                             .filter(Boolean)
                                                             .join(' · ')}
@@ -444,14 +461,15 @@ function MoveHere({ owner, onMove }: { owner: Owner | undefined; onMove: () => v
     const t = useTranslator();
 
     return (
-        <div className="flex flex-wrap items-center gap-2 ps-7 text-copy-13" data-test="move-here">
+        <div role="status" className="flex flex-wrap items-center gap-2 ps-7 text-copy-13" data-test="move-here">
             <span className="text-ink-muted">
                 {owner !== undefined ? `${t(`${P}.picker.at`, { amount: owner.amount.text })} · ` : ''}
                 {t(`${P}.picker.move_here`)}
             </span>
-            <Button type="button" variant="outline" size="sm" onClick={onMove} data-test="confirm-move-here">
+            <Button type="button" variant="outline" size="sm" autoFocus onClick={onMove} data-test="confirm-move-here">
                 {t(`${P}.picker.move_confirm`)}
             </Button>
         </div>
     );
 }
+

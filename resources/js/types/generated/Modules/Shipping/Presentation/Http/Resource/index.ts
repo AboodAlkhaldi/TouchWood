@@ -67,7 +67,3 @@ code: string,
 name: string,
 isActive: boolean,
 };
-export type UncoveredCountryData = {
-code: string,
-places: PricePlaceData[],
-};

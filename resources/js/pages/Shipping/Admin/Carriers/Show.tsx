@@ -15,7 +15,9 @@ import { tone } from '@/lib/tones';
 import type { CarrierPage, PriceGroupData } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 import { C, CarrierLogo, CarrierSwitch, DeleteCarrierDialog, LIST, trackingExample, useCarrierName, useOtherName } from './parts';
-import { AmountText, FreeShippingCard, P, PlaceChips } from './prices';
+import { FreeShippingCard } from './amount';
+import { AmountText, P, PlaceChips } from './prices';
+import { StaleNote } from './StaleNote';
 
 const CarrierDialog = lazy(() => import('./CarrierDialog').then((module) => ({ default: module.CarrierDialog })));
 // The price dialog - its place picker, its levels read as they open - loads when it is first opened (§5).
@@ -291,8 +293,11 @@ function DeletePriceDialog({
     returnFocusTo: React.RefObject<HTMLElement | null>;
 }) {
     const t = useTranslator();
-    const { locale } = usePage<SharedProps>().props;
+    const { errors, locale } = usePage<SharedProps>().props;
     const [busy, setBusy] = useState(false);
+    const [refused, setRefused] = useState(false);
+    const [seen] = useState(version);
+    const stale = refused && errors.stale !== undefined;
 
     return (
         <PanelDialog
@@ -307,11 +312,12 @@ function DeletePriceDialog({
                 <ActionButton
                     variant="destructive"
                     loading={busy}
+                    disabledReason={stale ? t(`${P}.stale`) : undefined}
                     onClick={() =>
                         router.post(
                             `${LIST}/${carrierId}/prices/${group.id}/delete`,
-                            { store: storeCode, version },
-                            { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) },
+                            { store: storeCode, version: seen },
+                            { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onError: () => setRefused(true), onSuccess: () => onOpenChange(false) },
                         )
                     }
                     data-test="confirm-delete-price"
@@ -320,7 +326,7 @@ function DeletePriceDialog({
                 </ActionButton>
             }
         >
-            {null}
+            {stale ? <StaleNote onReload={() => onOpenChange(false)} /> : null}
         </PanelDialog>
     );
 }

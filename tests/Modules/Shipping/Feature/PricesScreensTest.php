@@ -168,8 +168,49 @@ describe('a carrier\'s prices (C3, R1-R10)', function () {
         expect(pricesScreenErrors($browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '20.555', 'version' => $version, 'places' => [$region]])))->toHaveKey('amount');
 
         $browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '20', 'version' => $version, 'places' => [$region]])->assertRedirect();
-        // The same version again: another save came first.
-        expect(pricesScreenErrors($browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '30', 'version' => $version, 'places' => [pricesScreenPlace('Jeddah')]])))->toHaveKeys(['form', 'stale']);
+        // The same version again: another save came first. Said once, as `stale` - the dialog's Reload - and
+        // refused every time it is sent again with the version it was opened on.
+        foreach ([1, 2] as $try) {
+            $refused = pricesScreenErrors($browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '30', 'version' => $version, 'places' => [pricesScreenPlace('Jeddah')]]));
+            expect($refused)->toHaveKey('stale')->and(array_key_exists('form', $refused))->toBeFalse();
+        }
+
+        expect(DB::table('shipping.price_groups')->count())->toBe(1);
+    });
+
+    it('refuses a delete sent with a version another change came after', function () {
+        [$browser, $carrier] = pricesScreenCarrier();
+        $old = pricesScreenVersion($browser, $carrier);
+        $browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '20', 'version' => $old, 'places' => [pricesScreenPlace('Riyadh Region')]])->assertRedirect();
+        $group = (string) DB::table('shipping.price_groups')->value('id');
+        $seen = pricesScreenVersion($browser, $carrier);
+        $browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '30', 'version' => $seen, 'places' => [pricesScreenPlace('Jeddah')]])->assertRedirect();
+
+        expect(pricesScreenErrors($browser->post("/admin/shipping/carriers/{$carrier}/prices/{$group}/delete", ['store' => 'sa', 'version' => $seen])))->toHaveKey('stale')
+            ->and(DB::table('shipping.price_groups')->count())->toBe(2);
+    });
+
+    it('prices every place not yet priced with Select all (R6 (a)), leaving the others where they are', function () {
+        [$browser, $carrier] = pricesScreenCarrier();
+        $browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '20', 'version' => pricesScreenVersion($browser, $carrier), 'places' => [pricesScreenPlace('Riyadh')]])->assertRedirect();
+
+        $browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'sa', 'amount' => '30', 'version' => pricesScreenVersion($browser, $carrier), 'places' => [], 'all_unpriced' => true])->assertRedirect();
+
+        $thirty = (string) DB::table('shipping.price_groups')->where('amount_minor', 3000)->value('id');
+        expect(DB::table('shipping.price_places')->where('group_id', $thirty)->pluck('place_id')->sort()->values()->all())
+            ->toBe(collect([pricesScreenPlace('Diriyah'), pricesScreenPlace('Jeddah')])->sort()->values()->all())
+            ->and(DB::table('shipping.price_groups')->where('amount_minor', 2000)->exists())->toBeTrue();
+    });
+
+    it('finds no carrier of another store: its prices and free shipping are refused there', function () {
+        [$browser, $carrier] = pricesScreenCarrier();
+        $version = pricesScreenVersion($browser, $carrier);
+
+        expect(AdminBrowser::formError($browser->post("/admin/shipping/carriers/{$carrier}/prices", ['store' => 'eg', 'amount' => '20', 'version' => $version, 'places' => [pricesScreenPlace('Riyadh Region')]])))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post("/admin/shipping/carriers/{$carrier}/free-above", ['store' => 'eg', 'free_above' => '200'])))->not->toBeNull()
+            ->and(AdminBrowser::formError($browser->post("/admin/shipping/carriers/{$carrier}/free-above", ['free_above' => '200'])))->not->toBeNull()
+            ->and(DB::table('shipping.price_groups')->count())->toBe(0)
+            ->and(DB::table('shipping.carriers')->where('id', $carrier)->value('free_above_minor'))->toBeNull();
     });
 
     it('points a new price with an amount the carrier has to that price', function () {
@@ -235,8 +276,8 @@ describe('the place picker\'s levels (R3)', function () {
         [$browser, $carrier] = pricesScreenCarrier();
         $region = pricesScreenPlace('Riyadh Region');
 
-        $regions = collect($browser->get("/admin/shipping/carriers/{$carrier}/places?store=sa")->assertOk()->json());
-        $cities = collect($browser->get("/admin/shipping/carriers/{$carrier}/places?store=sa&region={$region}")->assertOk()->json());
+        $regions = $browser->get("/admin/shipping/carriers/{$carrier}/places?store=sa")->assertOk()->collect();
+        $cities = $browser->get("/admin/shipping/carriers/{$carrier}/places?store=sa&region={$region}")->assertOk()->collect();
 
         expect($regions->pluck('id'))->toContain($region)
             ->and($regions->first())->toHaveKeys(['id', 'name', 'otherName'])
@@ -260,6 +301,11 @@ describe('free shipping (R11, R12)', function () {
 
         $browser->post("/admin/shipping/carriers/{$carrier}/free-above", ['store' => 'sa', 'clear' => true])->assertRedirect();
         expect(DB::table('shipping.carriers')->where('id', $carrier)->value('free_above_minor'))->toBeNull();
+
+        // Whoever may only view is refused, the handler asking again (R14).
+        $viewer = pricesScreenSignIn(Fx::staffWith([P::CARRIERS_VIEW], ['sa']));
+        expect(AdminBrowser::formError($viewer->post("/admin/shipping/carriers/{$carrier}/free-above", ['store' => 'sa', 'free_above' => '200'])))->not->toBeNull()
+            ->and(DB::table('shipping.carriers')->where('id', $carrier)->value('free_above_minor'))->toBeNull();
     });
 
     it('shows the store-wide amount, saved through Platform\'s settings route in the smallest unit', function () {

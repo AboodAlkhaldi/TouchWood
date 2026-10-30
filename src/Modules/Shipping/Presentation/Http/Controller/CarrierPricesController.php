@@ -145,7 +145,7 @@ final readonly class CarrierPricesController
             // A save or delete that came after another (R10): the dialog offers Reload, not a retry. A new
             // price with an amount the carrier has: the dialog links to that price (§4.1 part 2).
             return match ($error->type()) {
-                'shipping.prices_changed' => $response->withErrors(['form' => FormErrors::message($error), 'stale' => '1']),
+                'shipping.prices_changed' => back()->withErrors(['stale' => FormErrors::message($error)]),
                 'shipping.amount_already_used' => $response->withErrors(['form' => FormErrors::message($error), 'existing' => (string) ($error->context()['group'] ?? '')]),
                 default => $response,
             };
