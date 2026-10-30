@@ -199,12 +199,22 @@ from Platform from its most specific place, never taken from the caller.
   auto; per store, because a size is the same in every store but each store packs its own). Manual sizes
   skip the engine and the order is marked "pack by hand".
 - **The engine only suggests** (owner, 2026-10-19 S8): for each order it picks the **smallest box**
-  (by volume) whose inner sizes, less the padding, take every auto size of the order **one at a time
-  checked on its own three sizes and their weight added up** — **no 3D bin packing** (handoff §12.5).
-  None fits, or a size has no weight or size in Catalog → "pack by hand".
+  (by inner volume; a tie → the first in the list) whose inner sizes, **less the padding on both sides**,
+  take every auto size of the order **one at a time checked on its own three sizes** (a piece may be
+  turned: its sides sorted against the box's), **their weight added up**, and — the owner's answer, gap 5.2
+  — **their volumes added up no more than the box's inner volume less the padding**, so ten chairs never
+  go in a box one chair fits — **no 3D bin packing** (handoff §12.5). None fits, or a size has no weight
+  or one of its three sizes in Catalog → "pack by hand". The free gift is packed like any piece.
 - **It never changes the price** (owner, 2026-10-19 S8: prices are by place only) and **never blocks**
-  an order, a shipment or the store going live.
-- With **no box in the list**, the suggestion is simply not shown.
+  an order, a shipment or the store going live. It is **worked out when it is shown, never stored**
+  (gap 5.1): the staff order page and the packing slip ask `suggestBox` live — Sales's side.
+- With **no switched-on box in the list**, the suggestion is simply not shown (`suggestBox` → null).
+- The padding and the store-wide free-shipping amount are **edited on Shipping's own screens** (Boxes,
+  Carriers), not on Platform's Settings page (`SettingDefinitionDto::$onSettingsPage` false; step 5).
+- **Hand-packed sizes** are set on the Boxes page (gap 5.3): `SetSizePacking`; `ListPackingSizes` pages
+  the hand-packed ones and, for the box that adds one, the store's sizes not yet hand-packed (Catalog's
+  `searchVariants`, archived sizes left out). A size is marked by hand only while it is Catalog's and not
+  archived; any may go back.
 - **The box part is built now** and stays unused until boxes are entered (owner, 2026-10-27, §9.3 #6).
 
 ---
@@ -274,7 +284,7 @@ interface ShippingApi
 | `SavePriceGroup` (create, change amount, add/move/remove places, the country's Select all — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
 | `SetCarrierFreeAbove`, the store-wide free-above setting | **`shipping.prices.manage`** | That store |
 | `ListCarriers`, `ViewCarrier`, `ListPriceGroups` (a carrier's groups, step 4), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — a plain role permission, ticked per role (owner, 2026-10-29, §9.4 #1) | That store |
-| `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, the padding, a size's auto/manual | **`shipping.boxes.manage`** — Admins by default, and any staff role it is given to (owner, 2026-10-28: admins and staff) | That store |
+| `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, `OrderBoxes`, the padding, `SetSizePacking` (a size's auto/manual), `ListBoxes`, `ListPackingSizes` (step 5) | **`shipping.boxes.manage`** — Admins by default, and any staff role it is given to (owner, 2026-10-28: admins and staff) | That store |
 | `Quote`, `TrackingLink`, `SuggestBox` | — (called by Sales inside its own permission) | — |
 
 The permissions sit in a new **Shipping** group in the role editor (access.md amendment, §9.2). Every
@@ -411,7 +421,7 @@ Schema `shipping`. Every store-scoped row names its store; money in the currency
 | `shipping.price_groups` | `id` ULID PK · `carrier_id` FK CASCADE · `store_id` FK `platform.stores` RESTRICT · `amount_minor` bigint 0–100,000,000 · **unique (`carrier_id`, `amount_minor`)** (rule 4) · unique (`id`, `carrier_id`) for the places' composite key · `created_at`, `updated_at` |
 | `shipping.price_places` | `id` bigint PK · `store_id` · (`group_id`, `carrier_id`) **composite FK** → `price_groups (id, carrier_id)` CASCADE, so the copied carrier can never disagree with its group · `place_id` FK `platform.places` RESTRICT — a region, a city or a district (step 4: one place column, since a whole region may be priced) · **unique (`carrier_id`, `place_id`)** (rule 3) |
 | `shipping.uncovered_counts` | `store_id` PK FK `platform.stores` · `count` ≥ 0 · `counted_at` — the menu's kept count (§1.6, step 4) |
-| `shipping.boxes` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `name` · `length_mm`, `width_mm`, `height_mm`, `max_weight_g` int 1–1,000,000 · `active` · `position` |
+| `shipping.boxes` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `name` (1–100, unique in the store ignoring case) · `length_mm`, `width_mm`, `height_mm`, `max_weight_g` int 1–1,000,000 · `active` · `position` |
 | `shipping.variant_packing` | `store_id` · `variant_id` (Catalog's, no key) · PK (`store_id`, `variant_id`) — a row only for a size packed by hand in that store |
 
 Settings (Platform, declared by Shipping): `shipping.free.above_all` (STORE, integer smallest unit, 0
@@ -447,6 +457,8 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
 | `PriceGroupNotFound` | NOT_FOUND | A price group that is not there, or another carrier's (step 4) |
 | `PricesChanged` | CONFLICT | The carrier's prices changed since the page read them — reload (§1.4, §8 #3; step 4) |
+| `BoxNotFound` | NOT_FOUND | A box that is not there, or another store's (step 5) |
+| `BoxNameTaken` | CONFLICT | A name another box of the store has, ignoring case and outer spaces — names it (step 5) |
 | `PlaceNotInCountry` | INVALID | A place that is not Platform's, not in the carrier's country, or retired and not already in that group (§1.4) |
 | `InvalidShippingInput` | INVALID | A field out of range — named by its field and rule (`tracking_pattern_number`, `https`, …) |
 
@@ -637,3 +649,19 @@ noted), and the small picks the owner left to me ("simple — handle it with rec
    (§1.6); the list itself is live.
 9. Mine: the price changes are audited on the carrier, one attribute per amount that changed (§1.4).
 10. Mine (the review): a save or delete carries the version it read and a later one is refused (`PricesChanged`), as §1.4 says ("the second is told to reload"); Select all leaves out the cities under a region picked in the same save; a place already in the group a changed one merges into is not refused.
+
+### 9.7 Stage 7 step 5 — the owner's answers and my picks (2026-10-30)
+
+1. **The suggestion is worked out when shown, never stored** (gap 5.1 (a)): Sales's staff order page and
+   packing slip ask `suggestBox` live — Sales's side, built with step 6 or after it.
+2. **The pieces' volumes added up must fit too, the padding counted** (gap 5.2 (b); owner confirmed
+   2026-10-30) — not 3D packing.
+3. **Hand-packed sizes are set on the Boxes page** (gap 5.3 (a)): `SetSizePacking`, `ListPackingSizes`.
+4. Mine (the small picks, owner 2026-10-30 "as rec"): the padding is taken off both sides of each inner
+   size; a piece may be turned; the free gift is packed like any piece; every box switched off = no
+   suggestion; a tie goes to the first box in the list.
+5. Mine: a box may be deleted on or off — nothing names a box; box names are unique in the store ignoring
+   case; boxes are ordered as carriers are (`OrderBoxes`).
+6. Mine (asked by the screens session): the padding and the store-wide free-shipping amount are left off
+   Platform's Settings page (`SettingDefinitionDto::$onSettingsPage`, platform.md row 2026-10-30) — their
+   own screens edit them in their own words.

@@ -44,7 +44,8 @@ final readonly class ListSettingsHandler
         $rows = [];
 
         foreach ($this->registry->all() as $definition) {
-            if (! $this->mayChange($definition, $store)) {
+            // Edited on its module's own screen (SettingDefinitionDto::$onSettingsPage).
+            if (! $definition->onSettingsPage || ! $this->mayChange($definition, $store)) {
                 continue;
             }
 

@@ -25,6 +25,10 @@ final readonly class SettingDefinitionDto
      * @param  bool  $mayBeEmpty  a text setting whose value may be the empty text, meaning "not set
      *                            yet" (platform.md §1.3, asked for by B2B step 5); its rules then
      *                            apply only to a value that is not empty. Text settings only.
+     * @param  bool  $onSettingsPage  listed on Platform's Settings page; false for a setting its module's
+     *                                own screen edits in its own words (shipping.md §4.1: the free-shipping
+     *                                amount in riyals on Carriers, the padding on Boxes) - it is still
+     *                                read and changed through Platform as any other
      */
     public function __construct(
         public string $key,
@@ -35,6 +39,7 @@ final readonly class SettingDefinitionDto
         public string $permission,
         public bool $sensitive = false,
         public bool $mayBeEmpty = false,
+        public bool $onSettingsPage = true,
     ) {}
 
     /**

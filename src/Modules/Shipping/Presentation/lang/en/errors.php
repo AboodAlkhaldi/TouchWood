@@ -45,6 +45,14 @@ return [
         'title' => 'Place Not Available',
         'detail' => 'One of the places isn\'t in use in this carrier\'s country. Reload the page and choose again.',
     ],
+    'box_not_found' => [
+        'title' => 'Box Not Found',
+        'detail' => 'No such box was found in this store. Reload the page.',
+    ],
+    'box_name_taken' => [
+        'title' => 'Name Already Used',
+        'detail' => 'Another box of this store is named ":name". Choose another name.',
+    ],
     'invalid_shipping_input' => [
         'title' => 'Check the Details',
         'detail' => 'The :field isn\'t valid. Check it and try again.',
@@ -61,5 +69,12 @@ return [
         'amount' => 'amount',
         'places' => 'places',
         'free_above' => 'free shipping amount',
+        'name' => 'name',
+        'length_mm' => 'length',
+        'width_mm' => 'width',
+        'height_mm' => 'height',
+        'max_weight_g' => 'most weight',
+        'boxes' => 'boxes\' order',
+        'variant' => 'product size',
     ],
 ];

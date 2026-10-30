@@ -20,8 +20,10 @@ use Modules\Shipping\Application\ShippingSettings;
 use Modules\Shipping\Application\Uncovered\UncoveredCounts;
 use Modules\Shipping\Application\Uncovered\UncoveredPlacesCount;
 use Modules\Shipping\Application\Uncovered\UncoveredRecounts;
+use Modules\Shipping\Domain\Repository\BoxRepository;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Modules\Shipping\Domain\Repository\PriceGroupRepository;
+use Modules\Shipping\Infrastructure\Eloquent\DatabaseBoxRepository;
 use Modules\Shipping\Infrastructure\Eloquent\DatabaseCarrierRepository;
 use Modules\Shipping\Infrastructure\Eloquent\DatabasePriceGroupRepository;
 use Modules\Shipping\Infrastructure\Eloquent\DatabasePriceReader;
@@ -42,6 +44,7 @@ final class ShippingServiceProvider extends ServiceProvider
     {
         $this->app->bind(CarrierRepository::class, DatabaseCarrierRepository::class);
         $this->app->bind(PriceGroupRepository::class, DatabasePriceGroupRepository::class);
+        $this->app->bind(BoxRepository::class, DatabaseBoxRepository::class);
         $this->app->bind(PriceReader::class, DatabasePriceReader::class);
         $this->app->bind(UncoveredCounts::class, DatabaseUncoveredCounts::class);
         $this->app->bind(UncoveredRecounts::class, QueuedUncoveredRecounts::class);

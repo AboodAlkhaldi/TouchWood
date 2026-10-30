@@ -10,10 +10,12 @@ use Modules\Platform\Public\Dto\PlaceDto;
 use Modules\Platform\Public\Enums\ImageFormat;
 use Modules\Platform\Public\Enums\MediaSize;
 use Modules\Platform\Public\Enums\PlaceKind;
+use Modules\Shipping\Application\Box\BoxSuggester;
 use Modules\Shipping\Application\Price\PriceReader;
 use Modules\Shipping\Domain\Model\Carrier;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Modules\Shipping\Public\Contracts\ShippingApi;
+use Modules\Shipping\Public\Dto\BoxSuggestionDto;
 use Modules\Shipping\Public\Dto\CarrierDto;
 use Modules\Shipping\Public\Dto\ShippingDestinationDto;
 use Modules\Shipping\Public\Dto\ShippingOptionDto;
@@ -33,6 +35,7 @@ final readonly class ShippingApiImpl implements ShippingApi
         private PlatformApi $platform,
         private CarrierRepository $carriers,
         private PriceReader $prices,
+        private BoxSuggester $boxes,
     ) {}
 
     /**
@@ -258,5 +261,10 @@ final readonly class ShippingApiImpl implements ShippingApi
         }
 
         return null;
+    }
+
+    public function suggestBox(StoreId $store, array $lines): ?BoxSuggestionDto
+    {
+        return $this->boxes->suggest($store, $lines);
     }
 }
