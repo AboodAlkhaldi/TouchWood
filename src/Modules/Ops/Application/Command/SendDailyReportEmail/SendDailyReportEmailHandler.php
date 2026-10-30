@@ -36,6 +36,9 @@ use Shared\Application\Unauthorized;
  */
 final readonly class SendDailyReportEmailHandler
 {
+    /** `ops.report.daily` (ops.md §3), in the store or, for every store's report, all stores. */
+    public const string PERMISSION = DailyReportPeople::PERMISSION;
+
     public function __construct(
         private Authorizer $authorizer,
         private DailyReportPeople $people,
@@ -53,7 +56,7 @@ final readonly class SendDailyReportEmailHandler
             return null;
         }
 
-        $this->authorizer->authorize(DailyReportPeople::PERMISSION, $setting->store === null ? PermissionScope::allStores() : PermissionScope::store($setting->store));
+        $this->authorizer->authorize(self::PERMISSION, $setting->store === null ? PermissionScope::allStores() : PermissionScope::store($setting->store));
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $staff = $this->people->staff($setting->staffId);
         if ($staff === null || $staff->status === StaffStatus::Cancelled) {

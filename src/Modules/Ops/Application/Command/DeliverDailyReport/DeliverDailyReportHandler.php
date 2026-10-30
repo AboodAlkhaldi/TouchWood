@@ -22,6 +22,9 @@ use Shared\Application\Unauthorized;
  */
 final readonly class DeliverDailyReportHandler
 {
+    /** `ops.report.daily` (ops.md §3), in the store or, for every store's report, all stores. */
+    public const string PERMISSION = DailyReportPeople::PERMISSION;
+
     public function __construct(
         private Authorizer $authorizer,
         private DailyReportPeople $people,
@@ -38,7 +41,7 @@ final readonly class DeliverDailyReportHandler
             return false;
         }
 
-        $this->authorizer->authorize(DailyReportPeople::PERMISSION, $report->store === null ? PermissionScope::allStores() : PermissionScope::store($report->store));
+        $this->authorizer->authorize(self::PERMISSION, $report->store === null ? PermissionScope::allStores() : PermissionScope::store($report->store));
         $person = $this->people->person();
         $pdf = $this->files->get($report->file);
         if ($person->id !== $report->madeBy || $pdf === null) {

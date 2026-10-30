@@ -24,6 +24,9 @@ use Shared\Application\Unauthorized;
  */
 final readonly class SetDailyReportEmailHandler
 {
+    /** `ops.report.daily` (ops.md §3), in the store or, for every store's report, all stores. */
+    public const string PERMISSION = DailyReportPeople::PERMISSION;
+
     public function __construct(
         private Authorizer $authorizer,
         private DailyReportPeople $people,
@@ -38,11 +41,11 @@ final readonly class SetDailyReportEmailHandler
         $person = $this->people->person();
         $store = null;
         if ($command->store === null) {
-            $this->authorizer->authorize(DailyReportPeople::PERMISSION, PermissionScope::allStores());
+            $this->authorizer->authorize(self::PERMISSION, PermissionScope::allStores());
             $this->people->requireAllStores($person);
         } else {
             $store = $this->people->store($command->store);
-            $this->authorizer->authorize(DailyReportPeople::PERMISSION, PermissionScope::store($store->storeId()));
+            $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store->storeId()));
             $this->people->requireStore($store->storeId());
         }
 

@@ -18,6 +18,9 @@ use Shared\Application\Unauthorized;
  */
 final readonly class MakeDailyReportHandler
 {
+    /** `ops.report.daily` (ops.md §3), in the store or, for every store's report, all stores. */
+    public const string PERMISSION = DailyReportPeople::PERMISSION;
+
     public function __construct(
         private Authorizer $authorizer,
         private DailyReportPeople $people,
@@ -30,14 +33,14 @@ final readonly class MakeDailyReportHandler
         $person = $this->people->person();
 
         if ($command->store === null) {
-            $this->authorizer->authorize(DailyReportPeople::PERMISSION, PermissionScope::allStores());
+            $this->authorizer->authorize(self::PERMISSION, PermissionScope::allStores());
             $this->people->requireAllStores($person);
 
             return $this->maker->make($person, null, $this->people->everyStore(), $command->day, $this->people->allStoresZone());
         }
 
         $store = $this->people->store($command->store);
-        $this->authorizer->authorize(DailyReportPeople::PERMISSION, PermissionScope::store($store->storeId()));
+        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store->storeId()));
         $this->people->requireStore($store->storeId());
 
         return $this->maker->make($person, $store, [$store], $command->day, $store->timezone);
