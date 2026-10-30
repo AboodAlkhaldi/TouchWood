@@ -84,8 +84,8 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  * Step 2 (the foundation): the schema and its three tables, the permissions, the adapters, the bells
  * and the nightly removal. Step 3: the security messages (C18) in place of Access's temporary sender,
  * and the SMS countries (access.md amendment 90). Step 7: offer notices, staff messages, the
- * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events. Step 9: the daily
- * report - its reader, its PDF, the files kept, the email at the time chosen.
+ * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
+ * Step 9: the daily report - its reader, its PDF, the files kept, the email at the time chosen.
  */
 final class OpsServiceProvider extends ServiceProvider
 {
