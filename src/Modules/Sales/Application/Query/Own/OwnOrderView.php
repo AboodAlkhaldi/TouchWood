@@ -52,6 +52,8 @@ final readonly class OwnOrderView
         public ?DateTimeImmutable $deliveredAt,
         public ?DateTimeImmutable $returnDeadline,
         public array $address,
+        /** The number the courier calls: the account's verified phone as placed (access.md amendment 89). */
+        public string $contactPhone,
         public array $returns,
         public int $transferDocuments,
         public bool $mayCancel,

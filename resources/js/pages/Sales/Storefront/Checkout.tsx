@@ -105,8 +105,18 @@ function Addresses({ page, busy, choose }: Part) {
                                     <bdi>{address.label}</bdi>
                                     {address.isDefault ? <Badge variant="outline">{t(`${W}.address.default`)}</Badge> : null}
                                 </span>
+                                {/* The courier calls the account's verified phone, whichever address (access.md amendment 89). */}
                                 <span className="text-copy-13 text-ink-muted">
                                     <bdi>{address.recipientName}</bdi>
+                                    {page.phone === null ? null : (
+                                        <>
+                                            {' '}
+                                            ·{' '}
+                                            <bdi dir="ltr" className="tw-figure" data-test="checkout-phone">
+                                                {page.phone}
+                                            </bdi>
+                                        </>
+                                    )}
                                 </span>
                                 <span className="text-copy-13 whitespace-pre-line text-ink-muted">{address.formatted}</span>
                                 {address.isComplete ? null : <span className="text-copy-13 text-ink">{t(`${W}.address.incomplete`)}</span>}

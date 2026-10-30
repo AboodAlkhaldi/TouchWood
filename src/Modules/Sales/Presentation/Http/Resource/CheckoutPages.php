@@ -61,9 +61,12 @@ final readonly class CheckoutPages
         $rows = array_map(static fn (AddressDto $address): CheckoutAddressData => new CheckoutAddressData(
             $address->id, $address->label, $address->recipientName, $address->formatted, $address->isDefault, $address->isComplete,
         ), $addresses);
+        // The one phone delivery uses: the account's, once verified (access.md amendment 89).
+        $account = $this->access->customer($customerId);
+        $phone = $account?->phoneVerified === true ? $account->phone : null;
 
         if ($chosen === null) {
-            return new CheckoutPage(null, $rows, null, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null, null, null, null, null, null, null, null, 0, null, null, null, 0);
+            return new CheckoutPage(null, $rows, null, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null, null, null, null, null, null, null, null, 0, null, null, null, 0, $phone);
         }
 
         // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
@@ -115,6 +118,7 @@ final readonly class CheckoutPages
             $gift === null ? null : ($locale === 'en' ? ($gift->productNameEn ?? $gift->productNameAr) : $gift->productNameAr),
             $gift === null ? null : $money(Money::zero($totals->orderTotal->currencyCode)),
             $quote->earningPreview,
+            $phone,
         );
     }
 

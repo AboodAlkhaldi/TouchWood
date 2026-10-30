@@ -9,6 +9,10 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCode;
+use Modules\Access\Application\Command\RequestCustomerPhoneCode\RequestCustomerPhoneCodeHandler;
+use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
+use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhoneHandler;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Dto\BankAccountDto;
@@ -47,6 +51,7 @@ use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Inventory\Support\InventoryFixtures as Ix;
@@ -109,6 +114,8 @@ describe('placing', function () {
             ->and($order?->customer_phone)->toBe($customerRow?->phone)
             ->and($order?->customer_name)->toBe('Sara Ali')
             ->and(json_decode((string) $order?->address, true)['formatted'] ?? null)->not->toBeNull()
+            // An address keeps no phone; the order's phone is the account's (access.md amendment 89).
+            ->and(json_decode((string) $order?->address, true))->not->toHaveKey('phone')
             ->and((int) $order?->gross_subtotal_minor)->toBe(250_00)
             ->and((int) $order?->order_total_minor)->toBe($quote->totals->orderTotal->minorUnits)
             ->and((int) $order?->due_minor)->toBe($quote->totals->orderTotal->minorUnits)
@@ -488,6 +495,28 @@ describe('what the review asked for', function () {
             ->and($order?->customer_name)->toBe('Sara Ali')
             ->and($order?->customer_phone)->toBe($phone)
             ->and($order?->address)->not->toBeNull();
+    });
+});
+
+// One phone per customer (access.md amendment 89 (d), owner 2026-10-30): an order keeps the phone it was placed with.
+describe('the order phone', function () {
+    it('keeps the phone as placed on an open order when the account changes and verifies another', function () {
+        RecordingSecurityMessages::install();
+        ['address' => $address, 'customer' => $customer] = Cx::ready();
+        $placed = Cx::place(Cx::start($address)->id);
+        $before = (string) DB::table('sales.orders')->where('id', $placed->id)->value('customer_phone');
+        $next = Bx::unusedPhone();
+
+        Fx::inStoreCode('sa', fn () => app(RequestCustomerPhoneCodeHandler::class)->handle(new RequestCustomerPhoneCode($next)));
+        Fx::inStoreCode('sa', fn () => app(VerifyCustomerPhoneHandler::class)->handle(
+            new VerifyCustomerPhone(RecordingSecurityMessages::installed()->lastCode()),
+        ));
+
+        $order = DB::table('sales.orders')->where('id', $placed->id)->first();
+        expect(DB::table('access.customers')->where('id', $customer)->value('phone'))->toBe($next)
+            ->and($order?->status)->toBe('PENDING_APPROVAL')
+            ->and($order?->customer_phone)->toBe($before)
+            ->and($before)->not->toBe($next);
     });
 });
 
