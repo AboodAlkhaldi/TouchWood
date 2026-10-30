@@ -48,6 +48,13 @@ final class RecordingSecurityMessages implements SecurityMessages
      */
     public array $companyDecisionStores = [];
 
+    /**
+     * "Your phone number was changed", after a new number on the no-phone sign-in path (amendment 90).
+     *
+     * @var list<array{staff: string, to: string}>
+     */
+    public array $phoneChanges = [];
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -106,6 +113,11 @@ final class RecordingSecurityMessages implements SecurityMessages
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
     {
         $this->emailChanges[] = ['staff' => $staff->id, 'to' => $newEmail, 'link' => $link];
+    }
+
+    public function staffPhoneChanged(StaffDto $staff): void
+    {
+        $this->phoneChanges[] = ['staff' => $staff->id, 'to' => $staff->email];
     }
 
     public function phoneCode(string $phone, string $locale, string $code): void

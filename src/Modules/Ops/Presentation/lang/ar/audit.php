@@ -9,4 +9,8 @@ return [
     'notice.changed' => 'تعديل إشعار عرض',
     'notice.cancelled' => 'إلغاء إشعار عرض',
     'staff_message.sent' => 'إرسال رسالة إلى العملاء',
+    'sms_country.added' => 'إضافة دولة للرسائل النصية',
+    'sms_country.provider_changed' => 'تغيير مزوّد دولة للرسائل النصية',
+    'sms_country.calling_code_changed' => 'تغيير رمز الاتصال لدولة للرسائل النصية',
+    'sms_country.removed' => 'إزالة دولة من الرسائل النصية',
 ];

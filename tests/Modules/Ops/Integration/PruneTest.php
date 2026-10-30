@@ -45,6 +45,8 @@ function pruneSent(CarbonImmutable $at): string
 
 it('removes what is older than twelve months from the three tables, keeps the rest, and is the system\'s alone', function () {
     $customer = Fx::customer();
+    // Registering sent the customer's email-verification link, and left its own row.
+    DB::table('ops.sent_messages')->delete();
     $old = CarbonImmutable::now()->subMonthsNoOverflow(12)->subMinute();
     $kept = CarbonImmutable::now()->subMonthsNoOverflow(12)->addMinute();
 

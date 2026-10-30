@@ -17,8 +17,8 @@ declare(strict_types=1);
  * out here is a file nobody checks.
  */
 const WRITING_RULES_NOT_SCREENS = [
-    // SecurityMail's subjects and lines, and TemporarySecurityMessages' SMS codes.
-    'src/Modules/Access/Presentation/lang/en/messages.php',
+    // The security messages' subjects, lines and SMS codes (ops.md §1.5 C18), sent by OpsSecurityMessages.
+    'src/Modules/Ops/Presentation/lang/en/security.php',
 ];
 
 /**

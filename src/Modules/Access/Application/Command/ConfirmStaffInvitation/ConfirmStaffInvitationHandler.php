@@ -13,6 +13,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SecretTokens;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
@@ -40,6 +41,7 @@ final readonly class ConfirmStaffInvitationHandler
         private PlatformApi $platform,
         private Dispatcher $events,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     /**
@@ -69,6 +71,9 @@ final readonly class ConfirmStaffInvitationHandler
             if ($phone instanceof InvalidCode) {
                 return $phone;
             }
+
+            // The country may have left the SMS countries list since the code was sent (amendment 90).
+            $this->phones->require($phone);
 
             if ($this->staff->phoneInUse($phone, $staff->id())) {
                 throw new PhoneAlreadyInUse;

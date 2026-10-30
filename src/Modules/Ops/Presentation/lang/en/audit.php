@@ -9,4 +9,8 @@ return [
     'notice.changed' => 'Offer notice changed',
     'notice.cancelled' => 'Offer notice cancelled',
     'staff_message.sent' => 'Message sent to customers',
+    'sms_country.added' => 'SMS country added',
+    'sms_country.provider_changed' => 'SMS country provider changed',
+    'sms_country.calling_code_changed' => 'SMS country calling code changed',
+    'sms_country.removed' => 'SMS country removed',
 ];

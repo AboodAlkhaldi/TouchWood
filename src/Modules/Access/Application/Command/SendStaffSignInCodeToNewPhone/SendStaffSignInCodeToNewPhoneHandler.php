@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -29,6 +30,7 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
         private PhoneVerification $verification,
         private StaffSessions $sessions,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(SendStaffSignInCodeToNewPhone $command): void
@@ -42,6 +44,8 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
         }
 
         $phone = PhoneNumber::of($command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
+        $this->phones->require($phone);
 
         $this->db->transaction(function () use ($pending, $phone): void {
             $staff = $this->staff->byId($pending->staffId);
@@ -51,7 +55,7 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
             }
 
             // Still a Super Admin with no phone, under the same password (review of step 3b).
-            if (! $pending->stillFor($staff)) {
+            if (! $pending->stillFor($staff, $this->phones)) {
                 throw new InvalidCode(requestNewCode: true);
             }
 

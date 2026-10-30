@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
@@ -42,7 +43,7 @@ function opsDeclaredPermissions(): array
     return $names;
 }
 
-it('declares the six jobs of the spec, the two bells and the system\'s removal', function () {
+it('declares the six jobs of the spec, the two bells, the system\'s removal and the SMS countries', function () {
     expect(opsDeclaredPermissions())->toBe([
         'ops.inbox.view_own',
         'ops.log.prune',
@@ -53,6 +54,7 @@ it('declares the six jobs of the spec, the two bells and the system\'s removal',
         'ops.panel_inbox.view_own',
         'ops.report.daily',
         'ops.report.view',
+        'ops.sms_countries.manage',
     ]);
 });
 
@@ -102,4 +104,20 @@ it('keeps the removal of old rows the system\'s alone', function () {
 
     expect($permission?->reserved)->toBeTrue()
         ->and($permission?->kind)->toBe(PermissionKind::Global);
+});
+
+it('reserves the SMS countries to Super Admins, store-free, as Platform\'s places are (access.md amendment 90)', function () {
+    $permission = app(InMemoryPermissionCatalog::class)->definition(OpsPermissions::SMS_COUNTRIES_MANAGE);
+
+    expect($permission?->audience)->toBe(PermissionAudience::Role)
+        ->and($permission?->reserved)->toBeTrue()
+        ->and($permission?->kind)->toBe(PermissionKind::Global)
+        ->and($permission?->group)->toBeNull();
+
+    // Not an admin, whatever their role holds.
+    Fx::actAsStaff(Fx::staffWith([OpsPermissions::REPORT_VIEW], ['sa'], RoleLevel::Admin));
+    expect(Fx::allows(OpsPermissions::SMS_COUNTRIES_MANAGE, PermissionScope::global()))->toBeFalse();
+
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    expect(Fx::allows(OpsPermissions::SMS_COUNTRIES_MANAGE, PermissionScope::global()))->toBeTrue();
 });

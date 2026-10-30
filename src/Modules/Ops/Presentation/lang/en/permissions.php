@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // The names of Ops' permissions (OpsPermissions): the jobs the role editor shows under Messages and
-// reports, what everyone holds for their own inbox, and the system's nightly removal.
+// reports, what everyone holds for their own inbox, the system's nightly removal, and the SMS countries.
 return [
     'message' => [
         'send_one' => 'Send messages to a customer',
@@ -27,5 +27,8 @@ return [
     ],
     'log' => [
         'prune' => 'Remove notifications and message records older than a year',
+    ],
+    'sms_countries' => [
+        'manage' => 'Manage SMS countries',
     ],
 ];

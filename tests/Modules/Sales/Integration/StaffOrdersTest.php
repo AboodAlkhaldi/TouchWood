@@ -305,6 +305,8 @@ it('reads a list and an order in the same number of queries however many rows', 
     // Measured 2026-10-25, warm: the list 2 (the orders, the customers; Platform's stores cached, Sales's
     // off-store check one more only while a store is off); the order 11 (its row, the customer, money, history,
     // edits, ticks, documents, returns, staff names, the lines' sizes) - targets, not caps (owner, 2026-10-19).
+    // Measured 2026-10-30: one more each, 3 and 12 - the SMS countries list, read once with the customers
+    // (access.md amendment 90).
     expect([$count($list), $count($view)])->toBe([$oneRow, $oneMoney])
-        ->and([$oneRow, $oneMoney])->toBe([2, 11]);
+        ->and([$oneRow, $oneMoney])->toBe([3, 12]);
 });

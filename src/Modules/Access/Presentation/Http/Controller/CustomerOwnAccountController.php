@@ -253,6 +253,7 @@ final readonly class CustomerOwnAccountController
             phone: $account->phone,
             emailVerified: $account->emailVerified,
             phoneVerified: $account->phoneVerified,
+            phoneCountryUnlisted: $account->phoneCountryUnlisted,
             mayOrder: $account->mayOrder,
             // Named in the language the page is being read in, which is not necessarily the
             // language we write to them in.

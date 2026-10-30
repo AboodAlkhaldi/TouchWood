@@ -79,8 +79,8 @@ $addresses = $this->access->addresses($customerId, $storeId);           // list<
   (Sales moves or merges the cart), `CustomerBlocked`, `CustomerUnblocked`,
   `CustomerDeletionScheduled`, `CustomerDeletionCancelled`, and `CustomerAnonymized` — on which
   Sales, Feedback, B2B, Loyalty and Promotions replace their own copies with "Deleted customer".
-- Ops will send the security messages by binding its own `SecurityMessages`; until then Access's
-  temporary sender uses Laravel mail and its `SmsGateway`.
+- Ops sends the security messages: it binds `SecurityMessages` (ops.md §1.5 C18). It also binds
+  `PhoneCountries`, whether a phone's country is on its SMS countries list (amendment 90).
 
 ```php
 // A page of your own in the customer's account, for one account type or every account; it is
@@ -118,17 +118,17 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
 | `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole` (the Refresh commands went with amendment 59). Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them); `StoresForStaff`, a staff member's stores - a Super Admin every store, anyone else their assignment's stores that are on, read from their cached permissions - for Home's switcher and View Store (amendments 64, 65); `AdminShellForStaff`, the person the panel is shown to, read once per request in one unlocked statement (`StaffReader::shell`, amendment 65). |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `ServedPhones` (a phone's country on the SMS countries list, amendment 90), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `StaffCustomerAction` (what the four staff actions on a customer share: the reason, and the customer's home store to check in), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
 | `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StoreIds` (the store an address belongs to, as it arrives from a caller), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
 | `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
 | `Application/Settings` | `StaffSecuritySettings` (global) and `CustomerSecuritySettings` (**per store**: each store's terms version, password length, verification hours and SMS numbers). |
-| `Application/Staff`, `Messages`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; the `SmsGateway` port; `RoleAudit`, `StaffAudit`, `CustomerAudit` and `AddressAudit` (every audit entry). `AccessApiImpl` sits beside them. |
+| `Application/Staff`, `Audit` | `StaffMapper`, `StaffLinks`, `Avatars`, `Invitations` (every invitation link), `StaffCancellation`; `RoleAudit`, `StaffAudit`, `CustomerAudit` and `AddressAudit` (every audit entry). `AccessApiImpl` sits beside them. |
 | `Infrastructure/Eloquent` | Query-builder repositories (an id from a caller is checked as a ULID — `Shared\Infrastructure\Persistence\Ulids` — before it reaches a query), `CachedGrantsReader`, and `RequestGrantsReader` around it (once per web request, amendment 65), `DatabaseRoleReader`, `CachedStoreAddressFormatRepository` (each store's form, under its own version). |
 | `Infrastructure/Http` | `RequestActor` (who this request acts as), `RequestActorContext` (the real `ActorContext`), `LaravelStaffSessions`, `LaravelCustomerSessions`, `CustomerSessionHandler` (the storefront's session rows, each stamped with the customer it belongs to), `CookieGuestVisitors`. |
 | `Infrastructure/Listener` | `WriteStartingAddressFormat`: a store opened later gets the starting address form. |
 | `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, every ten minutes; `AnonymizeDueAccountsJob`, daily at 03:00 in Riyadh, which the application runs in UTC keeps as `dailyAt('00:00')`. |
-| `Infrastructure/Messages` | `TemporarySecurityMessages`, `SecurityMail`, `LogSmsGateway`, `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
+| `Infrastructure/Messages` | `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`, `LoggedBreachList` (the leaked-password service, whose outages are logged and never refuse a password); `StaffAvatarUsage` (the avatar as Platform media). |
 | `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
 | `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), the admin panel's own `admin_sessions`, the address tables (`addresses`, `store_address_formats`) and the one that drops `customers.remember_token`. |
@@ -341,17 +341,22 @@ tests drop those indexes inside their transaction, so they prove the code refuse
 
 ### Messages
 
-Access sends its own security messages until Ops exists, through `SecurityMessages` — one binding
-to replace later. Emails go out **after the commit and never through the queue**, because a
-queued job would store the link in the `jobs` table. SMS goes through `SmsGateway`, chosen by
-`ACCESS_SMS_DRIVER`; only `log` exists until the SMS provider is chosen, and an unknown driver
-fails loudly rather than sending nothing. `log` writes codes to the log, so it refuses to run in
-production. Every message is in the person's communication language.
+Access asks for its security messages through `SecurityMessages`, which **Ops binds** (ops.md §1.5
+C18; its temporary sender here is gone). They go out **after the commit and never through the
+queue**, because a queued job would store the link in the `jobs` table. Codes go by SMS through the
+provider of the phone's country, links by email; every message is in the person's communication
+language. The same contract carries **B2B's three decision emails** (amendment 48).
 
-It also carries **B2B's three decision emails** — approved (with the staff member's optional
-note), rejected and suspended (each with its reason) — because until Ops exists this is the one
-sender a customer's email goes through (amendment 48). They carry one plain link, the shop's front
-door on `APP_URL` (`CustomerLinks::shopFrontDoor`), the same for every customer.
+**Which phones SMS reaches** (amendment 90): Ops keeps the SMS countries list and binds
+`PhoneCountries`; Access asks it through `ServedPhones`. A number from a country not on the list is
+refused wherever an account phone is entered — inviting, accepting, a Super Admin made from the
+console, an admin's edit, a staff member's own change, a Super Admin's new number at sign-in, a
+customer's code — with its own words (`InvalidAccessAttribute` rule `phone_country`), and no code is
+ever sent to one. A saved phone whose country leaves the list counts as none: a Super Admin enters a
+new number after the right password (the amendment 14 path), anyone else on staff is refused until an
+admin changes their phone (an edit asks only a new number), and a customer's `phoneVerified` reads
+false, so they cannot order until they change it; their own account page says so with
+`phoneCountryUnlisted`. Recipient phones in the address book are not asked.
 
 ### Super Admins: the console only
 
@@ -382,10 +387,10 @@ php artisan access:super-admin:revoke owner@example.com       # never the last a
 php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
-The invitation is emailed through `MAIL_MAILER` — `log` in `.env.example`, which writes the email,
-link included, to `storage/logs/laravel.log`. In production the application refuses to start while
-`MAIL_MAILER` is `log`, `array` or unset (amendment 36), as the `log` SMS driver refuses to send
-there: links must never sit in a log file. The endpoints the invitation form posts to exist
+The invitation is emailed by Ops through `OPS_EMAIL_DRIVER` — `log` in `.env.example`, which writes
+the email, link included, to `storage/logs/laravel.log`. In production the application refuses to
+start unless it is `brevo` (amendment 36, moved to Ops with amendment 90), as the `log` SMS provider
+refuses to send there: links must never sit in a log file. The endpoints the invitation form posts to exist
 (`POST /admin/invitation/{token}`, then `/code`), but the link itself opens no page yet: the form
 comes with the screens, in the frontend foundation stage (amendment 12).
 

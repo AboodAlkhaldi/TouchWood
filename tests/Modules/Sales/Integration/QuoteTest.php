@@ -674,6 +674,9 @@ describe('the table', function () {
     it('deletes a customer quotes with the customer', function () {
         ['address' => $address, 'customer' => $customer] = quoteReady();
         quoteStart($address);
+        // Ops' record of the messages sent to them (registering sent a link) holds on to the customer:
+        // it goes first, as anonymizing would take it (ops.md §6).
+        DB::table('ops.sent_messages')->where('customer_id', $customer)->delete();
 
         DB::table('access.customers')->where('id', $customer)->delete();
 

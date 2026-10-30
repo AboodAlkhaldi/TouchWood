@@ -11,8 +11,8 @@ declare(strict_types=1);
 | SA-0001), :amount (an amount with its currency), :reason (staff's words), and those named per kind.
 | A line under `optional` is added only when its value exists ("No reason, no line").
 |
-| C18 (security: codes and links) has no bell entry; its words stay in Access's messages file until
-| Ops binds its own SecurityMessages (ops.md §1.5 C18).
+| C18 (security: codes and links) has no bell entry; its words, Access's approved ones, are in
+| security.php (ops.md §1.5 C18).
 */
 return [
     // Messages to customers (§1.5).

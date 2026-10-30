@@ -36,6 +36,7 @@ use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\CapturedNewsletterList;
 use Tests\Modules\Ops\Support\OpsFixtures as Ox;
@@ -56,6 +57,9 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
+    // The security messages (an email-verification link at registering) are not what these tests read:
+    // they go to a recorder, so only step 7's emails reach the captured sender.
+    RecordingSecurityMessages::install();
     CapturedEmails::install();
     CapturedNewsletterList::install();
 });
