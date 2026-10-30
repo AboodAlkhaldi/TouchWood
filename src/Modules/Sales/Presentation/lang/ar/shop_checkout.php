@@ -6,6 +6,8 @@ declare(strict_types=1);
 return [
     'title' => 'إتمام الطلب',
     'address' => [
+        // NOT YET APPROVED by the owner (2026-10-30): the delivery phone's label, access.md amendment 89.
+        'account_phone' => 'هاتف الحساب',
         'title' => 'عنوان التوصيل',
         'default' => 'الافتراضي',
         'incomplete' => 'يحتاج هذا العنوان إلى تفاصيل أكثر قبل استخدامه.',

@@ -469,7 +469,6 @@ it('sends a company with no saved address to add one, brings it back, and saves 
         ->click('[data-test="add-address-sa"]')
         ->type('#label-sa', 'Head office')
         ->type('#recipient-sa', 'Sara Ali')
-        ->type('#phone-sa', '+966512345678')
         ->type('[name="fields[administrative_area]"]', 'Riyadh Region')
         ->type('[name="fields[city]"]', 'Riyadh')
         ->type('[name="fields[district]"]', 'Al Olaya')

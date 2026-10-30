@@ -242,6 +242,8 @@ return [
         'by' => ':what — :name',
     ],
     'print' => [
+        // NOT YET APPROVED by the owner (2026-10-30): the delivery phone's label, access.md amendment 89.
+        'account_phone' => 'هاتف الحساب',
         'coupon' => 'القسيمة',
         'points' => 'النقاط',
         'title' => 'قائمة التعبئة :number',

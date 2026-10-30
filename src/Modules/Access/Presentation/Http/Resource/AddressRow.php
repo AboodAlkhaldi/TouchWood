@@ -34,7 +34,6 @@ final class AddressRow extends Data
         public string $id,
         public string $label,
         public string $recipientName,
-        public string $phone,
         public array $fields,
         public string $formatted,
         public bool $isDefault,

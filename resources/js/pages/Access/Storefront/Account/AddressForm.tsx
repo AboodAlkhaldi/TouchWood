@@ -10,7 +10,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
-import { toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
@@ -111,7 +110,6 @@ function AddressForm({ store, address, returnTo, onDone, offer }: Props & { offe
         address_id: address?.id ?? '',
         label: address?.label ?? '',
         recipient_name: address?.recipientName ?? '',
-        phone: address?.phone ?? '',
         is_default: address?.isDefault ?? false,
         return: returnTo ?? '',
         // A new address starts in the store's own country (Q1).
@@ -186,15 +184,13 @@ function AddressForm({ store, address, returnTo, onDone, offer }: Props & { offe
     });
 
     // Each box as typed (frontend.md §1.7), with the server's rules: a name of up to 50 characters
-    // (Address::LABEL_MAX), a recipient of up to 100 (Address::RECIPIENT_MAX), a phone with its
-    // country code (Access's PhoneNumber), and each of the store's own fields required or not and
-    // as long as its format says (StoreAddressFormat::accept). The format's limit on all its fields
-    // together (StoreAddressFormat::VALUES_MAX) is the server's alone. Where the country has a list,
+    // (Address::LABEL_MAX), a recipient of up to 100 (Address::RECIPIENT_MAX), and each of the store's
+    // own fields required or not and as long as its format says (StoreAddressFormat::accept). The
+    // format's limit on all its fields together (StoreAddressFormat::VALUES_MAX) is the server's alone. Where the country has a list,
     // the region is always asked for (AddressPlaceRules), the city and district as the format says.
     const checks = useChecks([
         { id: `label-${code}`, label: t('access::account.address_label'), value: form.data.label, rules: { required: true, length: { max: 50 } } },
         { id: `recipient-${code}`, label: t('access::account.recipient_name'), value: form.data.recipient_name, rules: { required: true, length: { max: 100 } } },
-        { id: `phone-${code}`, label: t('access::account.address_phone'), value: form.data.phone, rules: { required: true, phone: true } },
         ...store.fields.flatMap((field) => {
             if (!hasList || !PLACE_KEYS.includes(field.key)) return [fieldBox(field)];
             if (field.key === 'administrative_area') return [{ id: `${code}-region-pick`, label: field.label, value: picks.region, rules: { required: true } }];
@@ -359,31 +355,15 @@ function AddressForm({ store, address, returnTo, onDone, offer }: Props & { offe
                             onChange={(event) => form.setData('label', event.target.value)}
                         />
 
-                        <div className="grid gap-5 sm:grid-cols-2">
-                            <TextField
-                                id={`recipient-${code}`}
-                                label={t('access::account.recipient_name')}
-                                check={checks.box(`recipient-${code}`, form.errors.recipient_name)}
-                                required
-                                value={form.data.recipient_name}
-                                onChange={(event) => form.setData('recipient_name', event.target.value)}
-                            />
-
-                            {/* Typed in figures, Latin digits only - they are converted as they are
-                                typed - so the mono face serves Arabic pages too (frontend.md 1.8). */}
-                            <TextField
-                                id={`phone-${code}`}
-                                type="tel"
-                                label={t('access::account.address_phone')}
-                                helper={t('access::account.address_phone_hint')}
-                                check={checks.box(`phone-${code}`, form.errors.phone)}
-                                required
-                                dir="ltr"
-                                inputClassName="tw-figure"
-                                value={form.data.phone}
-                                onChange={(event) => form.setData('phone', toLatinDigits(event.target.value))}
-                            />
-                        </div>
+                        {/* No phone here: delivery uses the account's verified phone (access.md amendment 89). */}
+                        <TextField
+                            id={`recipient-${code}`}
+                            label={t('access::account.recipient_name')}
+                            check={checks.box(`recipient-${code}`, form.errors.recipient_name)}
+                            required
+                            value={form.data.recipient_name}
+                            onChange={(event) => form.setData('recipient_name', event.target.value)}
+                        />
 
                         {/* The country: Platform's address countries, the store's own first (Q1). One
                             another store serves stays in the list out of reach, and says where it

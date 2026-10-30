@@ -293,7 +293,7 @@ describe('the address (§1.1, amendments 4, 5, 9(d) and 16(f))', function () {
         companyAccountMove($addressId);
 
         app(SaveAddressHandler::class)->handle(new SaveAddress(
-            storeId: Fx::storeId('sa'), label: 'Head office', recipientName: 'Sara Ali', phone: '+966501234567',
+            storeId: Fx::storeId('sa'), label: 'Head office', recipientName: 'Sara Ali',
             fields: ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Malqa', 'street' => 'Anas Ibn Malik Road', 'building' => '9'],
             latitude: null, longitude: null, isDefault: false, addressId: $addressId,
         ));

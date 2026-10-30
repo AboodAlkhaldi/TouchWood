@@ -1093,7 +1093,7 @@ seed PR until then).
 
 **What changes, and what does not.** F9 stays where it is (the account's Addresses tab), grouped by store,
 with its limit of 10 per store, Usual Address, Edit, Delete, and `return` (amendments 51, 52). The form keeps
-its name, recipient and phone boxes and the store format's own fields, each checking itself as typed. Three
+its name and recipient boxes (no phone: access.md amendment 89) and the store format's own fields, each checking itself as typed. Three
 things are new:
 
 1. **A Country picker** (Q1, Q2, Q3). A new address starts on the store's own country. The list is

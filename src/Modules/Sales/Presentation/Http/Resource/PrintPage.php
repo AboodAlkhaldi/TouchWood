@@ -23,7 +23,6 @@ final class PrintPage extends Data
         public string $contactName,
         public string $contactPhone,
         public string $recipientName,
-        public string $addressPhone,
         public string $address,
         public array $lines,
         public MoneyData $grossSubtotal,

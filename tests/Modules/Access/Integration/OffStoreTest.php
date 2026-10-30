@@ -81,7 +81,6 @@ function offStoreAddress(string $storeId, string $label = 'Home'): string
         storeId: $storeId,
         label: $label,
         recipientName: 'Sara Ali',
-        phone: '+966501234567',
         fields: ['administrative_area' => 'Region', 'city' => 'City', 'district' => 'District', 'street' => 'Street', 'building' => '7'],
     ));
 }

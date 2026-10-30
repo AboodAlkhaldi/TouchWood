@@ -75,8 +75,7 @@ it('picks the region, city and district, clears what a change leaves behind, and
     $page->navigate('/sa/en/account?tab=addresses');
     $page->click('[data-test="add-address-sa"]')
         ->type('#label-sa', 'Home')
-        ->type('#recipient-sa', 'Noura Saleh')
-        ->type('#phone-sa', '+966512345678');
+        ->type('#recipient-sa', 'Noura Saleh');
 
     // The country: Jordan, which no store ships to, so it is offered here (Q3).
     $page->click('[data-test="sa-country"]')

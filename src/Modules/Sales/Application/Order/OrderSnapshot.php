@@ -23,8 +23,8 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * An order as its quote placed it (sales.md §1.3 step 7): **everything snapshotted** (handoff §12.3) —
- * the customer's name, email and phone, the delivery address, each line's product and size names and
- * values in both languages (the English name falling back to the Arabic, answer 44) and its code, its
+ * the customer's name, email and phone (the one phone delivery uses: an address has none, access.md
+ * amendment 89), the delivery address, each line's product and size names and values in both languages (the English name falling back to the Arabic, answer 44) and its code, its
  * prices and kind, its shares of the coupon, the points and the VAT (§1.8); the gift; every total; the
  * rules it was placed under.
  */
@@ -90,7 +90,7 @@ final readonly class OrderSnapshot
             $customer->email,
             $customer->phone ?? throw new QuoteChanged('phone'),
             [
-                'label' => $address->label, 'recipientName' => $address->recipientName, 'phone' => $address->phone, 'fields' => $address->fields,
+                'label' => $address->label, 'recipientName' => $address->recipientName, 'fields' => $address->fields,
                 'latitude' => $address->latitude, 'longitude' => $address->longitude, 'formatted' => $address->formatted,
             ],
             $quote->wayToPay->value,

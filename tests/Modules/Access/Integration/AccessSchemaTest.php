@@ -121,7 +121,6 @@ function insertAddressRow(array $overrides = []): void
         'store_id' => Fx::storeId('sa'),
         'label' => 'Home',
         'recipient_name' => 'Sara Ali',
-        'phone' => '+966501234567',
         'fields' => json_encode(['city' => 'Riyadh']),
         'is_default' => false,
         // Every address has its country and the language it was saved in (access.md amendment 76).
@@ -232,7 +231,6 @@ it('refuses rows that break the rules, even when they skip the domain', function
     'a customer session version below zero' => [fn () => updateCustomerRow(['session_version' => -1]), 'customers_session_version_not_negative'],
     'an address with half a map pin' => [fn () => insertAddressRow(['latitude' => 24.7]), 'addresses_map_pin_together'],
     'an address pin off the globe' => [fn () => insertAddressRow(['latitude' => 91, 'longitude' => 0]), 'addresses_map_pin_range'],
-    'an address phone without its country code' => [fn () => insertAddressRow(['phone' => '0501234567']), 'addresses_phone_format'],
     'address fields that are not an object' => [fn () => insertAddressRow(['fields' => '[]']), 'addresses_fields_object'],
     'two default addresses in one store' => [function () {
         $customerId = Fx::customer();

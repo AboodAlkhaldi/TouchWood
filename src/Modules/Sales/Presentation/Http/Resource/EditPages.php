@@ -86,7 +86,7 @@ final readonly class EditPages
             $lines,
             $gift,
             array_map(static fn (AddressDto $address): CheckoutAddressData => new CheckoutAddressData(
-                $address->id, $address->label, $address->recipientName, $address->phone, $address->formatted, $address->isDefault, $address->isComplete,
+                $address->id, $address->label, $address->recipientName, $address->formatted, $address->isDefault, $address->isComplete,
             ), $addresses),
             is_string($order->address['formatted'] ?? null) ? $order->address['formatted'] : '',
             $money($order->total),

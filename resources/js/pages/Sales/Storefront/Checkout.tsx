@@ -106,10 +106,7 @@ function Addresses({ page, busy, choose }: Part) {
                                     {address.isDefault ? <Badge variant="outline">{t(`${W}.address.default`)}</Badge> : null}
                                 </span>
                                 <span className="text-copy-13 text-ink-muted">
-                                    <bdi>{address.recipientName}</bdi> ·{' '}
-                                    <bdi dir="ltr" className="tw-figure">
-                                        {address.phone}
-                                    </bdi>
+                                    <bdi>{address.recipientName}</bdi>
                                 </span>
                                 <span className="text-copy-13 whitespace-pre-line text-ink-muted">{address.formatted}</span>
                                 {address.isComplete ? null : <span className="text-copy-13 text-ink">{t(`${W}.address.incomplete`)}</span>}
@@ -117,6 +114,15 @@ function Addresses({ page, busy, choose }: Part) {
                         </Label>
                     ))}
                 </RadioGroup>
+            )}
+            {/* The courier calls the account's verified phone, whichever address is chosen (access.md amendment 89). */}
+            {page.phone === null ? null : (
+                <p className="text-copy-13 text-ink-muted" data-test="checkout-phone">
+                    {t(`${W}.address.account_phone`)}:{' '}
+                    <bdi dir="ltr" className="tw-figure">
+                        {page.phone}
+                    </bdi>
+                </p>
             )}
             <Link href={manage} className="text-copy-14 text-ink underline underline-offset-4" data-test="manage-addresses">
                 {page.addresses.length === 0 ? t(`${W}.address.add`) : t(`${W}.address.manage`)}

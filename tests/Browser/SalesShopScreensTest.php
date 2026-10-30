@@ -115,7 +115,10 @@ it('draws My Orders, an order, asking a return and the return at a phone\'s widt
     $page->navigate('/sa/en/account/orders', BROWSER_PAGE_LOAD)->assertPresent("[data-test=\"my-order-{$placed->number}\"]");
     expect(salesShopWide($page))->toBe('', 'My Orders scrolls sideways');
 
-    $page->navigate("/sa/en/account/orders/{$placed->number}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="timeline"]');
+    $page->navigate("/sa/en/account/orders/{$placed->number}", BROWSER_PAGE_LOAD)->assertPresent('[data-test="timeline"]')
+        // The number the courier calls, labelled, as the order was placed (access.md amendment 89).
+        ->assertSeeIn('[data-test="order-phone"]', 'Account phone')
+        ->assertSeeIn('[data-test="order-phone"]', (string) DB::table('sales.orders')->where('id', $placed->id)->value('customer_phone'));
     expect(salesShopWide($page))->toBe('', 'the order scrolls sideways');
 
     $page->click('[data-test="ask-return"]');

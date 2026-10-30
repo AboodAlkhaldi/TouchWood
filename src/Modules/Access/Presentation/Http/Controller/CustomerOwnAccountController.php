@@ -159,7 +159,6 @@ final readonly class CustomerOwnAccountController
                 storeId: $request->text('store_id'),
                 label: $request->text('label'),
                 recipientName: $request->text('recipient_name'),
-                phone: $request->text('phone'),
                 fields: $request->fields(),
                 // The map pin stays empty in this stage: no map provider is chosen, and a pin
                 // half-filled is worse than none (frontend.md §3.6, decided 2026-09-19).
@@ -174,7 +173,7 @@ final readonly class CustomerOwnAccountController
                 language: app()->getLocale(),
             ));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields', 'country', 'region_id', 'city_id', 'district_id', 'places', 'administrative_area', 'city', 'district']);
+            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'fields', 'country', 'region_id', 'city_id', 'district_id', 'places', 'administrative_area', 'city', 'district']);
         }
 
         // Back to the page that sent them here, if it is one of their account's (amendment 51).
@@ -327,7 +326,6 @@ final readonly class CustomerOwnAccountController
                     $address->id,
                     $address->label,
                     $address->recipientName,
-                    $address->phone,
                     $address->fields,
                     $address->formatted,
                     $address->isDefault,

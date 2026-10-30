@@ -52,5 +52,7 @@ final class CheckoutPage extends Data
         public ?string $gift,
         public ?MoneyData $giftPrice,
         public int $earns,
+        /** The account's verified phone, the one the courier calls (access.md amendment 89); null until verified. */
+        public ?string $phone,
     ) {}
 }

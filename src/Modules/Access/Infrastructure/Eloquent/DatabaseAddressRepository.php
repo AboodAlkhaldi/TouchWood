@@ -11,7 +11,6 @@ use Modules\Access\Domain\Model\Address;
 use Modules\Access\Domain\Model\AddressPlaces;
 use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\ValueObject\MapPin;
-use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Shared\Infrastructure\Persistence\Ulids;
 use stdClass;
 
@@ -160,7 +159,6 @@ final readonly class DatabaseAddressRepository implements AddressRepository
         return [
             'label' => $address->label(),
             'recipient_name' => $address->recipientName(),
-            'phone' => $address->phone()->value,
             // As an object, always: a format whose fields are all optional may leave none, and the
             // column refuses a JSON array (review of step 5).
             'fields' => json_encode((object) $address->fields(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
@@ -185,7 +183,6 @@ final readonly class DatabaseAddressRepository implements AddressRepository
             (string) $row->store_id,
             (string) $row->label,
             (string) $row->recipient_name,
-            PhoneNumber::of((string) $row->phone),
             // Only the values this module writes: a row edited by hand cannot make a read throw.
             is_array($fields) ? array_filter($fields, is_string(...)) : [],
             MapPin::optional(

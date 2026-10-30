@@ -24,7 +24,6 @@ use Modules\Access\Domain\Repository\AddressRepository;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
 use Modules\Access\Domain\ValueObject\MapPin;
-use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -81,25 +80,24 @@ final readonly class SaveAddressHandler
             $command->countryCode ?? $storeDto->countryCode,
             $command->regionId, $command->cityId, $command->districtId, $command->language,
         );
-        $phone = PhoneNumber::of($command->phone);
         $pin = MapPin::optional($command->latitude, $command->longitude);
         $limit = $this->settings->addressesPerStore($storeId);
 
-        return $this->db->transaction(function () use ($command, $customerId, $storeId, $format, $places, $phone, $pin, $limit): string {
+        return $this->db->transaction(function () use ($command, $customerId, $storeId, $format, $places, $pin, $limit): string {
             // Their own row, held for this transaction: two tabs saving at once would otherwise
             // both count nine addresses, or both claim the store's default (review of step 5).
             $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
 
             return $command->addressId === null
-                ? $this->create($command, $customerId, $storeId, $format, $places, $phone, $pin, $limit)
-                : $this->edit($command, $customerId, $storeId, $format, $places, $phone, $pin);
+                ? $this->create($command, $customerId, $storeId, $format, $places, $pin, $limit)
+                : $this->edit($command, $customerId, $storeId, $format, $places, $pin);
         }, 3);
     }
 
     /**
      * @throws TooManyAddresses
      */
-    private function create(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, PhoneNumber $phone, ?MapPin $pin, int $limit): string
+    private function create(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, ?MapPin $pin, int $limit): string
     {
         $fields = $format->accept($this->placeRules->apply($storeId, $places, $command->fields, null));
         $kept = $this->addresses->countForCustomerInStore($customerId, $storeId);
@@ -110,7 +108,7 @@ final readonly class SaveAddressHandler
 
         $address = Address::add(
             $this->addresses->nextId(), $customerId, $storeId,
-            $command->label, $command->recipientName, $phone, $fields, $pin,
+            $command->label, $command->recipientName, $fields, $pin,
             // The first address in a store is its default, so checkout always has one (amendment 41).
             $command->isDefault || $kept === 0,
             $places,
@@ -131,7 +129,7 @@ final readonly class SaveAddressHandler
     /**
      * @throws AddressNotFound|InvalidAddress
      */
-    private function edit(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, PhoneNumber $phone, ?MapPin $pin): string
+    private function edit(SaveAddress $command, string $customerId, string $storeId, StoreAddressFormat $format, AddressPlaces $places, ?MapPin $pin): string
     {
         $address = $this->addresses->byId((string) $command->addressId);
 
@@ -150,7 +148,7 @@ final readonly class SaveAddressHandler
 
         // A place retired since stays while it is left as it was (owner, 2026-10-28, step 2 Q2).
         $fields = $format->accept($this->placeRules->apply($storeId, $places, $command->fields, $before));
-        $address->change($command->label, $command->recipientName, $phone, $fields, $pin, $places);
+        $address->change($command->label, $command->recipientName, $fields, $pin, $places);
 
         if ($command->isDefault) {
             $address->makeDefault();

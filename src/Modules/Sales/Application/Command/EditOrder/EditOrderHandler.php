@@ -94,7 +94,7 @@ final readonly class EditOrderHandler
                 $plan->totals->netSubtotal->minorUnits, $plan->totals->goodsTotal->minorUnits, $plan->shipping->minorUnits, $plan->totals->taxableBase->minorUnits,
                 $plan->totals->vat->minorUnits, $plan->totals->orderTotal->minorUnits, $plan->giftLevelId,
                 $plan->address === null ? null : [
-                    'label' => $plan->address->label, 'recipientName' => $plan->address->recipientName, 'phone' => $plan->address->phone, 'fields' => $plan->address->fields,
+                    'label' => $plan->address->label, 'recipientName' => $plan->address->recipientName, 'fields' => $plan->address->fields,
                     'latitude' => $plan->address->latitude, 'longitude' => $plan->address->longitude, 'formatted' => $plan->address->formatted,
                 ],
             ));

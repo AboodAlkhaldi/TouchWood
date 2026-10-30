@@ -38,7 +38,7 @@ final class OwnOrderPage extends Data
         public MoneyData $vat,
         public MoneyData $total,
         public string $recipientName,
-        public string $addressPhone,
+        public string $contactPhone,
         public string $address,
         public string $wayToPay,
         public ?BankData $bank,

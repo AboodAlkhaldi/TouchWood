@@ -74,7 +74,6 @@ export type AddressRow = {
 id: string,
 label: string,
 recipientName: string,
-phone: string,
 fields: Record<string, string>,
 formatted: string,
 isDefault: boolean,

@@ -68,6 +68,7 @@ final readonly class ViewOwnOrderHandler
             (string) $order['shipment_status'], $order['carrier'] === null ? null : (string) $order['carrier'],
             $order['tracking_number'] === null ? null : (string) $order['tracking_number'], $at($order['shipped_at']), $at($order['delivered_at']), $deadline,
             $address,
+            (string) $order['customer_phone'],
             array_map(static fn (array $return): OwnReturnRow => new OwnReturnRow(
                 (string) $return['id'], (string) $return['status'], CarbonImmutable::parse((string) $return['requested_at']),
                 $return['refund_due_minor'] === null ? null : $money($return['refund_due_minor']),

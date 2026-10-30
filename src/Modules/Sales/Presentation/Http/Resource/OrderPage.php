@@ -59,7 +59,6 @@ final class OrderPage extends Data
         public MoneyData $held,
         public MoneyData $savings,
         public string $recipientName,
-        public string $addressPhone,
         public string $address,
         public ?string $decidedBy,
         public ?string $decidedAt,

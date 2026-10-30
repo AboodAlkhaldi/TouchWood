@@ -18,7 +18,7 @@ use Shared\Domain\ValueObject\Money;
 final readonly class OwnOrderView
 {
     /**
-     * @param  array<string, mixed>  $address  as placed (or as staff last set it): label, recipient name, phone, fields, the map point, formatted
+     * @param  array<string, mixed>  $address  as placed (or as staff last set it): label, recipient name, fields, the map point, formatted
      * @param  list<OrderLineView>  $lines
      * @param  list<OwnReturnRow>  $returns
      */
@@ -52,6 +52,8 @@ final readonly class OwnOrderView
         public ?DateTimeImmutable $deliveredAt,
         public ?DateTimeImmutable $returnDeadline,
         public array $address,
+        /** The number the courier calls: the account's verified phone as placed (access.md amendment 89). */
+        public string $contactPhone,
         public array $returns,
         public int $transferDocuments,
         public bool $mayCancel,

@@ -109,7 +109,6 @@ function addressFormSent(array $extra = []): array
         'store_id' => Fx::storeId('sa'),
         'label' => 'Home',
         'recipient_name' => 'Sara Ali',
-        'phone' => '+966512345678',
         'fields' => ['street' => 'King Fahd Road', 'building' => '7'],
         ...$extra,
     ];
@@ -266,6 +265,9 @@ describe('the lists, read as the customer picks (Q7)', function () {
     });
 
     it('keeps each read to the session\'s queries and one of its own', function () {
+        // The sweep of old sessions runs on 2 requests in 100 (config/session.php's lottery) and adds a
+        // DELETE at random: switched off, so a count never depends on a dice roll.
+        config(['session.lottery' => [0, 100]]);
         $places = addressFormPlaces();
         [, $browser] = addressFormCustomer();
 

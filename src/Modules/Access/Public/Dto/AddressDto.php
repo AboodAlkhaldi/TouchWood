@@ -29,7 +29,6 @@ final readonly class AddressDto
         public string $storeId,
         public string $label,
         public string $recipientName,
-        public string $phone,
         public array $fields,
         public ?float $latitude,
         public ?float $longitude,

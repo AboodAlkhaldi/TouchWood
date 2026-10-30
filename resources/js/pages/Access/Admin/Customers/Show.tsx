@@ -251,9 +251,6 @@ function Addresses({ group }: { group: CustomerAddressGroup }) {
                             <ItemContent className="gap-0.5">
                                 <ItemTitle className="text-label-14 text-ink">{address.label}</ItemTitle>
                                 <ItemDescription className="line-clamp-none text-copy-14 text-ink-muted">{address.recipientName}</ItemDescription>
-                                <ItemDescription className="tw-figure line-clamp-none text-copy-14 text-ink-muted" dir="ltr">
-                                    {address.phone}
-                                </ItemDescription>
                                 <ItemDescription className="line-clamp-none text-copy-14 text-ink-muted">
                                     <AddressLines text={address.formatted} />
                                 </ItemDescription>

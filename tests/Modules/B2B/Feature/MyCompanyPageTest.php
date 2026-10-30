@@ -485,7 +485,6 @@ describe('what the page is told, and where each refusal lands (amendment 16)', f
             'store_id' => Fx::storeId('sa'),
             'label' => 'Head office',
             'recipient_name' => 'Sara Ali',
-            'phone' => '+966512345678',
             'fields' => ['administrative_area' => 'Riyadh', 'city' => 'Riyadh', 'district' => 'Al Olaya', 'street' => 'King Fahd Road', 'building' => '7'],
             'return' => 'b2b.company',
         ])->assertRedirect($landsOn);

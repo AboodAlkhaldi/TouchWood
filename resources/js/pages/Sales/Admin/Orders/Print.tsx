@@ -18,6 +18,8 @@ import type { SharedProps } from '@/types/page';
 export default function Print(slip: PrintPage) {
     const t = useTranslator();
     const { locale } = usePage<SharedProps>().props;
+    // Someone other than the account holder receives: the slip names whose phone it is.
+    const other = slip.recipientName !== '' && slip.recipientName !== slip.contactName;
     const placed = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: slip.storeTimezone }).format(new Date(slip.placedAt));
     // [label, amount, shown at 0, taken off]: a summary line with nothing in it is not shown (R2-15).
     const rows: [string, PrintPage['total'], boolean, boolean][] = [
@@ -44,9 +46,18 @@ export default function Print(slip: PrintPage) {
                 <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
                     <div className="grid gap-0.5 text-copy-14">
                         <span className="text-label-14">{slip.recipientName === '' ? slip.contactName : slip.recipientName}</span>
-                        <bdi dir="ltr" className="tw-figure">
-                            {slip.addressPhone === '' ? slip.contactPhone : slip.addressPhone}
-                        </bdi>
+                        {/* The courier calls the account holder (access.md amendment 89): named beside the number when someone else receives. */}
+                        <span data-test="slip-phone">
+                            {t(`${W}.print.account_phone`)}:{' '}
+                            {other ? (
+                                <>
+                                    <bdi>{slip.contactName}</bdi> ·{' '}
+                                </>
+                            ) : null}
+                            <bdi dir="ltr" className="tw-figure">
+                                {slip.contactPhone}
+                            </bdi>
+                        </span>
                         <AddressLines text={slip.address} />
                     </div>
                 </header>

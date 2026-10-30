@@ -106,7 +106,10 @@ it('lists the customer\'s orders on My Orders, an account page, and shows one wi
         ->and(array_column($mine['accountMenu']['pages'], 'key'))->toContain('sales.orders')
         ->and([$order['status'], $order['payment'], $order['wayToPay'], $order['mayCancel'], $order['shipment']])->toBe(['NEW', 'UNPAID', 'STAFF_CONTACT', true, 'NOT_SHIPPED'])
         ->and(count($order['lines']))->toBe(2)
-        ->and([$order['savings'], $order['coupon'], $order['points']])->toBe([null, null, null]);
+        ->and([$order['savings'], $order['coupon'], $order['points']])->toBe([null, null, null])
+        // The number the courier calls, as the order was placed (access.md amendment 89).
+        ->and($order['contactPhone'])->toBe(DB::table('sales.orders')->where('number', $number)->value('customer_phone'))
+        ->and($order)->not->toHaveKey('addressPhone');
 });
 
 it('cancels the order with a reason, and buys it again into the cart', function () {
