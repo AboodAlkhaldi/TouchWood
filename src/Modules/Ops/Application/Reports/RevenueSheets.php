@@ -31,6 +31,12 @@ use Shared\Domain\ValueObject\Money;
  */
 final readonly class RevenueSheets
 {
+    /**
+     * The most days Money received is read day by day: `moneyOn` costs two queries a day, so a longer range
+     * is read by month until Sales gives a read by day - and the sheet says so (coordinator, 2026-10-30).
+     */
+    public const int MONEY_DAYS = 93;
+
     public function __construct(
         private SalesReports $sales,
     ) {}
@@ -47,6 +53,8 @@ final readonly class RevenueSheets
         }
         $totals = count($stores) > 1 ? [$words->get('notes.totals')] : [];
         $when = $byMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day);
+        $moneyByMonth = $byMonth || $period->days() > self::MONEY_DAYS;
+        $moneyNotes = [$words->get('notes.money'), ...(! $byMonth && $moneyByMonth ? [$words->get('notes.money_by_month', ['days' => (string) self::MONEY_DAYS])] : []), ...$totals];
 
         return [
             new ReportSheet(
@@ -70,7 +78,7 @@ final readonly class RevenueSheets
                 $words->get('sheets.money'),
                 [
                     $words->column('store', ColumnType::Text),
-                    $when,
+                    $moneyByMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day),
                     $words->column('currency', ColumnType::Text),
                     $words->column('way', ColumnType::Text),
                     $words->column('payments', ColumnType::Count),
@@ -78,8 +86,8 @@ final readonly class RevenueSheets
                     $words->column('refunds_made', ColumnType::Count),
                     $words->column('refunded', ColumnType::Money),
                 ],
-                [$words->get('notes.money'), ...$totals],
-                $this->moneyRows($stores, $period, $byMonth, $words),
+                $moneyNotes,
+                $this->moneyRows($stores, $period, $moneyByMonth, $words),
             ),
             new ReportSheet(
                 $words->get('sheets.waiting_refunds'),

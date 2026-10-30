@@ -74,6 +74,12 @@ final readonly class ReportPeriod
         return min($this->fullEnd($store), $this->now->setTimezone(new DateTimeZone($store->timezone)));
     }
 
+    /** How many days the range names, both included. */
+    public function days(): int
+    {
+        return (int) new DateTimeImmutable($this->fromDay)->diff(new DateTimeImmutable($this->toDay))->days + 1;
+    }
+
     /** Whether the range reaches past the moment asked in any of the stores: it then runs "until" it. */
     public function cutAtNow(StoreDto ...$stores): bool
     {

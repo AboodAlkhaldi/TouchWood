@@ -559,3 +559,28 @@ it('reads a preview in a fixed number of queries', function () {
     // reader, productSales (1), the names (3) = 5.
     expect($counts)->toBe([9, 17, 5]);
 });
+
+it('reads money received by month over 93 days, and says so, until Sales gives it by day', function () {
+    Rx::aDay();
+    reportsReader();
+    $to = CarbonImmutable::now('Asia/Riyadh');
+    $from = static fn (int $days): string => $to->subDays($days - 1)->format('Y-m-d');
+    $months = count(array_unique([$to->format('Y-m'), ...array_map(static fn (int $back): string => $to->subDays($back)->format('Y-m'), range(1, 99))]));
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $long = Rx::preview('revenue', Fx::storeId('sa'), $from(100), $to->format('Y-m-d'));
+    $money = $long->report->sheets[1];
+    $rows = Rx::rows($long, 1);
+    DB::disableQueryLog();
+    $paymentReads = count(array_filter(DB::getQueryLog(), static fn (array $query): bool => str_contains((string) $query['query'], '"sales"."payments"')));
+    $short = Rx::preview('revenue', Fx::storeId('sa'), $from(93), $to->format('Y-m-d'))->report->sheets[1];
+
+    expect([$long->report->sheets[0]->columns[1]->key, $money->columns[1]->key])->toBe(['day', 'month'])
+        ->and($money->notes)->toContain('Over 93 days, money received is shown by month: Sales does not yet give it by day.')
+        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4]], $rows))->toBe([[$to->format('Y-m'), 'Bank transfer', 1], [null, 'Bank transfer', 1]])
+        // The whole range once, then each month: never a read a day.
+        ->and($paymentReads)->toBe(1 + $months)
+        ->and($short->columns[1]->key)->toBe('day')
+        ->and($short->notes)->not->toContain('Over 93 days, money received is shown by month: Sales does not yet give it by day.');
+});

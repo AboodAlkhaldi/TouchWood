@@ -48,6 +48,7 @@ return [
         'waiting_list' => 'Returns asked and not finished, on the day they were asked, with the refund they would make.',
         'categories' => 'Waits for Sales: revenue by category, net of refunds so the categories add up to the revenue, needs the refunds by product from Sales.',
         'money' => 'The money that moved, by the day it moved: payments in and refunds out, by way. Test payments never count.',
+        'money_by_month' => 'Over :days days, money received is shown by month: Sales does not yet give it by day.',
         'until' => 'The range includes today: it is counted until :time.',
         'product_sales' => 'Returns are not taken off here: they come off revenue on the day they were asked.',
         'stock' => 'Stock as it stands now. Available never goes below 0.',
