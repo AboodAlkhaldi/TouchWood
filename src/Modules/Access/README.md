@@ -354,8 +354,9 @@ console, an admin's edit, a staff member's own change, a Super Admin's new numbe
 customer's code — with its own words (`InvalidAccessAttribute` rule `phone_country`), and no code is
 ever sent to one. A saved phone whose country leaves the list counts as none: a Super Admin enters a
 new number after the right password (the amendment 14 path), anyone else on staff is refused until an
-admin changes their phone, and a customer's `phoneVerified` reads false, so they cannot order until
-they change it. Recipient phones in the address book are not asked.
+admin changes their phone (an edit asks only a new number), and a customer's `phoneVerified` reads
+false, so they cannot order until they change it; their own account page says so with
+`phoneCountryUnlisted`. Recipient phones in the address book are not asked.
 
 ### Super Admins: the console only
 
@@ -386,10 +387,10 @@ php artisan access:super-admin:revoke owner@example.com       # never the last a
 php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 ```
 
-The invitation is emailed through `MAIL_MAILER` — `log` in `.env.example`, which writes the email,
-link included, to `storage/logs/laravel.log`. In production the application refuses to start while
-`MAIL_MAILER` is `log`, `array` or unset (amendment 36), as the `log` SMS driver refuses to send
-there: links must never sit in a log file. The endpoints the invitation form posts to exist
+The invitation is emailed by Ops through `OPS_EMAIL_DRIVER` — `log` in `.env.example`, which writes
+the email, link included, to `storage/logs/laravel.log`. In production the application refuses to
+start unless it is `brevo` (amendment 36, moved to Ops with amendment 87), as the `log` SMS provider
+refuses to send there: links must never sit in a log file. The endpoints the invitation form posts to exist
 (`POST /admin/invitation/{token}`, then `/code`), but the link itself opens no page yet: the form
 comes with the screens, in the frontend foundation stage (amendment 12).
 
