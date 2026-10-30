@@ -171,7 +171,7 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         $this->update->handle(new UpdateCouponUseCommand($change));
     }
 
-    public function segmentMembers(string $segmentId, ?string $after, int $limit): array
+    public function segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit): array
     {
         $segmentId = Inputs::id($segmentId, 'segment');
 
@@ -179,7 +179,10 @@ final readonly class PromotionsApiImpl implements PromotionsApi
             throw new InvalidPromotionAttribute('limit', 'from 1 to 1000');
         }
 
-        if ($this->segments->storeOf($segmentId) === null) {
+        // Another store's segment is answered as an unknown one: whether it exists elsewhere never shows.
+        $owner = $this->segments->storeOf($segmentId);
+
+        if ($owner === null || ! $owner->equals($store)) {
             throw new SegmentNotFound;
         }
 

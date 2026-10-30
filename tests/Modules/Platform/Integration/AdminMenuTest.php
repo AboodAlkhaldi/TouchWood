@@ -107,6 +107,8 @@ describe('the admin menu', function () {
             // Sales's screens (sales.md §4.1): Orders.
             'orders/orders',
             'orders/returns',
+            // Shipping's screens (shipping.md §4.1 part 1): its own group, after Orders.
+            'shipping/carriers',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

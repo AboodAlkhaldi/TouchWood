@@ -1,5 +1,5 @@
 import { type RefObject, useRef, useState } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Check } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { ShipToChoice, ShipToRow, StoreRow } from '@/types/generated/Modules/Platform/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | A store's ship-to countries on its card (platform.md §4.3, E1 addition; the owner, 2026-10-29, Q2,
@@ -174,6 +175,12 @@ function RemoveDialog({
 }) {
     const t = useTranslator();
     const [busy, setBusy] = useState(false);
+    // Refused because the store still has carriers there (CountryHasCarriers, `errors.carriers`): the
+    // refusal shows in the dialog, and a link goes to that country's carriers, where they are switched off
+    // and deleted (shipping.md §4.1 part 1, Q14). Any other refusal shows its words only.
+    const { errors } = usePage<SharedProps>().props;
+    const [refused, setRefused] = useState(false);
+    const carriers = refused && errors.carriers === country.code;
 
     return (
         <PanelDialog
@@ -193,6 +200,7 @@ function RemoveDialog({
                             preserveScroll: true,
                             onStart: () => setBusy(true),
                             onFinish: () => setBusy(false),
+                            onError: () => setRefused(true),
                             onSuccess: () => {
                                 onRemoved();
                                 onOpenChange(false);
@@ -205,7 +213,11 @@ function RemoveDialog({
                 </ActionButton>
             }
         >
-            {null}
+            {carriers ? (
+                <Link href={`/admin/shipping/carriers?store=${encodeURIComponent(store.code)}#carriers-${country.code}`} className="text-label-14 text-ink underline underline-offset-4" data-test="open-carriers">
+                    {t(`${S}.open_carriers`, { country: country.name })}
+                </Link>
+            ) : null}
         </PanelDialog>
     );
 }

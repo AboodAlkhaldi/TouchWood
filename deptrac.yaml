@@ -212,9 +212,11 @@ deptrac:
     LoyaltyPublic: [Shared, Vendor, PlatformPublic, AccessPublic]
     Loyalty: [+LoyaltyPublic, AppHttp]
 
-    # Shipping → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-28).
+    # Shipping → Platform, Catalog; Access only to declare its permissions (owner, 2026-10-28). Its
+    # screens use the framework glue, as the other modules' do (shipping.md §4.1 part 1, 2026-10-29);
+    # AppHttpTest keeps that to its Presentation layer.
     ShippingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
-    Shipping: [+ShippingPublic, AccessPublic]
+    Shipping: [+ShippingPublic, AccessPublic, AppHttp]
 
     # Payments → Platform. Takes an order id and an amount, nothing more.
     PaymentsPublic: [Shared, Vendor, PlatformPublic]

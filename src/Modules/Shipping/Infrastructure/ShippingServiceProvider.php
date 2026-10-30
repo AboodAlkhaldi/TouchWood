@@ -7,15 +7,18 @@ namespace Modules\Shipping\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShipToCountryGuards;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Shipping\Application\Carrier\CarriersHoldCountry;
 use Modules\Shipping\Application\Price\PriceReader;
 use Modules\Shipping\Application\ShippingApiImpl;
 use Modules\Shipping\Application\ShippingPermissions;
 use Modules\Shipping\Application\ShippingSettings;
 use Modules\Shipping\Application\Uncovered\UncoveredCounts;
+use Modules\Shipping\Application\Uncovered\UncoveredPlacesCount;
 use Modules\Shipping\Application\Uncovered\UncoveredRecounts;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Modules\Shipping\Domain\Repository\PriceGroupRepository;
@@ -26,6 +29,7 @@ use Modules\Shipping\Infrastructure\Eloquent\DatabaseUncoveredCounts;
 use Modules\Shipping\Infrastructure\Media\CarrierLogoUsage;
 use Modules\Shipping\Infrastructure\Queue\CountUncoveredPlacesJob;
 use Modules\Shipping\Infrastructure\Queue\QueuedUncoveredRecounts;
+use Modules\Shipping\Presentation\Http\Resource\CarrierPages;
 use Modules\Shipping\Public\Contracts\ShippingApi;
 
 /**
@@ -62,5 +66,20 @@ final class ShippingServiceProvider extends ServiceProvider
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(new CountUncoveredPlacesJob)->everyTenMinutes()->onOneServer();
         });
+
+        /*
+        | The screens (§4.1 part 1). The Shipping menu offers Carriers to anyone who may view or manage
+        | them in some store, with the count of places no carrier serves (§1.6). What is offered is never
+        | what is allowed: every handler behind it asks again (handoff §19).
+        */
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('shipping', 'carriers', 'shipping', 'shipping.admin.carriers', CarrierPages::JOBS, 10, count: UncoveredPlacesCount::class, icon: 'carriers'),
+        );
+
+        if (! $this->app->routesAreCached()) {
+            // The panel's own file: the admin session cookie must be set before "web" opens a session,
+            // so it brings its own middleware rather than sharing the shop's group.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
+        }
     }
 }
