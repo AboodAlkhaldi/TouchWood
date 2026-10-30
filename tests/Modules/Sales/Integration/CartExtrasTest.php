@@ -325,6 +325,7 @@ it('reads a full cart — coupon, next gift, points — in a recorded number of 
     // Measured 2026-10-27: a plain cart of two lines 16 (as ViewCart read it before, the customer now read once
     // instead of twice, the shipping settings from Platform's cache); with a coupon typed, a gift level above
     // and the programme on, 22 — the coupon's reads, the levels above and their gifts' stock. A target, not a
-    // cap (owner, 2026-10-19).
-    expect([$plain, $count()])->toBe([16, 22]);
+    // cap (owner, 2026-10-19). Measured 2026-10-30: one more each, 17 and 23 - the SMS countries list, read
+    // once when the customer is read (access.md amendment 87); a cache would be a query of its own.
+    expect([$plain, $count()])->toBe([17, 23]);
 });
