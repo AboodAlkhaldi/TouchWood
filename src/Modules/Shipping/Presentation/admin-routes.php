@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Shipping\Presentation\Http\Controller\CarrierPricesController;
 use Modules\Shipping\Presentation\Http\Controller\CarriersController;
 
 /*
@@ -25,4 +26,9 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('shipping/carriers/{carrier}', [CarriersController::class, 'update'])->name('shipping.admin.carriers.update');
         Route::post('shipping/carriers/{carrier}/switch', [CarriersController::class, 'switch'])->name('shipping.admin.carriers.switch');
         Route::post('shipping/carriers/{carrier}/delete', [CarriersController::class, 'destroy'])->name('shipping.admin.carriers.delete');
+        // A carrier's prices and free-shipping amount (part 2).
+        Route::get('shipping/carriers/{carrier}/places', [CarrierPricesController::class, 'places'])->name('shipping.admin.carriers.places');
+        Route::post('shipping/carriers/{carrier}/prices', [CarrierPricesController::class, 'save'])->name('shipping.admin.carriers.prices.save');
+        Route::post('shipping/carriers/{carrier}/prices/{group}/delete', [CarrierPricesController::class, 'delete'])->name('shipping.admin.carriers.prices.delete');
+        Route::post('shipping/carriers/{carrier}/free-above', [CarrierPricesController::class, 'freeAbove'])->name('shipping.admin.carriers.free_above');
     });

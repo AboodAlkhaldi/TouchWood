@@ -26,6 +26,8 @@ use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrierHandler;
 use Modules\Shipping\Application\Command\UploadCarrierLogo\UploadCarrierLogo;
 use Modules\Shipping\Application\Command\UploadCarrierLogo\UploadCarrierLogoHandler;
 use Modules\Shipping\Application\Query\ListCarriers\ListCarriersHandler;
+use Modules\Shipping\Application\Query\ListPriceGroups\ListPriceGroupsHandler;
+use Modules\Shipping\Application\Query\ListUncoveredPlaces\ListUncoveredPlacesHandler;
 use Modules\Shipping\Application\Query\ViewCarrier\ViewCarrierHandler;
 use Modules\Shipping\Application\ShippingPermissions;
 use Modules\Shipping\Domain\Exception\CarrierNameTaken;
@@ -47,7 +49,7 @@ final readonly class CarriersController
      *
      * @var list<string>
      */
-    private const array WORDS = ['shipping::admin_carriers', 'shipping::errors', 'admin', 'catalog::admin.drag', 'catalog::admin.order', 'catalog::admin.image'];
+    private const array WORDS = ['shipping::admin_carriers', 'shipping::admin_prices', 'shipping::errors', 'admin', 'catalog::admin.drag', 'catalog::admin.order', 'catalog::admin.image'];
 
     /** The dialog's own boxes, where a refusal naming one is said. */
     private const array FIELDS = ['name_ar', 'name_en', 'logo_media_id', 'phone', 'website', 'tracking_pattern'];
@@ -56,16 +58,16 @@ final readonly class CarriersController
         private Page $page,
     ) {}
 
-    /** C1. */
-    public function index(Request $request, CarrierPages $pages, ListCarriersHandler $carriers): Response
+    /** C1, with part 2's store-wide amount and places no carrier serves. */
+    public function index(Request $request, CarrierPages $pages, ListCarriersHandler $carriers, ListUncoveredPlacesHandler $uncovered): Response
     {
-        return $this->page->render('Shipping/Admin/Carriers/Index', $pages->list(self::query($request, 'store'), $carriers)->toArray(), self::WORDS);
+        return $this->page->render('Shipping/Admin/Carriers/Index', $pages->list(self::query($request, 'store'), $carriers, $uncovered)->toArray(), self::WORDS);
     }
 
-    /** C3. */
-    public function show(Request $request, string $carrier, CarrierPages $pages, ViewCarrierHandler $view): Response
+    /** C3, with part 2's prices. */
+    public function show(Request $request, string $carrier, CarrierPages $pages, ViewCarrierHandler $view, ListPriceGroupsHandler $prices): Response
     {
-        return $this->page->render('Shipping/Admin/Carriers/Show', $pages->carrier(self::query($request, 'store'), $carrier, $view)->toArray(), self::WORDS);
+        return $this->page->render('Shipping/Admin/Carriers/Show', $pages->carrier(self::query($request, 'store'), $carrier, $view, $prices)->toArray(), self::WORDS);
     }
 
     /** Add Carrier, in the section's country (Q3). */
