@@ -11,6 +11,10 @@ namespace Modules\Ops\Public\Enums;
  *
  * Its wording, in Arabic and English, is at `ops::messages.{value}` (§1.1). C8 is two kinds, one for
  * each decision; S8 (campaign expiry) waits for Content.
+ *
+ * Three more are not rows of §1.5 or §1.6 (step 7): an offer notice (§1.7) and a staff member's
+ * message (§1.8), whose title and text are the staff's own in both languages, and the email that asks
+ * a guest to confirm their newsletter sign-up (§1.9), which has no bell.
  */
 enum MessageKind: string
 {
@@ -51,6 +55,11 @@ enum MessageKind: string
     case CampaignExpiring = 'campaign_expiring';
     case ReturnRequested = 'return_requested';
 
+    // Written by staff (§1.7, §1.8), and the newsletter's double opt-in (§1.9).
+    case OfferNotice = 'offer_notice';
+    case StaffMessage = 'staff_message';
+    case NewsletterConfirmation = 'newsletter_confirmation';
+
     /** The row of the spec it is (ops.md §1.5, §1.6). */
     public function code(): string
     {
@@ -87,6 +96,9 @@ enum MessageKind: string
             self::PaymentNotAccepted => 'S7',
             self::CampaignExpiring => 'S8',
             self::ReturnRequested => 'S9',
+            self::OfferNotice => '§1.7',
+            self::StaffMessage => '§1.8',
+            self::NewsletterConfirmation => '§1.9',
         };
     }
 
@@ -103,6 +115,7 @@ enum MessageKind: string
      * - S5: the critical SMS goes **only at 1 day** before the key expires, to super admins who left
      *   their switch on (§1.6; access.md amendment 81) - the 30- and 7-day alerts are bell and email.
      * - S5b: the critical SMS to super admins (§9.3 #12).
+     * - The newsletter's confirmation: an email to a guest, who has no bell (§1.9).
      *
      * @return list<MessageChannel>
      */
@@ -110,6 +123,7 @@ enum MessageKind: string
     {
         return match ($this) {
             self::Security => [MessageChannel::Email, MessageChannel::Sms],
+            self::NewsletterConfirmation => [MessageChannel::Email],
             self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };

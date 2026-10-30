@@ -86,7 +86,11 @@ the recipient's language (round 1 #23). Every number in Latin digits (owner, 202
 - Consent is **one switch for the person** (identity is global, access.md §1.1); the customer is on their
   **home store's** list only, and unsubscribing anywhere switches it off everywhere (owner, 2026-10-28, §9.3 #13).
 - Every marketing email carries an **unsubscribe link**; following it switches the consent off at once,
-  with no sign-in.
+  with no sign-in. The link opens **a page with one "Unsubscribe" button** — opening it changes nothing;
+  the button (a POST to the same signed address) does it (owner, 2026-10-30). The same address is the
+  email's RFC 8058 one-click unsubscribe (`List-Unsubscribe`, `List-Unsubscribe-Post`) — written on
+  every marketing email; **not passed to Brevo**, whose send reference says "standard email headers
+  are not supported" (checked 2026-10-30; Brevo's help centre says it adds its own).
 - **Company accounts:** the same switch, on the customer account (owner, 2026-10-28, §9.3 #1).
 
 ### 1.4 Who receives a staff alert
@@ -164,7 +168,12 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 A **notice** is staff telling customers about an offer: "Ramadan offers have started".
 
 - Written in **both languages**, with an optional link (a category, a product, a page).
-- **Audience:** every customer of the store, or the members of one Promotions segment.
+- **Audience:** every customer of the store, or the members of one Promotions segment. "Every customer
+  of the store" is **every customer registered in that store** — their home store (owner, 2026-10-30,
+  as built in step 7). **The segment audience lands after Stage 6 makes `PromotionsApi::segmentMembers`
+  store-scoped** (`segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)`, another
+  store's segment refused as `SegmentNotFound`): without the store, a notice of one store could reach
+  another store's segment. Built in step 7: the store audience only.
 - **Channels:** bell and email, **both ticked by default**, each untickable (owner, R4-6). The email
   goes only to customers who agreed (§1.3); the bell to all.
 - **Send now or schedule** a date and time in the store's time zone. A scheduled notice can be edited or
@@ -172,18 +181,26 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
 - **With Content:** a campaign may carry "send this notice when the campaign goes live"; Content
   publishes the campaign's going live and Ops sends the notice (owner, round 3 #11). Content never calls
   Ops.
-- Sending to thousands goes in batches on the queue; the notice shows how many were sent.
+- Sending to thousands goes in batches on the queue; the notice shows how many were sent. A batch that
+  fails its last attempt shows the notice **FAILED**; the job waits on the failed jobs screen, and
+  retrying it there carries on from where it stopped (step 7: a batch is safe to run again).
 
 ### 1.8 Staff messages to a customer (handoff §13.3)
 
-- **To one customer**, found by name, email or phone: staff with `ops.message.send_one`.
+- **To one customer**, found by name, email or phone: staff with `ops.message.send_one` — only a customer
+  registered in a store where the staff member holds `ops.message.send_one` **and** may view customers;
+  the search offers only those, and any other is refused as unknown (owner, 2026-10-30).
 - **To every customer of a store, or a segment:** `ops.message.send_many`, **admins only** (round 1
-  #18).
+  #18). Every customer of a store is every customer registered in it (owner, 2026-10-30); the segment
+  waits for the store-scoped `segmentMembers`, as in §1.7.
 - **Bell and email only** (round 3 #10). Free text in both languages; the customer gets their own
   language.
 - A one-customer message is a **service** message (it ignores consent); a message to many is
   **marketing** for email (§1.3) (owner, 2026-10-28, §9.3 #2).
 - Every message is recorded: who sent it, to whom, the channels, when. Nothing can be recalled.
+- **Audited** (owner, 2026-10-30): writing, changing and cancelling an offer notice, and sending a staff
+  message — to one or to many — each write a Platform audit entry in the same transaction
+  (`ops.notice.created|changed|cancelled`, `ops.staff_message.sent`).
 
 ### 1.9 Newsletter subscribers and Brevo
 
@@ -194,8 +211,27 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   joining, leaving, changing language. **Newsletters are designed and sent in Brevo** (round 3 #12 (a)).
 - **Unsubscribing** in a Brevo email reaches Ops through Brevo's webhook: a guest is removed, a customer's
   consent switches off (Access).
-- *To check against Brevo's documentation before the build:* its contacts and lists API, its webhook and
-  how it is signed. Not verified in this session.
+- **While a customer may not receive offers, every guest row of their email, in every store, goes too**
+  — including at registration (`CustomerRegistered`, `GuestBecameCustomer`); with a **deletion pending**
+  the provider's contact is deleted at once, so anonymizing finds nothing left (step 7, review fix).
+  Staff see a customer's email in the subscribers list only if they may view that customer.
+- **A customer is on the list only while they may receive offers by email** (§1.3: agreed, email
+  verified, not blocked, no deletion pending): Ops also listens to `CustomerEmailVerified`,
+  `CustomerBlocked`, `CustomerUnblocked`, `CustomerDeletionScheduled` and `CustomerDeletionCancelled`
+  (owner, 2026-10-30, kept as built in step 7). A contact newly on a list — a customer who agreed again,
+  a guest's new confirmed sign-up — is allowed email again at Brevo (`emailBlacklisted: false`), since an
+  earlier unsubscribe there left Brevo refusing it.
+- **A guest's own unsubscribe link** (§3) is signed and carried by the confirmation email; it opens the
+  same one-button page, and the button takes the guest off at once. A guest giving an email that belongs to a customer account is told to tick
+  the box in the account instead (`AccessApi::isCustomerEmail`, access.md amendment 79 as built).
+- *Checked against Brevo's documentation, 2026-10-29 (step 7):* contacts and lists — create a list
+  (`POST /v3/contacts/lists`, `name` + `folderId`), create or update a contact (`POST /v3/contacts`,
+  `listIds`, `updateEnabled`), remove from a list (`POST /v3/contacts/lists/{id}/contacts/remove`),
+  delete a contact (`DELETE /v3/contacts/{email}`), allow a contact email again (`PUT /v3/contacts/{email}`,
+  `emailBlacklisted: false`; checked 2026-10-30); the marketing webhook's `unsubscribed` event, whose body
+  carries `"event": "unsubscribe"` and the `email`. **Brevo signs nothing**: the webhook is authenticated by
+  a custom header Brevo sends with each call, carrying our secret (`X-TouchWood-Secret` =
+  `BREVO_WEBHOOK_SECRET`). The URLs are cited in `BrevoNewsletterList` and `BrevoWebhookController`.
 
 ### 1.10 Reports
 
@@ -287,7 +323,7 @@ go (§9.2).
 |---|---|---|
 | **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for online payments) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)` (the tracking link is Stage 7's); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off. An unknown store is refused |
 | **Loyalty** (Stage 6) — **built (#256)** | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
-| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` (exists); coupons used per day and their discount |
+| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount |
 | **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
 | **Catalog** (Stage 6) | — | **Built (#251, catalog.md amendment 37):** `searchSummary(?store, from, to, after, limit)` — {query, storeId, locale, searches, noResults}, most searched first; no person (catalog.md §1.11) |
 | **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |

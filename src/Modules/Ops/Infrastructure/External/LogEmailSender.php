@@ -25,6 +25,7 @@ final readonly class LogEmailSender implements EmailSender
             'to' => $email->toEmail,
             'subject' => $email->subject,
             'text' => $email->text,
+            ...($email->headers === [] ? [] : ['headers' => $email->headers]),
         ]);
 
         return null;

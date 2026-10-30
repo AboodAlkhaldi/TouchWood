@@ -64,7 +64,8 @@ it('removes what is older than twelve months from the three tables, keeps the re
         ->toBe(['inbox_entries' => 1, 'sent_messages' => 1, 'handled_events' => 1])
         ->and(DB::table('ops.inbox_entries')->pluck('id')->all())->toBe([$keptEntry])
         ->and(DB::table('ops.sent_messages')->pluck('id')->all())->toBe([$keptSent])
-        ->and(DB::table('ops.handled_events')->pluck('listener')->all())->toBe(['kept']);
+        // Registering the customers above is itself an event Ops handles (step 7): its row is new and stays.
+        ->and(DB::table('ops.handled_events')->whereNotLike('listener', 'Modules%')->pluck('listener')->all())->toBe(['kept']);
 });
 
 it('runs each night at 04:30 Riyadh time on one server', function () {

@@ -43,9 +43,11 @@ final readonly class WithdrawMarketingConsentHandler
     public function handle(WithdrawMarketingConsent $command): void
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        // A Super Admin holds every reserved permission too; this one is the system's alone, as
-        // anonymizing is (staff never change a customer's consent).
-        $this->rules->requireConsole(self::PERMISSION);
+        // A Super Admin holds every reserved permission too; this one is the system's alone (staff
+        // never change a customer's consent) - the console, or Ops' job that an unsubscribe link or
+        // the newsletter provider's call queued, on a guest's or a customer's behalf (amendment 79,
+        // as built).
+        $this->rules->requireSystemForVisitor(self::PERMISSION);
 
         if (! in_array($command->source, MarketingConsentSource::withdrawals(), true)) {
             throw new InvalidAccessAttribute('marketing_consent', 'an unsubscribe only withdraws consent');

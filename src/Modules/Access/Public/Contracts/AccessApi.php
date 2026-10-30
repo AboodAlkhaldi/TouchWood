@@ -114,6 +114,13 @@ interface AccessApi
     public function addresses(string $customerId, string $storeId): array;
 
     /**
+     * For Ops' newsletter box (amendment 79, as built): whether a customer account has this email,
+     * ignoring case - a guest giving it is told to tick the box in their account instead (ops.md §5).
+     * A yes or no only, never the account; what is not an email is no customer's.
+     */
+    public function isCustomerEmail(string $email): bool;
+
+    /**
      * For Ops' daily report (amendment 83): how many accounts of each type registered in the store
      * from `$from` (included) to `$to` (excluded), anonymized ones included — they were new then.
      * Counts only; no person.
@@ -125,7 +132,9 @@ interface AccessApi
     /**
      * For Ops (amendment 79): the customer unsubscribed — by a marketing email's link or at the
      * newsletter provider — so their marketing consent is withdrawn, at once and everywhere.
-     * **Run as the system** (a queued job): the permission is reserved. Withdrawing what is already
+     * **Run as the system** (a queued job): the permission is reserved. The job may have been queued
+     * by a guest's or a customer's request - the link, the provider's call - never by staff or an
+     * integration (as built, amendment 79). Withdrawing what is already
      * off, or an anonymized account, changes nothing. Publishes `MarketingConsentChanged`.
      *
      * @throws DomainError when the source would give consent instead
