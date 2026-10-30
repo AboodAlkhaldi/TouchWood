@@ -656,6 +656,15 @@ describe('what the review asked (step 4)', function () {
             ->and(fn () => pricesGroups($egypt))->toThrow(CarrierNotFound::class);
     });
 
+    it('never prices an address by a place of another of the store\'s countries', function () {
+        $capital = pricesPlace(PlaceKind::Region->value, null, 'Capital', 'BH');
+        app(AddStoreCountryHandler::class)->handle(new AddStoreCountry('sa', 'BH'));
+        pricesSave(pricesCarrier('Bahrain Post', country: 'BH'), 1000, [$capital]);
+
+        expect(pricesQuote(region: $capital, country: 'SA')->coverage)->toBe(ShippingCoverage::NotCovered)
+            ->and(pricesQuote(region: $capital, country: 'BH')->coverage)->toBe(ShippingCoverage::Served);
+    });
+
     it('answers OTHER_STORE for a switched-off store\'s country (§1.2)', function () {
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
 
