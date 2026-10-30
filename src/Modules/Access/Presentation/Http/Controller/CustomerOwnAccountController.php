@@ -173,7 +173,7 @@ final readonly class CustomerOwnAccountController
                 language: app()->getLocale(),
             ));
         } catch (DomainError $error) {
-            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'phone', 'fields', 'country', 'region_id', 'city_id', 'district_id', 'places', 'administrative_area', 'city', 'district']);
+            return FormErrors::back($request, $error, ['store_id', 'label', 'recipient_name', 'fields', 'country', 'region_id', 'city_id', 'district_id', 'places', 'administrative_area', 'city', 'district']);
         }
 
         // Back to the page that sent them here, if it is one of their account's (amendment 51).
