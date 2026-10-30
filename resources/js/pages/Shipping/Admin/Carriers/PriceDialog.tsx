@@ -249,7 +249,7 @@ export function PriceDialog({
                     </Note>
                 ) : null}
                 {refused && errors.existing ? (
-                    <Button type="button" variant="link" className="justify-self-start px-0" onClick={() => onOpenGroup(errors.existing)} data-test="open-existing-price">
+                    <Button type="button" variant="link" className="justify-self-start px-0" onClick={() => onOpenGroup(errors.existing ?? "")} data-test="open-existing-price">
                         {t(`${P}.dialog.open_existing`, { amount: groups.find((each) => each.id === errors.existing)?.amount.text ?? '' })}
                     </Button>
                 ) : null}
