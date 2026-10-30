@@ -80,7 +80,7 @@ final readonly class ReportFormat
     /** Text that reads left to right whatever the page's direction: a code, a time zone. */
     public static function ltr(string $text): HtmlString
     {
-        return new HtmlString('<bdi dir="ltr">'.e(self::inert($text)).'</bdi>');
+        return new HtmlString('<bdi dir="ltr">'.self::inert(e($text)).'</bdi>');
     }
 
     public function text(string $ar, string $en): string
@@ -90,18 +90,24 @@ final readonly class ReportFormat
 
     /**
      * Text people wrote - a search phrase, a product's, a size's, a category's or a store's name - escaped,
-     * and with mPDF's placeholders made inert: mPDF writes the page count over "{nbpg}" or "{PAGENO}"
-     * wherever they stand, body text included. A word joiner after each "{" (U+2060, drawn as nothing)
-     * breaks the match without changing what is read.
+     * and with mPDF's placeholders made inert: mPDF writes the page number over "{PAGENO}" and the page
+     * count over "{nb}" and "{nbpg}" wherever they stand in a page's text (Mpdf::aliasReplace), body
+     * included.
      */
     public static function safe(string $text): HtmlString
     {
-        return new HtmlString(e(self::inert($text)));
+        return new HtmlString(self::inert(e($text)));
     }
 
     /** The text with every "{" followed by a word joiner, so no mPDF placeholder matches it. */
-    public static function inert(string $text): string
+    /**
+     * Escaped HTML with each "{" in a run of its own: mPDF matches its placeholders inside one run of text,
+     * so "{" drawn apart (a span it cannot merge with the next: its own letter spacing) never makes one -
+     * and it is still the font's own "{", read and copied as typed. A character of no glyph (a word joiner,
+     * U+2060, was tried) would print as a box: IBM Plex Sans Arabic has none.
+     */
+    public static function inert(string $html): string
     {
-        return str_replace('{', "{\u{2060}", $text);
+        return str_replace('{', '<span style="letter-spacing: 0.01pt">{</span>', $html);
     }
 }

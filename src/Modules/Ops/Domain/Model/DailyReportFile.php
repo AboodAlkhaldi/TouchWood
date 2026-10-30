@@ -15,7 +15,7 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class DailyReportFile
 {
-    /** Where its PDF lies: the year and month it was made, then its id. */
+    /** Where its PDF lies: the year and month it was made (UTC), then its id. */
     public const string FILE = '/\Aops\/daily-reports\/\d{4}\/\d{2}\/[0-9a-z]{26}\.pdf\z/';
 
     /** @throws InvalidOpsInput */
@@ -52,6 +52,6 @@ final readonly class DailyReportFile
 
     public static function fileFor(string $id, DateTimeImmutable $madeAt): string
     {
-        return 'ops/daily-reports/'.$madeAt->format('Y/m').'/'.strtolower($id).'.pdf';
+        return 'ops/daily-reports/'.$madeAt->setTimezone(new \DateTimeZone('UTC'))->format('Y/m').'/'.strtolower($id).'.pdf';
     }
 }

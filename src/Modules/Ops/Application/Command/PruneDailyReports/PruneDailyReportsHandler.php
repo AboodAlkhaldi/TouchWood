@@ -36,9 +36,12 @@ final readonly class PruneDailyReportsHandler
     public function handle(PruneDailyReports $command): int
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
-        // The rows first: a file left behind by a failure is harmless, a row naming no file is not.
-        $files = $this->reports->prune(CarbonImmutable::now()->subMonthsNoOverflow(self::MONTHS)->toDateTimeImmutable());
+        // The rows first: a file left behind by a failure is harmless, a row naming no file is not - and the
+        // sweep of the month folders before the limit takes any such file the next night.
+        $before = CarbonImmutable::now()->subMonthsNoOverflow(self::MONTHS)->toDateTimeImmutable();
+        $files = $this->reports->prune($before);
         $this->files->delete($files);
+        $this->files->sweepMonthsBefore($before);
 
         return count($files);
     }

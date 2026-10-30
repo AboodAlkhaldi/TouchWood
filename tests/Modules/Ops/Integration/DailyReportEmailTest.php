@@ -16,6 +16,7 @@ use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmail;
 use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmailHandler;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmail;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmailHandler;
+use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ViewDailyReportEmails\ViewDailyReportEmails;
 use Modules\Ops\Application\Query\ViewDailyReportEmails\ViewDailyReportEmailsHandler;
@@ -225,3 +226,42 @@ it('ends the email of a cancelled account and switches it off, and keeps a disab
     'cancelled' => ['CANCELLED', false, 1],
     'disabled' => ['DISABLED', true, 2],
 ]);
+
+it('keeps the moment where it was when the next email cannot be queued: the job fails, it does not end quietly', function () {
+    Queue::fake();
+    $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+    Fx::actAsStaff($staff);
+    $setting = dailyEmailSet('sa', true, '07:30');
+    $due = $setting->nextDueAt ?? throw new LogicException('Switched on without a moment.');
+    app()->bind(DailyReportEmailQueue::class, fn () => new class implements DailyReportEmailQueue
+    {
+        public function send(string $settingId, int $version, DateTimeImmutable $at): void
+        {
+            throw new RuntimeException('The queue could not be written.');
+        }
+
+        public function deliver(string $reportId): void {}
+    });
+    Fx::actAs(Actor::system(Actor::staff($staff)));
+
+    expect(fn () => app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($setting->id, $setting->version, $due)))->toThrow(RuntimeException::class)
+        ->and(CarbonImmutable::parse((string) DB::table('ops.daily_report_settings')->where('id', $setting->id)->value('next_due_at'))->equalTo($due))->toBeTrue()
+        ->and(DB::table('ops.daily_reports')->count())->toBe(0);
+});
+
+it('writes the next email into the jobs table inside the transaction, not after it', function () {
+    config(['queue.default' => 'database']);
+    $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+    Fx::actAsStaff($staff);
+    $setting = dailyEmailSet('sa', true, '07:30');
+    $due = $setting->nextDueAt ?? throw new LogicException('Switched on without a moment.');
+    DB::table('jobs')->delete();
+
+    // Inside a transaction that is then rolled back, the job is already there: written before the commit.
+    DB::beginTransaction();
+    app(DailyReportEmailQueue::class)->send($setting->id, $setting->version, $due);
+    $inside = DB::table('jobs')->count();
+    DB::rollBack();
+
+    expect([$inside, DB::table('jobs')->count()])->toBe([1, 0]);
+});

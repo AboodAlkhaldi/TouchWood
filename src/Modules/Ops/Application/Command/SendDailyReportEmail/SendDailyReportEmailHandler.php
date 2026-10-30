@@ -23,8 +23,10 @@ use Shared\Application\Unauthorized;
  * person's behalf.
  *
  * - **One email per moment.** The setting holds the one moment the email may go next. This job goes on
- *   only if its moment is that one, and moves it to the next in the same statement, with the next job
- *   queued in the same transaction - a double submit, a race or a job tried again stops here.
+ *   only if its moment is that one, and moves it to the next in the same statement; the next job is
+ *   written to the database queue inside that same transaction (`beforeCommit`), so the moment and its
+ *   job commit together or not at all - a double submit, a race or a job tried again stops here, and a
+ *   failed push rolls the move back, so this job fails (into the failed jobs) rather than ending quietly.
  * - **Late is still that day's.** The report is made as at the moment due, and the next is the first time
  *   after both that moment and now: a worker that was down sends the missed day once, never two.
  * - A setting switched off or changed since (another version) stops here; the change queued its own.

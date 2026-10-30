@@ -14,4 +14,12 @@ interface ReportFiles
 
     /** @param  list<string>  $paths */
     public function delete(array $paths): void;
+
+    /**
+     * Removes the daily reports' month folders wholly before the moment's month (UTC), whatever is left in
+     * them - a file whose row is gone but whose delete failed never stays for good.
+     *
+     * @return int how many files went
+     */
+    public function sweepMonthsBefore(\DateTimeImmutable $before): int;
 }

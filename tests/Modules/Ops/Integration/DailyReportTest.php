@@ -18,6 +18,7 @@ use Modules\Ops\Application\DailyReport\DailyReport;
 use Modules\Ops\Application\DailyReport\DailyReportMaker;
 use Modules\Ops\Application\DailyReport\DailyReportPeople;
 use Modules\Ops\Application\DailyReport\DailyReportReader;
+use Modules\Ops\Application\DailyReport\DailyReportRenderer;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\DownloadDailyReport\DownloadDailyReport;
 use Modules\Ops\Application\Query\DownloadDailyReport\DownloadDailyReportHandler;
@@ -39,6 +40,7 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Ops\Support\DailyReportFixtures as Dx;
+use Tests\Modules\Ops\Support\PdfText;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -301,21 +303,23 @@ it('refuses every store\'s past day while it is still today in one of them, west
         ->and($make('2026-01-14')->day)->toBe('2026-01-14');
 });
 
-it('writes people\'s text escaped and with mPDF\'s placeholders inert', function () {
+it('writes people\'s text escaped, and prints "{nbpg}", "{nb}" and "{PAGENO}" in the PDF as typed, never a page number or a box', function () {
     Dx::aDay();
-    $product = (string) DB::table('catalog.products')->orderByDesc('created_at')->value('id');
     DB::table('catalog.products')->update(['name_en' => '<img src=x onerror=alert(1)> {PAGENO}']);
-    app(SearchLog::class)->record(Fx::storeId('sa'), 'en', '{nbpg} <b>door</b>', 0);
+    app(SearchLog::class)->record(Fx::storeId('sa'), 'en', '{nbpg} {nb} <b>door</b>', 0);
 
     $report = app(DailyReportReader::class)->store(dailyStore('sa'), CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null);
-    $html = view('ops::daily-report', ['report' => new DailyReport(CarbonImmutable::now()->toDateTimeImmutable(), 'Asia/Riyadh', false, [$report], []), 'locale' => 'en', 'rtl' => false, 'f' => new ReportFormat('en'), 'logo' => public_path('icons/email-logo.png')])->render();
+    $daily = new DailyReport(CarbonImmutable::now()->toDateTimeImmutable(), 'Asia/Riyadh', false, [$report], []);
+    $html = view('ops::daily-report', ['report' => $daily, 'locale' => 'en', 'rtl' => false, 'f' => new ReportFormat('en'), 'logo' => public_path('icons/email-logo.png')])->render();
+    // The real PDF, read back: mPDF writes its page numbers over the placeholders after the HTML.
+    $text = PdfText::of(app(DailyReportRenderer::class)->render($daily, 'en'));
 
-    expect($product)->not->toBe('')
-        ->and($html)->not->toContain('<img src=x')
-        ->and($html)->toContain('&lt;img src=x onerror=alert(1)&gt; {'."\u{2060}".'PAGENO}')
-        ->and($html)->toContain('{'."\u{2060}".'nbpg} &lt;b&gt;door&lt;/b&gt;')
-        ->and($html)->not->toContain('{nbpg}')
-        ->and($html)->not->toContain('{PAGENO}');
+    expect($html)->not->toContain('<img src=x')
+        ->and($text)->toContain('<img src=x onerror=alert(1)> {PAGENO}')
+        ->and($text)->toContain('{nbpg} {nb} <b>door</b>')
+        // Exactly the characters typed, nothing between them: no joiner or other code the font lacks
+        // (IBM Plex Sans Arabic draws every printable ASCII character, both weights; checked 2026-10-30).
+        ->and($text)->not->toContain("\u{2060}");
 });
 
 it('opens a report someone else made to anyone with the permission in its store, and to no one else', function () {
@@ -329,4 +333,18 @@ it('opens a report someone else made to anyone with the permission in its store,
 
     Fx::actAsStaff(Fx::staffWith([OpsPermissions::REPORT_DAILY], ['ae']));
     expect(fn () => app(DownloadDailyReportHandler::class)->handle(new DownloadDailyReport($made->id)))->toThrow(DailyReportNotFound::class);
+});
+
+it('sweeps the month folders older than twelve months, files whose row is gone included, and nothing newer', function () {
+    $disk = Storage::disk(LocalReportFiles::DISK);
+    $old = CarbonImmutable::now('UTC')->subMonthsNoOverflow(13);
+    $disk->put('ops/daily-reports/'.$old->format('Y/m').'/01jbxqz2y8k4n6p9r3t5v7w1xa.pdf', '%PDF-1.4 left behind');
+    $disk->put('ops/daily-reports/'.CarbonImmutable::now('UTC')->format('Y/m').'/01jbxqz2y8k4n6p9r3t5v7w1xb.pdf', '%PDF-1.4 kept');
+    $disk->put('ops/other/keep.txt', 'not the reports\'');
+
+    Fx::asSystem(fn (): int => app(PruneDailyReportsHandler::class)->handle(new PruneDailyReports));
+
+    expect($disk->exists('ops/daily-reports/'.$old->format('Y/m').'/01jbxqz2y8k4n6p9r3t5v7w1xa.pdf'))->toBeFalse()
+        ->and($disk->exists('ops/daily-reports/'.CarbonImmutable::now('UTC')->format('Y/m').'/01jbxqz2y8k4n6p9r3t5v7w1xb.pdf'))->toBeTrue()
+        ->and($disk->exists('ops/other/keep.txt'))->toBeTrue();
 });

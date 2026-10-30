@@ -6,6 +6,7 @@ namespace Modules\Ops\Application\Command\SetDailyReportEmail;
 
 use Carbon\CarbonImmutable;
 use DateTimeZone;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportPeople;
@@ -28,6 +29,7 @@ final readonly class SetDailyReportEmailHandler
         private DailyReportPeople $people,
         private DailyReports $reports,
         private DailyReportEmailQueue $queue,
+        private ConnectionInterface $db,
     ) {}
 
     /** @throws Unauthorized|InvalidOpsInput */
@@ -50,11 +52,15 @@ final readonly class SetDailyReportEmailHandler
             throw new InvalidOpsInput('send_at', 'a time of day, HH:MM');
         }
         $next = $command->on ? DailyReportEmail::nextAt($sendAt, $now, new DateTimeZone($this->people->zone($store))) : null;
-        $email = $this->reports->setEmail(strtolower((string) Str::ulid()), $person->id, $store?->storeId(), $command->on, $sendAt, $next, $now);
+        // The setting and its first email commit together (the job written inside the transaction).
+        $email = $this->db->transaction(function () use ($person, $store, $command, $sendAt, $next, $now): DailyReportEmail {
+            $email = $this->reports->setEmail(strtolower((string) Str::ulid()), $person->id, $store?->storeId(), $command->on, $sendAt, $next, $now);
+            if ($email->isOn && $email->nextDueAt !== null) {
+                $this->queue->send($email->id, $email->version, $email->nextDueAt);
+            }
 
-        if ($email->isOn && $email->nextDueAt !== null) {
-            $this->queue->send($email->id, $email->version, $email->nextDueAt);
-        }
+            return $email;
+        });
 
         return $email;
     }

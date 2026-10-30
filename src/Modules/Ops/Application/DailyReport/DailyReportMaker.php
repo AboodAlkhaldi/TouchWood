@@ -46,8 +46,8 @@ final readonly class DailyReportMaker
             if ($parsed === false || $parsed->format('Y-m-d') !== $pastDay) {
                 throw new InvalidOpsInput('day', 'a date, YYYY-MM-DD');
             }
-            // Before today where the report is read, and in each store it covers: a store east of the base
-            // store may already be on the next day.
+            // Before today where the report is read, and in each store it covers: a store west of the base
+            // store may still be on the day asked when the base store is already on the next.
             foreach ($store === null ? $stores : [$store] as $one) {
                 if ($pastDay >= $now->setTimezone(new DateTimeZone($one->timezone))->format('Y-m-d')) {
                     throw new InvalidOpsInput('day', 'a day before today');
