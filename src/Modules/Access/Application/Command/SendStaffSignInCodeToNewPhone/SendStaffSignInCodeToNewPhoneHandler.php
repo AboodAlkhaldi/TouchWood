@@ -44,7 +44,7 @@ final readonly class SendStaffSignInCodeToNewPhoneHandler
         }
 
         $phone = PhoneNumber::of($command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
         $this->phones->require($phone);
 
         $this->db->transaction(function () use ($pending, $phone): void {

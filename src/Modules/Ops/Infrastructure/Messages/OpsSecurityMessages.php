@@ -34,7 +34,7 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * C18, the security messages (ops.md §1.5 C18; access.md §2.3), in place of Access's temporary sender
  * (round 1 #26): codes by SMS, through the provider of the phone's country on the SMS countries list
- * (access.md amendment 87); links, and B2B's decisions about a company, by email through EmailSender.
+ * (access.md amendment 90); links, and B2B's decisions about a company, by email through EmailSender.
  * The wording is the one Access had, unchanged, at `ops::security`.
  *
  * **Sent at once, never queued**: a code or a link never reaches a job payload, an event or a record.
@@ -199,7 +199,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
 
     /**
      * One SMS, through the provider of the number's country. Access refuses a number of a country not
-     * on the list before it calls (amendment 87); one that reaches here anyway fails, and is recorded.
+     * on the list before it calls (amendment 90); one that reaches here anyway fails, and is recorded.
      *
      * @throws ProviderFailed
      */

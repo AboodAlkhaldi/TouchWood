@@ -7,7 +7,7 @@ namespace Modules\Ops\Application\Messages;
 /**
  * One SMS provider (ops.md §2.2): the application log until the owner names a real one (Mobily is
  * being checked). Which one sends is chosen per number, by its country (SmsSenders; access.md
- * amendment 87).
+ * amendment 90).
  */
 interface SmsSender
 {

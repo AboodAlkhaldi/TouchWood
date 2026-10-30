@@ -59,7 +59,7 @@ final readonly class AccessApiImpl implements AccessApi
     {
         $customer = $this->customers->find($customerId);
 
-        // A phone SMS no longer reaches is as good as unverified (amendment 87), as CustomerDto says.
+        // A phone SMS no longer reaches is as good as unverified (amendment 90), as CustomerDto says.
         return $customer !== null && $customer->mayOrder() && $this->phones->reaches($customer->phone());
     }
 

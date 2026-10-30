@@ -79,7 +79,7 @@ final readonly class VerifyStaffSignInCodeHandler
                     return $phone;
                 }
 
-                // A saved phone SMS no longer reaches counts as none (amendment 87): the Super Admin's new
+                // A saved phone SMS no longer reaches counts as none (amendment 90): the Super Admin's new
                 // number replaces it.
                 $current = $this->phones->reaches($staff->phone()) ? $staff->phone() : null;
 

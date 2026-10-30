@@ -8,7 +8,7 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * Another listed country already has this calling code: a number's country is read from its code, so
- * one code belongs to one country (access.md amendment 87).
+ * one code belongs to one country (access.md amendment 90).
  */
 final class CallingCodeTaken extends OpsError
 {

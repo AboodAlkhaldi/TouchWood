@@ -16,7 +16,7 @@ return [
     ],
 
     // SMS have no driver here: each goes through the provider of the phone's country on the SMS
-    // countries list (access.md amendment 87). A provider is an adapter, bound in OpsServiceProvider;
+    // countries list (access.md amendment 90). A provider is an adapter, bound in OpsServiceProvider;
     // its keys go in .env and are read here.
 
     'newsletter' => [

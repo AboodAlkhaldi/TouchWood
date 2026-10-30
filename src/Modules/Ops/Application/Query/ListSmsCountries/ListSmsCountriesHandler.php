@@ -15,7 +15,7 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 
 /**
- * The SMS countries page (access.md amendment 87): Super Admins only, as the changes are. The names are
+ * The SMS countries page (access.md amendment 90): Super Admins only, as the changes are. The names are
  * PHP's (`Locale::getDisplayRegion`), so nothing but the code is stored.
  */
 final readonly class ListSmsCountriesHandler

@@ -215,7 +215,7 @@ final class AccessServiceProvider extends ServiceProvider
         // SMS codes are stored as an HMAC keyed with the application key (Codes).
         $this->app->singleton(Codes::class, fn (Application $app): Codes => new HmacCodes((string) $app->make('config')->get('app.key')));
 
-        // SecurityMessages and PhoneCountries are Ops' to bind (access.md §2.3, amendment 87): Ops sends
+        // SecurityMessages and PhoneCountries are Ops' to bind (access.md §2.3, amendment 90): Ops sends
         // the security messages and keeps the SMS countries, and Access never depends on Ops.
 
         // Who is acting (spec §2.5): a web request's session names them, else a guest; outside a web

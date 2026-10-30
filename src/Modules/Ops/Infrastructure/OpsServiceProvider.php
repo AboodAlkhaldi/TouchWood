@@ -72,7 +72,7 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  *
  * Step 2 (the foundation): the schema and its three tables, the permissions, the adapters, the bells
  * and the nightly removal. Step 3: the security messages (C18) in place of Access's temporary sender,
- * and the SMS countries (access.md amendment 87). Step 7: offer notices, staff messages, the
+ * and the SMS countries (access.md amendment 90). Step 7: offer notices, staff messages, the
  * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
  */
 final class OpsServiceProvider extends ServiceProvider
@@ -102,14 +102,14 @@ final class OpsServiceProvider extends ServiceProvider
             default => throw new InvalidArgumentException('OPS_EMAIL_DRIVER names no email driver Ops has: "brevo" or "log".'),
         });
         // SMS go through the provider of the phone's country on the SMS countries list (access.md
-        // amendment 87): a new provider is a new adapter and a line here, its keys in .env.
+        // amendment 90): a new provider is a new adapter and a line here, its keys in .env.
         $this->app->bind(SmsSenders::class, fn (Application $app): SmsSenders => new BuiltSmsSenders([
             'log' => fn (): SmsSender => $app->make(LogSmsSender::class),
         ], $app->environment('production')));
         $this->app->bind(SmsCountries::class, DatabaseSmsCountries::class);
 
         // Access's contracts, which Ops fulfils so that Access never depends on Ops (access.md §2.3,
-        // amendment 87): the security messages, and whether a phone's country is on the SMS list.
+        // amendment 90): the security messages, and whether a phone's country is on the SMS list.
         $this->app->bind(PhoneCountries::class, ListedPhoneCountries::class);
         $this->app->bind(SecurityMessages::class, OpsSecurityMessages::class);
 
@@ -178,7 +178,7 @@ final class OpsServiceProvider extends ServiceProvider
      * Invitation and password reset links go by email, through Ops' EmailSender (ops.md §1.5 C18). A
      * production server on the `log` driver would write them to the log file and send nothing, so it
      * refuses to start - the guard Access kept on Laravel's mailer (access.md amendment 36(d)) until
-     * Ops sent its emails (amendment 87). The binding refuses `log` there too, but only when an email
+     * Ops sent its emails (amendment 90). The binding refuses `log` there too, but only when an email
      * is sent; this stops the server at boot.
      *
      * @throws InvalidArgumentException

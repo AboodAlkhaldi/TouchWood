@@ -22,7 +22,7 @@ use Modules\Access\Public\Contracts\SecurityMessages;
  * Verifying a staff phone by SMS code (spec §1.3, §4.2): a code of the set length, valid for the set
  * minutes; a new one no sooner than the resend interval, and at most so many an hour per number;
  * after the set wrong tries the code is dead. A new request replaces the previous code. No code goes to
- * a number whose country is not on the SMS countries list (amendment 87).
+ * a number whose country is not on the SMS countries list (amendment 90).
  */
 final readonly class PhoneVerification
 {

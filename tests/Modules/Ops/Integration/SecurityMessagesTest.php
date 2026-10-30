@@ -27,7 +27,7 @@ use function Pest\Laravel\seed;
 
 /*
 | C18, the security messages (ops.md §1.5 C18; access.md §2.3), sent by Ops in place of Access's temporary
-| sender: codes by SMS through the provider of the phone's country (access.md amendment 87), links and
+| sender: codes by SMS through the provider of the phone's country (access.md amendment 90), links and
 | B2B's decisions by email, in the person's language, at once, with no bell entry. Each send leaves one
 | `ops.sent_messages` row that never holds the code, the link, the text or the address.
 |
@@ -173,7 +173,7 @@ describe('links, by email', function () {
     });
 });
 
-describe('codes, by SMS through the provider of the phone\'s country (amendment 87)', function () {
+describe('codes, by SMS through the provider of the phone\'s country (amendment 90)', function () {
     it('sends the phone code in the person\'s language, through the country\'s provider', function () {
         $sms = RecordingSmsSenders::install();
 

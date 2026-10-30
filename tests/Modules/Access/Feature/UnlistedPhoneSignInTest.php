@@ -15,7 +15,7 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| Signing in with a phone whose country left the SMS countries list (amendment 87; owner, 2026-10-29):
+| Signing in with a phone whose country left the SMS countries list (amendment 90; owner, 2026-10-29):
 | no code can reach it, so it counts as no phone. A Super Admin enters a new, listed number after the
 | right password - the path a Super Admin whose phone was reset takes (amendment 14); anyone else is
 | refused until an admin changes their phone.

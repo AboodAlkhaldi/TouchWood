@@ -67,7 +67,7 @@ final readonly class UpdateStaffProfileHandler
             }
 
             // A new phone receives the sign-in codes: it needs every action of their role, and a country
-            // SMS reaches (amendment 87). Only a new one: a saved number whose country left the list
+            // SMS reaches (amendment 90). Only a new one: a saved number whose country left the list
             // never blocks the rest of an edit - changing it is how the admin fixes it.
             if ($target->phone() === null || ! $target->phone()->equals($phone)) {
                 $this->rules->requireCoversActionsOf($author, $targetGrants);

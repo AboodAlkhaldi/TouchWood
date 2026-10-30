@@ -38,7 +38,7 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use function Pest\Laravel\seed;
 
 /*
-| Amendment 87 (owner, 2026-10-29): a phone from a country not on Ops' SMS countries list is refused
+| Amendment 90 (owner, 2026-10-29): a phone from a country not on Ops' SMS countries list is refused
 | wherever an account phone is entered - staff and customers alike - and no code is sent to it. A saved
 | phone whose country is taken off the list counts as none: the customer reads as unverified and cannot
 | order until they change it. The start list is Saudi Arabia (966) and Egypt (20); the United Arab
@@ -58,7 +58,7 @@ beforeEach(function () {
 const PHONE_COUNTRIES_UNLISTED = '+971501234567';
 
 /**
- * The refusal every entry point gives: the phone field, with its own words (amendment 87).
+ * The refusal every entry point gives: the phone field, with its own words (amendment 90).
  */
 function phoneCountriesRefused(): Closure
 {

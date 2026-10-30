@@ -9,7 +9,7 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
- * Audit entries for the SMS countries (access.md amendment 87): a Super Admin's change of where codes
+ * Audit entries for the SMS countries (access.md amendment 90): a Super Admin's change of where codes
  * can go. None of it is personal data, so every value is kept.
  */
 final class SmsCountryAudit

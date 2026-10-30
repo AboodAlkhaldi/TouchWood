@@ -80,7 +80,7 @@ $addresses = $this->access->addresses($customerId, $storeId);           // list<
   `CustomerDeletionScheduled`, `CustomerDeletionCancelled`, and `CustomerAnonymized` — on which
   Sales, Feedback, B2B, Loyalty and Promotions replace their own copies with "Deleted customer".
 - Ops sends the security messages: it binds `SecurityMessages` (ops.md §1.5 C18). It also binds
-  `PhoneCountries`, whether a phone's country is on its SMS countries list (amendment 87).
+  `PhoneCountries`, whether a phone's country is on its SMS countries list (amendment 90).
 
 ```php
 // A page of your own in the customer's account, for one account type or every account; it is
@@ -118,7 +118,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | `Application/Authorization` | `RoleAuthorizer` (the real `Authorizer`), `GrantRules` (who may grant what to whom, who may manage whom, console-only), `StaffGrants` + `GrantsReader` (a staff member's permissions, cached), `Author`, `InvalidPermissionCheck` (a per-store permission checked without a store, or the other way round). |
 | `Application/Command` | Roles: `CreateRole`, `CloneRole`, `UpdateRole`, `DeleteRole`, `ChangeStaffRole` (the Refresh commands went with amendment 59). Staff (admin): `InviteStaff`, `ResendStaffInvitation`, `CancelStaffInvitation`, `CancelStaffAccount`, `DisableStaff`, `EnableStaff`, `UpdateStaffProfile`, `ChangeStaffEmail`. The invitee: `AcceptStaffInvitation`, `ConfirmStaffInvitation`, `ConfirmStaffEmailChange`. Signing in: `SignInStaff`, `VerifyStaffSignInCode`, `ResendStaffSignInCode`, `SendStaffSignInCodeToNewPhone`, `SignOutStaff`, `RequestStaffPasswordReset`, `ResetStaffPassword`. Own account: `UpdateOwnStaffProfile`, `ChangeOwnStaffPassword`, `RequestOwnPhoneChange`, `VerifyOwnPhoneChange`, `UpdateOwnNotificationPreferences`. Console: `CreateSuperAdmin`, `RevokeSuperAdmin`, `ResetSuperAdminPhone`, `ResendSuperAdminInvitation`, `CancelSuperAdminInvitation`; the scheduled `CancelExpiredSuperAdminInvitations`. Customers: `RegisterCustomer`, `VerifyCustomerEmail`, `RequestCustomerPhoneCode`, `VerifyCustomerPhone`, `UpdateCustomerProfile`, `SignInCustomer`, `SignOutCustomer`, `RequestCustomerPasswordReset`, `ResetCustomerPassword`, `ChangeOwnCustomerPassword`, `ResendCustomerEmailVerification`, `SaveAddress`, `DeleteAddress`, `SetDefaultAddress`, `RequestAccountDeletion`. Staff: `UpdateStoreAddressFormat`, `BlockCustomer`, `UnblockCustomer`, `DeleteCustomerOnRequest`, `CancelCustomerDeletion`; the scheduled `AnonymizeDueAccounts`. |
 | `Application/Query` | `ListRoles`, `ViewRole`, `RoleEditorPermissions`, `MyPermissions`, `ListCustomers`, `ViewCustomer`, `ListStaff`, `ViewStaff`, and the `RoleReader`, `CustomerReader` and `StaffReader` they use, with `StaffVisibility` (who a reader may see, and how much of them); `StoresForStaff`, a staff member's stores - a Super Admin every store, anyone else their assignment's stores that are on, read from their cached permissions - for Home's switcher and View Store (amendments 64, 65); `AdminShellForStaff`, the person the panel is shown to, read once per request in one unlocked statement (`StaffReader::shell`, amendment 65). |
-| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `ServedPhones` (a phone's country on the SMS countries list, amendment 87), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
+| `Application/Security` | `SecretTokens` (links), `Codes` (SMS codes), `PasswordPolicy`, `OwnPasswordCheck` ("type your current password", counted like a wrong one at sign-in), `PhoneVerification` and `CustomerPhoneVerification` (sending and checking a code, with its limits), `ServedPhones` (a phone's country on the SMS countries list, amendment 90), `SignInLimits` (wrong passwords per account and per address, counted on its own keys for staff and for customers, each side's numbers read through `LockoutLimits`), `AddressLimits` (registrations and reset requests per address). |
 | `Application/Customer` | `CurrentCustomer` (whose account this request may change), `StaffCustomerAction` (what the four staff actions on a customer share: the reason, and the customer's home store to check in), `CustomerMapper`, the `CustomerLinks` port (the verification and password-reset links), the `GuestVisitors` port (the guest id this browser carries). |
 | `Application/Address` | `AddressMapper` (a store's order, its layout, and whether the address still fits), `StoreIds` (the store an address belongs to, as it arrives from a caller), `StartingAddressFormat` (the scheme every store starts with), `GiveEveryStoreAnAddressFormat` (run when the schema is migrated). |
 | `Application/Session` | The `StaffSessions` port (the admin session: pending sign-in, signed in, kept, ended), the `CustomerSessions` port (the storefront session: started, kept, ended), `PendingSignIn`, `TrustedBrowsers`. |
@@ -347,7 +347,7 @@ queue**, because a queued job would store the link in the `jobs` table. Codes go
 provider of the phone's country, links by email; every message is in the person's communication
 language. The same contract carries **B2B's three decision emails** (amendment 48).
 
-**Which phones SMS reaches** (amendment 87): Ops keeps the SMS countries list and binds
+**Which phones SMS reaches** (amendment 90): Ops keeps the SMS countries list and binds
 `PhoneCountries`; Access asks it through `ServedPhones`. A number from a country not on the list is
 refused wherever an account phone is entered — inviting, accepting, a Super Admin made from the
 console, an admin's edit, a staff member's own change, a Super Admin's new number at sign-in, a
@@ -389,7 +389,7 @@ php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
 
 The invitation is emailed by Ops through `OPS_EMAIL_DRIVER` — `log` in `.env.example`, which writes
 the email, link included, to `storage/logs/laravel.log`. In production the application refuses to
-start unless it is `brevo` (amendment 36, moved to Ops with amendment 87), as the `log` SMS provider
+start unless it is `brevo` (amendment 36, moved to Ops with amendment 90), as the `log` SMS provider
 refuses to send there: links must never sit in a log file. The endpoints the invitation form posts to exist
 (`POST /admin/invitation/{token}`, then `/code`), but the link itself opens no page yet: the form
 comes with the screens, in the frontend foundation stage (amendment 12).

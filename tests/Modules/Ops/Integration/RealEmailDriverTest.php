@@ -8,7 +8,7 @@ use Modules\Ops\Infrastructure\OpsServiceProvider;
 /*
 | A production server never starts on Ops' `log` email driver, which would write every invitation and
 | password reset link to the log (access.md amendment 36(d), moved from Laravel's mailer to Ops' driver
-| with amendment 87: Laravel mail sends nothing any more).
+| with amendment 90: Laravel mail sends nothing any more).
 */
 
 it('never starts in production without a real email driver, which would log every link', function (string $environment, string $driver, bool $refused) {

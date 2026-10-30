@@ -9,7 +9,7 @@ use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Shared\Domain\Text\LatinDigits;
 
 /**
- * A country whose phones SMS reaches (owner, 2026-10-29; access.md amendment 87): its ISO code, its
+ * A country whose phones SMS reaches (owner, 2026-10-29; access.md amendment 90): its ISO code, its
  * calling code as a Super Admin typed it - digits only, such as 966 - and the provider that sends to
  * it. Removed, never retired: a phone of a country taken off the list is refused from then on.
  *

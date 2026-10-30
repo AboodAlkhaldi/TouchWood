@@ -10,7 +10,7 @@ use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 
 /**
- * The SMS providers built so far, by name (access.md amendment 87): only `log` until the owner names
+ * The SMS providers built so far, by name (access.md amendment 90): only `log` until the owner names
  * a real one. `log` writes every code to the log, so it never sends on a live system: refused there
  * when an SMS would go through it, and the person's request fails rather than nothing being sent.
  */

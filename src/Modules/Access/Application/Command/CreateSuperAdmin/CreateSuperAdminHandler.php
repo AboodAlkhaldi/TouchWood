@@ -92,7 +92,7 @@ final readonly class CreateSuperAdminHandler
     {
         $profile = StaffProfile::of((string) $command->firstName, (string) $command->lastName, (string) $command->jobTitle, (string) $command->dateOfBirth, (string) $command->country, $command->address);
         $phone = PhoneNumber::of((string) $command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
         $this->phones->require($phone);
 
         // One email, one account (amendment 13): the console is no exception, and a customer's

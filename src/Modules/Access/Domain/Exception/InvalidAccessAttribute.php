@@ -11,7 +11,7 @@ use Shared\Domain\Error\ErrorCategory;
  *
  * $rule names a refusal that has its own words for a person (`access::errors.invalid_access_attribute
  * .rules.{rule}`), where the general "isn't valid" would not say what to do: a phone from a country SMS
- * does not reach (amendment 87).
+ * does not reach (amendment 90).
  */
 final class InvalidAccessAttribute extends AccessError
 {

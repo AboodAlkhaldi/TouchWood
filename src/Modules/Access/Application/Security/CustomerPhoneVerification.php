@@ -25,7 +25,7 @@ use Shared\Application\StoreContext;
  * most so many an hour per number, per account and in the store (amendment 85); after the set wrong
  * tries the code is dead. A new request
  * replaces the previous code, so a customer has one live code at a time. No code goes to a number whose
- * country is not on the SMS countries list (amendment 87).
+ * country is not on the SMS countries list (amendment 90).
  */
 final readonly class CustomerPhoneVerification
 {

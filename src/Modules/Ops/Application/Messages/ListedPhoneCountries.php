@@ -10,7 +10,7 @@ use Modules\Ops\Domain\Repository\SmsCountries;
 
 /**
  * The SMS countries as Access asks about them, and as Ops' own SMS find their provider (access.md
- * amendment 87): a number belongs to the listed country whose calling code its digits start with.
+ * amendment 90): a number belongs to the listed country whose calling code its digits start with.
  * Calling codes are prefix-free, so one matches at most; the longest wins should two ever do.
  *
  * The list is read once per instance - one query for a page of a thousand customers - and the binding

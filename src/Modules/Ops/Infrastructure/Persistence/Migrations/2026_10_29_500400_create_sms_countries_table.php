@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
-| The SMS countries (owner, 2026-10-29; access.md amendment 87): the countries whose phones SMS
+| The SMS countries (owner, 2026-10-29; access.md amendment 90): the countries whose phones SMS
 | reaches, each with its calling code - typed by a Super Admin, digits only - and the provider that
 | sends to it. One provider may serve many countries. A phone from a country not here is refused
 | wherever an account phone is entered, and no code is sent to it.

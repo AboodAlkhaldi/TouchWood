@@ -42,7 +42,7 @@ final readonly class AcceptStaffInvitationHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $phone = PhoneNumber::of($command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
         $this->phones->require($phone);
 
         // A dead link is refused before the slow part, so a made-up one never reaches the breach

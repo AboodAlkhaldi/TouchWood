@@ -73,7 +73,7 @@ final readonly class InviteStaffHandler
         $email = EmailAddress::of($command->email);
         $profile = StaffProfile::of($command->firstName, $command->lastName, $command->jobTitle, $command->dateOfBirth, $command->country, $command->address);
         $phone = PhoneNumber::of($command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
         $this->phones->require($phone);
         $language = Language::of($command->locale);
         $this->avatars->requireUsable($command->avatarMediaId);

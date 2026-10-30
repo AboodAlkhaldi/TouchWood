@@ -18,7 +18,7 @@ use Shared\Application\PermissionScope;
 /**
  * Allowed even while saved phones are of that country (owner, 2026-10-29): from then on no code goes
  * to them. A staff member's phone is changed by an admin; a Super Admin enters a new number at their
- * next sign-in; a customer cannot order until they change theirs (access.md amendment 87).
+ * next sign-in; a customer cannot order until they change theirs (access.md amendment 90).
  */
 final readonly class RemoveSmsCountryHandler
 {

@@ -39,7 +39,7 @@ final readonly class RequestOwnPhoneChangeHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
         $phone = PhoneNumber::of($command->phone);
-        // A country SMS does not reach is refused when the number is entered (amendment 87).
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
         $this->phones->require($phone);
 
         // The number is where the sign-in code goes, so it is a change of the second factor:

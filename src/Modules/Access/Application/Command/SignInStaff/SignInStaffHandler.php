@@ -133,12 +133,12 @@ final readonly class SignInStaffHandler
         }
 
         // A phone whose country was taken off the SMS countries list counts as none: no code can reach
-        // it (amendment 87).
+        // it (amendment 90).
         $phone = $this->phones->reaches($staff->phone()) ? $staff->phone() : null;
 
         if ($phone === null) {
             // Only a Super Admin whose phone was reset, or whose phone SMS no longer reaches, chooses a
-            // new number here (amendments 14, 87); anyone else would pass the code step with the
+            // new number here (amendments 14, 90); anyone else would pass the code step with the
             // password alone. An admin gives them one.
             if (! $staff->isSuperAdmin()) {
                 throw new SignInRefused;

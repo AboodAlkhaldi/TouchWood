@@ -31,7 +31,7 @@ use Tests\Modules\Ops\Support\RecordingSmsSenders;
 use function Pest\Laravel\seed;
 
 /*
-| The SMS countries (owner, 2026-10-29; access.md amendment 87): which countries' phones SMS reaches,
+| The SMS countries (owner, 2026-10-29; access.md amendment 90): which countries' phones SMS reaches,
 | each one's calling code - typed by a Super Admin - and its provider. Super Admins only, audited. The
 | start list is Saudi Arabia 966 and Egypt 20, both on `log`.
 |

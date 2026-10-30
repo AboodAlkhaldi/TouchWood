@@ -11,7 +11,7 @@ use Modules\Access\Public\Dto\CustomerDto;
 /**
  * A customer as other modules see them (spec §2.4).
  *
- * A phone whose country was taken off the SMS countries list reads as unverified (amendment 87; owner,
+ * A phone whose country was taken off the SMS countries list reads as unverified (amendment 90; owner,
  * 2026-10-29): no code can reach it, and the customer cannot order until they change it - Sales' cart
  * already stops at an unverified phone.
  */

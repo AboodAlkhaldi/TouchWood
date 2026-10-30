@@ -7,7 +7,7 @@ namespace Modules\Ops\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * A country that is not on the SMS countries list (access.md amendment 87).
+ * A country that is not on the SMS countries list (access.md amendment 90).
  */
 final class SmsCountryNotFound extends OpsError
 {

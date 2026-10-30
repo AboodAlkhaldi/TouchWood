@@ -19,7 +19,7 @@ use Monolog\LogRecord;
 
 /*
 | The adapters (ops.md §2.2): email chosen by configuration - `log` in development and tests, Brevo -
-| and SMS by the phone's country (SmsSenders; access.md amendment 87, tested with the security
+| and SMS by the phone's country (SmsSenders; access.md amendment 90, tested with the security
 | messages) - and Brevo's request exactly as its reference shows it
 | (https://developers.brevo.com/reference/sendtransacemail). No real network: Http::fake answers, and
 | refuses anything not faked.

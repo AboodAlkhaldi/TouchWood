@@ -16,7 +16,7 @@ use Modules\Access\Public\Enums\PermissionKind;
  * Reading and marking one's own inbox needs no role (§3: "none (own)"): it is held automatically, as
  * Feedback's `feedback.own.view` is - one for every customer (the shop's bell), one for every staff
  * member (the panel's bell). The nightly removal of old rows is the system's, reserved, and so is the
- * SMS countries list: Super Admins only (owner, 2026-10-29; access.md amendment 87).
+ * SMS countries list: Super Admins only (owner, 2026-10-29; access.md amendment 90).
  */
 final class OpsPermissions
 {
@@ -49,7 +49,7 @@ final class OpsPermissions
 
     /**
      * The SMS countries: which countries' phones SMS reaches, each one's calling code and provider -
-     * listing, adding, changing, removing (owner, 2026-10-29; access.md amendment 87). Reserved: Super
+     * listing, adding, changing, removing (owner, 2026-10-29; access.md amendment 90). Reserved: Super
      * Admins only, as Platform's places are. Store-free: the list serves every store's customers and
      * every staff member.
      */

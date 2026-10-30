@@ -47,7 +47,7 @@ final readonly class MyCustomerAccountDto
         public bool $emailVerified,
         public bool $phoneVerified,
         /**
-         * A phone is saved and its country is not on the SMS countries list (amendment 87): no code
+         * A phone is saved and its country is not on the SMS countries list (amendment 90): no code
          * reaches it and they cannot order until they change it. $phoneVerified keeps its meaning.
          */
         public bool $phoneCountryUnlisted,

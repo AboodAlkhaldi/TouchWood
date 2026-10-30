@@ -45,7 +45,7 @@ final readonly class MyAccountForCustomer
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $customerId = $this->current->id(self::PERMISSION);
         $customer = $this->customers->byId($customerId) ?? throw new CustomerNotFound($customerId);
-        // A saved number whose country left the SMS countries list (amendment 87): still verified, but
+        // A saved number whose country left the SMS countries list (amendment 90): still verified, but
         // no code reaches it, and ordering waits until they change it.
         $phoneCountryUnlisted = $customer->phone() !== null && ! $this->phones->reaches($customer->phone());
 
@@ -62,7 +62,7 @@ final readonly class MyAccountForCustomer
             phoneCountryUnlisted: $phoneCountryUnlisted,
             // The domain's own answer, never this page's arithmetic: what ordering waits for is
             // Access's rule and it may grow (§1.2) - with the SMS countries' part, as
-            // AccessApi::customerMayOrder answers Sales (amendment 87).
+            // AccessApi::customerMayOrder answers Sales (amendment 90).
             mayOrder: $customer->mayOrder() && ! $phoneCountryUnlisted,
             homeStoreId: $customer->homeStoreId(),
             deletionScheduledFor: $customer->deletionScheduledFor()?->format('Y-m-d'),

@@ -309,7 +309,7 @@ All stores: each store's report, then the totals per currency.
 
 - `EmailSender` — **Brevo** (transactional email); `log` in development and tests.
 - `SmsSender` — `log` until the owner names the provider (Mobily is being checked); then its adapter. **Which
-  provider sends an SMS is the phone's country's**, on the SMS countries list (access.md amendment 87).
+  provider sends an SMS is the phone's country's**, on the SMS countries list (access.md amendment 90).
 - `NewsletterList` — **Brevo** contacts and lists; `log` in development and tests.
 
 Every adapter is chosen by configuration; a new provider is a new class and a binding.
@@ -370,7 +370,7 @@ the subscribers list, the reports page (filters, preview rows, Excel download), 
 | `ops.subscribers` | store, email, locale, kind (guest / customer), `customer_id` (null for a guest), confirmation token **hash**, created_at, confirmed_at, brevo_synced_at. A guest whose email belongs to a customer is told to tick the box in their account instead |
 | `ops.daily_reports` | store (or all), day, made_by, made_at, file, emailed |
 | `ops.daily_report_settings` | staff, store (or all), auto email on/off, the time |
-| `ops.sms_countries` | country code (ISO), calling code (typed, unique), provider — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 87 |
+| `ops.sms_countries` | country code (ISO), calling code (typed, unique), provider — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 90 |
 
 Deleted after 12 months: inbox entries, sent messages, handled events, staff messages, sent notices,
 daily report files (owner, 2026-10-28). Unconfirmed guests: after 7 days (from created_at).
@@ -443,7 +443,7 @@ publishes none; the four moments handed to stage 8.
 15. **Answered** (owner, 2026-10-28): the email is the button's report at the chosen time; store time zone,
     all stores in Riyadh time — written into §1.11.
 16. **Answered** (owner, 2026-10-29): a voided payment sends no message of its own.
-17. **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]** **SMS countries** (access.md amendment 87): the SMS
+17. **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]** **SMS countries** (access.md amendment 90): the SMS
     provider is chosen by the phone number's country (its calling code), for staff and customers, not by store.
     A list of countries — ISO country, calling code typed by a Super Admin, provider (one may serve many) —
     starting with Saudi Arabia 966 and Egypt 20 on `log`; reserved to Super Admins and audited; provider keys

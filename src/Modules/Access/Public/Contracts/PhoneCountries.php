@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Modules\Access\Public\Contracts;
 
 /**
- * Whether SMS reaches a phone (amendment 87): its country - its calling code - is on the SMS
+ * Whether SMS reaches a phone (amendment 90): its country - its calling code - is on the SMS
  * countries list the Super Admins keep. Access asks it wherever an account phone is entered and
  * before every code is sent; Ops keeps the list and binds this, as it binds SecurityMessages, so
  * Access never depends on Ops.

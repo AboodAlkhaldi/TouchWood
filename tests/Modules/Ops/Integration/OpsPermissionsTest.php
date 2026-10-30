@@ -106,7 +106,7 @@ it('keeps the removal of old rows the system\'s alone', function () {
         ->and($permission?->kind)->toBe(PermissionKind::Global);
 });
 
-it('reserves the SMS countries to Super Admins, store-free, as Platform\'s places are (access.md amendment 87)', function () {
+it('reserves the SMS countries to Super Admins, store-free, as Platform\'s places are (access.md amendment 90)', function () {
     $permission = app(InMemoryPermissionCatalog::class)->definition(OpsPermissions::SMS_COUNTRIES_MANAGE);
 
     expect($permission?->audience)->toBe(PermissionAudience::Role)

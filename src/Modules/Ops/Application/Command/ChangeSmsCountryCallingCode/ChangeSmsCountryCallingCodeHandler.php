@@ -18,7 +18,7 @@ use Shared\Application\PermissionScope;
 
 /**
  * Refused when another listed country has the code. From then on phones are matched by the new code:
- * a saved number the old code matched and the new one does not is treated as unlisted (amendment 87).
+ * a saved number the old code matched and the new one does not is treated as unlisted (amendment 90).
  */
 final readonly class ChangeSmsCountryCallingCodeHandler
 {

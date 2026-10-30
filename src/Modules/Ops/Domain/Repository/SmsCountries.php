@@ -7,7 +7,7 @@ namespace Modules\Ops\Domain\Repository;
 use Modules\Ops\Domain\Model\SmsCountry;
 
 /**
- * The SMS countries (`ops.sms_countries`; access.md amendment 87). Every change takes the list's one
+ * The SMS countries (`ops.sms_countries`; access.md amendment 90). Every change takes the list's one
  * lock first (`lock`), so two changes never interleave: the list is short and rarely changed, and a
  * calling code is unique across it.
  */

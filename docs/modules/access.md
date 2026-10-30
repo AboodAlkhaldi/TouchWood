@@ -574,7 +574,7 @@ it is, mail goes to Laravel's `log` mailer. The **SMS provider is not chosen yet
 a `log` driver writes codes to the application log for development and tests; the provider's
 adapter is added when the owner names it — configuration, not a code change. When **Ops** is built
 it binds its own `SecurityMessages` and the temporary one is deleted: one binding changes, nothing
-else in Access. **Done in Ops step 3 (amendment 87):** Ops binds `SecurityMessages` and the new
+else in Access. **Done in Ops step 3 (amendment 90):** Ops binds `SecurityMessages` and the new
 `PhoneCountries`; the temporary sender, `SmsGateway` and `ACCESS_SMS_DRIVER` are gone.
 
 Codes and links travel only through this interface — never inside events or queued job payloads,
@@ -584,7 +584,7 @@ which are stored in the database.
 
 | DTO | Fields |
 |---|---|
-| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified` (false too while the phone's country is not listed, amendment 87), `phoneCountryAllowed` (amendment 87), `locale`, `homeStoreId` (amendment 48), `deletionScheduledFor`, `anonymized` (amendment 46) |
+| `CustomerDto` | `id`, `accountType`, `status`, `firstName`, `lastName`, `email`, `phone`, `emailVerified`, `phoneVerified` (false too while the phone's country is not listed, amendment 90), `phoneCountryAllowed` (amendment 90), `locale`, `homeStoreId` (amendment 48), `deletionScheduledFor`, `anonymized` (amendment 46) |
 | `StaffDto` | `id`, `firstName`, `lastName`, `email`, `phone`, `locale`, `status`, `isSuperAdmin` |
 | `AddressDto` | `id`, `customerId`, `storeId`, `label`, `recipientName`, `phone`, `fields`, `latitude`, `longitude`, `isDefault`, `isComplete` (it still satisfies the store's format, amendment 41; and, where its country has a place list, its region was picked — amendment 76(j)), `formatted` (the store's display template applied, the country's name last — 76(h)), `countryCode`, `regionId`, `cityId`, `districtId` (Platform's places, NULL where typed — 76(e)) |
 | `PermissionDefinitionDto` | `name`, `audience` (`ROLE`, `EVERY_STAFF`, `EVERY_CUSTOMER`, `EVERY_GUEST`), `reserved`, `kind` (`PER_STORE`, `GLOBAL` — store-free, amendment 4); its names in Arabic and English are the module's translations at `labelKey()` — `{module}::permissions.{resource}.{action}` (amendment 1, §9.4) |

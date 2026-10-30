@@ -9,7 +9,7 @@ use Modules\Access\Domain\ValueObject\PhoneNumber;
 use Modules\Access\Public\Contracts\PhoneCountries;
 
 /**
- * Whether SMS reaches a phone - its country on the SMS countries list (amendment 87; owner,
+ * Whether SMS reaches a phone - its country on the SMS countries list (amendment 90; owner,
  * 2026-10-29) - asked wherever an account phone is entered and before every code is sent. The address
  * book's recipient phones are not asked: they receive no code.
  */
@@ -34,7 +34,7 @@ final readonly class ServedPhones
 
     /**
      * A saved phone whose country was taken off the list counts as none where a code would go to it:
-     * a Super Admin enters a new number at sign-in, a customer reads as unverified (amendment 87).
+     * a Super Admin enters a new number at sign-in, a customer reads as unverified (amendment 90).
      */
     public function reaches(?PhoneNumber $phone): bool
     {

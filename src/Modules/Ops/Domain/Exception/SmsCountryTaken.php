@@ -8,7 +8,7 @@ use Shared\Domain\Error\ErrorCategory;
 
 /**
  * The country is already on the SMS countries list: its provider or calling code is changed there,
- * not added twice (access.md amendment 87).
+ * not added twice (access.md amendment 90).
  */
 final class SmsCountryTaken extends OpsError
 {

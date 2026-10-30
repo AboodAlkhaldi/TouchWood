@@ -292,7 +292,7 @@ describe('P2 · An order', function () {
         $browser = orderScreensStaff([SalesPermissions::ORDER_VIEW]);
 
         // 13 and 5 since 2026-10-30: the SMS countries list, read once with the customers (access.md
-        // amendment 87).
+        // amendment 90).
         expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(13)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(5);
