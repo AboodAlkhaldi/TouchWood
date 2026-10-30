@@ -19,7 +19,7 @@ ship-to countries are Platform's (§9.2).
 | 4 | **Free shipping** (§1.5): each carrier's own amount and the store-wide setting | `Application/Command/SetCarrierFreeAbove`, `ShippingSettings` |
 | 4 | **What Sales asks** (§2.1): the quote (the most specific place wins), a carrier, the store's carriers, a tracking link | `Application/ShippingApiImpl` |
 | 4 | **Places no carrier serves** (§1.6): the live list and the menu's kept count, counted again after each change and every ten minutes | `Application/Uncovered/*`, `Application/Query/ListUncoveredPlaces`, `Infrastructure/Queue/CountUncoveredPlacesJob` |
-| 5 | Boxes | not built yet |
+| 5 | **Boxes** (§1.7): the list (create, change, switch, order, delete), the padding, sizes packed by hand, and `suggestBox` | `Application/Command/*Box*`, `Application/Command/SetSizePacking`, `Application/Query/{ListBoxes,ListPackingSizes}`, `Application/Box/*` |
 
 ## How a change runs
 

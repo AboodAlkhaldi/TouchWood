@@ -7,4 +7,5 @@ return [
     'module' => 'Shipping',
 
     'free.above_all' => 'Free Shipping From, Every Carrier (in the Currency\'s Smallest Unit; 0 Means Off)',
+    'boxes.padding_mm' => 'Space Kept on Every Side Inside a Box (mm)',
 ];
