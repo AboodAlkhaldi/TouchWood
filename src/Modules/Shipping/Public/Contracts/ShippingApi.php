@@ -4,23 +4,35 @@ declare(strict_types=1);
 
 namespace Modules\Shipping\Public\Contracts;
 
-use Modules\Shipping\Public\Dto\ParcelLineDto;
+use Modules\Shipping\Public\Dto\CarrierDto;
 use Modules\Shipping\Public\Dto\ShippingDestinationDto;
-use Modules\Shipping\Public\Dto\ShippingOptionDto;
+use Modules\Shipping\Public\Dto\ShippingQuoteDto;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * What Sales asks Shipping (sales.md §2.4) — **declared by Sales for stage 7 to fill, provisional**:
- * the carriers that can take a parcel to a destination, each with its fee (free-shipping thresholds
- * applied, handoff §12.5) and its tracking address. Shipping's own types only (handoff §4.4: Shipping
- * → Platform, Catalog). Not bound until stage 7: Sales uses its flat fee meanwhile (§1.10).
+ * What Sales asks Shipping (shipping.md §2.1; replaces the provisional `options` Sales declared in
+ * sales.md §2.4). Shipping's own types only (handoff §4.4: Shipping → Platform, Catalog). The box
+ * suggestion joins it in step 5.
  */
 interface ShippingApi
 {
     /**
-     * @param  list<ParcelLineDto>  $lines
-     * @return list<ShippingOptionDto>
+     * Where the address stands for this store, and the carriers that serve it with their fees for an
+     * order of this goods total - after the coupon and the points, before shipping and VAT (§1.5).
      */
-    public function options(StoreId $store, ShippingDestinationDto $destination, array $lines, Money $goodsTotal): array;
+    public function quote(StoreId $store, ShippingDestinationDto $to, Money $goodsTotal): ShippingQuoteDto;
+
+    /** One carrier as it is now, any store's - null once it is deleted. */
+    public function carrier(string $carrierId): ?CarrierDto;
+
+    /**
+     * The store's carriers, switched-on ones first, each country's in their order (§9.1 S17).
+     *
+     * @return list<CarrierDto>
+     */
+    public function carriers(StoreId $store): array;
+
+    /** The carrier's tracking link for this number, or null when it has no pattern or is gone (§1.3). */
+    public function trackingLink(string $carrierId, string $trackingNumber): ?string;
 }

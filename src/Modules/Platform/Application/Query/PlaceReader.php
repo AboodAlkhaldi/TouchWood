@@ -42,6 +42,14 @@ interface PlaceReader
     public function citiesOf(string $countryCode): array;
 
     /**
+     * Every place of the country in use, of every kind, in one read: Shipping's uncovered places and
+     * its country-wide "Select all" (shipping.md §1.4, §1.6).
+     *
+     * @return list<PlaceDto>
+     */
+    public function placesOf(string $countryCode): array;
+
+    /**
      * @param  list<string>  $ids
      * @return array<string, PlaceDto> by id; an unknown id is left out
      */

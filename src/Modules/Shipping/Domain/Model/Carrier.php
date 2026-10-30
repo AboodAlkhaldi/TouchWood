@@ -19,7 +19,7 @@ final class Carrier
         public readonly string $countryCode,
         private CarrierDetails $details,
         private ?string $logoMediaId,
-        private readonly ?int $freeAboveMinor,
+        private ?int $freeAboveMinor,
         private bool $active,
         public readonly int $position,
     ) {}
@@ -38,6 +38,12 @@ final class Carrier
     {
         $this->details = $details;
         $this->logoMediaId = $logoMediaId;
+    }
+
+    /** Its own free-shipping amount (§1.5): from this goods total its fee is 0; null for never. */
+    public function setFreeAbove(?int $amountMinor): void
+    {
+        $this->freeAboveMinor = $amountMinor;
     }
 
     public function switch(bool $on): void
@@ -60,7 +66,7 @@ final class Carrier
         return $this->logoMediaId;
     }
 
-    /** Its own free-shipping amount, set from step 4 (§1.5); null for none. */
+    /** Its own free-shipping amount (§1.5); null for none. */
     public function freeAboveMinor(): ?int
     {
         return $this->freeAboveMinor;
@@ -86,6 +92,7 @@ final class Carrier
             'phone' => $this->details->phone,
             'website' => $this->details->website,
             'tracking_pattern' => $this->details->trackingPattern,
+            'free_above' => $this->freeAboveMinor === null ? null : (string) $this->freeAboveMinor,
             'active' => $this->active ? 'on' : 'off',
         ];
     }

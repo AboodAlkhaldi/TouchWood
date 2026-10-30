@@ -35,14 +35,15 @@ calls Shipping; Shipping never calls Sales, so **Shipping never knows which orde
 1. **A carrier belongs to one store and ships in one country** (owner, 2026-10-19 S5; 2026-10-27 R2).
    A store may ship to **several countries** (owner, 2026-10-27: "can a shop ship to multiple
    countries? yes"), each with its own carriers.
-2. **Prices are by place only** (owner, 2026-10-19 S4): a city, or a district of a city. Never by
-   weight, never by the number of pieces.
+2. **Prices are by place only** (owner, 2026-10-19 S4): a region, a city, or a district of a city (a
+   whole region, in every country — owner, 2026-10-29). Never by weight, never by the number of pieces.
 3. **One place, one price per carrier** (owner, 2026-10-17): a place never holds two prices in the same
    carrier.
 4. **One amount, one group per carrier** (owner, 2026-10-17): every place a carrier charges 20 for is in
    that carrier's one "20" group. Two groups of the same carrier never have the same amount.
-5. **A city's price covers its districts unless a district has its own** (owner, 2026-10-27 S14).
-   A district's own price is not a second price for the same place: it is the more precise place.
+5. **A place's price covers what is under it unless that has its own** (owner, 2026-10-27 S14;
+   2026-10-29): **the most specific place wins — the district, then the city, then the region**. A
+   district's own price is not a second price for the same place: it is the more precise place.
 6. **A carrier may leave places out** (owner, 2026-10-19 S10): a place it has no price for is a place
    it does not serve, and it is not offered there.
 7. **What the customer sees is the fee for their order only** (owner, 2026-10-17). The price lists
@@ -62,7 +63,7 @@ restated):
 | Coverage | When | At checkout (Sales) |
 |---|---|---|
 | `SERVED` | The country is one **this store** ships to, and at least one switched-on carrier has a price for the place | The carriers and their fees; the customer picks one when there are two or more, and sees the only one otherwise (owner, 2026-10-19 S3) |
-| `NOT_COVERED` | The country is one this store ships to, but **no switched-on carrier** has a price for the place (a city, or a district, no carrier serves; a typed "Other" city, §9.2) | "We don't deliver to this place yet — our team will contact you about the shipping and the payment." The order can be placed; **no carrier, the fee to be confirmed by staff, and no online payment** |
+| `NOT_COVERED` | The country is one this store ships to, but **no switched-on carrier** has a price for the place, nor for one above it (a region, a city or a district no carrier serves; a typed city in a region no carrier prices — §1.4) | "We don't deliver to this place yet — our team will contact you about the shipping and the payment." The order can be placed; **no carrier, the fee to be confirmed by staff, and no online payment** |
 | `OUTSIDE` | The country is one **no store of ours** ships to (Qatar in the KSA store, today) | The same as `NOT_COVERED`: placed, handled by staff, no online payment |
 | `OTHER_STORE` | The country is one **another of our stores** ships to (an Egypt address in the KSA store) | Refused: "Addresses in Egypt are served by our Egypt store — order from there." With a link to that store |
 
@@ -106,13 +107,14 @@ country would leave every price pointing at places of the wrong country).
 A carrier's prices are kept as **groups**: an **amount** and **the places** it applies to. Staff build
 them as the owner described (2026-10-17):
 
-1. Type the amount (in the store's currency, two decimals; 0 allowed = delivered for free there).
-2. Pick **cities** — several at once, with **Select all** for the whole country's list — and/or
-   **districts** of a city — several at once, with **Select all** for the whole city. **A whole region**
-   may be picked too (owner, 2026-10-29, built in step 4): where a country's list stops at its regions
-   (the UAE's emirates, Qatar's municipalities, Bahrain's governorates — the customer types the city),
-   the region is what a carrier is priced by.
-3. Confirm. The group is saved for that carrier.
+1. Type the amount (in the store's currency, two decimals; 0 allowed = delivered for free there; at most
+   1,000,000.00 — 100,000,000 in the smallest unit, gap 4.4).
+2. Pick **regions**, **cities** — several at once, with **Select all** for the whole country's list —
+   and/or **districts** of a city — several at once, with **Select all** for the whole city. **A whole
+   region** may be picked in every country (owner, 2026-10-29, built in step 4): where a country's list
+   stops at its regions (the UAE's emirates, Qatar's municipalities, Bahrain's governorates — the
+   customer types the city), the region is what a carrier is priced by.
+3. Confirm. The group is saved for that carrier (`SavePriceGroup`, at most 10,000 places a save).
 
 The rules, checked on every save:
 
@@ -128,29 +130,37 @@ The rules, checked on every save:
   served; the city's other districts are not.
 - **A city with no district list** (customers type their district) is priced as a whole only (owner,
   2026-10-27 S15).
-- **"Select all" means** (**[ACCEPTED 2026-10-28]**): for a city's districts, **the city priced whole** — so a
-  district the Super Admin adds later is covered too; for the country's cities, **every city not yet
-  priced in this carrier** — cities already in another group stay where they are and are shown with
-  their own "Move here".
-- **A city with a district list whose district is missing** (a new neighbourhood): the customer picks
-  **"Other"** and types it — it takes the **city's whole price**, or is `NOT_COVERED` when the city is
-  not priced whole (owner, 2026-10-27, §9.3 #10).
+- **"Select all" means** (**[ACCEPTED 2026-10-28]**; regions, owner 2026-10-29, gap 4.2): for a city's districts,
+  **the city priced whole** — so a district the Super Admin adds later is covered too; for a region's
+  cities, **the region priced whole**, likewise; for the country, **every city not yet priced in this
+  carrier, nor under a region it prices** — cities already in another group stay where they are and are
+  shown with their own "Move here" — or, **where the country has no city** (the UAE, Qatar, Bahrain),
+  **every region not yet priced**.
+- **A typed city or district** — the customer's own "Other" in Saudi Arabia or Egypt, and every city in
+  the UAE, Qatar and Bahrain: it takes the price of the place above it — **"Other" district: the city's
+  price, else the region's; a typed city: the region's** — or is `NOT_COVERED` when nothing above it is
+  priced (owner, 2026-10-27, §9.3 #10; 2026-10-29, gap 4.1).
 - **A retired place** (Platform; owner, 2026-10-27, §9.3 #4): it leaves every picker; **its prices stay and still apply**
   to the addresses that already use it, so nothing changes for a customer whose saved address names it.
+  It may stay in the group that has it when that group is saved again; it cannot be added anew.
 - A group with no places left is deleted.
 - **One save at a time per carrier**: every change of a carrier's prices locks the carrier first, so two
-  staff saving at once never break rules 3 and 4 between them; the second is told to reload.
-- Every change is **audited** (who, which carrier, which places, from what amount to what).
+  staff saving at once never break rules 3 and 4 between them; the second is told to reload: a save or a delete sends back the version of the carrier's prices it read (`ListPriceGroups`), and is refused with `PricesChanged` when another came first.
+- Every change is **audited** on the carrier (`shipping.carrier.prices_changed`): who, which carrier, and
+  for each amount that changed ("price 20.00") the places that left it and the places that came, named in English — the first
+  30 and how many more.
 
-**The fee for an address** in one carrier: the district's own price if it has one, otherwise its city's
-price, otherwise the carrier does not serve it.
+**The fee for an address** in one carrier: the district's own price if it has one, otherwise its city's,
+otherwise its region's, otherwise the carrier does not serve it. The address's city and region are read
+from Platform from its most specific place, never taken from the caller.
 
 ### 1.5 Free shipping
 
 (owner, 2026-10-27 S6, as recommended)
 
-- **Each carrier may have its own free-above amount**: when the order's `goods_total` reaches it, that
-  carrier's fee is 0. Empty = never free.
+- **Each carrier may have its own free-above amount** (`SetCarrierFreeAbove`, 0–1,000,000,000 in the
+  smallest unit): when the order's `goods_total` reaches it — equal included — that carrier's fee is 0.
+  Empty = never free. A price that is 0 already is not "free because" (`freeBecause` null).
 - **One store-wide rule can override all carriers**: a free-above amount for the store. While it is
   set, it applies to every carrier and the carriers' own amounts are ignored; cleared, each carrier's
   own amount applies again.
@@ -164,10 +174,16 @@ price, otherwise the carrier does not serve it.
 
 (owner, 2026-10-19 S10; 2026-10-27, the four additions accepted)
 
-- The carriers page shows, per country the store ships to, **"Places no carrier serves"**: every city
-  with no price in any switched-on carrier (none of its districts either), and every district of a
-  district-list city that is not served while its city is not priced as a whole. A count is shown on
-  the menu (Platform's `MenuCount`) while the list is not empty (owner, 2026-10-27, §9.3 #3).
+- The carriers page shows, per country the store ships to, **"Places no carrier serves"**
+  (`ListUncoveredPlaces`): **the biggest places no switched-on carrier serves any part of** (owner,
+  2026-10-29, gap 4.3) — a region with nothing in it served is one row; a city is a row only when its
+  region is partly served; a district only when its city is partly served. Before any price, Saudi
+  Arabia shows its 13 regions, not about 8,000 places. Read live.
+- A count of those rows is shown on the menu (`UncoveredPlacesCount`, Platform's `MenuCount`, on the
+  Carriers entry) while the list is not empty (owner, 2026-10-27, §9.3 #3). It is kept per store
+  (`shipping.uncovered_counts`) and counted again after every change of the store's carriers or prices,
+  and every ten minutes for every store — a place Platform adds or retires, or a ship-to country added,
+  tells Shipping nothing (§6) — so the count follows the list within ten minutes.
 - An order placed for a `NOT_COVERED` or `OUTSIDE` address is marked **"Shipping fee to be set"** in
   Sales's order list (Sales amendment, §9.2), and **never auto-cancels** (it waits for no online
   payment).
@@ -231,6 +247,9 @@ interface ShippingApi
   the order ships, through `trackingLink`.)
 - **`CarrierDto`**: `id`, `storeId`, `countryCode`, `nameAr`, `nameEn`, `logoUrl`, `phone`, `website`,
   `hasTrackingPattern`, `active`.
+- Built in step 4: `quote`, `carrier`, `carriers`, `trackingLink` and their DTOs, with the enums
+  `ShippingCoverage` and `FreeShippingReason`; `suggestBox` and `BoxSuggestionDto` join in step 5. A
+  logo is the media's thumbnail, best format first; none until its sizes are ready.
 - **`ParcelLineDto`** stays: `variantId`, `quantity`.
 - **`BoxSuggestionDto`**: `boxId` (null when it must be packed by hand), `boxName`, `byHand` (bool),
   `reason` (`MANUAL_SIZE`, `NO_SIZE_FACTS`, `NOTHING_FITS`, null).
@@ -239,7 +258,7 @@ interface ShippingApi
 
 | From | What | State |
 |---|---|---|
-| Platform | **The places** — countries (the address list), regions, cities, districts, by id, in both languages — (including `citiesOf(country)` for the country-wide "Select all") and **each store's countries**
+| Platform | **The places** — countries (the address list), regions, cities, districts, by id, in both languages — (including `placesOf(country)` — every place in use, one read — for the country-wide "Select all" and the uncovered places, step 4) and **each store's countries**
 (`PlatformApi::storeCountries`, `countryStore(countryCode)`) | **New** — platform.md amendment (§9.2) |
 | Platform | Stores, media (logos), settings, the audit log, `MenuCount` | On `main` |
 | Catalog | `variant()` — weight and sizes, for the boxes only | On `main` |
@@ -252,9 +271,9 @@ interface ShippingApi
 | Use case | Permission | Scope |
 |---|---|---|
 | `CreateCarrier`, `ChangeCarrier`, `SwitchCarrier` (on/off), `OrderCarriers` (order within a country — §9.4 #5), `DeleteCarrier` (only when off — §1.3) | **`shipping.carriers.manage`** — Admins (owner, 2026-10-27 S12) | That store |
-| `SetPriceGroup` (create, change amount, add/move/remove places — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
+| `SavePriceGroup` (create, change amount, add/move/remove places, the country's Select all — §1.4), `DeletePriceGroup` | **`shipping.prices.manage`** — Admins | That store |
 | `SetCarrierFreeAbove`, the store-wide free-above setting | **`shipping.prices.manage`** | That store |
-| `ListCarriers`, `ViewCarrier` (its groups), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — a plain role permission, ticked per role (owner, 2026-10-29, §9.4 #1) | That store |
+| `ListCarriers`, `ViewCarrier`, `ListPriceGroups` (a carrier's groups, step 4), `ListUncoveredPlaces` (§1.6) | **`shipping.carriers.view`** — a plain role permission, ticked per role (owner, 2026-10-29, §9.4 #1) | That store |
 | `CreateBox`, `ChangeBox`, `SwitchBox`, `DeleteBox`, the padding, a size's auto/manual | **`shipping.boxes.manage`** — Admins by default, and any staff role it is given to (owner, 2026-10-28: admins and staff) | That store |
 | `Quote`, `TrackingLink`, `SuggestBox` | — (called by Sales inside its own permission) | — |
 
@@ -389,8 +408,9 @@ Schema `shipping`. Every store-scoped row names its store; money in the currency
 | Table | Columns |
 |---|---|
 | `shipping.carriers` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `country_code` (one of the store's countries, checked by the handler) · `name_ar`, `name_en` (1–100) · `logo_media_id` NULL · `phone` NULL (E.164) · `website` NULL (HTTPS) · `tracking_pattern` NULL · `free_above_minor` NULL (≥ 0) · `active` bool · `position` int · `created_at`, `updated_at` · unique (`store_id`, `name_en`), (`store_id`, `name_ar`) |
-| `shipping.price_groups` | `id` ULID PK · `carrier_id` FK CASCADE · `store_id` FK `platform.stores` RESTRICT · `amount_minor` bigint ≥ 0 · **unique (`carrier_id`, `amount_minor`)** (rule 4) · unique (`id`, `carrier_id`) for the places' composite key · `created_at`, `updated_at` |
-| `shipping.price_places` | `id` bigint PK · `store_id` · (`group_id`, `carrier_id`) **composite FK** → `price_groups (id, carrier_id)` CASCADE, so the copied carrier can never disagree with its group · `city_id` (Platform's) · `district_id` NULL (Platform's) · **unique (`carrier_id`, `city_id`, `district_id`) NULLS NOT DISTINCT** (rule 3; PostgreSQL 17) |
+| `shipping.price_groups` | `id` ULID PK · `carrier_id` FK CASCADE · `store_id` FK `platform.stores` RESTRICT · `amount_minor` bigint 0–100,000,000 · **unique (`carrier_id`, `amount_minor`)** (rule 4) · unique (`id`, `carrier_id`) for the places' composite key · `created_at`, `updated_at` |
+| `shipping.price_places` | `id` bigint PK · `store_id` · (`group_id`, `carrier_id`) **composite FK** → `price_groups (id, carrier_id)` CASCADE, so the copied carrier can never disagree with its group · `place_id` FK `platform.places` RESTRICT — a region, a city or a district (step 4: one place column, since a whole region may be priced) · **unique (`carrier_id`, `place_id`)** (rule 3) |
+| `shipping.uncovered_counts` | `store_id` PK FK `platform.stores` · `count` ≥ 0 · `counted_at` — the menu's kept count (§1.6, step 4) |
 | `shipping.boxes` | `id` ULID PK · `store_id` FK `platform.stores` RESTRICT · `name` · `length_mm`, `width_mm`, `height_mm`, `max_weight_g` int 1–1,000,000 · `active` · `position` |
 | `shipping.variant_packing` | `store_id` · `variant_id` (Catalog's, no key) · PK (`store_id`, `variant_id`) — a row only for a size packed by hand in that store |
 
@@ -425,8 +445,9 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
 | `CountryWithoutPlaces` | CONFLICT | Adding a ship-to country Platform has no place list for — no region in use (§1.3; owner, 2026-10-29) — raised by Platform, which owns the ship-to list (platform.md, stage 7 step 1) |
 | `PlaceAlreadyPriced` | CONFLICT | A place already in another group of this carrier (§1.4) — names the place and its amount |
 | `AmountAlreadyUsed` | CONFLICT | A second group with the same amount in one carrier — names the group |
-| `PlaceNotInCountry` | INVALID | A city or district not in the carrier's country, or a district of another city |
-| `CityPricedWhole` | INVALID | A district of a city with no district list (§1.4) |
+| `PriceGroupNotFound` | NOT_FOUND | A price group that is not there, or another carrier's (step 4) |
+| `PricesChanged` | CONFLICT | The carrier's prices changed since the page read them — reload (§1.4, §8 #3; step 4) |
+| `PlaceNotInCountry` | INVALID | A place that is not Platform's, not in the carrier's country, or retired and not already in that group (§1.4) |
 | `InvalidShippingInput` | INVALID | A field out of range — named by its field and rule (`tracking_pattern_number`, `https`, …) |
 
 ---
@@ -592,3 +613,27 @@ serves (step 4), and boxes (step 5), come in their own rounds when those steps m
 | 14 | Removing a ship-to country that still has carriers (`CountryHasCarriers`)? The remove dialog already shows the refusal in its own words. | **(a)** Add under it a link **Open the carriers of :country**, to the carriers page for that store — one click to where they are switched off and deleted. (b) The words only. |
 | 15 | A carrier with no logo? | **(a)** Its initials in a circle (shadcn's `Avatar` fallback) — rows line up and stay told apart. (b) A plain truck icon for all. (c) Nothing — the name only. |
 | 16 | The menu entry's and page's name? | **(a)** **Carriers** / **شركات الشحن**. (b) **Shipping Companies** / **شركات التوصيل**. (c) **Couriers** / **المناديب**. |
+
+### 9.6 Stage 7 step 4 — the owner's answers and my picks (2026-10-29/30)
+
+The owner's answers to the gap round (scratchpad `stage7-gap-questions.md`, "rec all" with the changes
+noted), and the small picks the owner left to me ("simple — handle it with rec"):
+
+1. **A whole region may be priced, in every country; the most specific place wins** — district, then city,
+   then region (owner, 2026-10-29). Rule 2 and rule 5 read so; `price_places` has one place column.
+2. **A typed city or district takes the price of the place above it** (gap 4.1): every UAE, Qatar and
+   Bahrain address, and the customer's "Other" in Saudi Arabia and Egypt.
+3. **"Select all"** (gap 4.2): inside a region, the region priced whole; the country's, every city not yet
+   priced nor under a priced region — or every unpriced region where the country has no city.
+4. **"Places no carrier serves" lists the biggest places nothing serves** (gap 4.3), and the menu counts
+   those rows.
+5. Mine: the limits — a price 0–100,000,000 and a free-above 0–1,000,000,000 in the smallest unit (gap 4.4,
+   Sales's old limits); at most 10,000 places a save.
+6. Mine: `CityPricedWhole` is dropped — a district always belongs to a city with a district list, so a
+   district of a city without one cannot be named.
+7. Mine: a carrier's groups are their own read, `ListPriceGroups`, beside `ViewCarrier` (which the
+   screens session already calls), not inside it.
+8. Mine: the menu's count is kept per store and counted again after each change and every ten minutes
+   (§1.6); the list itself is live.
+9. Mine: the price changes are audited on the carrier, one attribute per amount that changed (§1.4).
+10. Mine (the review): a save or delete carries the version it read and a later one is refused (`PricesChanged`), as §1.4 says ("the second is told to reload"); Select all leaves out the cities under a region picked in the same save; a place already in the group a changed one merges into is not refused.

@@ -78,6 +78,11 @@ final readonly class DatabasePlaceReader implements PlaceReader
         return $this->live($this->query()->where('place.country_code', $countryCode)->where('place.kind', PlaceKind::City->value));
     }
 
+    public function placesOf(string $countryCode): array
+    {
+        return $this->live($this->query()->where('place.country_code', $countryCode));
+    }
+
     public function places(array $ids): array
     {
         $ids = array_values(array_unique(array_map(strtolower(...), array_filter($ids, Str::isUlid(...)))));

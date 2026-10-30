@@ -4,20 +4,21 @@ declare(strict_types=1);
 
 namespace Modules\Shipping\Public\Dto;
 
+use Modules\Shipping\Public\Enums\FreeShippingReason;
 use Shared\Domain\ValueObject\Money;
 
 /**
- * One carrier that can take the parcel (sales.md §2.4): its name, its fee — free thresholds applied —
- * and its tracking address with `{number}` for the tracking number, if it has one (owner, 2026-10-17:
- * the tracking link is optional). Provisional.
+ * One carrier that serves the address (shipping.md §2.1): its names and logo, its fee for this order -
+ * free shipping applied - and why it is free, when it is. No VAT on it (§1.1 rule 8).
  */
 final readonly class ShippingOptionDto
 {
     public function __construct(
-        public string $carrierCode,
+        public string $carrierId,
         public string $nameAr,
         public string $nameEn,
+        public ?string $logoUrl,
         public Money $fee,
-        public ?string $trackingUrlTemplate = null,
+        public ?FreeShippingReason $freeBecause,
     ) {}
 }

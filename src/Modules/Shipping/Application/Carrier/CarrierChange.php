@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Shipping\Application\Uncovered\UncoveredRecounts;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Repository\CarrierRepository;
 use Shared\Application\ActorContext;
@@ -31,6 +32,7 @@ final readonly class CarrierChange
         private PlatformApi $platform,
         private CarrierRepository $carriers,
         private ConnectionInterface $db,
+        private UncoveredRecounts $recounts,
     ) {}
 
     /**
@@ -70,6 +72,11 @@ final readonly class CarrierChange
 
             foreach ($entries as $entry) {
                 $this->platform->recordAudit($entry);
+            }
+
+            // A change of the store's carriers or prices may move its "Places no carrier serves" (§1.6).
+            if ($entries !== []) {
+                $this->recounts->queue(StoreId::fromString($storeId));
             }
 
             return $result;

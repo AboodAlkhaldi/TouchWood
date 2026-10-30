@@ -149,6 +149,11 @@ final readonly class PlatformApiImpl implements PlatformApi
         return self::byName($this->places->citiesOf(PlaceLocks::code($countryCode)), $locale);
     }
 
+    public function placesOf(string $countryCode): array
+    {
+        return $this->places->placesOf(PlaceLocks::code($countryCode));
+    }
+
     public function place(array $ids): array
     {
         return $this->places->places($ids);

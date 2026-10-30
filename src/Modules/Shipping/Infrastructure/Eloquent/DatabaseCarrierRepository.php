@@ -45,6 +45,19 @@ final readonly class DatabaseCarrierRepository implements CarrierRepository
         return $row === null ? null : $this->carrier($row);
     }
 
+    public function find(string $carrierId): ?Carrier
+    {
+        $id = strtolower(trim($carrierId));
+
+        if (! Ulids::valid($id)) {
+            return null;
+        }
+
+        $row = $this->db->table(self::TABLE)->where('id', $id)->first();
+
+        return $row === null ? null : $this->carrier($row);
+    }
+
     public function inStore(string $storeId): array
     {
         return array_values(array_map(
@@ -62,7 +75,6 @@ final readonly class DatabaseCarrierRepository implements CarrierRepository
             'store_id' => $carrier->storeId,
             'country_code' => $carrier->countryCode,
             ...$this->columns($carrier),
-            'free_above_minor' => $carrier->freeAboveMinor(),
             'position' => $carrier->position,
             'created_at' => $now,
             'updated_at' => $now,
@@ -158,6 +170,7 @@ final readonly class DatabaseCarrierRepository implements CarrierRepository
             'phone' => $details->phone,
             'website' => $details->website,
             'tracking_pattern' => $details->trackingPattern,
+            'free_above_minor' => $carrier->freeAboveMinor(),
             'active' => $carrier->isActive(),
         ];
     }

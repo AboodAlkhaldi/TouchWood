@@ -184,6 +184,14 @@ interface PlatformApi
     public function citiesOf(string $countryCode, string $locale): array;
 
     /**
+     * Every place of the country in use - regions, cities and districts - in one read, in no order:
+     * Shipping's "Places no carrier serves" and its country-wide "Select all" (shipping.md §1.4, §1.6).
+     *
+     * @return list<PlaceDto>
+     */
+    public function placesOf(string $countryCode): array;
+
+    /**
      * Places by id, retired ones included and marked so: an address or a price that already names
      * a place keeps it (shipping.md §9.3 #4).
      *

@@ -123,6 +123,7 @@ function adminFrameParts(array $queries): array
             str_contains($query['sql'], '"pricing"."unpriced_counts"') => 'needs a price count',
             str_contains($query['sql'], '"inventory"."low_counts"') => 'low stock count',
             str_contains($query['sql'], '"sync"."report_entries"') => 'sync report count',
+            str_contains($query['sql'], '"shipping"."uncovered_counts"') => 'uncovered places count',
             str_contains($query['sql'], '"platform"."media"') => 'picture',
             default => 'other: '.$query['sql'],
         };
@@ -195,9 +196,10 @@ it('opens in its own recorded number of queries, whatever jobs the person holds'
     // frontend.md E7): one count more; whoever edits prices, how many sizes need a price, kept per store
     // (pricing.md §4.3.2, Q43): one more; whoever manages stock, how many sizes are low, kept per store
     // (inventory.md §4.3.2): one more; whoever views the Sync Report, its open entries over their stores
-    // (sync.md §4.1.2, one query): one more.
-    'every job' => ['an admin holding every job a role can hold', 13, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1]],
-    'a Super Admin' => ['a Super Admin', 13, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1]],
+    // (sync.md §4.1.2, one query): one more; whoever views carriers, how many places no carrier serves,
+    // kept per store (shipping.md §1.6, 2026-10-30): one more.
+    'every job' => ['an admin holding every job a role can hold', 14, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1, 'uncovered places count' => 1]],
+    'a Super Admin' => ['a Super Admin', 14, ['failed jobs count' => 1, 'needs a price count' => 1, 'low stock count' => 1, 'sync report count' => 1, 'uncovered places count' => 1]],
     // A picture is asked of Platform: one read of the media row.
     'a picture' => ['one job, with a picture', 10, ['picture' => 1]],
 ]);
@@ -249,9 +251,9 @@ it('asks whether the stores are wired once for every store whose Low Stock count
 
     // Before 2026-10-20 one `select exists(...)` per store - 3 on the seeded stores, 25 queries in all; now
     // Sync's every wired store in one read (StoreWiring::wiredStores), still in this request and never kept
-    // from another (sync.md §1.8) - 1, and 23 in all.
+    // from another (sync.md §1.8) - 1, and 23 in all; 24 since the Carriers entry's kept count (2026-10-30).
     expect($stores)->toBe(3)
         ->and($wiring)->toHaveCount(1)
         ->and(array_values($wiring)[0]['sql'])->not->toContain('exists')
-        ->and($queries)->toHaveCount(23);
+        ->and($queries)->toHaveCount(24);
 });

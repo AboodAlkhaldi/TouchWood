@@ -20,6 +20,9 @@ interface CarrierRepository
     /** The store's carrier, or null when there is none - or it is another store's. */
     public function byId(string $storeId, string $carrierId): ?Carrier;
 
+    /** Any store's carrier - for Sales, which names the carrier by its id alone (§2.1). */
+    public function find(string $carrierId): ?Carrier;
+
     /**
      * The store's carriers, by country, then by their place in the country's list.
      *

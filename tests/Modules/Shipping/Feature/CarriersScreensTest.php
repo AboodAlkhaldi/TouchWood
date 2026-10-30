@@ -36,11 +36,15 @@ uses(RefreshDatabase::class);
 // Measured on 2026-10-29, warm, as a Super Admin: 38 for the list and 37 for a carrier's page. The page's own
 // reads are three (the carriers, the store's countries, the address countries) - plus the logos' one read when
 // any has a logo; the rest is the panel's frame (the session, the menu and its counts), the same on every page.
-const CARRIERS_SCREEN_LIST_QUERIES = 38;
-const CARRIERS_SCREEN_PAGE_QUERIES = 37;
+// Plus one from stage 7 step 4 (2026-10-30): the Carriers entry's count of places no carrier serves reads its
+// kept count, one query (shipping.md §1.6).
+const CARRIERS_SCREEN_LIST_QUERIES = 39;
+const CARRIERS_SCREEN_PAGE_QUERIES = 38;
 
 beforeEach(function () {
-    config(['session.driver' => 'database']);
+    // The sweep of old sessions runs on 2 requests in 100 (config/session.php) and adds a DELETE: off, so
+    // a page's count never depends on a dice roll (AdminFrameQueryBudgetTest).
+    config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
     seed(PlatformSeeder::class);
     FakeBreachList::install();
     RecordingSecurityMessages::install();

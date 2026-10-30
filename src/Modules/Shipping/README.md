@@ -15,7 +15,10 @@ ship-to countries are Platform's (§9.2).
 | 3 | **Carriers** (§1.3): create, change, switch on/off, order within a country, delete only while off; the logo upload; the list by ship-to country and one carrier's page | `Application/Command/*Carrier*`, `Application/Query/{ListCarriers,ViewCarrier}` |
 | 3 | The ship-to guard: a country leaves a store's list only once the store has no carrier there | `Application/Carrier/CarriersHoldCountry` (registered with Platform's `ShipToCountryGuards`) |
 | 3 | A logo deleted from the media library leaves its carriers with none | `Infrastructure/Media/CarrierLogoUsage` |
-| 4 | Prices, free shipping, the quote, tracking links | not built yet |
+| 4 | **Prices** (§1.4): a carrier's groups, one amount each, on regions, cities and districts — save (with Move Here, merging, Select all, the version check), delete, list | `Application/Command/{SavePriceGroup,DeletePriceGroup}`, `Application/Query/ListPriceGroups`, `Application/Price/*` |
+| 4 | **Free shipping** (§1.5): each carrier's own amount and the store-wide setting | `Application/Command/SetCarrierFreeAbove`, `ShippingSettings` |
+| 4 | **What Sales asks** (§2.1): the quote (the most specific place wins), a carrier, the store's carriers, a tracking link | `Application/ShippingApiImpl` |
+| 4 | **Places no carrier serves** (§1.6): the live list and the menu's kept count, counted again after each change and every ten minutes | `Application/Uncovered/*`, `Application/Query/ListUncoveredPlaces`, `Infrastructure/Queue/CountUncoveredPlacesJob` |
 | 5 | Boxes | not built yet |
 
 ## How a change runs
