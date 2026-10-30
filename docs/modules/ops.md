@@ -451,4 +451,7 @@ publishes none; the four moments handed to stage 8.
     phone is entered and no code goes to it (address phones are their own job after this step). Removing a
     country is allowed: a Super Admin with such a phone enters a new one at sign-in, other staff get theirs
     changed by an admin, a customer reads as phone-unverified until they change it. Email stays global
-    (Brevo). C18 is bound here (§1.5): Access's temporary sender is deleted.
+    (Brevo). C18 is bound here (§1.5): Access's temporary sender is deleted. Owner, 2026-10-30: removing a
+    country stays allowed even under a Super Admin's phone, whose account is emailed "your phone number was
+    changed" when a new number is set at sign-in; a calling code overlapping another listed one (96 beside
+    966, 2 beside 20) is refused.

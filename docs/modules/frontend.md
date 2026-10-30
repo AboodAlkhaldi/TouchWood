@@ -617,8 +617,9 @@ and examples. Only when neither has it, show the owner what was searched and ask
       phone rounds it (`icons/apple-touch-icon.png`, 180 px, for iPhones; `icons/icon-192.png` and
       `icons/icon-512.png` in `site.webmanifest` for Android, the 512 also the maskable one, its
       artwork inside the safe circle). The manifest opens the site in the browser, as a shortcut;
-    - **the emails** carry the cream tile at the top (`icons/email-logo.png`, shown at 96 px), inside
-      the email itself rather than fetched, so every inbox shows it with no public address needed.
+    - **the emails** carry the cream tile at the top (`icons/email-logo.png`, shown at 96 px), **linked
+      at its address on APP_URL** (access.md amendment 90, Ops step 3): Ops sends through Brevo's API,
+      which takes the body as HTML and text only, so the image is no longer embedded in the email.
 
 ---
 
