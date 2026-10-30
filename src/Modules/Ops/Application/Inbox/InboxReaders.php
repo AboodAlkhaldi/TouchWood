@@ -17,8 +17,8 @@ use Shared\Infrastructure\Persistence\Ulids;
 /**
  * Who is reading a bell, and over which stores (ops.md §1.2): a customer reads their own entries in the
  * shop's store; a staff member their own over the stores they may view, as Access answers them
- * (access.md amendment 88) - a Super Admin every store, the ones that are off too; anyone else the
- * stores their assignment covers that are on. Nobody else has a bell.
+ * (access.md amendment 88) - a Super Admin every store; anyone else every store their assignment
+ * covers, on or off (owner, 2026-10-30). Nobody else has a bell.
  *
  * Every handler asks `permission()` and authorizes it before `owner()`.
  */

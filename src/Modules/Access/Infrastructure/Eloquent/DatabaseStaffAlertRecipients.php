@@ -13,8 +13,8 @@ use stdClass;
 /**
  * One statement for every recipient of an alert (amendment 80), the rules of CachedGrantsReader
  * written as SQL: an action reaches the stores of the person's store row, narrowed by its own
- * exception when it has one (amendment 59). For a per-store action the store must lie in both; a
- * store-free one is held once the two share any store. A Super Admin holds everything and is never
+ * exception when it has one (amendment 59): the store must lie in both (the caller passes only
+ * per-store permissions). A Super Admin holds everything and is never
  * hidden here - no person reads this list.
  */
 final readonly class DatabaseStaffAlertRecipients implements StaffAlertRecipients
@@ -23,7 +23,7 @@ final readonly class DatabaseStaffAlertRecipients implements StaffAlertRecipient
         private ConnectionInterface $db,
     ) {}
 
-    public function recipients(string $storeId, StaffNotificationTopic $topic, string $permission, bool $everyStaff, bool $byRole, bool $adminOnly, bool $storeFree): array
+    public function recipients(string $storeId, StaffNotificationTopic $topic, string $permission, bool $byRole, bool $adminOnly): array
     {
         // The rules are the caller's booleans, written in as literals; only the values are bound.
         $flag = static fn (bool $on): string => $on ? 'TRUE' : 'FALSE';
@@ -40,30 +40,16 @@ final readonly class DatabaseStaffAlertRecipients implements StaffAlertRecipient
             WHERE s.status = 'ACTIVE'
               AND (
                 s.is_super_admin
-                OR {$flag($everyStaff)}
                 OR (
                     {$flag($byRole)}
                     AND EXISTS (SELECT 1 FROM access.role_permissions p WHERE p.role_id = a.role_id AND p.permission = ?)
                     AND ({$flag(! $adminOnly)} OR r.level = 'ADMIN')
-                    AND CASE WHEN {$flag($storeFree)} THEN
-                        -- held once the store row and the exception share a store
-                        e.staff_user_id IS NULL
-                        OR a.access_level = 'ALL_STORES'
+                    AND (a.access_level = 'ALL_STORES'
+                        OR EXISTS (SELECT 1 FROM access.role_assignment_stores st WHERE st.staff_user_id = s.id AND st.store_id = ?))
+                    AND (e.staff_user_id IS NULL
                         OR e.access_level = 'ALL_STORES'
-                        OR EXISTS (
-                            SELECT 1 FROM access.role_assignment_stores st
-                            JOIN access.role_assignment_exception_stores es
-                                ON es.staff_user_id = st.staff_user_id AND es.store_id = st.store_id AND es.permission = e.permission
-                            WHERE st.staff_user_id = s.id
-                        )
-                    ELSE
-                        (a.access_level = 'ALL_STORES'
-                            OR EXISTS (SELECT 1 FROM access.role_assignment_stores st WHERE st.staff_user_id = s.id AND st.store_id = ?))
-                        AND (e.staff_user_id IS NULL
-                            OR e.access_level = 'ALL_STORES'
-                            OR EXISTS (SELECT 1 FROM access.role_assignment_exception_stores es
-                                WHERE es.staff_user_id = s.id AND es.permission = e.permission AND es.store_id = ?))
-                    END
+                        OR EXISTS (SELECT 1 FROM access.role_assignment_exception_stores es
+                            WHERE es.staff_user_id = s.id AND es.permission = e.permission AND es.store_id = ?))
                 )
               )
             ORDER BY s.id

@@ -133,7 +133,7 @@ describe('a customer\'s bell', function () {
 });
 
 describe('a staff member\'s bell', function () {
-    it('shows their own entries over the stores that are on, an off store\'s only to a Super Admin', function () {
+    it('shows their own entries over their own stores, an off store not theirs only to a Super Admin', function () {
         $staff = Fx::staffWith(['ops.report.view'], ['sa']);
         $other = Fx::staffWith(['ops.report.view'], ['sa']);
         $super = Fx::staff(superAdmin: true);
@@ -172,6 +172,20 @@ describe('a staff member\'s bell', function () {
 
         expect(bellsIds(app(ViewInboxHandler::class)->handle(new ViewInbox('en'))))->toBe([$ae])
             ->and(app(CountUnreadHandler::class)->handle(new CountUnread))->toBe(1);
+    });
+
+    it('shows a store assigned to them that is off, and still not an on store that is not theirs (owner, 2026-10-30)', function () {
+        $staff = Fx::staffWith(['ops.report.view'], ['sa', 'eg']);
+        $sa = Ox::staffEntry($staff, 'sa');
+        $eg = Ox::staffEntry($staff, 'eg', CarbonImmutable::now()->subMinute());
+        $ae = Ox::staffEntry($staff, 'ae', CarbonImmutable::now()->subMinutes(2));
+        Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
+
+        Fx::actAsStaff($staff);
+        expect(bellsIds(app(ViewInboxHandler::class)->handle(new ViewInbox('en'))))->toBe([$sa, $eg])
+            ->and(app(CountUnreadHandler::class)->handle(new CountUnread))->toBe(2)
+            ->and(fn () => app(MarkInboxEntryReadHandler::class)->handle(new MarkInboxEntryRead($ae)))->toThrow(InboxEntryNotFound::class)
+            ->and(app(MarkInboxEntryReadHandler::class)->handle(new MarkInboxEntryRead($eg)))->toBe(1);
     });
 });
 

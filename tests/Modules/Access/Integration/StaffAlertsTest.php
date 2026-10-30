@@ -10,6 +10,7 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Command\SetOwnCriticalSms\SetOwnCriticalSms;
 use Modules\Access\Application\Command\SetOwnCriticalSms\SetOwnCriticalSmsHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\StaffAlertRecipientDto;
@@ -17,6 +18,7 @@ use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -80,8 +82,14 @@ describe('staffToAlert (amendment 80)', function () {
         $saOther = Fx::staffWith(['sales.order.view'], ['sa']);
         $disabled = Fx::staffWith(['sales.return.manage'], ['sa']);
         DB::table('access.staff_users')->where('id', $disabled)->update(['status' => StaffStatus::Disabled->value]);
+        // Invited and cancelled accounts hold a role too, and are not alerted either.
+        $invited = Fx::staffWith(['sales.return.manage'], ['sa']);
+        DB::table('access.staff_users')->where('id', $invited)->update(['status' => StaffStatus::Invited->value, 'password' => null, 'phone_verified_at' => null]);
+        $cancelled = Fx::staffWith(['sales.return.manage'], ['sa']);
+        DB::table('access.staff_users')->where('id', $cancelled)->update(['status' => StaffStatus::Cancelled->value, 'password' => null]);
         $super = Fx::staff(superAdmin: true);
         Fx::staff(StaffStatus::Disabled, superAdmin: true);
+        Fx::staff(StaffStatus::Invited, superAdmin: true);
 
         expect(alertIds('sa', 'sales.return.manage'))->toBe(alertSorted([$saReturns, $everywhere, $super]))
             ->and(alertIds('ae', 'sales.return.manage'))->toBe(alertSorted([$aeReturns, $everywhere, $super]))
@@ -100,20 +108,20 @@ describe('staffToAlert (amendment 80)', function () {
             ->and(alertIds('ae', AccessPermissions::CUSTOMER_BLOCK))->toBe([$super]);
     });
 
-    it('holds a store-free action in every store once it is held, as the permission check does', function () {
-        $admin = Fx::staffWith([AccessPermissions::ROLE_MANAGE], ['sa'], RoleLevel::Admin);
+    it('sends a reserved permission to Super Admins only, store-free or not', function () {
+        Fx::staffWith(['sales.return.manage'], ['sa']);
         $super = Fx::staff(superAdmin: true);
 
-        expect(alertIds('ae', AccessPermissions::ROLE_MANAGE))->toBe(alertSorted([$admin, $super]));
+        expect(alertIds('sa', AccessPermissions::SUPER_ADMIN_MANAGE))->toBe([$super]);
     });
 
-    it('sends a reserved permission to Super Admins only, and an automatic staff one to every active staff member', function () {
-        $staff = Fx::staffWith(['sales.return.manage'], ['sa']);
-        $noRole = Fx::staff();
-        $super = Fx::staff(superAdmin: true);
+    it('refuses an automatic staff permission and a store-free one: their holders may not see the store in their bell', function () {
+        // A store-free action takes no stores of its own (GrantRules refuses an exception for it), so
+        // its holders are refused here rather than narrowed.
+        Fx::staffWith([AccessPermissions::ROLE_MANAGE], ['sa'], RoleLevel::Admin);
 
-        expect(alertIds('sa', AccessPermissions::SUPER_ADMIN_MANAGE))->toBe([$super])
-            ->and(alertIds('sa', AccessPermissions::OWN_ACCOUNT_UPDATE))->toBe(alertSorted([$staff, $noRole, $super]));
+        expect(fn () => alertIds('sa', AccessPermissions::OWN_ACCOUNT_UPDATE))->toThrow(InvalidArgumentException::class, 'not a per-store permission')
+            ->and(fn () => alertIds('ae', AccessPermissions::ROLE_MANAGE))->toThrow(InvalidArgumentException::class, 'not a per-store permission');
     });
 
     it('still alerts an off store\'s staff', function () {
@@ -180,6 +188,22 @@ describe('the critical-SMS switch (amendment 81)', function () {
             ->and(Fx::audits('access.staff_user.critical_sms_changed', $super))->toBe(2);
     });
 
+    it('locks the person\'s row while it changes, so two identical requests write one audit', function () {
+        $super = Fx::staff(superAdmin: true);
+        Fx::actAsStaff($super);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(SetOwnCriticalSmsHandler::class)->handle(new SetOwnCriticalSms(false));
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        // Two real requests at once cannot run inside one test's transaction; the lock that makes the
+        // second wait for the first is what is checked here.
+        $locks = array_filter($queries, static fn (string $query): bool => str_contains($query, '"staff_users"') && str_contains($query, 'for update'));
+        expect($locks)->not->toBeEmpty();
+    });
+
     it('is a Super Admin\'s only', function () {
         $admin = Fx::actAsAdmin(['*'], [AccessPermissions::STAFF_VIEW]);
 
@@ -217,14 +241,18 @@ describe('the two new topics (amendments 82, 84)', function () {
 });
 
 describe('staffStores (amendment 88)', function () {
-    it('answers a Super Admin every store, off ones too, and anyone else their assigned stores that are on', function () {
+    it('answers a Super Admin every store, and anyone else every store assigned to them, on or off (owner, 2026-10-30)', function () {
         $staff = Fx::staffWith(['sales.order.view'], ['sa', 'eg']);
         $super = Fx::staff(superAdmin: true);
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
         $all = DB::table('platform.stores')->count();
 
-        expect(alertStoreCodes($staff))->toBe(['sa'])
+        expect(alertStoreCodes($staff))->toEqualCanonicalizing(['sa', 'eg'])
             ->and(app(AccessApi::class)->staffStores($super))->toHaveCount($all);
+
+        // The panel's store menu is unchanged: it offers only the stores that are on.
+        Fx::actAsStaff($staff);
+        expect(array_map(static fn (StoreDto $store): string => $store->code, app(StoresForStaff::class)->forCurrentStaff()))->toBe(['sa']);
     });
 
     it('answers none for an account that is not active, has no role, or is no one\'s', function () {

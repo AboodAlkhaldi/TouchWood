@@ -56,13 +56,15 @@ final readonly class StoresForStaff
     }
 
     /**
-     * Another module's question about one staff member (amendment 88; Ops' staff bell): the same
-     * stores, read for the id given rather than for whoever is signed in. None for an account that
-     * is not active - their grants are not used while it is not - nor for an id no staff member has.
+     * Another module's question about one staff member (amendment 88; Ops' staff bell), read for
+     * the id given rather than for whoever is signed in: a Super Admin every store; anyone else
+     * **every store their assignment covers, on or off** (owner, 2026-10-30) - unlike the panel's
+     * menu above, which offers only the ones that are on. None for an account that is not active -
+     * their grants are not used while it is not - nor for an id no staff member has.
      *
      * @return list<StoreDto> in the stores' own order
      */
-    public function of(string $staffId): array
+    public function assignedTo(string $staffId): array
     {
         $staff = $this->grants->forStaff($staffId);
 
@@ -74,7 +76,16 @@ final readonly class StoresForStaff
             return $this->platform->allStores();
         }
 
-        return $this->onAndCovered($staff->stores);
+        $choice = $staff->stores;
+
+        if ($choice === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->platform->allStores(),
+            static fn (StoreDto $store): bool => $choice->covers(StoreId::fromString($store->id)),
+        ));
     }
 
     /**

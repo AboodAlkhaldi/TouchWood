@@ -102,24 +102,26 @@ interface AccessApi
 
     /**
      * For Ops (amendment 80; ops.md §1.4): who receives a staff alert of `$topic` in `$store`, in one
-     * query - the **active** staff who hold `$permission` there, as the permission check would
-     * answer (roles nest: an admin role holds what it is given, a Super Admin everything; an
-     * admin-only permission no staff role; a reserved one, or one that is not a role's, Super Admins
-     * only), each with their switches for the topic (no row reads as its default, amendment 19) and
+     * query - the **active** staff who hold the per-store `$permission` there, as the permission
+     * check would answer (roles nest: an admin role holds what it is given, a Super Admin everything;
+     * an admin-only permission no staff role; a reserved one, or one that is not a role's, Super
+     * Admins only), each with their switches for the topic (no row reads as its default, amendment 19) and
      * their critical-SMS switch (amendment 81). A Super Admin is never hidden from this read, which
      * no person sees. **An off store's staff are alerted all the same.**
      *
      * @return list<StaffAlertRecipientDto>
      *
-     * @throws \InvalidArgumentException when no module declares `$permission`
+     * @throws \InvalidArgumentException when no module declares `$permission`, or it is an automatic
+     *                                   staff permission or a store-free one that is not reserved: an
+     *                                   alert belongs to one store, and lands only in bells that show it
      */
     public function staffToAlert(StoreId $store, StaffNotificationTopic $topic, string $permission): array;
 
     /**
-     * For Ops' staff bell (amendment 88; ops.md §1.2): the stores the staff member may view - a
-     * Super Admin every store, on and off; anyone else the stores their assignment covers that are
-     * on (amendment 64, as the panel's store menu answers). None for an account that is not active,
-     * has no role, or is not a staff member's.
+     * For Ops' staff bell (amendment 88; ops.md §1.2): the stores the staff member's bell shows - a
+     * Super Admin every store; anyone else **every store their assignment covers, on or off** (owner,
+     * 2026-10-30; the panel's store menu offers only the ones that are on). None for an account that
+     * is not active, has no role, or is not a staff member's.
      *
      * @return list<StoreId> in the stores' own order
      */

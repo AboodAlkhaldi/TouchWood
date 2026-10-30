@@ -16,14 +16,12 @@ use Modules\Access\Public\Enums\StaffNotificationTopic;
 interface StaffAlertRecipients
 {
     /**
-     * The **active** staff members in the given reach, Super Admins always among them, each with
+     * The **active** staff members who hold a **per-store** permission in the store, Super Admins always among them, each with
      * their switches for the topic.
      *
-     * @param  bool  $everyStaff  every active staff member holds it (an automatic staff permission)
      * @param  bool  $byRole  a role may hold it: held by whoever's role holds it in the store
      * @param  bool  $adminOnly  only an admin role holds it (with $byRole)
-     * @param  bool  $storeFree  held in full once held anywhere (a store-free permission, with $byRole)
      * @return list<StaffAlertRecipientDto> by id
      */
-    public function recipients(string $storeId, StaffNotificationTopic $topic, string $permission, bool $everyStaff, bool $byRole, bool $adminOnly, bool $storeFree): array;
+    public function recipients(string $storeId, StaffNotificationTopic $topic, string $permission, bool $byRole, bool $adminOnly): array;
 }

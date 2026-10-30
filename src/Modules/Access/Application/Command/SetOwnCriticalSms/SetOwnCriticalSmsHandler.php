@@ -20,7 +20,7 @@ use Shared\Application\Unauthorized;
  * Switches the person's own critical SMS on or off (amendment 81; ops.md §1.6): the payment
  * gateway's key expiring in 1 day, or refused. Only a Super Admin is sent that SMS, so only a Super
  * Admin sees the switch and may change it; anyone else is refused. A change is audited in the same
- * transaction; the same value again changes and records nothing.
+ * transaction, under a lock on the person's row; the same value again changes and records nothing.
  */
 final readonly class SetOwnCriticalSmsHandler
 {
@@ -41,11 +41,13 @@ final readonly class SetOwnCriticalSmsHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
 
-        if ($this->staff->find($staffId)?->isSuperAdmin() !== true) {
-            throw new Unauthorized(self::PERMISSION);
-        }
-
         $this->db->transaction(function () use ($staffId, $command): void {
+            // The row is locked until the end (byId), so two identical requests queue up: the second
+            // reads what the first wrote, and only one change is audited.
+            if ($this->staff->byId($staffId)?->isSuperAdmin() !== true) {
+                throw new Unauthorized(self::PERMISSION);
+            }
+
             $was = $this->preferences->criticalSms($staffId);
 
             if ($was === $command->on) {

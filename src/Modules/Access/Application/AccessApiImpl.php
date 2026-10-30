@@ -161,26 +161,31 @@ final readonly class AccessApiImpl implements AccessApi
         $definition = $this->catalog->definition($permission)
             ?? throw new InvalidArgumentException("\"{$permission}\" is not a declared permission.");
 
-        // RoleAuthorizer's rules: a Super Admin holds everything; every active staff member the
-        // automatic staff permissions; a role the role permissions that are not reserved, an admin
-        // role alone the admin-only ones. Anything else - reserved, or a customer's or a guest's -
-        // only a Super Admin.
+        // An alert is about one store, and lands in the recipients' bells there: an automatic staff
+        // permission or a store-free one would reach people whose bell does not show that store
+        // (review of Ops step 4). A reserved one is fine, store-free or not - only Super Admins hold
+        // it, and they see every store.
+        if ($definition->audience === PermissionAudience::EveryStaff || ($definition->kind === PermissionKind::Global && ! $definition->reserved)) {
+            throw new InvalidArgumentException("\"{$permission}\" is not a per-store permission: an alert is sent to a store's holders.");
+        }
+
+        // RoleAuthorizer's rules: a Super Admin holds everything; a role the role permissions that
+        // are not reserved, an admin role alone the admin-only ones. Anything else - reserved, or a
+        // customer's or a guest's - only a Super Admin.
         $byRole = $definition->audience === PermissionAudience::Role && ! $definition->reserved;
 
         return $this->alertRecipients->recipients(
             $store->value,
             $topic,
             $permission,
-            everyStaff: $definition->audience === PermissionAudience::EveryStaff,
             byRole: $byRole,
             adminOnly: $byRole && $this->catalog->isAdminOnly($permission),
-            storeFree: $definition->kind === PermissionKind::Global,
         );
     }
 
     public function staffStores(string $staffId): array
     {
-        return array_map(static fn (StoreDto $store): StoreId => $store->storeId(), $this->staffStores->of($staffId));
+        return array_map(static fn (StoreDto $store): StoreId => $store->storeId(), $this->staffStores->assignedTo($staffId));
     }
 
     /**
