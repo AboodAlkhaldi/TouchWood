@@ -192,7 +192,8 @@ it('gives every command handler a PERMISSION constant, save those that read it f
     // UpdateSetting takes its permission from the setting's own definition, and Loyalty's Earn and
     // Redeem, and the three settlements, take the calling module's, named by Sales on each call (loyalty.md §2.1), so they
     // declare none — as Promotions' three writes for Sales (promotions.md §2.1), and Ops' two marks of a
-    // bell, which take the reader's own bell's, the shop's or the panel's (ops.md §1.2); every other
+    // bell, which take the reader's own bell's, the shop's or the panel's (ops.md §1.2), and its staff message,
+    // which takes send_one or send_many by its audience (ops.md §1.8); every other
     // handler must, or handlerPermissions() would pass over it.
     expect(handlersWithoutPermissionConstant())->toBe([
         'Modules\Loyalty\Application\Command\Earn\EarnHandler',
@@ -202,6 +203,7 @@ it('gives every command handler a PERMISSION constant, save those that read it f
         'Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrderHandler',
         'Modules\Ops\Application\Command\MarkAllInboxRead\MarkAllInboxReadHandler',
         'Modules\Ops\Application\Command\MarkInboxEntryRead\MarkInboxEntryReadHandler',
+        'Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler',
         'Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler',
         'Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler',
         'Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler',
