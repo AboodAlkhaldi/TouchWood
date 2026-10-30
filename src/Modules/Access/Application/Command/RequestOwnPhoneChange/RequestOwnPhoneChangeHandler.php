@@ -10,6 +10,7 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\OwnPasswordCheck;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
@@ -30,6 +31,7 @@ final readonly class RequestOwnPhoneChangeHandler
         private OwnPasswordCheck $confirmation,
         private PhoneVerification $verification,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(RequestOwnPhoneChange $command): void
@@ -37,6 +39,8 @@ final readonly class RequestOwnPhoneChangeHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $staffId = $this->rules->currentStaffId();
         $phone = PhoneNumber::of($command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
+        $this->phones->require($phone);
 
         // The number is where the sign-in code goes, so it is a change of the second factor:
         // the current password is proved first, and a wrong one is counted (owner, 2026-09-21).

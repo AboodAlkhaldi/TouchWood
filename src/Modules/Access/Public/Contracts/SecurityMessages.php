@@ -21,7 +21,7 @@ interface SecurityMessages
     /**
      * The link that verifies a customer's email address (24 hours, spec §1.2), in their language.
      */
-    public function emailVerification(CustomerDto $customer, string $link): void;
+    public function emailVerification(CustomerDto $customer, #[\SensitiveParameter] string $link): void;
 
     /**
      * The one message a deletion sends (spec §1.10, amendment 43): the date the account is
@@ -33,27 +33,27 @@ interface SecurityMessages
     /**
      * @param  string  $link  the invitation link (72 hours; a Super Admin's 24)
      */
-    public function staffInvitation(StaffDto $staff, string $link): void;
+    public function staffInvitation(StaffDto $staff, #[\SensitiveParameter] string $link): void;
 
     /**
      * A link to choose a new password (a staff member's works 30 minutes, amendment 31).
      *
      * @param  string  $locale  "ar" or "en"
      */
-    public function passwordReset(string $email, string $locale, string $link): void;
+    public function passwordReset(string $email, string $locale, #[\SensitiveParameter] string $link): void;
 
     /**
      * Sent to the NEW address, which becomes the staff member's email when the link is used
      * (amendment 17).
      */
-    public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void;
+    public function staffEmailChange(StaffDto $staff, string $newEmail, #[\SensitiveParameter] string $link): void;
 
     /**
      * A code sent to a phone to verify it.
      *
      * @param  string  $locale  "ar" or "en"
      */
-    public function phoneCode(string $phone, string $locale, string $code): void;
+    public function phoneCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void;
 
     /**
      * A staff sign-in code, which also warns that the password was just used: if it was not them,
@@ -62,7 +62,15 @@ interface SecurityMessages
      *
      * @param  string  $locale  "ar" or "en"
      */
-    public function staffSignInCode(string $phone, string $locale, string $code): void;
+    public function staffSignInCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void;
+
+    /**
+     * Told to the account's email address when its phone is replaced on the sign-in path for an
+     * account with no phone SMS reaches - a Super Admin whose phone was reset, or whose phone's country
+     * left the SMS countries list (owner, 2026-10-30; amendment 90): the right password alone sets that
+     * number, so the owner of the address hears of it. It names no number.
+     */
+    public function staffPhoneChanged(StaffDto $staff): void;
 
     /*
      * B2B's decisions about a company, told to the account holder (b2b.md §2.3; amendment 48).

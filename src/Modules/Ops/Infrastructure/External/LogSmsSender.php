@@ -17,7 +17,7 @@ final readonly class LogSmsSender implements SmsSender
         private LoggerInterface $log,
     ) {}
 
-    public function send(string $phone, string $message): ?string
+    public function send(string $phone, #[\SensitiveParameter] string $message): ?string
     {
         $this->log->info('SMS (log driver)', ['to' => $phone, 'message' => $message]);
 

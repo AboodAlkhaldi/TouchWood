@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\SignInRefused;
@@ -32,6 +33,7 @@ final readonly class ResendStaffSignInCodeHandler
         private PhoneVerification $verification,
         private StaffSessions $sessions,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(ResendStaffSignInCode $command): void
@@ -46,7 +48,7 @@ final readonly class ResendStaffSignInCodeHandler
                 throw new SignInRefused;
             }
 
-            if (! $pending->stillFor($staff)) {
+            if (! $pending->stillFor($staff, $this->phones)) {
                 throw new InvalidCode(requestNewCode: true);
             }
 

@@ -101,6 +101,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         'loyalty.points.expire',
         // Reserved: the system's nightly removal of old notifications and message records (ops.md §5).
         'ops.log.prune',
+        // Reserved: where SMS codes can go, Super Admins only (amendment 90).
+        'ops.sms_countries.manage',
         'platform.currency.create',
         // Reserved, as creating one is (platform.md §9.7, owner 2026-10-04).
         'platform.currency.delete',

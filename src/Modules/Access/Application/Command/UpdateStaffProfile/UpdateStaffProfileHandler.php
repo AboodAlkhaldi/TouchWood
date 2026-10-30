@@ -9,6 +9,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\Avatars;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -37,6 +38,7 @@ final readonly class UpdateStaffProfileHandler
         private Avatars $avatars,
         private PlatformApi $platform,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(UpdateStaffProfile $command): void
@@ -64,9 +66,12 @@ final readonly class UpdateStaffProfileHandler
                 throw new InvalidStaffStatus($target->status());
             }
 
-            // A new phone receives the sign-in codes: it needs every action of their role.
+            // A new phone receives the sign-in codes: it needs every action of their role, and a country
+            // SMS reaches (amendment 90). Only a new one: a saved number whose country left the list
+            // never blocks the rest of an edit - changing it is how the admin fixes it.
             if ($target->phone() === null || ! $target->phone()->equals($phone)) {
                 $this->rules->requireCoversActionsOf($author, $targetGrants);
+                $this->phones->require($phone);
             }
 
             if ($this->staff->phoneInUse($phone, $target->id())) {

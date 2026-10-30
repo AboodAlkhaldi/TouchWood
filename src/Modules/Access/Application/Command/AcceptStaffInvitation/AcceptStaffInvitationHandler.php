@@ -10,6 +10,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SecretTokens;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
@@ -33,6 +34,7 @@ final readonly class AcceptStaffInvitationHandler
         private PhoneVerification $verification,
         private StaffSecuritySettings $settings,
         private Connection $db,
+        private ServedPhones $phones,
     ) {}
 
     public function handle(AcceptStaffInvitation $command): void
@@ -40,6 +42,8 @@ final readonly class AcceptStaffInvitationHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
 
         $phone = PhoneNumber::of($command->phone);
+        // A country SMS does not reach is refused when the number is entered (amendment 90).
+        $this->phones->require($phone);
 
         // A dead link is refused before the slow part, so a made-up one never reaches the breach
         // service or the hasher. Outside a transaction this read holds no lock past itself.

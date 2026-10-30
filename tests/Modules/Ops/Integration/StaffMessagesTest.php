@@ -12,6 +12,7 @@ use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessageH
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
 
@@ -29,6 +30,9 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
+    // The security messages (an email-verification link at registering) are not what these tests read:
+    // they go to a recorder, so only step 7's emails reach the captured sender.
+    RecordingSecurityMessages::install();
     CapturedEmails::install();
 });
 

@@ -8,7 +8,7 @@ use Modules\Ops\Public\Enums\MessageKind;
 /*
 | The message kinds (ops.md §1.5, §1.6): every row of the spec once, with the channels it fixes, and
 | its wording in Arabic and English (§1.1) - the bell's title and line, the email's subject and lines,
-| and the SMS where a kind has one. C18's words stay in Access's file until Ops binds SecurityMessages.
+| and the SMS where a kind has one. C18's words are in security.php, checked with the security messages.
 | Step 7's three (§1.7-§1.9): a notice and a staff message, written by staff, and the newsletter's
 | confirmation, an email with no bell.
 */

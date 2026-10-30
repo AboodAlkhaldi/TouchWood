@@ -12,6 +12,7 @@ use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketin
 use Modules\Access\Application\Command\WithdrawMarketingConsent\WithdrawMarketingConsentHandler;
 use Modules\Access\Application\Customer\CustomerMapper;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\StaffDisplayNames;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
@@ -44,6 +45,7 @@ final readonly class AccessApiImpl implements AccessApi
         private StaffDisplayNames $displayNames,
         private Authorizer $authorizer,
         private WithdrawMarketingConsentHandler $withdrawConsent,
+        private ServedPhones $phones,
     ) {}
 
     public function customer(string $customerId): ?CustomerDto
@@ -55,7 +57,10 @@ final readonly class AccessApiImpl implements AccessApi
 
     public function customerMayOrder(string $customerId): bool
     {
-        return $this->customers->find($customerId)?->mayOrder() ?? false;
+        $customer = $this->customers->find($customerId);
+
+        // A phone SMS no longer reaches is as good as unverified (amendment 90), as CustomerDto says.
+        return $customer !== null && $customer->mayOrder() && $this->phones->reaches($customer->phone());
     }
 
     public function customers(array $customerIds): array

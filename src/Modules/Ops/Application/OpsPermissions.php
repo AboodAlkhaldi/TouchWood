@@ -15,7 +15,8 @@ use Modules\Access\Public\Enums\PermissionKind;
  *
  * Reading and marking one's own inbox needs no role (§3: "none (own)"): it is held automatically, as
  * Feedback's `feedback.own.view` is - one for every customer (the shop's bell), one for every staff
- * member (the panel's bell). The nightly removal of old rows is the system's, reserved.
+ * member (the panel's bell). The nightly removal of old rows is the system's, reserved, and so is the
+ * SMS countries list: Super Admins only (owner, 2026-10-29; access.md amendment 90).
  */
 final class OpsPermissions
 {
@@ -47,6 +48,14 @@ final class OpsPermissions
     public const string LOG_PRUNE = 'ops.log.prune';
 
     /**
+     * The SMS countries: which countries' phones SMS reaches, each one's calling code and provider -
+     * listing, adding, changing, removing (owner, 2026-10-29; access.md amendment 90). Reserved: Super
+     * Admins only, as Platform's places are. Store-free: the list serves every store's customers and
+     * every staff member.
+     */
+    public const string SMS_COUNTRIES_MANAGE = 'ops.sms_countries.manage';
+
+    /**
      * @return list<PermissionDefinitionDto>
      */
     public static function definitions(): array
@@ -69,6 +78,7 @@ final class OpsPermissions
             new PermissionDefinitionDto(self::INBOX_VIEW_OWN, PermissionAudience::EveryCustomer, kind: PermissionKind::Global),
             new PermissionDefinitionDto(self::PANEL_INBOX_VIEW_OWN, PermissionAudience::EveryStaff, kind: PermissionKind::Global),
             new PermissionDefinitionDto(self::LOG_PRUNE, PermissionAudience::Role, reserved: true, kind: PermissionKind::Global),
+            new PermissionDefinitionDto(self::SMS_COUNTRIES_MANAGE, PermissionAudience::Role, reserved: true, kind: PermissionKind::Global),
         ];
     }
 }

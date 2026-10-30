@@ -6,10 +6,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Modules\Access\Infrastructure\Messages\SecurityMail;
-use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\B2B\Application\Account\CompanyAnonymizer;
 use Modules\B2B\Application\B2BPermissions;
@@ -30,6 +27,7 @@ use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Enums\CompanyStatus;
+use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Shared\Application\StoreContext;
@@ -38,6 +36,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\Modules\Ops\Support\RecordingEmailSender;
 
 use function Pest\Laravel\seed;
 
@@ -255,14 +254,11 @@ describe('sending and deciding in a second store', function () {
 
         expect($recorder->companyDecisionStores)->toBe([Fx::storeId('eg')]);
 
-        Mail::fake();
-        app(TemporarySecurityMessages::class)->companyApproved(app(AccessApi::class)->customer($customerId) ?? throw new LogicException('No account.'), null, Fx::storeId('eg'));
+        // The sender Ops binds (ops.md §1.5 C18) writes that store into the email.
+        $emails = RecordingEmailSender::install();
+        app(OpsSecurityMessages::class)->companyApproved(app(AccessApi::class)->customer($customerId) ?? throw new LogicException('No account.'), null, Fx::storeId('eg'));
 
-        Mail::assertSent(SecurityMail::class, function (SecurityMail $mail): bool {
-            $mail->assertSeeInHtml('This is about your company in our Egypt store.');
-
-            return true;
-        });
+        expect($emails->last()->html)->toContain('This is about your company in our Egypt store.');
     });
 });
 

@@ -16,7 +16,6 @@ use Illuminate\Routing\Router;
 use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
-use InvalidArgumentException;
 use LogicException;
 use Modules\Access\Application\AccessApiImpl;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -30,7 +29,6 @@ use Modules\Access\Application\Customer\CustomerShopperType;
 use Modules\Access\Application\Customer\GuestVisitors;
 use Modules\Access\Application\Customer\InMemoryCustomerPageSections;
 use Modules\Access\Application\Customer\RequestCustomers;
-use Modules\Access\Application\Messages\SmsGateway;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
@@ -85,8 +83,6 @@ use Modules\Access\Infrastructure\Http\RequestActorContext;
 use Modules\Access\Infrastructure\Http\StaffSessionHandler;
 use Modules\Access\Infrastructure\Listener\WriteStartingAddressFormat;
 use Modules\Access\Infrastructure\Media\StaffAvatarUsage;
-use Modules\Access\Infrastructure\Messages\LogSmsGateway;
-use Modules\Access\Infrastructure\Messages\TemporarySecurityMessages;
 use Modules\Access\Infrastructure\Messages\UrlCustomerLinks;
 use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
@@ -114,7 +110,6 @@ use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\CustomerPageSections;
 use Modules\Access\Public\Contracts\GuestIdentity;
 use Modules\Access\Public\Contracts\PermissionCatalog;
-use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Contracts\ShopperLines;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionGroup;
@@ -220,16 +215,8 @@ final class AccessServiceProvider extends ServiceProvider
         // SMS codes are stored as an HMAC keyed with the application key (Codes).
         $this->app->singleton(Codes::class, fn (Application $app): Codes => new HmacCodes((string) $app->make('config')->get('app.key')));
 
-        // Access sends its own security messages until Ops binds its own: one binding changes
-        // (owner's decision, 2026-09-18).
-        $this->app->bind(SecurityMessages::class, TemporarySecurityMessages::class);
-        $this->app->bind(SmsGateway::class, fn (Application $app): SmsGateway => match ($app->make('config')->get('access.sms.driver')) {
-            // It writes every code to the log: never on a live system.
-            'log' => $app->environment('production')
-                ? throw new InvalidArgumentException('The "log" SMS driver writes codes to the log and never runs in production: set ACCESS_SMS_DRIVER to a real provider.')
-                : $app->make(LogSmsGateway::class),
-            default => throw new InvalidArgumentException('ACCESS_SMS_DRIVER names no SMS driver Access has; only "log" exists until the provider is chosen.'),
-        });
+        // SecurityMessages and PhoneCountries are Ops' to bind (access.md §2.3, amendment 90): Ops sends
+        // the security messages and keeps the SMS countries, and Access never depends on Ops.
 
         // Who is acting (spec §2.5): a web request's session names them, else a guest; outside a web
         // request the system. Scoped, never instance(): Platform wraps this binding so a queued job
@@ -256,13 +243,10 @@ final class AccessServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        self::requireRealMailer($this->app);
-
         $presentation = dirname(__DIR__).'/Presentation';
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
         $this->loadTranslationsFrom($presentation.'/lang', 'access');
-        $this->loadViewsFrom($presentation.'/views', 'access');
 
         // Every web request starts as a guest, so no route ever runs as the system.
         $this->app->make(HttpKernel::class)->pushMiddleware(IdentifyRequestActor::class);
@@ -396,34 +380,6 @@ final class AccessServiceProvider extends ServiceProvider
             "Platform puts \"{$permission}\" in the business area \"{$group}\", which Access does not know. The areas are: "
             .implode(', ', array_map(static fn (PermissionGroup $area): string => $area->value, PermissionGroup::cases())).'.'
         );
-    }
-
-    /**
-     * Invitation and password reset links go by email. A production server with no real mailer —
-     * Laravel's default is `log` — would write them to the log file and send nothing, so it refuses
-     * to start, as the `log` SMS driver refuses to send (owner's decision, 2026-09-19).
-     *
-     * @throws InvalidArgumentException
-     */
-    public static function requireRealMailer(Application $app): void
-    {
-        $config = $app->make('config');
-        $key = $config->get('app.key');
-
-        // An application with no key is not configured at all: a fresh checkout, where Laravel
-        // reports "production" only because there is no .env yet (composer install runs
-        // package:discover before it exists). Nothing can be sent from it, so there is nothing to
-        // protect; a real production server always has a key.
-        if (! is_string($key) || $key === '') {
-            return;
-        }
-
-        $mailer = $config->get('mail.default');
-        $name = is_string($mailer) ? $mailer : '';
-
-        if ($app->environment('production') && in_array($name, ['', 'log', 'array'], true)) {
-            throw new InvalidArgumentException('MAIL_MAILER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real mailer.');
-        }
     }
 
     /**

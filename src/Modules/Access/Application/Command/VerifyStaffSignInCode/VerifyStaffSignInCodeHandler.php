@@ -9,14 +9,17 @@ use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
+use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
+use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\SignInRefused;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
+use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
@@ -41,6 +44,8 @@ final readonly class VerifyStaffSignInCodeHandler
         private TrustedBrowsers $trusted,
         private PlatformApi $platform,
         private Connection $db,
+        private ServedPhones $phones,
+        private SecurityMessages $messages,
     ) {}
 
     /**
@@ -66,7 +71,7 @@ final readonly class VerifyStaffSignInCodeHandler
                 }
 
                 // A password changed or a phone given since: the sign-in starts again.
-                if (! $pending->stillFor($staff)) {
+                if (! $pending->stillFor($staff, $this->phones)) {
                     throw new InvalidCode(requestNewCode: true);
                 }
 
@@ -77,7 +82,9 @@ final readonly class VerifyStaffSignInCodeHandler
                     return $phone;
                 }
 
-                $current = $staff->phone();
+                // A saved phone SMS no longer reaches counts as none (amendment 90): the Super Admin's new
+                // number replaces it.
+                $current = $this->phones->reaches($staff->phone()) ? $staff->phone() : null;
 
                 // A code counts only for the number the account has now, or for the number a Super Admin
                 // with none entered: a code sent before an admin changed the number cannot bring the old
@@ -87,6 +94,9 @@ final readonly class VerifyStaffSignInCodeHandler
                 }
 
                 if ($current === null || $staff->phoneVerifiedAt() === null) {
+                    // A new number's country may have left the list since its code was sent (amendment 90).
+                    $this->phones->require($phone);
+
                     if ($this->staff->phoneInUse($phone, $staff->id())) {
                         throw new PhoneAlreadyInUse;
                     }
@@ -98,6 +108,11 @@ final readonly class VerifyStaffSignInCodeHandler
 
                     if ($current === null) {
                         $this->tokens->forgetTrustedBrowsers($staff->id());
+
+                        // The right password alone set this number: the address on the account hears of
+                        // it, once the change commits (owner, 2026-10-30; amendment 90).
+                        $changed = StaffMapper::toDto($staff);
+                        $this->db->afterCommit(fn () => $this->messages->staffPhoneChanged($changed));
                     }
                 }
 

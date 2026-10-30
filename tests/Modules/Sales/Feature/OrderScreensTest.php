@@ -291,9 +291,11 @@ describe('P2 · An order', function () {
         // A fresh browser: a session signed in before the fixtures above is not the one after them.
         $browser = orderScreensStaff([SalesPermissions::ORDER_VIEW]);
 
-        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(12)
+        // 13 and 5 since 2026-10-30: the SMS countries list, read once with the customers (access.md
+        // amendment 90).
+        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(13)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
-            ->and($one)->toBe(4);
+            ->and($one)->toBe(5);
     });
 });
 
