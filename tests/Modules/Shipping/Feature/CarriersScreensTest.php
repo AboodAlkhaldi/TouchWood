@@ -42,7 +42,9 @@ const CARRIERS_SCREEN_LIST_QUERIES = 39;
 const CARRIERS_SCREEN_PAGE_QUERIES = 38;
 
 beforeEach(function () {
-    config(['session.driver' => 'database']);
+    // The sweep of old sessions runs on 2 requests in 100 (config/session.php) and adds a DELETE: off, so
+    // a page's count never depends on a dice roll (AdminFrameQueryBudgetTest).
+    config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);
     seed(PlatformSeeder::class);
     FakeBreachList::install();
     RecordingSecurityMessages::install();
