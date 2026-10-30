@@ -5,6 +5,31 @@ firstName: string,
 lastName: string,
 email: string,
 };
+export type DailyReportData = {
+id: string,
+storeCode: string | null,
+storeName: string,
+day: string,
+pastDay: boolean,
+madeBy: string,
+madeAt: string,
+emailedAt: string | null,
+language: string,
+bytes: number,
+downloadUrl: string,
+};
+export type DailyReportEmailData = {
+storeId: string | null,
+storeCode: string | null,
+storeName: string,
+on: boolean,
+sendAt: string,
+timezone: string,
+};
+export type DailyReportPageData = {
+reports: DailyReportData[],
+next: string | null,
+};
 export type InboxEntryData = {
 id: string,
 kind: MessageKind,

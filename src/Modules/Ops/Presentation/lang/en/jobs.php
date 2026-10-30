@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 // What Ops' queued work is called on the failed jobs screen (frontend.md E7).
 return [
+    'send_daily_report_email' => 'Making the daily report to email at the time its reader chose',
+    'deliver_daily_report' => 'Emailing a daily report',
+    'prune_daily_reports' => 'Removing daily reports older than twelve months',
     'prune_ops_log' => 'Removing inbox entries, sent messages and handled events older than twelve months',
     'prune_written_messages' => 'Removing staff messages and notices older than twelve months, and unconfirmed newsletter sign-ups',
     'start_due_notices' => 'Starting the offer notices whose time has come',

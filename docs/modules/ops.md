@@ -298,6 +298,30 @@ The owner's report "of everything that happened today, to help business decision
 
 All stores: each store's report, then the totals per currency.
 
+**Built (step 9, 2026-10-30).** The PDF in IBM Plex Sans Arabic (owner, 2026-10-30; the font's TTF files and OFL
+licence in `resources/fonts/ibm-plex-sans-arabic`, from IBM's release `@ibm/plex-sans-arabic@1.1.0`); amounts with
+the currency's letters (the new riyal and dirham signs are in no font mPDF reads); points given = earned + added,
+spent = redeemed, the other ledger kinds as rows only when they happened (owner, 2026-10-30). Kept in
+`ops.daily_reports` with the file in the app's private files; the email in `ops.daily_report_settings`. **Each
+store's section uses its own day and time zone**; the base store's zone (Riyadh) is used only for the all-stores
+report's header date, its past-day check (a past day must also be before today in every store it covers) and the
+time of an all-stores email. **Revenue is net of refunds** (§1.10) everywhere it is shown - cards, today,
+yesterday, month to date, change, average order (net revenue ÷ orders that count) and the totals per currency;
+refunds stay as their own row, and "revenue if the waiting refunds go through" is net less the waiting ones.
+**VAT and revenue with VAT are net of refunds too** (owner, 2026-10-30): Sales is asked for `refundsVat` and
+`waitingRefundsVat` per day on `revenueByDay`; until that lands, the VAT and revenue-with-VAT rows (the store's
+Sales table and the totals per currency) show "waits for Sales", as transfers overdue wait for stage 7.
+The email runs as a delayed job queued by the person who switched it on and then by itself a day at a time, so
+it reads only what that person may see (no Access read answers that for another person; the owner accepted this
+design, 2026-10-30). The setting holds the one moment it may go next, moved on by compare-and-set with the next
+job queued in the same transaction - a double submit, a race or a retried job never starts a second email; a late
+worker sends the missed report as at its moment, once. A cancelled or missing staff account switches it off; a
+disabled one is sent nothing while disabled. Its delivery is a job of its own, tried again on a provider failure.
+Its send is recorded on the report (`emailed_at`), not as a message kind.
+
+**Every store's report includes the switched-off stores** (owner, 2026-10-30): each marked "switched off", its
+figures in the totals per currency (`PlatformApi::allStores()`, which returns the stores on and off).
+
 ## 2 · Public contract
 
 ### 2.1 What Ops offers others

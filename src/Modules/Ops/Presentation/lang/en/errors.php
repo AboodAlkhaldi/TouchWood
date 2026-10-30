@@ -8,6 +8,10 @@ return [
         'title' => 'Notification Not Found',
         'detail' => 'This notification isn\'t in your list.',
     ],
+    'daily_report_not_found' => [
+        'title' => 'Report Not Found',
+        'detail' => 'This daily report isn\'t in your list.',
+    ],
     'invalid_ops_input' => [
         'title' => 'Check the Details',
         'detail' => 'The :attribute isn\'t valid. Check it and try again.',
@@ -75,5 +79,10 @@ return [
         'calling_code' => 'calling code',
         'other_code' => 'other calling code',
         'provider' => 'provider',
+        'day' => 'day',
+        'file' => 'file',
+        'emailed_at' => 'time emailed',
+        'next_due_at' => 'next time to send',
+        'version' => 'version',
     ],
 ];
