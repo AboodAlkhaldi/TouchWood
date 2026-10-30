@@ -121,7 +121,7 @@ it('sends nothing to Brevo without a key', function () {
 it('sends Brevo a file as its reference shows: in attachment, named, the content in base64', function () {
     Http::fake([BrevoEmailSender::ENDPOINT => Http::response(['messageId' => '<1@relay>'], 201)]);
     $plain = sendersEmail();
-    $email = new OutgoingEmail($plain->fromEmail, $plain->fromName, $plain->toEmail, $plain->toName, 'Daily report', '<p>Hello</p>', 'Hello', [new EmailAttachment('daily-report-sa-2026-10-30.pdf', "%PDF-1.4\x00\xff")]);
+    $email = new OutgoingEmail($plain->fromEmail, $plain->fromName, $plain->toEmail, $plain->toName, 'Daily report', '<p>Hello</p>', 'Hello', attachments: [new EmailAttachment('daily-report-sa-2026-10-30.pdf', "%PDF-1.4\x00\xff")]);
 
     (new BrevoEmailSender(app(Factory::class), 'test-key'))->send($email);
 

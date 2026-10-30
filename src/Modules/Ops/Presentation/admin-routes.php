@@ -5,11 +5,10 @@ declare(strict_types=1);
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Ops\Presentation\Http\Controller\BellController;
+use Modules\Ops\Presentation\Http\Controller\DailyReportController;
 use Modules\Ops\Presentation\Http\Controller\NoticesController;
 use Modules\Ops\Presentation\Http\Controller\StaffMessagesController;
 use Modules\Ops\Presentation\Http\Controller\SubscribersController;
-
-use Modules\Ops\Presentation\Http\Controller\DailyReportController;
 
 /*
 | The panel's bell (ops.md §1.2, §4): a signed-in staff member's own entries, over the stores they may

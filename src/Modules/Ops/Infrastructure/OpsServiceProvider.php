@@ -25,11 +25,11 @@ use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\CustomerUnblocked;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
-use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportMailer;
 use Modules\Ops\Application\DailyReport\DailyReportRenderer;
 use Modules\Ops\Application\DailyReport\ReportFiles;
+use Modules\Ops\Application\Delivery\BroadcastQueue;
 use Modules\Ops\Application\Inbox\InboxQueries;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
@@ -63,19 +63,19 @@ use Modules\Ops\Infrastructure\External\DailyReportEmailMailer;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogNewsletterList;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
+use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
 use Modules\Ops\Infrastructure\Listener\RefreshNewsletterSubscription;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
+use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
+use Modules\Ops\Infrastructure\Queue\PruneDailyReportsJob;
 use Modules\Ops\Infrastructure\Queue\PruneOpsLogJob;
 use Modules\Ops\Infrastructure\Queue\PruneWrittenMessagesJob;
+use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
-use Modules\Ops\Infrastructure\Files\LocalReportFiles;
-use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
-use Modules\Ops\Infrastructure\Queue\PruneDailyReportsJob;
-use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 
 /**
  * Ops (ops.md). Registered last: it reads every module's public surface and declares its permissions
