@@ -115,6 +115,8 @@ describe('the address book (F9)', function () {
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('addresses.0.addresses.0.label', 'Home')
                 ->where('addresses.0.addresses.0.recipientName', 'Sara Ali')
+                // An address keeps no phone of its own (amendment 89).
+                ->missing('addresses.0.addresses.0.phone')
                 // The first address in a store becomes its default on its own (amendment 41).
                 ->where('addresses.0.addresses.0.isDefault', true)
                 ->where('addresses.0.addresses.0.isComplete', true)

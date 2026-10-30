@@ -415,6 +415,9 @@ describe('P3 · The packing slip', function () {
         $props = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW]), "/admin/orders/{$order}/print", 'Sales/Admin/Orders/Print');
 
         expect(count($props['lines']))->toBe(2)
-            ->and($props['lines'][0]['code'])->not->toBe('');
+            ->and($props['lines'][0]['code'])->not->toBe('')
+            // One phone: the account's as placed; an address keeps none (access.md amendment 89).
+            ->and($props['contactPhone'])->toBe(DB::table('sales.orders')->where('id', $order)->value('customer_phone'))
+            ->and($props)->not->toHaveKey('addressPhone');
     });
 });

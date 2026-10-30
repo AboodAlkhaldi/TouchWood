@@ -6,6 +6,8 @@ declare(strict_types=1);
 return [
     'title' => 'Checkout',
     'address' => [
+        // NOT YET APPROVED by the owner (2026-10-30): the delivery phone's label, access.md amendment 89.
+        'account_phone' => 'Account phone',
         'title' => 'Delivery address',
         'default' => 'Default',
         'incomplete' => 'This address needs more details before it can be used.',

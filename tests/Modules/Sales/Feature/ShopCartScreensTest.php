@@ -244,10 +244,24 @@ describe('S5, S6 · Checkout and the order placed', function () {
         expect([$checkout['addressId'], $checkout['ways'], $checkout['way'], $checkout['subtotal']['minor']])->toBe([$ready['address'], ['STAFF_CONTACT'], 'STAFF_CONTACT', 250_00])
             ->and([$checkout['savings'], $checkout['coupon'], $checkout['points'], $checkout['bank']])->toBe([null, null, null, null])
             ->and($checkout['total']['minor'])->toBeGreaterThan(250_00)
+            // The one phone the courier calls: the account's, verified (access.md amendment 89).
+            ->and($checkout['phone'])->toBe(DB::table('access.customers')->where('id', $ready['customer'])->value('phone'))
             ->and($placed->headers->get('Location'))->toEndWith("/sa/en/orders/{$number}/placed")
             ->and($again->headers->get('Location'))->toEndWith("/sa/en/orders/{$number}/placed")
             ->and(DB::table('sales.orders')->where('customer_id', $ready['customer'])->count())->toBe(1)
             ->and([$page['number'], $page['wayToPay'], $page['total']['minor']])->toBe([$number, 'STAFF_CONTACT', $checkout['total']['minor']]);
+    });
+
+    it('shows no phone while the account has none verified (access.md amendment 89)', function () {
+        [$ready, $browser] = shopCartScreensCustomer();
+        // Ordering needs a verified phone, so the page is read with no address to quote: the phone shown is the account's alone.
+        DB::table('access.addresses')->where('customer_id', $ready['customer'])->delete();
+        DB::table('access.customers')->where('id', $ready['customer'])->update(['phone' => null, 'phone_verified_at' => null]);
+
+        $checkout = shopCartScreensProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
+
+        expect($checkout['phone'])->toBeNull()
+            ->and($checkout['addresses'])->toBe([]);
     });
 
     it('asks a company to choose its way, and shows the store\'s bank details for a transfer', function () {

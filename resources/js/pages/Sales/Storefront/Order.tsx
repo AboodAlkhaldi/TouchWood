@@ -77,9 +77,12 @@ export default function Order(order: OwnOrderPage) {
                         <Payment order={order} />
                         <Section title={t(`${O}.order.address`)} test="order-address">
                             <p className="text-copy-14 text-ink">
-                                {/* The number the courier calls: the account's phone as the order was placed (amendment 89). */}
-                                <bdi>{order.recipientName}</bdi> ·{' '}
-                                <bdi dir="ltr" className="tw-figure" data-test="order-phone">
+                                <bdi>{order.recipientName}</bdi>
+                            </p>
+                            {/* The number the courier calls: the account's phone as the order was placed (amendment 89). */}
+                            <p className="text-copy-14 text-ink" data-test="order-phone">
+                                {t(`${O}.order.account_phone`)}:{' '}
+                                <bdi dir="ltr" className="tw-figure">
                                     {order.contactPhone}
                                 </bdi>
                             </p>
