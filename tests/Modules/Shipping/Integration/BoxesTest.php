@@ -186,7 +186,7 @@ describe('the box list (§1.7)', function () {
         $keys = array_map(static fn ($row): string => $row->key, app(ListSettingsHandler::class)->handle(new ListSettings(boxesStore())));
         boxesPadding(15);
 
-        expect($keys)->not->toContain(ShippingSettings::PADDING_MM)->not->toContain(ShippingSettings::FREE_ABOVE_ALL)
+        expect(array_intersect($keys, [ShippingSettings::PADDING_MM, ShippingSettings::FREE_ABOVE_ALL]))->toBe([])
             ->and($keys)->not->toBeEmpty()
             ->and(app(ListBoxesHandler::class)->handle(new ListBoxes(boxesStore()))->paddingMm)->toBe(15);
     });
@@ -204,7 +204,7 @@ describe('sizes packed by hand (§1.7, gap 5.3)', function () {
         $others = app(ListPackingSizesHandler::class)->handle(new ListPackingSizes(boxesStore(), false));
 
         expect($packed->total)->toBe(1)
-            ->and(collect($others->rows)->pluck('variantId')->all())->toContain($table)->not->toContain($chair)
+            ->and(array_values(array_intersect(collect($others->rows)->pluck('variantId')->all(), [$table, $chair])))->toBe([$table])
             ->and(DB::table('platform.audit_entries')->where('action', 'shipping.size_packing.changed')->count())->toBe(1);
 
         $set($chair, false);
