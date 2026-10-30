@@ -6,6 +6,7 @@ namespace Modules\Ops\Infrastructure\External;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
+use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
@@ -17,7 +18,8 @@ use Modules\Ops\Application\Messages\ProviderFailed;
  * https://developers.brevo.com/reference/sendtransacemail
  *   POST https://api.brevo.com/v3/smtp/email, the key in the `api-key` header, a JSON body of
  *   `sender` {email, name}, `to` [{email, name}], `subject`, `htmlContent`, `textContent`; a 201 answer
- *   carries `messageId`.
+ *   carries `messageId`. A file goes in `attachment` [{name, content}], the content base64 - "the `name`
+ *   field is required when `content` is provided"; pdf among the extensions allowed (read 2026-10-30).
  *
  * `OutgoingEmail::$headers` are **not** passed on: the same reference's `headers` field, read
  * 2026-10-30, takes "custom email headers (non-standard headers)" and says "standard email headers
@@ -52,6 +54,17 @@ final readonly class BrevoEmailSender implements EmailSender
             $to['name'] = mb_substr($email->toName, 0, self::NAME_MAX);
         }
 
+        $body = [
+            'sender' => ['email' => $email->fromEmail, 'name' => mb_substr($email->fromName, 0, self::NAME_MAX)],
+            'to' => [$to],
+            'subject' => $email->subject,
+            'htmlContent' => $email->html,
+            'textContent' => $email->text,
+        ];
+        if ($email->attachments !== []) {
+            $body['attachment'] = array_map(static fn (EmailAttachment $file): array => ['name' => $file->name, 'content' => base64_encode($file->content)], $email->attachments);
+        }
+
         try {
             $response = $this->http
                 ->withHeaders(['api-key' => $this->apiKey])
@@ -59,13 +72,7 @@ final readonly class BrevoEmailSender implements EmailSender
                 ->asJson()
                 ->connectTimeout(5)
                 ->timeout(15)
-                ->post(self::ENDPOINT, [
-                    'sender' => ['email' => $email->fromEmail, 'name' => mb_substr($email->fromName, 0, self::NAME_MAX)],
-                    'to' => [$to],
-                    'subject' => $email->subject,
-                    'htmlContent' => $email->html,
-                    'textContent' => $email->text,
-                ]);
+                ->post(self::ENDPOINT, $body);
         } catch (ConnectionException) {
             throw new ProviderFailed('Brevo: the API could not be reached.');
         }

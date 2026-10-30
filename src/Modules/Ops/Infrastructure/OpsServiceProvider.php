@@ -26,6 +26,10 @@ use Modules\Access\Public\Events\CustomerUnblocked;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Ops\Application\Delivery\BroadcastQueue;
+use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
+use Modules\Ops\Application\DailyReport\DailyReportMailer;
+use Modules\Ops\Application\DailyReport\DailyReportRenderer;
+use Modules\Ops\Application\DailyReport\ReportFiles;
 use Modules\Ops\Application\Inbox\InboxQueries;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
@@ -34,6 +38,7 @@ use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Domain\Repository\DailyReports;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Domain\Repository\Notices;
 use Modules\Ops\Domain\Repository\OpsLog;
@@ -42,6 +47,7 @@ use Modules\Ops\Domain\Repository\SmsCountries;
 use Modules\Ops\Domain\Repository\StaffMessages;
 use Modules\Ops\Domain\Repository\Subscribers;
 use Modules\Ops\Infrastructure\Delivery\QueuedBroadcasts;
+use Modules\Ops\Infrastructure\Eloquent\DatabaseDailyReports;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseInbox;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseInboxQueries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseNotices;
@@ -53,6 +59,7 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
+use Modules\Ops\Infrastructure\External\DailyReportEmailMailer;
 use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogNewsletterList;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
@@ -65,6 +72,10 @@ use Modules\Ops\Infrastructure\Queue\PruneWrittenMessagesJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Ops\Infrastructure\Files\LocalReportFiles;
+use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
+use Modules\Ops\Infrastructure\Queue\PruneDailyReportsJob;
+use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 
 /**
  * Ops (ops.md). Registered last: it reads every module's public surface and declares its permissions
@@ -73,7 +84,8 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  * Step 2 (the foundation): the schema and its three tables, the permissions, the adapters, the bells
  * and the nightly removal. Step 3: the security messages (C18) in place of Access's temporary sender,
  * and the SMS countries (access.md amendment 90). Step 7: offer notices, staff messages, the
- * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
+ * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events. Step 9: the daily
+ * report - its reader, its PDF, the files kept, the email at the time chosen.
  */
 final class OpsServiceProvider extends ServiceProvider
 {
@@ -91,6 +103,11 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->bind(Subscribers::class, DatabaseSubscribers::class);
         $this->app->bind(BroadcastQueue::class, QueuedBroadcasts::class);
         $this->app->bind(NewsletterQueue::class, QueuedNewsletter::class);
+        $this->app->bind(DailyReportRenderer::class, MpdfDailyReportRenderer::class);
+        $this->app->bind(DailyReports::class, DatabaseDailyReports::class);
+        $this->app->bind(ReportFiles::class, LocalReportFiles::class);
+        $this->app->bind(DailyReportEmailQueue::class, QueuedDailyReportEmails::class);
+        $this->app->bind(DailyReportMailer::class, DailyReportEmailMailer::class);
 
         // The providers are adapters chosen by configuration (§2.2): a new one is a new class and a
         // line here. "log" writes what would be sent to the log, never on a live system.
@@ -157,6 +174,9 @@ final class OpsServiceProvider extends ServiceProvider
             $schedule->job(PruneWrittenMessagesJob::class)->timezone('Asia/Riyadh')->dailyAt('04:40')->onOneServer();
             // A scheduled notice starts within a minute of its time (§1.7).
             $schedule->job(StartDueNoticesJob::class)->everyMinute()->onOneServer();
+            // The daily reports' files and rows, twelve months too (§5). Each one's email is queued by the
+            // person who switched it on, not here: it must run on their behalf (§1.11).
+            $schedule->job(PruneDailyReportsJob::class)->timezone('Asia/Riyadh')->dailyAt('04:50')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

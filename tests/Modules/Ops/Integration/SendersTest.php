@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
@@ -115,4 +116,14 @@ it('sends nothing to Brevo without a key', function () {
         ->toThrow(ProviderFailed::class, 'BREVO_API_KEY');
 
     Http::assertNothingSent();
+});
+
+it('sends Brevo a file as its reference shows: in attachment, named, the content in base64', function () {
+    Http::fake([BrevoEmailSender::ENDPOINT => Http::response(['messageId' => '<1@relay>'], 201)]);
+    $plain = sendersEmail();
+    $email = new OutgoingEmail($plain->fromEmail, $plain->fromName, $plain->toEmail, $plain->toName, 'Daily report', '<p>Hello</p>', 'Hello', [new EmailAttachment('daily-report-sa-2026-10-30.pdf', "%PDF-1.4\x00\xff")]);
+
+    (new BrevoEmailSender(app(Factory::class), 'test-key'))->send($email);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['attachment'] === [['name' => 'daily-report-sa-2026-10-30.pdf', 'content' => base64_encode("%PDF-1.4\x00\xff")]]);
 });
