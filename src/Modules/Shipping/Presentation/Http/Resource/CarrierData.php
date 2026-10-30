@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Modules\Shipping\Presentation\Http\Resource;
 
+use Modules\Platform\Public\Dto\MoneyData;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * One carrier as the carriers screens show it (shipping.md §4.1 part 1): its names in both languages,
  * its logo's thumbnail (null with none - the screen shows its initials, Q15), its contacts and tracking
- * link pattern, and whether it is on.
+ * link pattern, whether it is on, and its own free-above amount (part 2, R11; null = never free).
  */
 #[TypeScript]
 final class CarrierData extends Data
@@ -26,5 +27,6 @@ final class CarrierData extends Data
         public ?string $website,
         public ?string $trackingPattern,
         public bool $active,
+        public ?MoneyData $freeAbove = null,
     ) {}
 }

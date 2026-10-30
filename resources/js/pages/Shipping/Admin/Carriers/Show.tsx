@@ -1,24 +1,36 @@
 import { lazy, Suspense, useRef, useState } from 'react';
+import { router, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
-import { Note } from '@/components/Note';
+import { PanelDialog } from '@/components/PanelDialog';
+import { MoreButton } from '@/components/RowMenu';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
+import { figure } from '@/lib/digits';
 import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
-import type { CarrierPage } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
+import type { CarrierPage, PriceGroupData } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 import { C, CarrierLogo, CarrierSwitch, DeleteCarrierDialog, LIST, trackingExample, useCarrierName, useOtherName } from './parts';
+import { FreeShippingCard } from './amount';
+import { AmountText, P, PlaceChips } from './prices';
+import { StaleNote } from './StaleNote';
 
 const CarrierDialog = lazy(() => import('./CarrierDialog').then((module) => ({ default: module.CarrierDialog })));
+// The price dialog - its place picker, its levels read as they open - loads when it is first opened (§5).
+const PriceDialog = lazy(() => import('./PriceDialog').then((module) => ({ default: module.PriceDialog })));
 
 /*
-| C3 · A carrier (shipping.md §4.1 part 1, Q4): the trail back to Carriers, its logo, names, country and
-| switch, Edit and Delete for whoever may manage (Q12), and its details. Part 2 fills the rest with its
-| price groups; until then a note says they come next.
+| C3 · A carrier (shipping.md §4.1 parts 1 and 2): the trail back to Carriers, its logo, names, country and
+| switch, Edit and Delete for whoever may manage (Q12), and its details; then its Prices, cheapest first,
+| and its Free Shipping (R1, R11), changed by whoever may manage prices (R14).
 */
 
-export default function Show({ carrier, countryName, mayManage, storeCode }: CarrierPage) {
+export default function Show(page: CarrierPage) {
+    const { carrier, countryName, mayManage, storeCode } = page;
     const t = useTranslator();
     const nameOf = useCarrierName();
     const otherOf = useOtherName();
@@ -130,7 +142,8 @@ export default function Show({ carrier, countryName, mayManage, storeCode }: Car
                     </CardContent>
                 </Card>
 
-                <Note data-test="prices-next">{t(`${C}.page.prices_next`)}</Note>
+                <PricesCard page={page} carrierName={name} />
+                <FreeShippingCard carrier={carrier} storeCode={storeCode} storeFreeAbove={page.storeFreeAbove} mayManage={page.mayManagePrices} currency={page.currency} decimals={page.decimals} />
             </div>
 
             {dialog === 'edit' ? (
@@ -140,5 +153,180 @@ export default function Show({ carrier, countryName, mayManage, storeCode }: Car
             ) : null}
             {dialog === 'delete' ? <DeleteCarrierDialog carrier={carrier} name={name} storeCode={storeCode} fromPage open onOpenChange={close} returnFocusTo={opener} /> : null}
         </AdminLayout>
+    );
+}
+
+type PriceAction = { action: 'add' } | { action: 'edit' | 'delete'; group: PriceGroupData } | null;
+
+/** The carrier's prices (R1): each its amount and its places as chips (R9), Edit and Delete for a price manager. */
+function PricesCard({ page, carrierName }: { page: CarrierPage; carrierName: string }) {
+    const t = useTranslator();
+    const [action, setAction] = useState<PriceAction>(null);
+    const opener = useRef<HTMLElement | null>(null);
+    const close = (open: boolean) => (open ? undefined : setAction(null));
+    const add = (trigger: HTMLElement) => {
+        opener.current = trigger;
+        setAction({ action: 'add' });
+    };
+
+    return (
+        <Card className="material-base" data-test="prices">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-heading-16 text-ink">{t(`${P}.title`)}</CardTitle>
+                {page.mayManagePrices && page.prices.length > 0 ? (
+                    <ActionButton type="button" variant="outline" size="sm" onClick={(event) => add(event.currentTarget)} data-test="add-price">
+                        {t(`${P}.add`)}
+                    </ActionButton>
+                ) : null}
+            </CardHeader>
+            <CardContent>
+                {page.prices.length === 0 ? (
+                    <Empty className="border border-dashed border-line" data-test="prices-empty">
+                        <EmptyHeader>
+                            <EmptyDescription className="text-copy-14 text-ink-muted">{t(`${P}.empty`)}</EmptyDescription>
+                        </EmptyHeader>
+                        {page.mayManagePrices ? (
+                            <EmptyContent>
+                                <ActionButton type="button" onClick={(event) => add(event.currentTarget)} data-test="add-price">
+                                    {t(`${P}.add`)}
+                                </ActionButton>
+                            </EmptyContent>
+                        ) : null}
+                    </Empty>
+                ) : (
+                    <ul className="divide-y divide-line">
+                        {page.prices.map((group) => (
+                            <PriceRow
+                                key={group.id}
+                                group={group}
+                                mayManage={page.mayManagePrices}
+                                open={(next, trigger) => {
+                                    opener.current = trigger;
+                                    setAction({ action: next, group });
+                                }}
+                            />
+                        ))}
+                    </ul>
+                )}
+            </CardContent>
+
+            {action !== null && action.action !== 'delete' ? (
+                <Suspense fallback={null}>
+                    <PriceDialog
+                        // A new dialog for another price: what was ticked for one never carries to the next.
+                        key={action.action === 'add' ? 'add' : action.group.id}
+                        carrierId={page.carrier.id}
+                        carrierName={carrierName}
+                        storeCode={page.storeCode}
+                        countryName={page.countryName}
+                        group={action.action === 'add' ? null : action.group}
+                        groups={page.prices}
+                        version={page.pricesVersion}
+                        currency={page.currency}
+                        decimals={page.decimals}
+                        open
+                        onOpenChange={close}
+                        onOpenGroup={(id) => {
+                            const found = page.prices.find((each) => each.id === id);
+
+                            if (found !== undefined) {
+                                setAction({ action: 'edit', group: found });
+                            }
+                        }}
+                        returnFocusTo={opener}
+                    />
+                </Suspense>
+            ) : null}
+            {action !== null && action.action === 'delete' ? (
+                <DeletePriceDialog group={action.group} carrierId={page.carrier.id} carrierName={carrierName} storeCode={page.storeCode} version={page.pricesVersion} onOpenChange={close} returnFocusTo={opener} />
+            ) : null}
+        </Card>
+    );
+}
+
+function PriceRow({ group, mayManage, open }: { group: PriceGroupData; mayManage: boolean; open: (action: 'edit' | 'delete', trigger: HTMLElement | null) => void }) {
+    const t = useTranslator();
+    const more = useRef<HTMLButtonElement>(null);
+
+    return (
+        <li className="grid gap-2 py-3 sm:grid-cols-[8rem_1fr_auto] sm:items-start" data-test={`price-${group.id}`}>
+            <span className="text-label-14 text-ink" data-test="price-amount">
+                <AmountText amount={group.amount} />
+            </span>
+            <PlaceChips places={group.places} />
+            {mayManage ? (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <MoreButton ref={more} name={t(`${P}.actions`, { amount: group.amount.text })} data-test={`price-actions-${group.id}`} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-48">
+                        <DropdownMenuItem onSelect={() => open('edit', more.current)} data-test="edit-price">
+                            {t(`${P}.edit`)}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={() => open('delete', more.current)} data-test="delete-price">
+                            {t(`${P}.delete`)}
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ) : null}
+        </li>
+    );
+}
+
+/** Delete Price (R8): what follows, no typed name - a price is quickly made again. */
+function DeletePriceDialog({
+    group,
+    carrierId,
+    carrierName,
+    storeCode,
+    version,
+    onOpenChange,
+    returnFocusTo,
+}: {
+    group: PriceGroupData;
+    carrierId: string;
+    carrierName: string;
+    storeCode: string;
+    version: string;
+    onOpenChange: (open: boolean) => void;
+    returnFocusTo: React.RefObject<HTMLElement | null>;
+}) {
+    const t = useTranslator();
+    const { errors, locale } = usePage<SharedProps>().props;
+    const [busy, setBusy] = useState(false);
+    const [refused, setRefused] = useState(false);
+    const [seen] = useState(version);
+    const stale = refused && errors.stale !== undefined;
+
+    return (
+        <PanelDialog
+            destructive
+            open
+            onOpenChange={onOpenChange}
+            returnFocusTo={returnFocusTo}
+            title={t(`${P}.delete_title`, { amount: group.amount.minor === 0 ? t(`${P}.free`) : group.amount.text })}
+            description={t(`${P}.delete_body`, { count: figure(locale, group.places.length), carrier: carrierName })}
+            busy={busy}
+            confirm={
+                <ActionButton
+                    variant="destructive"
+                    loading={busy}
+                    disabledReason={stale ? t(`${P}.stale`) : undefined}
+                    onClick={() =>
+                        router.post(
+                            `${LIST}/${carrierId}/prices/${group.id}/delete`,
+                            { store: storeCode, version: seen },
+                            { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onError: () => setRefused(true), onSuccess: () => onOpenChange(false) },
+                        )
+                    }
+                    data-test="confirm-delete-price"
+                >
+                    {t(`${P}.delete_confirm`)}
+                </ActionButton>
+            }
+        >
+            {stale ? <StaleNote onReload={() => onOpenChange(false)} /> : null}
+        </PanelDialog>
     );
 }

@@ -37,9 +37,11 @@ uses(RefreshDatabase::class);
 // reads are three (the carriers, the store's countries, the address countries) - plus the logos' one read when
 // any has a logo; the rest is the panel's frame (the session, the menu and its counts), the same on every page.
 // Plus one from stage 7 step 4 (2026-10-30): the Carriers entry's count of places no carrier serves reads its
-// kept count, one query (shipping.md §1.6).
-const CARRIERS_SCREEN_LIST_QUERIES = 39;
-const CARRIERS_SCREEN_PAGE_QUERIES = 38;
+// kept count, one query (shipping.md §1.6). Then part 2 of the screens (2026-10-30): the list reads the places
+// no carrier serves and the store-wide free-shipping amount (43); a carrier's page its prices and that amount
+// (41 with no price; PricesScreensTest pins it with prices).
+const CARRIERS_SCREEN_LIST_QUERIES = 43;
+const CARRIERS_SCREEN_PAGE_QUERIES = 41;
 
 beforeEach(function () {
     // The sweep of old sessions runs on 2 requests in 100 (config/session.php) and adds a DELETE: off, so
