@@ -76,6 +76,5 @@ return [
         'website' => 'Website',
         'tracking' => 'Tracking link',
         'none' => 'None',
-        'prices_next' => 'Prices come with the next step of the shipping screens.',
     ],
 ];

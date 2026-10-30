@@ -14,6 +14,7 @@ import { tone } from '@/lib/tones';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '@/pages/Catalog/Admin/SortableList';
 import type { CarrierCountryData, CarrierData, CarriersPage } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
 import { C, CarrierLogo, CarrierSwitch, DeleteCarrierDialog, LIST, useCarrierName, useOtherName } from './parts';
+import { P, StoreFreeCard, UncoveredPanel } from './prices';
 
 // The add and edit dialog - its form, its checks as typed, the logo box - loads when it is first opened,
 // not with the page, which the drag handles' code shares (frontend.md §5, the page budget).
@@ -41,6 +42,8 @@ export default function Index(page: CarriersPage) {
             <div className="grid gap-6">
                 <StoreFilter stores={page.stores} value={page.storeCode} />
                 <FormError />
+                {/* Part 2: the store-wide free-shipping amount, over every carrier's own (R12). */}
+                <StoreFreeCard storeCode={page.storeCode} storeFreeAbove={page.storeFreeAbove} mayManage={page.mayManagePrices} currency={page.currency} decimals={page.decimals} />
 
                 {page.countries.map((country) => (
                     <CountrySection
@@ -186,6 +189,9 @@ function CountrySection({ country, page, open }: { country: CarrierCountryData; 
                 </SortableGroups>
                 </>
             )}
+
+            {/* Part 2: what nothing switched on serves in this country, the biggest place each time (R13). */}
+            <UncoveredPanel countryName={country.name} places={country.uncovered} />
         </section>
     );
 }
@@ -242,6 +248,7 @@ function Row({
                             )}
                         </span>
                         {other !== '' && other !== name ? <span className="truncate text-copy-13 text-ink-muted">{other}</span> : null}
+                        <FreeAbove carrier={carrier} page={page} />
                     </div>
                 </div>
             </TableCell>
@@ -295,6 +302,7 @@ function Card({ carrier, page, first, last, toTop, toBottom, open }: RowProps) {
                         {carrier.active ? null : <Badge className={tone('gray-subtle')}>{t(`${C}.off`)}</Badge>}
                     </span>
                     {other !== '' && other !== name ? <span className="break-words text-copy-13 text-ink-muted">{other}</span> : null}
+                    <FreeAbove carrier={carrier} page={page} />
                 </div>
                 {page.mayManage ? <RowActions carrier={carrier} name={name} first={first} last={last} toTop={toTop} toBottom={toBottom} open={open} test={`carrier-card-actions-${carrier.id}`} /> : null}
             </div>
@@ -355,5 +363,17 @@ export function Contact({ carrier }: { carrier: CarrierData }) {
                 </a>
             ) : null}
         </div>
+    );
+}
+
+/** "Free above :amount" under a carrier's name when one applies - the store-wide amount first (R11, R12). */
+function FreeAbove({ carrier, page }: { carrier: CarrierData; page: CarriersPage }) {
+    const t = useTranslator();
+    const amount = page.storeFreeAbove ?? carrier.freeAbove;
+
+    return amount === null ? null : (
+        <span className="text-copy-13 text-ink-muted" data-test="carrier-free-above">
+            {t(`${P}.freeship.row`, { amount: amount.text })}
+        </span>
     );
 }
