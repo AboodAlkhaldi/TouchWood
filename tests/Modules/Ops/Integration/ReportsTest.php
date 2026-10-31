@@ -63,7 +63,7 @@ use function Pest\Laravel\seed;
 /*
 | The reports (ops.md §1.10, §3, §7, §8): revenue against the orders counted by hand - a cancelled or
 | rejected order never counts, a refund comes off on the day its return was asked, the waiting ones in a
-| second figure, VAT waiting for Sales; every store's report with one total per currency and the switched-off
+| second figure, VAT net of the refunds' VAT; every store's report with one total per currency and the switched-off
 | stores marked; product sales, stock, searches, favourites; who may read which; the days refused.
 |
 | Every helper here is named after this file's subject: a Pest file's functions are global.
@@ -114,7 +114,6 @@ it('counts revenue as the orders counted by hand: the cancelled and rejected lef
     reportsReader();
 
     $preview = Rx::preview('revenue', Fx::storeId('sa'), $today, $today);
-    $waits = 'Waits for Sales (VAT of refunds)';
     $paid = (int) $order?->paid_minor;
     $time = CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d H:i');
 
@@ -124,19 +123,21 @@ it('counts revenue as the orders counted by hand: the cancelled and rejected lef
         ->and([$preview->report->title, $preview->report->subtitle, $preview->report->locale, $preview->report->filename])
         ->toBe(['Revenue', "Saudi Arabia · {$today} to {$today}", 'en', "revenue-sa-{$today}-{$today}.xlsx"])
         // One order counts: 250.00 sold, 100.00 refunded, 50.00 waiting - 150.00, and 100.00 if the waiting go through.
+        // Its VAT 37.50 less the 15.00 refunded is 22.50, and 15.00 if the waiting 7.50 goes through too.
         ->and(Rx::rows($preview))->toBe([
-            ['Saudi Arabia', $today, 'SAR', 1, $money($goods - 100_00), $money($goods - 150_00), $waits, $money((int) $order?->shipping_fee_minor), '100.00', '50.00'],
-            ['Total', null, 'SAR', 1, $money($goods - 100_00), $money($goods - 150_00), $waits, $money((int) $order?->shipping_fee_minor), '100.00', '50.00'],
+            ['Saudi Arabia', $today, 'SAR', 1, '150.00', '100.00', '22.50', '15.00', '0.00', '100.00', '50.00'],
+            ['Total', null, 'SAR', 1, '150.00', '100.00', '22.50', '15.00', '0.00', '100.00', '50.00'],
         ])
-        ->and($goods)->toBe(250_00)
+        ->and([$goods, (int) $order?->vat_minor, (int) $order?->shipping_fee_minor])->toBe([250_00, 37_50, 0])
+        ->and($preview->report->sheets[0]->notes)->toContain('VAT is the goods\' VAT less the VAT of the refunds of the returns asked that day: "VAT if the waiting refunds go through" takes the VAT of the waiting ones off too.')
         // The money received, by the day it arrived and by way; then the total per currency.
         ->and(Rx::rows($preview, 1))->toBe([
             ['Saudi Arabia', $today, 'SAR', 'Bank transfer', 1, $money($paid), 0, '0.00'],
             ['Total', null, 'SAR', 'Bank transfer', 1, $money($paid), 0, '0.00'],
         ])
         ->and($paid)->toBeGreaterThan(0)
-        // The return still waiting, by return and order number - no customer.
-        ->and(Rx::rows($preview, 2))->toBe([['Saudi Arabia', $today, $day['open'], $day['number'], 'SAR', '50.00']])
+        // The return still waiting, by return and order number - no customer - with its VAT.
+        ->and(Rx::rows($preview, 2))->toBe([['Saudi Arabia', $today, $day['open'], $day['number'], 'SAR', '50.00', '7.50']])
         // By category waits for Sales' refunds by product (owner, 2026-10-30): no figures at all.
         ->and(Rx::rows($preview, 3))->toBe([])
         ->and($preview->report->sheets[3]->notes[1])->toStartWith('Waits for Sales');
@@ -156,8 +157,9 @@ it('sums the days of a month, and leaves the waiting figure empty when nothing w
     $byMonth = Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), '2026-09-01', '2026-09-30', 'month'));
 
     expect(Rx::preview('revenue', Fx::storeId('sa'), '2026-09-01', '2026-09-30')->report->sheets[0]->notes[0])->toStartWith('Revenue is what')
-        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4], $row[5]], $byDay))->toBe([['2026-09-03', 1, '250.00', null], ['2026-09-20', 1, '250.00', null], [null, 2, '500.00', null]])
-        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4]], $byMonth))->toBe([['2026-09', 2, '500.00'], [null, 2, '500.00']]);
+        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4], $row[5], $row[6], $row[7]], $byDay))
+        ->toBe([['2026-09-03', 1, '250.00', null, '37.50', null], ['2026-09-20', 1, '250.00', null, '37.50', null], [null, 2, '500.00', null, '75.00', null]])
+        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4], $row[6]], $byMonth))->toBe([['2026-09', 2, '500.00', '75.00'], [null, 2, '500.00', '75.00']]);
 });
 
 it('gives every store\'s report each store in its own days, the off ones marked, then one total per currency - a super admin\'s alone', function () {
@@ -321,8 +323,9 @@ it('writes the reader\'s language: Arabic headers and words, the sheet right to 
         ->and($sheet[0])->toBe(['الإيرادات'])
         ->and($sheet[1][0])->toBe("السعودية · من {$today} إلى {$today}")
         ->and($sheet[2][0])->toStartWith('تشمل الفترة اليوم: يُحتسب حتى ')
-        ->and($sheet[7])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد بعد خصم المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
-        ->and($sheet[8][6])->toBe('بانتظار وحدة المبيعات (ضريبة المبالغ المستردة)')
+        ->and($sheet[7])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد بعد خصم المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الضريبة بعد خصم المبالغ المستردة المنتظرة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
+        // VAT net of the refund's, and if the waiting one goes through: figures, never words.
+        ->and([$sheet[8][6], $sheet[8][7]])->toBe([22.5, 15])
         ->and($file['xml']['sheet1'])->toContain('rightToLeft="true"');
 });
 
@@ -343,7 +346,7 @@ it('writes numbers as numbers, amounts with two decimals, days as dates, and a p
         ->and($row[0])->toBe('Saudi Arabia')
         ->and($row[1])->toBeInstanceOf(DateTimeImmutable::class)
         ->and($row[1]->format('Y-m-d'))->toBe($today)
-        ->and([$row[3], $row[4], $row[8], $row[9]])->toBe([1, 150, 100, 50])
+        ->and([$row[3], $row[4], $row[6], $row[7], $row[9], $row[10]])->toBe([1, 150, 22.5, 15, 100, 50])
         ->and($revenue['xml']['styles'])->toContain('<xf numFmtId="4"')
         ->and($revenue['xml']['styles'])->toContain('formatCode="yyyy-mm-dd"')
         ->and($revenue['xml']['sheet1'])->toContain('rightToLeft="false"')
@@ -529,13 +532,14 @@ it('sums two stores of one currency into one total, never converted', function (
     $sheets = app(RevenueSheets::class)->sheets([$store('01jbxqz2y8k4n6p9r3t5v7w1xa', 'one', 'One'), $store('01jbxqz2y8k4n6p9r3t5v7w1xb', 'two', 'Two')], $period, false, new ReportWords(app('translator'), 'en'));
     $rows = [];
     foreach ($sheets[0]->rows as $row) {
-        $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, [$row[0], $row[2], $row[3], $row[4], $row[8]]);
+        $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, [$row[0], $row[2], $row[3], $row[4], $row[6], $row[7], $row[9]]);
     }
 
     expect($rows)->toBe([
-        ['One', 'SAR', 2, '250.00', '50.00'],
-        ['Two', 'SAR', 2, '250.00', '50.00'],
-        ['Total', 'SAR', 4, '500.00', '100.00'],
+        // 300.00 less 50.00 refunded; VAT 45.00 less the refund's 7.50; nothing waits.
+        ['One', 'SAR', 2, '250.00', '37.50', null, '50.00'],
+        ['Two', 'SAR', 2, '250.00', '37.50', null, '50.00'],
+        ['Total', 'SAR', 4, '500.00', '75.00', null, '100.00'],
     ]);
 });
 
@@ -557,35 +561,53 @@ it('reads a preview in a fixed number of queries', function () {
 
     $counts = [$count('revenue', Fx::storeId('sa')), $count('revenue', 'all'), $count('product-sales', Fx::storeId('sa'))];
 
-    // Measured 2026-10-30, a one-day range. Revenue, one store: the reader (1), revenueByDay (4), moneyOn
-    // over the range (2) and for its one day (2) = 9; each further day with money adds moneyOn's 2. Every
-    // store: the reader, revenueByDay (4 for the store with orders, 2 for each of the two without), moneyOn
-    // over the range for each (6), and the day for the one that moved money (2) = 17. Product sales: the
-    // reader, productSales (1), the names (3) = 5.
-    expect($counts)->toBe([9, 17, 5]);
+    // Measured 2026-10-31, a one-day range. Revenue, one store: the reader (1), revenueByDay (4), moneyByDay
+    // (1) = 6, however many days. Every store: the reader, revenueByDay (4 for the store with orders, 2 for
+    // each of the two without), moneyByDay for each (3) = 12. Product sales: the reader, productSales (1),
+    // the names (3) = 5.
+    expect($counts)->toBe([6, 12, 5]);
 });
 
-it('reads money received by month over 93 days, and says so, until Sales gives it by day', function () {
+it('reads money received day by day over any range in one read, and sums a month\'s days when asked by month', function () {
+    // Today's payment, and two copies on the 3rd and the 17th of the month before last (the records are never
+    // changed, so the copies are inserted as Sales' own test does).
     Rx::aDay();
+    $payment = (array) DB::table('sales.payments')->first();
+    $month = CarbonImmutable::now('Asia/Riyadh')->startOfMonth()->subMonthsNoOverflow(2)->format('Y-m');
+    foreach (['-03', '-17'] as $day) {
+        DB::table('sales.payments')->insert([...$payment, 'id' => strtolower((string) Str::ulid()), 'happened_on' => $month.$day, 'request_id' => (string) Str::uuid()]);
+    }
+    $amount = static fn (int $times): string => number_format($times * (int) $payment['amount_minor'] / 100, 2, '.', '');
+    $today = reportsToday();
     reportsReader();
-    $to = CarbonImmutable::now('Asia/Riyadh');
-    $from = static fn (int $days): string => $to->subDays($days - 1)->format('Y-m-d');
-    $months = count(array_unique([$to->format('Y-m'), ...array_map(static fn (int $back): string => $to->subDays($back)->format('Y-m'), range(1, 99))]));
+    $from = CarbonImmutable::now('Asia/Riyadh')->subDays(119)->format('Y-m-d');
 
     DB::flushQueryLog();
     DB::enableQueryLog();
-    $long = Rx::preview('revenue', Fx::storeId('sa'), $from(100), $to->format('Y-m-d'));
-    $money = $long->report->sheets[1];
-    $rows = Rx::rows($long, 1);
+    $byDay = Rx::preview('revenue', Fx::storeId('sa'), $from, $today);
+    $rows = Rx::rows($byDay, 1);
     DB::disableQueryLog();
-    $paymentReads = count(array_filter(DB::getQueryLog(), static fn (array $query): bool => str_contains((string) $query['query'], '"sales"."payments"')));
-    $short = Rx::preview('revenue', Fx::storeId('sa'), $from(93), $to->format('Y-m-d'))->report->sheets[1];
+    $moneyReads = count(array_filter(DB::getQueryLog(), static fn (array $query): bool => str_contains((string) $query['query'], 'sales.payments') || str_contains((string) $query['query'], '"sales"."payments"')));
+    $byMonth = Rx::preview('revenue', Fx::storeId('sa'), $from, $today, 'month');
+    $row = static fn (array $one): array => [$one[1], $one[3], $one[4], $one[5]];
 
-    expect([$long->report->sheets[0]->columns[1]->key, $money->columns[1]->key])->toBe(['day', 'month'])
-        ->and($money->notes)->toContain('Over 93 days, money received is shown by month: Sales does not yet give it by day.')
-        ->and(array_map(static fn (array $row): array => [$row[1], $row[3], $row[4]], $rows))->toBe([[$to->format('Y-m'), 'Bank transfer', 1], [null, 'Bank transfer', 1]])
-        // The whole range once, then each month: never a read a day.
-        ->and($paymentReads)->toBe(1 + $months)
-        ->and($short->columns[1]->key)->toBe('day')
-        ->and($short->notes)->not->toContain('Over 93 days, money received is shown by month: Sales does not yet give it by day.');
+    // 120 days, each day with money its own row - never by month unless asked, and no note about it.
+    expect($byDay->report->sheets[1]->columns[1]->key)->toBe('day')
+        ->and(array_map($row, $rows))->toBe([
+            ["{$month}-03", 'Bank transfer', 1, $amount(1)],
+            ["{$month}-17", 'Bank transfer', 1, $amount(1)],
+            [$today, 'Bank transfer', 1, $amount(1)],
+            [null, 'Bank transfer', 3, $amount(3)],
+        ])
+        // One read of the money, however many days.
+        ->and($moneyReads)->toBe(1)
+        ->and(array_slice($byDay->report->sheets[1]->notes, 1))->toBe(['The money that moved, by the day it moved: payments in and refunds out, by way. Test payments never count.'])
+        // By month: the month's two days summed.
+        ->and($byMonth->report->sheets[1]->columns[1]->key)->toBe('month')
+        ->and(array_map($row, Rx::rows($byMonth, 1)))->toBe([
+            [$month, 'Bank transfer', 2, $amount(2)],
+            [substr($today, 0, 7), 'Bank transfer', 1, $amount(1)],
+            [null, 'Bank transfer', 3, $amount(3)],
+        ])
+        ->and((int) $payment['amount_minor'])->toBe(287_50);
 });

@@ -48,11 +48,14 @@ final readonly class StoreDayReport
 
         // 2. Sales.
         public SalesCountsDto $counts,
+        /** The day's VAT less the VAT of the refunds asked today and completed (owner, 2026-10-30). */
         public Money $vat,
         public Money $shipping,
         public Money $refunds,
         /** What the returns asked today and not finished would refund, estimated (§1.10: a second figure). */
         public Money $waitingRefundsTotal,
+        /** The goods' VAT those waiting refunds would return, estimated the same way. */
+        public Money $waitingRefundsVat,
         public array $waitingRefunds,
 
         // 3. Money received.
