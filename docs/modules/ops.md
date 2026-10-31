@@ -68,7 +68,9 @@ the recipient's language (round 1 #23). Every number in Latin digits (owner, 202
   order, the question, the report), the time, **read or unread**.
 - Opening an entry marks it read; "Mark all as read" marks every entry. The bell shows the unread count.
 - A customer's inbox is **per store** — the shop shows the store's own entries. A staff member's inbox
-  shows the stores they may view (access.md amendment 64).
+  shows the stores they may view (access.md amendment 64), read through `AccessApi::staffStores` (access.md
+  amendment 88, built in Ops step 4): every store they are assigned to, on or off (owner, 2026-10-30); a Super
+  Admin every store.
 - Entries older than **12 months** are deleted (owner, round 3 #14).
 
 ### 1.3 Marketing consent (an Access amendment)
@@ -355,7 +357,7 @@ go (§9.2).
 | **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | **Built (#262, sync.md amendment 1):** `readsAndProblemsPerDay(stores, fromDay, toDay, until)` → `list<SyncDayDto>` |
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
 | **Payments** (Stage 7 session) | **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; **new** `GatewayKeyExpiring`, `GatewayKeyRejected`, `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
-| **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84) |
+| **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows |
 | **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
 
 ## 3 · Use cases and permissions

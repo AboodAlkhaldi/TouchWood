@@ -6,6 +6,7 @@ namespace Modules\Access\Application\Query\StoresForStaff;
 
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
+use Modules\Access\Domain\ValueObject\StoreChoice;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\ActorContext;
@@ -51,7 +52,31 @@ final readonly class StoresForStaff
             return $this->platform->allStores();
         }
 
-        $choice = $this->grants->forStaff($actor->id)?->stores;
+        return $this->onAndCovered($this->grants->forStaff($actor->id)?->stores);
+    }
+
+    /**
+     * Another module's question about one staff member (amendment 88; Ops' staff bell), read for
+     * the id given rather than for whoever is signed in: a Super Admin every store; anyone else
+     * **every store their assignment covers, on or off** (owner, 2026-10-30) - unlike the panel's
+     * menu above, which offers only the ones that are on. None for an account that is not active -
+     * their grants are not used while it is not - nor for an id no staff member has.
+     *
+     * @return list<StoreDto> in the stores' own order
+     */
+    public function assignedTo(string $staffId): array
+    {
+        $staff = $this->grants->forStaff($staffId);
+
+        if ($staff === null || ! $staff->isActive()) {
+            return [];
+        }
+
+        if ($staff->superAdmin) {
+            return $this->platform->allStores();
+        }
+
+        $choice = $staff->stores;
 
         if ($choice === null) {
             return [];
@@ -59,7 +84,7 @@ final readonly class StoresForStaff
 
         return array_values(array_filter(
             $this->platform->allStores(),
-            static fn (StoreDto $store): bool => $store->isActive && $choice->covers(StoreId::fromString($store->id)),
+            static fn (StoreDto $store): bool => $choice->covers(StoreId::fromString($store->id)),
         ));
     }
 
@@ -77,5 +102,22 @@ final readonly class StoresForStaff
         }
 
         return null;
+    }
+
+    /**
+     * The stores a store row covers that are on; none without a row (no role).
+     *
+     * @return list<StoreDto>
+     */
+    private function onAndCovered(?StoreChoice $choice): array
+    {
+        if ($choice === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->platform->allStores(),
+            static fn (StoreDto $store): bool => $store->isActive && $choice->covers(StoreId::fromString($store->id)),
+        ));
     }
 }

@@ -7,11 +7,13 @@ namespace Modules\Access\Public\Contracts;
 use DateTimeImmutable;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Access\Public\Dto\CustomerDto;
+use Modules\Access\Public\Dto\StaffAlertRecipientDto;
 use Modules\Access\Public\Dto\StaffDisplayNameDto;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Access\Public\Dto\StaffNotificationPreferenceDto;
 use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Enums\MarketingConsentSource;
+use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -97,6 +99,33 @@ interface AccessApi
      * @return list<StaffNotificationPreferenceDto>
      */
     public function staffNotificationPreferences(string $staffId): array;
+
+    /**
+     * For Ops (amendment 80; ops.md §1.4): who receives a staff alert of `$topic` in `$store`, in one
+     * query - the **active** staff who hold the per-store `$permission` there, as the permission
+     * check would answer (roles nest: an admin role holds what it is given, a Super Admin everything;
+     * an admin-only permission no staff role; a reserved one, or one that is not a role's, Super
+     * Admins only), each with their switches for the topic (no row reads as its default, amendment 19) and
+     * their critical-SMS switch (amendment 81). A Super Admin is never hidden from this read, which
+     * no person sees. **An off store's staff are alerted all the same.**
+     *
+     * @return list<StaffAlertRecipientDto>
+     *
+     * @throws \InvalidArgumentException when no module declares `$permission`, or it is an automatic
+     *                                   staff permission or a store-free one that is not reserved: an
+     *                                   alert belongs to one store, and lands only in bells that show it
+     */
+    public function staffToAlert(StoreId $store, StaffNotificationTopic $topic, string $permission): array;
+
+    /**
+     * For Ops' staff bell (amendment 88; ops.md §1.2): the stores the staff member's bell shows - a
+     * Super Admin every store; anyone else **every store their assignment covers, on or off** (owner,
+     * 2026-10-30; the panel's store menu offers only the ones that are on). None for an account that
+     * is not active, has no role, or is not a staff member's.
+     *
+     * @return list<StoreId> in the stores' own order
+     */
+    public function staffStores(string $staffId): array;
 
     /**
      * One address by its id, whoever it belongs to: this read is not scoped to a customer, so a

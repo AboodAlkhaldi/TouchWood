@@ -50,4 +50,15 @@ final readonly class DatabaseNotificationPreferenceRepository implements Notific
             ['email', 'panel'],
         );
     }
+
+    public function criticalSms(string $staffId): bool
+    {
+        // The switch is a column of the account (amendment 81), not a topic: it has no email or panel.
+        return (bool) ($this->db->table('access.staff_users')->where('id', $staffId)->value('critical_sms') ?? true);
+    }
+
+    public function setCriticalSms(string $staffId, bool $on): void
+    {
+        $this->db->table('access.staff_users')->where('id', $staffId)->update(['critical_sms' => $on]);
+    }
 }

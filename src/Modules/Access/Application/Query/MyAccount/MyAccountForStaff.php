@@ -70,6 +70,7 @@ final readonly class MyAccountForStaff
             // go on claiming an address is on its way.
             pendingEmail: $pending === null || $pending->isExpired(CarbonImmutable::now()) ? null : $pending->newEmail->value,
             notifications: $this->preferences->of($staffId),
+            criticalSms: $staff->isSuperAdmin() ? $this->preferences->criticalSms($staffId) : null,
         );
     }
 

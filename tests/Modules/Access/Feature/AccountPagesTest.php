@@ -180,10 +180,10 @@ describe('the account screen', function () {
             $topics = $inertia->toArray()['props']['notifications'];
 
             expect(array_column($topics, 'topic'))
-                ->toBe(['NEW_ORDERS', 'COMPANY_APPLICATIONS', 'LOW_STOCK', 'CAMPAIGN_EXPIRY', 'SYNC_PROBLEMS', 'PAYMENT_PROBLEMS'])
+                ->toBe(['NEW_ORDERS', 'COMPANY_APPLICATIONS', 'LOW_STOCK', 'CAMPAIGN_EXPIRY', 'SYNC_PROBLEMS', 'PAYMENT_PROBLEMS', 'RETURNS', 'PAYMENTS_TO_CHECK'])
                 // A new staff member's: every in-panel toggle on, every email toggle off.
-                ->and(array_column($topics, 'panel'))->toBe([true, true, true, true, true, true])
-                ->and(array_column($topics, 'email'))->toBe([false, false, false, false, false, false]);
+                ->and(array_column($topics, 'panel'))->toBe([true, true, true, true, true, true, true, true])
+                ->and(array_column($topics, 'email'))->toBe([false, false, false, false, false, false, false, false]);
         });
     });
 
@@ -512,6 +512,32 @@ describe('B4 - the notifications', function () {
 
         $response->assertRedirect();
         expect(AdminBrowser::formError($response))->not->toBeNull();
+    });
+});
+
+describe('the critical-SMS switch (amendment 81)', function () {
+    it('is on the page for a Super Admin, on by default, and saves as it is flipped', function () {
+        $superAdminId = Fx::staff(StaffStatus::Active, superAdmin: true);
+        $browser = accountSignIn($superAdminId);
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', true));
+
+        $response = $browser->post('/admin/account/critical-sms', ['critical_sms' => false]);
+        $response->assertRedirect('/admin/account?tab=notifications');
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', false));
+        expect(Fx::audits('access.staff_user.critical_sms_changed', $superAdminId))->toBe(1);
+    });
+
+    it('is not on anyone else\'s page, and refused when they post it anyway', function () {
+        [$browser, $staffId] = accountOrdinary();
+
+        $browser->get('/admin/account')->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('criticalSms', null));
+
+        $response = $browser->post('/admin/account/critical-sms', ['critical_sms' => false]);
+        $response->assertRedirect();
+        expect(accountFieldError($response, 'form'))->not->toBeNull()
+            ->and((bool) DB::table('access.staff_users')->where('id', $staffId)->value('critical_sms'))->toBeTrue();
     });
 });
 

@@ -97,6 +97,8 @@ return [
         'CAMPAIGN_EXPIRY' => 'الحملات التي توشك على الانتهاء',
         'SYNC_PROBLEMS' => 'مشاكل المزامنة',
         'PAYMENT_PROBLEMS' => 'مشاكل الدفع',
+        'RETURNS' => 'المرتجعات',
+        'PAYMENTS_TO_CHECK' => 'مدفوعات للمراجعة',
     ],
 
     /*

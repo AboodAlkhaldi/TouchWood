@@ -63,6 +63,12 @@ $staff = $this->access->staff($staffId);                                 // Acce
 // Which notifications they want, and where (Ops reads this before sending).
 $preferences = $this->access->staffNotificationPreferences($staffId);   // list<StaffNotificationPreferenceDto>
 
+// Who receives a staff alert in a store, with their switches for the topic - one query (amendment 80).
+$recipients = $this->access->staffToAlert($storeId, $topic, $permission); // list<StaffAlertRecipientDto>
+
+// The stores a staff member's bell shows: a Super Admin every store, anyone else every store assigned to them, on or off (amendment 88).
+$stores = $this->access->staffStores($staffId);                          // list<StoreId>
+
 // A customer, and whether they may order at all (their part of it: Sales adds the company's).
 $customer = $this->access->customer($customerId);                       // ?CustomerDto
 $mayOrder = $this->access->customerMayOrder($customerId);               // bool

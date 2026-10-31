@@ -18,4 +18,8 @@ enum StaffNotificationTopic: string
     case SyncProblems = 'SYNC_PROBLEMS';
     /** The payment gateway's key expires in 30, 7 or 1 days, or MyFatoorah refused it; Super Admins only (amendment 78). */
     case PaymentProblems = 'PAYMENT_PROBLEMS';
+    /** A customer asked for a return (amendment 82). */
+    case Returns = 'RETURNS';
+    /** A bank transfer unchecked 72 hours after its receipt, or a payment not accepted - a refund owed (amendment 84). */
+    case PaymentsToCheck = 'PAYMENTS_TO_CHECK';
 }
