@@ -63,7 +63,11 @@ final readonly class ConfirmRedemptionHandler
                 return;
             }
 
-            // Dropped first: the account's lots may expire again once it holds nothing more.
+            if ($held->accountId !== $locked->id) {
+                throw new LogicException('A hold re-read under another account\'s lock.');
+            }
+
+            // Dropped first: its kept points are then the ones this redemption spends (`HeldLots`).
             $this->holds->drop($orderId);
 
             if (! $this->ledger->redeem($locked, $orderId, $orderNumber, $held->currencyCode, $held->points, $held->discountMinor, $held->capPercent, $now, $held->reservedAt)) {

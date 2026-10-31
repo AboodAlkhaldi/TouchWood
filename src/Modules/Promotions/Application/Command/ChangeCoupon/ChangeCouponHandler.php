@@ -60,7 +60,9 @@ final readonly class ChangeCouponHandler
                     static fn (CouponRule $rule): bool => ! in_array("{$rule->kind->value} {$rule->target->value} {$rule->targetId}", $kept, true),
                 )));
 
-                if ($terms->maxUsesTotal !== null && $terms->maxUsesTotal < $coupon->usesTotal) {
+                // Below its uses only when lowered now: a coupon a paid hold took past its limit ("100 of 99",
+                // §9.6) may still be edited with the limit it has.
+                if ($terms->maxUsesTotal !== null && $terms->maxUsesTotal < $coupon->usesTotal && $terms->maxUsesTotal !== $coupon->maxUsesTotal) {
                     throw new CouponInUse;
                 }
 

@@ -39,24 +39,28 @@ final readonly class ConfirmCouponHandler
         $orderNumber = Inputs::orderNumber((string) $change->orderNumber);
         $this->caller->authorize($change->caller, $store);
 
-        $this->db->transaction(function () use ($store, $orderId, $orderNumber): void {
+        $seen = $this->coupons->reservationOf($orderId);
+
+        if ($seen === null) {
+            return;
+        }
+
+        if ($seen->storeId !== $store->value) {
+            throw new InvalidPromotionAttribute('store', 'not the order\'s store');
+        }
+
+        // The coupon's row first, then the hold's - the order a reserve and a delete lock them in, so a
+        // confirm never waits on one waiting on it.
+        $this->db->transaction(function () use ($store, $orderId, $orderNumber, $seen): void {
+            $coupon = $this->coupons->lock($store, $seen->couponId);
             $held = $this->coupons->reservationOf($orderId, lock: true);
 
-            if ($held === null) {
+            // Released, confirmed, or gone with its deleted coupon meanwhile: nothing to do.
+            if ($coupon === null || $held === null) {
                 return;
             }
 
-            if ($held->storeId !== $store->value) {
-                throw new InvalidPromotionAttribute('store', 'not the order\'s store');
-            }
-
-            // Its row is locked before the count moves, as every use's is.
-            $coupon = $this->coupons->lock($store, $held->couponId);
-
-            if ($coupon !== null) {
-                $this->coupons->recordUse($coupon, $held->customerId, $orderId, $orderNumber, $held->discountMinor, CarbonImmutable::now());
-            }
-
+            $this->coupons->recordUse($coupon, $held->customerId, $orderId, $orderNumber, $held->discountMinor, CarbonImmutable::now());
             $this->coupons->dropReservation($orderId);
         });
     }

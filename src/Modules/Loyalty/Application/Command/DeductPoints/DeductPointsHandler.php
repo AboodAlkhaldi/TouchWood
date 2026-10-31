@@ -70,10 +70,10 @@ final readonly class DeductPointsHandler
             }
 
             // Held for an online payment still in progress: untouchable until it ends (§9.6, gap 7.2).
-            $held = $this->holds->heldBy($account->id);
+            $free = $this->holds->freePoints($account->id, $now);
 
-            if ($points > $account->balance - $held) {
-                throw new PointsHeld(max(0, $account->balance - $held), $held);
+            if ($points > $free) {
+                throw new PointsHeld($free, $this->holds->heldBy($account->id));
             }
 
             $entry = $this->ledger->deduct($account, $points, $staffId, $reason, $now);

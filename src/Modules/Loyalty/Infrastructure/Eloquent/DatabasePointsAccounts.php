@@ -126,16 +126,13 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
      * as one EXPIRED entry, dated the moment of the write, with its movement, and the balance falls
      * by them. Answers the points expired; a lot already empty needs nothing.
      *
-     * Not while the account holds points for an online payment (loyalty.md §9.6): held points are spent
-     * as they stood when held, and what passed meanwhile expires at the release - a try lasts the hold
-     * limit at most.
+     * Points a hold keeps (loyalty.md §9.6, `HeldLots`) wait: its confirm spends them as they stood when
+     * held, and its release lets them expire then, as they would have - a try lasts the hold limit at
+     * most. Every other point of a dead lot expires as before.
      */
     private function expireDeadLots(PointsAccount $account, DateTimeImmutable $now): int
     {
-        if ($this->db->table('loyalty.redemption_holds')->where('account_id', $account->id)->exists()) {
-            return 0;
-        }
-
+        $kept = (new HeldLots($this->db))->of($account->id);
         $dead = $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
             ->where('points_left', '>', 0)
@@ -150,7 +147,11 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
 
         foreach ($dead as $row) {
             /** @var stdClass $row */
-            $points = (int) $row->points_left;
+            $points = (int) $row->points_left - ($kept[(int) $row->id] ?? 0);
+
+            if ($points <= 0) {
+                continue;
+            }
 
             $entry = $this->db->table('loyalty.entries')->insertGetId([
                 'account_id' => $account->id,
@@ -165,7 +166,7 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
                 'entry_id' => $entry,
                 'points' => -$points,
             ]);
-            $this->db->table('loyalty.lots')->where('id', (int) $row->id)->update(['points_left' => 0]);
+            $this->db->table('loyalty.lots')->where('id', (int) $row->id)->decrement('points_left', $points);
 
             $expired += $points;
         }

@@ -96,7 +96,7 @@ final readonly class ReserveRedemptionHandler
 
             $mode = $programme->modeFor($change->audience);
             $redemption = RedemptionRules::work(
-                $programme, $mode, max(0, $account->balance - $this->holds->heldBy($account->id)),
+                $programme, $mode, $this->holds->freePoints($account->id, $now),
                 $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
             );
 

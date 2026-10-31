@@ -51,7 +51,7 @@ final readonly class SalesReads
         $netSubtotal = Inputs::amount($request->netSubtotal, $programme);
         $account = $this->accounts->find(Inputs::id($request->customerId, 'customer'), $store);
         // Free points only: those held for a payment in progress are spent by nothing else (§9.6).
-        $balance = $account === null ? 0 : max(0, $this->accounts->liveBalance($account, CarbonImmutable::now()) - $this->holds->heldBy($account->id));
+        $balance = $account === null ? 0 : $this->holds->freePoints($account->id, CarbonImmutable::now());
         $redemption = RedemptionRules::work(
             $programme, $programme->modeFor($request->audience), $balance, $request->pointsAsked, $netSubtotal,
         );

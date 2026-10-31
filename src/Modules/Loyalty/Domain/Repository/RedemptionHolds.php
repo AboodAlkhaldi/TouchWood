@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Loyalty\Domain\Repository;
 
+use DateTimeImmutable;
 use Modules\Loyalty\Domain\Model\RedemptionHold;
 
 /**
@@ -17,6 +18,12 @@ interface RedemptionHolds
 
     /** How many points the account holds for payments now. */
     public function heldBy(string $accountId): int;
+
+    /**
+     * The account's live points now that no hold keeps: what may be quoted, spent, held again or deducted
+     * - each hold keeps the points its confirm will spend, from the lots live when it was made.
+     */
+    public function freePoints(string $accountId, DateTimeImmutable $now): int;
 
     public function add(RedemptionHold $hold): void;
 

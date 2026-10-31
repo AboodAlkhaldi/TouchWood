@@ -45,6 +45,11 @@ final readonly class DatabaseRedemptionHolds implements RedemptionHolds
         return (int) $this->db->table(self::TABLE)->where('account_id', $accountId)->sum('points');
     }
 
+    public function freePoints(string $accountId, DateTimeImmutable $now): int
+    {
+        return (new HeldLots($this->db))->freePoints($accountId, $now);
+    }
+
     public function add(RedemptionHold $hold): void
     {
         $this->db->table(self::TABLE)->insert([

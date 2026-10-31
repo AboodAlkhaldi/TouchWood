@@ -213,8 +213,8 @@ final readonly class DatabasePointsLedger implements PointsLedger
      */
     private function spendable(PointsAccount $account, DateTimeImmutable $now): array
     {
-        /** @var list<stdClass> */
-        return $this->db->table('loyalty.lots')
+        /** @var list<stdClass> $lots */
+        $lots = $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
             ->where('points_left', '>', 0)
             ->where('expires_at', '>', Moment::of($now))
@@ -223,6 +223,20 @@ final readonly class DatabasePointsLedger implements PointsLedger
             ->lockForUpdate()
             ->get()
             ->all();
+
+        // What holds keep is spent by nothing but their own confirm, which drops its hold first (§9.6).
+        $kept = (new HeldLots($this->db))->of($account->id);
+        $free = [];
+
+        foreach ($lots as $lot) {
+            $lot->points_left = (int) $lot->points_left - ($kept[(int) $lot->id] ?? 0);
+
+            if ($lot->points_left > 0) {
+                $free[] = $lot;
+            }
+        }
+
+        return $free;
     }
 
     /** A change by hand's entry: no order, the staff member and the reason (§1.9). */
