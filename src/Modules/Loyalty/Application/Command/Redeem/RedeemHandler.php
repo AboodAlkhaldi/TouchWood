@@ -18,6 +18,7 @@ use Modules\Loyalty\Domain\Model\OrderPoints;
 use Modules\Loyalty\Domain\Model\PointsAccount;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Domain\Repository\RedemptionHolds;
 use Modules\Loyalty\Domain\Service\RedemptionRules;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Enums\RedemptionMode;
@@ -42,6 +43,7 @@ final readonly class RedeemHandler
         private AccessApi $access,
         private PointsAccounts $accounts,
         private PointsLedger $ledger,
+        private RedemptionHolds $holds,
     ) {}
 
     /**
@@ -106,7 +108,8 @@ final readonly class RedeemHandler
 
         $mode = $programme->modeFor($change->audience);
         $redemption = RedemptionRules::work(
-            $programme, $mode, $account->balance, $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
+            // Only free points: those held for a payment in progress are spent by nothing else (§9.6).
+            $programme, $mode, max(0, $account->balance - $this->holds->heldBy($account->id)), $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
         );
 
         // Refused now, or different: either way no longer what the customer saw (§7).

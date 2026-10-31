@@ -17,6 +17,10 @@ return [
         'title' => 'Your Points Discount Changed',
         'detail' => 'Your points discount changed since checkout worked it out. Check it and place the order again.',
     ],
+    'points_held' => [
+        'title' => 'Points Held for a Payment',
+        'detail' => 'Some of the customer\'s points are held for a payment in progress. Try again in a few minutes, or remove fewer.',
+    ],
     'deduction_too_large' => [
         'title' => 'Not Enough Points',
         'detail' => 'The customer doesn\'t have that many points. Remove fewer.',
