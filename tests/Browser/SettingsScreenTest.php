@@ -158,7 +158,7 @@ it('says in the Companies section whether bank transfer is on, and names no valu
     $empty();
 
     // An admin of one store who may change its store settings and its bank account (b2b.md amendment 32):
-    // only the Companies section shows.
+    // the Companies section shows, and Payments' transfer check hours (gap 8.3).
     $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE, B2BPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 
@@ -174,8 +174,11 @@ it('says in the Companies section whether bank transfer is on, and names no valu
 
     $page->assertSee('Companies')
         ->assertSee('Bank transfer: temporarily off — fill in all three to turn it on.')
-        // An empty default is "not set yet": no value in force to name (owner, 2026-09-29).
-        ->assertDontSee('is in force')
+        // An empty default is "not set yet": no value in force to name (owner, 2026-09-29). The Payments
+        // section shows too, since its transfer check hours are the store settings' (payments.md §5, gap
+        // 8.3): its default of 72 is the one value named in force.
+        ->assertSee('Not set; 72 is in force')
+        ->assertScript("! document.body.innerText.split('Not set; 72 is in force').join('').includes('is in force')")
         ->assertNoJavaScriptErrors();
 
     app(UpdateSettingHandler::class)->handle(new UpdateSetting(BankAccountSettings::IBAN, 'sa', 'GB82 WEST 1234 5698 7654 32'));
