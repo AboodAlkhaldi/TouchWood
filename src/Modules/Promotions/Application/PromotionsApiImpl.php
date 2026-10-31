@@ -222,6 +222,13 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         return $this->queries->assignedBy($assignmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
     }
 
+    public function couponCode(string $couponId): ?string
+    {
+        $store = $this->coupons->storeOf($couponId);
+
+        return $store === null ? null : $this->coupons->byId($store, $couponId)?->code;
+    }
+
     private function inStoreCurrency(StoreId $store, Money $goodsTotal): void
     {
         $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidPromotionAttribute('store', 'no such store');

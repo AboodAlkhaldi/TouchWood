@@ -101,6 +101,13 @@ interface PromotionsApi
     public function assignedCustomers(string $assignmentId, ?string $after, int $limit): array;
 
     /**
+     * Ops' message for `CouponAssigned` (ops.md §1.5 C15; the owner's go 2026-10-31): **the code the
+     * customers type** for the event's `couponId`, as staff wrote it. Null for a coupon deleted since, or an
+     * id that is not one. Reads only.
+     */
+    public function couponCode(string $couponId): ?string;
+
+    /**
      * Sales's cart, quote and checkout (§1.7): the gift levels an order of `$goodsTotal` reaches now for
      * this buyer — switched on, within their dates, their amount at most the goods total (after coupon
      * and points) — highest first. Sales asks Inventory which gift is in stock and holds the first that

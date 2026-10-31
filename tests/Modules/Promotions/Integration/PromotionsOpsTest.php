@@ -87,6 +87,22 @@ it('records one CouponAssigned for each assignment that adds anyone, and pages w
         ->and(fn () => $api->assignedCustomers('nope', null, 10))->toThrow(InvalidPromotionAttribute::class);
 });
 
+it('gives a coupon\'s code for the assigned message, none once it is deleted', function () {
+    Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::COUPON_MANAGE], ['sa']));
+    $coupon = Pr::coupon();
+    $code = (string) DB::table('promotions.coupons')->where('id', $coupon)->value('code');
+    $api = app(PromotionsApi::class);
+
+    expect($code)->not->toBe('')
+        ->and($api->couponCode($coupon))->toBe($code)
+        ->and($api->couponCode(strtoupper($coupon)))->toBe($code)
+        ->and($api->couponCode(strtolower((string) Str::ulid())))->toBeNull()
+        ->and($api->couponCode('nope'))->toBeNull();
+
+    DB::table('promotions.coupons')->where('id', $coupon)->delete();
+    expect($api->couponCode($coupon))->toBeNull();
+});
+
 it('records nothing when the assignment is refused', function () {
     Fx::customer('sara@example.test');
     Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::COUPON_MANAGE, PromotionsPermissions::SEGMENT_MANAGE], ['sa']));
