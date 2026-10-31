@@ -59,7 +59,7 @@ final readonly class NoticesController
             Inputs::flag($request, 'by_bell'),
             Inputs::flag($request, 'by_email'),
             Inputs::text($request, 'send_at'),
-            Inputs::text($request, 'segment'),
+            Inputs::text($request, 'segment') ?? Inputs::text($request, 'segment_id'),
         ));
 
         return new JsonResponse($this->pages->notice($view->handle(new ViewNotice($id)))->toArray(), 201);
@@ -77,7 +77,7 @@ final readonly class NoticesController
             Inputs::flag($request, 'by_bell'),
             Inputs::flag($request, 'by_email'),
             Inputs::text($request, 'send_at'),
-            Inputs::text($request, 'segment'),
+            self::segment($request),
         ));
 
         return new JsonResponse($this->pages->notice($view->handle(new ViewNotice($notice)))->toArray());
@@ -88,5 +88,20 @@ final readonly class NoticesController
         $cancel->handle(new CancelNotice($notice));
 
         return new JsonResponse($this->pages->notice($view->handle(new ViewNotice($notice)))->toArray());
+    }
+
+    /**
+     * A change's audience (§1.7), as `segment` or `segment_id` (the resource's name): absent keeps the
+     * notice's; sent empty, every customer of the store; otherwise that segment.
+     */
+    private static function segment(Request $request): ?string
+    {
+        foreach (['segment', 'segment_id'] as $key) {
+            if ($request->exists($key)) {
+                return Inputs::text($request, $key) ?? '';
+            }
+        }
+
+        return null;
     }
 }

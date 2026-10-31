@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Events\MarketingConsentChanged;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegment;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegmentHandler;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -81,6 +85,25 @@ it('writes, lists, changes and cancels a notice in the panel, as JSON', function
 
     $browser->post("/admin/notices/{$made['id']}/cancel", [])->assertOk()->assertJsonPath('status', 'CANCELLED');
     $browser->post("/admin/notices/{$made['id']}/cancel", [])->assertStatus(409);
+});
+
+it('takes a notice\'s segment as segment or segment_id; a change without one keeps it, an empty one is every customer', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    $segment = Fx::asSystem(static function () use ($sara): string {
+        $id = app(CreateSegmentHandler::class)->handle(new CreateSegment(Fx::storeId('sa'), 'شريحة', 'Picked', 'STATIC', 'INDIVIDUAL'));
+        app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($id, [$sara]));
+
+        return $id;
+    });
+    $browser = writtenRoutesStaff(Fx::staffWith(['ops.notice.manage'], ['sa']));
+    $at = CarbonImmutable::now('Asia/Riyadh')->addDay()->setTime(10, 0)->format('Y-m-d H:i');
+    $fields = ['title_ar' => 'عرض', 'title_en' => 'Offer', 'body_ar' => 'نص', 'body_en' => 'Text', 'by_bell' => '1', 'send_at' => $at];
+
+    $made = $browser->post('/admin/notices', ['store' => 'sa', ...$fields, 'segment_id' => $segment])->assertCreated()->assertJsonPath('segmentId', $segment)->json();
+
+    $browser->post("/admin/notices/{$made['id']}", $fields)->assertOk()->assertJsonPath('segmentId', $segment);
+    $browser->post("/admin/notices/{$made['id']}", [...$fields, 'segment' => ''])->assertOk()->assertJsonPath('segmentId', null);
+    $browser->post("/admin/notices/{$made['id']}", [...$fields, 'segment' => $segment])->assertOk()->assertJsonPath('segmentId', $segment);
 });
 
 it('refuses the notices to staff without ops.notice.manage', function () {

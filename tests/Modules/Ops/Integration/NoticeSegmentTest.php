@@ -118,7 +118,7 @@ it('refuses another store\'s segment as an unknown one, and an empty segment as 
         ->and($sara)->toBeString();
 });
 
-it('changes a waiting notice\'s audience to a segment, or back to every customer of the store', function () {
+it('changes a waiting notice\'s audience to a segment, keeps it when none is given, and an empty one is every customer of the store', function () {
     $sara = Wx::agreeing('sara@example.test');
     $omar = Wx::agreeing('omar@example.test');
     $segment = noticeSegment([$sara]);
@@ -132,6 +132,9 @@ it('changes a waiting notice\'s audience to a segment, or back to every customer
         ->and(fn () => $change($theirs))->toThrow(SegmentNotFound::class);
 
     $change(null);
+    expect(DB::table('ops.notices')->where('id', $id)->value('segment_id'))->toBe($segment);
+
+    $change('');
     expect(DB::table('ops.notices')->where('id', $id)->value('segment_id'))->toBeNull();
 
     $change($segment, '');
