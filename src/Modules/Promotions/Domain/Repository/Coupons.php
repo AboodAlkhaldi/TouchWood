@@ -6,6 +6,7 @@ namespace Modules\Promotions\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponReservation;
 use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
