@@ -62,9 +62,20 @@ final readonly class DatabasePointsSettlements implements PointsSettlements
         /** @var array<int, SettlementLot> $lots */
         $lots = [];
 
-        foreach ($this->db->table('loyalty.lots')->where('account_id', $account->id)->orderBy('expires_at')->orderBy('id')->lockForUpdate()->get() as $row) {
+        // Points held for an online payment in progress cover nothing (loyalty.md §9.6; gap 7.2 (a)): the
+        // settlement sees each lot less the points holds keep in it (`HeldLots`). Its writes are changes,
+        // never the lots' totals, so the held points stay where they are.
+        $rows = $this->db->table('loyalty.lots')->where('account_id', $account->id)->orderBy('expires_at')->orderBy('id')->lockForUpdate()->get();
+        $kept = (new HeldLots($this->db))->of($account->id);
+
+        foreach ($rows as $row) {
             /** @var stdClass $row */
-            $lots[(int) $row->id] = new SettlementLot((int) $row->id, (int) $row->points_left, new DateTimeImmutable((string) $row->expires_at), $row->order_id === null ? null : (string) $row->order_id);
+            $lots[(int) $row->id] = new SettlementLot(
+                (int) $row->id,
+                max(0, (int) $row->points_left - ($kept[(int) $row->id] ?? 0)),
+                new DateTimeImmutable((string) $row->expires_at),
+                $row->order_id === null ? null : (string) $row->order_id,
+            );
         }
 
         $orderTakes = array_map(

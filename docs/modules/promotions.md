@@ -880,7 +880,7 @@ for a reader without that job.
 `customerIdsMatching`, which ships with Loyalty's screens, PR #168) and `PromotionsActionsForReader`;
 Platform's menu icons `coupons`, `segments`, `gifts`.
 
-### 9.5 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: a coupon reserved while the customer pays online
+### 9.5 Stage 7 — **[ACCEPTED by the owner 2026-10-28; BUILT in stage 7 step 7 — §9.6]**: a coupon reserved while the customer pays online
 
 Accepted by the owner on 2026-10-28 with payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the coupon
@@ -900,3 +900,18 @@ Three new operations, beside `useCoupon` (which stays for placing as built):
 
 `recordOrder` (the fact segments count) is called only when the order is created. A reservation is never
 older than a try (Sales releases or confirms every one); the reports count uses, never reservations.
+
+### 9.6 Stage 7 step 7 — built, with the owner's answers (2026-10-29/31)
+
+Built as §9.5 says, with the gap answers 7.1, 7.4 and 7.5 (scratchpad `stage7-gap-answers.md`):
+
+1. **`reserveCoupon(ReserveCoupon)`, `confirmCoupon(SettleReservation)`, `releaseCoupon(SettleReservation)`**
+   on `PromotionsApi`; a hold is a row of `promotions.coupon_reservations` under the order's future id.
+2. **A hold counts toward the limits** — in total and per customer (`CouponUsage::$heldTotal`,
+   `$heldByCustomer`) — wherever a coupon is quoted or taken, so two buyers never both take the last use.
+3. **Staff may change or delete a coupon under a hold** (gap 7.1 (b)): nothing is blocked. A confirm records
+   the use even past a limit lowered meanwhile ("100 of 99"), so `coupons_uses` no longer caps the count at
+   the limit (it still never falls). My pick: a coupon deleted under a hold takes the hold with it; the
+   confirm then records nothing and the order keeps its own copy of the discount and the code.
+4. **A confirm is never checked again** (gap 7.4): a coupon switched off or ended meanwhile is still recorded.
+5. **Staff see uses, never holds** (gap 7.5): the coupon's figures and its Uses tab are unchanged.

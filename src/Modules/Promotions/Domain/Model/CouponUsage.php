@@ -10,5 +10,8 @@ final readonly class CouponUsage
     public function __construct(
         public int $usesByCustomer,
         public bool $assigned,
+        /** The coupon's holds for online payments still open, everyone's and this customer's (§9.5). */
+        public int $heldTotal = 0,
+        public int $heldByCustomer = 0,
     ) {}
 }

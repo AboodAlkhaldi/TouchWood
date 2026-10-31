@@ -60,8 +60,10 @@ final class CouponRules
             ! $coupon->active => CouponRefusal::Inactive,
             $now < $coupon->startsAt => CouponRefusal::NotStarted,
             $coupon->endsAt !== null && $now >= $coupon->endsAt => CouponRefusal::Ended,
-            $coupon->maxUsesTotal !== null && $coupon->usesTotal >= $coupon->maxUsesTotal => CouponRefusal::UsedUp,
-            $coupon->maxUsesPerCustomer !== null && $usage->usesByCustomer >= $coupon->maxUsesPerCustomer => CouponRefusal::UsedUpForYou,
+            // A use held for an online payment counts while it lasts (§9.5), so two buyers never both take
+            // the last one.
+            $coupon->maxUsesTotal !== null && $coupon->usesTotal + $usage->heldTotal >= $coupon->maxUsesTotal => CouponRefusal::UsedUp,
+            $coupon->maxUsesPerCustomer !== null && $usage->usesByCustomer + $usage->heldByCustomer >= $coupon->maxUsesPerCustomer => CouponRefusal::UsedUpForYou,
             default => null,
         };
     }

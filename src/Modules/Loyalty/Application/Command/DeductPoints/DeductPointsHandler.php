@@ -14,8 +14,10 @@ use Modules\Loyalty\Application\Points\StaffPointsAction;
 use Modules\Loyalty\Domain\Exception\DeductionTooLarge;
 use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
+use Modules\Loyalty\Domain\Exception\PointsHeld;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Domain\Repository\RedemptionHolds;
 use Modules\Loyalty\Public\Events\PointsChangedByHand;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
@@ -40,10 +42,11 @@ final readonly class DeductPointsHandler
         private PlatformApi $platform,
         private ConnectionInterface $db,
         private Outbox $outbox,
+        private RedemptionHolds $holds,
     ) {}
 
     /**
-     * @throws DeductionTooLarge|InvalidPointsAttribute|PointsAccountNotFound|Unauthorized
+     * @throws DeductionTooLarge|InvalidPointsAttribute|PointsAccountNotFound|PointsHeld|Unauthorized
      */
     public function handle(DeductPoints $command): void
     {
@@ -64,6 +67,13 @@ final readonly class DeductPointsHandler
 
             if ($points > $account->balance) {
                 throw new DeductionTooLarge($account->balance);
+            }
+
+            // Held for an online payment still in progress: untouchable until it ends (§9.6, gap 7.2).
+            $free = $this->holds->freePoints($account->id, $now);
+
+            if ($points > $free) {
+                throw new PointsHeld($free, $this->holds->heldBy($account->id));
             }
 
             $entry = $this->ledger->deduct($account, $points, $staffId, $reason, $now);

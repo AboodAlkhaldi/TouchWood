@@ -6,6 +6,7 @@ namespace Modules\Promotions\Domain\Repository;
 
 use DateTimeImmutable;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponReservation;
 use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
@@ -38,6 +39,15 @@ interface Coupons
 
     /** The order's coupon use; null for none. With `$lock`, its row is locked until the transaction ends. */
     public function useOf(string $orderId, bool $lock = false): ?CouponUse;
+
+    /** The coupon held for this checkout try's order, or null. With `$lock`, its row is locked. */
+    public function reservationOf(string $orderId, bool $lock = false): ?CouponReservation;
+
+    /** Holds a use of the coupon, whose row the caller has locked, for an online payment (§9.5). */
+    public function reserve(Coupon $coupon, string $customerId, string $orderId, int $discountMinor, DateTimeImmutable $at): void;
+
+    /** The try's hold goes, counting nothing; false when there was none. */
+    public function dropReservation(string $orderId): bool;
 
     /** Records the order's use of the coupon and counts it on the coupon, whose row the caller has locked. */
     public function recordUse(Coupon $coupon, string $customerId, string $orderId, string $orderNumber, int $discountMinor, DateTimeImmutable $at): void;

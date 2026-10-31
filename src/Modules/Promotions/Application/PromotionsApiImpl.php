@@ -7,8 +7,11 @@ namespace Modules\Promotions\Application;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Promotions\Application\Command\ConfirmCoupon\ConfirmCouponHandler;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderCommand;
 use Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler;
+use Modules\Promotions\Application\Command\ReleaseCoupon\ReleaseCouponHandler;
+use Modules\Promotions\Application\Command\ReserveCoupon\ReserveCouponHandler;
 use Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseCommand;
 use Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler;
 use Modules\Promotions\Application\Command\UseCoupon\UseCouponCommand;
@@ -33,6 +36,8 @@ use Modules\Promotions\Public\Dto\CouponsUsedDto;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
+use Modules\Promotions\Public\Dto\ReserveCoupon;
+use Modules\Promotions\Public\Dto\SettleReservation;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience;
@@ -59,7 +64,25 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         private Segments $segments,
         private GiftLevels $levels,
         private MarketingQueries $queries,
+        private ReserveCouponHandler $reserve,
+        private ConfirmCouponHandler $confirm,
+        private ReleaseCouponHandler $release,
     ) {}
+
+    public function reserveCoupon(ReserveCoupon $change): void
+    {
+        $this->reserve->handle($change);
+    }
+
+    public function confirmCoupon(SettleReservation $change): void
+    {
+        $this->confirm->handle($change);
+    }
+
+    public function releaseCoupon(SettleReservation $change): void
+    {
+        $this->release->handle($change);
+    }
 
     public function applyCoupon(CouponRequest $request): CouponResult
     {

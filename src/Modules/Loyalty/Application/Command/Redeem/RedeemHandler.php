@@ -18,6 +18,7 @@ use Modules\Loyalty\Domain\Model\OrderPoints;
 use Modules\Loyalty\Domain\Model\PointsAccount;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
+use Modules\Loyalty\Domain\Repository\RedemptionHolds;
 use Modules\Loyalty\Domain\Service\RedemptionRules;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Enums\RedemptionMode;
@@ -42,6 +43,7 @@ final readonly class RedeemHandler
         private AccessApi $access,
         private PointsAccounts $accounts,
         private PointsLedger $ledger,
+        private RedemptionHolds $holds,
     ) {}
 
     /**
@@ -104,9 +106,15 @@ final readonly class RedeemHandler
             return;
         }
 
+        // An order paid online is made from its hold by `confirmRedemption`, never placed again (§9.6).
+        if ($this->holds->of($orderId) !== null) {
+            throw new InvalidPointsAttribute('order', 'the order holds points for an online payment');
+        }
+
         $mode = $programme->modeFor($change->audience);
         $redemption = RedemptionRules::work(
-            $programme, $mode, $account->balance, $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
+            // Only free points: those held for a payment in progress are spent by nothing else (§9.6).
+            $programme, $mode, $this->holds->freePoints($account->id, $now), $mode === RedemptionMode::Partial ? $change->points : null, $netSubtotal,
         );
 
         // Refused now, or different: either way no longer what the customer saw (§7).

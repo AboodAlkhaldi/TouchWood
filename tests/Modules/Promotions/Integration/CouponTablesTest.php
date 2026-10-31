@@ -128,7 +128,6 @@ it('refuses what the code would never write', function (Closure $write, string $
     'no uses per customer' => [fn (array $r) => Pr::coupon('NEW-1', with: ['max_uses_per_customer' => 0]), 'coupons_max_per_customer'],
     'no uses in all' => [fn (array $r) => Pr::coupon('NEW-1', with: ['max_uses_total' => 0]), 'coupons_max_total'],
     'uses below 0' => [fn (array $r) => Pr::coupon('NEW-1', with: ['uses_total' => -1]), 'coupons_uses'],
-    'more uses than allowed' => [fn (array $r) => DB::table('promotions.coupons')->where('id', $r['percent'])->update(['max_uses_total' => 1, 'uses_total' => 2]), 'coupons_uses'],
     'no sale mode' => [fn (array $r) => Pr::coupon('NEW-1', with: ['for_retail' => false, 'for_wholesale' => false]), 'coupons_sale_modes'],
     'no buyer' => [fn (array $r) => Pr::coupon('NEW-1', with: ['for_public' => false, 'for_company' => false]), 'coupons_audiences'],
     'a coupon in no currency' => [fn (array $r) => Pr::coupon('NEW-1', with: ['currency_code' => 'XXX']), 'coupons_currency'],

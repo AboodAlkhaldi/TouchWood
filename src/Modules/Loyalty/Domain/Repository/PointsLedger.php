@@ -39,6 +39,8 @@ interface PointsLedger
         int $discountMinor,
         int $capPercent,
         DateTimeImmutable $now,
+        /** The lots spent are those live at this moment - a held redemption's own (§9.6); default `$now`. */
+        ?DateTimeImmutable $liveAt = null,
     ): bool;
 
     /**

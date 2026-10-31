@@ -10,6 +10,7 @@ use Modules\Loyalty\Domain\Exception\InvalidPointsAttribute;
 use Modules\Loyalty\Domain\Exception\LoyaltyError;
 use Modules\Loyalty\Domain\Exception\OrderNotSettleable;
 use Modules\Loyalty\Domain\Exception\PointsAccountNotFound;
+use Modules\Loyalty\Domain\Exception\PointsHeld;
 use Modules\Loyalty\Domain\Exception\PointsProgrammeOff;
 use Modules\Loyalty\Domain\Exception\RedemptionChanged;
 use Modules\Loyalty\Domain\Exception\RedemptionRefused;
@@ -34,6 +35,7 @@ function loyaltyErrors(): array
         'redemption changed' => [new RedemptionChanged, 'loyalty.redemption_changed', ErrorCategory::Conflict],
         'redemption refused' => [new RedemptionRefused(RedemptionRefusal::BelowMinimum), 'loyalty.redemption_refused', ErrorCategory::Invalid],
         'deduction too large' => [new DeductionTooLarge(120), 'loyalty.deduction_too_large', ErrorCategory::Conflict],
+        'points held' => [new PointsHeld(100, 200), 'loyalty.points_held', ErrorCategory::Conflict],
         'account not found' => [new PointsAccountNotFound, 'loyalty.points_account_not_found', ErrorCategory::NotFound],
         'order not settleable' => [new OrderNotSettleable('01j8z3k4m5n6p7q8r9s0t1v4o1', 'cancelled'), 'loyalty.order_not_settleable', ErrorCategory::Conflict],
         'invalid attribute' => [new InvalidPointsAttribute('reason', 'empty'), 'loyalty.invalid_points_attribute', ErrorCategory::Invalid],
@@ -69,7 +71,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(loyaltyErrors()));
     sort($listed);
 
-    expect(loyaltyErrorClassesInFolder())->toHaveCount(7)
+    expect(loyaltyErrorClassesInFolder())->toHaveCount(8)
         ->and(loyaltyErrorClassesInFolder())->toBe($listed);
 });
 

@@ -10,6 +10,7 @@ use Modules\Loyalty\Domain\Exception\OrderNotSettleable;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Domain\Repository\PointsLedger;
 use Modules\Loyalty\Domain\Repository\PointsSettlements;
+use Modules\Loyalty\Domain\Repository\RedemptionHolds;
 use Modules\Loyalty\Domain\Service\PointsArithmetic;
 use Modules\Loyalty\Domain\Service\RedemptionRules;
 use Modules\Loyalty\Domain\Service\SettlementTargets;
@@ -32,6 +33,7 @@ final readonly class SalesReads
         private PointsAccounts $accounts,
         private PointsLedger $ledger,
         private PointsSettlements $settlements,
+        private RedemptionHolds $holds,
     ) {}
 
     public function earningPreview(string $storeId, Money $goodsTotal): int
@@ -48,7 +50,8 @@ final readonly class SalesReads
         $programme = $this->programmes->of($store);
         $netSubtotal = Inputs::amount($request->netSubtotal, $programme);
         $account = $this->accounts->find(Inputs::id($request->customerId, 'customer'), $store);
-        $balance = $account === null ? 0 : $this->accounts->liveBalance($account, CarbonImmutable::now());
+        // Free points only: those held for a payment in progress are spent by nothing else (§9.6).
+        $balance = $account === null ? 0 : $this->holds->freePoints($account->id, CarbonImmutable::now());
         $redemption = RedemptionRules::work(
             $programme, $programme->modeFor($request->audience), $balance, $request->pointsAsked, $netSubtotal,
         );
@@ -121,6 +124,7 @@ final readonly class SalesReads
             Money::of(PointsArithmetic::worth($points, $programme->pointsPerUnitOff, $programme->exponent), $programme->currencyCode),
             $next,
             $nextPoints,
+            $account === null ? 0 : min($points, $this->holds->heldBy($account->id)),
         );
     }
 }

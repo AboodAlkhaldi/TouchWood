@@ -11,6 +11,8 @@ use Modules\Promotions\Public\Dto\CouponsUsedDto;
 use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
+use Modules\Promotions\Public\Dto\ReserveCoupon;
+use Modules\Promotions\Public\Dto\SettleReservation;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience;
@@ -52,6 +54,19 @@ interface PromotionsApi
      * another coupon on the order is refused. A use never comes back.
      */
     public function useCoupon(UseCoupon $change): void;
+
+    /**
+     * Paying online (§9.5): the coupon held for the try under the order's future id - every check of
+     * `useCoupon`, refused or changed as it is - and counted toward its limits while held. The same try
+     * again does nothing.
+     */
+    public function reserveCoupon(ReserveCoupon $change): void;
+
+    /** The paid order made: its hold becomes its use, with its number; never checked again. Once. */
+    public function confirmCoupon(SettleReservation $change): void;
+
+    /** The try did not pay: its hold goes, nothing counted. Nothing to release does nothing. */
+    public function releaseCoupon(SettleReservation $change): void;
 
     /**
      * Placing the order, with or without a coupon (§1.5): the fact segments count, with the store's

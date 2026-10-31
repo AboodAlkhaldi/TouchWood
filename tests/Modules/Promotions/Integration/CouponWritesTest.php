@@ -14,6 +14,7 @@ use Modules\Promotions\Domain\Exception\CouponChanged;
 use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponReservation;
 use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
 use Modules\Promotions\Domain\Model\CouponUse;
@@ -318,6 +319,21 @@ describe('using the coupon: replays and races', function () {
             public function recordUse(Coupon $coupon, string $customerId, string $orderId, string $orderNumber, int $discountMinor, DateTimeImmutable $at): void
             {
                 $this->real->recordUse($coupon, $customerId, $orderId, $orderNumber, $discountMinor, $at);
+            }
+
+            public function reservationOf(string $orderId, bool $lock = false): ?CouponReservation
+            {
+                return $this->real->reservationOf($orderId, $lock);
+            }
+
+            public function reserve(Coupon $coupon, string $customerId, string $orderId, int $discountMinor, DateTimeImmutable $at): void
+            {
+                $this->real->reserve($coupon, $customerId, $orderId, $discountMinor, $at);
+            }
+
+            public function dropReservation(string $orderId): bool
+            {
+                return $this->real->dropReservation($orderId);
             }
 
             public function lowerUse(string $orderId, string $editId, int $discountMinor): void

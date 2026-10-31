@@ -10,6 +10,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponReservation;
 use Modules\Promotions\Domain\Model\CouponRule;
 use Modules\Promotions\Domain\Model\CouponTerms;
 use Modules\Promotions\Domain\Model\CouponUsage;
@@ -62,11 +63,44 @@ final readonly class DatabaseCoupons implements Coupons
         $row = $this->db->selectOne(
             'SELECT'
             .' (SELECT count(*) FROM promotions.coupon_uses WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS uses,'
-            .' EXISTS (SELECT 1 FROM promotions.coupon_assignments WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS assigned',
-            [$couponId, $store->value, $customerId, $couponId, $store->value, $customerId],
+            .' EXISTS (SELECT 1 FROM promotions.coupon_assignments WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS assigned,'
+            .' (SELECT count(*) FROM promotions.coupon_reservations WHERE coupon_id = ? AND store_id = ?) AS held,'
+            .' (SELECT count(*) FROM promotions.coupon_reservations WHERE coupon_id = ? AND store_id = ? AND customer_id = ?) AS held_by_customer',
+            [$couponId, $store->value, $customerId, $couponId, $store->value, $customerId, $couponId, $store->value, $couponId, $store->value, $customerId],
         );
 
-        return new CouponUsage((int) ($row->uses ?? 0), (bool) ($row->assigned ?? false));
+        return new CouponUsage((int) ($row->uses ?? 0), (bool) ($row->assigned ?? false), (int) ($row->held ?? 0), (int) ($row->held_by_customer ?? 0));
+    }
+
+    public function reservationOf(string $orderId, bool $lock = false): ?CouponReservation
+    {
+        if (! Ulids::valid($orderId)) {
+            return null;
+        }
+
+        $query = $this->db->table('promotions.coupon_reservations')->where('order_id', strtolower($orderId));
+        $row = ($lock ? $query->lockForUpdate() : $query)->first();
+
+        return $row instanceof stdClass
+            ? new CouponReservation((string) $row->order_id, (string) $row->coupon_id, (string) $row->store_id, (string) $row->customer_id, (int) $row->discount_minor)
+            : null;
+    }
+
+    public function reserve(Coupon $coupon, string $customerId, string $orderId, int $discountMinor, DateTimeImmutable $at): void
+    {
+        $this->db->table('promotions.coupon_reservations')->insert([
+            'order_id' => $orderId,
+            'coupon_id' => $coupon->id,
+            'store_id' => $coupon->storeId,
+            'customer_id' => $customerId,
+            'discount_minor' => $discountMinor,
+            'reserved_at' => Moment::of($at),
+        ]);
+    }
+
+    public function dropReservation(string $orderId): bool
+    {
+        return Ulids::valid($orderId) && $this->db->table('promotions.coupon_reservations')->where('order_id', strtolower($orderId))->delete() > 0;
     }
 
     public function useOf(string $orderId, bool $lock = false): ?CouponUse

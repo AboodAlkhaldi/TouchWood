@@ -20,5 +20,7 @@ final readonly class PointsBalanceDto
         public ?DateTimeImmutable $nextExpiry,
         /** How many expire then. */
         public int $nextExpiryPoints,
+        /** Of `points`, those held for an online payment in progress (§9.6): "200 held for a payment". */
+        public int $heldPoints = 0,
     ) {}
 }
