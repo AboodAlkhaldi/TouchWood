@@ -37,7 +37,6 @@
     .mvalue { font-size: 12.5pt; font-weight: bold; color: #0b2031; padding-top: 2pt; }
     .mini td.wait { background-color: #f2f4f5; }
     .mwait { font-size: 8.4pt; color: #815d2c; font-weight: bold; padding-top: 2pt; }
-    .data td.wait { color: #815d2c; font-weight: bold; font-size: 7.6pt; background-color: #f2f4f5; }
     h2 { font-size: 10.5pt; color: #02365e; margin: 14pt 0 5pt 0; padding-bottom: 3pt; border-bottom: 0.8pt solid #dcdfe1; }
     h2 .num { color: #864720; }
     h3 { font-size: 8.4pt; color: #53626b; margin: 6pt 0 3pt 0; font-weight: bold; }
@@ -172,14 +171,15 @@
             <table class="data">
                 <tr><th>{{ $w('sales.amounts') }}</th><th class="n" width="38%"></th></tr>
                 <tr><td>{{ $w('sales.revenue') }}</td><td class="n"><b>{!! $money($s->today->revenue) !!}</b></td></tr>
-                {{-- VAT is net of refunds too (owner, 2026-10-30): until Sales gives the refunds' VAT, both wait. --}}
-                <tr class="alt"><td>{{ $w('sales.vat') }}</td><td class="n wait">{{ $w('sales.waits_sales') }}</td></tr>
-                <tr><td>{{ $w('sales.revenue_with_vat') }}</td><td class="n wait">{{ $w('sales.waits_sales') }}</td></tr>
+                {{-- VAT is net of refunds too (owner, 2026-10-30), and so revenue with VAT. --}}
+                <tr class="alt"><td>{{ $w('sales.vat') }}</td><td class="n">{!! $money($s->vat) !!}</td></tr>
+                <tr><td>{{ $w('sales.revenue_with_vat') }}</td><td class="n">{!! $money($s->today->revenue->add($s->vat)) !!}</td></tr>
                 <tr class="alt"><td>{{ $w('sales.shipping') }}</td><td class="n">{!! $money($s->shipping) !!}</td></tr>
                 <tr><td>{{ $w('sales.refunds') }}</td><td class="n">{!! $money($s->refunds) !!}</td></tr>
                 <tr class="alt"><td>{{ $w('sales.average') }}</td><td class="n">{!! $f->average($s->today->revenue, $s->today->orders, $store) !!}</td></tr>
                 @if ($s->waitingRefunds !== [])
                     <tr class="total"><td>{{ $w('sales.if_refunds') }}</td><td class="n">{!! $money($s->today->revenue->subtract($s->waitingRefundsTotal)) !!}</td></tr>
+                    <tr class="total"><td>{{ $w('sales.with_vat_if_refunds') }}</td><td class="n">{!! $money($s->today->revenue->subtract($s->waitingRefundsTotal)->add($s->vat)->subtract($s->waitingRefundsVat)) !!}</td></tr>
                 @endif
             </table>
         </td>
@@ -189,9 +189,9 @@
         <div class="note">{{ $w('sales.waiting_note') }}</div>
         <h3>{{ $w('sales.waiting_title') }}</h3>
         <table class="data long">
-            <tr><th>{{ $w('sales.order') }}</th><th class="n">{{ $w('sales.estimate') }}</th></tr>
+            <tr><th>{{ $w('sales.order') }}</th><th class="n">{{ $w('sales.estimate') }}</th><th class="n">{{ $w('sales.estimate_vat') }}</th></tr>
             @foreach ($s->waitingRefunds as $waiting)
-                <tr @if ($loop->even) class="alt" @endif><td>{!! \Modules\Ops\Infrastructure\Pdf\ReportFormat::ltr($waiting->orderNumber) !!}</td><td class="n">{!! $money($waiting->estimate) !!}</td></tr>
+                <tr @if ($loop->even) class="alt" @endif><td>{!! \Modules\Ops\Infrastructure\Pdf\ReportFormat::ltr($waiting->orderNumber) !!}</td><td class="n">{!! $money($waiting->estimate) !!}</td><td class="n">{!! $money($waiting->estimateVat) !!}</td></tr>
             @endforeach
         </table>
     @endif
@@ -356,7 +356,8 @@
         @foreach ([
             ['compare.orders', static fn ($t) => $f->int($t->today->orders)],
             ['sales.revenue', static fn ($t) => $f->money($t->today->revenue, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
-            ['sales.vat', static fn ($t) => new Illuminate\Support\HtmlString('<span class="mwait">'.e($w('sales.waits_sales')).'</span>')],
+            ['sales.vat', static fn ($t) => $f->money($t->vat, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
+            ['sales.revenue_with_vat', static fn ($t) => $f->money($t->today->revenue->add($t->vat), $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
             ['sales.shipping', static fn ($t) => $f->money($t->shipping, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
             ['sales.refunds', static fn ($t) => $f->money($t->refunds, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],
             ['totals.payments_in', static fn ($t) => $f->money($t->paymentsIn, $t->currencyExponent, $locale === 'en' ? $t->symbolEn : $t->symbolAr)],

@@ -56,15 +56,16 @@ return [
         'revenue' => 'Revenue without VAT',
         'vat' => 'VAT',
         'revenue_with_vat' => 'Revenue with VAT',
-        'waits_sales' => 'Waits for Sales',
         'shipping' => 'Shipping charged',
         'refunds' => 'Refunds',
         'average' => 'Average order (without VAT)',
         'if_refunds' => 'Revenue if the waiting refunds go through',
+        'with_vat_if_refunds' => 'Revenue with VAT if the waiting refunds go through',
         'waiting_note' => 'Revenue is after the refunds of the returns asked today and completed; the refunds still waiting, below, come off only in the line above them.',
         'waiting_title' => 'Waiting refunds',
         'order' => 'Order',
         'estimate' => 'Estimated refund',
+        'estimate_vat' => 'Its VAT, estimated',
     ],
 
     'money' => [

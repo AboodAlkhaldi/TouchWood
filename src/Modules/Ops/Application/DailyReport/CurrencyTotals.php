@@ -20,6 +20,7 @@ final readonly class CurrencyTotals
         public string $symbolEn,
         public array $storeIds,
         public PeriodFigures $today,
+        /** VAT net of the refunds asked, as each store's section shows it. */
         public Money $vat,
         public Money $shipping,
         public Money $refunds,

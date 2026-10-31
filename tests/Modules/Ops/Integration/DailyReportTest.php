@@ -67,6 +67,14 @@ function dailyStore(string $code): StoreDto
     return $store ?? throw new LogicException('No such store.');
 }
 
+/** The report's HTML as text: the tags gone, the spaces collapsed - "VAT 22.50 SAR". */
+function dailyText(DailyReport $report): string
+{
+    $html = view('ops::daily-report', ['report' => $report, 'locale' => 'en', 'rtl' => false, 'f' => new ReportFormat('en'), 'logo' => public_path('icons/email-logo.png')])->render();
+
+    return trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/<[^>]+>/', ' ', $html)));
+}
+
 function dailyMake(?string $store, ?string $day = null): DailyReportFile
 {
     return app(MakeDailyReportHandler::class)->handle(new MakeDailyReport($store === null ? null : Fx::storeId($store), $day));
@@ -82,10 +90,11 @@ it('counts the day as the orders counted by hand: the cancelled and rejected lef
     expect([$report->counts->placed, $report->counts->counted, $report->counts->cancelled, $report->counts->rejected, $report->counts->individuals])->toBe([3, 1, 1, 1, 3])
         // Revenue net of the refund of the return asked today and completed (ops.md §1.10).
         ->and([$report->today->orders, $report->today->revenue->minorUnits])->toBe([1, (int) $row?->goods_total_minor - 100_00])
-        ->and([$report->vat->minorUnits, $report->shipping->minorUnits])->toBe([(int) $row?->vat_minor, (int) $row?->shipping_fee_minor])
-        // One piece of the 100.00 size refunded; one of the 50.00 asked, its refund estimated.
-        ->and([$report->refunds->minorUnits, $report->waitingRefundsTotal->minorUnits])->toBe([100_00, 50_00])
-        ->and(array_map(static fn ($one): array => [$one->returnId, $one->orderNumber], $report->waitingRefunds))->toBe([[$day['open'], $day['number']]])
+        // VAT net of the refunded VAT (owner, 2026-10-30): 37.50 charged, 15.00 back with the 100.00 piece.
+        ->and([(int) $row?->vat_minor, $report->vat->minorUnits, $report->shipping->minorUnits])->toBe([37_50, 22_50, 0])
+        // One piece of the 100.00 size refunded; one of the 50.00 asked, its refund and VAT estimated.
+        ->and([$report->refunds->minorUnits, $report->waitingRefundsTotal->minorUnits, $report->waitingRefundsVat->minorUnits])->toBe([100_00, 50_00, 7_50])
+        ->and(array_map(static fn ($one): array => [$one->returnId, $one->orderNumber, $one->estimateVat->minorUnits], $report->waitingRefunds))->toBe([[$day['open'], $day['number'], 7_50]])
         ->and(array_map(static fn ($way): array => [$way->way, $way->records, $way->amount->minorUnits], $report->money->payments))->toBe([['BANK_TRANSFER', 1, $paid]])
         ->and(array_map(static fn ($size): array => [$size->variantId, $size->units, $size->revenue->minorUnits], $report->topSizes))->toBe([[$day['variants'][0], 2, 200_00], [$day['variants'][1], 1, 50_00]])
         ->and(array_sum(array_map(static fn ($category): int => $category->revenue->minorUnits, $report->categories)))->toBe(250_00)
@@ -103,13 +112,16 @@ it('makes every store\'s report with each store in its own day, then one total p
     $report = app(DailyReportReader::class)->report($stores, CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null, 'Asia/Riyadh');
     $totals = [];
     foreach ($report->totals as $total) {
-        $totals[$total->currencyCode] = [$total->today->orders, $total->today->revenue->minorUnits, count($total->storeIds)];
+        $totals[$total->currencyCode] = [$total->today->orders, $total->today->revenue->minorUnits, $total->vat->minorUnits, count($total->storeIds)];
     }
+    $text = dailyText($report);
 
     expect($report->allStores)->toBeTrue()
         ->and(array_map(static fn ($one): string => $one->from->getTimezone()->getName(), $report->stores))
         ->toBe(array_map(static fn (StoreDto $store): string => $store->timezone, $stores))
-        ->and($totals)->toBe(['SAR' => [1, (int) $row?->goods_total_minor - 100_00, 1], 'EGP' => [0, 0, 1], 'AED' => [0, 0, 1]]);
+        ->and($totals)->toBe(['SAR' => [1, (int) $row?->goods_total_minor - 100_00, 22_50, 1], 'EGP' => [0, 0, 0, 1], 'AED' => [0, 0, 0, 1]])
+        // The store's section and the totals: VAT net of refunds, and revenue with it - 150.00 + 22.50.
+        ->and([substr_count($text, ' VAT 22.50 SAR '), substr_count($text, ' Revenue with VAT 172.50 SAR ')])->toBe([2, 2]);
 });
 
 it('keeps the file exactly as it was made: a later change to the day leaves it as it was', function () {
@@ -245,14 +257,24 @@ it('puts the switched-off stores in every store\'s report, marked, their figures
         ->and(dailyMake(null)->store)->toBeNull();
 });
 
-it('takes the refunds off the revenue: 250 sold, 100 refunded, 50 waiting is 150, and 100 if the waiting go through', function () {
-    Dx::aDay();
+it('takes the refunds off the revenue and their VAT off the VAT: 250 sold, 100 refunded, 50 waiting is 150, and 100 if the waiting go through', function () {
+    $day = Dx::aDay();
+    $until = CarbonImmutable::now()->addSecond()->toDateTimeImmutable();
 
-    $report = app(DailyReportReader::class)->store(dailyStore('sa'), CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null);
+    $report = app(DailyReportReader::class)->store(dailyStore('sa'), $until, null);
+    $text = dailyText(app(DailyReportReader::class)->report([dailyStore('sa')], $until, null, 'Asia/Riyadh'));
 
     expect([$report->today->revenue->minorUnits, $report->refunds->minorUnits, $report->waitingRefundsTotal->minorUnits])->toBe([150_00, 100_00, 50_00])
         ->and($report->today->revenue->subtract($report->waitingRefundsTotal)->minorUnits)->toBe(100_00)
-        ->and($report->monthToDate->revenue->minorUnits)->toBe(150_00);
+        ->and($report->monthToDate->revenue->minorUnits)->toBe(150_00)
+        // VAT: 37.50 less the 15.00 refunded; with VAT 150.00 + 22.50; if the waiting go through,
+        // 100.00 + (22.50 - 7.50). Each waiting refund with its VAT.
+        ->and($text)->toContain(' VAT 22.50 SAR ')
+        ->and($text)->toContain(' Revenue with VAT 172.50 SAR ')
+        ->and($text)->toContain(' Revenue if the waiting refunds go through 100.00 SAR ')
+        ->and($text)->toContain(' Revenue with VAT if the waiting refunds go through 115.00 SAR ')
+        ->and($text)->toContain(" Order Estimated refund Its VAT, estimated {$day['number']} 50.00 SAR 7.50 SAR ")
+        ->and($text)->not->toContain('Waits for Sales');
 });
 
 it('compares with yesterday\'s same hours, and starts the month on the 1st at the store\'s midnight', function () {

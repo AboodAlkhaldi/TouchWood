@@ -34,6 +34,11 @@ use Shared\Domain\ValueObject\Money;
  * the cards, the three periods, the change, the average order (net revenue ÷ orders that count) and the
  * totals per currency. The refunds stay apart as information; the returns not finished come off only in
  * the second figure, "revenue if the waiting refunds go through".
+ *
+ * **VAT is net of refunds too** (owner, 2026-10-30): each day's VAT less the goods' VAT of the refunds asked
+ * that day and completed (Sales' `refundsVat`); revenue with VAT is net revenue plus net VAT, and the waiting
+ * refunds' VAT (`waitingRefundsVat`) comes off only in "revenue with VAT if the waiting refunds go through".
+ * VAT is the goods' alone (owner: no VAT on shipping) - Sales' `vat` is taken as it is, never adjusted here.
  */
 final readonly class DailyReportReader
 {
@@ -88,16 +93,17 @@ final readonly class DailyReportReader
         $counts = $this->sales->counts($id, $from, $to);
         $days = $this->sales->revenueByDay($id, $from, $to);
         $zero = Money::zero($store->currencyCode);
-        $revenue = $vat = $shipping = $refunds = $waitingTotal = $zero;
+        $revenue = $vat = $shipping = $refunds = $waitingTotal = $waitingVat = $zero;
         $orders = 0;
         $waiting = [];
         foreach ($days as $day) {
             $orders += $day->orders;
             $revenue = $revenue->add($day->revenue)->subtract($day->refunds);
-            $vat = $vat->add($day->vat);
+            $vat = $vat->add($day->vat)->subtract($day->refundsVat);
             $shipping = $shipping->add($day->shipping);
             $refunds = $refunds->add($day->refunds);
             $waitingTotal = $waitingTotal->add($day->waitingRefunds);
+            $waitingVat = $waitingVat->add($day->waitingRefundsVat);
             array_push($waiting, ...$day->waiting);
         }
         $registered = $this->access->customersRegistered($id, $from, $to);
@@ -130,6 +136,7 @@ final readonly class DailyReportReader
             shipping: $shipping,
             refunds: $refunds,
             waitingRefundsTotal: $waitingTotal,
+            waitingRefundsVat: $waitingVat,
             waitingRefunds: $waiting,
             money: $this->sales->moneyOn($id, $from, $from),
             transfersWaiting: $this->sales->transfersWaiting($id),
