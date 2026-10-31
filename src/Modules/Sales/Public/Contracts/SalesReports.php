@@ -7,6 +7,7 @@ namespace Modules\Sales\Public\Contracts;
 use DateTimeImmutable;
 use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
@@ -24,13 +25,21 @@ interface SalesReports
 {
     /**
      * **An order as its messages need it**: number, state, lines and totals as sold (or as edited), way to
-     * pay, carrier and number, the reasons staff gave — names and values in `locale` (`ar`; anything else
-     * reads as English). Null for none. The tracking link comes with stage 7's Shipping.
+     * pay, carrier and number, where it goes (the recipient and the address formatted), the reasons staff
+     * gave — names and values in `locale` (`ar`; anything else reads as English). Null for none. The
+     * tracking link comes with stage 7's Shipping.
      */
     public function orderForMessage(string $orderId, string $locale): ?OrderMessageDto;
 
     /** **A return as its messages need it**: its order's number, state, the store's words when refused, the refund once completed. Null for none. */
     public function returnForMessage(string $returnId): ?ReturnMessageDto;
+
+    /**
+     * **A payment or a refund as its message needs it** (ops.md C9b, C10; the owner's go 2026-10-31): the
+     * record `PaymentRecorded` or `RefundRecorded` names (`moneyRecordId`) — which it is, its order and
+     * number, the amount and way, the day, and whether it was voided since. Null for none.
+     */
+    public function moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto;
 
     /**
      * **The daily report's orders** (ops.md §1.11 item 2) from `from` up to `to` (not included): placed —

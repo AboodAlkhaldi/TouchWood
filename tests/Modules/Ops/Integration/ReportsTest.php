@@ -45,6 +45,7 @@ use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
@@ -485,6 +486,11 @@ function reportsOneDayEach(string $day): void
         }
 
         public function returnForMessage(string $returnId): ?ReturnMessageDto
+        {
+            return null;
+        }
+
+        public function moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto
         {
             return null;
         }

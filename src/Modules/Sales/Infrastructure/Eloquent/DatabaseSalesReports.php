@@ -13,6 +13,7 @@ use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
 use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
@@ -45,6 +46,8 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         $arabic = $locale === 'ar';
         $money = static fn (mixed $minor): Money => Money::of((int) $minor, (string) $order->currency_code);
+        /** @var array<string, mixed> $address */
+        $address = json_decode((string) $order->address, true, 512, JSON_THROW_ON_ERROR);
         $lines = $this->db->table('sales.order_lines')->where('order_id', $order->id)->orderBy('is_gift')->orderBy('id')
             ->get(['name_ar', 'name_en', 'variant_values', 'quantity', 'total_minor', 'is_gift'])->all();
 
@@ -70,7 +73,30 @@ final readonly class DatabaseSalesReports implements SalesReports
             $order->tracking_number === null ? null : (string) $order->tracking_number,
             $order->status === 'REJECTED' && $order->decision_reason !== null ? (string) $order->decision_reason : null,
             $order->cancel_reason === null ? null : (string) $order->cancel_reason,
+            (string) ($address['recipientName'] ?? ''), (string) ($address['formatted'] ?? ''),
         );
+    }
+
+    public function moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto
+    {
+        if (! Ulids::valid($moneyRecordId)) {
+            return null;
+        }
+
+        // A payment or a refund: the two tables' ids are ULIDs, so one id is in one of them at most.
+        $row = $this->db->selectOne(<<<'SQL'
+            SELECT m.*, o.number, o.customer_id FROM (
+                SELECT 'PAYMENT' AS kind, id, order_id, store_id, currency_code, amount_minor, way, happened_on::text AS happened_on, voided_at FROM sales.payments WHERE id = ?
+                UNION ALL
+                SELECT 'REFUND', id, order_id, store_id, currency_code, amount_minor, way, happened_on::text, voided_at FROM sales.refunds WHERE id = ?
+            ) AS m JOIN sales.orders AS o ON o.id = m.order_id
+            LIMIT 1
+            SQL, [strtolower($moneyRecordId), strtolower($moneyRecordId)]);
+
+        return $row instanceof stdClass ? new MoneyRecordMessageDto(
+            (string) $row->id, (string) $row->kind, (string) $row->order_id, (string) $row->number, (string) $row->store_id, (string) $row->customer_id,
+            Money::of((int) $row->amount_minor, (string) $row->currency_code), (string) $row->way, (string) $row->happened_on, $row->voided_at !== null,
+        ) : null;
     }
 
     public function returnForMessage(string $returnId): ?ReturnMessageDto
