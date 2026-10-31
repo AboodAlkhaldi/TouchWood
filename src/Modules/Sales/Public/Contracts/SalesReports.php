@@ -49,7 +49,8 @@ interface SalesReports
     /**
      * **The money moved, day by day** (ops.md §1.10, the Excel "Money received" sheet): as `moneyOn`, but one
      * row per day with anything in it, from `fromDay` to `toDay` both included, oldest first — each day's
-     * payments in and refunds out by way; voided records never. One query, however long the range.
+     * payments in and refunds out by way; voided records never. One query, however long the range. The days
+     * are the store's own, as for `moneyOn` (only the date is read).
      *
      * @return list<MoneyDayDto>
      */

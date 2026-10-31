@@ -169,6 +169,9 @@ it('gives the money moved day by day in one query, oldest first, the days with n
     $refund = static fn (string $amount, string $day) => app(RecordRefundHandler::class)->handle(new RecordRefund($paid, $amount, 'OTHER', null, 'Cash at the counter', $day, (string) Str::uuid()));
     $refund('10.00', '2026-10-19');
     $refund('5.00', '2026-10-21');
+    // A second way the same day, and a payment voided that day: the ways in order, the voided one never.
+    DB::table('sales.refunds')->insert([...(array) DB::table('sales.refunds')->where('amount_minor', 5_00)->first(), 'id' => strtolower((string) Str::ulid()), 'way' => 'BANK_TRANSFER', 'note' => null, 'amount_minor' => 3_00, 'request_id' => (string) Str::uuid()]);
+    DB::table('sales.payments')->insert([...(array) DB::table('sales.payments')->where('order_id', $paid)->first(), 'id' => strtolower((string) Str::ulid()), 'happened_on' => '2026-10-21', 'voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake', 'request_id' => (string) Str::uuid()]);
 
     $sa = StoreId::fromString(Fx::storeId('sa'));
     $rows = static fn (array $ways): array => array_map(static fn (MoneyByWayDto $way): array => [$way->way, $way->records, $way->amount->minorUnits], $ways);
@@ -182,10 +185,10 @@ it('gives the money moved day by day in one query, oldest first, the days with n
     expect($queries)->toBe(1)
         ->and(array_map(static fn ($day): array => [$day->day, $rows($day->payments), $rows($day->refunds)], $days))->toBe([
             ['2026-10-19', [['BANK_TRANSFER', 1, (int) DB::table('sales.orders')->where('id', $paid)->value('paid_minor')]], [['OTHER', 1, 10_00]]],
-            ['2026-10-21', [], [['OTHER', 1, 5_00]]],
+            ['2026-10-21', [], [['BANK_TRANSFER', 1, 3_00], ['OTHER', 1, 5_00]]],
         ])
         // The days add up to the whole range, as moneyOn reads it.
-        ->and($rows($whole->refunds))->toBe([['OTHER', 2, 15_00]])
+        ->and($rows($whole->refunds))->toBe([['BANK_TRANSFER', 1, 3_00], ['OTHER', 2, 15_00]])
         ->and(salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-22'), CarbonImmutable::parse('2026-10-25')))->toBe([]);
 
     DB::table('sales.refunds')->where('amount_minor', 10_00)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);

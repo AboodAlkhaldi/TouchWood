@@ -133,11 +133,11 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         // Both tables at once, grouped in SQL by day, way and currency: one query for any range.
         foreach ($this->db->select(<<<'SQL'
-            SELECT 'payments' AS kind, to_char(happened_on, 'YYYY-MM-DD') AS day, way, currency_code, count(*) AS records, sum(amount_minor) AS amount
+            SELECT 'payments' AS kind, happened_on::text AS day, way, currency_code, count(*) AS records, sum(amount_minor) AS amount
             FROM sales.payments WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
             GROUP BY 2, 3, 4
             UNION ALL
-            SELECT 'refunds', to_char(happened_on, 'YYYY-MM-DD'), way, currency_code, count(*), sum(amount_minor)
+            SELECT 'refunds', happened_on::text, way, currency_code, count(*), sum(amount_minor)
             FROM sales.refunds WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
             GROUP BY 2, 3, 4
             ORDER BY 2, 1, 3
