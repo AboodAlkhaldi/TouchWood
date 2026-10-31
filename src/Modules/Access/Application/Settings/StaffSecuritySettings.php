@@ -58,6 +58,14 @@ final readonly class StaffSecuritySettings implements LockoutLimits
     /** Reset emails to one account an hour, so nobody can flood an inbox. */
     public const string PASSWORD_RESETS_PER_HOUR = 'access.staff.password_reset_hourly_limit';
 
+    /**
+     * The staff sign-in methods, two boxes of which at least one stays ticked (amendment 91): changed
+     * by Super Admins alone. Authenticator only at go-live (owner, 2026-10-31).
+     */
+    public const string SIGN_IN_BY_SMS = 'access.staff.sign_in_by_sms';
+
+    public const string SIGN_IN_BY_AUTHENTICATOR = 'access.staff.sign_in_by_authenticator';
+
     public function __construct(
         private PlatformApi $platform,
     ) {}
@@ -90,6 +98,8 @@ final readonly class StaffSecuritySettings implements LockoutLimits
             $setting(self::TRUSTED_BROWSER_HOURS, 12, 1, 720),
             $setting(self::PASSWORD_RESET_MINUTES, 30, 5, 1440),
             $setting(self::PASSWORD_RESETS_PER_HOUR, 3, 1, 20),
+            new SettingDefinitionDto(self::SIGN_IN_BY_SMS, SettingScope::Global, SettingType::Boolean, [], false, AccessPermissions::SIGN_IN_METHODS_UPDATE),
+            new SettingDefinitionDto(self::SIGN_IN_BY_AUTHENTICATOR, SettingScope::Global, SettingType::Boolean, [], true, AccessPermissions::SIGN_IN_METHODS_UPDATE),
         ];
     }
 
@@ -181,6 +191,16 @@ final readonly class StaffSecuritySettings implements LockoutLimits
     public function codeAttempts(): int
     {
         return $this->int(self::CODE_ATTEMPTS);
+    }
+
+    public function signInBySms(): bool
+    {
+        return $this->platform->setting(self::SIGN_IN_BY_SMS)->bool();
+    }
+
+    public function signInByAuthenticator(): bool
+    {
+        return $this->platform->setting(self::SIGN_IN_BY_AUTHENTICATOR)->bool();
     }
 
     private function int(string $key): int

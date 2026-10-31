@@ -8,21 +8,26 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Security\AppCodeLimits;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Security\SignInLimits;
+use Modules\Access\Application\Security\StaffSignInMethods;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
 use Modules\Access\Domain\Exception\AccountLocked;
+use Modules\Access\Domain\Exception\AppSignInsTooSoon;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCredentials;
 use Modules\Access\Domain\Exception\SignInRefused;
 use Modules\Access\Domain\Model\StaffUser;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\EmailAddress;
 use Modules\Access\Domain\ValueObject\PhoneCodePurpose;
+use Modules\Access\Domain\ValueObject\SignInMethod;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
@@ -30,7 +35,8 @@ use Shared\Application\PermissionScope;
 use Throwable;
 
 /**
- * Spec §1.8, §4.4: the password, then — unless this browser is trusted — an SMS code. A wrong
+ * Spec §1.8, §4.4: the password, then — unless this browser is trusted — an SMS code, or a code from
+ * the authenticator app for someone whose method it is and who has set it up (amendment 91). A wrong
  * email or password is answered the same way, and only the right password learns that an account
  * is disabled.
  */
@@ -50,10 +56,13 @@ final readonly class SignInStaffHandler
         private PlatformApi $platform,
         private Connection $db,
         private ServedPhones $phones,
+        private StaffSignInMethods $methods,
+        private StaffAuthenticatorRepository $authenticators,
+        private AppCodeLimits $appLimits,
     ) {}
 
     /**
-     * @throws InvalidCredentials|AccountLocked|SignInRefused
+     * @throws InvalidCredentials|AccountLocked|SignInRefused|AppSignInsTooSoon
      */
     public function handle(SignInStaff $command): SignInResult
     {
@@ -105,8 +114,9 @@ final readonly class SignInStaffHandler
                     throw new SignInRefused;
                 }
 
-                // Signed in first, so the entry names them as the actor, with their address.
-                $this->sessions->start($current->id(), $current->sessionVersion());
+                // Signed in first, so the entry names them as the actor, with their address. A trusted
+                // browser skips the second step as before, but not the app's setup (amendment 91).
+                $this->sessions->start($current->id(), $current->sessionVersion(), $this->methods->mustSetUp($current->id()));
                 $started = true;
                 $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $current, ['trusted_browser' => true]));
 
@@ -130,6 +140,19 @@ final readonly class SignInStaffHandler
         // when it ran again, must not leave that session behind: the code step follows (step 7).
         if ($started) {
             $this->sessions->end();
+        }
+
+        // Their method is the app and it is set up: a code from it, not an SMS (amendment 91). Without
+        // one set up, the SMS code comes first and the setup right after (decision 2).
+        $app = $this->authenticators->forStaff($staff->id());
+
+        if ($app !== null && $app->isConfirmed() && $this->methods->for($staff->id(), $app) === SignInMethod::Authenticator) {
+            // As often an hour as an SMS code goes to one number (decision 5).
+            $this->appLimits->open($staff->id());
+            $this->authenticators->resetAttempts($staff->id());
+            $this->sessions->beginSignIn($staff->id(), $staff->sessionVersion(), false, null, byApp: true);
+
+            return SignInResult::AppCodeNeeded;
         }
 
         // A phone whose country was taken off the SMS countries list counts as none: no code can reach

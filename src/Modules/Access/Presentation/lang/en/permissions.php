@@ -58,4 +58,10 @@ return [
     'super_admin' => [
         'manage' => 'Create and Revoke Super Admins',
     ],
+    'sign_in_methods' => [
+        'update' => 'Choose How Staff Sign In',
+    ],
+    'staff_authenticator' => [
+        'reset' => 'Reset a Staff Member\'s Authenticator App',
+    ],
 ];

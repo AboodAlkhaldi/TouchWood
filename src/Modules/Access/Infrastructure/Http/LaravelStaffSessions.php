@@ -28,6 +28,9 @@ final readonly class LaravelStaffSessions implements StaffSessions
 
     private const string PENDING = 'access.staff_pending';
 
+    /** The moment the password opened an authenticator setup in this browser (amendment 91). */
+    private const string SETUP = 'access.staff_authenticator_setup';
+
     /** How long the code step waits after the right password. */
     private const int PENDING_MINUTES = 15;
 
@@ -71,12 +74,13 @@ final readonly class LaravelStaffSessions implements StaffSessions
         return $data['id'];
     }
 
-    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null): void
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null, bool $byApp = false): void
     {
         $this->session()?->put(self::PENDING, [
             'id' => $staffId,
             'version' => $sessionVersion,
             'needs_phone' => $needsPhone,
+            'by_app' => $byApp,
             // Masked by Access before it reaches the session: the full number never goes to a page.
             'masked_phone' => $maskedPhone,
             'at' => CarbonImmutable::now()->getTimestamp(),
@@ -121,10 +125,11 @@ final readonly class LaravelStaffSessions implements StaffSessions
             $data['version'],
             ($data['needs_phone'] ?? false) === true,
             is_string($masked) ? $masked : null,
+            ($data['by_app'] ?? false) === true,
         );
     }
 
-    public function start(string $staffId, int $sessionVersion): void
+    public function start(string $staffId, int $sessionVersion, bool $mustSetUpAuthenticator = false): void
     {
         $session = $this->session();
         $now = CarbonImmutable::now()->getTimestamp();
@@ -139,9 +144,44 @@ final readonly class LaravelStaffSessions implements StaffSessions
         // A new id at every sign-in, and the old one destroyed (spec §1.8).
         $session->migrate(true);
         $session->regenerateToken();
-        $session->put(self::SIGNED_IN, ['id' => $staffId, 'version' => $sessionVersion, 'signed_in_at' => $now, 'seen_at' => $now]);
+        $session->put(self::SIGNED_IN, [
+            'id' => $staffId,
+            'version' => $sessionVersion,
+            'signed_in_at' => $now,
+            'seen_at' => $now,
+            'must_set_up_authenticator' => $mustSetUpAuthenticator,
+        ]);
 
         $this->actor->set(Actor::staff($staffId));
+    }
+
+    public function mustSetUpAuthenticator(): bool
+    {
+        $data = $this->session()?->get(self::SIGNED_IN);
+
+        return is_array($data) && ($data['must_set_up_authenticator'] ?? false) === true;
+    }
+
+    public function requireAuthenticatorSetup(bool $required): void
+    {
+        $session = $this->session();
+        $data = $session?->get(self::SIGNED_IN);
+
+        if ($session !== null && is_array($data)) {
+            $session->put(self::SIGNED_IN, [...$data, 'must_set_up_authenticator' => $required]);
+        }
+    }
+
+    public function openAuthenticatorSetup(int $at): void
+    {
+        $this->session()?->put(self::SETUP, $at);
+    }
+
+    public function authenticatorSetupOpenedAt(): ?int
+    {
+        $at = $this->session()?->get(self::SETUP);
+
+        return is_int($at) ? $at : null;
     }
 
     public function keep(int $sessionVersion): void

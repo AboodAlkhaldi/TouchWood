@@ -99,4 +99,15 @@ return [
     // وكلمات النوافذ نفسها.
     'confirm_new_email' => 'تأكيد البريد الجديد',
     'resend_wait_reason' => 'يمكن إرسال رمز جديد بعد انتهاء الانتظار.',
+
+    // The authenticator app at sign-in (amendment 91).
+    'app_title' => 'أدخل الرمز من التطبيق',
+    'app_subtitle' => 'افتح تطبيق المصادقة وأدخل الرمز المكوّن من 6 أرقام الظاهر فيه.',
+    'app_code_label' => 'رمز التطبيق',
+    'use_recovery_code' => 'استخدام رمز استرداد بدلًا منه',
+    'use_app_code' => 'استخدام رمز التطبيق بدلًا منه',
+    'recovery_title' => 'أدخل رمز استرداد',
+    'recovery_subtitle' => 'كل رمز استرداد يعمل مرة واحدة. أدخل أحد الرموز التي حفظتها عند إعداد التطبيق.',
+    'recovery_code_label' => 'رمز الاسترداد',
+    'recovery_code_incomplete' => 'أدخل رمز الاسترداد.',
 ];

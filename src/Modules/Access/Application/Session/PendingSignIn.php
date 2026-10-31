@@ -25,6 +25,11 @@ final readonly class PendingSignIn
          * enters a new one first.
          */
         public ?string $maskedPhone = null,
+        /**
+         * The second step is a code from their authenticator app, not an SMS code (amendment 91): no
+         * phone is involved, so whether SMS reaches theirs does not matter here.
+         */
+        public bool $byApp = false,
     ) {}
 
     /**
@@ -40,8 +45,8 @@ final readonly class PendingSignIn
             && $staff->id() === $this->staffId
             && $staff->status() === StaffStatus::Active
             && $staff->sessionVersion() === $this->sessionVersion
-            && ($this->needsPhone
+            && ($this->byApp || ($this->needsPhone
                 ? $staff->isSuperAdmin() && ! $phones->reaches($staff->phone())
-                : $phones->reaches($staff->phone()));
+                : $phones->reaches($staff->phone())));
     }
 }

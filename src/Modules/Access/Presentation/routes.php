@@ -15,6 +15,7 @@ use Modules\Access\Presentation\Http\Controller\CustomerSessionController;
 use Modules\Access\Presentation\Http\Controller\PreferencesController;
 use Modules\Access\Presentation\Http\Controller\RolesController;
 use Modules\Access\Presentation\Http\Controller\StaffAccountController;
+use Modules\Access\Presentation\Http\Controller\StaffAuthenticatorController;
 use Modules\Access\Presentation\Http\Controller\StaffAuthPageController;
 use Modules\Access\Presentation\Http\Controller\StaffController;
 use Modules\Access\Presentation\Http\Controller\StaffLinkController;
@@ -53,6 +54,9 @@ Route::prefix('admin')
         Route::post('sign-in/phone', [StaffSignInController::class, 'phone'])->name('access.staff.sign-in.phone');
         Route::post('sign-in/code', [StaffSignInController::class, 'code'])->name('access.staff.sign-in.code');
         Route::post('sign-in/code/resend', [StaffSignInController::class, 'resend'])->name('access.staff.sign-in.resend');
+        // The code from the authenticator app, or a recovery code, for whom it is the method (amendment 91).
+        Route::get('sign-in/app', [StaffAuthPageController::class, 'app'])->name('access.staff.sign-in.app.page');
+        Route::post('sign-in/app', [StaffSignInController::class, 'appCode'])->name('access.staff.sign-in.app');
 
         Route::post('password/forgot', [StaffAccountController::class, 'forgotPassword'])->name('access.staff.password.forgot');
         Route::post('password/reset/{token}', [StaffAccountController::class, 'resetPassword'])->name('access.staff.password.reset');
@@ -61,10 +65,22 @@ Route::prefix('admin')
         Route::post('invitation/{token}/code', [StaffLinkController::class, 'confirmInvitation'])->name('access.staff.invitation.confirm');
         Route::post('email-change/{token}', [StaffLinkController::class, 'confirmEmailChange'])->name('access.staff.email-change.confirm');
 
+        /*
+        | Setting up an authenticator app (amendment 91). A session that must set one up before it
+        | reaches the panel reaches these, and signing out, and nothing else (RequireStaff).
+        */
+        Route::middleware(RequireStaff::ALIAS.':'.RequireStaff::SETTING_UP)->group(function (): void {
+            Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
+
+            Route::get('authenticator/setup', [StaffAuthenticatorController::class, 'setup'])->name('access.staff.authenticator.setup.page');
+            Route::post('authenticator/setup', [StaffAuthenticatorController::class, 'start'])->name('access.staff.authenticator.setup');
+            Route::post('authenticator/setup/code', [StaffAuthenticatorController::class, 'confirm'])->name('access.staff.authenticator.setup.confirm');
+            // The recovery codes, shown once after a setup or a renewal.
+            Route::get('authenticator/recovery-codes', [StaffAuthenticatorController::class, 'recoveryCodes'])->name('access.staff.authenticator.recovery-codes.page');
+        });
+
         Route::middleware(RequireStaff::ALIAS)->group(function (): void {
             Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
-
-            Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
 
             // View Store: the shop of the store chosen in its menu, as themselves (spec §1.11,
             // amendment 64); the handler takes only one of their own stores.
@@ -95,6 +111,8 @@ Route::prefix('admin')
             Route::post('staff/{staff}/enable', [StaffController::class, 'enable'])->name('access.staff.enable');
             Route::post('staff/{staff}/invitation/resend', [StaffController::class, 'resendInvitation'])->name('access.staff.invitation.resend');
             Route::post('staff/{staff}/invitation/cancel', [StaffController::class, 'cancelInvitation'])->name('access.staff.invitation.cancel');
+            // Super Admins only (amendment 91): someone who lost both the app and the recovery codes.
+            Route::post('staff/{staff}/authenticator/reset', [StaffController::class, 'resetAuthenticator'])->name('access.staff.authenticator.reset');
 
             /*
             | Customers (stage 2b step 4, frontend.md 3.7). Staff see the customers of their own
@@ -144,6 +162,12 @@ Route::prefix('admin')
             Route::post('account/phone/code', [StaffOwnAccountController::class, 'confirmPhoneChange'])->name('access.staff.account.phone.confirm');
             Route::post('account/notifications', [StaffOwnAccountController::class, 'updateNotifications'])->name('access.staff.account.notifications');
             Route::post('account/critical-sms', [StaffOwnAccountController::class, 'updateCriticalSms'])->name('access.staff.account.critical-sms');
+
+            // The authenticator app on the Security tab (amendment 91): the method, while both are on;
+            // new recovery codes and removing the app, each after the password.
+            Route::post('account/sign-in-method', [StaffAuthenticatorController::class, 'chooseMethod'])->name('access.staff.account.sign-in-method');
+            Route::post('account/authenticator/recovery-codes', [StaffAuthenticatorController::class, 'renewRecoveryCodes'])->name('access.staff.account.recovery-codes');
+            Route::post('account/authenticator/remove', [StaffAuthenticatorController::class, 'remove'])->name('access.staff.account.authenticator.remove');
 
             /*
             | Where I am signed in, and which browsers skip my sign-in code (owner, 2026-09-26).

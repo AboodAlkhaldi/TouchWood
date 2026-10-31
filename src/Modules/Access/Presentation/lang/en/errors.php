@@ -150,6 +150,31 @@ return [
         'title' => 'Couldn\'t Sign In',
         'detail' => 'Couldn\'t sign in: this account can\'t sign in. Contact an administrator.',
     ],
+    // The authenticator app (amendment 91).
+    'wrong_app_code' => [
+        'title' => 'Wrong Code',
+        'detail' => 'Couldn\'t verify the code: it is wrong, or it was already used. Try again.',
+    ],
+    'app_code_tries_used_up' => [
+        'title' => 'Too Many Wrong Codes',
+        'detail' => 'Couldn\'t sign in: too many wrong codes. Sign in again with your password.',
+    ],
+    'authenticator_setup_expired' => [
+        'title' => 'Setup Ended',
+        'detail' => 'This setup has ended. Enter your password again for a new QR code.',
+    ],
+    'sign_in_method_required' => [
+        'title' => 'One Method Must Stay On',
+        'detail' => 'Couldn\'t turn it off: at least one sign-in method must stay on.',
+    ],
+    'no_authenticator' => [
+        'title' => 'No Authenticator App',
+        'detail' => 'No authenticator app is set up on this account.',
+    ],
+    'app_sign_ins_too_soon' => [
+        'title' => 'Too Many Sign-Ins',
+        'detail' => 'Too many sign-ins with an app code this hour. Try again in :seconds seconds.',
+    ],
     /*
     | Field names, for the refusals that name one (":attribute", ":field").
     |

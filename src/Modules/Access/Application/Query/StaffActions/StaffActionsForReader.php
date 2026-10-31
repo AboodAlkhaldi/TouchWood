@@ -7,10 +7,12 @@ namespace Modules\Access\Application\Query\StaffActions;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Public\Enums\StaffStatus;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+use Shared\Application\Authorizer;
 
 /**
  * What the person acting now may do to one staff member (frontend.md §3.3, C2).
@@ -32,6 +34,8 @@ final readonly class StaffActionsForReader
         private GrantRules $rules,
         private StaffUserRepository $staff,
         private RoleAssignmentRepository $assignments,
+        private Authorizer $authorizer,
+        private StaffAuthenticatorRepository $authenticators,
     ) {}
 
     public function forStaff(string $staffId): StaffActionsDto
@@ -43,8 +47,14 @@ final readonly class StaffActionsForReader
             return StaffActionsDto::none();
         }
 
+        // Super Admins only, on someone else, and only an app that is set up (amendment 91).
+        $reset = $target->id() !== $actor->id
+            // The reset's permission is reserved, so held by a Super Admin alone: the reader is one.
+            && $this->authorizer->isUnlimited()
+            && $this->authenticators->forStaff($target->id())?->isConfirmed() === true;
+
         if ($target->isSuperAdmin() || $target->id() === $actor->id) {
-            return StaffActionsDto::none();
+            return StaffActionsDto::none($reset);
         }
 
         $stores = $this->assignments->byStaff($staffId)?->staffStores();
@@ -68,6 +78,7 @@ final readonly class StaffActionsForReader
             // An invitation can only be resent or cancelled while it is still open.
             mayResendInvitation: $invite && $invited,
             mayCancelInvitation: $invite && $invited,
+            mayResetAuthenticator: $reset,
         );
     }
 }

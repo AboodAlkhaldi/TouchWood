@@ -153,4 +153,10 @@ return [
     'verification_label' => 'member name',
     'cancel_invitation_body' => 'The link in the invitation stops working. A new invitation can still be sent.',
     'keep_invitation' => 'Keep Invitation',
+
+    // The authenticator app, reset by a Super Admin (amendment 91).
+    'reset_authenticator' => 'Reset Authenticator App',
+    'reset_authenticator_body' => 'Their authenticator app and recovery codes stop working. Next time they sign in with an SMS code, then set up a new app if the app is their method.',
+    'keep_authenticator' => 'Keep App',
+    'authenticator_reset' => 'Authenticator app reset.',
 ];

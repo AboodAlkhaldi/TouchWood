@@ -13,6 +13,7 @@ use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Presentation\Http\Resource\EmailChangePage;
 use Modules\Access\Presentation\Http\Resource\InvitationPage;
 use Modules\Access\Presentation\Http\Resource\ResetPasswordPage;
+use Modules\Access\Presentation\Http\Resource\SignInAppPage;
 use Modules\Access\Presentation\Http\Resource\SignInCodePage;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
@@ -73,7 +74,8 @@ final readonly class StaffAuthPageController
     {
         $pending = $this->sessions->pendingSignIn();
 
-        if ($pending === null || $pending->needsPhone) {
+        // A sign-in by the app sent no SMS code (amendment 91).
+        if ($pending === null || $pending->needsPhone || $pending->byApp) {
             return redirect('/admin/sign-in');
         }
 
@@ -83,6 +85,18 @@ final readonly class StaffAuthPageController
             '/admin/sign-in/code',
             '/admin/sign-in/code/resend',
         )->toArray(), self::WORDS);
+    }
+
+    /** The app's code (amendment 91) — only after the right password, for whom the app is the method. */
+    public function app(): Response|RedirectResponse
+    {
+        $pending = $this->sessions->pendingSignIn();
+
+        if ($pending === null || ! $pending->byApp) {
+            return redirect('/admin/sign-in');
+        }
+
+        return $this->page->render('Access/Admin/SignInApp', (new SignInAppPage($this->settings->trustedBrowserHours()))->toArray(), self::WORDS);
     }
 
     /** A4. */

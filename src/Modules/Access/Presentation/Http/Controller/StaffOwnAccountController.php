@@ -6,6 +6,7 @@ namespace Modules\Access\Presentation\Http\Controller;
 
 use App\Http\FormErrors;
 use App\Http\Page;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +32,7 @@ use Modules\Access\Application\Command\VerifyOwnPhoneChange\VerifyOwnPhoneChange
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Query\MyAccount\MyAccountDto;
 use Modules\Access\Application\Query\MyAccount\MyAccountForStaff;
+use Modules\Access\Application\Query\MyAuthenticator\MyAuthenticatorForStaff;
 use Modules\Access\Application\Query\MySessions\MySessionsDto;
 use Modules\Access\Application\Query\MySessions\MySessionsForStaff;
 use Modules\Access\Application\Query\MySessions\StaffSessionDto;
@@ -43,6 +45,7 @@ use Modules\Access\Presentation\Http\Request\OwnPhoneChangeRequest;
 use Modules\Access\Presentation\Http\Request\OwnProfileRequest;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Resource\AccountPage;
+use Modules\Access\Presentation\Http\Resource\AuthenticatorBlock;
 use Modules\Access\Presentation\Http\Resource\Countries;
 use Modules\Access\Presentation\Http\Resource\CountryOption;
 use Modules\Access\Presentation\Http\Resource\NotificationSetting;
@@ -85,6 +88,7 @@ final readonly class StaffOwnAccountController
         private MyAccountForStaff $account,
         private MySessionsForStaff $mySessions,
         private StaffSecuritySettings $settings,
+        private MyAuthenticatorForStaff $authenticator,
     ) {}
 
     public function show(Request $request): Response
@@ -118,6 +122,7 @@ final readonly class StaffOwnAccountController
             sessions: $this->sessionRows($sessions),
             trustedBrowsers: $this->trustedRows($sessions),
             tab: in_array($tab, self::TABS, true) ? $tab : self::TABS[0],
+            authenticator: $this->authenticatorBlock(),
         ))->toArray(), self::WORDS);
     }
 
@@ -171,6 +176,21 @@ final readonly class StaffOwnAccountController
         return $this->backToSessions($browser === null
             ? 'access::account.trusted_browsers_forgotten'
             : 'access::account.trusted_browser_forgotten');
+    }
+
+    /** The authenticator app and the sign-in method on the Security tab (amendment 91). */
+    private function authenticatorBlock(): AuthenticatorBlock
+    {
+        $app = $this->authenticator->forCurrentStaff();
+
+        return new AuthenticatorBlock(
+            $app->smsEnabled,
+            $app->authenticatorEnabled,
+            $app->hasApp,
+            $app->confirmedAt === null ? null : CarbonImmutable::instance($app->confirmedAt)->utc()->toIso8601String(),
+            $app->method,
+            $app->recoveryCodesLeft,
+        );
     }
 
     /**

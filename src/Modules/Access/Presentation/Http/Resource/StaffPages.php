@@ -145,6 +145,7 @@ final readonly class StaffPages
             mayEnable: $may->mayEnable,
             mayResendInvitation: $may->mayResendInvitation,
             mayCancelInvitation: $may->mayCancelInvitation,
+            mayResetAuthenticator: $may->mayResetAuthenticator,
         );
     }
 

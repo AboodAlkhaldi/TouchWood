@@ -391,7 +391,16 @@ php artisan access:super-admin:resend-invitation owner@example.com   # a new 24-
 php artisan access:super-admin:cancel owner@example.com              # cancelled and freed
 php artisan access:super-admin:revoke owner@example.com       # never the last active one; disables (or cancels an invited one)
 php artisan access:super-admin:reset-phone owner@example.com  # a lost phone
+php artisan access:super-admin:reset-authenticator owner@example.com  # a lost authenticator app and its recovery codes
 ```
+
+**A lost authenticator app** (amendment 91). A staff member who lost both the app and the recovery
+codes is reset by any Super Admin from their staff page (Reset Authenticator App), and a Super Admin
+by another Super Admin. A Super Admin with nobody to do that - the only one - is reset on the server
+with `access:super-admin:reset-authenticator {email}`: their app and recovery codes are removed and
+audited (`access.staff_user.authenticator_reset`, by `console`); at the next sign-in, after the
+password, they get an SMS code, and then set a new app up when the app is their method. The command
+refuses an email that is not a Super Admin's, and one with no app set up.
 
 The invitation is emailed by Ops through `OPS_EMAIL_DRIVER` — `log` in `.env.example`, which writes
 the email, link included, to `storage/logs/laravel.log`. In production the application refuses to
@@ -404,8 +413,11 @@ comes with the screens, in the frontend foundation stage (amendment 12).
 
 ```
 password ─┬─ trusted browser ──────────────────────────────▶ signed in
+          ├─ app set up, and the app is their method:
+          │     app code or recovery code ── right code ──▶ signed in (+ trust this browser)
           ├─ SMS code (within 15 minutes) ── right code ───▶ signed in (+ trust this browser, 12 hours)
           └─ a Super Admin with no phone: new number ── its code verifies it ──▶ signed in
+             ... then, when the app is their method and none is set up: the setup, before the panel
 ```
 
 - **The admin panel has its own session**, `touchwood_admin_session`, sent only to `/admin`
@@ -457,6 +469,29 @@ password ─┬─ trusted browser ───────────────
   the `DETAIL` and `CONTEXT` lines, and a value it could not read at the end of the error line.
 
 Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes to enter the code.
+
+### The authenticator app (amendment 91)
+
+- **Which method.** Two Global yes/no settings, `access.staff.sign_in_by_sms` (off at go-live) and
+  `access.staff.sign_in_by_authenticator` (on), changed by Super Admins alone (the reserved
+  `access.sign_in_methods.update`) on the Settings page; `SignInMethodsGuard` keeps one on. One on:
+  everyone uses it. Both: each person chooses on their Security tab - the app when they set one up and
+  did not choose SMS, otherwise SMS (`StaffSignInMethods`).
+- **SMS first, then the setup.** Someone without an app signs in by SMS exactly as before; when the
+  app is their method the session is marked (`StaffSessions::start(..., mustSetUpAuthenticator)`) and
+  `RequireStaff` lets it reach only the setup, its posts and Sign Out until the app is confirmed.
+  The mark is set at sign-in, so a change of the setting reaches people from their next sign-in.
+- **Setup**: the password (counted like a wrong one at sign-in), then a QR code drawn here as SVG
+  (bacon/bacon-qr-code) with the key to type by hand, good 15 minutes and only in that browser, then
+  one code from the app. A new app replaces the old one only once its code is right. Ten recovery
+  codes are made with every setup and every renewal, shown once, kept as keyed hashes.
+- **Codes**: TOTP through pragmarx/google2fa (6 digits, 30 seconds, one step either side). The last
+  step used is kept, so a code is never taken twice. The secret is encrypted with the app's key.
+  Wrong codes count to "Tries at a Code" for one sign-in, which then ends; the app step opens at most
+  "Codes an Hour" times an hour per account, given back by a sign-in that succeeds.
+- **Audited**: setup (`replaced` when it replaced one), removal, reset (by a Super Admin or the
+  console), renewed codes, a recovery code used (with how many are left), a method chosen; the
+  setting's changes as every setting's.
 
 ### The staff view: from the panel to the shop, as themselves
 

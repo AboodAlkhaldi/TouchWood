@@ -22,8 +22,9 @@ interface StaffSessions
      *
      * @param  string|null  $maskedPhone  the number the code went to, masked to its last three
      *                                    digits, for the code screen to name it (stage 2b, P4)
+     * @param  bool  $byApp  the second step is a code from their authenticator app (amendment 91)
      */
-    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null): void;
+    public function beginSignIn(string $staffId, int $sessionVersion, bool $needsPhone, ?string $maskedPhone = null, bool $byApp = false): void;
 
     /**
      * The code has just gone to this number, masked (stage 2b, P4): a Super Admin who entered a new
@@ -42,8 +43,32 @@ interface StaffSessions
 
     /**
      * Signed in: a new session id (spec §1.8), their session version, and the request acts as them.
+     *
+     * @param  bool  $mustSetUpAuthenticator  the app is their method and none is set up: this session
+     *                                        reaches only the setup until it is (amendment 91)
      */
-    public function start(string $staffId, int $sessionVersion): void;
+    public function start(string $staffId, int $sessionVersion, bool $mustSetUpAuthenticator = false): void;
+
+    /**
+     * Whether this session must set up an authenticator app before it reaches the panel (amendment 91).
+     */
+    public function mustSetUpAuthenticator(): bool;
+
+    /**
+     * Marks this session as having to set up an app first, or - once it is set up - lets it through.
+     */
+    public function requireAuthenticatorSetup(bool $required): void;
+
+    /**
+     * A setup was opened with the password in this browser, at this moment: only this browser is shown
+     * its QR code (amendment 91).
+     */
+    public function openAuthenticatorSetup(int $at): void;
+
+    /**
+     * When this browser opened the setup it may show, if it did.
+     */
+    public function authenticatorSetupOpenedAt(): ?int;
 
     /**
      * Their own password changed here: this session stays, every other one ends.
