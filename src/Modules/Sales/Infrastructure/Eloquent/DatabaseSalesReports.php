@@ -16,6 +16,8 @@ use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
+use Modules\Sales\Public\Dto\ProductNetSaleDto;
+use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
@@ -315,13 +317,101 @@ final readonly class DatabaseSalesReports implements SalesReports
         );
     }
 
+    public function productNetSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductNetSalesPageDto
+    {
+        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidArgumentException('No such store.');
+        $limit = min(max($limit, 1), self::SALES_MAX);
+
+        if ($from >= $to) {
+            return new ProductNetSalesPageDto([], null);
+        }
+
+        [$f, $t] = [Moment::of($from), Moment::of($to)];
+        $bindings = [$store->value, $f, $t, ...self::NOT_SALES, $store->value, $f, $t, ...self::REFUNDING];
+        $past = '';
+
+        // A cursor is the last row's product; one that is not one starts at the top.
+        if ($after !== null && Ulids::valid(strtolower($after))) {
+            $past = 'WHERE product_id COLLATE "C" > ? COLLATE "C"';
+            $bindings[] = strtolower($after);
+        }
+
+        $bindings[] = $limit + 1;
+        // Every product sold in the range, or with a piece in a return asked in it — sold earlier, given back now.
+        $rows = $this->db->select(<<<SQL
+            WITH sold AS (
+                SELECT l.product_id, sum(l.quantity) AS units, sum(l.total_minor - l.coupon_share_minor - l.points_share_minor) AS revenue
+                FROM sales.order_lines AS l JOIN sales.orders AS o ON o.id = l.order_id
+                WHERE o.store_id = ? AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
+                GROUP BY l.product_id
+            ), returned AS (
+                SELECT DISTINCT l.product_id
+                FROM sales.returns AS r
+                JOIN sales.return_lines AS rl ON rl.return_id = r.id
+                JOIN sales.order_lines AS l ON l.id = rl.order_line_id
+                WHERE r.store_id = ? AND r.requested_at >= ? AND r.requested_at < ? AND r.status IN (?, ?, ?, ?) AND NOT l.is_gift
+            ), products AS (
+                SELECT product_id FROM sold UNION SELECT product_id FROM returned
+            )
+            SELECT p.product_id, COALESCE(s.units, 0) AS units, COALESCE(s.revenue, 0) AS revenue
+            FROM (SELECT product_id FROM products {$past}) AS p LEFT JOIN sold AS s ON s.product_id = p.product_id
+            ORDER BY p.product_id COLLATE "C"
+            LIMIT ?
+            SQL, $bindings);
+
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        $page = array_map(static fn (stdClass $row): string => (string) $row->product_id, $rows);
+        [$refunds, $waiting] = [[], []];
+
+        // The page's products' refunds: the returns asked in the range holding a piece of one, each counted as
+        // `revenueByDay` counts it, its goods kept by line.
+        if ($page !== []) {
+            $returns = $this->db->table('sales.returns as r')
+                ->where('r.store_id', $store->value)->where('r.requested_at', '>=', $f)->where('r.requested_at', '<', $t)
+                ->whereIn('r.status', self::REFUNDING)
+                ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('sales.return_lines as rl')
+                    ->join('sales.order_lines as l', 'l.id', '=', 'rl.order_line_id')
+                    ->whereColumn('rl.return_id', 'r.id')->whereIn('l.product_id', $page))
+                ->orderBy('r.requested_at')->orderBy('r.id')
+                ->get(['r.id', 'r.order_id', 'r.status'])->all();
+
+            $done = [];
+
+            foreach ($returns as $return) {
+                $done[(string) $return->id] = $return->status === 'COMPLETED';
+            }
+
+            foreach ($this->goodsOf(array_values($returns)) as $id => $refund) {
+                foreach ($refund['lines'] as $line) {
+                    if ($done[$id] ?? false) {
+                        $refunds[$line['product']] = ($refunds[$line['product']] ?? 0) + $line['goods'];
+                    } else {
+                        $waiting[$line['product']] = ($waiting[$line['product']] ?? 0) + $line['goods'];
+                    }
+                }
+            }
+        }
+
+        $money = static fn (int $minor): Money => Money::of($minor, $currency);
+
+        return new ProductNetSalesPageDto(
+            array_values(array_map(static fn (stdClass $row): ProductNetSaleDto => new ProductNetSaleDto(
+                (string) $row->product_id, (int) $row->units, $money((int) $row->revenue),
+                $money($refunds[(string) $row->product_id] ?? 0), $money($waiting[(string) $row->product_id] ?? 0),
+            ), $rows)),
+            $more && $page !== [] ? $page[count($page) - 1] : null,
+        );
+    }
+
     /**
      * The goods each return refunds, or would, and their VAT (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
      * completed so far and those not finished asked before it, over the pieces received, or else asked.
      *
      * @param  list<stdClass>  $returns
-     * @return array<string, array{goods: int, vat: int}> by return id: the goods, and the goods' VAT
+     * @return array<string, array{goods: int, vat: int, lines: array<string, array{product: string, goods: int}>}> by return
+     *                                                                                                              id: the goods, the goods' VAT, and the goods by line with its product
      */
     private function goodsOf(array $returns): array
     {
@@ -332,9 +422,11 @@ final readonly class DatabaseSalesReports implements SalesReports
         }
 
         $lines = [];
+        $productOf = [];
 
         foreach ($this->db->table('sales.order_lines')->whereIn('order_id', $orders)->orderBy('id')
-            ->get(['id', 'order_id', 'quantity', 'total_minor', 'coupon_share_minor', 'points_share_minor', 'vat_share_minor', 'is_gift']) as $row) {
+            ->get(['id', 'order_id', 'product_id', 'quantity', 'total_minor', 'coupon_share_minor', 'points_share_minor', 'vat_share_minor', 'is_gift']) as $row) {
+            $productOf[(string) $row->id] = (string) $row->product_id;
             $lines[(string) $row->order_id][(string) $row->id] = [
                 'quantity' => (int) $row->quantity, 'total' => (int) $row->total_minor, 'coupon' => (int) $row->coupon_share_minor,
                 'points' => (int) $row->points_share_minor, 'vat' => (int) $row->vat_share_minor, 'gift' => (bool) $row->is_gift,
@@ -381,7 +473,17 @@ final readonly class DatabaseSalesReports implements SalesReports
             // The goods alone: the shipping is outside revenue, so it never rides along here — and so what the
             // refund holds beyond the goods is exactly their VAT.
             $refund = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0);
-            $goods[$id] = ['goods' => $refund['goods'], 'vat' => $refund['refund'] - $refund['goods']];
+            $byLine = [];
+
+            // Each line moves on its own pieces alone, so its goods one at a time add up to the return's.
+            foreach ($pieces[$id] ?? [] as $line => $count) {
+                $byLine[$line] = [
+                    'product' => $productOf[$line] ?? '',
+                    'goods' => ReturnRefunds::of($lines[$order] ?? [], $before, [$line => $count], true, 0, 0)['goods'],
+                ];
+            }
+
+            $goods[$id] = ['goods' => $refund['goods'], 'vat' => $refund['refund'] - $refund['goods'], 'lines' => $byLine];
         }
 
         return $goods;

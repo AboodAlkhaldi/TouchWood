@@ -47,6 +47,7 @@ use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
+use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
@@ -525,6 +526,11 @@ function reportsOneDayEach(string $day): void
         public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto
         {
             return new ProductSalesPageDto([], null);
+        }
+
+        public function productNetSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductNetSalesPageDto
+        {
+            return new ProductNetSalesPageDto([], null);
         }
     });
 }
