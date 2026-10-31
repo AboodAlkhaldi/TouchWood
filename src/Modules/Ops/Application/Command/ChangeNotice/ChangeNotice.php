@@ -20,5 +20,7 @@ final readonly class ChangeNotice
         public bool $byBell,
         public bool $byEmail,
         public ?string $sendAt,
+        /** One of the store's Promotions segments (§1.7); none: every customer of the store. */
+        public ?string $segmentId = null,
     ) {}
 }

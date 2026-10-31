@@ -59,6 +59,7 @@ final readonly class NoticesController
             Inputs::flag($request, 'by_bell'),
             Inputs::flag($request, 'by_email'),
             Inputs::text($request, 'send_at'),
+            Inputs::text($request, 'segment'),
         ));
 
         return new JsonResponse($this->pages->notice($view->handle(new ViewNotice($id)))->toArray(), 201);
@@ -76,6 +77,7 @@ final readonly class NoticesController
             Inputs::flag($request, 'by_bell'),
             Inputs::flag($request, 'by_email'),
             Inputs::text($request, 'send_at'),
+            Inputs::text($request, 'segment'),
         ));
 
         return new JsonResponse($this->pages->notice($view->handle(new ViewNotice($notice)))->toArray());

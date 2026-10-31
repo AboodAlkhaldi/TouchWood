@@ -28,6 +28,7 @@ use Modules\Ops\Infrastructure\Queue\SendBroadcastEmailJob;
 use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Shared\Domain\ValueObject\StoreId;
 use stdClass;
 
@@ -36,8 +37,9 @@ use stdClass;
  * batches on the queue; the notice shows how many were sent").
  *
  * One batch is one transaction, on the row locked: up to 500 customers after the row's cursor - every
- * customer registered in the store, individuals and then companies (AccessApi::customerIdsInStore), or
- * the one customer a message names - get their bell entry, and one queued email each that may have it;
+ * customer registered in the store, individuals and then companies (AccessApi::customerIdsInStore), the
+ * members of the notice's segment (PromotionsApi::segmentMembers, store-scoped; §1.7), or the one
+ * customer a message names - get their bell entry, and one queued email each that may have it;
  * the cursor and the counts move on, and the next batch is queued - the queue holds its jobs until that
  * transaction commits (`after_commit`), so a batch rolled back queues nothing. A batch that fails rolls
  * back whole and runs again from the same cursor: nobody gets a bell entry twice. Each email is its own
@@ -61,6 +63,7 @@ final readonly class BroadcastSender
         private SentMessages $sent,
         private EmailSender $emails,
         private WrittenEmails $written,
+        private PromotionsApi $promotions,
     ) {}
 
     /**
@@ -83,6 +86,11 @@ final readonly class BroadcastSender
             }
 
             $store = StoreId::fromString((string) $row->store_id);
+
+            if ($row->segment_id !== null) {
+                return $this->segmentBatch($broadcast, $row, $store);
+            }
+
             $one = $row->customer_id !== null;
             $type = AccountType::from($row->cursor_type ?? AccountType::Individual->value);
             $ids = $one ? [(string) $row->customer_id] : $this->access->customerIdsInStore($store, $type, $row->cursor_after, self::BATCH);
@@ -116,6 +124,35 @@ final readonly class BroadcastSender
 
             return ! $done;
         });
+    }
+
+    /**
+     * One batch of a segment's notice (§1.7): the next members after the cursor, by id, under the same
+     * rules as every customer of the store - the bell to each, the email only to those who may receive
+     * offers. A segment deleted meanwhile is refused by Promotions, and the batch fails as any other.
+     */
+    private function segmentBatch(Broadcast $broadcast, stdClass $row, StoreId $store): bool
+    {
+        $ids = $this->promotions->segmentMembers($store, (string) $row->segment_id, $row->cursor_after, self::BATCH);
+        $bells = $ids === [] ? 0 : $this->reach($broadcast, $row, $store, $ids, offers: true);
+        $done = $ids === [];
+
+        $this->db->update(
+            "UPDATE {$this->table($broadcast)} SET bell_count = bell_count + ?, cursor_type = 'SEGMENT', cursor_after = ?, status = ?, finished_at = ?::timestamptz WHERE id = ?",
+            [
+                $bells,
+                $done ? $row->cursor_after : strtolower((string) end($ids)),
+                $done ? 'SENT' : 'SENDING',
+                $done ? Moment::of(CarbonImmutable::now()->toDateTimeImmutable()) : null,
+                $row->id,
+            ],
+        );
+
+        if (! $done) {
+            $this->jobs->dispatch(new SendBroadcastBatchJob($broadcast, (string) $row->id));
+        }
+
+        return ! $done;
     }
 
     /**
@@ -217,7 +254,7 @@ final readonly class BroadcastSender
 
     private function row(Broadcast $broadcast, string $id, bool $lock): ?stdClass
     {
-        $columns = $broadcast === Broadcast::Notice ? 'link, NULL AS customer_id' : 'NULL AS link, customer_id';
+        $columns = $broadcast === Broadcast::Notice ? 'link, NULL AS customer_id, segment_id' : 'NULL AS link, customer_id, NULL AS segment_id';
         $row = $this->db->selectOne(
             "SELECT id, store_id, title_ar, title_en, body_ar, body_en, {$columns}, by_bell, by_email, status, cursor_type, cursor_after FROM {$this->table($broadcast)} WHERE id = ?".($lock ? ' FOR UPDATE' : ''),
             [strtolower($id)],

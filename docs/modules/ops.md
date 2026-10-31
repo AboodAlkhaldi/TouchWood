@@ -194,7 +194,12 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   as built in step 7). **The segment audience lands after Stage 6 makes `PromotionsApi::segmentMembers`
   store-scoped** (`segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)`, another
   store's segment refused as `SegmentNotFound`): without the store, a notice of one store could reach
-  another store's segment. Built in step 7: the store audience only.
+  another store's segment. Built in step 7: the store audience only. **The segment audience is built (2026-10-31,
+  with steps 5 and 6)**: a notice may name one of its store's segments (`segment_id`); another store's segment is
+  refused as Promotions' `SegmentNotFound`, an empty one as an empty audience (§7); the batches page
+  `segmentMembers` (`cursor_type` SEGMENT) under the same rules - the bell to every member, the email only to
+  those who may receive offers (§1.3). A segment deleted while its notice sends fails the batch: the notice
+  shows FAILED (as any batch that fails its last attempt).
 - **Channels:** bell and email, **both ticked by default**, each untickable (owner, R4-6). The email
   goes only to customers who agreed (§1.3); the bell to all.
 - **Send now or schedule** a date and time in the store's time zone. A scheduled notice can be edited or
@@ -213,7 +218,7 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   the search offers only those, and any other is refused as unknown (owner, 2026-10-30).
 - **To every customer of a store, or a segment:** `ops.message.send_many`, **admins only** (round 1
   #18). Every customer of a store is every customer registered in it (owner, 2026-10-30); the segment
-  waits for the store-scoped `segmentMembers`, as in §1.7.
+  audience of a staff message is **not built yet** (only the notice's was, 2026-10-31, §1.7).
 - **Bell and email only** (round 3 #10). Free text in both languages; the customer gets their own
   language.
 - A one-customer message is a **service** message (it ignores consent); a message to many is
