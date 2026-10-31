@@ -102,7 +102,7 @@ it('holds the coupon for the try, counting toward its limit, and does nothing th
 
     expect(couponHoldsHeld($coupon))->toBe(1)
         ->and(couponHoldsUses($coupon))->toBe(0)
-        ->and($refused instanceof CouponRefused ? $refused->reason : null)->toBe(CouponRefusal::UsedUp)
+        ->and($refused->reason)->toBe(CouponRefusal::UsedUp)
         ->and(Pr::api()->applyCoupon(couponHoldsRequest($other, [Pr::line($a, 200_00)]))->refusal)->toBe(CouponRefusal::UsedUp);
 });
 
@@ -116,7 +116,7 @@ it('counts a hold toward the limit per customer, too', function () {
 
     $refused = Pr::thrown(fn () => Pr::api()->reserveCoupon(new ReserveCoupon(Pr::orderId(), $coupon, couponHoldsRequest($customer, [Pr::line($a, 200_00)]), $earlier->discount ?? Pr::money(0), false, Pr::placing())), CouponRefused::class);
 
-    expect($refused instanceof CouponRefused ? $refused->reason : null)->toBe(CouponRefusal::UsedUpForYou)
+    expect($refused->reason)->toBe(CouponRefusal::UsedUpForYou)
         ->and(Pr::api()->applyCoupon(couponHoldsRequest($customer, [Pr::line($a, 200_00)]))->refusal)->toBe(CouponRefusal::UsedUpForYou);
 });
 
