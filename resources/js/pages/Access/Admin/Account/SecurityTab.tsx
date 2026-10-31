@@ -8,14 +8,14 @@ import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
+import { AuthenticatorBlock } from '@/pages/Access/Admin/Account/AuthenticatorBlock';
 
 /*
 | B3 - the security tab (frontend.md §3.2), on shadcn's Card with Geist's rules (§1.11).
 |
-| Changing the password, and nothing else. There is no two-factor switch, because there is no
-| two-factor choice: every staff member signs in with a code to their phone, always (§2.7). The tab
-| says so, in a card of its own, rather than leaving a person hunting for a setting that was never
-| there.
+| Changing the password, then the authenticator app (access.md amendment 91): whether one is set up,
+| the second step this person takes - an SMS code or a code from the app - and, when the Super Admins
+| have both methods on, the choice between them (AuthenticatorBlock).
 |
 | The rule is the setting's, in words, before anyone types - not a message after they have chosen
 | something we then refuse.
@@ -129,15 +129,8 @@ export function SecurityTab({ account }: Props) {
                 </form>
             </Card>
 
-            {/* Geist's Fieldset without a footer: information, no action (the batch B audit). */}
-            <Card className="material-base gap-1 border-0 py-5">
-                <CardHeader className="px-6">
-                    <CardTitle className="text-heading-20 text-ink">
-                        <h2>{t('access::account.two_factor_title')}</h2>
-                    </CardTitle>
-                    <CardDescription className="text-copy-14 text-ink-muted">{t('access::account.two_factor_body')}</CardDescription>
-                </CardHeader>
-            </Card>
+            {/* The authenticator app and the sign-in method (access.md amendment 91). */}
+            <AuthenticatorBlock account={account} />
         </div>
     );
 }
