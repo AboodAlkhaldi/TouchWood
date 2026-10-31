@@ -575,8 +575,10 @@ ones (`SetSizePacking` for each). A size archived meanwhile is refused in its ow
 Everything is in step 5's Application layer: `ListBoxes`, `CreateBox`, `ChangeBox`, `SwitchBox`,
 `OrderBoxes`, `DeleteBox`, `ListPackingSizes`, `SetSizePacking`; the padding through Platform's settings route.
 The sizes' photos are read from Platform's media in one read, as the logos are. **Marking several sizes at
-once** is one `SetSizePacking` per size, in one request — **to confirm with the backend session** that it
-wants no batch command for it.
+once** is one `SetSizePacking` per size, in one request — **confirmed by the backend session, 2026-10-31**: no
+batch command; each size stands alone (one archived meanwhile is refused, those before it stay done), a size
+already in the state asked is a no-op. `ListBoxes` returns the boxes by position; `ListPackingSizes`' `after`
+is the previous page's `next`.
 
 ---
 
