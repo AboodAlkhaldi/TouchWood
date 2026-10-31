@@ -480,7 +480,11 @@ Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes 
 - **SMS first, then the setup.** Someone without an app signs in by SMS exactly as before; when the
   app is their method the session is marked (`StaffSessions::start(..., mustSetUpAuthenticator)`) and
   `RequireStaff` lets it reach only the setup, its posts and Sign Out until the app is confirmed.
-  The mark is set at sign-in, so a change of the setting reaches people from their next sign-in.
+  `RequireStaff` asks on every panel request (`AuthenticatorGate`, owner 2026-10-31), so a session open
+  when the app became required is sent to the setup at once; the answer is kept in the session with the
+  two boxes it was given under and asked again only when they change, so a warm request reads nothing
+  more. A JSON request is answered 403 in the panel's language. When the gate lifts, the session gets a
+  new id and CSRF token.
 - **Setup**: the password (counted like a wrong one at sign-in), then a QR code drawn here as SVG
   (bacon/bacon-qr-code) with the key to type by hand, good 15 minutes and only in that browser, then
   one code from the app. A new app replaces the old one only once its code is right. Ten recovery
@@ -488,10 +492,23 @@ Every number here is a setting (`StaffSecuritySettings`), except the 15 minutes 
 - **Codes**: TOTP through pragmarx/google2fa (6 digits, 30 seconds, one step either side). The last
   step used is kept, so a code is never taken twice. The secret is encrypted with the app's key.
   Wrong codes count to "Tries at a Code" for one sign-in, which then ends; the app step opens at most
-  "Codes an Hour" times an hour per account, given back by a sign-in that succeeds.
+  "Codes an Hour" times an hour per account, given back by a sign-in that succeeds. Each sign-in that
+  runs out of codes is audited and emailed to the person at once ("someone used your password and
+  failed the app code", the time only - `SecurityMessages::staffAppCodeFailed`); the third in 24 hours
+  locks the app step, recovery codes included (`AppSignInLocked`), until the password is reset.
+- **Choosing SMS** over the app, with both on, asks the password first; so do setup, renewing codes
+  and removing one's app. **A reset** (a Super Admin, or the console) signs the person out everywhere
+  and forgets their trusted browsers, as Sign Out Everywhere does.
 - **Audited**: setup (`replaced` when it replaced one), removal, reset (by a Super Admin or the
-  console), renewed codes, a recovery code used (with how many are left), a method chosen; the
-  setting's changes as every setting's.
+  console), renewed codes, a recovery code used (with how many are left), a method chosen, a sign-in
+  ended by wrong codes (with the count in 24 hours), the lock; the setting's changes as every
+  setting's.
+- **Deployment: set `SESSION_ENCRYPT=true` in production** (`.env.example` keeps `false` for
+  development). Session rows hold, for a moment, what the authenticator's pages need - the ten
+  recovery codes travel in the session's flash to the one page that shows them - and an encrypted row
+  is unreadable to a copy of the `access.admin_sessions` table. The QR code's page and the recovery
+  codes' page are also kept in the browser's history only encrypted (`Inertia::encryptHistory()`), and
+  that history is cleared on sign-out and once the app is set up.
 
 ### The staff view: from the panel to the shop, as themselves
 
