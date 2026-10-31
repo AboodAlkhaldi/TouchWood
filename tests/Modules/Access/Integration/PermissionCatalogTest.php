@@ -85,6 +85,8 @@ it('sorts the permissions into store-free and per-store as the owner approved', 
         // Reserved: an unsubscribe Ops received (amendment 79).
         'access.marketing_consent.withdraw',
         'access.role.manage',
+        // Reserved: resetting someone's authenticator app, Super Admins only (amendment 91).
+        'access.staff_authenticator.reset',
         'access.super_admin.manage',
         // Reserved: the import reaches every store at once, and a job belongs to none (catalog.md §3).
         'catalog.import.run',
