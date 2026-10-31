@@ -14,6 +14,7 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Security\ServedPhones;
+use Modules\Access\Application\Security\StaffSignInMethods;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Domain\Exception\InvalidCode;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
@@ -42,6 +43,7 @@ final readonly class ConfirmStaffInvitationHandler
         private Dispatcher $events,
         private Connection $db,
         private ServedPhones $phones,
+        private StaffSignInMethods $methods,
     ) {}
 
     /**
@@ -94,7 +96,9 @@ final readonly class ConfirmStaffInvitationHandler
                 return false;
             }
 
-            $this->sessions->start($staff->id(), $staff->sessionVersion());
+            // Their first sign-in verified the phone by SMS, as always; the app's setup follows when it
+            // is their method (amendment 91, decision 2).
+            $this->sessions->start($staff->id(), $staff->sessionVersion(), $this->methods->mustSetUp($staff->id()));
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => false]));
 
             return true;

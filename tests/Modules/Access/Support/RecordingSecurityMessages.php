@@ -55,6 +55,13 @@ final class RecordingSecurityMessages implements SecurityMessages
      */
     public array $phoneChanges = [];
 
+    /**
+     * "Someone used your password and failed the app code" (amendment 91).
+     *
+     * @var list<array{staff: string, to: string, locked: bool}>
+     */
+    public array $appCodeFailures = [];
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -118,6 +125,11 @@ final class RecordingSecurityMessages implements SecurityMessages
     public function staffPhoneChanged(StaffDto $staff): void
     {
         $this->phoneChanges[] = ['staff' => $staff->id, 'to' => $staff->email];
+    }
+
+    public function staffAppCodeFailed(StaffDto $staff, DateTimeImmutable $at, bool $locked): void
+    {
+        $this->appCodeFailures[] = ['staff' => $staff->id, 'to' => $staff->email, 'locked' => $locked];
     }
 
     public function phoneCode(string $phone, string $locale, string $code): void

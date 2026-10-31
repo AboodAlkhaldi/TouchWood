@@ -13,6 +13,7 @@ use Modules\Access\Application\Security\PasswordPolicy;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Public\Enums\StaffStatus;
@@ -33,6 +34,7 @@ final readonly class ResetStaffPasswordHandler
         private GrantsReader $grants,
         private PlatformApi $platform,
         private Connection $db,
+        private StaffAuthenticatorRepository $authenticators,
     ) {}
 
     public function handle(ResetStaffPassword $command): void
@@ -66,6 +68,8 @@ final readonly class ResetStaffPasswordHandler
             $this->staff->update($staff);
             $this->tokens->deletePasswordReset($staff->id());
             $this->tokens->forgetTrustedBrowsers($staff->id());
+            // A sign-in by app locked after repeated wrong codes opens again (amendment 91, owner 2026-10-31).
+            $this->authenticators->unlock($staff->id());
             $this->platform->recordAudit(StaffAudit::updated('access.staff_user.password_reset', $before, $staff, $staff->pullChanges()));
             // The new session version reaches every open session at once: they all end.
             $this->grants->refresh($staff->id());

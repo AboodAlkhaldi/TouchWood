@@ -398,6 +398,29 @@ it('records any failure as failed, not only a provider\'s refusal, and passes it
         ->and(array_column(securitySentRows(), 'status'))->toBe(['FAILED']);
 });
 
+it('tells a staff member their password was used and the app code failed, with the time only, and the lock when it came', function (string $locale, string $subject, string $lockWords) {
+    $staff = securityStaff($locale);
+    $emails = RecordingEmailSender::install();
+    DB::table('ops.sent_messages')->delete();
+
+    securityMessages()->staffAppCodeFailed($staff, new DateTimeImmutable('2026-10-31 09:05:00 UTC'), false);
+    $first = $emails->last();
+    securityMessages()->staffAppCodeFailed($staff, new DateTimeImmutable('2026-10-31 09:05:00 UTC'), true);
+
+    $rows = securitySentRows();
+
+    expect($first->toEmail)->toBe($staff->email)
+        ->and($first->subject)->toBe($subject)
+        ->and($first->text)->toContain('2026-10-31 09:05 UTC')
+        ->and($first->text)->not->toContain($lockWords)
+        ->and($emails->last()->text)->toContain($lockWords)
+        ->and($rows)->toHaveCount(2)
+        ->and([$rows[0]['kind'], $rows[0]['channel'], $rows[0]['staff_id']])->toBe(['security', 'EMAIL', $staff->id]);
+})->with([
+    'English' => ['en', 'Someone used your password and failed the app code', 'locked until you reset your password'],
+    'Arabic' => ['ar', 'استخدم أحدهم كلمة مرورك وأخطأ في رمز التطبيق', 'قُفل الدخول بالتطبيق'],
+]);
+
 it('tells the account its phone was changed, in its language, naming no number, and records it as security', function (string $locale, string $subject) {
     $staff = securityStaff($locale);
     $emails = RecordingEmailSender::install();

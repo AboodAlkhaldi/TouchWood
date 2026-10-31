@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\ParallelTesting;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Platform\Application\Settings\SettingValues;
 use Tests\TestCase;
 
 /*
@@ -20,6 +22,31 @@ pest()->extend(TestCase::class)->in(
     'Modules/*/Feature',
     'Browser',
 );
+
+/*
+| Staff sign in by SMS in the tests written before the authenticator app (access.md amendment 91).
+|
+| The owner's go-live default is the app alone, which sends every staff member who signs in to the
+| app's setup before the panel. The Feature and Browser tests that sign in through the real pages test
+| the SMS code and then the screen behind it, so each test starts with SMS as the only method - stored
+| as a Super Admin's choice would be, never by changing the default. The authenticator's own tests set
+| the methods they test, after this (AuthenticatorFixtures::methods).
+*/
+pest()->in('Shared/Feature', 'Modules/*/Feature', 'Browser')->beforeEach(function (): void {
+    staffSignInMethodsForTests(sms: true, authenticator: false);
+});
+
+/**
+ * Stores the two staff sign-in methods as the Settings page would, without an audit entry: tests that
+ * count audit entries must not see this one.
+ */
+function staffSignInMethodsForTests(bool $sms, bool $authenticator): void
+{
+    $values = app(SettingValues::class);
+    $values->save(StaffSecuritySettings::SIGN_IN_BY_SMS, null, $sms, null);
+    $values->save(StaffSecuritySettings::SIGN_IN_BY_AUTHENTICATOR, null, $authenticator, null);
+    $values->invalidate();
+}
 
 /*
 | Waiting in a browser test. The plugin's own assertions read the page once and do not wait (lesson

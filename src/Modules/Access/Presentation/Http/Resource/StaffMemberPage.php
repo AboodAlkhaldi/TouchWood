@@ -59,5 +59,7 @@ final class StaffMemberPage extends Data
         public bool $mayEnable,
         public bool $mayResendInvitation,
         public bool $mayCancelInvitation,
+        /** A Super Admin, on someone else with an app set up (amendment 91). */
+        public bool $mayResetAuthenticator = false,
     ) {}
 }

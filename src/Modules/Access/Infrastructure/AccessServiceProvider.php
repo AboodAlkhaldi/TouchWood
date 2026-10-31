@@ -36,9 +36,11 @@ use Modules\Access\Application\Query\CustomerReader;
 use Modules\Access\Application\Query\RoleReader;
 use Modules\Access\Application\Query\StaffAlertRecipients;
 use Modules\Access\Application\Query\StaffReader;
+use Modules\Access\Application\Security\AuthenticatorCodes;
 use Modules\Access\Application\Security\Codes;
 use Modules\Access\Application\Security\OwnPasswordCheck;
 use Modules\Access\Application\Security\PasswordPolicy;
+use Modules\Access\Application\Security\QrCodes;
 use Modules\Access\Application\Security\SignInLimits;
 use Modules\Access\Application\Session\CustomerSessions;
 use Modules\Access\Application\Session\StaffSessionDirectory;
@@ -57,6 +59,7 @@ use Modules\Access\Domain\Repository\CustomerTokenRepository;
 use Modules\Access\Domain\Repository\NotificationPreferenceRepository;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\RoleRepository;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\Repository\StoreAddressFormatRepository;
@@ -70,6 +73,7 @@ use Modules\Access\Infrastructure\Eloquent\DatabaseRoleAssignmentRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseRoleRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffAlertRecipients;
+use Modules\Access\Infrastructure\Eloquent\DatabaseStaffAuthenticatorRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffReader;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffTokenRepository;
 use Modules\Access\Infrastructure\Eloquent\DatabaseStaffUserRepository;
@@ -90,12 +94,16 @@ use Modules\Access\Infrastructure\Messages\UrlStaffLinks;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Access\Infrastructure\Queue\AnonymizeDueAccountsJob;
 use Modules\Access\Infrastructure\Queue\CancelExpiredSuperAdminInvitationsJob;
+use Modules\Access\Infrastructure\Security\BaconQrCodes;
+use Modules\Access\Infrastructure\Security\Google2faAuthenticatorCodes;
 use Modules\Access\Infrastructure\Security\HmacCodes;
 use Modules\Access\Infrastructure\Security\LaravelPasswordPolicy;
 use Modules\Access\Infrastructure\Security\LoggedBreachList;
+use Modules\Access\Infrastructure\Security\SignInMethodsGuard;
 use Modules\Access\Presentation\Console\CancelSuperAdminInvitationCommand;
 use Modules\Access\Presentation\Console\CreateSuperAdminCommand;
 use Modules\Access\Presentation\Console\ResendSuperAdminInvitationCommand;
+use Modules\Access\Presentation\Console\ResetSuperAdminAuthenticatorCommand;
 use Modules\Access\Presentation\Console\ResetSuperAdminPhoneCommand;
 use Modules\Access\Presentation\Console\RevokeSuperAdminCommand;
 use Modules\Access\Presentation\Http\Middleware\IdentifyCustomer;
@@ -120,6 +128,7 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\OffStoreViewers;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Contracts\StaffNames;
@@ -158,6 +167,11 @@ final class AccessServiceProvider extends ServiceProvider
         // The panel's session rows, for the screen that lists them and the button that ends them.
         $this->app->bind(StaffSessionDirectory::class, DatabaseStaffSessionDirectory::class);
         $this->app->bind(StaffTokenRepository::class, DatabaseStaffTokenRepository::class);
+        $this->app->bind(StaffAuthenticatorRepository::class, DatabaseStaffAuthenticatorRepository::class);
+        // Authenticator apps (amendment 91): the app shows the account under APP_NAME; the QR code is
+        // drawn here, so the secret never goes to a service that draws them.
+        $this->app->bind(AuthenticatorCodes::class, fn (Application $app): AuthenticatorCodes => new Google2faAuthenticatorCodes((string) $app->make('config')->get('app.name')));
+        $this->app->bind(QrCodes::class, BaconQrCodes::class);
         $this->app->bind(CustomerRepository::class, DatabaseCustomerRepository::class);
         $this->app->bind(CustomerTokenRepository::class, DatabaseCustomerTokenRepository::class);
         $this->app->bind(CustomerLinks::class, UrlCustomerLinks::class);
@@ -301,6 +315,10 @@ final class AccessServiceProvider extends ServiceProvider
             ...StaffSecuritySettings::definitions(),
             ...CustomerSecuritySettings::definitions(),
         );
+        // At least one staff sign-in method stays ticked (amendment 91).
+        $guards = $this->app->make(SettingGuards::class);
+        $guards->register(StaffSecuritySettings::SIGN_IN_BY_SMS, SignInMethodsGuard::class);
+        $guards->register(StaffSecuritySettings::SIGN_IN_BY_AUTHENTICATOR, SignInMethodsGuard::class);
         // Staff avatars are Platform media: deleting one leaves its staff member without it.
         $this->app->make(MediaUsages::class)->register('access', StaffAvatarUsage::class);
 
@@ -313,6 +331,7 @@ final class AccessServiceProvider extends ServiceProvider
                 CreateSuperAdminCommand::class,
                 RevokeSuperAdminCommand::class,
                 ResetSuperAdminPhoneCommand::class,
+                ResetSuperAdminAuthenticatorCommand::class,
                 ResendSuperAdminInvitationCommand::class,
                 CancelSuperAdminInvitationCommand::class,
             ]);

@@ -41,6 +41,11 @@ final readonly class ResendStaffSignInCodeHandler
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $pending = $this->sessions->pendingSignIn() ?? throw new InvalidCode(requestNewCode: true);
 
+        // A sign-in by the app has no SMS code to send again (amendment 91).
+        if ($pending->byApp) {
+            throw new InvalidCode(requestNewCode: true);
+        }
+
         $this->db->transaction(function () use ($pending): void {
             $staff = $this->staff->byId($pending->staffId);
 

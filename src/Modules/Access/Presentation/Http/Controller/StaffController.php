@@ -25,6 +25,8 @@ use Modules\Access\Application\Command\InviteStaff\InviteStaff;
 use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitation;
 use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitationHandler;
+use Modules\Access\Application\Command\ResetStaffAuthenticator\ResetStaffAuthenticator;
+use Modules\Access\Application\Command\ResetStaffAuthenticator\ResetStaffAuthenticatorHandler;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfile;
 use Modules\Access\Application\Command\UpdateStaffProfile\UpdateStaffProfileHandler;
 use Modules\Access\Application\Query\ListRoles\ListRolesHandler;
@@ -265,6 +267,18 @@ final readonly class StaffController
         }
 
         return redirect('/admin/staff')->with('status', __('access::staff.invitation_cancelled'));
+    }
+
+    /** A Super Admin resets someone's lost authenticator app (amendment 91). */
+    public function resetAuthenticator(Request $request, string $staffId, ResetStaffAuthenticatorHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle(new ResetStaffAuthenticator($staffId));
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return back()->with('status', __('access::staff.authenticator_reset'));
     }
 
     private function optional(Request $request, string $field): ?string

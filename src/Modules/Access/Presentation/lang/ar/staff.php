@@ -153,4 +153,10 @@ return [
     'verification_label' => 'اسم الموظف',
     'cancel_invitation_body' => 'يتوقف رابط الدعوة عن العمل، ويمكن إرسال دعوة جديدة لاحقًا.',
     'keep_invitation' => 'الإبقاء على الدعوة',
+
+    // The authenticator app, reset by a Super Admin (amendment 91).
+    'reset_authenticator' => 'إعادة ضبط تطبيق المصادقة',
+    'reset_authenticator_body' => 'سيتوقف تطبيق المصادقة ورموز الاسترداد لديه عن العمل. في المرة القادمة يسجّل الدخول برمز SMS، ثم يُعدّ تطبيقًا جديدًا إن كان التطبيق طريقته.',
+    'keep_authenticator' => 'إبقاء التطبيق',
+    'authenticator_reset' => 'أُعيد ضبط تطبيق المصادقة.',
 ];

@@ -82,12 +82,15 @@ export default function Show(person: Props) {
     const [changingEmail, setChangingEmail] = useState(false);
     const [disabling, setDisabling] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    // A Super Admin resetting someone's lost authenticator app (access.md amendment 91).
+    const [resetting, setResetting] = useState(false);
     // Only Disable's own refusal, never an older one from Enable or Resend (useFreshRefusal).
     const disableRefusal = useFreshRefusal(disabling);
     // The path of the action on its way to the server, so its own button says it is busy.
     const [busy, setBusy] = useState<string | null>(null);
     const emailFocus = useReturnFocus(changingEmail, more);
     const cancelFocus = useReturnFocus(cancelling, more);
+    const resetFocus = useReturnFocus(resetting, more);
 
     const profile = useForm({
         first_name: person.firstName,
@@ -156,6 +159,7 @@ export default function Show(person: Props) {
     const destructiveOffered: (Action | null)[] = [
         person.mayCancelInvitation ? { key: 'cancel-invitation', label: `${t('access::staff.cancel_invitation')}…`, run: () => setCancelling(true) } : null,
         person.mayDisable ? { key: 'disable', label: `${t('access::staff.disable')}…`, run: () => setDisabling(true) } : null,
+        person.mayResetAuthenticator ? { key: 'reset-authenticator', label: `${t('access::staff.reset_authenticator')}…`, run: () => setResetting(true) } : null,
     ];
     const destructive = destructiveOffered.filter((action): action is Action => action !== null);
 
@@ -459,6 +463,32 @@ export default function Show(person: Props) {
                             data-test="confirm-cancel-invitation"
                         >
                             {t('access::staff.cancel_invitation')}
+                        </ActionButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* The same plain destructive confirmation, for a Super Admin resetting a lost app. */}
+            <AlertDialog open={resetting} onOpenChange={(open) => (busy === null ? setResetting(open) : undefined)}>
+                <AlertDialogContent onCloseAutoFocus={resetFocus} className="material-modal gap-0 overflow-hidden border-0 p-0 data-[size=default]:sm:max-w-md">
+                    <div className="grid gap-4 p-6">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-heading-20 text-ink">{t('access::staff.reset_authenticator')}</AlertDialogTitle>
+                            <AlertDialogDescription className="text-copy-14 text-ink-muted">{t('access::staff.reset_authenticator_body')}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <DialogError open={resetting} />
+                    </div>
+                    <AlertDialogFooter className="border-t border-line bg-surface-sunken px-6 py-4">
+                        <AlertDialogCancel disabled={busy !== null} data-test="modal-cancel">
+                            {t('access::staff.keep_authenticator')}
+                        </AlertDialogCancel>
+                        <ActionButton
+                            variant="destructive"
+                            loading={busy === '/authenticator/reset'}
+                            onClick={() => post('/authenticator/reset', () => setResetting(false))}
+                            data-test="confirm-reset-authenticator"
+                        >
+                            {t('access::staff.reset_authenticator')}
                         </ActionButton>
                     </AlertDialogFooter>
                 </AlertDialogContent>

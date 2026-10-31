@@ -21,13 +21,16 @@ final readonly class StaffActionsDto
         public bool $mayEnable,
         public bool $mayResendInvitation,
         public bool $mayCancelInvitation,
+        /** A Super Admin, on someone else with an app set up (amendment 91). */
+        public bool $mayResetAuthenticator = false,
     ) {}
 
     /**
-     * Nothing at all: a Super Admin, or the reader themselves.
+     * Nothing at all: a Super Admin, or the reader themselves - but for a Super Admin's app, which
+     * another Super Admin may reset (amendment 91).
      */
-    public static function none(): self
+    public static function none(bool $mayResetAuthenticator = false): self
     {
-        return new self(false, false, false, false, false, false, false);
+        return new self(false, false, false, false, false, false, false, $mayResetAuthenticator);
     }
 }

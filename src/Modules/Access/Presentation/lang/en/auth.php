@@ -100,4 +100,16 @@ return [
     // buttons' reasons and dialogs' own words.
     'confirm_new_email' => 'Confirm New Email',
     'resend_wait_reason' => 'A new code can be sent once the wait is over.',
+
+    // The authenticator app at sign-in (amendment 91).
+    'app_title' => 'Enter the Code from Your App',
+    'app_subtitle' => 'Open your authenticator app and enter the 6-digit code it shows.',
+    'app_code_label' => 'Code from the App',
+    'use_recovery_code' => 'Use a Recovery Code Instead',
+    'use_app_code' => 'Use the App Code Instead',
+    'recovery_title' => 'Enter a Recovery Code',
+    'recovery_subtitle' => 'Each recovery code works once. Enter one of the codes you saved when you set up the app.',
+    'recovery_code_label' => 'Recovery Code',
+    'recovery_code_incomplete' => 'Enter the recovery code.',
+    'set_up_app_first' => 'Set up your authenticator app first.',
 ];

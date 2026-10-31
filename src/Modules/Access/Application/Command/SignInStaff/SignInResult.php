@@ -17,4 +17,7 @@ enum SignInResult: string
 
     /** A Super Admin whose phone was reset enters a new number first (amendment 14). */
     case PhoneNeeded = 'PHONE_NEEDED';
+
+    /** Their method is the authenticator app and it is set up: a code from it next (amendment 91). */
+    case AppCodeNeeded = 'APP_CODE_NEEDED';
 }

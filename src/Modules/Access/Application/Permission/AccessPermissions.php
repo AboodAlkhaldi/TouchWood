@@ -87,6 +87,15 @@ final class AccessPermissions
 
     public const string ACCOUNT_ANONYMIZE = 'access.account.anonymize';
 
+    /**
+     * The two staff sign-in methods, SMS and Authenticator (amendment 91). Per store in kind only so a
+     * global setting can ask for it everywhere (allStores()); reserved, so a Super Admin alone holds it.
+     */
+    public const string SIGN_IN_METHODS_UPDATE = 'access.sign_in_methods.update';
+
+    /** Resetting someone else's authenticator app from the staff page (amendment 91). */
+    public const string STAFF_AUTHENTICATOR_RESET = 'access.staff_authenticator.reset';
+
     /** An unsubscribe Ops received withdraws marketing consent (amendment 79). */
     public const string MARKETING_CONSENT_WITHDRAW = 'access.marketing_consent.withdraw';
 
@@ -139,6 +148,8 @@ final class AccessPermissions
 
             new PermissionDefinitionDto(self::SUPER_ADMIN_MANAGE, reserved: true, kind: $storeFree),
             new PermissionDefinitionDto(self::ACCOUNT_ANONYMIZE, reserved: true, kind: $storeFree),
+            new PermissionDefinitionDto(self::SIGN_IN_METHODS_UPDATE, reserved: true),
+            new PermissionDefinitionDto(self::STAFF_AUTHENTICATOR_RESET, reserved: true, kind: $storeFree),
             new PermissionDefinitionDto(self::MARKETING_CONSENT_WITHDRAW, reserved: true, kind: $storeFree),
         ];
     }

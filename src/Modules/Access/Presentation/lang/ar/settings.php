@@ -29,6 +29,10 @@ return [
     'staff.password_reset_minutes' => 'مدة صلاحية رابط إعادة التعيين (دقائق)',
     'staff.password_reset_hourly_limit' => 'رسائل إعادة التعيين في الساعة',
 
+    // How staff sign in: Super Admins only, at least one on (amendment 91).
+    'staff.sign_in_by_sms' => 'دخول الموظفين برمز SMS',
+    'staff.sign_in_by_authenticator' => 'دخول الموظفين بتطبيق المصادقة',
+
     // العملاء: خاصة بكل متجر.
     'customer.password_min_length' => 'أقصر كلمة مرور',
     'customer.email_verification_hours' => 'مدة صلاحية رابط التحقق (ساعات)',

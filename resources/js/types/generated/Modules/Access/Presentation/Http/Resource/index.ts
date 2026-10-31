@@ -19,6 +19,7 @@ codeLength: number,
 sessions: StaffSessionRow[],
 trustedBrowsers: TrustedBrowserRow[],
 tab: string,
+authenticator: AuthenticatorBlock,
 };
 export type AddressBookStore = {
 storeId: string,
@@ -85,6 +86,20 @@ cityId: string | null,
 districtId: string | null,
 retiredPlaces: string[],
 needsPlaces: boolean,
+};
+export type AuthenticatorBlock = {
+smsEnabled: boolean,
+authenticatorEnabled: boolean,
+hasApp: boolean,
+confirmedAt: string | null,
+method: string,
+recoveryCodesLeft: number,
+};
+export type AuthenticatorSetupPage = {
+hasApp: boolean,
+required: boolean,
+qrSvg: string | null,
+manualKey: string | null,
 };
 export type ComingSoonPage = {
 label: string,
@@ -240,6 +255,10 @@ id: string,
 name: string,
 otherName: string,
 };
+export type RecoveryCodesPage = {
+codes: string[],
+continueTo: string,
+};
 export type ResetPasswordPage = {
 token: string,
 minimumLength: number,
@@ -299,6 +318,9 @@ code: string,
 name: string,
 open: boolean,
 };
+export type SignInAppPage = {
+trustHours: number,
+};
 export type SignInCodePage = {
 maskedPhone: string | null,
 length: number,
@@ -357,6 +379,7 @@ mayDisable: boolean,
 mayEnable: boolean,
 mayResendInvitation: boolean,
 mayCancelInvitation: boolean,
+mayResetAuthenticator: boolean,
 };
 export type StaffRolePage = {
 staffId: string,

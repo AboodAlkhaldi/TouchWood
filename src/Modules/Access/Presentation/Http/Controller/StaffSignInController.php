@@ -16,8 +16,12 @@ use Modules\Access\Application\Command\SendStaffSignInCodeToNewPhone\SendStaffSi
 use Modules\Access\Application\Command\SignInStaff\SignInResult;
 use Modules\Access\Application\Command\SignInStaff\SignInStaff;
 use Modules\Access\Application\Command\SignInStaff\SignInStaffHandler;
+use Modules\Access\Application\Command\VerifyStaffSignInAppCode\VerifyStaffSignInAppCode;
+use Modules\Access\Application\Command\VerifyStaffSignInAppCode\VerifyStaffSignInAppCodeHandler;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCode;
 use Modules\Access\Application\Command\VerifyStaffSignInCode\VerifyStaffSignInCodeHandler;
+use Modules\Access\Domain\Exception\AppCodeTriesUsedUp;
+use Modules\Access\Presentation\Http\Request\AppCodeRequest;
 use Modules\Access\Presentation\Http\Request\SignInRequest;
 use Modules\Access\Presentation\Http\Request\StaffCodeRequest;
 use Modules\Access\Presentation\Http\Request\StaffPhoneRequest;
@@ -27,7 +31,8 @@ use Shared\Domain\Error\DomainError;
 
 /**
  * Signing in to the admin panel (spec §1.8, §4.4), answering with redirects (amendment 12): the
- * password, a new number for a Super Admin whose phone was reset, then the SMS code.
+ * password, a new number for a Super Admin whose phone was reset, then the SMS code - or the code from
+ * the authenticator app for whom it is the method (amendment 91).
  */
 final readonly class StaffSignInController
 {
@@ -54,6 +59,7 @@ final readonly class StaffSignInController
             SignInResult::SignedIn => redirect('/admin'),
             SignInResult::CodeSent => redirect('/admin/sign-in/code')->with('status', __('access::auth.code_sent')),
             SignInResult::PhoneNeeded => redirect('/admin/sign-in/phone'),
+            SignInResult::AppCodeNeeded => redirect('/admin/sign-in/app'),
         };
     }
 
@@ -76,6 +82,17 @@ final readonly class StaffSignInController
             return FormErrors::back($request, $error);
         }
 
+        return $this->signedIn($trust);
+    }
+
+    /**
+     * Into the panel - or, when the app is their method and none is set up, to its setup (amendment
+     * 91), which RequireStaff sends them to from there.
+     *
+     * @param  array{token: string, hours: int}|null  $trust
+     */
+    private function signedIn(?array $trust): RedirectResponse
+    {
         $response = redirect('/admin');
 
         if ($trust !== null) {
@@ -84,6 +101,21 @@ final readonly class StaffSignInController
         }
 
         return $response;
+    }
+
+    /** The code from the authenticator app, or a recovery code (amendment 91). */
+    public function appCode(AppCodeRequest $request, VerifyStaffSignInAppCodeHandler $handler): RedirectResponse
+    {
+        try {
+            $trust = $handler->handle(new VerifyStaffSignInAppCode($request->text('code'), $request->boolean('recovery'), $request->boolean('trust_browser')));
+        } catch (AppCodeTriesUsedUp $error) {
+            // The sign-in ended: back to the password, saying why.
+            return redirect('/admin/sign-in')->withErrors(['form' => FormErrors::message($error)]);
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
+
+        return $this->signedIn($trust);
     }
 
     public function resend(Request $request, ResendStaffSignInCodeHandler $handler): RedirectResponse

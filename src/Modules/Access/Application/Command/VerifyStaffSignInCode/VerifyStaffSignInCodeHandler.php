@@ -10,6 +10,7 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\PhoneVerification;
 use Modules\Access\Application\Security\ServedPhones;
+use Modules\Access\Application\Security\StaffSignInMethods;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
 use Modules\Access\Application\Staff\StaffMapper;
@@ -46,6 +47,7 @@ final readonly class VerifyStaffSignInCodeHandler
         private Connection $db,
         private ServedPhones $phones,
         private SecurityMessages $messages,
+        private StaffSignInMethods $methods,
     ) {}
 
     /**
@@ -57,6 +59,11 @@ final readonly class VerifyStaffSignInCodeHandler
     {
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::global());
         $pending = $this->sessions->pendingSignIn() ?? throw new InvalidCode(requestNewCode: true);
+
+        // A sign-in whose second step is the app sent no SMS code (amendment 91).
+        if ($pending->byApp) {
+            throw new InvalidCode(requestNewCode: true);
+        }
 
         $started = false;
 
@@ -116,8 +123,9 @@ final readonly class VerifyStaffSignInCodeHandler
                     }
                 }
 
-                // Signed in first, so the entries name them as the actor, with their address.
-                $this->sessions->start($staff->id(), $staff->sessionVersion());
+                // Signed in first, so the entries name them as the actor, with their address. When the
+                // app is their method and none is set up, the setup comes next (amendment 91).
+                $this->sessions->start($staff->id(), $staff->sessionVersion(), $this->methods->mustSetUp($staff->id()));
                 $started = true;
                 $this->platform->recordAudit(StaffAudit::event('access.staff_user.signed_in', $staff, ['trusted_browser' => false]));
 

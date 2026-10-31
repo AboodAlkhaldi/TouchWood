@@ -51,6 +51,17 @@ return [
             'If you did not do this, contact another Super Admin now.',
         ],
     ],
+    // Written 2026-10-31 (amendment 91), approved for now (owner, 2026-10-31; full review at the end): a sign-in gave the right
+    // password and then ran out of wrong authenticator app codes. The time only, in UTC.
+    'staff_app_code_failed' => [
+        'subject' => 'Someone used your password and failed the app code',
+        'lines' => [
+            'Hello :name,',
+            'At :time someone signed in to your admin panel account with your password, then entered wrong codes from the authenticator app until the sign-in ended.',
+            'If this was not you, someone has your password: reset it now.',
+        ],
+        'locked' => 'This has happened three times in 24 hours, so signing in with the app is locked until you reset your password.',
+    ],
     'password_reset' => [
         'subject' => 'Choose a new password',
         'lines' => [

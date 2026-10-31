@@ -66,5 +66,7 @@ final class AccountPage extends Data
         /** @var list<TrustedBrowserRow> the browsers that skip the SMS code, until they expire */
         public array $trustedBrowsers,
         public string $tab,
+        /** The authenticator app and the sign-in method (amendment 91). */
+        public AuthenticatorBlock $authenticator,
     ) {}
 }
