@@ -224,6 +224,9 @@ describe('why checkout will not take this account', function () {
         // A phone is kept only once confirmed (customers_phone_verified_together): not confirmed is none yet.
         'phone not confirmed' => [['phone' => null, 'phone_verified_at' => null], CartBlock::PhoneUnverified],
         'neither: the email first' => [['email_verified_at' => null, 'phone' => null, 'phone_verified_at' => null], CartBlock::EmailUnverified],
+        // A UAE number: its country is not on the SMS list (only SA and EG are seeded).
+        'a phone from an unlisted country' => [['phone' => '+971501234567'], CartBlock::PhoneCountryNotServed],
+        'that and the email not confirmed: the email first' => [['email_verified_at' => null, 'phone' => '+971501234567'], CartBlock::EmailUnverified],
         'blocked, before confirming anything' => [['status' => 'BLOCKED', 'email_verified_at' => null], CartBlock::AccountNotActive],
         'deletion asked for' => [['deletion_scheduled_for' => '2030-01-01 00:00:00+00'], CartBlock::AccountNotActive],
         'emptied' => [['anonymized_at' => '2026-01-01 00:00:00+00'], CartBlock::AccountNotActive],
