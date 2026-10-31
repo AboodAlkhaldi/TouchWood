@@ -7,7 +7,7 @@ namespace Modules\Payments\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * A gateway for a store in a country MyFatoorah is not offered in: Saudi Arabia and Egypt only (owner,
+ * A gateway for a store in a country MyFatoorah is not offered in - the gateway's adapter names them (owner,
  * 2026-10-29, gap 8.1).
  */
 final class GatewayNotOffered extends PaymentsError

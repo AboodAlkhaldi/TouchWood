@@ -1086,3 +1086,27 @@ Also found, for the build: the test account charges Visa/Mastercard, Apple Pay a
 (only Mada and STC Pay in SAR) — the live KSA account must charge SAR, or rule 8 refuses those payments;
 the Mada test card is processed and named as **Visa** (a co-branded card), so nothing should name the
 method from the card's brand.
+
+### 9.9 The build's own picks (step 8, 2026-10-31 — simple, taken as recommended under the owner's rule)
+
+1. **Three-part names**, as Access's and Platform's catalogs require: `payments.view` is
+   **`payments.payment.view`**; the timers are **`payments.timers.window_minutes`**,
+   **`payments.timers.wait_minutes`** and **`payments.timers.hold_minutes`**.
+2. **`SetUpGateway` is the first `ChangeKeys`**: the store's first saved key creates its gateway, switched
+   off, in that key's mode (audited `payments.gateway.set_up`, then `payments.gateway.key_changed`).
+3. **MyFatoorah's refusal is marked on the key** (`payments.gateway_keys.rejected_at`), not on the gateway:
+   a new key starts unrefused, and switching to the other mode's key is not blocked by this one.
+4. **The expiry warnings run every hour**, so each store's day begins at its own midnight; each key is
+   warned once per threshold, and a key saved within 30 days is warned of the threshold it is in
+   (e.g. 5 days left → the 7-day warning), never of those behind it. A key saved with its date today is
+   taken (its 1-day warning goes at once).
+5. **New errors**: `GatewayNotSetUp` (NOT_FOUND — switching a gateway with no key yet), `NoGatewayKey`
+   (CONFLICT — a mode, or the gateway, switched on with no key for that mode), `GatewayNotOffered`
+   (UNSUPPORTED — a store outside Saudi Arabia and Egypt), `HoldTooShort` (INVALID — a timer change that
+   breaks hold > window + wait).
+6. **The Apple Pay file is a plain file in `public/.well-known/`**, committed when MyFatoorah sends it: the
+   web server serves it, no route (Platform has nothing to build). The host must not refuse dotted
+   folders. **`RegisterApplePayDomain` moves to step 9**, with the MyFatoorah client that reads a key back.
+7. **`apple_pay_domains` is `jsonb`** (a list), not `text[]`.
+8. **The country list is the adapter's** (`Infrastructure/External/MyFatoorahAddresses`, behind
+   `Application/Gateway/GatewayAddresses`): no country code sits in Domain or Application (handoff §2.2).

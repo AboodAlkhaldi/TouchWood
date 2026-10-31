@@ -7,12 +7,14 @@ namespace Modules\Payments\Infrastructure;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Payments\Application\Gateway\GatewayAddresses;
 use Modules\Payments\Application\Gateway\KeyTester;
 use Modules\Payments\Application\PaymentsApiImpl;
 use Modules\Payments\Application\PaymentsPermissions;
 use Modules\Payments\Application\PaymentsSettings;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseGateways;
+use Modules\Payments\Infrastructure\External\MyFatoorahAddresses;
 use Modules\Payments\Infrastructure\External\MyFatoorahKeyTester;
 use Modules\Payments\Infrastructure\Queue\WarnExpiringKeysJob;
 use Modules\Payments\Public\Contracts\PaymentsApi;
@@ -30,6 +32,7 @@ final class PaymentsServiceProvider extends ServiceProvider
     {
         $this->app->bind(Gateways::class, DatabaseGateways::class);
         $this->app->bind(KeyTester::class, MyFatoorahKeyTester::class);
+        $this->app->bind(GatewayAddresses::class, MyFatoorahAddresses::class);
         $this->app->bind(PaymentsApi::class, PaymentsApiImpl::class);
     }
 

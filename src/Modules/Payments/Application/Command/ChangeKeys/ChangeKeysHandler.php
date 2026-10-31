@@ -41,6 +41,7 @@ final readonly class ChangeKeysHandler
         private GatewayChange $change,
         private Gateways $gateways,
         private KeyTester $tester,
+        private GatewayAddresses $addresses,
     ) {}
 
     /**
@@ -50,7 +51,7 @@ final readonly class ChangeKeysHandler
     {
         [$store, $staffId] = $this->change->authorize($command->storeId);
 
-        if (! GatewayAddresses::offered($store->countryCode)) {
+        if (! $this->addresses->offered($store->countryCode)) {
             throw new GatewayNotOffered($store->countryCode);
         }
 
@@ -59,7 +60,7 @@ final readonly class ChangeKeysHandler
         $secret = self::secret($command->secret, 'secret');
         $expiresOn = self::expiry($command->expiresOn, $store->timezone);
 
-        $this->tester->test(GatewayAddresses::api($store->countryCode, $mode), $key, $store->currencyCode);
+        $this->tester->test($this->addresses->api($store->countryCode, $mode), $key, $store->currencyCode);
 
         $this->change->run($store->id, function () use ($store, $staffId, $mode, $key, $secret, $expiresOn): array {
             $now = CarbonImmutable::now()->toDateTimeImmutable();

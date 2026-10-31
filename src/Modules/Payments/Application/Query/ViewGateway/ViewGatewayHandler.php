@@ -19,6 +19,7 @@ final readonly class ViewGatewayHandler
     public function __construct(
         private GatewayChange $change,
         private Gateways $gateways,
+        private GatewayAddresses $addresses,
     ) {}
 
     /**
@@ -30,7 +31,7 @@ final readonly class ViewGatewayHandler
         $gateway = $this->gateways->of($store->id);
 
         return new GatewayView(
-            GatewayAddresses::offered($store->countryCode),
+            $this->addresses->offered($store->countryCode),
             $gateway !== null,
             $gateway !== null && $gateway->active,
             $gateway?->mode->value,
