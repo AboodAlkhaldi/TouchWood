@@ -17,4 +17,12 @@ return [
     'withdraw_marketing_consent' => 'إيقاف العروض والأخبار لعميل ألغى اشتراكه',
     'refresh_newsletter_subscription' => 'تحديث مكان العميل في قائمة النشرة',
     'forget_anonymized_customer' => 'حذف إشعارات العميل المحذوف ورسائله واشتراكه في النشرة',
+    'tell_customer_about_order' => 'إبلاغ العميل بما حدث لطلبه',
+    'tell_customer_about_return' => 'إبلاغ العميل بما حدث لطلب الإرجاع',
+    'tell_customer_about_points' => 'إبلاغ العميل بتغيّر نقاطه',
+    'tell_customer_about_feedback' => 'إبلاغ العميل بما حدث لسؤاله أو تقييمه',
+    'alert_staff' => 'تنبيه موظفي المتجر',
+    'send_event_email' => 'إرسال رسالة أو تنبيه بالبريد الإلكتروني إلى شخص واحد',
+    'send_event_sms' => 'إرسال رسالة نصية عاجلة عن مفتاح الدفع إلى مدير عام',
+    'remind_expiring_points' => 'تذكير العملاء الذين تنتهي نقاطهم بعد 7 أيام',
 ];

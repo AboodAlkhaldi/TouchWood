@@ -335,6 +335,25 @@ return [
         ],
     ],
 
+    // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
+    // two emails (C1, C6b).
+    'open' => 'View details',
+    'summary' => [
+        'gift' => 'Free gift',
+        'subtotal' => 'Subtotal',
+        'coupon' => 'Coupon',
+        'points' => 'Points',
+        'shipping' => 'Shipping',
+        'vat' => 'VAT',
+        'total' => 'Total',
+        'way_to_pay' => 'Payment',
+        'ways' => [
+            'ONLINE' => 'Paid online',
+            'BANK_TRANSFER' => 'Bank transfer',
+            'STAFF_CONTACT' => 'Our team arranges payment with you',
+        ],
+    ],
+
     // Step 7 (§1.7-§1.9). NOT YET APPROVED by the owner: the frame around what staff write, the
     // unsubscribe line, and the newsletter's confirmation. :title and :line are the staff's own words.
     'offer_notice' => [

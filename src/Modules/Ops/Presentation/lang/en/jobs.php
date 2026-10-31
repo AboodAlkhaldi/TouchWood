@@ -17,4 +17,12 @@ return [
     'withdraw_marketing_consent' => 'Switching off a customer\'s offers and news after they unsubscribed',
     'refresh_newsletter_subscription' => 'Updating a customer\'s place on the newsletter list',
     'forget_anonymized_customer' => 'Removing a deleted customer\'s notifications, messages and newsletter subscription',
+    'tell_customer_about_order' => 'Telling a customer what happened to their order',
+    'tell_customer_about_return' => 'Telling a customer what happened to their return',
+    'tell_customer_about_points' => 'Telling a customer their points changed',
+    'tell_customer_about_feedback' => 'Telling a customer what happened to their question or review',
+    'alert_staff' => 'Alerting a store\'s staff',
+    'send_event_email' => 'Emailing one person a message or an alert',
+    'send_event_sms' => 'Sending a super admin the urgent SMS about the payment key',
+    'remind_expiring_points' => 'Reminding the customers whose points expire in 7 days',
 ];

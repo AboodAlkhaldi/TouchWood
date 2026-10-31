@@ -140,6 +140,18 @@ must publish it (§2.3).
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
 listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 
+**Built (steps 5 and 6, 2026-10-31):** C1–C8b, C9, C12–C14, C16–C17b. Each listener is queued and runs once
+per `eventId` (`ops.handled_events`); it makes the bell entry in the event's store (both languages, the link
+to the customer's page in their own) and queues one email in their language; the email job writes the words
+again from the module's read when it leaves, sends once by its delivery id, and records `ops.sent_messages`
+(SENT, or FAILED after the queue's last attempt). Service messages: consent is not asked; an anonymized account
+gets nothing; a switched-off store still sends. Amounts carry the currency's letters (ر.س, SAR), as the daily
+report does. C5's window is read through `PlatformApi::setting('sales.returns.window_days', store)`. C14 runs
+nightly (10:00 Riyadh) for every store's own day a week ahead, once per store, customer and day. **Not built,
+waiting on another module:** C9b and C10 (Sales has no read of a money record's amount and way by
+`moneyRecordId`); C15 (Promotions has no read of the coupon's code by `couponId`); C11 (`PaymentRequested`,
+stage 7); C1's delivery address (not in `OrderMessageDto`) and its "paid" line (online checkout is stage 7's).
+
 ### 1.6 Alerts to staff
 
 | # | Topic (Access) | When | Event | Permission that receives it | SMS |
@@ -164,6 +176,13 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 - **A switched-off store still sends** (owner, 2026-10-29): a customer whose question a Super Admin answers there is told, as anywhere.
 - An alert **links to its page** (the order, the report) and never copies details that may be stale
   (Stage 5's rule for Sync).
+- **Built (steps 5 and 6, 2026-10-31):** S1, S2, S3, S4, S9 - one queued listener, once per event, recipients
+  from `AccessApi::staffToAlert` with each one's bell and email switches; S3 alerts only when a size became low
+  or ran out (a recount where sizes only came back alerts no one). The critical SMS path (S5 at 1 day, S5b; super
+  admins with `critical_sms` on and a phone; the provider of the phone's country) is built and tested, but **no
+  listener calls it yet**: `GatewayKeyExpiring`, `GatewayKeyRejected`, `TransferOverdue` (S6) and
+  `PaymentNotAccepted` (S7) are not in main, and Payments declares no `payments.gateway.manage` yet (so the line
+  above, "every permission key above exists in code today", no longer holds for it). S8 waits for Content.
 
 ### 1.7 Offer notices
 
