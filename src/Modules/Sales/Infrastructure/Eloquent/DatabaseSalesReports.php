@@ -203,7 +203,7 @@ final readonly class DatabaseSalesReports implements SalesReports
     /** The states of a return that refunds, or will: asked, accepted, received, completed. */
     private const array REFUNDING = ['REQUESTED', 'ACCEPTED', 'RECEIVED', 'COMPLETED'];
 
-    /** The most sizes a page of `productSales` holds. */
+    /** The most rows a page of `productSales` or `productNetSales` holds. */
     public const int SALES_MAX = 1000;
 
     public function revenueByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
@@ -407,11 +407,11 @@ final readonly class DatabaseSalesReports implements SalesReports
     /**
      * The goods each return refunds, or would, and their VAT (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
-     * completed so far and those not finished asked before it, over the pieces received, or else asked.
+     * completed so far and those not finished asked before it, over the pieces received, or else asked. By
+     * return id: the goods, the goods' VAT, and the goods by line with the line's product.
      *
      * @param  list<stdClass>  $returns
-     * @return array<string, array{goods: int, vat: int, lines: array<string, array{product: string, goods: int}>}> by return
-     *                                                                                                              id: the goods, the goods' VAT, and the goods by line with its product
+     * @return array<string, array{goods: int, vat: int, lines: array<string, array{product: string, goods: int}>}>
      */
     private function goodsOf(array $returns): array
     {

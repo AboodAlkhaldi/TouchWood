@@ -266,6 +266,32 @@ it('gives each product\'s sales net of its refunds, a product sold before the ra
         ->and(fn () => salesReports()->productNetSales(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class);
 });
 
+it('splits one return holding two products between them, a share that does not divide evenly rounded as the refund rounds it', function () {
+    $sold = salesReportsDelivered();
+    // The 50.00 line made another product's (one of a rejected order, so it sells nothing here), and a coupon
+    // share of 0.33 on the 100.00 line (2 pieces): one piece of it moves floor((200.00 - 0.33) / 2) = 99.83.
+    ['order' => $rejected] = salesReportsOrder();
+    app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
+    $other = (string) DB::table('sales.order_lines')->where('order_id', $rejected)->value('product_id');
+    DB::table('sales.order_lines')->where('id', $sold['second'])->update(['product_id' => $other]);
+    DB::table('sales.order_lines')->where('id', $sold['first'])->update(['coupon_share_minor' => 33]);
+    $mine = (string) DB::table('sales.order_lines')->where('id', $sold['first'])->value('product_id');
+    Fx::actAsCustomer($sold['customer']);
+    app(RequestReturnHandler::class)->handle(new RequestReturn($sold['order'], 'DAMAGED', null, [
+        ['orderLineId' => $sold['first'], 'quantity' => 1], ['orderLineId' => $sold['second'], 'quantity' => 1],
+    ]));
+
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    [$from, $to] = [CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addMinute()];
+    $rows = array_map(static fn (ProductNetSaleDto $one): array => [$one->productId, $one->units, $one->revenue->minorUnits, $one->waitingRefunds->minorUnits],
+        salesReports()->productNetSales($sa, $from, $to)->rows);
+    $expected = [[$mine, 2, 199_67, 99_83], [$other, 1, 50_00, 50_00]];
+    usort($expected, static fn (array $x, array $y): int => strcmp($x[0], $y[0]));
+
+    expect($rows)->toBe($expected)
+        ->and(salesReports()->revenueByDay($sa, $from, $to)[0]->waitingRefunds->minorUnits ?? null)->toBe(99_83 + 50_00);
+});
+
 /** @return array{order: string, number: string, customer: string, first: string, second: string, variants: list<string>} an order delivered: 2 of 100.00 and 1 of 50.00 */
 function salesReportsDelivered(): array
 {
