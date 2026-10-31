@@ -229,6 +229,16 @@ describe('why checkout will not take this account', function () {
         'emptied' => [['anonymized_at' => '2026-01-01 00:00:00+00'], CartBlock::AccountNotActive],
     ]);
 
+    it('asks for another phone when the saved one\'s country is not on the SMS list, before asking to verify it', function () {
+        ['customer' => $customer] = Cx::ready();
+        DB::table('ops.sms_countries')->where('country_code', 'SA')->delete();
+        $view = cartExtras();
+
+        expect($view->mayNotOrder)->toBe(CartBlock::PhoneCountryNotServed)
+            ->and($view->mayOrder)->toBeFalse()
+            ->and(app(AccessApi::class)->customerMayOrder($customer))->toBeFalse();
+    });
+
     it('asks a guest to sign in, and a company to be approved here', function () {
         Cx::ready('company');
         $company = cartExtras()->mayNotOrder;

@@ -183,6 +183,8 @@ final readonly class ViewCartHandler
             $customerId === null => CartBlock::SignIn,
             $customer === null || $customer->status !== CustomerStatus::Active || $customer->deletionScheduledFor !== null || $customer->anonymized => CartBlock::AccountNotActive,
             ! $customer->emailVerified => CartBlock::EmailUnverified,
+            // Before "verify": such a phone reads as unverified, but only another number helps.
+            ! $customer->phoneCountryAllowed => CartBlock::PhoneCountryNotServed,
             ! $customer->phoneVerified => CartBlock::PhoneUnverified,
             $customer->accountType === AccountType::Company && ! $approvedCompany => CartBlock::CompanyNotApproved,
             default => null,

@@ -289,8 +289,8 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
     const { shopper } = usePage<SharedProps>().props;
     const block = shopper ? cart.mayNotOrder : null;
     const reason = cart.problems ? t(`${C}.summary.fix_first`) : block !== null ? t(`${C}.block.${block}`) : undefined;
-    // Each reason's one fix (R1-17): verifying on the account page, the company's own page; none for an account closed to orders.
-    const fix = block === 'EMAIL_UNVERIFIED' ? link('storefront.account') : block === 'PHONE_UNVERIFIED' ? link('storefront.account', { tab: 'phone' }) : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
+    // Each reason's one fix (R1-17): verifying (or changing the phone) on the account page, the company's own page; none for an account closed to orders.
+    const fix = block === 'EMAIL_UNVERIFIED' ? link('storefront.account') : block === 'PHONE_UNVERIFIED' || block === 'PHONE_COUNTRY_NOT_SERVED' ? link('storefront.account', { tab: 'phone' }) : block === 'COMPANY_NOT_APPROVED' ? link('storefront.company') : null;
 
     return (
         <Card className="material-base gap-3 border-0 py-4" data-test="cart-summary">
