@@ -244,9 +244,13 @@ it('estimates two returns not finished on one line one after the other, each pie
     $two = $ask();
 
     $days = salesReports()->revenueByDay(StoreId::fromString(Fx::storeId('sa')), CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
+    // The line's two pieces' VAT, as two returns move it: the first floor(S / 2), the second the rest.
+    $line = DB::table('sales.order_lines')->where('id', $first)->first(['quantity', 'vat_share_minor']);
+    $vat = (int) $line?->vat_share_minor;
 
-    expect(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits], $days[0]->waiting ?? []))->toBe([[$one, 100_00], [$two, 100_00]])
-        ->and($days[0]->waitingRefunds->minorUnits ?? null)->toBe(200_00)
-        // Two pieces of one line: their VAT shares together, each piece once.
-        ->and(array_sum(array_map(static fn ($w): int => $w->estimateVat->minorUnits, $days[0]->waiting ?? [])))->toBe($days[0]->waitingRefundsVat->minorUnits ?? null);
+    expect((int) $line?->quantity)->toBe(2)
+        ->and($vat)->toBeGreaterThan(1)
+        ->and(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits, $w->estimateVat->minorUnits], $days[0]->waiting ?? []))
+        ->toBe([[$one, 100_00, intdiv($vat, 2)], [$two, 100_00, $vat - intdiv($vat, 2)]])
+        ->and([$days[0]->waitingRefunds->minorUnits ?? null, $days[0]->waitingRefundsVat->minorUnits ?? null])->toBe([200_00, $vat]);
 });

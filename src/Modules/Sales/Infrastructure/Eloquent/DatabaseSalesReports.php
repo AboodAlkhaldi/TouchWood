@@ -259,7 +259,7 @@ final readonly class DatabaseSalesReports implements SalesReports
     }
 
     /**
-     * The goods each return refunds, or would (§1.8, `ReturnRefunds`): a completed one counted against the
+     * The goods each return refunds, or would, and their VAT (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
      * completed so far and those not finished asked before it, over the pieces received, or else asked.
      *
