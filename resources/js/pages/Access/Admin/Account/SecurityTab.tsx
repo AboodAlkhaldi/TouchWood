@@ -7,8 +7,8 @@ import { FieldGroup } from '@/components/ui/field';
 import { useRepeatedPassword } from '@/lib/passwords';
 import { useTranslator } from '@/lib/t';
 import { useChecks } from '@/lib/use-checks';
-import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 import { AuthenticatorBlock } from '@/pages/Access/Admin/Account/AuthenticatorBlock';
+import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
 | B3 - the security tab (frontend.md §3.2), on shadcn's Card with Geist's rules (§1.11).

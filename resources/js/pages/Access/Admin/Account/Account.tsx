@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
 import { NotificationsTab } from '@/pages/Access/Admin/Account/NotificationsTab';
 import { ProfileTab } from '@/pages/Access/Admin/Account/ProfileTab';
-import { SecurityTab } from '@/pages/Access/Admin/Account/SecurityTab';
 import { SessionsTab } from '@/pages/Access/Admin/Account/SessionsTab';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
@@ -26,6 +25,11 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 | when it changes - which is exactly when a form has saved and sent the person back to the tab they
 | were on (`?tab=security`).
 */
+
+// Loaded when its tab is opened, never on the page's first paint (frontend.md §5): the page sat at its
+// 60 KB, and the authenticator app's block (access.md amendment 91) took it over. Radix draws only the
+// open tab, so nothing else waits for it.
+const SecurityTab = lazy(() => import('@/pages/Access/Admin/Account/SecurityTab').then((loaded) => ({ default: loaded.SecurityTab })));
 
 type Props = AccountPage;
 
@@ -72,7 +76,9 @@ export default function Account(account: Props) {
                     <ProfileTab account={account} />
                 </TabsContent>
                 <TabsContent value="security">
-                    <SecurityTab account={account} />
+                    <Suspense fallback={null}>
+                        <SecurityTab account={account} />
+                    </Suspense>
                 </TabsContent>
                 <TabsContent value="sessions">
                     <SessionsTab account={account} />
