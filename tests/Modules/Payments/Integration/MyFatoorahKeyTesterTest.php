@@ -16,6 +16,9 @@ use Modules\Payments\Infrastructure\External\MyFatoorahKeyTester;
 
 const MF = 'https://apitest.myfatoorah.com';
 
+/** MyFatoorah's 401 for a key without an endpoint's permission (notes §0 #18). */
+const NO_PERMISSION = ['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'];
+
 function testKey(): void
 {
     app(MyFatoorahKeyTester::class)->test(MF, 'sk_test_key_ABC123', 'sar');
@@ -42,9 +45,9 @@ it('asks for the methods, opens a session that charges nothing, and asks for a p
 
 it('names the permission a 401 says the key lacks, at each of the three calls', function (string $refusing, string $permission) {
     Http::fake([
-        MF.'/v3/payment-methods' => $refusing === 'methods' ? Http::response([], 401) : Http::response([]),
-        MF.'/v3/sessions' => $refusing === 'sessions' ? Http::response([], 401) : Http::response([]),
-        MF.'/v3/payments/0' => $refusing === 'payments' ? Http::response([], 401) : Http::response([], 404),
+        MF.'/v3/payment-methods' => $refusing === 'methods' ? Http::response(NO_PERMISSION, 401) : Http::response([]),
+        MF.'/v3/sessions' => $refusing === 'sessions' ? Http::response(NO_PERMISSION, 401) : Http::response([]),
+        MF.'/v3/payments/0' => $refusing === 'payments' ? Http::response(NO_PERMISSION, 401) : Http::response([], 404),
     ]);
 
     try {
@@ -59,6 +62,12 @@ it('names the permission a 401 says the key lacks, at each of the three calls', 
     ['sessions', 'the sessions'],
     ['payments', 'the payments'],
 ]);
+
+it('fails the test, naming no permission, when MyFatoorah refuses the key itself', function () {
+    Http::fake([MF.'/v3/payment-methods' => Http::response(['Message' => 'Unauthorized'], 401)]);
+
+    expect(fn () => testKey())->toThrow(KeyTestFailed::class, 'the payment methods refused the key');
+});
 
 it('fails the test when the methods or the session answer anything else', function () {
     Http::fake([

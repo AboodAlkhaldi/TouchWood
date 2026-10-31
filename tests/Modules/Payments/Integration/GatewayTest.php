@@ -25,6 +25,9 @@ use Modules\Payments\Domain\Exception\HoldTooShort;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoGatewayKey;
+use Modules\Payments\Domain\Model\Gateway;
+use Modules\Payments\Domain\Model\GatewayKey;
+use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Enums\OnlinePaymentReason;
 use Modules\Payments\Public\Enums\PaymentAudience;
@@ -56,6 +59,55 @@ final class FakeKeyTester implements KeyTester
         if ($this->fails !== null) {
             throw $this->fails;
         }
+    }
+}
+
+/** The gateways as they are, but the keys as an earlier read saw them - another run's mark not yet seen. */
+final readonly class StaleKeys implements Gateways
+{
+    /**
+     * @param  list<GatewayKey>  $keys
+     */
+    public function __construct(private Gateways $inner, private array $keys) {}
+
+    public function lockStore(string $storeId): void
+    {
+        $this->inner->lockStore($storeId);
+    }
+
+    public function of(string $storeId): ?Gateway
+    {
+        return $this->inner->of($storeId);
+    }
+
+    public function create(string $storeId, PaymentMode $mode, string $staffId, DateTimeImmutable $now): void
+    {
+        $this->inner->create($storeId, $mode, $staffId, $now);
+    }
+
+    public function save(Gateway $gateway, DateTimeImmutable $now): void
+    {
+        $this->inner->save($gateway, $now);
+    }
+
+    public function currentKey(string $storeId, PaymentMode $mode): ?GatewayKey
+    {
+        return $this->inner->currentKey($storeId, $mode);
+    }
+
+    public function addKey(string $storeId, PaymentMode $mode, #[SensitiveParameter] string $key, #[SensitiveParameter] string $secret, DateTimeImmutable $expiresOn, string $staffId, DateTimeImmutable $now): string
+    {
+        return $this->inner->addKey($storeId, $mode, $key, $secret, $expiresOn, $staffId, $now);
+    }
+
+    public function currentKeys(): array
+    {
+        return $this->keys;
+    }
+
+    public function markWarned(string $keyId, int $days): bool
+    {
+        return $this->inner->markWarned($keyId, $days);
     }
 }
 
@@ -173,6 +225,7 @@ describe('the keys (§1.2)', function () {
         'mode' => ['DEMO', 'sk_key_123456', 'secret', '2027-01-01', 'mode'],
         'short key' => ['TEST', 'abc', 'secret', '2027-01-01', 'key'],
         'key with a space' => ['TEST', 'sk_key 123456', 'secret', '2027-01-01', 'key'],
+        'key with an invisible mark' => ['TEST', "sk_key_123456\u{200F}", 'secret', '2027-01-01', 'key'],
         'empty secret' => ['TEST', 'sk_key_123456', '   ', '2027-01-01', 'secret'],
         'not a date' => ['TEST', 'sk_key_123456', 'secret_123', '31/12/2027', 'expires_on'],
         'no such day' => ['TEST', 'sk_key_123456', 'secret_123', '2027-02-30', 'expires_on'],
@@ -338,8 +391,44 @@ describe('the expiry warnings (§1.2; gap 8.7)', function () {
         app(KeyExpiryWarnings::class)->send();
         saveKey(payStore(), 'TEST', 'sk_renewed_key_555555', '2026-11-25');
 
+        // The retired key is 7 days out, a threshold it was never warned of: still nothing for it.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-13 09:00', 'Asia/Riyadh'));
         expect(app(KeyExpiryWarnings::class)->send())->toBe(1)
-            ->and(array_column(warnings(), 'expiresOn'))->toBe(['2026-11-20', '2026-11-25']);
+            ->and(warnings())->toEqual([
+                ['storeId' => strtolower(payStore()), 'mode' => 'TEST', 'daysLeft' => 30, 'expiresOn' => '2026-11-20'],
+                ['storeId' => strtolower(payStore()), 'mode' => 'TEST', 'daysLeft' => 30, 'expiresOn' => '2026-11-25'],
+            ]);
+    });
+
+    it('sends nothing when another run, or a renewal, marked the key first', function () {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-01 09:00', 'Asia/Riyadh'));
+        saveKey(payStore(), 'TEST', expiresOn: '2026-11-20');
+        $key = DB::table('payments.gateway_keys')->sole();
+
+        expect(app(Gateways::class)->markWarned((string) $key->id, 30))->toBeTrue()
+            ->and(app(Gateways::class)->markWarned((string) $key->id, 30))->toBeFalse();
+
+        DB::table('payments.gateway_keys')->update(['warned_days' => null, 'current' => false, 'retired_at' => now()]);
+        expect(app(Gateways::class)->markWarned((string) $key->id, 30))->toBeFalse();
+    });
+
+    it('tells nothing when another run marks the key between this run\'s read and its mark', function () {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-01 09:00', 'Asia/Riyadh'));
+        saveKey(payStore(), 'TEST', expiresOn: '2026-11-20');
+        $keys = app(Gateways::class)->currentKeys();
+        // The other run's mark lands after this run read the keys.
+        DB::table('payments.gateway_keys')->update(['warned_days' => 30]);
+        app()->instance(Gateways::class, new StaleKeys(app(Gateways::class), $keys));
+
+        expect(app(KeyExpiryWarnings::class)->send())->toBe(0)
+            ->and(warnings())->toBe([]);
+    });
+
+    it('counts a day that starts at 01:00 (daylight saving) as a whole day', function () {
+        // Egypt's clocks went forward at midnight on 2025-04-25: that day began at 01:00 in Cairo.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-04-25 09:00', 'Africa/Cairo'));
+
+        expect(KeyExpiryWarnings::daysLeft(new DateTimeImmutable('2025-05-02'), 'Africa/Cairo'))->toBe(7);
     });
 
     it('names the nearest threshold for each number of days left', function (int $daysLeft, ?int $due) {

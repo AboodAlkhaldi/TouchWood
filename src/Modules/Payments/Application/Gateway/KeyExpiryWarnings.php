@@ -50,22 +50,31 @@ final readonly class KeyExpiryWarnings
                 continue;
             }
 
-            $this->db->transaction(function () use ($key, $due): void {
-                $this->gateways->markWarned($key->id, $due);
+            // Marked and told in one transaction, and only when this run is the one that marks it: an
+            // overlapping run, or a key renewed meanwhile, sends nothing.
+            $sent += $this->db->transaction(function () use ($key, $due): int {
+                if (! $this->gateways->markWarned($key->id, $due)) {
+                    return 0;
+                }
+
                 $this->outbox->record(new GatewayKeyExpiring((string) Str::uuid(), $key->storeId, $key->mode->value, $due, $key->expiresOn->format('Y-m-d'), CarbonImmutable::now()->toDateTimeImmutable()));
+
+                return 1;
             });
-            $sent++;
         }
 
         return $sent;
     }
 
-    /** Whole days from the store's today to the expiry date: 0 on the day itself, below 0 once past. */
+    /**
+     * Whole days from the store's today to the expiry date: 0 on the day itself, below 0 once past.
+     * Counted as calendar days, so a day that starts at 01:00 (daylight saving) counts as a whole one.
+     */
     public static function daysLeft(DateTimeInterface $expiresOn, string $timezone): int
     {
-        $today = CarbonImmutable::now($timezone)->startOfDay();
+        $today = CarbonImmutable::parse(CarbonImmutable::now($timezone)->format('Y-m-d'), 'UTC');
 
-        return (int) $today->diffInDays(CarbonImmutable::parse($expiresOn->format('Y-m-d'), $timezone), false);
+        return (int) $today->diffInDays(CarbonImmutable::parse($expiresOn->format('Y-m-d'), 'UTC'), false);
     }
 
     /** The nearest threshold the key is within, or null when it is further away or already past its date. */

@@ -723,8 +723,8 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 
 | Table | Columns |
 |---|---|
-| `payments.gateways` | `store_id` PK FK `platform.stores` RESTRICT · `gateway` CHECK (`MYFATOORAH`) · `active` bool · `mode` CHECK (`TEST`, `LIVE`) · `apple_pay_domains` text[] (registered) · `created_by` · `created_at`, `updated_at` |
-| `payments.gateway_keys` | `id` ULID PK · `store_id` FK · `mode` · `key_encrypted` · `key_last6` · `key_expires_on` · `secret_encrypted` · `current` bool (one current per store and mode) · `set_by`, `set_at` · `retired_at` NULL — **every earlier key kept until the attempts made with it are closed** (rule 14), then deleted |
+| `payments.gateways` | `store_id` PK FK `platform.stores` RESTRICT · `gateway` CHECK (`MYFATOORAH`) · `active` bool · `mode` CHECK (`TEST`, `LIVE`) · `apple_pay_domains` jsonb (registered — §9.9 #7) · `created_by` · `created_at`, `updated_at` |
+| `payments.gateway_keys` | `id` ULID PK · `store_id` FK · `mode` · `key_encrypted` · `key_last6` · `key_expires_on` · `secret_encrypted` · `current` bool (one current per store and mode) · `warned_days` NULL (30, 7 or 1 — the last expiry warning sent) · `rejected_at` NULL (MyFatoorah refused it — §9.9 #3) · `set_by`, `set_at` · `retired_at` NULL — **every earlier key kept until the attempts made with it are closed** (rule 14), then deleted |
 | `payments.sessions` | `id` (the gateway's session id) · `store_id` · `mode` · `gateway` · `owner_id` (the quote's or the request's id) · `buyer_id` · `amount_minor` · `currency_code` · `expires_at` · `used_by` NULL (the attempt) · `created_at` · PK (`gateway`, `mode`, `id`) — rule 7 |
 | `payments.requests` | `id` ULID PK · `store_id` · `order_id` (Sales's, no key) · `order_number` · `customer_id` · `amount_minor` · `currency_code` · `mode` · `state` CHECK (§4) · `expires_at` · `requested_by` (staff) · `created_at`, `updated_at` · **one open request per order** (a unique partial index WHERE `state = 'OPEN'`) |
 | `payments.attempts` | `id` ULID PK · `store_id` · `charge_claimed_at` NULL (rule 4) · `owner_kind` CHECK (`TRY`, `REQUEST`) · `owner_id` (the try's id or the request's) · `order_id` (the order's id — the future one for a try) · `session_id` · `key_id` (the key it was made with — rule 14) · `mode` · `gateway` · `currency_code` · `amount_minor` · `state` CHECK (§4) · `idempotency_key` uuid UNIQUE · `invoice_id` NULL, **unique per (`gateway`, `mode`)** · `gateway_payment_id` NULL · `frame_url` NULL · `window_ends_at` · `wait_ends_at` · `next_check_at` NULL · `succeeded_at` NULL · `paid_minor` NULL · `mismatch` bool · `paid_twice` bool · `needs_attention` bool · `refused_reason` NULL · `customer_name`, `customer_email`, `customer_phone` NULL (cleared on anonymizing) · `created_at`, `updated_at` · **one open attempt per owner** (a unique partial index on `owner_id` WHERE `state IN ('CREATING','CHARGING','OPEN','UNKNOWN')` — rule 3) |
@@ -734,7 +734,8 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 
 Settings (Platform, declared by Payments): `payments.timers.window_minutes` (STORE, 1–30, default **5** —
 owner 2026-10-28, Super Admins), `payments.timers.wait_minutes` (STORE, 1–10, default **2** — owner
-2026-10-28, Super Admins), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
+2026-10-28, Super Admins), `payments.timers.hold_minutes` (STORE, 10–60, default **15** — owner 2026-10-29,
+gap 8.3, Super Admins; always longer than the window and the wait together), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
 account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `payments.bank.holder`,
 "may be empty", sensitive).
 
@@ -1110,3 +1111,9 @@ method from the card's brand.
 7. **`apple_pay_domains` is `jsonb`** (a list), not `text[]`.
 8. **The country list is the adapter's** (`Infrastructure/External/MyFatoorahAddresses`, behind
    `Application/Gateway/GatewayAddresses`): no country code sits in Domain or Application (handoff §2.2).
+9. **After the review** (2026-10-31): a key and its secret are **printable ASCII only** (an invisible mark copied
+   from an Arabic page is refused before any call); a 401 names a missing permission only when MyFatoorah says
+   so in its own words, otherwise the key "was refused"; an expiry warning is sent only by the run that marks
+   the key, still current; days left are counted as calendar days (a daylight-saving day is a whole one).
+10. **Payments' line on the settings page** ("Online payment: … · Bank transfer: …", gap 8.8) is built in
+    **step 8b**, with the bank account it names.

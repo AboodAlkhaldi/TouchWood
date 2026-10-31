@@ -66,7 +66,7 @@ final readonly class DatabaseGateways implements Gateways
         return $row instanceof stdClass ? self::key($row) : null;
     }
 
-    public function addKey(string $storeId, PaymentMode $mode, string $key, string $secret, DateTimeImmutable $expiresOn, string $staffId, DateTimeImmutable $now): string
+    public function addKey(string $storeId, PaymentMode $mode, #[\SensitiveParameter] string $key, #[\SensitiveParameter] string $secret, DateTimeImmutable $expiresOn, string $staffId, DateTimeImmutable $now): string
     {
         $this->db->table('payments.gateway_keys')->where('store_id', strtolower($storeId))->where('mode', $mode->value)->where('current', true)
             ->update(['current' => false, 'retired_at' => $now]);
@@ -99,9 +99,13 @@ final readonly class DatabaseGateways implements Gateways
         return $keys;
     }
 
-    public function markWarned(string $keyId, int $days): void
+    public function markWarned(string $keyId, int $days): bool
     {
-        $this->db->table('payments.gateway_keys')->where('id', $keyId)->update(['warned_days' => $days]);
+        return $this->db->table('payments.gateway_keys')
+            ->where('id', $keyId)
+            ->where('current', true)
+            ->where(fn ($query) => $query->whereNull('warned_days')->orWhere('warned_days', '>', $days))
+            ->update(['warned_days' => $days]) === 1;
     }
 
     private static function key(stdClass $row): GatewayKey

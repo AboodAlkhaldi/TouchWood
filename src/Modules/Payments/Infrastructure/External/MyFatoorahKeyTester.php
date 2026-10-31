@@ -21,11 +21,14 @@ final readonly class MyFatoorahKeyTester implements KeyTester
 {
     private const int TIMEOUT_SECONDS = 15;
 
+    /** MyFatoorah's answer to a key without an endpoint's permission (docs.myfatoorah.com/docs/api-key). */
+    private const string NO_PERMISSION = 'does not have the required permissions';
+
     public function __construct(
         private Http $http,
     ) {}
 
-    public function test(string $apiBase, string $key, string $currencyCode): void
+    public function test(string $apiBase, #[\SensitiveParameter] string $key, string $currencyCode): void
     {
         $this->expect($this->send('GET', $apiBase.'/v3/payment-methods', $key), 'the payment methods', okOnly: true);
         $this->expect($this->send('POST', $apiBase.'/v3/sessions', $key, [
@@ -42,7 +45,7 @@ final readonly class MyFatoorahKeyTester implements KeyTester
      *
      * @throws GatewayUnreachable
      */
-    private function send(string $method, string $url, string $key, ?array $body = null): Response
+    private function send(string $method, string $url, #[\SensitiveParameter] string $key, ?array $body = null): Response
     {
         try {
             $request = $this->http->withToken($key)->acceptJson()->timeout(self::TIMEOUT_SECONDS);
@@ -58,8 +61,12 @@ final readonly class MyFatoorahKeyTester implements KeyTester
      */
     private function expect(Response $response, string $permission, bool $okOnly): void
     {
+        // A 401 names a missing permission only in MyFatoorah's own words (notes §0 #18); any other 401 is
+        // a key it does not take at all - wrong, expired, or of the other mode.
         if ($response->status() === 401) {
-            throw new KeyPermissionMissing($permission);
+            throw str_contains($response->body(), self::NO_PERMISSION)
+                ? new KeyPermissionMissing($permission)
+                : new KeyTestFailed("{$permission} refused the key");
         }
 
         if ($response->serverError()) {

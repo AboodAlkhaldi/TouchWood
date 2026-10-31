@@ -31,7 +31,7 @@ interface Gateways
      * The new current key of the store and mode; the one before it is retired, kept until its attempts
      * close (rule 14). Answers the new key's id.
      */
-    public function addKey(string $storeId, PaymentMode $mode, string $key, string $secret, DateTimeImmutable $expiresOn, string $staffId, DateTimeImmutable $now): string;
+    public function addKey(string $storeId, PaymentMode $mode, #[\SensitiveParameter] string $key, #[\SensitiveParameter] string $secret, DateTimeImmutable $expiresOn, string $staffId, DateTimeImmutable $now): string;
 
     /**
      * Every current key, for the daily look at their expiry dates.
@@ -40,5 +40,9 @@ interface Gateways
      */
     public function currentKeys(): array;
 
-    public function markWarned(string $keyId, int $days): void;
+    /**
+     * Marks the key warned at this threshold - only while it is still current and not yet warned at this
+     * one or a nearer one. False when another run, or a new key, came first: then nothing is sent.
+     */
+    public function markWarned(string $keyId, int $days): bool;
 }

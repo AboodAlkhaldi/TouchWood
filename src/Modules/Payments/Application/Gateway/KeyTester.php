@@ -18,5 +18,5 @@ interface KeyTester
     /**
      * @throws KeyPermissionMissing|KeyTestFailed|GatewayUnreachable
      */
-    public function test(string $apiBase, string $key, string $currencyCode): void;
+    public function test(string $apiBase, #[\SensitiveParameter] string $key, string $currencyCode): void;
 }

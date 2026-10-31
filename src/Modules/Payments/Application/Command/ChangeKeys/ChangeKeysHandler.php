@@ -88,7 +88,8 @@ final readonly class ChangeKeysHandler
         $value = trim($value);
         $length = mb_strlen($value);
 
-        if ($length < self::FEWEST_CHARACTERS || $length > self::MOST_CHARACTERS || preg_match('/\s/u', $value) === 1) {
+        // Printable ASCII only: no space, and no invisible mark a copy from an Arabic page can carry.
+        if ($length < self::FEWEST_CHARACTERS || $length > self::MOST_CHARACTERS || preg_match('/^[\x21-\x7E]+$/', $value) !== 1) {
             throw new InvalidPaymentsInput($field, 'a key as MyFatoorah gives it');
         }
 
