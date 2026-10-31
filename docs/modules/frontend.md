@@ -891,7 +891,7 @@ The owner's direction, 2026-09-19: the design is look and behaviour only.
 | In the design | In the system | Rule |
 |---|---|---|
 | "Keep me signed in" on the staff sign-in | Not offered: staff sessions end after 30 minutes idle and 12 hours at most | access.md §1.8 |
-| A two-factor on/off switch | No switch: every staff member signs in with an SMS code | access.md §1.8 |
+| A two-factor on/off switch | No switch: every staff member has a second step - an SMS code or, since amendment 91 (owner, 2026-10-31), a code from an authenticator app, as the Super Admins' setting says | access.md §1.8, amendment 91 |
 | Amounts in Arabic written "SAR" | The sign where one is set, else the letters in the page's language (ر.س) | platform.md §5.1 |
 | Every menu item and all three stores shown | Only what the person may do, and only their stores | handoff §14 |
 | Digits mixed on Arabic pages | Latin (0–9) everywhere (owner, 2026-10-06) | §1.8 |
@@ -957,7 +957,7 @@ edits is what Access already allows (`UpdateOwnStaffProfile`, `ChangeOwnStaffPho
 |---|---|---|
 | B1 | Account | Picture; first and last name, job title, date of birth, country, address; the **communication language** (emails and SMS codes, Access amendment 16), labelled so it is not confused with the display toggle. The email is read only, its locked Change Email saying "Ask an admin to change it"; a Super Admin instead has "Change email", which sends a link to the new address (Access amendment 17) and shows the change as pending until it is used. |
 | B2 | Account → phone | The phone, with "Change": a dialog asks for the **current password** (R2) and the new number, sends a code to it, and takes the code. The old number stays in use until the new one is confirmed (access.md §1.4). A wrong password is counted like a wrong one at sign-in, so the dialog shows the lockout message too. |
-| B3 | Security | Change password: current, new, confirmation, with the rule in words. Afterwards: "Every other session was signed out." (Access's message). No two-factor switch (§2.7). |
+| B3 | Security | Change password: current, new, confirmation, with the rule in words. Afterwards: "Every other session was signed out." (Access's message). The authenticator app (access.md amendment 91, owner 2026-10-31): its state, the sign-in method when both are on, Change App, New Recovery Codes and Remove App (each after the password); it replaces "no two-factor switch" (§2.7). |
 | B4 | Notifications | For each topic — new orders, company applications, low stock, campaign expiry — an email switch and an in-panel switch (access.md §1.4). **[DECIDED 2026-09-19]** Each switch saves as it is flipped, with a small "Saved" toast. |
 
 - What a change ends is Access's rule, not the screen's (a new password or phone ends every trusted
