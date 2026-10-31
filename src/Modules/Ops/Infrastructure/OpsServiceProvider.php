@@ -119,7 +119,7 @@ use Modules\Sync\Public\Events\SyncNeedsAttention;
  * Step 8: the reports' Excel writer.
  * Step 9: the daily report - its reader, its PDF, the files kept, the email at the time chosen.
  * Steps 5 and 6: the customer messages and the staff alerts on the other modules' events, and the
- * nightly reminder before points expire.
+ * morning reminder before points expire.
  */
 final class OpsServiceProvider extends ServiceProvider
 {

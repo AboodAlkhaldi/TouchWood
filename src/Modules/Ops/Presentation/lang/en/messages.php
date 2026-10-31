@@ -58,6 +58,14 @@ return [
             'Hello :name,',
             'Your order :order has been shipped with :carrier.',
         ],
+        // When the order names no carrier.
+        'without_carrier' => [
+            'line' => 'Your order is on its way.',
+            'lines' => [
+                'Hello :name,',
+                'Your order :order has been shipped.',
+            ],
+        ],
         'optional' => [
             'tracking_number' => 'Tracking number: :tracking_number',
             'track' => 'Track your order',

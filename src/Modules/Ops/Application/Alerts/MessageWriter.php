@@ -16,6 +16,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\OrderMessageDto;
+use Psr\Log\LoggerInterface;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -24,13 +25,22 @@ use Shared\Domain\ValueObject\Money;
  * details. Null when there is nothing to send any more - the order, return, entry or question is gone,
  * or the rule of the kind no longer holds:
  *
+ * - C2: the order is still approved;
+ * - C8 accepted, S9: the return was not withdrawn since;
  * - C16: the question is still answered (feedback.md §2.5: events are kept in order per order only);
  * - C17, C17b: still not published, **with a reason** - no reason, no message (feedback.md:75).
  *
- * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits always (owner, 2026-10-06):
- * the new riyal and dirham signs are in few fonts an email client has. A link is a path inside the site:
- * the customer's page in the shop, in their language; the panel's page for staff (§1.6: an alert links
- * to its page and never copies details that may change).
+ * **A read that names another store, or another customer, than the event did sends nothing** - it is
+ * logged with its ids only, never a name or an address: a message never reaches the wrong person.
+ *
+ * C1 shows the delivery address once Sales gives it on `OrderMessageDto` (owner, 2026-10-31: asked of
+ * Sales); until then the email has no address line at all, never a stand-in. C4 names the carrier only
+ * when the order has one.
+ *
+ * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
+ * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
+ * link is a path inside the site: the customer's page in the shop, in their language; the panel's page
+ * for staff (§1.6: an alert links to its page and never copies details that may change).
  */
 final readonly class MessageWriter
 {
@@ -44,30 +54,33 @@ final readonly class MessageWriter
         private LoyaltyApi $loyalty,
         private FeedbackApi $feedback,
         private CatalogApi $catalog,
+        private LoggerInterface $log,
     ) {}
 
     /**
      * @param  string  $name  the person's first name
+     * @param  string|null  $customerId  the customer the event named; none for a staff alert
      */
-    public function write(EventMessage $message, StoreDto $store, string $locale, string $name): ?MessageText
+    public function write(EventMessage $message, StoreDto $store, string $locale, string $name, ?string $customerId = null): ?MessageText
     {
         $locale = $locale === 'ar' ? 'ar' : 'en';
         $values = ['name' => $name, 'store' => $store->name->in($locale)];
+        $to = new MessageTarget($message, $store, $customerId);
 
         return match ($message->kind) {
-            MessageKind::OrderTaken, MessageKind::OrderChanged => $this->orderWithSummary($message, $store, $locale, $values),
+            MessageKind::OrderTaken, MessageKind::OrderChanged => $this->orderWithSummary($to, $locale, $values),
             MessageKind::OrderApproved, MessageKind::OrderCancelled, MessageKind::OrderCameBack, MessageKind::OrderRejected,
-            MessageKind::OrderShipped, MessageKind::OrderDelivered => $this->order($message, $store, $locale, $values),
-            MessageKind::ReturnAccepted, MessageKind::ReturnRefused, MessageKind::ReturnReceived, MessageKind::ReturnCompleted => $this->customerReturn($message, $store, $locale, $values),
-            MessageKind::PointsEarned, MessageKind::PointsChangedByHand => $this->points($message, $store, $locale, $values),
+            MessageKind::OrderShipped, MessageKind::OrderDelivered => $this->order($to, $locale, $values),
+            MessageKind::ReturnAccepted, MessageKind::ReturnRefused, MessageKind::ReturnReceived, MessageKind::ReturnCompleted => $this->customerReturn($to, $locale, $values),
+            MessageKind::PointsEarned, MessageKind::PointsChangedByHand => $this->points($to, $locale, $values),
             MessageKind::PointsExpiring => $this->text($message->kind, $locale, [...$values, 'points' => (string) $message->int('points'), 'date' => $message->string('date')], self::shop($store, $locale, 'account/points')),
-            MessageKind::QuestionAnswered, MessageKind::QuestionNotPublished => $this->question($message, $store, $locale, $values),
-            MessageKind::ReviewNotPublished => $this->review($message, $store, $locale, $values),
-            MessageKind::NewOrder => $this->newOrder($message, $locale, $values),
+            MessageKind::QuestionAnswered, MessageKind::QuestionNotPublished => $this->question($to, $locale, $values),
+            MessageKind::ReviewNotPublished => $this->review($to, $locale, $values),
+            MessageKind::NewOrder => $this->newOrder($to, $locale, $values),
             MessageKind::CompanyApplication => $this->text($message->kind, $locale, $values, '/admin/companies/'.$message->string('companyId')),
             MessageKind::LowStock => $this->text($message->kind, $locale, [...$values, 'low' => (string) $message->int('low'), 'out' => (string) $message->int('out')], '/admin/low-stock'),
             MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync'),
-            MessageKind::ReturnRequested => $this->returnRequested($message, $locale, $values),
+            MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => (string) $message->int('days'), 'date' => $message->string('date')], null, sms: true),
             MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, $values, null, sms: true),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
@@ -79,86 +92,98 @@ final readonly class MessageWriter
      *
      * @param  array<string, string>  $values
      */
-    private function orderWithSummary(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function orderWithSummary(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $order = $this->sales->orderForMessage($message->string('orderId'), $locale);
+        $order = $this->sales->orderForMessage($to->message->string('orderId'), $locale);
 
-        if ($order === null) {
+        if ($order === null || ! $this->belongs($to, $order->storeId, $order->customerId)) {
             return null;
         }
 
-        $text = $this->text($message->kind, $locale, [...$values, 'order' => $order->number, 'amount' => self::money($order->total, $store, $locale)], self::shop($store, $locale, 'account/orders/'.$order->number));
+        $text = $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number, 'amount' => self::money($order->total, $to->store, $locale)], self::shop($to->store, $locale, 'account/orders/'.$order->number));
 
-        return new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $store, $locale));
+        return new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $to->store, $locale));
     }
 
     /** @param  array<string, string> $values */
-    private function order(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function order(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $order = $this->sales->orderForMessage($message->string('orderId'), $locale);
+        $kind = $to->message->kind;
+        $order = $this->sales->orderForMessage($to->message->string('orderId'), $locale);
 
-        if ($order === null) {
+        if ($order === null || ! $this->belongs($to, $order->storeId, $order->customerId)) {
+            return null;
+        }
+
+        if ($kind === MessageKind::OrderApproved && $order->status !== 'APPROVED') {
             return null;
         }
 
         $values['order'] = $order->number;
         $optional = [];
+        $words = null;
 
-        if ($message->kind === MessageKind::OrderRejected) {
+        if ($kind === MessageKind::OrderRejected) {
             $optional['reason'] = $order->rejectionReason;
         }
 
-        if ($message->kind === MessageKind::OrderShipped) {
-            $values['carrier'] = $order->carrier ?? '';
+        if ($kind === MessageKind::OrderShipped) {
+            $values['carrier'] = trim((string) $order->carrier);
+            $words = $values['carrier'] === '' ? 'without_carrier' : null;
             $optional['tracking_number'] = $order->trackingNumber;
         }
 
-        if ($message->kind === MessageKind::OrderDelivered) {
-            $values['days'] = (string) (int) $this->platform->setting(self::RETURN_WINDOW, $store->storeId())->value;
+        if ($kind === MessageKind::OrderDelivered) {
+            $values['days'] = (string) (int) $this->platform->setting(self::RETURN_WINDOW, $to->store->storeId())->value;
         }
 
-        return $this->text($message->kind, $locale, $values, self::shop($store, $locale, 'account/orders/'.$order->number), $optional);
+        return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional, words: $words);
     }
 
     /** @param  array<string, string> $values */
-    private function customerReturn(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function customerReturn(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $return = $this->sales->returnForMessage($message->string('returnId'));
+        $kind = $to->message->kind;
+        $return = $this->sales->returnForMessage($to->message->string('returnId'));
 
-        if ($return === null) {
+        if ($return === null || ! $this->belongs($to, $return->storeId, $return->customerId)) {
+            return null;
+        }
+
+        if ($kind === MessageKind::ReturnAccepted && $return->status === 'WITHDRAWN') {
             return null;
         }
 
         $values['order'] = $return->orderNumber;
         $optional = [];
 
-        if ($message->kind === MessageKind::ReturnRefused) {
+        if ($kind === MessageKind::ReturnRefused) {
             $optional['reason'] = $return->staffReason;
         }
 
-        if ($message->kind === MessageKind::ReturnCompleted) {
+        if ($kind === MessageKind::ReturnCompleted) {
             if ($return->refundDue === null) {
                 return null;
             }
 
-            $values['amount'] = self::money($return->refundDue, $store, $locale);
+            $values['amount'] = self::money($return->refundDue, $to->store, $locale);
         }
 
-        return $this->text($message->kind, $locale, $values, self::shop($store, $locale, 'account/returns/'.$return->returnId), $optional);
+        return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/returns/'.$return->returnId), $optional);
     }
 
     /** @param  array<string, string> $values */
-    private function points(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function points(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $entry = $this->loyalty->entryForMessage($message->int('entryId'));
+        $entry = $this->loyalty->entryForMessage($to->message->int('entryId'));
 
-        if ($entry === null) {
+        if ($entry === null || ! $this->belongs($to, $entry->storeId, $entry->customerId)) {
             return null;
         }
 
         $optional = [];
 
-        if ($message->kind === MessageKind::PointsEarned) {
+        if ($to->message->kind === MessageKind::PointsEarned) {
             $values['points'] = (string) $entry->points;
             $values['order'] = $entry->orderNumber ?? '';
         } else {
@@ -167,23 +192,24 @@ final readonly class MessageWriter
             $optional['reason'] = $entry->reason;
         }
 
-        return $this->text($message->kind, $locale, $values, self::shop($store, $locale, 'account/points'), $optional);
+        return $this->text($to->message->kind, $locale, $values, self::shop($to->store, $locale, 'account/points'), $optional);
     }
 
     /** @param  array<string, string> $values */
-    private function question(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function question(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $question = $this->feedback->questionForMessage($message->string('questionId'));
+        $kind = $to->message->kind;
+        $question = $this->feedback->questionForMessage($to->message->string('questionId'));
 
-        if ($question === null) {
+        if ($question === null || ! $this->belongs($to, $question->storeId, $question->customerId)) {
             return null;
         }
 
-        if ($message->kind === MessageKind::QuestionAnswered && $question->status !== QuestionStatus::Answered) {
+        if ($kind === MessageKind::QuestionAnswered && $question->status !== QuestionStatus::Answered) {
             return null;
         }
 
-        if ($message->kind === MessageKind::QuestionNotPublished && (! in_array($question->status, [QuestionStatus::Rejected, QuestionStatus::Unpublished], true) || self::blank($question->reason))) {
+        if ($kind === MessageKind::QuestionNotPublished && (! in_array($question->status, [QuestionStatus::Rejected, QuestionStatus::Unpublished], true) || self::blank($question->reason))) {
             return null;
         }
 
@@ -193,15 +219,19 @@ final readonly class MessageWriter
             return null;
         }
 
-        return $this->text($message->kind, $locale, [...$values, 'product' => $product, 'reason' => (string) $question->reason], self::shop($store, $locale, 'account/questions'));
+        return $this->text($kind, $locale, [...$values, 'product' => $product, 'reason' => (string) $question->reason], self::shop($to->store, $locale, 'account/questions'));
     }
 
     /** @param  array<string, string> $values */
-    private function review(EventMessage $message, StoreDto $store, string $locale, array $values): ?MessageText
+    private function review(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $review = $this->feedback->reviewForMessage($message->string('reviewId'));
+        $review = $this->feedback->reviewForMessage($to->message->string('reviewId'));
 
-        if ($review === null || ! in_array($review->status, [ReviewStatus::Rejected, ReviewStatus::Unpublished], true) || self::blank($review->reason)) {
+        if ($review === null || ! $this->belongs($to, $review->storeId, $review->customerId)) {
+            return null;
+        }
+
+        if (! in_array($review->status, [ReviewStatus::Rejected, ReviewStatus::Unpublished], true) || self::blank($review->reason)) {
             return null;
         }
 
@@ -211,35 +241,67 @@ final readonly class MessageWriter
             return null;
         }
 
-        return $this->text($message->kind, $locale, [...$values, 'product' => $product, 'reason' => (string) $review->reason], self::shop($store, $locale, 'account/reviews'));
+        return $this->text($to->message->kind, $locale, [...$values, 'product' => $product, 'reason' => (string) $review->reason], self::shop($to->store, $locale, 'account/reviews'));
     }
 
     /** @param  array<string, string> $values */
-    private function newOrder(EventMessage $message, string $locale, array $values): ?MessageText
+    private function newOrder(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $order = $this->sales->orderForMessage($message->string('orderId'), $locale);
+        $order = $this->sales->orderForMessage($to->message->string('orderId'), $locale);
 
-        return $order === null ? null : $this->text($message->kind, $locale, [...$values, 'order' => $order->number], '/admin/orders/'.$order->orderId);
+        if ($order === null || ! $this->belongs($to, $order->storeId, $order->customerId)) {
+            return null;
+        }
+
+        return $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number], '/admin/orders/'.$order->orderId);
     }
 
     /** @param  array<string, string> $values */
-    private function returnRequested(EventMessage $message, string $locale, array $values): ?MessageText
+    private function returnRequested(MessageTarget $to, string $locale, array $values): ?MessageText
     {
-        $return = $this->sales->returnForMessage($message->string('returnId'));
+        $return = $this->sales->returnForMessage($to->message->string('returnId'));
 
-        return $return === null ? null : $this->text($message->kind, $locale, [...$values, 'order' => $return->orderNumber], '/admin/returns/'.$return->returnId);
+        if ($return === null || ! $this->belongs($to, $return->storeId, $return->customerId) || $return->status === 'WITHDRAWN') {
+            return null;
+        }
+
+        return $this->text($to->message->kind, $locale, [...$values, 'order' => $return->orderNumber], '/admin/returns/'.$return->returnId);
     }
 
     /**
-     * The kind's words with its values; a line under `optional` only when its value exists.
+     * Whether the read is about the event's store and, for a customer's message, the event's customer.
+     * Anything else is logged by ids only, and nothing is sent.
+     */
+    private function belongs(MessageTarget $to, string $readStoreId, string $readCustomerId): bool
+    {
+        $sameStore = strtolower($readStoreId) === strtolower($to->store->id);
+        $sameCustomer = $to->customerId === null || strtolower($readCustomerId) === strtolower($to->customerId);
+
+        if (! $sameStore || ! $sameCustomer) {
+            $this->log->warning('Ops sent no message: the module\'s read names another store or customer than the event.', [
+                'kind' => $to->message->kind->value,
+                'event_store_id' => strtolower($to->store->id),
+                'read_store_id' => strtolower($readStoreId),
+                'event_customer_id' => $to->customerId === null ? null : strtolower($to->customerId),
+                'read_customer_id' => strtolower($readCustomerId),
+            ]);
+        }
+
+        return $sameStore && $sameCustomer;
+    }
+
+    /**
+     * The kind's words with its values; a line under `optional` only when its value exists. `words`
+     * names another line and lines of the kind - C4's without a carrier.
      *
      * @param  array<string, string>  $values
      * @param  array<string, string|null>  $optional
      */
-    private function text(MessageKind $kind, string $locale, array $values, ?string $link, array $optional = [], bool $sms = false): MessageText
+    private function text(MessageKind $kind, string $locale, array $values, ?string $link, array $optional = [], bool $sms = false, ?string $words = null): MessageText
     {
         $key = "ops::messages.{$kind->value}";
-        $lines = array_values(array_map(static fn (mixed $line): string => (string) $line, (array) $this->translator->get("{$key}.lines", $values, $locale)));
+        $own = $words === null ? $key : "{$key}.{$words}";
+        $lines = array_values(array_map(static fn (mixed $line): string => (string) $line, (array) $this->translator->get("{$own}.lines", $values, $locale)));
 
         foreach ($optional as $field => $value) {
             if (! self::blank($value)) {
@@ -249,7 +311,7 @@ final readonly class MessageWriter
 
         return new MessageText(
             (string) $this->translator->get("{$key}.title", $values, $locale),
-            (string) $this->translator->get("{$key}.line", $values, $locale),
+            (string) $this->translator->get("{$own}.line", $values, $locale),
             (string) $this->translator->get("{$key}.subject", $values, $locale),
             $lines,
             $link,

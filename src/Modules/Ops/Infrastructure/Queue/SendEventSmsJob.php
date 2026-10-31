@@ -8,15 +8,15 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\EventSender;
-use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
-use Modules\Ops\Public\Enums\MessageChannel;
 
 /**
- * The critical SMS to one super admin (ops.md §1.6: the gateway key at 1 day, or refused), sent once by
- * its delivery id. It carries no phone and no text: both are read when it runs. A provider's failure is
- * retried; after the last attempt it is recorded as failed (§7).
+ * The critical SMS to one super admin (ops.md §1.6: the gateway key at 1 day, or refused), its
+ * `ops.sent_messages` row already written QUEUED. It carries no phone and no text: both are read when
+ * it runs, with the person's critical-SMS switch, through the alert's topic and permission. Sent, then
+ * marked, as the email is (SendEventEmailJob): at least once; FAILED after the last attempt (§7).
  */
 final class SendEventSmsJob implements ShouldQueue
 {
@@ -33,16 +33,18 @@ final class SendEventSmsJob implements ShouldQueue
     public function __construct(
         public EventMessage $message,
         public string $staffId,
-        public string $deliveryId,
+        public StaffNotificationTopic $topic,
+        public string $permission,
+        public string $sentId,
     ) {}
 
-    public function handle(EventSender $sender, HandledEvents $handled): void
+    public function handle(EventSender $sender): void
     {
-        $handled->once($this->deliveryId, self::class, fn () => $sender->smsStaff($this->message, $this->staffId));
+        $sender->smsStaff($this->message, $this->staffId, $this->topic, $this->permission, $this->sentId);
     }
 
     public function failed(): void
     {
-        app(EventSender::class)->failed($this->message, null, $this->staffId, MessageChannel::Sms);
+        app(EventSender::class)->failed($this->sentId);
     }
 }

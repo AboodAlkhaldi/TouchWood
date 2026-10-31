@@ -6,7 +6,9 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\StaffAlertRecipientDto;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
@@ -36,8 +38,16 @@ use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\EventSender;
 use Modules\Ops\Application\Alerts\StaffAlerts;
 use Modules\Ops\Application\Messages\ProviderFailed;
+use Modules\Ops\Domain\Model\InboxEntry;
+use Modules\Ops\Domain\Model\SendStatus;
+use Modules\Ops\Domain\Model\SentMessage;
+use Modules\Ops\Domain\Repository\Inbox;
+use Modules\Ops\Domain\Repository\SentMessages;
+use Modules\Ops\Domain\ValueObject\InboxOwner;
+use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\SendEventEmailJob;
+use Modules\Ops\Infrastructure\Queue\SendEventSmsJob;
 use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Sales\Public\Contracts\SalesReports;
@@ -45,17 +55,21 @@ use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Events\OrderApproved;
+use Modules\Sales\Public\Events\OrderCameBack;
 use Modules\Sales\Public\Events\OrderCancelled;
 use Modules\Sales\Public\Events\OrderDelivered;
 use Modules\Sales\Public\Events\OrderEdited;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\OrderRejected;
 use Modules\Sales\Public\Events\OrderShipped;
+use Modules\Sales\Public\Events\ReturnAccepted;
 use Modules\Sales\Public\Events\ReturnCompleted;
+use Modules\Sales\Public\Events\ReturnReceived;
 use Modules\Sales\Public\Events\ReturnRefused;
 use Modules\Sales\Public\Events\ReturnRequested;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
@@ -99,14 +113,32 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
     app()->instance(SalesReports::class, $sales);
 }
 
-function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0): OrderMessageDto
+function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED'): OrderMessageDto
 {
     return new OrderMessageDto(
-        strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', 'APPROVED', 'NOT_SHIPPED', 'BANK_TRANSFER',
+        strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
         $carrier, $tracking, $rejection, null,
     );
+}
+
+/** A message's row, written QUEUED as a listener writes it; its id. */
+function eventMessagesQueued(EventMessage $message, MessageChannel $channel, ?string $customerId, ?string $staffId): string
+{
+    $id = strtolower((string) Str::ulid());
+    app(SentMessages::class)->record(new SentMessage($id, $message->kind, $customerId, $staffId, StoreId::fromString($message->storeId), $channel, null, SendStatus::Queued, CarbonImmutable::now()->toDateTimeImmutable()));
+
+    return $id;
+}
+
+/**
+ * The critical SMS to one staff member, queued and run as its job runs it. Its alert's permission here is
+ * one that is declared today (`payments.gateway.manage` is stage 7's): super admins hold every permission.
+ */
+function eventMessagesSms(EventMessage $message, string $staffId): void
+{
+    app(EventSender::class)->smsStaff($message, $staffId, StaffNotificationTopic::PaymentProblems, 'sales.order.view', eventMessagesQueued($message, MessageChannel::Sms, null, $staffId));
 }
 
 function eventMessagesId(): string
@@ -323,28 +355,176 @@ describe('messages to customers (§1.5)', function () {
             ->and(array_map(static fn (object $entry): string => $entry->kind, eventMessagesBell($sara)))->toEqualCanonicalizing(['question_answered', 'question_not_published', 'review_not_published']);
     });
 
-    it('records a provider\'s failure the queue gave up on, and sends each email once by its delivery id', function () {
+    it('tells an order that came back, a return accepted and a return received', function () {
+        $sara = Fx::customer('sara@example.test');
+        $returnId = strtolower((string) Str::ulid());
+        eventMessagesSales($order = eventMessagesOrder($sara), new ReturnMessageDto($returnId, strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId('sa'), $sara, 'ACCEPTED', null, null));
+
+        event(new OrderCameBack(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        event(new ReturnAccepted(eventMessagesId(), $returnId, $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        event(new ReturnReceived(eventMessagesId(), $returnId, $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(array_map(static fn ($email): string => $email->subject, CapturedEmails::installed()->sent))->toBe([
+            'Your order SA-0007 came back to us',
+            'Your return for order SA-0007 is accepted',
+            'We received your return for order SA-0007',
+        ])
+            ->and(array_map(static fn (object $entry): string => $entry->kind, eventMessagesBell($sara)))->toEqualCanonicalizing(['order_came_back', 'return_accepted', 'return_received'])
+            ->and(eventMessagesSent($sara))->toBe(['order_came_back EMAIL SENT', 'return_accepted EMAIL SENT', 'return_received EMAIL SENT']);
+    });
+
+    it('skips what no longer stands: an approval of an order no longer approved, an acceptance of a return withdrawn since', function () {
+        $sara = Fx::customer('sara@example.test');
+        $returnId = strtolower((string) Str::ulid());
+        eventMessagesSales($order = eventMessagesOrder($sara, status: 'CANCELLED'), new ReturnMessageDto($returnId, strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId('sa'), $sara, 'WITHDRAWN', null, null));
+
+        event(new OrderApproved(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        event(new ReturnAccepted(eventMessagesId(), $returnId, $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(eventMessagesBell($sara))->toBe([])
+            ->and(CapturedEmails::installed()->sent)->toBe([])
+            ->and(eventMessagesSent($sara))->toBe([]);
+    });
+
+    it('names no carrier on a shipment that has none', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales($order = eventMessagesOrder($sara));
+
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        $text = CapturedEmails::installed()->last()->text;
+        expect($text)->toContain('Your order SA-0007 has been shipped.')
+            ->and(str_contains($text, 'shipped with'))->toBeFalse()
+            ->and(eventMessagesBell($sara)[0]->line_en)->toBe('Your order is on its way.');
+    });
+
+    it('sends nothing when the read names another customer or store than the event, and logs only ids', function () {
+        $log = Log::spy();
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        eventMessagesSales($order = eventMessagesOrder($omar));
+        event(new OrderApproved(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        eventMessagesSales($elsewhere = eventMessagesOrder($sara, 'ae'));
+        event(new OrderApproved(eventMessagesId(), $elsewhere->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(eventMessagesBell($sara))->toBe([])->and(eventMessagesBell($omar))->toBe([])
+            ->and(CapturedEmails::installed()->sent)->toBe([]);
+        $log->shouldHaveReceived('warning')->withArgs(static fn (string $message, array $context): bool => ($context['read_customer_id'] ?? null) === strtolower($omar)
+            && array_keys($context) === ['kind', 'event_store_id', 'read_store_id', 'event_customer_id', 'read_customer_id'])->atLeast()->once();
+        $log->shouldHaveReceived('warning')->withArgs(static fn (string $message, array $context): bool => ($context['read_store_id'] ?? null) === Fx::storeId('ae'))->atLeast()->once();
+    });
+
+    it('rolls a listener back whole: a failure halfway leaves no bell entry, no recorded message and no queued job', function () {
+        // The database queue, as the live system runs: a job is a row written in the listener's transaction.
+        config(['queue.default' => 'database']);
+        $first = Fx::staffWith(['b2b.company.review'], ['sa']);
+        $second = Fx::staffWith(['b2b.company.review'], ['sa']);
+        eventMessagesSwitch($first, StaffNotificationTopic::CompanyApplications, panel: true, email: true);
+        eventMessagesSwitch($second, StaffNotificationTopic::CompanyApplications, panel: true, email: true);
+        $real = app(Inbox::class);
+        app()->instance(Inbox::class, new class($real) implements Inbox
+        {
+            private int $adds = 0;
+
+            public function __construct(private readonly Inbox $real) {}
+
+            public function add(InboxEntry $entry): void
+            {
+                if (++$this->adds === 2) {
+                    throw new RuntimeException('The database went away.');
+                }
+
+                $this->real->add($entry);
+            }
+
+            public function markRead(InboxOwner $owner, string $entryId, DateTimeImmutable $at): bool
+            {
+                return $this->real->markRead($owner, $entryId, $at);
+            }
+
+            public function markAllRead(InboxOwner $owner, DateTimeImmutable $at): int
+            {
+                return $this->real->markAllRead($owner, $at);
+            }
+        });
+        $event = new CompanyApplicationSubmitted(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now());
+
+        $jobs = DB::table('jobs')->count();
+
+        expect(fn () => app(AlertStaff::class)->handle($event))->toThrow(RuntimeException::class, 'The database went away.');
+
+        expect(DB::table('ops.inbox_entries')->count())->toBe(0)
+            ->and(DB::table('ops.sent_messages')->count())->toBe(0)
+            ->and(DB::table('ops.handled_events')->where('event_id', $event->eventId)->count())->toBe(0)
+            ->and(DB::table('jobs')->count())->toBe($jobs)
+            ->and(CapturedEmails::installed()->sent)->toBe([]);
+
+        // The same work, once the failure is gone, leaves both bells, both rows and both jobs.
+        app()->forgetInstance(Inbox::class);
+        app(AlertStaff::class)->handle($event);
+
+        expect(DB::table('ops.inbox_entries')->count())->toBe(2)
+            ->and(DB::table('ops.sent_messages')->where('status', 'QUEUED')->count())->toBe(2)
+            ->and(DB::table('jobs')->count())->toBe($jobs + 2);
+    });
+});
+
+describe('each email and SMS, sent then marked (§5, §7)', function () {
+    it('writes the row QUEUED, sends, marks it SENT; a retry of a SENT row sends nothing', function () {
         $sara = Fx::customer('sara@example.test');
         eventMessagesSales($order = eventMessagesOrder($sara));
         $message = new EventMessage(MessageKind::OrderApproved, Fx::storeId('sa'), ['orderId' => $order->orderId]);
-        $job = new SendEventEmailJob($message, $sara, null, eventMessagesId());
+        $id = eventMessagesQueued($message, MessageChannel::Email, $sara, null);
+        expect(eventMessagesSent($sara))->toBe(['order_approved EMAIL QUEUED']);
 
+        $job = new SendEventEmailJob($message, $sara, null, $id);
         app()->call([$job, 'handle']);
         app()->call([$job, 'handle']);
-        expect(CapturedEmails::installed()->sent)->toHaveCount(1);
+
+        expect(CapturedEmails::installed()->sent)->toHaveCount(1)
+            ->and(eventMessagesSent($sara))->toBe(['order_approved EMAIL SENT'])
+            ->and(DB::table('ops.sent_messages')->where('id', $id)->value('provider_id'))->toBe('message-1');
+    });
+
+    it('keeps a row QUEUED through a provider\'s failure, sends it on the retry, and marks FAILED only when the queue gives up', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales($order = eventMessagesOrder($sara));
+        $message = new EventMessage(MessageKind::OrderApproved, Fx::storeId('sa'), ['orderId' => $order->orderId]);
+        $retried = eventMessagesQueued($message, MessageChannel::Email, $sara, null);
+        $givenUp = eventMessagesQueued($message, MessageChannel::Email, $sara, null);
 
         CapturedEmails::installed()->fails = true;
-        $again = new SendEventEmailJob($message, $sara, null, eventMessagesId());
-        expect(fn () => app()->call([$again, 'handle']))->toThrow(ProviderFailed::class);
-        $again->failed();
+        expect(fn () => app()->call([new SendEventEmailJob($message, $sara, null, $retried), 'handle']))->toThrow(ProviderFailed::class);
+        expect(DB::table('ops.sent_messages')->where('id', $retried)->value('status'))->toBe('QUEUED');
 
-        expect(eventMessagesSent($sara))->toBe(['order_approved EMAIL SENT', 'order_approved EMAIL FAILED']);
+        $job = new SendEventEmailJob($message, $sara, null, $givenUp);
+        expect(fn () => app()->call([$job, 'handle']))->toThrow(ProviderFailed::class);
+        $job->failed();
+
+        CapturedEmails::installed()->fails = false;
+        app()->call([new SendEventEmailJob($message, $sara, null, $retried), 'handle']);
+
+        expect(DB::table('ops.sent_messages')->where('id', $retried)->value('status'))->toBe('SENT')
+            ->and(DB::table('ops.sent_messages')->where('id', $givenUp)->value('status'))->toBe('FAILED')
+            ->and(CapturedEmails::installed()->sent)->toHaveCount(1);
+    });
+
+    it('removes the row when there is nothing left to send, and sends nothing for a row already gone', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales(null);
+        $message = new EventMessage(MessageKind::OrderApproved, Fx::storeId('sa'), ['orderId' => strtolower((string) Str::ulid())]);
+        $id = eventMessagesQueued($message, MessageChannel::Email, $sara, null);
+
+        app()->call([new SendEventEmailJob($message, $sara, null, $id), 'handle']);
+        app()->call([new SendEventEmailJob($message, $sara, null, strtolower((string) Str::ulid())), 'handle']);
+
+        expect(eventMessagesSent($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
     });
 });
 
 describe('the reminder before points expire (§1.5 C14)', function () {
-    it('tells each customer once a day what expires a week ahead, in every store, whatever runs it again', function () {
-        CarbonImmutable::setTestNow('2026-11-01 07:00:00');
+    it('tells each customer once a day what expires a week from the day the job was queued, in every store, whatever runs it again', function () {
         $sara = Fx::customer('sara@example.test');
         $asked = [];
         $loyalty = Mockery::mock(LoyaltyApi::class);
@@ -354,9 +534,13 @@ describe('the reminder before points expire (§1.5 C14)', function () {
             return new ExpiringPointsPageDto($store->value === Fx::storeId('sa') ? [new ExpiringPointsDto($sara, 75)] : [], null);
         });
         app()->instance(LoyaltyApi::class, $loyalty);
+        CarbonImmutable::setTestNow('2026-11-01 07:00:00');
+        $job = new RemindExpiringPointsJob;
+        // A worker that runs it two days late still reminds of the day it was queued for.
+        CarbonImmutable::setTestNow('2026-11-03 07:00:00');
 
-        app()->call([new RemindExpiringPointsJob, 'handle']);
-        app()->call([new RemindExpiringPointsJob, 'handle']);
+        app()->call([$job, 'handle']);
+        app()->call([new RemindExpiringPointsJob('2026-11-01T07:00:00+00:00'), 'handle']);
 
         expect($asked)->toContain(Fx::storeId('sa').' 2026-11-08T00:00:00+03:00 2026-11-09T00:00:00+03:00')
             ->and($asked)->toContain(Fx::storeId('ae').' 2026-11-08T00:00:00+04:00 2026-11-09T00:00:00+04:00')
@@ -398,7 +582,20 @@ describe('alerts to staff (§1.4, §1.6)', function () {
             ->and(eventMessagesSent(staffId: $byDefault))->toBe([]);
     });
 
-    it('alerts a company application, a return asked, and sync problems to their own permissions, linking to their pages', function () {
+    it('emails a staff member who reads Arabic in Arabic', function () {
+        $reviewer = Fx::staffWith(['b2b.company.review'], ['sa']);
+        DB::table('access.staff_users')->where('id', $reviewer)->update(['locale' => 'ar']);
+        eventMessagesSwitch($reviewer, StaffNotificationTopic::CompanyApplications, panel: true, email: true);
+
+        event(new CompanyApplicationSubmitted(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now()));
+
+        $email = CapturedEmails::installed()->for(eventMessagesEmailOf($reviewer));
+        expect($email->subject)->toBe('طلب شركة جديد في السعودية')
+            ->and($email->fromName)->toBe('السعودية')
+            ->and($email->text)->toContain('مرحبًا Staff،');
+    });
+
+    it('alerts a company application, a return asked, and sync problems to their own permissions, linking to their pages; a return withdrawn since alerts no one', function () {
         $reviewer = Fx::staffWith(['b2b.company.review'], ['sa']);
         $returns = Fx::staffWith(['sales.return.manage'], ['sa']);
         $sync = Fx::staffWith(['sync.report.view'], ['sa']);
@@ -409,6 +606,10 @@ describe('alerts to staff (§1.4, §1.6)', function () {
         event(new CompanyApplicationSubmitted(eventMessagesId(), $company, strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now()));
         event(new ReturnRequested(eventMessagesId(), $returnId, strtolower((string) Str::ulid()), Fx::storeId('sa'), strtolower((string) Str::ulid()), CarbonImmutable::now()));
         event(new SyncNeedsAttention(eventMessagesId(), Fx::storeId('sa'), 'read-1', ['SALE_STOPPED' => 2], CarbonImmutable::now()));
+
+        $withdrawn = strtolower((string) Str::ulid());
+        eventMessagesSales(null, new ReturnMessageDto($withdrawn, strtolower((string) Str::ulid()), 'SA-0008', Fx::storeId('sa'), strtolower((string) Str::ulid()), 'WITHDRAWN', null, null));
+        event(new ReturnRequested(eventMessagesId(), $withdrawn, strtolower((string) Str::ulid()), Fx::storeId('sa'), strtolower((string) Str::ulid()), CarbonImmutable::now()));
 
         expect(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $reviewer)))->toBe(["company_application /admin/companies/{$company}"])
             ->and(array_map(static fn (object $entry): string => "{$entry->kind} {$entry->link}", eventMessagesBell(staffId: $returns)))->toBe(["return_requested /admin/returns/{$returnId}"])
@@ -441,9 +642,9 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
     /**
      * The Stage 7 events are not in main yet (GatewayKeyExpiring, GatewayKeyRejected) and Payments
      * declares no `payments.gateway.manage` yet: the alert is driven here as their listener will drive
-     * it, with Access's read answering two super admins.
+     * it, with Access's read answering for the people given.
      */
-    it('queues the SMS only at 1 day or for a refused key, only to those whose switch is on and who have a phone', function () {
+    it('queues the SMS only at 1 day or for a refused key, only to super admins whose switch is on and who have a phone', function () {
         $deliveries = new class implements EventDeliveries
         {
             /** @var list<string> */
@@ -453,7 +654,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
 
             public function emailStaff(EventMessage $message, string $staffId): void {}
 
-            public function smsStaff(EventMessage $message, string $staffId): void
+            public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission): void
             {
                 $this->sms[] = $message->kind->value.' '.$message->int('days').' '.$staffId;
             }
@@ -461,12 +662,18 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         app()->instance(EventDeliveries::class, $deliveries);
         $on = Fx::staff(superAdmin: true);
         $off = Fx::staff(superAdmin: true);
+        $reset = Fx::staff(superAdmin: true);
+        $admin = Fx::staff();
+        $real = app(AccessApi::class);
         $access = Mockery::mock(AccessApi::class);
         $access->allows('staffToAlert')->andReturn([
             new StaffAlertRecipientDto($on, 'en', 'on@example.test', '+966500000001', true, false, criticalSms: true),
             new StaffAlertRecipientDto($off, 'en', 'off@example.test', '+966500000002', true, false, criticalSms: false),
-            new StaffAlertRecipientDto(Fx::staff(superAdmin: true), 'en', 'reset@example.test', null, true, false, criticalSms: true),
+            new StaffAlertRecipientDto($reset, 'en', 'reset@example.test', null, true, false, criticalSms: true),
+            // An admin the permission reaches, switch on: never the SMS (super admins only).
+            new StaffAlertRecipientDto($admin, 'en', 'admin@example.test', '+966500000003', true, false, criticalSms: true),
         ]);
+        $access->allows('staff')->andReturnUsing(static fn (string $id) => $real->staff($id));
         app()->instance(AccessApi::class, $access);
         $alerts = app(StaffAlerts::class);
 
@@ -477,7 +684,8 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         $alerts->alert(new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
 
         expect($deliveries->sms)->toBe(["gateway_key_expiring 1 {$on}", "gateway_key_rejected 0 {$on}"])
-            ->and(eventMessagesBell(staffId: $on))->toHaveCount(4);
+            ->and(eventMessagesBell(staffId: $on))->toHaveCount(4)
+            ->and(eventMessagesBell(staffId: $admin))->toHaveCount(4);
     });
 
     it('sends it through the provider of the phone\'s country, in the person\'s language, and records it', function () {
@@ -485,24 +693,46 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         $sms = RecordingSmsSenders::install();
         DB::table('ops.sms_countries')->where('country_code', 'SA')->update(['provider' => 'second']);
         $phone = (string) DB::table('access.staff_users')->where('id', $super)->value('phone');
+        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
+        $sevenDays = new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30']);
 
-        app(EventSender::class)->smsStaff(new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []), $super);
-        app(EventSender::class)->smsStaff(new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30']), $super);
+        eventMessagesSms($refused, $super);
+        eventMessagesSms($sevenDays, $super);
 
         expect($sms->sent)->toBe([['provider' => 'second', 'phone' => $phone, 'message' => 'TouchWood: the payment gateway refused the key of Saudi Arabia. Replace it now.']])
             ->and(eventMessagesSent(staffId: $super))->toBe(['gateway_key_rejected SMS SENT']);
     });
 
-    it('fails a phone whose country is not on the SMS countries list, recorded once the queue gives up', function () {
+    it('checks again when it leaves: an admin, or a super admin who switched it off meanwhile, gets nothing', function () {
+        $admin = Fx::staffWith(['sales.order.view'], ['sa'], RoleLevel::Admin);
+        $switchedOff = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $switchedOff)->update(['critical_sms' => false]);
+        cache()->flush();
+        $sms = RecordingSmsSenders::install();
+        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
+
+        expect((bool) DB::table('access.staff_users')->where('id', $admin)->value('critical_sms'))->toBeTrue();
+
+        eventMessagesSms($refused, $admin);
+        eventMessagesSms($refused, $switchedOff);
+
+        expect($sms->sent)->toBe([])
+            ->and(eventMessagesSent(staffId: $admin))->toBe([])
+            ->and(eventMessagesSent(staffId: $switchedOff))->toBe([]);
+    });
+
+    it('fails a phone whose country is not on the SMS countries list, marked FAILED once the queue gives up', function () {
         $super = Fx::staff(superAdmin: true);
         RecordingSmsSenders::install();
         DB::table('access.staff_users')->where('id', $super)->update(['phone' => '+201000000001']);
         DB::table('ops.sms_countries')->where('country_code', 'EG')->delete();
         cache()->flush();
         $message = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
+        $id = eventMessagesQueued($message, MessageChannel::Sms, null, $super);
+        $job = new SendEventSmsJob($message, $super, StaffNotificationTopic::PaymentProblems, 'sales.order.view', $id);
 
-        expect(fn () => app(EventSender::class)->smsStaff($message, $super))->toThrow(ProviderFailed::class);
-        app(EventSender::class)->failed($message, null, $super, MessageChannel::Sms);
+        expect(fn () => app()->call([$job, 'handle']))->toThrow(ProviderFailed::class);
+        $job->failed();
 
         expect(eventMessagesSent(staffId: $super))->toBe(['gateway_key_rejected SMS FAILED']);
     });

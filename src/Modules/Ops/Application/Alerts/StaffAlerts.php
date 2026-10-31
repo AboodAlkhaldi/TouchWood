@@ -66,8 +66,9 @@ final readonly class StaffAlerts
                 $this->deliveries->emailStaff($message, $staff->staffId);
             }
 
-            if ($critical && $staff->criticalSms && $staff->phone !== null) {
-                $this->deliveries->smsStaff($message, $staff->staffId);
+            // Super admins only (§1.6, §9.3 #11): an admin holding the permission never gets it.
+            if ($critical && $staff->criticalSms && $staff->phone !== null && $this->access->staff($staff->staffId)?->isSuperAdmin === true) {
+                $this->deliveries->smsStaff($message, $staff->staffId, $topic, $permission);
             }
         }
     }

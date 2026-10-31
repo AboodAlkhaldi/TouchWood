@@ -114,12 +114,12 @@ must publish it (§2.3).
 
 | # | Kind | When | Event | Notes |
 |---|---|---|---|---|
-| C1 | Order taken | An order is placed | `OrderPlaced` (exists) | The shop's own email: number, lines, amounts, address, how to pay (owner, 2026-10-28) |
+| C1 | Order taken | An order is placed | `OrderPlaced` (exists) | The shop's own email: number, lines, amounts, address, how to pay (owner, 2026-10-28; the address confirmed 2026-10-31) |
 | C2 | Order approved | Staff approve it | **new** `OrderApproved` | |
 | C3 | Order rejected | Staff reject it | **new** `OrderRejected` | With staff's reason when given |
 | C4 | Order shipped | Marked shipped | **new** `OrderShipped` (Sales — Shipping publishes nothing) | The carrier, the number; **"Track" only when a link is stored on the order** (sales.md §9.5 #11) |
 | C5 | Order delivered | Marked delivered | `OrderDelivered` (exists) | Says the store's return window started (a store setting, 14 days by default; `SalesSettings.php:13`) |
-| C6 | Order cancelled | By the customer or staff | `OrderCancelled` (exists) | |
+| C6 | Order cancelled | By the customer or staff | `OrderCancelled` (exists) | A customer cancelling their own order is told too (owner, 2026-10-31; §9.3 #9) |
 | C6b | Order changed | Staff edit a placed order | **new** `OrderEdited` (`EditOrder`) | The new lines and total (owner, 2026-10-28, §9.3 #9) |
 | C7 | Order came back | The parcel came back | **new** `OrderCameBack` | |
 | C8 | Return accepted / refused | Staff decide | **new** `ReturnAccepted`, `ReturnRefused` | Refused: staff's words (sales.md, #243) |
@@ -143,14 +143,22 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 **Built (steps 5 and 6, 2026-10-31):** C1–C8b, C9, C12–C14, C16–C17b. Each listener is queued and runs once
 per `eventId` (`ops.handled_events`); it makes the bell entry in the event's store (both languages, the link
 to the customer's page in their own) and queues one email in their language; the email job writes the words
-again from the module's read when it leaves, sends once by its delivery id, and records `ops.sent_messages`
-(SENT, or FAILED after the queue's last attempt). Service messages: consent is not asked; an anonymized account
+again from the module's read when it leaves. Each email (and SMS) has its `ops.sent_messages` row written
+QUEUED with the listener's work; the job calls the provider outside any transaction, then marks the row SENT
+(FAILED after the queue's last attempt); a retry finds a SENT row and sends nothing - **at least once**: a
+provider that took a message just before its row could be marked may get it again (review, 2026-10-31). A
+read that names another store or customer than its event sends nothing and is logged by ids only. C2 is
+skipped once the order is no longer approved, C8 accepted and S9 once the return was withdrawn; C4 names the
+carrier only when the order has one. Service messages: consent is not asked; an anonymized account
 gets nothing; a switched-off store still sends. Amounts carry the currency's letters (ر.س, SAR), as the daily
 report does. C5's window is read through `PlatformApi::setting('sales.returns.window_days', store)`. C14 runs
-nightly (10:00 Riyadh) for every store's own day a week ahead, once per store, customer and day. **Not built,
+every morning at 10:00 Riyadh time for every store's own day a week ahead, once per store, customer and day;
+the job carries the moment it was queued, so a late worker reminds of the same day. **Not built,
 waiting on another module:** C9b and C10 (Sales has no read of a money record's amount and way by
 `moneyRecordId`); C15 (Promotions has no read of the coupon's code by `couponId`); C11 (`PaymentRequested`,
-stage 7); C1's delivery address (not in `OrderMessageDto`) and its "paid" line (online checkout is stage 7's).
+stage 7); C1's delivery address - shown once Sales adds it to `OrderMessageDto` (owner, 2026-10-31: asked of
+Sales); until then the email has no address line, never a stand-in - and its "paid" line (online checkout is
+stage 7's).
 
 ### 1.6 Alerts to staff
 
@@ -179,7 +187,7 @@ stage 7); C1's delivery address (not in `OrderMessageDto`) and its "paid" line (
 - **Built (steps 5 and 6, 2026-10-31):** S1, S2, S3, S4, S9 - one queued listener, once per event, recipients
   from `AccessApi::staffToAlert` with each one's bell and email switches; S3 alerts only when a size became low
   or ran out (a recount where sizes only came back alerts no one). The critical SMS path (S5 at 1 day, S5b; super
-  admins with `critical_sms` on and a phone; the provider of the phone's country) is built and tested, but **no
+  admins with `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country) is built and tested, but **no
   listener calls it yet**: `GatewayKeyExpiring`, `GatewayKeyRejected`, `TransferOverdue` (S6) and
   `PaymentNotAccepted` (S7) are not in main, and Payments declares no `payments.gateway.manage` yet (so the line
   above, "every permission key above exists in code today", no longer holds for it). S8 waits for Content.
@@ -199,7 +207,9 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   refused as Promotions' `SegmentNotFound`, an empty one as an empty audience (§7); the batches page
   `segmentMembers` (`cursor_type` SEGMENT) under the same rules - the bell to every member, the email only to
   those who may receive offers (§1.3). A segment deleted while its notice sends fails the batch: the notice
-  shows FAILED (as any batch that fails its last attempt).
+  shows FAILED (as any batch that fails its last attempt). Changing a waiting notice (review, 2026-10-31): no
+  `segment` (or `segment_id`) keeps its audience; an empty one makes it every customer of the store; an id makes
+  it that segment.
 - **Channels:** bell and email, **both ticked by default**, each untickable (owner, R4-6). The email
   goes only to customers who agreed (§1.3); the bell to all.
 - **Send now or schedule** a date and time in the store's time zone. A scheduled notice can be edited or
@@ -450,7 +460,7 @@ provider failure (retried by the queue, then recorded as failed — never lost s
 To write with the build plan; at least: every row of §1.5 and §1.6 sends once per event, in the
 person's language, by its channels; a duplicate event sends nothing; consent off → no marketing email,
 the bell entry still made; an unsubscribe switches consent off; staff switches respected; critical SMS
-only to admins and super admins; the daily report's figures against hand-counted orders, a cancelled
+only to super admins (§1.6), their switch read again when it leaves; the daily report's figures against hand-counted orders, a cancelled
 order excluded, a refund on its day; all stores totalled per currency; a past day's file unchanged.
 
 ## 9 · Open questions and answers
@@ -485,8 +495,9 @@ publishes none; the four moments handed to stage 8.
 5. Brevo's API and webhook — checked against its documentation before the build.
 6.–8. **Answered** (owner, 2026-10-28, in the Stage 6 session) — written into §1.10.
 9. **Answered** (owner, 2026-10-28): a return asked → staff (S9, Returns topic); the customer hears "order
-   changed" (C6b) and "return received" (C8b); a customer cancelling, points taken back and points expired
-   send nothing — they show in the account's history.
+   changed" (C6b) and "return received" (C8b); points taken back and points expired send nothing — they show
+   in the account's history. **A customer cancelling their own order does get C6** (owner, 2026-10-31,
+   replacing "a customer cancelling … sends nothing" here).
 10. **Answered**: an offer stopped by Odoo's price is bell and email only; the only critical SMS is the
     gateway key at 1 day.
 11. **Answered**: S6 and S7 under a new topic **Payments to check** (access.md amendment 84); the key's SMS

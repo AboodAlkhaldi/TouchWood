@@ -10,14 +10,14 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\EventSender;
-use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
-use Modules\Ops\Public\Enums\MessageChannel;
 
 /**
- * One email of an event's message (ops.md §1.5, §1.6) to a customer or a staff member, sent once by its
- * delivery id (`ops.handled_events`): a retry after it left finds the id and sends nothing. It carries
- * ids and counts only; the words are written when it runs. A provider's failure is retried; after the
- * last attempt it is recorded as failed (§7).
+ * One email of an event's message (ops.md §1.5, §1.6) to a customer or a staff member, its
+ * `ops.sent_messages` row already written QUEUED. It carries ids and counts only; the words are written
+ * when it runs. The provider is called outside any transaction, then the row is marked SENT; a retry
+ * finds a SENT row and sends nothing. **At least once**: a provider that took the email just before the
+ * row could be marked may get it again on the retry. A provider's failure is retried; after the last
+ * attempt the row is marked FAILED (§7).
  */
 final class SendEventEmailJob implements ShouldQueue
 {
@@ -35,22 +35,20 @@ final class SendEventEmailJob implements ShouldQueue
         public EventMessage $message,
         public ?string $customerId,
         public ?string $staffId,
-        public string $deliveryId,
+        public string $sentId,
     ) {}
 
-    public function handle(EventSender $sender, HandledEvents $handled): void
+    public function handle(EventSender $sender): void
     {
-        $handled->once($this->deliveryId, self::class, function () use ($sender): void {
-            if ($this->customerId !== null) {
-                $sender->emailCustomer($this->message, $this->customerId);
-            } elseif ($this->staffId !== null) {
-                $sender->emailStaff($this->message, $this->staffId);
-            }
-        });
+        if ($this->customerId !== null) {
+            $sender->emailCustomer($this->message, $this->customerId, $this->sentId);
+        } elseif ($this->staffId !== null) {
+            $sender->emailStaff($this->message, $this->staffId, $this->sentId);
+        }
     }
 
     public function failed(): void
     {
-        app(EventSender::class)->failed($this->message, $this->customerId, $this->staffId, MessageChannel::Email);
+        app(EventSender::class)->failed($this->sentId);
     }
 }

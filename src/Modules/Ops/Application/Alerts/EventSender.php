@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Application\Alerts;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\View\Factory as Views;
-use Illuminate\Support\Str;
 use LogicException;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
@@ -18,21 +17,23 @@ use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Domain\Model\SendStatus;
-use Modules\Ops\Domain\Model\SentMessage;
 use Modules\Ops\Domain\Repository\SentMessages;
-use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * Sends one queued email or SMS of an event's message, when its job runs (ops.md §1.1, §2.2): the person
- * read again - an anonymized customer, or a staff member no longer active, gets nothing - and the words
- * written again from the module's reads, in the person's language; nothing when there is nothing to tell
- * any more. Each send leaves one `ops.sent_messages` row (§5), never its text or address.
+ * Sends one queued email or SMS of an event's message, when its job runs (ops.md §1.1, §2.2). Its
+ * `ops.sent_messages` row was written QUEUED with the listener's work (§5); here, outside any
+ * transaction, the person is read again - an anonymized customer, or a staff member no longer active,
+ * gets nothing - and the words are written again from the module's reads, in the person's language;
+ * then the provider is called and the row marked SENT. A row already SENT, or gone, sends nothing; a
+ * row with nothing left to send is removed, so only what was sent is recorded. **At least once**: a
+ * provider that took a message just before its row could be marked may get it again on the retry.
  *
- * Emails carry the store's logo and name (round 1 #23). The critical SMS goes through the provider of
- * the phone's country on the SMS countries list (access.md amendment 90), as the security codes do.
+ * Emails carry the store's logo and name (round 1 #23). The critical SMS goes only to an active super
+ * admin whose critical-SMS switch is on **when it leaves** (access.md amendment 81), through the
+ * provider of the phone's country on the SMS countries list (amendment 90), as the security codes do.
  */
 final readonly class EventSender
 {
@@ -52,74 +53,100 @@ final readonly class EventSender
     ) {}
 
     /** @throws ProviderFailed for the queue to try again */
-    public function emailCustomer(EventMessage $message, string $customerId): void
+    public function emailCustomer(EventMessage $message, string $customerId, string $sentId): void
     {
-        $customer = $this->access->customer($customerId);
-        $store = $this->store($message);
-
-        if ($customer === null || $store === null || ! MarketingReach::mayEmailService($customer)) {
+        if (! $this->due($sentId)) {
             return;
         }
 
-        $text = $this->writer->write($message, $store, $customer->locale, $customer->firstName);
+        $customer = $this->access->customer($customerId);
+        $store = $this->store($message);
+        $text = $customer === null || $store === null || ! MarketingReach::mayEmailService($customer)
+            ? null
+            : $this->writer->write($message, $store, $customer->locale, $customer->firstName, $customer->id);
 
-        if ($text === null) {
+        if ($customer === null || $store === null || $text === null) {
+            $this->sent->forget($sentId);
+
             return;
         }
 
         $providerId = $this->emails->send($this->email($text, $store, $customer->locale, $customer->email, trim($customer->firstName.' '.$customer->lastName)));
-        $this->record($message, $customer->id, null, MessageChannel::Email, $providerId, SendStatus::Sent);
+        $this->sent->markSent($sentId, $providerId);
     }
 
     /** @throws ProviderFailed for the queue to try again */
-    public function emailStaff(EventMessage $message, string $staffId): void
+    public function emailStaff(EventMessage $message, string $staffId, string $sentId): void
     {
-        $staff = $this->access->staff($staffId);
-        $store = $this->store($message);
-
-        if ($staff === null || $staff->status !== StaffStatus::Active || $store === null) {
+        if (! $this->due($sentId)) {
             return;
         }
 
-        $text = $this->writer->write($message, $store, $staff->locale, $staff->firstName);
+        $staff = $this->access->staff($staffId);
+        $store = $this->store($message);
+        $text = $staff === null || $staff->status !== StaffStatus::Active || $store === null
+            ? null
+            : $this->writer->write($message, $store, $staff->locale, $staff->firstName);
 
-        if ($text === null) {
+        if ($staff === null || $store === null || $text === null) {
+            $this->sent->forget($sentId);
+
             return;
         }
 
         $providerId = $this->emails->send($this->email($text, $store, $staff->locale, $staff->email, trim($staff->firstName.' '.$staff->lastName)));
-        $this->record($message, null, $staff->id, MessageChannel::Email, $providerId, SendStatus::Sent);
+        $this->sent->markSent($sentId, $providerId);
     }
 
     /** @throws ProviderFailed for the queue to try again; a phone of no listed country too */
-    public function smsStaff(EventMessage $message, string $staffId): void
+    public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission, string $sentId): void
     {
+        if (! $this->due($sentId)) {
+            return;
+        }
+
         $staff = $this->access->staff($staffId);
         $store = $this->store($message);
+        $phone = $staff?->phone;
+        $allowed = $staff !== null && $store !== null && $phone !== null && $staff->status === StaffStatus::Active && $staff->isSuperAdmin
+            && StaffAlerts::critical($message) && $this->switchedOn($store, $topic, $permission, $staff->id);
+        $text = $allowed ? $this->writer->write($message, $store, $staff->locale, $staff->firstName)?->sms : null;
 
-        if ($staff === null || $staff->status !== StaffStatus::Active || $staff->phone === null || $store === null || ! StaffAlerts::critical($message)) {
+        if ($phone === null || $text === null) {
+            $this->sent->forget($sentId);
+
             return;
         }
 
-        $text = $this->writer->write($message, $store, $staff->locale, $staff->firstName)?->sms;
-
-        if ($text === null) {
-            return;
-        }
-
-        $country = $this->countries->countryOf($staff->phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');
-        $providerId = $this->sms->named($country->provider())->send($staff->phone, $text);
-        $this->record($message, null, $staff->id, MessageChannel::Sms, $providerId, SendStatus::Sent);
+        $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');
+        $providerId = $this->sms->named($country->provider())->send($phone, $text);
+        $this->sent->markSent($sentId, $providerId);
     }
 
-    /** The queue gave up on it (its last attempt failed): recorded as failed - never lost silently (§7). */
-    public function failed(EventMessage $message, ?string $customerId, ?string $staffId, MessageChannel $channel): void
+    /** The queue gave up on it (its last attempt failed): marked failed - never lost silently (§7). */
+    public function failed(string $sentId): void
     {
-        $known = $customerId !== null ? $this->access->customer($customerId) !== null : ($staffId === null || $this->access->staff($staffId) !== null);
+        $this->sent->markFailed($sentId);
+    }
 
-        if ($known) {
-            $this->record($message, $customerId, $staffId, $channel, null, SendStatus::Failed);
+    /** Whether the row is still waiting to go: not sent yet, and not removed with its customer (§6). */
+    private function due(string $sentId): bool
+    {
+        $status = $this->sent->status($sentId);
+
+        return $status !== null && $status !== SendStatus::Sent;
+    }
+
+    /** The person's critical-SMS switch now, as the alert's own read gives it (access.md amendments 80, 81). */
+    private function switchedOn(StoreDto $store, StaffNotificationTopic $topic, string $permission, string $staffId): bool
+    {
+        foreach ($this->access->staffToAlert($store->storeId(), $topic, $permission) as $recipient) {
+            if (strtolower($recipient->staffId) === strtolower($staffId)) {
+                return $recipient->criticalSms;
+            }
         }
+
+        return false;
     }
 
     private function email(MessageText $text, StoreDto $store, string $locale, string $to, string $toName): OutgoingEmail
@@ -150,21 +177,6 @@ final readonly class EventSender
                 ...($link === null ? [] : ["{$text->action}: {$link}"]),
             ]),
         );
-    }
-
-    private function record(EventMessage $message, ?string $customerId, ?string $staffId, MessageChannel $channel, ?string $providerId, SendStatus $status): void
-    {
-        $this->sent->record(new SentMessage(
-            strtolower((string) Str::ulid()),
-            $message->kind,
-            $customerId === null ? null : strtolower($customerId),
-            $staffId === null ? null : strtolower($staffId),
-            StoreId::fromString($message->storeId),
-            $channel,
-            $providerId,
-            $status,
-            CarbonImmutable::now()->toDateTimeImmutable(),
-        ));
     }
 
     private function store(EventMessage $message): ?StoreDto

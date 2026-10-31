@@ -57,6 +57,14 @@ return [
             'مرحبًا :name،',
             'شُحن طلبك :order مع :carrier.',
         ],
+        // حين لا يذكر الطلب شركة شحن.
+        'without_carrier' => [
+            'line' => 'طلبك في الطريق.',
+            'lines' => [
+                'مرحبًا :name،',
+                'شُحن طلبك :order.',
+            ],
+        ],
         'optional' => [
             'tracking_number' => 'رقم التتبع: :tracking_number',
             'track' => 'تتبّع طلبك',

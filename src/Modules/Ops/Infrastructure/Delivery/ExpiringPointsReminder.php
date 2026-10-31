@@ -6,6 +6,7 @@ namespace Modules\Ops\Infrastructure\Delivery;
 
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Ops\Application\Alerts\CustomerMessages;
 use Modules\Ops\Application\Alerts\EventMessage;
@@ -14,10 +15,11 @@ use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 
 /**
- * C14, points expiring (ops.md §1.5): **7 days** before a lot expires, one message per customer per day,
- * summing every lot of theirs that expires that day - read through `LoyaltyApi::expiring` for the store's
- * own day a week ahead, midnight to midnight in its time zone. Every store, a switched-off one too (owner,
- * 2026-10-29).
+ * C14, points expiring (ops.md §1.5), every morning at 10:00 Riyadh time: **7 days** before a lot
+ * expires, one message per customer per day, summing every lot of theirs that expires that day - read
+ * through `LoyaltyApi::expiring` for the store's own day a week ahead, midnight to midnight in its time
+ * zone; each page's customers read at once. Every store, a switched-off one too (owner, 2026-10-29).
+ * The day is the run's: the job carries the moment it was queued, so a late worker reminds of the same day.
  *
  * Each message is sent once by an id made of the store, the customer and the day (a hash of the three,
  * written as a UUID, in `ops.handled_events`): a run repeated the same day - a retry, a second worker -
@@ -32,6 +34,7 @@ final readonly class ExpiringPointsReminder
 
     public function __construct(
         private PlatformApi $platform,
+        private AccessApi $access,
         private LoyaltyApi $loyalty,
         private CustomerMessages $customers,
         private HandledEvents $handled,
@@ -47,15 +50,24 @@ final readonly class ExpiringPointsReminder
             do {
                 $page = $this->loyalty->expiring($store->storeId(), $day->toDateTimeImmutable(), $day->addDay()->toDateTimeImmutable(), $after, self::PAGE);
 
+                // The page's customers read at once, not one by one.
+                $people = [];
+
+                foreach ($this->access->customers(array_map(static fn ($row): string => $row->customerId, $page->rows)) as $customer) {
+                    $people[strtolower($customer->id)] = $customer;
+                }
+
                 foreach ($page->rows as $row) {
-                    if ($row->points <= 0) {
+                    $customer = $people[strtolower($row->customerId)] ?? null;
+
+                    if ($row->points <= 0 || $customer === null) {
                         continue;
                     }
 
                     $message = new EventMessage(MessageKind::PointsExpiring, $store->id, ['points' => $row->points, 'date' => $date]);
                     $once = self::onceId($store->id, $row->customerId, $date);
 
-                    $this->handled->once($once, self::class, fn () => $this->customers->tell($message, $row->customerId));
+                    $this->handled->once($once, self::class, fn () => $this->customers->tellCustomer($message, $customer));
                 }
 
                 $after = $page->next;
