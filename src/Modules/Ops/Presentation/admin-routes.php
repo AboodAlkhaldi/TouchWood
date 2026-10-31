@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Ops\Presentation\Http\Controller\BellController;
 use Modules\Ops\Presentation\Http\Controller\DailyReportController;
 use Modules\Ops\Presentation\Http\Controller\NoticesController;
+use Modules\Ops\Presentation\Http\Controller\ReportsController;
 use Modules\Ops\Presentation\Http\Controller\StaffMessagesController;
 use Modules\Ops\Presentation\Http\Controller\SubscribersController;
 
@@ -33,6 +34,10 @@ Route::prefix(AdminArea::PREFIX)
         Route::get('notices/{notice}', [NoticesController::class, 'show'])->name('ops.admin.notices.show');
         Route::post('notices/{notice}', [NoticesController::class, 'update'])->name('ops.admin.notices.update');
         Route::post('notices/{notice}/cancel', [NoticesController::class, 'cancel'])->name('ops.admin.notices.cancel');
+
+        // Step 8's reports (§1.10): a report's preview as JSON, and its Excel file.
+        Route::get('reports/{report}', [ReportsController::class, 'show'])->name('ops.admin.reports.show');
+        Route::get('reports/{report}/download', [ReportsController::class, 'download'])->name('ops.admin.reports.download');
 
         Route::get('messages/customers', [StaffMessagesController::class, 'customers'])->name('ops.admin.messages.customers');
         Route::post('messages', [StaffMessagesController::class, 'send'])->name('ops.admin.messages.send');

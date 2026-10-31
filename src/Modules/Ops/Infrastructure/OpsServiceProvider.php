@@ -38,6 +38,7 @@ use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Application\Reports\ReportWriter;
 use Modules\Ops\Domain\Repository\DailyReports;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Domain\Repository\Notices;
@@ -56,6 +57,7 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseSentMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSmsCountries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
+use Modules\Ops\Infrastructure\Excel\OpenSpoutReportWriter;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
@@ -85,6 +87,7 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  * and the nightly removal. Step 3: the security messages (C18) in place of Access's temporary sender,
  * and the SMS countries (access.md amendment 90). Step 7: offer notices, staff messages, the
  * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
+ * Step 8: the reports' Excel writer.
  * Step 9: the daily report - its reader, its PDF, the files kept, the email at the time chosen.
  */
 final class OpsServiceProvider extends ServiceProvider
@@ -96,6 +99,7 @@ final class OpsServiceProvider extends ServiceProvider
 
         $this->app->bind(Inbox::class, DatabaseInbox::class);
         $this->app->bind(InboxQueries::class, DatabaseInboxQueries::class);
+        $this->app->bind(ReportWriter::class, OpenSpoutReportWriter::class);
         $this->app->bind(SentMessages::class, DatabaseSentMessages::class);
         $this->app->bind(OpsLog::class, DatabaseOpsLog::class);
         $this->app->bind(Notices::class, DatabaseNotices::class);
