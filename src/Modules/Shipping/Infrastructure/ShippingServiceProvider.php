@@ -31,6 +31,7 @@ use Modules\Shipping\Infrastructure\Eloquent\DatabaseUncoveredCounts;
 use Modules\Shipping\Infrastructure\Media\CarrierLogoUsage;
 use Modules\Shipping\Infrastructure\Queue\CountUncoveredPlacesJob;
 use Modules\Shipping\Infrastructure\Queue\QueuedUncoveredRecounts;
+use Modules\Shipping\Presentation\Http\Resource\BoxPages;
 use Modules\Shipping\Presentation\Http\Resource\CarrierPages;
 use Modules\Shipping\Public\Contracts\ShippingApi;
 
@@ -77,6 +78,7 @@ final class ShippingServiceProvider extends ServiceProvider
         */
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('shipping', 'carriers', 'shipping', 'shipping.admin.carriers', CarrierPages::JOBS, 10, count: UncoveredPlacesCount::class, icon: 'carriers'),
+            new MenuEntryDto('shipping', 'boxes', 'shipping', 'shipping.admin.boxes', BoxPages::JOBS, 20, icon: 'boxes'),
         );
 
         if (! $this->app->routesAreCached()) {

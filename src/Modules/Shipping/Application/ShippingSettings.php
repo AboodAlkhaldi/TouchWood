@@ -30,7 +30,8 @@ final class ShippingSettings
             // screens session sets `onSettingsPage: false` with it, so neither is ever without a screen.
             // On the Carriers page now, in the currency (part 2, R12).
             new SettingDefinitionDto(self::FREE_ABOVE_ALL, SettingScope::Store, SettingType::Integer, ['min:0', 'max:1000000000'], 0, ShippingPermissions::PRICES_MANAGE, onSettingsPage: false),
-            new SettingDefinitionDto(self::PADDING_MM, SettingScope::Store, SettingType::Integer, ['min:0', 'max:100'], 10, ShippingPermissions::BOXES_MANAGE),
+            // On the Boxes page now (part 3, B10).
+            new SettingDefinitionDto(self::PADDING_MM, SettingScope::Store, SettingType::Integer, ['min:0', 'max:100'], 10, ShippingPermissions::BOXES_MANAGE, onSettingsPage: false),
         ];
     }
 }

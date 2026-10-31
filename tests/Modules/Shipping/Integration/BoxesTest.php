@@ -192,8 +192,8 @@ describe('the box list (§1.7)', function () {
         $keys = array_map(static fn ($row): string => $row->key, app(ListSettingsHandler::class)->handle(new ListSettings(boxesStore())));
         app(UpdateSettingHandler::class)->handle(new UpdateSetting('boxestest.area.hidden', 'sa', 7));
 
-        // The padding stays on the page until the Boxes screen's field ships (§1.7).
-        expect($keys)->toContain(ShippingSettings::PADDING_MM)
+        // The padding is on the Boxes screen now (§4.1 part 3, B10): off the Settings page, like this one.
+        expect(in_array(ShippingSettings::PADDING_MM, $keys, true))->toBeFalse()
             ->and(in_array('boxestest.area.hidden', $keys, true))->toBeFalse()
             ->and(app(PlatformApi::class)->setting('boxestest.area.hidden', StoreId::fromString(boxesStore()))->int())->toBe(7);
     });

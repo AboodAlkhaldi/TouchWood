@@ -538,7 +538,8 @@ holds `shipping.boxes.manage` — admins, and any staff role given it (§3); the
     changes." with Add Box.
 - **Packed by hand** — the sizes this store always packs by hand (`ListPackingSizes`, byHand) (B11, B12):
   each with its product's photo, name and the size's code and values, and **Pack Automatically** to take it
-  back off the list; 25 at a time with **Load More**, and a filter box. **Add Sizes** opens the search below.
+  back off the list; a page at a time with **Load More** (Catalog's page of 50 — built 2026-10-31), and a filter box.
+  **Add Sizes** opens the search below.
   Empty: "No sizes are packed by hand. Every size with a weight and three sizes in the catalog goes to the
   box suggestion."
 
@@ -561,13 +562,14 @@ A `PanelDialog`, loaded when it is first opened:
 - under the sizes, as they are typed, **what fits after the padding**: "With :mm mm padding: 380 × 280 × 180 mm
   inside" — or "Too small for the padding" when a side is not more than twice the padding (B6);
 - on Add only, **Switched on** — on at first;
-- **Save** / **Cancel**; a refusal at the top of the dialog in its own words, what was typed kept.
+- **Add Box** (on Add) or **Save Changes** (on Edit) / **Cancel**; a refusal naming one of the boxes under it, any
+  other at the top of the dialog, in its own words, what was typed kept (as the carrier's dialog, built 2026-10-31).
 
 ##### X3 · Add Sizes — the search (B11)
 
 A dialog with a search box over the store's sizes not yet packed by hand and not archived (`ListPackingSizes`,
 byHand false, Catalog's size search): each result its photo, product name, the size's code and values, and a
-tick box; several may be ticked, 25 results at a time with **Load More**; **Pack by Hand** marks the ticked
+tick box; several may be ticked, a page of results at a time (Catalog's 50) with **Load More**; **Pack by Hand** marks the ticked
 ones (`SetSizePacking` for each). A size archived meanwhile is refused in its own words.
 
 ##### What these screens need from the backend
