@@ -150,11 +150,22 @@ describe('the menu and who may open it (B1)', function () {
         $viewer->get('/admin/shipping/boxes')->assertForbidden();
     });
 
+    it('saves the padding as a boxes manager does, through the settings route (B10)', function () {
+        $manager = boxesScreenSignIn(Fx::staffWith([P::BOXES_MANAGE], ['sa']));
+
+        $manager->post('/admin/settings/shipping.boxes.padding_mm', ['store' => 'sa', 'value' => '15'])->assertRedirect();
+        $manager->get('/admin/shipping/boxes?store=sa')->assertInertia(fn (AssertableInertia $page) => $page->where('paddingMm', 15));
+
+        expect(AdminBrowser::formError($manager->post('/admin/settings/shipping.boxes.padding_mm', ['store' => 'sa', 'value' => '101'])))->not->toBeNull();
+    });
+
     it('leaves the padding off the Settings page, now on Boxes (B10)', function () {
         $browser = boxesScreenSuper();
 
         $browser->get('/admin/settings?store=sa')->assertOk()->assertInertia(function (AssertableInertia $page): void {
-            expect(json_encode($page->toArray()['props']))->not->toContain('shipping.boxes.padding_mm')->not->toContain('shipping.free.above_all');
+            $props = (string) json_encode($page->toArray()['props']);
+            expect(str_contains($props, 'shipping.boxes.padding_mm'))->toBeFalse()
+                ->and(str_contains($props, 'shipping.free.above_all'))->toBeFalse();
         });
     });
 });
@@ -243,6 +254,35 @@ describe('the sizes packed by hand (X3, B11, B12)', function () {
 
         $browser->get('/admin/shipping/boxes?store=sa&filter=Table')->assertInertia(fn (AssertableInertia $page) => $page
             ->where('filter', 'Table')->where('handPacked.total', 1));
+    });
+
+    it('pages the list packed by hand with its cursor, and filters it (B12)', function () {
+        $browser = boxesScreenSuper();
+        // One more than Catalog's page of 50.
+        $sizes = array_map(static fn (int $n): string => boxesScreenSize((string) (9200 + $n), 'Lamp'), range(1, 51));
+        $browser->post('/admin/shipping/boxes/sizes', ['store' => 'sa', 'variants' => $sizes, 'by_hand' => true])->assertRedirect();
+
+        $next = null;
+        $browser->get('/admin/shipping/boxes?store=sa')->assertInertia(function (AssertableInertia $page) use (&$next): void {
+            $props = $page->toArray()['props']['handPacked'];
+            expect($props['total'])->toBe(51)->and(count($props['rows']))->toBe(50)->and($props['next'])->not->toBeNull();
+            $next = $props['next'];
+        });
+
+        $more = $browser->get('/admin/shipping/boxes/sizes?store=sa&hand=1&after='.urlencode((string) $next))->assertOk()->json();
+        expect(count($more['rows']))->toBe(1)
+            ->and($browser->get('/admin/shipping/boxes/sizes?store=sa&hand=1&q=9251')->assertOk()->json('total'))->toBe(1);
+    });
+
+    it('packs the sizes it can and names the ones refused - archived meanwhile (X3)', function () {
+        $browser = boxesScreenSuper();
+        [$chair, $table] = [boxesScreenSize('9301', 'Chair'), boxesScreenSize('9302', 'Table')];
+        DB::table('catalog.variants')->where('id', $table)->update(['is_archived' => true]);
+
+        $refused = boxesScreenErrors($browser->post('/admin/shipping/boxes/sizes', ['store' => 'sa', 'variants' => [$chair, $table], 'by_hand' => true]));
+
+        expect($refused)->toHaveKeys(['form', 'failed'])->and($refused['failed'])->toBe([$table]);
+        $browser->get('/admin/shipping/boxes?store=sa')->assertInertia(fn (AssertableInertia $page) => $page->where('handPacked.total', 1)->where('handPacked.rows.0.variantId', $chair));
     });
 
     it('is a manager\'s only: a staff member with another Shipping job is refused', function () {

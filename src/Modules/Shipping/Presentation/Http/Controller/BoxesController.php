@@ -117,18 +117,38 @@ final readonly class BoxesController
         return self::act($request, fn () => $handler->handle(new DeleteBox(self::storeOf($request, $choices)->id, strtolower($box))), 'shipping::admin_boxes.toast.deleted');
     }
 
-    /** Pack by Hand for the ticked sizes, or Pack Automatically for one: one call each (the backend session, 2026-10-31). */
+    /**
+     * Pack by Hand for the ticked sizes, or Pack Automatically for one: one call each, each size on its own (the
+     * backend session, 2026-10-31). Those refused - archived meanwhile - are named back (`failed`), the others
+     * stay done, and the dialog unticks what was saved.
+     */
     public function pack(Request $request, StoreChoices $choices, SetSizePackingHandler $handler): RedirectResponse
     {
         $byHand = $request->boolean('by_hand');
 
-        return self::act($request, function () use ($request, $choices, $handler, $byHand): void {
+        try {
             $store = self::storeOf($request, $choices);
+        } catch (DomainError $error) {
+            return FormErrors::back($request, $error);
+        }
 
-            foreach (self::ids($request, 'variants') as $variant) {
+        $failed = [];
+        $first = null;
+
+        foreach (self::ids($request, 'variants') as $variant) {
+            try {
                 $handler->handle(new SetSizePacking($store->id, $variant, $byHand));
+            } catch (DomainError $error) {
+                $failed[] = $variant;
+                $first ??= $error;
             }
-        }, $byHand ? 'shipping::admin_boxes.toast.by_hand' : 'shipping::admin_boxes.toast.automatic');
+        }
+
+        if ($first !== null) {
+            return back()->withErrors(['form' => __('shipping::admin_boxes.search.some_refused', ['count' => count($failed)]).' '.FormErrors::message($first), 'failed' => implode(',', $failed)]);
+        }
+
+        return back()->with('status', __($byHand ? 'shipping::admin_boxes.toast.by_hand' : 'shipping::admin_boxes.toast.automatic'));
     }
 
     /**

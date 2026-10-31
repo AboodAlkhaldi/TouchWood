@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -21,9 +21,12 @@ import { SizeLine } from './SizeLine';
 
 type Found = { state: 'idle' } | { state: 'loading' } | { state: 'failed' } | { state: 'ready'; page: PackingSizesData };
 
-export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; onOpenChange: (open: boolean) => void }) {
+export function SizesDialog({ storeCode, onOpenChange, returnFocusTo }: { storeCode: string; onOpenChange: (open: boolean) => void; returnFocusTo?: RefObject<HTMLElement | null> }) {
     const t = useTranslator();
-    const { locale } = usePage<SharedProps>().props;
+    const { errors, locale } = usePage<SharedProps>().props;
+    // The search the results belong to: a page that comes back for an older one is dropped.
+    const asked = useRef('');
+    const [moreFailed, setMoreFailed] = useState(false);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found>({ state: 'idle' });
     const [ticked, setTicked] = useState<Map<string, PackingSizeData>>(() => new Map());
@@ -47,6 +50,7 @@ export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; on
         }
 
         let current = true;
+        asked.current = text;
         const timer = window.setTimeout(() => {
             setFound({ state: 'loading' });
             read(text, null)
@@ -65,9 +69,12 @@ export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; on
             return;
         }
 
-        read(query.trim(), page.next)
-            .then((next) => setFound({ state: 'ready', page: { rows: [...page.rows, ...next.rows], next: next.next, total: next.total } }))
-            .catch(() => setFound({ state: 'failed' }));
+        const text = query.trim();
+        setMoreFailed(false);
+        read(text, page.next)
+            .then((next) => asked.current === text && setFound({ state: 'ready', page: { rows: [...page.rows, ...next.rows], next: next.next, total: next.total } }))
+            // A failed page keeps the rows shown; Load More tries it again.
+            .catch(() => asked.current === text && setMoreFailed(true));
     }
 
     function toggle(size: PackingSizeData, on: boolean) {
@@ -89,18 +96,30 @@ export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; on
             wide
             open
             onOpenChange={onOpenChange}
+            returnFocusTo={returnFocusTo}
             title={t(`${B}.search.title`)}
             description={t(`${B}.search.body`)}
             busy={busy}
             confirm={
                 <ActionButton
                     loading={busy}
-                    disabledReason={ticked.size === 0 ? t(`${B}.search.hint`) : undefined}
+                    disabledReason={ticked.size === 0 ? t(`${B}.search.tick_one`) : undefined}
                     onClick={() =>
                         router.post(
                             `${BOXES}/sizes`,
                             { store: storeCode, variants: [...ticked.keys()], by_hand: true },
-                            { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) },
+                            {
+                                preserveScroll: true,
+                                onStart: () => setBusy(true),
+                                onFinish: () => setBusy(false),
+                                onSuccess: () => onOpenChange(false),
+                                // Some refused: the saved ones are unticked, the refused stay ticked and marked, the search read again.
+                                onError: (refused) => {
+                                    const failed = new Set((refused.failed ?? '').split(',').filter(Boolean));
+                                    setTicked((all) => new Map([...all].filter(([id]) => failed.has(id))));
+                                    setAttempt((n) => n + 1);
+                                },
+                            },
                         )
                     }
                     data-test="confirm-pack-by-hand"
@@ -119,7 +138,10 @@ export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; on
                     {t(`${B}.search.hint`)}
                 </p>
 
-                <div className="max-h-80 overflow-y-auto rounded-md border border-line" aria-live="polite" data-test="sizes-results">
+                <p className="sr-only" role="status">
+                    {found.state === 'loading' ? t(`${B}.search.loading`) : found.state === 'ready' ? t(`${B}.hand.count`, { shown: figure(locale, found.page.rows.length), total: figure(locale, found.page.total) }) : ''}
+                </p>
+                <div className="max-h-80 overflow-y-auto rounded-md border border-line" data-test="sizes-results">
                     {found.state === 'idle' ? null : found.state === 'loading' ? (
                         <p className="flex items-center gap-2 p-3 text-copy-14 text-ink-muted" role="status">
                             <Spinner aria-hidden="true" />
@@ -140,15 +162,19 @@ export function SizesDialog({ storeCode, onOpenChange }: { storeCode: string; on
                                 <li key={size.variantId} className="flex items-center gap-3 px-3 py-2" data-test={`size-result-${size.variantId}`}>
                                     <Checkbox id={`tick-${size.variantId}`} checked={ticked.has(size.variantId)} onCheckedChange={(on) => toggle(size, on === true)} data-test={`tick-${size.variantId}`} />
                                     <SizeLine size={size} htmlFor={`tick-${size.variantId}`} />
+                                    {(errors.failed ?? '').split(',').includes(size.variantId) ? <span className="text-copy-12 text-bad">{t(`${B}.search.refused`)}</span> : null}
                                 </li>
                             ))}
                         </ul>
                     )}
                 </div>
                 {found.state === 'ready' && found.page.next !== null ? (
-                    <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => more(found.page)} data-test="sizes-more">
-                        {t(`${B}.search.more`)}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => more(found.page)} data-test="sizes-more">
+                            {moreFailed ? t(`${B}.search.try_again`) : t(`${B}.search.more`)}
+                        </Button>
+                        {moreFailed ? <span className="text-copy-13 text-bad">{t(`${B}.search.failed`)}</span> : null}
+                    </div>
                 ) : null}
                 {ticked.size > 0 ? <p className="text-copy-13 text-ink-muted">{t(`${B}.search.ticked`, { count: figure(locale, ticked.size) })}</p> : null}
             </div>

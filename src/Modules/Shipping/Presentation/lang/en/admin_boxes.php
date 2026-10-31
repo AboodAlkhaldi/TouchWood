@@ -88,6 +88,9 @@ return [
         'more' => 'Load More',
         'confirm' => 'Pack by Hand',
         'ticked' => ':count ticked',
+        'tick_one' => 'Tick at least one size.',
+        'refused' => 'Not packed by hand',
+        'some_refused' => ':count of the sizes could not be packed by hand; the others were.',
     ],
     'toast' => [
         'added' => 'Box added.',

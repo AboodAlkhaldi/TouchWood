@@ -143,7 +143,7 @@ export function BoxDialog({
                     helper={t(`${B}.dialog.weight_hint`)}
                     value={form.data.weight}
                     check={checks.box('box-weight', errors.max_weight_g)}
-                    onChange={(event) => form.setData('weight', toLatinDigits(event.target.value))}
+                    onChange={(event) => form.setData('weight', toLatinDigits(event.target.value).replaceAll('٫', '.'))}
                     data-test="box-weight"
                 />
                 {box === null ? (

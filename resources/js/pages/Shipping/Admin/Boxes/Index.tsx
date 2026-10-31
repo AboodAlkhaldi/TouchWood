@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -66,7 +66,7 @@ export default function Index(page: BoxesPage) {
             ) : null}
             {dialog !== null && dialog.action === 'sizes' ? (
                 <Suspense fallback={null}>
-                    <SizesDialog storeCode={page.storeCode} onOpenChange={close} />
+                    <SizesDialog storeCode={page.storeCode} onOpenChange={close} returnFocusTo={opener} />
                 </Suspense>
             ) : null}
             {dialog !== null && dialog.action === 'delete' ? <DeleteBoxDialog box={dialog.box} storeCode={page.storeCode} onOpenChange={close} returnFocusTo={opener} /> : null}
@@ -77,7 +77,6 @@ export default function Index(page: BoxesPage) {
 /** The padding (B10): Platform's store setting, saved through Platform's own settings route; 0–100 whole mm. */
 function PaddingCard({ storeCode, paddingMm }: { storeCode: string; paddingMm: number }) {
     const t = useTranslator();
-    const { errors } = usePage<SharedProps>().props;
     const [typed, setTyped] = useState(String(paddingMm));
     const [busy, setBusy] = useState(false);
     const valid = /^\d{1,3}$/.test(typed.trim()) && Number(typed.trim()) <= 100;
@@ -103,7 +102,7 @@ function PaddingCard({ storeCode, paddingMm }: { storeCode: string; paddingMm: n
                             className="tw-figure w-28"
                             value={typed}
                             onChange={(event) => setTyped(toLatinDigits(event.target.value))}
-                            aria-invalid={!valid || errors.value !== undefined ? true : undefined}
+                            aria-invalid={!valid ? true : undefined}
                             aria-describedby="padding-mm-hint"
                             data-test="padding-mm"
                         />
@@ -123,7 +122,8 @@ function PaddingCard({ storeCode, paddingMm }: { storeCode: string; paddingMm: n
                 <p id="padding-mm-hint" className="text-copy-13 text-ink-muted">
                     {t(`${B}.padding.hint`)}
                 </p>
-                {!valid ? <FieldError className="text-copy-13">{t(`${B}.padding.invalid`)}</FieldError> : errors.value ? <FieldError className="text-copy-13">{errors.value}</FieldError> : null}
+                {/* A refusal from the server is the page's, at the top (FormError). */}
+                {!valid ? <FieldError className="text-copy-13">{t(`${B}.padding.invalid`)}</FieldError> : null}
             </CardContent>
         </Card>
     );
@@ -365,25 +365,45 @@ function HandPacked({ page, onAdd }: { page: BoxesPage; onAdd: (trigger: HTMLEle
     const t = useTranslator();
     const { locale } = usePage<SharedProps>().props;
     const [filter, setFilter] = useState(page.filter ?? '');
-    const [extra, setExtra] = useState<{ for: PackingSizesData; rows: PackingSizeData[]; next: string | null } | null>(null);
+    const [extra, setExtra] = useState<{ for: string; rows: PackingSizeData[]; next: string | null } | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
-    // More pages belong to the first page they followed: a new page from the server starts the list again.
-    const more = extra !== null && extra.for === page.handPacked ? extra : null;
+    const [loading, setLoading] = useState(false);
+    const [failed, setFailed] = useState(false);
+    // More pages belong to the list they followed - its filter and its count: a box saved or switched keeps
+    // them; a size packed or unpacked, or another filter, starts the list again.
+    const list = `${page.filter ?? ''}|${page.handPacked.total}`;
+    const more = extra !== null && extra.for === list ? extra : null;
     const rows = [...page.handPacked.rows, ...(more?.rows ?? [])];
     const next = more !== null ? more.next : page.handPacked.next;
 
-    const search = (text: string) =>
-        router.get(BOXES, { store: page.storeCode, ...(text.trim().length >= 2 ? { filter: text.trim() } : {}) }, { preserveState: true, preserveScroll: true, replace: true, only: ['handPacked', 'filter'] });
+    // The filter, read a moment after the last key (B12).
+    useEffect(() => {
+        const text = filter.trim();
+
+        if (text === (page.filter ?? '') || (text.length === 1 && page.filter === null)) {
+            return;
+        }
+
+        const timer = window.setTimeout(
+            () => router.get(BOXES, { store: page.storeCode, ...(text.length >= 2 ? { filter: text } : {}) }, { preserveState: true, preserveScroll: true, replace: true, only: ['handPacked', 'filter'] }),
+            300,
+        );
+
+        return () => window.clearTimeout(timer);
+    }, [filter]);
 
     function loadMore() {
         if (next === null) {
             return;
         }
 
+        setLoading(true);
+        setFailed(false);
         fetch(`${BOXES}/sizes?${new URLSearchParams({ store: page.storeCode, hand: '1', after: next, ...(page.filter !== null ? { q: page.filter } : {}) }).toString()}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
             .then((response) => (response.ok ? (response.json() as Promise<PackingSizesData>) : Promise.reject(new Error(String(response.status)))))
-            .then((found) => setExtra({ for: page.handPacked, rows: [...(more?.rows ?? []), ...found.rows], next: found.next }))
-            .catch(() => undefined);
+            .then((found) => setExtra({ for: list, rows: [...(more?.rows ?? []), ...found.rows], next: found.next }))
+            .catch(() => setFailed(true))
+            .finally(() => setLoading(false));
     }
 
     return (
@@ -400,10 +420,7 @@ function HandPacked({ page, onAdd }: { page: BoxesPage; onAdd: (trigger: HTMLEle
             {page.handPacked.total > 0 || page.filter !== null ? (
                 <Input
                     value={filter}
-                    onChange={(event) => {
-                        setFilter(event.target.value);
-                        search(event.target.value);
-                    }}
+                    onChange={(event) => setFilter(event.target.value)}
                     placeholder={t(`${B}.hand.filter`)}
                     aria-label={t(`${B}.hand.filter_label`)}
                     className="max-w-64"
@@ -445,10 +462,11 @@ function HandPacked({ page, onAdd }: { page: BoxesPage; onAdd: (trigger: HTMLEle
                 <div className="flex flex-wrap items-center gap-3 text-copy-13 text-ink-muted">
                     <span>{t(`${B}.hand.count`, { shown: figure(locale, rows.length), total: figure(locale, page.handPacked.total) })}</span>
                     {next !== null ? (
-                        <Button type="button" variant="outline" size="sm" onClick={loadMore} data-test="hand-more">
-                            {t(`${B}.hand.more`)}
-                        </Button>
+                        <ActionButton type="button" variant="outline" size="sm" loading={loading} onClick={loadMore} data-test="hand-more">
+                            {failed ? t(`${B}.search.try_again`) : t(`${B}.hand.more`)}
+                        </ActionButton>
                     ) : null}
+                    {failed ? <span className="text-bad">{t(`${B}.search.failed`)}</span> : null}
                 </div>
             ) : null}
         </section>
