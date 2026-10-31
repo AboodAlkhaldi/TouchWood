@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Public\Contracts;
 
 use DateTimeImmutable;
+use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
@@ -44,6 +45,16 @@ interface SalesReports
      * Two queries. The days are the store's own: pass each as its date there (only the date is read).
      */
     public function moneyOn(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): MoneyDaysDto;
+
+    /**
+     * **The money moved, day by day** (ops.md §1.10, the Excel "Money received" sheet): as `moneyOn`, but one
+     * row per day with anything in it, from `fromDay` to `toDay` both included, oldest first — each day's
+     * payments in and refunds out by way; voided records never. One query, however long the range. The days
+     * are the store's own, as for `moneyOn` (only the date is read).
+     *
+     * @return list<MoneyDayDto>
+     */
+    public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array;
 
     /**
      * **The bank transfers still awaited** (ops.md §1.11 item 3): open orders to be paid by transfer that

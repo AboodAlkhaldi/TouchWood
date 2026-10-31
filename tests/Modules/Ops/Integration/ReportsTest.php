@@ -496,6 +496,11 @@ function reportsOneDayEach(string $day): void
             return new MoneyDaysDto([], []);
         }
 
+        public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array
+        {
+            return [];
+        }
+
         public function transfersWaiting(StoreId $store): TransfersWaitingDto
         {
             throw new LogicException('Not read by the reports.');

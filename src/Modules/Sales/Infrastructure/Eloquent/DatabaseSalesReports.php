@@ -11,6 +11,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Domain\Service\ReturnRefunds;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
+use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
@@ -122,6 +123,36 @@ final readonly class DatabaseSalesReports implements SalesReports
         ));
 
         return new MoneyDaysDto($read('sales.payments'), $read('sales.refunds'));
+    }
+
+    public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array
+    {
+        [$from, $to] = [$fromDay->format('Y-m-d'), $toDay->format('Y-m-d')];
+        /** @var array<string, array{payments: list<MoneyByWayDto>, refunds: list<MoneyByWayDto>}> $days */
+        $days = [];
+
+        // Both tables at once, grouped in SQL by day, way and currency: one query for any range.
+        foreach ($this->db->select(<<<'SQL'
+            SELECT 'payments' AS kind, happened_on::text AS day, way, currency_code, count(*) AS records, sum(amount_minor) AS amount
+            FROM sales.payments WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+            GROUP BY 2, 3, 4
+            UNION ALL
+            SELECT 'refunds', happened_on::text, way, currency_code, count(*), sum(amount_minor)
+            FROM sales.refunds WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+            GROUP BY 2, 3, 4
+            ORDER BY 2, 1, 3
+            SQL, [$store->value, $from, $to, $store->value, $from, $to]) as $row) {
+            $day = (string) $row->day;
+            $days[$day] ??= ['payments' => [], 'refunds' => []];
+            $days[$day][$row->kind === 'payments' ? 'payments' : 'refunds'][] = new MoneyByWayDto(
+                (string) $row->way, (int) $row->records, Money::of((int) $row->amount, (string) $row->currency_code),
+            );
+        }
+
+        return array_map(
+            static fn (string $day, array $moved): MoneyDayDto => new MoneyDayDto($day, $moved['payments'], $moved['refunds']),
+            array_keys($days), $days,
+        );
     }
 
     public function transfersWaiting(StoreId $store): TransfersWaitingDto
