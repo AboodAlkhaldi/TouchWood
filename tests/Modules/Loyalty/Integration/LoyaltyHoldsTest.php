@@ -188,6 +188,26 @@ it('expires a dead lot\'s points but those a hold keeps, and spends or deducts o
         ->and(DB::table('loyalty.entries')->where('order_id', $try)->where('kind', 'REDEEMED')->value('points'))->toBe(-50);
 });
 
+it('deducts from free points only, never the lot points a hold keeps', function () {
+    $customer = Fx::customer();
+    loyaltyHoldsGive($customer, 100);
+    CarbonImmutable::setTestNow('2026-06-15 12:00:00 UTC');
+    loyaltyHoldsGive($customer, 100);
+    $lots = DB::table('loyalty.lots')->orderBy('expires_at')->pluck('id')->all();
+    // The hold keeps the first lot's 100, the one a redemption spends first.
+    $try = loyaltyHoldsReserve($customer, Lx::quote($customer, 100, 1000_00), 1000_00);
+    Fx::actAsAdmin(['sa'], [LoyaltyPermissions::ADJUST]);
+    app(DeductPointsHandler::class)->handle(new DeductPoints($customer, Fx::storeId('sa'), 100, 'A mistake'));
+    Fx::actAsCustomer($customer);
+    loyaltyHoldsConfirm($try);
+
+    $deducted = (int) DB::table('loyalty.entries')->where('kind', 'DEDUCTED')->value('id');
+    $redeemed = (int) DB::table('loyalty.entries')->where('kind', 'REDEEMED')->value('id');
+
+    expect(DB::table('loyalty.lot_movements')->where('entry_id', $deducted)->pluck('lot_id')->all())->toBe([$lots[1]])
+        ->and(DB::table('loyalty.lot_movements')->where('entry_id', $redeemed)->pluck('lot_id')->all())->toBe([$lots[0]]);
+});
+
 it('keeps held points from expiring until the hold ends; expired at the release, spent at a confirm', function () {
     $released = Fx::customer();
     $confirmed = Fx::customer('omar@example.test');

@@ -1017,11 +1017,14 @@ Built as §9.6 says, with the gap answers 7.2–7.4 (scratchpad `stage7-gap-answ
    on `LoyaltyApi`; a hold is a row of `loyalty.redemption_holds` under the order's future id.
 2. **A hold moves no lot and writes no ledger entry** (gap 7.3 (a)); `balance()` shows the held points
    (`PointsBalanceDto::$heldPoints`) — "500 points — 200 held for a payment".
-3. **Held points are untouchable** (gap 7.2 (a)): the account's free points — its live balance less its holds —
-   are what a quote, a redemption, another hold and a deduction by hand may use; a deduction into held
-   points is refused with `PointsHeld` (no number shown); a cancelled or returned order's covers skip them
-   (the settlement sees the lots less the held points, from the lots a redemption spends first).
-4. **A confirm is never checked again** (gap 7.4): the programme switched off meanwhile still confirms.
-5. Mine: **an account's lots do not expire while it holds points** (the hold limit, 15 minutes at most):
-   a confirm spends the lots live when the points were held; a release drops the hold, then the account's
-   lots whose date passed meanwhile expire — "as they would have" (§9.6).
+3. **Held points are untouchable** (gap 7.2 (a)). Mine (after the review): **each hold keeps exactly the
+   points its confirm will spend** — from the lots live when it was made, the one expiring first first,
+   after the holds before it (`HeldLots`). Those points are spent, deducted, expired and used to cover by
+   nothing else; every other point goes on as before. So the free points — what a quote, a redemption,
+   another hold and a deduction by hand may use — are the live points less those kept; a deduction into
+   them is refused with `PointsHeld` (no number shown); a cancelled or returned order's covers see each
+   lot less what holds keep in it.
+4. **A confirm is never checked again** (gap 7.4): the programme switched off meanwhile still confirms. It
+   drops its hold, then spends the lots live when the points were held — its own kept points.
+5. **A lot's date passing during a hold** expires its points but those a hold keeps; a release drops the
+   hold, and the next lock of the account expires them — "as they would have" (§9.6).
