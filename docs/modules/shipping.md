@@ -505,6 +505,79 @@ picker's levels are read in Shipping's Presentation layer from Platform's own pi
 form's (frontend.md §3.6, F9) — no new Application read. Which group a listed place is in, or what covers it,
 is worked out on the page from the carrier's groups it already has.
 
+#### Part 3 — boxes, the padding, sizes packed by hand (screens round 3, 2026-10-31) — **[DRAFT for the owner]**
+
+Written by the screens session once step 5 merged (2c0097f4, #286), on the owner's word of 2026-10-31 ("start
+what you can continue (step 5)"). It uses only what step 5 built (§1.7, §9.8). Its questions are §9.9; option
+**(a)** is the recommended one in each, and the B numbers below point at them.
+
+**What every part keeps** — part 1's rules hold here too (Geist on shadcn, checks as typed, Latin digits, both
+languages, phone width, each refusal in its own words — step 5's two new errors, `box_not_found` and
+`box_name_taken`, are already worded in Shipping's `lang/{ar,en}/errors.php`). Everything here is for whoever
+holds `shipping.boxes.manage` — admins, and any staff role given it (§3); there is no read-only view of boxes.
+
+##### X1 · Boxes — `/admin/shipping/boxes?store=` (B1, B2, B13, B14)
+
+**The menu**: an entry **Boxes** in the **Shipping** group, after Carriers, offered for
+`shipping.boxes.manage` (B1, B13). The store is the panel's store filter, as on Carriers.
+
+**The page**, top to bottom (B2):
+- **A note** saying what boxes do (B14): "Boxes are a suggestion for whoever packs: the order page and the
+  packing slip name the smallest box an order fits. They never change the shipping price and never hold an
+  order. Sizes missing a weight or a size in the catalog, and sizes marked below, are packed by hand."
+- **Padding** — a small card (B10): "**:mm mm** of padding on every side" with a number box (0–100, whole mm)
+  and **Save**. It is Platform's store setting `shipping.boxes.padding_mm` (default 10), saved through
+  Platform's settings route under `shipping.boxes.manage`; **the Settings page stops listing it in the same
+  PR** (§1.7, `onSettingsPage: false`).
+- **Boxes** — the store's boxes in their order (`ListBoxes`), as a table (a card each on a phone):
+  - the **drag handle**, the **name**, the **inner size** "400 × 300 × 200 mm" and, under it, **what fits after
+    the padding** "380 × 280 × 180 mm inside" (B6), the **most weight** "15 kg" (B4), the **on/off switch**
+    (B7), and the row menu: **Edit**, **Move to Top**, **Move to Bottom**, **Delete** (B8, B9);
+  - an off box keeps its place, greyed, marked **Off** — it is in no suggestion;
+  - **Add Box** at the top; empty: "No boxes yet. Without boxes, orders show no box suggestion — nothing else
+    changes." with Add Box.
+- **Packed by hand** — the sizes this store always packs by hand (`ListPackingSizes`, byHand) (B11, B12):
+  each with its product's photo, name and the size's code and values, and **Pack Automatically** to take it
+  back off the list; 25 at a time with **Load More**, and a filter box. **Add Sizes** opens the search below.
+  Empty: "No sizes are packed by hand. Every size with a weight and three sizes in the catalog goes to the
+  box suggestion."
+
+**Order** (B9): dragged by the handle, saved when dropped (`OrderBoxes`); **Move to Top / Move to Bottom** in
+the row menu. The order only decides a tie — two boxes of the same inner volume — the first wins (§9.8 #4).
+
+**On/off** (B7): the switch, saved at once, no question: switching a box off only takes it out of the
+suggestion. A toast says which it did.
+
+**Delete** (B8): in the row menu, on or off (nothing names a box, §9.8 #5); a dialog: "Delete ":box"? It
+leaves the box suggestion. Orders already packed are not touched." No typed name.
+
+##### X2 · Add Box / Edit Box — a dialog (B3–B6)
+
+A `PanelDialog`, loaded when it is first opened:
+- **Name** — 1–100 characters; one another box of the store has, ignoring case, is refused under the box
+  (`BoxNameTaken`);
+- **Length**, **Width**, **Height** — the inner sizes in **mm**, whole numbers 1–1,000,000 (B5);
+- **Most weight** — in **kg**, up to three decimals (1 g to 1,000 kg), saved in grams (B4);
+- under the sizes, as they are typed, **what fits after the padding**: "With :mm mm padding: 380 × 280 × 180 mm
+  inside" — or "Too small for the padding" when a side is not more than twice the padding (B6);
+- on Add only, **Switched on** — on at first;
+- **Save** / **Cancel**; a refusal at the top of the dialog in its own words, what was typed kept.
+
+##### X3 · Add Sizes — the search (B11)
+
+A dialog with a search box over the store's sizes not yet packed by hand and not archived (`ListPackingSizes`,
+byHand false, Catalog's size search): each result its photo, product name, the size's code and values, and a
+tick box; several may be ticked, 25 results at a time with **Load More**; **Pack by Hand** marks the ticked
+ones (`SetSizePacking` for each). A size archived meanwhile is refused in its own words.
+
+##### What these screens need from the backend
+
+Everything is in step 5's Application layer: `ListBoxes`, `CreateBox`, `ChangeBox`, `SwitchBox`,
+`OrderBoxes`, `DeleteBox`, `ListPackingSizes`, `SetSizePacking`; the padding through Platform's settings route.
+The sizes' photos are read from Platform's media in one read, as the logos are. **Marking several sizes at
+once** is one `SetSizePacking` per size, in one request — **to confirm with the backend session** that it
+wants no batch command for it.
+
 ---
 
 ## 5 · Tables
@@ -790,3 +863,24 @@ their own round when that step merges.
    free-shipping amount stay on it until their own screens' fields ship (the review: never without a screen).
 7. Mine (the review): a new box goes after the highest place, so a delete's gap is never filled; an order
    with no piece gets no suggestion; "smallest" is by the inner sizes as entered, before the padding.
+
+### 9.9 The boxes screen's questions — round 3 (2026-10-31)
+
+Asked by the screens session for §4.1 part 3. Option **(a)** is the recommended one in each.
+
+| # | Question | Options and their effect |
+|---|---|---|
+| 1 | Where are the boxes in the menu? | **(a)** An entry **Boxes** in the Shipping group, after Carriers. (b) In Store Settings. |
+| 2 | How is the page laid out? | **(a)** One page, top to bottom: a note on what boxes do, the padding, the boxes, the sizes packed by hand — everything about packing in one place. (b) Three tabs — less scrolling, but the padding and the sizes are easy to miss. |
+| 3 | Adding and editing a box? | **(a)** A dialog: name, the three inner sizes, the most weight. (b) Edited in the row itself — quicker, but five boxes do not fit a row on a phone. |
+| 4 | The most weight? | **(a)** Typed and shown in **kg**, up to three decimals ("15", "2.5"), saved in grams. (b) In grams ("15000"). |
+| 5 | The sizes? | **(a)** In **mm**, whole numbers, as the catalog keeps a size's sizes. (b) In cm with one decimal, saved in mm. |
+| 6 | Showing the room left after the padding? | **(a)** Yes: under each box "380 × 280 × 180 mm inside", and in the dialog as it is typed, with "Too small for the padding" when a side is not more than twice the padding. (b) Only the sizes as entered. |
+| 7 | Switching a box off? | **(a)** At once, no question — it only leaves the suggestion. (b) It asks first, as a carrier's does. |
+| 8 | Deleting a box? | **(a)** A plain dialog saying it leaves the suggestion — no typed name (nothing else names a box). (b) The typed-name dialog. (c) No dialog. |
+| 9 | Ordering the boxes? | **(a)** Drag and Move to Top / Bottom, as everywhere; the page says the order only breaks a tie between boxes of the same volume. (b) No ordering: always by size, smallest first — the backend's order rule would then be unused. |
+| 10 | The padding? | **(a)** A small card at the top: a number box (0–100 mm) and Save; it leaves the Settings page in the same PR. (b) A dialog from an Edit button. |
+| 11 | Adding sizes packed by hand? | **(a)** A search dialog over the store's sizes (photo, product, size code and values), several ticked at once, then **Pack by Hand**. (b) One size at a time. |
+| 12 | The list of sizes packed by hand? | **(a)** Photo, product name, size code and values, **Pack Automatically**; 25 at a time with Load More and a filter box. (b) All at once, no filter — long once a store marks many. |
+| 13 | The page's and menu entry's name? | **(a)** **Boxes** / **الصناديق**. (b) **Packaging** / **التغليف**. (c) **Shipping Boxes** / **صناديق الشحن**. |
+| 14 | Explaining what boxes do on the page? | **(a)** A short note at the top: a suggestion for whoever packs, shown on the order page and packing slip; it never changes the price or holds an order; sizes missing a weight or a size are packed by hand. (b) No note. |
