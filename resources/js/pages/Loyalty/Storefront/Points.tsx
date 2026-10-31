@@ -26,7 +26,7 @@ import type { SharedProps } from '@/types/page';
 | says the points are paused and stay until they expire.
 */
 
-export default function Points({ points, worth, expiring, lots, history, nextAt, nextId, programmeOn, earnPerUnit, pointsPerUnitOff, unit }: MyPointsPage) {
+export default function Points({ points, worth, expiring, lots, history, nextAt, nextId, programmeOn, earnPerUnit, pointsPerUnitOff, unit, held }: MyPointsPage) {
     const t = useTranslator();
     const { locale } = usePage<SharedProps>().props;
     const day = useDay();
@@ -54,6 +54,12 @@ export default function Points({ points, worth, expiring, lots, history, nextAt,
                             <span className="text-copy-14 text-ink-muted">
                                 {t('loyalty::shop_points.worth', { amount: isolate(formatMoney(worth, locale)) })}
                             </span>
+                            {/* Held for a payment in progress (§9.6): part of the balance, only when some are. */}
+                            {held > 0 ? (
+                                <span className="text-copy-13 text-ink-muted" data-test="held">
+                                    {t('loyalty::shop_points.held', { points: figure(locale, held) })}
+                                </span>
+                            ) : null}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-2 px-6 text-copy-14 text-ink-muted">

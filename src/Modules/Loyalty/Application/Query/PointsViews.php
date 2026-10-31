@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Modules\Loyalty\Application\Points\ProgrammeReader;
 use Modules\Loyalty\Domain\Model\PointsAccount;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
+use Modules\Loyalty\Domain\Repository\RedemptionHolds;
 use Modules\Loyalty\Domain\Service\PointsArithmetic;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Shared\Domain\ValueObject\Money;
@@ -30,6 +31,7 @@ final readonly class PointsViews
         private PointsReader $reader,
         private ProgrammeReader $programmes,
         private StaffNames $staffNames,
+        private RedemptionHolds $holds,
     ) {}
 
     public function of(?PointsAccount $account, StoreId $store, bool $forStaff, ?DateTimeImmutable $beforeAt, ?int $beforeId, int $perPage): PointsView
@@ -53,6 +55,8 @@ final readonly class PointsViews
             $rows,
             $last === false ? null : $last->occurredAt,
             $last === false ? null : $last->id,
+            // Held points are part of the balance, never on top of it (as Sales's reads cap them).
+            $account === null ? 0 : min($balance, $this->holds->heldBy($account->id)),
         );
     }
 

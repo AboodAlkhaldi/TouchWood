@@ -24,5 +24,7 @@ final readonly class PointsView
         public array $history,
         public ?DateTimeImmutable $nextAt,
         public ?int $nextId,
+        /** Of `balance`, the points held for an online payment in progress (§9.6): "200 held for a payment". */
+        public int $held = 0,
     ) {}
 }

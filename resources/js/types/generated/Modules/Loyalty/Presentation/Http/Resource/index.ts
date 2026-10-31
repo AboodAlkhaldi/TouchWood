@@ -22,6 +22,7 @@ storeIsActive: boolean,
 storeTimezone: string,
 programmeOn: boolean,
 stores: StoreOptionData[],
+held: number,
 };
 export type ExpiringData = {
 points: number,
@@ -57,6 +58,7 @@ earnPerUnit: number,
 pointsPerUnitOff: number,
 unit: MoneyData,
 timezone: string,
+held: number,
 };
 export type PointHolderData = {
 accountId: string,

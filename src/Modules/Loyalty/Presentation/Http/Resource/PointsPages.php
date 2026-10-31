@@ -108,6 +108,7 @@ final readonly class PointsPages
             Inputs::MOST_BY_HAND,
             ...$this->shown($store),
             stores: $this->options($offered),
+            held: $points->held,
         );
     }
 
@@ -170,6 +171,7 @@ final readonly class PointsPages
             // 1 of the store's currency, as the line says it ("for every 1.00 SAR").
             MoneyData::of(Money::of(10 ** $programme->exponent, $programme->currencyCode), $programme->exponent),
             $store->timezone,
+            held: $points->held,
         );
     }
 

@@ -15,7 +15,7 @@
     "generated\\Modules\\Inventory\\Domain\\ValueObject\\index.ts": "df510e4045627cfc48edfc41e2e98299",
     "generated\\Modules\\Inventory\\Presentation\\Http\\Resource\\index.ts": "1c344e82239c1cbb7632d84464e2bd1e",
     "generated\\Modules\\Loyalty\\Domain\\Model\\Settlement\\index.ts": "977110eed15d8c74dc4ed35c28535c80",
-    "generated\\Modules\\Loyalty\\Presentation\\Http\\Resource\\index.ts": "2c9375cb2d0c0d9f1bbbbf7514f253b8",
+    "generated\\Modules\\Loyalty\\Presentation\\Http\\Resource\\index.ts": "bb0319b487e8d69c05e0a8621ebbffa9",
     "generated\\Modules\\Loyalty\\Public\\Enums\\index.ts": "bb528db26fec96e331a0a075e4e6448c",
     "generated\\Modules\\Ops\\Application\\Delivery\\index.ts": "e26351a6842379b84562b44d59a044c9",
     "generated\\Modules\\Ops\\Application\\Reports\\index.ts": "cf4f8ed3c7f27d2333060fae897d7fa8",

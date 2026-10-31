@@ -8,6 +8,7 @@ return [
     'subtitle' => 'Your points in this store',
     'balance' => 'Points',
     'worth' => 'Worth :amount',
+    'held' => ':points held for a payment in progress',
     'expiring_line' => 'Expiring on :day: :points',
     'none_expiring' => 'No points are waiting to expire.',
     // Worded so it reads right for any number, 1 included: the screens' words have no plurals.

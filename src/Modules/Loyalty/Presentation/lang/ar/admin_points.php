@@ -57,6 +57,7 @@ return [
     ],
 
     'card' => [
+        'held' => ':points محجوزة لدفع جارٍ',
         'points' => 'النقاط',
         'worth' => 'القيمة',
         'expiring' => 'أقرب انتهاء',
