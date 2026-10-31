@@ -505,7 +505,7 @@ picker's levels are read in Shipping's Presentation layer from Platform's own pi
 form's (frontend.md §3.6, F9) — no new Application read. Which group a listed place is in, or what covers it,
 is worked out on the page from the carrier's groups it already has.
 
-#### Part 3 — boxes, the padding, sizes packed by hand (screens round 3, 2026-10-31) — **[DRAFT for the owner]**
+#### Part 3 — boxes, the padding, sizes packed by hand (screens round 3, 2026-10-31) — **[ACCEPTED by the owner, 2026-10-31]**
 
 Written by the screens session once step 5 merged (2c0097f4, #286), on the owner's word of 2026-10-31 ("start
 what you can continue (step 5)"). It uses only what step 5 built (§1.7, §9.8). Its questions are §9.9; option
@@ -868,7 +868,8 @@ their own round when that step merges.
 
 ### 9.9 The boxes screen's questions — round 3 (2026-10-31)
 
-Asked by the screens session for §4.1 part 3. Option **(a)** is the recommended one in each.
+Asked by the screens session for §4.1 part 3. Option **(a)** is the recommended one in each. **Answered by the
+owner, 2026-10-31: (a) in all fourteen** ("all as rec"). No round 4.
 
 | # | Question | Options and their effect |
 |---|---|---|
