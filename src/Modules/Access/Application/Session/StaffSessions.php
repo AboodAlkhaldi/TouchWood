@@ -55,9 +55,26 @@ interface StaffSessions
     public function mustSetUpAuthenticator(): bool;
 
     /**
-     * Marks this session as having to set up an app first, or - once it is set up - lets it through.
+     * Marks this session as having to set up an app first, or - once it is set up - lets it through,
+     * with a new session id and CSRF token as at sign-in (review of amendment 91).
      */
     public function requireAuthenticatorSetup(bool $required): void;
+
+    /**
+     * Whether this browser's session holds a sign-in at all - as every signed-in staff request does; a
+     * test that binds an actor directly has none.
+     */
+    public function holdsSignIn(): bool;
+
+    /**
+     * The sign-in methods (StaffSignInMethods::key) this session last checked its setup under, if any.
+     */
+    public function authenticatorCheckedUnder(): ?string;
+
+    /**
+     * The check's answer, under these methods: the session must set an app up, or need not.
+     */
+    public function rememberAuthenticatorCheck(string $methods, bool $mustSetUp): void;
 
     /**
      * A setup was opened with the password in this browser, at this moment: only this browser is shown

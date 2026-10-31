@@ -65,11 +65,12 @@ Route::prefix('admin')
         Route::post('invitation/{token}/code', [StaffLinkController::class, 'confirmInvitation'])->name('access.staff.invitation.confirm');
         Route::post('email-change/{token}', [StaffLinkController::class, 'confirmEmailChange'])->name('access.staff.email-change.confirm');
 
-        /*
-        | Setting up an authenticator app (amendment 91). A session that must set one up before it
-        | reaches the panel reaches these, and signing out, and nothing else (RequireStaff).
-        */
-        Route::middleware(RequireStaff::ALIAS.':'.RequireStaff::SETTING_UP)->group(function (): void {
+        Route::middleware(RequireStaff::ALIAS)->group(function (): void {
+            /*
+            | Setting up an authenticator app (amendment 91). A session that must set one up before it
+            | reaches the panel reaches these, and signing out, and nothing else: RequireStaff lets these
+            | route names through (RequireStaff::SETTING_UP_ROUTES).
+            */
             Route::post('sign-out', [StaffAccountController::class, 'signOut'])->name('access.staff.sign-out');
 
             Route::get('authenticator/setup', [StaffAuthenticatorController::class, 'setup'])->name('access.staff.authenticator.setup.page');
@@ -77,9 +78,7 @@ Route::prefix('admin')
             Route::post('authenticator/setup/code', [StaffAuthenticatorController::class, 'confirm'])->name('access.staff.authenticator.setup.confirm');
             // The recovery codes, shown once after a setup or a renewal.
             Route::get('authenticator/recovery-codes', [StaffAuthenticatorController::class, 'recoveryCodes'])->name('access.staff.authenticator.recovery-codes.page');
-        });
 
-        Route::middleware(RequireStaff::ALIAS)->group(function (): void {
             Route::get('/', [AdminPanelController::class, 'home'])->name('access.staff.home');
 
             // View Store: the shop of the store chosen in its menu, as themselves (spec §1.11,

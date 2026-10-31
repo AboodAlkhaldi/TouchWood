@@ -19,6 +19,29 @@ interface StaffAuthenticatorRepository
     public function forStaff(string $staffId, bool $lock = false): ?StaffAuthenticator;
 
     /**
+     * Whether an app is set up, read without decrypting anything: for the yes-or-no checks.
+     *
+     * @param  bool  $lock  lock the row for the rest of the transaction
+     */
+    public function hasConfirmedApp(string $staffId, bool $lock = false): bool;
+
+    /**
+     * Whether an app is set up and not set aside for SMS (the person's choice while both are ticked),
+     * read without decrypting anything.
+     */
+    public function usesApp(string $staffId): bool;
+
+    /**
+     * The used-up rounds and, from the third in 24 hours, the lock (amendment 91, owner 2026-10-31).
+     */
+    public function recordRounds(string $staffId, int $rounds, DateTimeImmutable $since, ?DateTimeImmutable $lockedAt): void;
+
+    /**
+     * The count and the lock gone: the password was reset.
+     */
+    public function unlock(string $staffId): void;
+
+    /**
      * A setup waiting for its first code, replacing any other waiting one; the app in use, if any,
      * stays until the new one's code is right.
      */

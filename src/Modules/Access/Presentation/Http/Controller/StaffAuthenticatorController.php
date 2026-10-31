@@ -8,6 +8,7 @@ use App\Http\FormErrors;
 use App\Http\Page;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Access\Application\Command\ChooseSignInMethod\ChooseSignInMethod;
 use Modules\Access\Application\Command\ChooseSignInMethod\ChooseSignInMethodHandler;
@@ -59,12 +60,14 @@ final readonly class StaffAuthenticatorController
     {
         $setup = $this->authenticator->setupForCurrentStaff();
 
-        return $this->page->render('Access/Admin/AuthenticatorSetup', (new AuthenticatorSetupPage(
+        // The QR code holds the secret: the browser keeps this page in its history only encrypted (review
+        // of amendment 91), and the key to that is dropped when the history is cleared.
+        return $this->encrypted(fn (): Response => $this->page->render('Access/Admin/AuthenticatorSetup', (new AuthenticatorSetupPage(
             $setup->hasApp,
             $setup->required,
             $setup->qrSvg,
             $setup->manualKey,
-        ))->toArray(), self::WORDS);
+        ))->toArray(), self::WORDS));
     }
 
     /** The password, which opens the QR code in this browser (decision 6). */
@@ -87,6 +90,9 @@ final readonly class StaffAuthenticatorController
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
+
+        // The setup's pages, QR code and all, leave the browser's history.
+        Inertia::clearHistory();
 
         return $this->showCodes($request, $codes, '/admin', 'access::account.authenticator_set_up');
     }
@@ -113,7 +119,8 @@ final readonly class StaffAuthenticatorController
             return redirect($next);
         }
 
-        return $this->page->render('Access/Admin/RecoveryCodes', (new RecoveryCodesPage($shown, $next))->toArray(), self::WORDS);
+        // The codes sign in: kept in the browser's history only encrypted.
+        return $this->encrypted(fn (): Response => $this->page->render('Access/Admin/RecoveryCodes', (new RecoveryCodesPage($shown, $next))->toArray(), self::WORDS));
     }
 
     public function renewRecoveryCodes(CurrentPasswordRequest $request, RenewRecoveryCodesHandler $handler): RedirectResponse
@@ -142,7 +149,7 @@ final readonly class StaffAuthenticatorController
     public function chooseMethod(SignInMethodRequest $request, ChooseSignInMethodHandler $handler): RedirectResponse
     {
         try {
-            $mustSetUp = $handler->handle(new ChooseSignInMethod($request->text('method')));
+            $mustSetUp = $handler->handle(new ChooseSignInMethod($request->text('method'), $request->text('current_password'), (string) $request->ip()));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
@@ -150,6 +157,23 @@ final readonly class StaffAuthenticatorController
         return $mustSetUp
             ? redirect(RequireStaff::SETUP_PATH)
             : redirect(self::SECURITY_TAB)->with('status', __('access::account.sign_in_method_saved'));
+    }
+
+    /**
+     * This page alone kept encrypted in the browser's history: Inertia's switch is the response factory's,
+     * which lives as long as the process does, so it is put back once the page is made.
+     *
+     * @param  callable(): Response  $render
+     */
+    private function encrypted(callable $render): Response
+    {
+        Inertia::encryptHistory();
+
+        try {
+            return $render();
+        } finally {
+            Inertia::encryptHistory(false);
+        }
     }
 
     /**

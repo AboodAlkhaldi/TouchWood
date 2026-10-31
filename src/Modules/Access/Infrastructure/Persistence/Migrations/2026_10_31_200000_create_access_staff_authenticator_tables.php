@@ -33,6 +33,11 @@ return new class extends Migration
             $table->text('pending_secret')->nullable();
             $table->timestampTz('pending_at')->nullable();
             $table->unsignedSmallInteger('pending_attempts')->default(0);
+            // Sign-ins whose wrong app codes ran out, counted over 24 hours from the first; the third
+            // locks the app step until the password is reset (owner, 2026-10-31).
+            $table->unsignedSmallInteger('used_up_rounds')->default(0);
+            $table->timestampTz('rounds_since')->nullable();
+            $table->timestampTz('locked_at')->nullable();
             $table->timestampsTz();
 
             $table->foreign('staff_user_id')->references('id')->on('access.staff_users')->restrictOnDelete();

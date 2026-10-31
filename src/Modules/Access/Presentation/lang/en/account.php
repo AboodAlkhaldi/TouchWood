@@ -277,4 +277,5 @@ return [
     'download_codes' => 'Download Codes',
     'codes_file_heading' => 'Recovery codes - each works once',
     'continue' => 'Continue',
+    'method_sms_password' => 'Enter your password to sign in by SMS instead of the app.',
 ];

@@ -43,7 +43,36 @@ final readonly class DatabaseStaffAuthenticatorRepository implements StaffAuthen
             $row->pending_secret === null ? null : $this->encrypter->decryptString((string) $row->pending_secret),
             $row->pending_at === null ? null : CarbonImmutable::parse((string) $row->pending_at),
             (int) $row->pending_attempts,
+            (int) $row->used_up_rounds,
+            $row->rounds_since === null ? null : CarbonImmutable::parse((string) $row->rounds_since),
+            $row->locked_at === null ? null : CarbonImmutable::parse((string) $row->locked_at),
         ) : null;
+    }
+
+    public function hasConfirmedApp(string $staffId, bool $lock = false): bool
+    {
+        $query = $this->db->table(self::APPS)->where('staff_user_id', $staffId)->whereNotNull('confirmed_at');
+
+        return $lock ? $query->lockForUpdate()->value('staff_user_id') !== null : $query->exists();
+    }
+
+    public function usesApp(string $staffId): bool
+    {
+        return $this->db->table(self::APPS)->where('staff_user_id', $staffId)->whereNotNull('confirmed_at')->where('in_use', true)->exists();
+    }
+
+    public function recordRounds(string $staffId, int $rounds, DateTimeImmutable $since, ?DateTimeImmutable $lockedAt): void
+    {
+        $this->db->table(self::APPS)->where('staff_user_id', $staffId)->update([
+            'used_up_rounds' => $rounds, 'rounds_since' => $since, 'locked_at' => $lockedAt, 'updated_at' => CarbonImmutable::now(),
+        ]);
+    }
+
+    public function unlock(string $staffId): void
+    {
+        $this->db->table(self::APPS)->where('staff_user_id', $staffId)->update([
+            'used_up_rounds' => 0, 'rounds_since' => null, 'locked_at' => null,
+        ]);
     }
 
     public function startSetup(string $staffId, string $secret, DateTimeImmutable $at): void

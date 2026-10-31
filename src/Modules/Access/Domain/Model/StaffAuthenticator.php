@@ -27,7 +27,17 @@ final readonly class StaffAuthenticator
         public ?string $pendingSecret,
         public ?DateTimeImmutable $pendingAt,
         public int $pendingAttempts,
+        /** Sign-ins whose wrong codes ran out, since $roundsSince (amendment 91, owner 2026-10-31). */
+        public int $usedUpRounds = 0,
+        public ?DateTimeImmutable $roundsSince = null,
+        /** The app step is locked until the password is reset. */
+        public ?DateTimeImmutable $lockedAt = null,
     ) {}
+
+    public function isLocked(): bool
+    {
+        return $this->lockedAt !== null;
+    }
 
     public function isConfirmed(): bool
     {

@@ -111,4 +111,5 @@ return [
     'recovery_subtitle' => 'Each recovery code works once. Enter one of the codes you saved when you set up the app.',
     'recovery_code_label' => 'Recovery Code',
     'recovery_code_incomplete' => 'Enter the recovery code.',
+    'set_up_app_first' => 'Set up your authenticator app first.',
 ];

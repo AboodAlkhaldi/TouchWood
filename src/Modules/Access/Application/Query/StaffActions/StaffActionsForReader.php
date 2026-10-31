@@ -51,7 +51,7 @@ final readonly class StaffActionsForReader
         $reset = $target->id() !== $actor->id
             // The reset's permission is reserved, so held by a Super Admin alone: the reader is one.
             && $this->authorizer->isUnlimited()
-            && $this->authenticators->forStaff($target->id())?->isConfirmed() === true;
+            && $this->authenticators->hasConfirmedApp($target->id());
 
         if ($target->isSuperAdmin() || $target->id() === $actor->id) {
             return StaffActionsDto::none($reset);

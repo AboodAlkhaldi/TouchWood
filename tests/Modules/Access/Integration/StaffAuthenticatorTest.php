@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Security\AuthenticatorCodes;
 use Modules\Access\Application\Security\QrCodes;
 use Modules\Access\Application\Security\StaffSignInMethods;
+use Modules\Access\Domain\Repository\StaffAuthenticatorRepository;
 use Modules\Access\Domain\ValueObject\SignInMethod;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -126,6 +127,25 @@ describe('which method a person uses (decisions 1 and 3)', function () {
 
         expect(app(StaffSignInMethods::class)->enabled())->toBe(['sms' => false, 'authenticator' => true]);
     });
+});
+
+it('answers whether an app is set up, and used, without decrypting it', function () {
+    $repository = app(StaffAuthenticatorRepository::class);
+    $waiting = Fx::staff();
+    $repository->startSetup($waiting, 'JBSWY3DPEHPK3PXP', CarbonImmutable::now());
+    $setAside = Fx::staff();
+    App::giveApp($setAside, inUse: false);
+    $using = Fx::staff();
+    App::giveApp($using);
+    // A secret the key cannot open: a read that decrypted would fail.
+    DB::table('access.staff_authenticators')->whereIn('staff_user_id', [$setAside, $using])->update(['secret' => 'not encrypted']);
+
+    expect($repository->hasConfirmedApp($waiting))->toBeFalse()
+        ->and($repository->hasConfirmedApp($setAside))->toBeTrue()
+        ->and($repository->hasConfirmedApp($using, lock: true))->toBeTrue()
+        ->and($repository->usesApp($setAside))->toBeFalse()
+        ->and($repository->usesApp($using))->toBeTrue()
+        ->and($repository->hasConfirmedApp(Fx::staff()))->toBeFalse();
 });
 
 describe('the tables (amendment 91)', function () {

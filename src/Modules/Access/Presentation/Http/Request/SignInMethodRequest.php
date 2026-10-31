@@ -14,6 +14,10 @@ final class SignInMethodRequest extends AccessFormRequest
      */
     public function rules(): array
     {
-        return ['method' => ['required', 'string', 'in:SMS,AUTHENTICATOR']];
+        return [
+            'method' => ['required', 'string', 'in:SMS,AUTHENTICATOR'],
+            // Asked for SMS (owner, 2026-10-31); whether it is right is the handler's to say.
+            'current_password' => ['nullable', 'string', 'max:1024'],
+        ];
     }
 }

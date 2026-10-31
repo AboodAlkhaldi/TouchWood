@@ -9,7 +9,13 @@ namespace Modules\Access\Application\Command\ChooseSignInMethod;
  */
 final readonly class ChooseSignInMethod
 {
+    /**
+     * @param  string|null  $currentPassword  asked when SMS is chosen (owner, 2026-10-31)
+     */
     public function __construct(
         public string $method,
+        #[\SensitiveParameter]
+        public ?string $currentPassword = null,
+        public string $ip = '',
     ) {}
 }

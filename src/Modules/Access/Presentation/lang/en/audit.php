@@ -40,6 +40,8 @@ return [
     'staff_user.recovery_codes_renewed' => 'Recovery codes renewed',
     'staff_user.recovery_code_used' => 'Recovery code used',
     'staff_user.sign_in_method_chosen' => 'Sign-in method chosen',
+    'staff_user.app_code_tries_used_up' => 'Sign-in ended by wrong app codes',
+    'staff_user.app_sign_in_locked' => 'Sign-in with the app locked',
     'staff_sign_in.address_locked' => 'Address locked out',
     'store_address_format.updated' => 'Address form changed',
     'customer.registered' => 'Customer registered',

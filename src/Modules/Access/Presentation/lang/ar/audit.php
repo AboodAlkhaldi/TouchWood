@@ -40,6 +40,8 @@ return [
     'staff_user.recovery_codes_renewed' => 'جُدّدت رموز الاسترداد',
     'staff_user.recovery_code_used' => 'استُخدم رمز استرداد',
     'staff_user.sign_in_method_chosen' => 'اختيرت طريقة الدخول',
+    'staff_user.app_code_tries_used_up' => 'انتهى دخول برموز تطبيق خاطئة',
+    'staff_user.app_sign_in_locked' => 'قُفل الدخول بالتطبيق',
     'staff_sign_in.address_locked' => 'أُوقف عنوان مؤقتًا',
     'store_address_format.updated' => 'عُدّل نموذج العناوين',
     'customer.registered' => 'سجّل عميل',

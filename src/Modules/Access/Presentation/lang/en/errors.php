@@ -171,6 +171,10 @@ return [
         'title' => 'No Authenticator App',
         'detail' => 'No authenticator app is set up on this account.',
     ],
+    'app_sign_in_locked' => [
+        'title' => 'Sign-In with the App Locked',
+        'detail' => 'Couldn\'t sign in: wrong app codes ended three sign-ins in 24 hours, so signing in with the app is locked. Reset your password to unlock it.',
+    ],
     'app_sign_ins_too_soon' => [
         'title' => 'Too Many Sign-Ins',
         'detail' => 'Too many sign-ins with an app code this hour. Try again in :seconds seconds.',

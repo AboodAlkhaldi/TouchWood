@@ -24,7 +24,8 @@ import type { SharedProps } from '@/types/page';
 | up and since when, and the second step this person takes now. With both methods on, they choose
 | theirs here (decision 1); choosing the app with none set up goes straight to its setup.
 |
-| New Recovery Codes and Remove App each ask for the password first (decision 6), in a dialog of their
+| Choosing SMS over the app asks for the password in the form (owner, 2026-10-31). New Recovery Codes
+| and Remove App each ask for the password first (decision 6), in a dialog of their
 | own - a wrong password counts as at sign-in, so the refusal shows inside it (DialogError). Change App
 | and Set Up App open the setup page, which asks for it there.
 */
@@ -40,7 +41,9 @@ export function AuthenticatorBlock({ account }: Props) {
     const { locale } = usePage<SharedProps>().props;
     const app = account.authenticator;
     const both = app.smsEnabled && app.authenticatorEnabled;
-    const method = useForm({ method: app.method });
+    const method = useForm({ method: app.method, current_password: '' });
+    // Setting the app aside for SMS asks for the password first (owner, 2026-10-31).
+    const toSms = method.data.method === 'SMS' && app.method !== 'SMS';
     const [asking, setAsking] = useState<Asking>(null);
     const returnFocus = useReturnFocus(asking !== null);
     const password = useForm({ current_password: '' });
@@ -83,7 +86,7 @@ export function AuthenticatorBlock({ account }: Props) {
                     <form
                         onSubmit={(event) => {
                             event.preventDefault();
-                            method.post('/admin/account/sign-in-method', { preserveScroll: true });
+                            method.post('/admin/account/sign-in-method', { preserveScroll: true, onFinish: () => method.setData('current_password', '') });
                         }}
                         className="grid gap-3"
                     >
@@ -101,12 +104,31 @@ export function AuthenticatorBlock({ account }: Props) {
                                 ))}
                             </RadioGroup>
                         </FieldSet>
+                        {toSms ? (
+                            <PasswordInput
+                                id="method_password"
+                                name="current_password"
+                                label={t('access::account.current_password')}
+                                helper={t('access::account.method_sms_password')}
+                                error={method.errors.current_password}
+                                autoComplete="current-password"
+                                required
+                                value={method.data.current_password}
+                                onChange={(event) => method.setData('current_password', event.target.value)}
+                            />
+                        ) : null}
                         <div className="flex justify-end">
                             <ActionButton
                                 type="submit"
                                 size="sm"
                                 loading={method.processing}
-                                disabledReason={method.data.method === app.method ? t('access::account.method_unchanged_reason') : undefined}
+                                disabledReason={
+                                    method.data.method === app.method
+                                        ? t('access::account.method_unchanged_reason')
+                                        : toSms && method.data.current_password === ''
+                                          ? t('access::account.method_sms_password')
+                                          : undefined
+                                }
                                 data-test="save-method"
                             >
                                 {t('access::account.save_method')}

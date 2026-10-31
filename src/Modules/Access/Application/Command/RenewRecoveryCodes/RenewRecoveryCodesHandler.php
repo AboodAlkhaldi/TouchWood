@@ -60,7 +60,7 @@ final readonly class RenewRecoveryCodesHandler
         return $this->db->transaction(function () use ($staffId): array {
             $staff = $this->staff->byId($staffId) ?? throw new StaffNotFound($staffId);
 
-            if ($this->authenticators->forStaff($staffId, lock: true)?->isConfirmed() !== true) {
+            if (! $this->authenticators->hasConfirmedApp($staffId, lock: true)) {
                 throw new NoAuthenticator;
             }
 

@@ -41,6 +41,9 @@ final readonly class StaffSignInMethods
         return $enabled['sms'] && $enabled['authenticator'];
     }
 
+    /**
+     * @param  StaffAuthenticator|null  $app  their app when already read; otherwise a read that decrypts nothing
+     */
     public function for(string $staffId, ?StaffAuthenticator $app = null): SignInMethod
     {
         $enabled = $this->enabled();
@@ -53,9 +56,20 @@ final readonly class StaffSignInMethods
             return SignInMethod::Authenticator;
         }
 
-        $app ??= $this->authenticators->forStaff($staffId);
+        $usesApp = $app !== null ? $app->isConfirmed() && $app->inUse : $this->authenticators->usesApp($staffId);
 
-        return $app !== null && $app->isConfirmed() && $app->inUse ? SignInMethod::Authenticator : SignInMethod::Sms;
+        return $usesApp ? SignInMethod::Authenticator : SignInMethod::Sms;
+    }
+
+    /**
+     * What decides the method besides the person's own app: the two boxes, as one text. A session that
+     * checked its setup under these need not check again until they change (AuthenticatorGate).
+     */
+    public function key(): string
+    {
+        $enabled = $this->enabled();
+
+        return ($enabled['sms'] ? 'sms' : '').'|'.($enabled['authenticator'] ? 'authenticator' : '');
     }
 
     /**
@@ -64,8 +78,9 @@ final readonly class StaffSignInMethods
      */
     public function mustSetUp(string $staffId): bool
     {
-        $app = $this->authenticators->forStaff($staffId);
+        $enabled = $this->enabled();
 
-        return $this->for($staffId, $app) === SignInMethod::Authenticator && ($app === null || ! $app->isConfirmed());
+        // Only the app as their method, with none set up: with SMS on too, no app means SMS.
+        return $enabled['authenticator'] && ! $enabled['sms'] && ! $this->authenticators->hasConfirmedApp($staffId);
     }
 }

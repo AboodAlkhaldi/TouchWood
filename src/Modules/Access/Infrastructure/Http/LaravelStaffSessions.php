@@ -164,11 +164,50 @@ final readonly class LaravelStaffSessions implements StaffSessions
 
     public function requireAuthenticatorSetup(bool $required): void
     {
+        $this->markSetUp($required, null);
+    }
+
+    public function holdsSignIn(): bool
+    {
+        return is_array($this->session()?->get(self::SIGNED_IN));
+    }
+
+    public function authenticatorCheckedUnder(): ?string
+    {
+        $data = $this->session()?->get(self::SIGNED_IN);
+        $methods = is_array($data) ? ($data['authenticator_checked_under'] ?? null) : null;
+
+        return is_string($methods) ? $methods : null;
+    }
+
+    public function rememberAuthenticatorCheck(string $methods, bool $mustSetUp): void
+    {
+        $this->markSetUp($mustSetUp, $methods);
+    }
+
+    /**
+     * A session let through after setting its app up is as good as one just signed in: a new id and a
+     * new CSRF token, so nothing learned about it while it waited carries over (review of amendment 91).
+     */
+    private function markSetUp(bool $required, ?string $methods): void
+    {
         $session = $this->session();
         $data = $session?->get(self::SIGNED_IN);
 
-        if ($session !== null && is_array($data)) {
-            $session->put(self::SIGNED_IN, [...$data, 'must_set_up_authenticator' => $required]);
+        if ($session === null || ! is_array($data)) {
+            return;
+        }
+
+        $lifted = ($data['must_set_up_authenticator'] ?? false) === true && ! $required;
+        $session->put(self::SIGNED_IN, [
+            ...$data,
+            'must_set_up_authenticator' => $required,
+            'authenticator_checked_under' => $methods ?? ($data['authenticator_checked_under'] ?? null),
+        ]);
+
+        if ($lifted) {
+            $session->migrate(true);
+            $session->regenerateToken();
         }
     }
 

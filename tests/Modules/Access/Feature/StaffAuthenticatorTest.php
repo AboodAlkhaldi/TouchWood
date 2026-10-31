@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
 use Illuminate\Testing\TestResponse;
@@ -13,6 +14,8 @@ use Modules\Access\Application\Command\ChooseSignInMethod\ChooseSignInMethod;
 use Modules\Access\Application\Command\ChooseSignInMethod\ChooseSignInMethodHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
+use Modules\Access\Application\Command\ResetStaffAuthenticator\ResetStaffAuthenticator;
+use Modules\Access\Application\Command\ResetStaffAuthenticator\ResetStaffAuthenticatorHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\StaffSignInMethods;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
@@ -22,6 +25,7 @@ use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Settings\SettingValues;
+use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -124,6 +128,23 @@ function authenticatorRefused(TestResponse $response): void
     expect(AdminBrowser::formError($response))->not->toBeNull();
 }
 
+/**
+ * Acts as this staff member for $work only, then gives back whatever was acting before - the real
+ * ActorContext the HTTP requests use, so browsers made before and after are not this person.
+ */
+function authenticatorActingAs(string $staffId, callable $work): void
+{
+    $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+    Fx::actAsStaff($staffId);
+
+    try {
+        $work();
+    } finally {
+        app()->scoped(ActorContext::class, $previous);
+        app()->forgetScopedInstances();
+    }
+}
+
 function authenticatorAudits(string $action, string $staffId): int
 {
     return Fx::audits($action, $staffId);
@@ -187,7 +208,11 @@ describe('decision 1: the methods, a Super Admin setting', function () {
         authenticatorPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
         $browser->post('/admin/sign-in/app', ['code' => App::code(App::giveApp($staffId)['secret'])])->assertRedirect('/admin');
 
-        $browser->post('/admin/account/sign-in-method', ['method' => 'SMS'])->assertRedirect('/admin/account?tab=security');
+        // Setting the app aside asks the password first (owner, 2026-10-31).
+        authenticatorRefused($browser->post('/admin/account/sign-in-method', ['method' => 'SMS']));
+        authenticatorRefused($browser->post('/admin/account/sign-in-method', ['method' => 'SMS', 'current_password' => 'not the password at all']));
+        expect(DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->value('in_use'))->toBeTrue();
+        $browser->post('/admin/account/sign-in-method', ['method' => 'SMS', 'current_password' => Fx::STAFF_PASSWORD])->assertRedirect('/admin/account?tab=security');
         expect(authenticatorAudits('access.staff_user.sign_in_method_chosen', $staffId))->toBe(1)
             ->and(DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->value('in_use'))->toBeFalse();
 
@@ -573,4 +598,175 @@ it('names every new action in the audit log in both languages', function () {
             expect(__("access::audit.staff_user.{$action}", [], $locale))->not->toBe("access::audit.staff_user.{$action}");
         }
     }
+});
+
+describe('the owner\'s answers and the review (2026-10-31)', function () {
+    it('sends a session already open to the setup at once when the app becomes required - on any module\'s page, and 403 in Arabic for JSON', function () {
+        $staffId = Fx::staff();
+        DB::table('access.staff_users')->where('id', $staffId)->update(['locale' => 'ar']);
+        $browser = new AdminBrowser;
+        authenticatorSignInBySms($browser, $staffId);
+        $browser->get('/admin')->assertOk();
+
+        // Go-live: the app alone, while this session is open.
+        App::methods(sms: false, authenticator: true);
+
+        $browser->get('/admin')->assertRedirect('/admin/authenticator/setup');
+        // Another module's admin page (Platform's settings) is held back the same way.
+        $browser->get('/admin/settings')->assertRedirect('/admin/authenticator/setup');
+        $json = $browser->get('/admin/settings', ['HTTP_ACCEPT' => 'application/json'])->assertStatus(403);
+        expect($json->json('message'))->toBe('أعدّ تطبيق المصادقة أولًا.')
+            ->and(__('access::auth.set_up_app_first', [], 'en'))->toBe('Set up your authenticator app first.');
+
+        // Back to SMS: the same session goes on without a setup.
+        App::methods(sms: true, authenticator: false);
+        $browser->get('/admin')->assertOk();
+    });
+
+    it('gives the session a new id and CSRF token when the setup lifts the gate', function () {
+        App::methods(sms: false, authenticator: true);
+        $browser = new AdminBrowser;
+        authenticatorSignInBySms($browser, Fx::staff());
+        $cookie = (string) config('access.admin.session_cookie');
+        $page = $browser->get('/admin/authenticator/setup');
+        $before = [$browser->cookie($cookie), AdminBrowser::flashed($page, '_token')];
+
+        authenticatorSetUp($browser);
+        $after = $browser->get('/admin/account');
+
+        expect($browser->cookie($cookie))->not->toBe($before[0])
+            ->and(AdminBrowser::flashed($after, '_token'))->not->toBe($before[1]);
+    });
+
+    it('keeps the QR code and the recovery codes in the history only encrypted, and clears the history once set up and on sign-out', function () {
+        App::methods(sms: false, authenticator: true);
+        $browser = new AdminBrowser;
+        authenticatorSignInBySms($browser, Fx::staff());
+        $history = function (TestResponse $response): array {
+            $found = [];
+            $response->assertInertia(function (AssertableInertia $page) use (&$found): void {
+                $found = array_intersect_key($page->toArray(), ['encryptHistory' => true, 'clearHistory' => true]);
+            });
+
+            return $found;
+        };
+
+        $browser->post('/admin/authenticator/setup', ['current_password' => Fx::STAFF_PASSWORD]);
+        $setup = $browser->get('/admin/authenticator/setup');
+        $key = str_replace(' ', '', (string) authenticatorProp($setup, 'manualKey'));
+        expect($history($setup))->toBe(['encryptHistory' => true]);
+
+        $browser->post('/admin/authenticator/setup/code', ['code' => App::code($key)])->assertRedirect('/admin/authenticator/recovery-codes');
+        expect($history($browser->get('/admin/authenticator/recovery-codes')))->toBe(['encryptHistory' => true, 'clearHistory' => true]);
+
+        $browser->post('/admin/sign-out');
+        expect($history($browser->get('/admin/sign-in')))->toBe(['clearHistory' => true]);
+    });
+
+    it('signs the person out everywhere and forgets their trusted browsers when a Super Admin resets their app', function () {
+        $staffId = Fx::staff();
+        App::giveApp($staffId);
+        $theirs = new AdminBrowser;
+        authenticatorPassword($theirs, $staffId)->assertRedirect('/admin/sign-in/code');
+        $theirs->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode(), 'trust_browser' => true])->assertRedirect('/admin');
+        $theirs->get('/admin')->assertOk();
+
+        authenticatorActingAs(Fx::staff(superAdmin: true), fn () => app(ResetStaffAuthenticatorHandler::class)
+            ->handle(new ResetStaffAuthenticator($staffId)));
+
+        $theirs->get('/admin')->assertRedirect('/admin/sign-in');
+        expect(DB::table('access.staff_trusted_browsers')->where('staff_user_id', $staffId)->exists())->toBeFalse();
+        // The trusted browser asks for the second step again.
+        authenticatorPassword($theirs, $staffId)->assertRedirect('/admin/sign-in/code');
+    });
+
+    it('signs a Super Admin out everywhere when the console resets their app', function () {
+        $superAdminId = Fx::staff(superAdmin: true);
+        App::giveApp($superAdminId);
+        $theirs = new AdminBrowser;
+        authenticatorSignInBySms($theirs, $superAdminId);
+
+        $pending = artisan('access:super-admin:reset-authenticator', ['email' => (string) DB::table('access.staff_users')->where('id', $superAdminId)->value('email')]);
+        ($pending instanceof PendingCommand ? $pending : throw new LogicException('Expected a pending command'))->assertSuccessful()->run();
+
+        $theirs->get('/admin')->assertRedirect('/admin/sign-in');
+    });
+
+    it('audits each sign-in that runs out of app codes, tells the person at once, and locks the app after three in 24 hours until a password reset', function () {
+        App::methods(sms: false, authenticator: true);
+        $staffId = Fx::staff();
+        $app = App::giveApp($staffId);
+        $tries = app(StaffSecuritySettings::class)->codeAttempts();
+        $runOut = function () use ($staffId, $app, $tries): void {
+            $browser = new AdminBrowser;
+            authenticatorPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
+
+            for ($i = 0; $i < $tries; $i++) {
+                $browser->post('/admin/sign-in/app', ['code' => App::wrongCode($app['secret'])]);
+            }
+        };
+
+        $runOut();
+        expect(authenticatorAudits('access.staff_user.app_code_tries_used_up', $staffId))->toBe(1)
+            ->and(RecordingSecurityMessages::installed()->appCodeFailures)->toHaveCount(1)
+            ->and(RecordingSecurityMessages::installed()->appCodeFailures[0]['locked'])->toBeFalse();
+
+        $runOut();
+        $runOut();
+        expect(authenticatorAudits('access.staff_user.app_code_tries_used_up', $staffId))->toBe(3)
+            ->and(authenticatorAudits('access.staff_user.app_sign_in_locked', $staffId))->toBe(1)
+            ->and(RecordingSecurityMessages::installed()->appCodeFailures)->toHaveCount(3)
+            ->and(RecordingSecurityMessages::installed()->appCodeFailures[2]['locked'])->toBeTrue();
+
+        // Locked: the right password is told so, and neither an app code nor a recovery code gets in.
+        $locked = new AdminBrowser;
+        expect(AdminBrowser::formError(authenticatorPassword($locked, $staffId)))->toBe(__('access::errors.app_sign_in_locked.detail', [], 'ar'));
+        $locked->get('/admin/sign-in/app')->assertRedirect('/admin/sign-in');
+
+        // A pending app step that meets the lock refuses a recovery code as well. (The hour's limit of app
+        // steps, three, is spent by now: emptied, so the lock is what answers.)
+        Cache::flush();
+        DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->update(['locked_at' => null]);
+        $pending = new AdminBrowser;
+        authenticatorPassword($pending, $staffId)->assertRedirect('/admin/sign-in/app');
+        DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->update(['locked_at' => now()]);
+        authenticatorRefused($pending->post('/admin/sign-in/app', ['code' => $app['codes'][0], 'recovery' => true]));
+        $pending->get('/admin')->assertRedirect('/admin/sign-in');
+        expect(DB::table('access.staff_recovery_codes')->where('staff_user_id', $staffId)->whereNotNull('used_at')->exists())->toBeFalse();
+
+        // The password reset opens it again.
+        $reset = new AdminBrowser;
+        $reset->post('/admin/password/forgot', ['email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email')]);
+        $reset->post('/admin/password/reset/'.RecordingSecurityMessages::installed()->lastPasswordResetToken(), ['password' => 'a brand new long password'])->assertRedirect('/admin/sign-in');
+        expect(DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->value('locked_at'))->toBeNull();
+        $reset->post('/admin/sign-in', ['email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'), 'password' => 'a brand new long password'])
+            ->assertRedirect('/admin/sign-in/app');
+    });
+
+    it('starts the 24 hours again after them', function () {
+        App::methods(sms: false, authenticator: true);
+        $staffId = Fx::staff();
+        $app = App::giveApp($staffId);
+        DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->update(['used_up_rounds' => 2, 'rounds_since' => now()->subHours(25)]);
+        $browser = new AdminBrowser;
+        authenticatorPassword($browser, $staffId);
+
+        for ($i = 0; $i < app(StaffSecuritySettings::class)->codeAttempts(); $i++) {
+            $browser->post('/admin/sign-in/app', ['code' => App::wrongCode($app['secret'])]);
+        }
+
+        expect((int) DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->value('used_up_rounds'))->toBe(1)
+            ->and(DB::table('access.staff_authenticators')->where('staff_user_id', $staffId)->value('locked_at'))->toBeNull();
+    });
+
+    it('reads the other box from the settings table itself, not a stale cache, when one is turned off', function () {
+        App::methods(sms: false, authenticator: true);
+        // SMS turned on behind the cache's back: the cache still says off.
+        DB::table('platform.settings')->where('key', StaffSecuritySettings::SIGN_IN_BY_SMS)->whereNull('store_id')->update(['value' => 'true']);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        app(UpdateSettingHandler::class)->handle(new UpdateSetting(StaffSecuritySettings::SIGN_IN_BY_AUTHENTICATOR, null, false));
+
+        expect(json_decode((string) DB::table('platform.settings')->where('key', StaffSecuritySettings::SIGN_IN_BY_AUTHENTICATOR)->whereNull('store_id')->value('value')))->toBeFalse();
+    });
 });

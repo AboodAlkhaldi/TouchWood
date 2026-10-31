@@ -18,6 +18,7 @@ use Modules\Access\Application\Security\StaffSignInMethods;
 use Modules\Access\Application\Session\StaffSessions;
 use Modules\Access\Application\Session\TrustedBrowsers;
 use Modules\Access\Domain\Exception\AccountLocked;
+use Modules\Access\Domain\Exception\AppSignInLocked;
 use Modules\Access\Domain\Exception\AppSignInsTooSoon;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidCredentials;
@@ -62,7 +63,7 @@ final readonly class SignInStaffHandler
     ) {}
 
     /**
-     * @throws InvalidCredentials|AccountLocked|SignInRefused|AppSignInsTooSoon
+     * @throws InvalidCredentials|AccountLocked|SignInRefused|AppSignInsTooSoon|AppSignInLocked
      */
     public function handle(SignInStaff $command): SignInResult
     {
@@ -147,6 +148,12 @@ final readonly class SignInStaffHandler
         $app = $this->authenticators->forStaff($staff->id());
 
         if ($app !== null && $app->isConfirmed() && $this->methods->for($staff->id(), $app) === SignInMethod::Authenticator) {
+            // Three sign-ins in 24 hours ran out of codes: locked until the password is reset (owner,
+            // 2026-10-31). Said only after the right password, as a disabled account is.
+            if ($app->isLocked()) {
+                throw new AppSignInLocked;
+            }
+
             // As often an hour as an SMS code goes to one number (decision 5).
             $this->appLimits->open($staff->id());
             $this->authenticators->resetAttempts($staff->id());

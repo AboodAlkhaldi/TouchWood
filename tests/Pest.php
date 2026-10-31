@@ -32,7 +32,7 @@ pest()->extend(TestCase::class)->in(
 | as a Super Admin's choice would be, never by changing the default. The authenticator's own tests set
 | the methods they test, after this (AuthenticatorFixtures::methods).
 */
-pest()->in('Modules/*/Feature', 'Browser')->beforeEach(function (): void {
+pest()->in('Shared/Feature', 'Modules/*/Feature', 'Browser')->beforeEach(function (): void {
     staffSignInMethodsForTests(sms: true, authenticator: false);
 });
 
