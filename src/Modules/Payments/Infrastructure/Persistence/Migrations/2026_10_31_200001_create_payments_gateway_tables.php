@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Schema;
 | A store's gateway and its keys (payments.md §1.2, §5). At most one gateway a store, MyFatoorah the only
 | one; test or live, on or off. Its keys are kept encrypted with the app's key - never shown again but by
 | their last 6 characters - one current key a store and mode; an earlier one stays, retired, until the
-| attempts made with it close (rule 14). `key_rejected` is MyFatoorah's 401 on the current key: online
-| payment stops by itself until a new key is set (§1.2). `warned_days` is the last expiry warning sent
-| for the key - 30, 7 or 1 - so each is sent once (§1.2; gap 8.7).
+| attempts made with it close (rule 14). A key's `rejected_at` is MyFatoorah's 401 on it: on the current
+| key, online payment stops by itself until a new key is set (§1.2). `warned_days` is the last expiry
+| warning sent for the key - 30, 7 or 1 - so each is sent once (§1.2; gap 8.7).
 */
 return new class extends Migration
 {
@@ -24,7 +24,6 @@ return new class extends Migration
             $table->string('gateway', 20);
             $table->boolean('active');
             $table->string('mode', 4);
-            $table->boolean('key_rejected')->default(false);
             $table->jsonb('apple_pay_domains')->default('[]');
             $table->ulid('created_by');
             $table->timestampTz('created_at');
@@ -50,6 +49,7 @@ return new class extends Migration
             $table->text('secret_encrypted');
             $table->boolean('current');
             $table->smallInteger('warned_days')->nullable();
+            $table->timestampTz('rejected_at')->nullable();
             $table->ulid('set_by');
             $table->timestampTz('set_at');
             $table->timestampTz('retired_at')->nullable();

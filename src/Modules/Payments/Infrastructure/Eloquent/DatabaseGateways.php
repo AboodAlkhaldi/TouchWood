@@ -32,7 +32,7 @@ final readonly class DatabaseGateways implements Gateways
         $row = $this->db->table('payments.gateways')->where('store_id', strtolower($storeId))->first();
 
         return $row instanceof stdClass
-            ? new Gateway((string) $row->store_id, (bool) $row->active, PaymentMode::from((string) $row->mode), (bool) $row->key_rejected)
+            ? new Gateway((string) $row->store_id, (bool) $row->active, PaymentMode::from((string) $row->mode))
             : null;
     }
 
@@ -43,7 +43,6 @@ final readonly class DatabaseGateways implements Gateways
             'gateway' => 'MYFATOORAH',
             'active' => false,
             'mode' => $mode->value,
-            'key_rejected' => false,
             'apple_pay_domains' => '[]',
             'created_by' => $staffId,
             'created_at' => $now,
@@ -56,7 +55,6 @@ final readonly class DatabaseGateways implements Gateways
         $this->db->table('payments.gateways')->where('store_id', $gateway->storeId)->update([
             'active' => $gateway->active,
             'mode' => $gateway->mode->value,
-            'key_rejected' => $gateway->keyRejected,
             'updated_at' => $now,
         ]);
     }
@@ -115,6 +113,7 @@ final readonly class DatabaseGateways implements Gateways
             (string) $row->key_last6,
             new CarbonImmutable((string) $row->key_expires_on),
             $row->warned_days === null ? null : (int) $row->warned_days,
+            $row->rejected_at !== null,
             new CarbonImmutable((string) $row->set_at),
         );
     }

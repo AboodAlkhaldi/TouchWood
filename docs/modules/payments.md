@@ -154,7 +154,7 @@ These hold for every gateway, and every one has its tests in §8.
       other transaction can follow on that invoice from our page — the session is used, charging it
       again is refused, and the old bank page answers "Transaction not found" (§9.8);
     - otherwise **when MyFatoorah answers, or at the hold limit — 15 minutes after Pay — whichever
-      comes first** (`payments.hold_minutes`; owner, 2026-10-29, §9.8): **our own clock decides**. The
+      comes first** (`payments.timers.hold_minutes`; owner, 2026-10-29, §9.8): **our own clock decides**. The
       first build step proved that MyFatoorah does **not** stop a charged payment at its
       `PaymentExpiry`, nor at its session's expiry — a bank step finished 41 seconds after the one and
       two minutes after the other still succeeded — and that an unfinished payment stays `InProgress`
@@ -466,19 +466,19 @@ These hold for every gateway, and every one has its tests in §8.
 wait for myfatoorah to tell us, so if user clicks pay at 4.59 he can wait and still be able to see if
 request is successful")
 
-- **The window — 5 minutes** (`payments.window_minutes`, Super Admins; owner, 2026-10-28: replaces the
+- **The window — 5 minutes** (`payments.timers.window_minutes`, Super Admins; owner, 2026-10-28: replaces the
   60 minutes of 2026-10-19 P2). It starts **when Pay is pressed** (owner, 2026-10-28, Q4 (a)) — before
   that the checkout may stay open, nothing reserved. Inside it the customer finishes the bank's step;
   the page counts it down. MyFatoorah's own `PaymentExpiry` is still set to its end (it accepts one
   minute), but **it does not stop the payment** (§9.8): our page ends the window at 5 minutes, and the
   hold limit below is what ends the try.
-- **The wait — 2 minutes** (`payments.wait_minutes`, Super Admins; owner, 2026-10-28, §9.6 #1). At the end of
+- **The wait — 2 minutes** (`payments.timers.wait_minutes`, Super Admins; owner, 2026-10-28, §9.6 #1). At the end of
   the window our server asks MyFatoorah; **anything but paid or declined is waited for** — because
   MyFatoorah's `InProgress` is the same for the customer who pressed the bank's "confirm" at 4:59 and
   for one who left (rule 15). The page shows "Confirming your payment…" when it saw the customer finish
   the bank's step; the reservations stay. The answer comes → paid or released (§1.4 step 6); none by the
   wait's end → not taken (§1.4 step 7).
-- **The hold limit — 15 minutes after Pay** (`payments.hold_minutes`, Super Admins; owner, 2026-10-29,
+- **The hold limit — 15 minutes after Pay** (`payments.timers.hold_minutes`, Super Admins; owner, 2026-10-29,
   §9.8). A try MyFatoorah has not answered by then — `InProgress`, or not reachable — **is released by
   our own clock**: stock, coupon and points go back, `PaymentNotTaken` goes out, the page says the
   payment was not completed. MyFatoorah never ends such a payment by itself (§9.8), so nothing else
@@ -669,8 +669,8 @@ interface PaymentsApi
 | `RequestPayment`, `WithdrawRequest` | **`sales.order.edit`** — staff who manage orders (owner, 2026-10-27 P23) — checked by Sales, which calls Payments | That store |
 | `ReceiveNotice` (the webhook) | The signature — no staff, no customer | That store and mode |
 | `ReceiveAnswer` (the frame's message or the return to our address, from the page) | The buyer's session — the attempt must be theirs (rule 7) | That store |
-| `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.view`** — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
-| `CheckAttempt` (staff's "Ask the gateway now") | **`payments.view`** | That store |
+| `ListPayments` (all online attempts, by state — owner, 2026-10-27 P26), `ViewAttempt` (its transactions and calls — P15) | **`payments.payment.view`** (the permission catalog takes three parts — step 8, my pick) — given wherever `sales.order.view` is (accepted, 2026-10-28) | That store |
+| `CheckAttempt` (staff's "Ask the gateway now") | **`payments.payment.view`** | That store |
 | ~~`ReleaseTryByHand`~~ — **not built**: the hold limit releases every try first (§1.7, §9.8 #3) | ~~`payments.attempts.release`~~ | — |
 | `CheckAttempt` (each attempt's booked checks), `HourlyBackstop` (owner, 2026-10-28), `PrunePaymentLog` | System (reserved) | — |
 
@@ -732,8 +732,8 @@ Schema `payments`. Money in the smallest unit, `bigint`. Store-scoped rows name 
 | `payments.notices` | `id` bigint PK · `store_id` · `mode` · `event_reference` — **only notices whose signature checked out are stored**, unique per (`gateway`, `mode`); a bad one is only logged · `received_at` · `payload` jsonb (the card details and the customer's contact details removed) · `handled_at` NULL — kept 90 days (owner, 2026-10-27, §9.3 #8) |
 | `payments.calls` | `id` bigint PK · `attempt_id` NULL · `store_id` · `endpoint` · `request` jsonb (the key, the secret and the `Authorization` header never stored; the customer's contact details cleared on anonymizing — rule 13) · `http_status` NULL · `response` jsonb NULL (card details removed) · `error` NULL · `took_ms` · `at` — kept 1 year (owner, 2026-10-27, §9.3 #8) |
 
-Settings (Platform, declared by Payments): `payments.window_minutes` (STORE, 1–30, default **5** —
-owner 2026-10-28, Super Admins), `payments.wait_minutes` (STORE, 1–10, default **2** — owner
+Settings (Platform, declared by Payments): `payments.timers.window_minutes` (STORE, 1–30, default **5** —
+owner 2026-10-28, Super Admins), `payments.timers.wait_minutes` (STORE, 1–10, default **2** — owner
 2026-10-28, Super Admins), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
 account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `payments.bank.holder`,
 "may be empty", sensitive).
@@ -1074,7 +1074,7 @@ data removed).
 **The owner's decisions (2026-10-29):**
 
 1. **Our own clock — "we have to take control of everything"**: a try is released at the **hold limit,
-   15 minutes after Pay** (`payments.hold_minutes`, Super Admins), whatever MyFatoorah says; a bank step
+   15 minutes after Pay** (`payments.timers.hold_minutes`, Super Admins), whatever MyFatoorah says; a bank step
    finished after it is a refund due, listed for staff as needing attention (rule 15, §1.7). Chosen over
    60 minutes (as WooCommerce shops hold stock) and over holding until MyFatoorah answers, which P0
    showed may be never.

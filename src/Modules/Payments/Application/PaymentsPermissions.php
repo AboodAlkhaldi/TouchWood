@@ -23,7 +23,7 @@ final class PaymentsPermissions
     public const string BANK_ACCOUNT_UPDATE = 'payments.bank_account.update';
 
     /** The store's online payments, their attempts and calls; "Ask the gateway now". */
-    public const string VIEW = 'payments.view';
+    public const string VIEW = 'payments.payment.view';
 
     /**
      * @return list<PermissionDefinitionDto>

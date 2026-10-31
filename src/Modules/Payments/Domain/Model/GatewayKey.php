@@ -9,7 +9,7 @@ use Modules\Payments\Public\Enums\PaymentMode;
 
 /**
  * One key of a store's gateway as it may be shown (payments.md §1.2): never the key or the secret, only
- * its last 6 characters, its expiry date and when it was set.
+ * its last 6 characters, its expiry date, when it was set, and whether MyFatoorah has refused it.
  */
 final readonly class GatewayKey
 {
@@ -20,6 +20,7 @@ final readonly class GatewayKey
         public string $last6,
         public DateTimeImmutable $expiresOn,
         public ?int $warnedDays,
+        public bool $rejected,
         public DateTimeImmutable $setAt,
     ) {}
 }
