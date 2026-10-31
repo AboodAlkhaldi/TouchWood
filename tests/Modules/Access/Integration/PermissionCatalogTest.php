@@ -192,14 +192,17 @@ it('passes its own check of the renames and removals every module declared', fun
 
 it('gives every command handler a PERMISSION constant, save those that read it from elsewhere', function () {
     // UpdateSetting takes its permission from the setting's own definition, and Loyalty's Earn and
-    // Redeem, and the three settlements, take the calling module's, named by Sales on each call (loyalty.md §2.1), so they
-    // declare none — as Promotions' three writes for Sales (promotions.md §2.1), and Ops' two marks of a
+    // Redeem, the three settlements and the three steps of a points hold, take the calling module's, named by Sales on each call (loyalty.md §2.1, §9.7), so they
+    // declare none — as Promotions' three writes for Sales and its coupon hold's three (promotions.md §2.1, §9.6), and Ops' two marks of a
     // bell, which take the reader's own bell's, the shop's or the panel's (ops.md §1.2), and its staff message,
     // which takes send_one or send_many by its audience (ops.md §1.8); every other
     // handler must, or handlerPermissions() would pass over it.
     expect(handlersWithoutPermissionConstant())->toBe([
+        'Modules\Loyalty\Application\Command\ConfirmRedemption\ConfirmRedemptionHandler',
         'Modules\Loyalty\Application\Command\Earn\EarnHandler',
         'Modules\Loyalty\Application\Command\Redeem\RedeemHandler',
+        'Modules\Loyalty\Application\Command\ReleaseRedemption\ReleaseRedemptionHandler',
+        'Modules\Loyalty\Application\Command\ReserveRedemption\ReserveRedemptionHandler',
         'Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrderHandler',
         'Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrderHandler',
         'Modules\Loyalty\Application\Command\SettleReturnedOrder\SettleReturnedOrderHandler',
@@ -207,7 +210,10 @@ it('gives every command handler a PERMISSION constant, save those that read it f
         'Modules\Ops\Application\Command\MarkInboxEntryRead\MarkInboxEntryReadHandler',
         'Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler',
         'Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler',
+        'Modules\Promotions\Application\Command\ConfirmCoupon\ConfirmCouponHandler',
         'Modules\Promotions\Application\Command\RecordOrder\RecordOrderHandler',
+        'Modules\Promotions\Application\Command\ReleaseCoupon\ReleaseCouponHandler',
+        'Modules\Promotions\Application\Command\ReserveCoupon\ReserveCouponHandler',
         'Modules\Promotions\Application\Command\UpdateCouponUse\UpdateCouponUseHandler',
         'Modules\Promotions\Application\Command\UseCoupon\UseCouponHandler',
     ]);
