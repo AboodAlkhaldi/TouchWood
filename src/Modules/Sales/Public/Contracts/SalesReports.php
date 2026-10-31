@@ -7,6 +7,7 @@ namespace Modules\Sales\Public\Contracts;
 use DateTimeImmutable;
 use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
@@ -31,6 +32,13 @@ interface SalesReports
 
     /** **A return as its messages need it**: its order's number, state, the store's words when refused, the refund once completed. Null for none. */
     public function returnForMessage(string $returnId): ?ReturnMessageDto;
+
+    /**
+     * **A payment or a refund as its message needs it** (ops.md C9b, C10; the owner's go 2026-10-31): the
+     * record `PaymentRecorded` or `RefundRecorded` names (`moneyRecordId`) — which it is, its order and
+     * number, the amount and way, the day, and whether it was voided since. Null for none.
+     */
+    public function moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto;
 
     /**
      * **The daily report's orders** (ops.md §1.11 item 2) from `from` up to `to` (not included): placed —

@@ -96,6 +96,9 @@ it('gives an order as its message needs it, as sold, in the language asked', fun
         ->and(count($en->lines ?? []))->toBe(DB::table('sales.order_lines')->where('order_id', $order)->count())
         ->and($en?->lines[0]->name)->toBe((string) $line?->name_en)
         ->and($ar?->lines[0]->name)->toBe((string) $line?->name_ar)
+        // Where it goes, as placed (owner, 2026-10-31: the "order taken" email shows it).
+        ->and([$en?->recipientName, $en?->deliveryAddress])->toBe([(string) json_decode((string) $row?->address)->recipientName, (string) json_decode((string) $row?->address)->formatted])
+        ->and($en?->deliveryAddress)->not->toBe('')
         ->and(salesReports()->orderForMessage(strtolower((string) Str::ulid()), 'en'))->toBeNull()
         ->and(salesReports()->orderForMessage('nope', 'en'))->toBeNull();
 });
@@ -193,6 +196,23 @@ it('gives the money moved day by day in one query, oldest first, the days with n
 
     DB::table('sales.refunds')->where('amount_minor', 10_00)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);
     expect($rows(salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-19'), CarbonImmutable::parse('2026-10-19'))[0]->refunds))->toBe([]);
+
+it('gives a payment or a refund as its message needs it, and says when it was voided', function () {
+    ['order' => $order, 'number' => $number, 'customer' => $customer] = salesReportsOrder();
+    salesReportsShip($order);
+    app(RecordRefundHandler::class)->handle(new RecordRefund($order, '10.00', 'OTHER', null, 'Cash at the counter', '2026-10-21', (string) Str::uuid()));
+    [$payment, $refund] = [(string) DB::table('sales.payments')->where('order_id', $order)->value('id'), (string) DB::table('sales.refunds')->where('order_id', $order)->value('id')];
+    $paid = (int) DB::table('sales.orders')->where('id', $order)->value('paid_minor');
+    $read = static fn (string $id): ?array => ($one = salesReports()->moneyRecordForMessage($id)) === null ? null
+        : [$one->moneyRecordId, $one->kind, $one->orderId, $one->orderNumber, $one->customerId, $one->amount->minorUnits, $one->amount->currencyCode, $one->way, $one->happenedOn, $one->voided];
+
+    expect($read(strtoupper($payment)))->toBe([$payment, 'PAYMENT', $order, $number, $customer, $paid, 'SAR', 'BANK_TRANSFER', '2026-10-19', false])
+        ->and($read($refund))->toBe([$refund, 'REFUND', $order, $number, $customer, 10_00, 'SAR', 'OTHER', '2026-10-21', false])
+        ->and($read(strtolower((string) Str::ulid())))->toBeNull()
+        ->and($read('nope'))->toBeNull();
+
+    DB::table('sales.payments')->where('id', $payment)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);
+    expect(salesReports()->moneyRecordForMessage($payment)?->voided)->toBeTrue();
 });
 
 /** @return array{order: string, number: string, customer: string, first: string, second: string, variants: list<string>} an order delivered: 2 of 100.00 and 1 of 50.00 */

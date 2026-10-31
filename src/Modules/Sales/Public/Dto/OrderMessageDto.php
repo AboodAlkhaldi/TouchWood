@@ -8,8 +8,8 @@ use Shared\Domain\ValueObject\Money;
 
 /**
  * An order as Ops' messages about it need it (`SalesReports::orderForMessage`; ops.md §1.5): the number,
- * its state, the lines and totals as sold or as staff edited them, how it is paid and shipped, and the
- * reasons staff gave. Amounts in the order's currency.
+ * its state, the lines and totals as sold or as staff edited them, how it is paid and shipped, where it
+ * goes, and the reasons staff gave. Amounts in the order's currency.
  */
 final readonly class OrderMessageDto
 {
@@ -43,5 +43,9 @@ final readonly class OrderMessageDto
         public ?string $rejectionReason,
         /** Why it was cancelled (`CHANGED_MIND` … `BY_STAFF`); null while not cancelled. */
         public ?string $cancelReason,
+        /** Who it is delivered to, as placed (or as staff last set it). */
+        public string $recipientName,
+        /** The delivery address as placed (or as staff last set it), formatted in the store's way. */
+        public string $deliveryAddress,
     ) {}
 }
