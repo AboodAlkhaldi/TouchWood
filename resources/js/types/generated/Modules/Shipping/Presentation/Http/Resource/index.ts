@@ -1,4 +1,23 @@
 import type { MoneyData } from '../../../../Platform/Public/Dto';
+export type BoxData = {
+id: string,
+name: string,
+lengthMm: number,
+widthMm: number,
+heightMm: number,
+maxWeightG: number,
+active: boolean,
+};
+export type BoxesPage = {
+paddingMm: number,
+boxes: BoxData[],
+handPacked: PackingSizesData,
+filter: string | null,
+storeCode: string,
+storeName: string,
+storeIsActive: boolean,
+stores: StoreOptionData[],
+};
 export type CarrierCountryData = {
 code: string,
 name: string,
@@ -44,6 +63,19 @@ storeFreeAbove: MoneyData | null,
 mayManagePrices: boolean,
 currency: string,
 decimals: number,
+};
+export type PackingSizeData = {
+variantId: string,
+productName: string,
+code: string,
+values: string,
+photo: string | null,
+archived: boolean,
+};
+export type PackingSizesData = {
+rows: PackingSizeData[],
+next: string | null,
+total: number,
 };
 export type PickPlaceData = {
 id: string,

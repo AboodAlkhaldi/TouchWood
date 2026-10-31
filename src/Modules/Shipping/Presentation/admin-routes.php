@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Shipping\Presentation\Http\Controller\BoxesController;
 use Modules\Shipping\Presentation\Http\Controller\CarrierPricesController;
 use Modules\Shipping\Presentation\Http\Controller\CarriersController;
 
@@ -31,4 +32,14 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('shipping/carriers/{carrier}/prices', [CarrierPricesController::class, 'save'])->name('shipping.admin.carriers.prices.save');
         Route::post('shipping/carriers/{carrier}/prices/{group}/delete', [CarrierPricesController::class, 'delete'])->name('shipping.admin.carriers.prices.delete');
         Route::post('shipping/carriers/{carrier}/free-above', [CarrierPricesController::class, 'freeAbove'])->name('shipping.admin.carriers.free_above');
+
+        // The boxes and the sizes packed by hand (part 3); the order and the sizes before a box's own routes.
+        Route::get('shipping/boxes', [BoxesController::class, 'index'])->name('shipping.admin.boxes');
+        Route::post('shipping/boxes', [BoxesController::class, 'store'])->name('shipping.admin.boxes.store');
+        Route::post('shipping/boxes/order', [BoxesController::class, 'order'])->name('shipping.admin.boxes.order');
+        Route::get('shipping/boxes/sizes', [BoxesController::class, 'sizes'])->name('shipping.admin.boxes.sizes');
+        Route::post('shipping/boxes/sizes', [BoxesController::class, 'pack'])->name('shipping.admin.boxes.pack');
+        Route::post('shipping/boxes/{box}', [BoxesController::class, 'update'])->name('shipping.admin.boxes.update');
+        Route::post('shipping/boxes/{box}/switch', [BoxesController::class, 'switch'])->name('shipping.admin.boxes.switch');
+        Route::post('shipping/boxes/{box}/delete', [BoxesController::class, 'destroy'])->name('shipping.admin.boxes.delete');
     });

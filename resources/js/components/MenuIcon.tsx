@@ -89,6 +89,8 @@ const ICONS = {
     // Sales's Returns (sales.md §4.1): an icon the panel already draws.
     returns: RefreshCw,
     carriers: Truck,
+    // Shipping's Boxes (shipping.md §4.1 part 3): an icon the panel already draws.
+    boxes: Boxes,
 } as const;
 
 type Props = {
