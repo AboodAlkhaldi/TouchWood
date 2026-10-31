@@ -51,7 +51,7 @@ return [
             'If you did not do this, contact another Super Admin now.',
         ],
     ],
-    // NOT YET APPROVED by the owner (written 2026-10-31, Access amendment 91): a sign-in gave the right
+    // Written 2026-10-31 (amendment 91), approved for now (owner, 2026-10-31; full review at the end): a sign-in gave the right
     // password and then ran out of wrong authenticator app codes. The time only, in UTC.
     'staff_app_code_failed' => [
         'subject' => 'Someone used your password and failed the app code',
