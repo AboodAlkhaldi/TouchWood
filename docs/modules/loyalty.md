@@ -990,7 +990,7 @@ written, for the owner to review with the built screens. Each says what changing
 | P7 | **`ViewCustomerPoints` answers "not found" for a customer with no account in the store** unless the reader may view that customer (access.md amendment 44(c)) — the review found that today any points reader can confirm a customer id and read the name. **Not applied to adding a first point by hand** (`AddPoints`): that needs the admin-only job and a guessed id, and the backend's tests give such admins no customer view; **the owner, 2026-10-19: left as is** | One check in the handler |
 | P8 | **Handoff §14's "Customers › Loyalty" entry goes**: Points › Customers and the customer page's section (answers 1, 15) cover it; a third way in would be the same list twice in the menu | One menu entry |
 
-### 9.6 Stage 7 — **[ACCEPTED by the owner 2026-10-28; built with stage 7]**: points reserved while the customer pays online
+### 9.6 Stage 7 — **[ACCEPTED by the owner 2026-10-28; BUILT in stage 7 step 7 — §9.7]**: points reserved while the customer pays online
 
 Accepted by the owner on 2026-10-28 with payments.md. **Online, no order exists until the money is
 confirmed** (owner, 2026-10-28; sales.md §9.5 #4): Pay starts a checkout try that must hold the points it
@@ -1008,3 +1008,20 @@ placing as built):
 3. **`releaseRedemption(orderId)`** — the try did not pay: the points are free again **with their own
    dates**, and no redemption is recorded; points whose date passed while they were held expire at the
    release, as they would have. Once; nothing to release does nothing.
+
+### 9.7 Stage 7 step 7 — built, with the owner's answers and my picks (2026-10-29/31)
+
+Built as §9.6 says, with the gap answers 7.2–7.4 (scratchpad `stage7-gap-answers.md`):
+
+1. **`reserveRedemption(ReservePoints)`, `confirmRedemption(SettlePointsHold)`, `releaseRedemption(SettlePointsHold)`**
+   on `LoyaltyApi`; a hold is a row of `loyalty.redemption_holds` under the order's future id.
+2. **A hold moves no lot and writes no ledger entry** (gap 7.3 (a)); `balance()` shows the held points
+   (`PointsBalanceDto::$heldPoints`) — "500 points — 200 held for a payment".
+3. **Held points are untouchable** (gap 7.2 (a)): the account's free points — its live balance less its holds —
+   are what a quote, a redemption, another hold and a deduction by hand may use; a deduction into held
+   points is refused with `PointsHeld` (no number shown); a cancelled or returned order's covers skip them
+   (the settlement sees the lots less the held points, from the lots a redemption spends first).
+4. **A confirm is never checked again** (gap 7.4): the programme switched off meanwhile still confirms.
+5. Mine: **an account's lots do not expire while it holds points** (the hold limit, 15 minutes at most):
+   a confirm spends the lots live when the points were held; a release drops the hold, then the account's
+   lots whose date passed meanwhile expire — "as they would have" (§9.6).
