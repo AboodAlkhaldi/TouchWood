@@ -61,7 +61,11 @@ interface SalesReports
      *   coupon and the points, **without VAT and without shipping**; their VAT and shipping apart;
      * - **a refund on the day its return was asked**: the goods refunded by those completed, and those not
      *   finished estimated with the same arithmetic (`ReturnRefunds`) over the pieces received, or else
-     *   asked, in the order they were asked — each by return and order number, never a customer.
+     *   asked, in the order they were asked — each by return and order number, never a customer;
+     * - **the goods' VAT those refunds return**, counted the same way (`refundsVat`, `waitingRefundsVat`, each
+     *   waiting one's `estimateVat`; ops.md §1.11, the owner, 2026-10-30), so the VAT can be shown net of
+     *   refunds as revenue is. The shipping's VAT never rides along, as the shipping never does — but `vat`
+     *   is the orders' VAT as charged, the shipping's included.
      *
      * @return list<RevenueDayDto> by day
      */

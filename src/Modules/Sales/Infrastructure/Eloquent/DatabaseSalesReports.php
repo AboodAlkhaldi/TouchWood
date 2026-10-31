@@ -161,6 +161,8 @@ final readonly class DatabaseSalesReports implements SalesReports
         $sold = [];
         /** @var array<string, int> $refunds */
         $refunds = [];
+        /** @var array<string, int> $refundsVat */
+        $refundsVat = [];
         /** @var array<string, list<WaitingRefundDto>> $waiting */
         $waiting = [];
 
@@ -187,9 +189,10 @@ final readonly class DatabaseSalesReports implements SalesReports
             [$id, $key] = [(string) $return->id, (string) $return->day];
 
             if ($return->status === 'COMPLETED') {
-                $refunds[$key] = ($refunds[$key] ?? 0) + $goods[$id];
+                $refunds[$key] = ($refunds[$key] ?? 0) + $goods[$id]['goods'];
+                $refundsVat[$key] = ($refundsVat[$key] ?? 0) + $goods[$id]['vat'];
             } else {
-                $waiting[$key][] = new WaitingRefundDto($id, (string) $return->number, Money::of($goods[$id], $currency));
+                $waiting[$key][] = new WaitingRefundDto($id, (string) $return->number, Money::of($goods[$id]['goods'], $currency), Money::of($goods[$id]['vat'], $currency));
             }
         }
 
@@ -197,13 +200,15 @@ final readonly class DatabaseSalesReports implements SalesReports
         sort($days);
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
 
-        return array_map(static function (string $day) use ($sold, $refunds, $waiting, $money): RevenueDayDto {
+        return array_map(static function (string $day) use ($sold, $refunds, $refundsVat, $waiting, $money): RevenueDayDto {
             [$orders, $revenue, $vat, $shipping] = $sold[$day] ?? [0, 0, 0, 0];
             $list = $waiting[$day] ?? [];
 
             return new RevenueDayDto(
                 $day, $orders, $money($revenue), $money($vat), $money($shipping), $money($refunds[$day] ?? 0),
                 $money(array_sum(array_map(static fn (WaitingRefundDto $one): int => $one->estimate->minorUnits, $list))), $list,
+                $money($refundsVat[$day] ?? 0),
+                $money(array_sum(array_map(static fn (WaitingRefundDto $one): int => $one->estimateVat->minorUnits, $list))),
             );
         }, $days);
     }
@@ -254,12 +259,12 @@ final readonly class DatabaseSalesReports implements SalesReports
     }
 
     /**
-     * The goods each return refunds, or would (§1.8, `ReturnRefunds`): a completed one counted against the
+     * The goods each return refunds, or would, and their VAT (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
      * completed so far and those not finished asked before it, over the pieces received, or else asked.
      *
      * @param  list<stdClass>  $returns
-     * @return array<string, int> by return id
+     * @return array<string, array{goods: int, vat: int}> by return id: the goods, and the goods' VAT
      */
     private function goodsOf(array $returns): array
     {
@@ -316,8 +321,10 @@ final readonly class DatabaseSalesReports implements SalesReports
                 }
             }
 
-            // The goods alone: the shipping is outside revenue, so it never rides along here.
-            $goods[$id] = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0)['goods'];
+            // The goods alone: the shipping is outside revenue, so it never rides along here — and so what the
+            // refund holds beyond the goods is exactly their VAT.
+            $refund = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0);
+            $goods[$id] = ['goods' => $refund['goods'], 'vat' => $refund['refund'] - $refund['goods']];
         }
 
         return $goods;

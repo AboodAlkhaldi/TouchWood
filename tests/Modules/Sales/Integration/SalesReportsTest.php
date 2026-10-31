@@ -174,7 +174,7 @@ function salesReportsDelivered(): array
     return [...$sold, 'first' => $line(2), 'second' => $line(1)];
 }
 
-it('gives revenue by the store\'s day: the orders that count, the refunds of returns asked that day, the waiting ones estimated', function () {
+it('gives revenue by the store\'s day: the orders that count, the refunds of returns asked that day and their VAT, the waiting ones estimated', function () {
     ['order' => $order, 'number' => $number, 'customer' => $customer, 'first' => $first, 'second' => $second] = salesReportsDelivered();
     ['order' => $rejected] = salesReportsOrder();
     app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
@@ -193,6 +193,10 @@ it('gives revenue by the store\'s day: the orders that count, the refunds of ret
     $open = $ask($second);
 
     $row = DB::table('sales.orders')->where('id', $order)->first();
+    // The refund recorded on completing it, less its goods: the goods' VAT (no shipping: not every piece is back).
+    $doneVat = (int) DB::table('sales.returns')->where('id', $done)->value('refund_due_minor') - 100_00;
+    $openLine = DB::table('sales.order_lines')->where('id', $second)->first(['quantity', 'vat_share_minor']);
+    $openVat = intdiv((int) $openLine?->vat_share_minor, (int) $openLine?->quantity);
     $sa = StoreId::fromString(Fx::storeId('sa'));
     $days = salesReports()->revenueByDay($sa, CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
 
@@ -202,6 +206,8 @@ it('gives revenue by the store\'s day: the orders that count, the refunds of ret
         ->toBe([1, (int) $row?->goods_total_minor, (int) $row?->vat_minor, (int) $row?->shipping_fee_minor])
         ->and([$days[0]->refunds->minorUnits, $days[0]->waitingRefunds->minorUnits])->toBe([100_00, 50_00])
         ->and(array_map(static fn ($one): array => [$one->returnId, $one->orderNumber, $one->estimate->minorUnits], $days[0]->waiting))->toBe([[$open, $number, 50_00]])
+        ->and($doneVat)->toBeGreaterThan(0)
+        ->and([$days[0]->refundsVat->minorUnits, $days[0]->waitingRefundsVat->minorUnits, $days[0]->waiting[0]->estimateVat->minorUnits])->toBe([$doneVat, $openVat, $openVat])
         ->and(salesReports()->revenueByDay($sa, CarbonImmutable::now(), CarbonImmutable::now()->subDay()))->toBe([])
         ->and(fn () => salesReports()->revenueByDay(StoreId::fromString(strtolower((string) Str::ulid())), CarbonImmutable::now()->subDay(), CarbonImmutable::now()))
         ->toThrow(InvalidArgumentException::class);
@@ -238,7 +244,13 @@ it('estimates two returns not finished on one line one after the other, each pie
     $two = $ask();
 
     $days = salesReports()->revenueByDay(StoreId::fromString(Fx::storeId('sa')), CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
+    // The line's two pieces' VAT, as two returns move it: the first floor(S / 2), the second the rest.
+    $line = DB::table('sales.order_lines')->where('id', $first)->first(['quantity', 'vat_share_minor']);
+    $vat = (int) $line?->vat_share_minor;
 
-    expect(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits], $days[0]->waiting ?? []))->toBe([[$one, 100_00], [$two, 100_00]])
-        ->and($days[0]->waitingRefunds->minorUnits ?? null)->toBe(200_00);
+    expect((int) $line?->quantity)->toBe(2)
+        ->and($vat)->toBeGreaterThan(1)
+        ->and(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits, $w->estimateVat->minorUnits], $days[0]->waiting ?? []))
+        ->toBe([[$one, 100_00, intdiv($vat, 2)], [$two, 100_00, $vat - intdiv($vat, 2)]])
+        ->and([$days[0]->waitingRefunds->minorUnits ?? null, $days[0]->waitingRefundsVat->minorUnits ?? null])->toBe([200_00, $vat]);
 });

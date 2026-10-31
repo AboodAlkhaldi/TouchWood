@@ -14,5 +14,7 @@ final readonly class WaitingRefundDto
         public string $orderNumber,
         /** The goods it would refund, without VAT and shipping: the pieces received, or else those asked. */
         public Money $estimate,
+        /** The goods' VAT it would refund, estimated the same way. */
+        public Money $estimateVat,
     ) {}
 }

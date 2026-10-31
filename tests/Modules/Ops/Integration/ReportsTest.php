@@ -505,7 +505,7 @@ function reportsOneDayEach(string $day): void
         {
             $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');
 
-            return [new RevenueDayDto($this->day, 2, $sar(300_00), $sar(45_00), $sar(20_00), $sar(50_00), $sar(0), [])];
+            return [new RevenueDayDto($this->day, 2, $sar(300_00), $sar(45_00), $sar(20_00), $sar(50_00), $sar(0), [], $sar(7_50), $sar(0))];
         }
 
         public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto
