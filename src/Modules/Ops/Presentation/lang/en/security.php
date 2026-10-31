@@ -41,7 +41,7 @@ return [
         ],
         'action' => 'Confirm this email',
     ],
-    // NOT YET APPROVED by the owner (written 2026-10-30, amendment 90): sent when a Super Admin with no
+    // Written 2026-10-30 (amendment 90), approved for now (owner, 2026-10-31; full review at the end): sent when a Super Admin with no
     // phone SMS reaches sets a new number at sign-in. It names no number.
     'staff_phone_changed' => [
         'subject' => 'Your phone number was changed',

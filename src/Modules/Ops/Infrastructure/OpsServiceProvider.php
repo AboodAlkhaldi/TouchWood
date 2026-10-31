@@ -25,6 +25,14 @@ use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\CustomerUnblocked;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
+use Modules\B2B\Public\Events\CompanyApplicationSubmitted;
+use Modules\Feedback\Public\Events\QuestionAnswered;
+use Modules\Feedback\Public\Events\QuestionNotPublished;
+use Modules\Feedback\Public\Events\ReviewNotPublished;
+use Modules\Inventory\Public\Events\LowStockChanged;
+use Modules\Loyalty\Public\Events\PointsChangedByHand;
+use Modules\Loyalty\Public\Events\PointsEarned;
+use Modules\Ops\Application\Alerts\EventDeliveries;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportMailer;
 use Modules\Ops\Application\DailyReport\DailyReportRenderer;
@@ -66,8 +74,13 @@ use Modules\Ops\Infrastructure\External\LogEmailSender;
 use Modules\Ops\Infrastructure\External\LogNewsletterList;
 use Modules\Ops\Infrastructure\External\LogSmsSender;
 use Modules\Ops\Infrastructure\Files\LocalReportFiles;
+use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
 use Modules\Ops\Infrastructure\Listener\RefreshNewsletterSubscription;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutFeedback;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutOrder;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPoints;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutReturn;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
 use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
@@ -75,9 +88,25 @@ use Modules\Ops\Infrastructure\Queue\PruneDailyReportsJob;
 use Modules\Ops\Infrastructure\Queue\PruneOpsLogJob;
 use Modules\Ops\Infrastructure\Queue\PruneWrittenMessagesJob;
 use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
+use Modules\Ops\Infrastructure\Queue\QueuedEventDeliveries;
+use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Sales\Public\Events\OrderApproved;
+use Modules\Sales\Public\Events\OrderCameBack;
+use Modules\Sales\Public\Events\OrderCancelled;
+use Modules\Sales\Public\Events\OrderDelivered;
+use Modules\Sales\Public\Events\OrderEdited;
+use Modules\Sales\Public\Events\OrderPlaced;
+use Modules\Sales\Public\Events\OrderRejected;
+use Modules\Sales\Public\Events\OrderShipped;
+use Modules\Sales\Public\Events\ReturnAccepted;
+use Modules\Sales\Public\Events\ReturnCompleted;
+use Modules\Sales\Public\Events\ReturnReceived;
+use Modules\Sales\Public\Events\ReturnRefused;
+use Modules\Sales\Public\Events\ReturnRequested;
+use Modules\Sync\Public\Events\SyncNeedsAttention;
 
 /**
  * Ops (ops.md). Registered last: it reads every module's public surface and declares its permissions
@@ -89,6 +118,8 @@ use Modules\Platform\Public\Contracts\ReservedPaths;
  * newsletter's subscribers and Brevo's lists, and Access's consent, locale and anonymizing events.
  * Step 8: the reports' Excel writer.
  * Step 9: the daily report - its reader, its PDF, the files kept, the email at the time chosen.
+ * Steps 5 and 6: the customer messages and the staff alerts on the other modules' events, and the
+ * morning reminder before points expire.
  */
 final class OpsServiceProvider extends ServiceProvider
 {
@@ -112,6 +143,7 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->bind(ReportFiles::class, LocalReportFiles::class);
         $this->app->bind(DailyReportEmailQueue::class, QueuedDailyReportEmails::class);
         $this->app->bind(DailyReportMailer::class, DailyReportEmailMailer::class);
+        $this->app->bind(EventDeliveries::class, QueuedEventDeliveries::class);
 
         // The providers are adapters chosen by configuration (§2.2): a new one is a new class and a
         // line here. "log" writes what would be sent to the log, never on a live system.
@@ -170,6 +202,28 @@ final class OpsServiceProvider extends ServiceProvider
 
         Event::listen(CustomerAnonymized::class, [ForgetAnonymizedCustomer::class, 'handle']);
 
+        // The other modules' moments (§1.5, §1.6): the customer told, the staff alerted - each listener on
+        // the queue, once per event. OrderPlaced has both: the customer's C1 and the staff's S1.
+        foreach ([OrderPlaced::class, OrderApproved::class, OrderRejected::class, OrderShipped::class, OrderDelivered::class, OrderCancelled::class, OrderEdited::class, OrderCameBack::class] as $event) {
+            Event::listen($event, [TellCustomerAboutOrder::class, 'handle']);
+        }
+
+        foreach ([ReturnAccepted::class, ReturnRefused::class, ReturnReceived::class, ReturnCompleted::class] as $event) {
+            Event::listen($event, [TellCustomerAboutReturn::class, 'handle']);
+        }
+
+        foreach ([PointsEarned::class, PointsChangedByHand::class] as $event) {
+            Event::listen($event, [TellCustomerAboutPoints::class, 'handle']);
+        }
+
+        foreach ([QuestionAnswered::class, QuestionNotPublished::class, ReviewNotPublished::class] as $event) {
+            Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
+        }
+
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class] as $event) {
+            Event::listen($event, [AlertStaff::class, 'handle']);
+        }
+
         // Inbox entries, sent messages and handled events keep twelve months (§5). Scheduled work is
         // queued as a job, never run in the scheduler's own process.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
@@ -181,6 +235,8 @@ final class OpsServiceProvider extends ServiceProvider
             // The daily reports' files and rows, twelve months too (§5). Each one's email is queued by the
             // person who switched it on, not here: it must run on their behalf (§1.11).
             $schedule->job(PruneDailyReportsJob::class)->timezone('Asia/Riyadh')->dailyAt('04:50')->onOneServer();
+            // C14: the customers whose points expire a week from today, each store's own day (§1.5).
+            $schedule->job(RemindExpiringPointsJob::class)->timezone('Asia/Riyadh')->dailyAt('10:00')->onOneServer();
         });
 
         if (! $this->app->routesAreCached()) {

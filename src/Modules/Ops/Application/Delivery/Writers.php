@@ -14,6 +14,7 @@ use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
@@ -24,7 +25,7 @@ use Throwable;
 /**
  * What the commands of notices and staff messages share (ops.md §1.7, §1.8, §7): the staff member
  * writing, the store as a request names it, a time read in the store's time zone, and whether a store
- * has anyone to send to.
+ * - or one of its segments - has anyone to send to.
  */
 final readonly class Writers
 {
@@ -33,6 +34,7 @@ final readonly class Writers
         private PlatformApi $platform,
         private AccessApi $access,
         private Authorizer $authorizer,
+        private PromotionsApi $promotions,
     ) {}
 
     /**
@@ -129,5 +131,32 @@ final readonly class Writers
         }
 
         throw new InvalidOpsInput('audience', 'a store with customers');
+    }
+
+    /**
+     * The audience of a notice (§1.7): every customer of the store, or one of **its** segments, read
+     * through the store-scoped `PromotionsApi::segmentMembers` - another store's segment, or one that
+     * does not exist, is refused there as Promotions' `SegmentNotFound`; a segment with no member is an
+     * empty audience (§7).
+     *
+     * @return string|null the segment's id, in lowercase; none for every customer of the store
+     *
+     * @throws InvalidOpsInput
+     */
+    public function audience(StoreId $store, ?string $segmentId): ?string
+    {
+        if ($segmentId === null || trim($segmentId) === '') {
+            $this->requireCustomers($store);
+
+            return null;
+        }
+
+        $segmentId = strtolower(trim($segmentId));
+
+        if ($this->promotions->segmentMembers($store, $segmentId, null, 1) === []) {
+            throw new InvalidOpsInput('audience', 'a segment with customers');
+        }
+
+        return $segmentId;
     }
 }

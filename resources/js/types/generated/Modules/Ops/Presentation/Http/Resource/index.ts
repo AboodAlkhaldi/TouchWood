@@ -64,6 +64,7 @@ bellCount: number,
 emailCount: number,
 failedCount: number,
 createdAt: string,
+segmentId: string | null,
 };
 export type NoticesPageData = {
 notices: NoticeData[],

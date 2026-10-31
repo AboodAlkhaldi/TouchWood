@@ -32,7 +32,7 @@ return [
         'title' => 'Use Your Account',
         'detail' => 'This email belongs to an account. Sign in and switch on offers and news in your account.',
     ],
-    // Step 8's reports (§1.10, §7). NOT YET APPROVED by the owner.
+    // Step 8's reports (§1.10, §7). Wording approved for now (owner, 2026-10-31; full review at the end).
     'report_range_refused' => [
         'title' => 'Choose Other Days',
         'detail' => 'A report can\'t cover these days.',
@@ -65,7 +65,7 @@ return [
 
     'fields' => [
         'after' => 'place in the list',
-        // Step 8's reports (§1.10). NOT YET APPROVED by the owner.
+        // Step 8's reports (§1.10). Wording approved for now (owner, 2026-10-31; full review at the end).
         'report' => 'report',
         'from' => 'first day',
         'to' => 'last day',

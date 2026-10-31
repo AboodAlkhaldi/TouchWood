@@ -49,6 +49,7 @@ final readonly class WrittenPages
             $notice->emailCount,
             $notice->failedCount,
             self::utc($notice->createdAt),
+            $notice->segmentId,
         );
     }
 
