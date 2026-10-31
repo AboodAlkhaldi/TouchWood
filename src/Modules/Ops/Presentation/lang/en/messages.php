@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
-| Wording for the owner's approval (ops.md §1.1). Every message kind Ops sends (MessageKind), in the
+| Wording approved for now (owner, 2026-10-31; full review at the end) (ops.md §1.1). Every message kind Ops sends (MessageKind), in the
 | person's language: the bell's title and line, and the email's subject and lines. Fixed here - there
 | is no template editor (owner, round 1 #22). Numbers are written in Latin digits (owner, 2026-10-06).
 |
@@ -354,7 +354,7 @@ return [
         ],
     ],
 
-    // Step 7 (§1.7-§1.9). NOT YET APPROVED by the owner: the frame around what staff write, the
+    // Step 7 (§1.7-§1.9), approved for now (owner, 2026-10-31; full review at the end): the frame around what staff write, the
     // unsubscribe line, and the newsletter's confirmation. :title and :line are the staff's own words.
     'offer_notice' => [
         'title' => ':title',

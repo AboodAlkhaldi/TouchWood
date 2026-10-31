@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // The reports' words (ops.md §1.10, step 8): titles, sheets, notes and column headers of the Excel files
-// and their preview. NOT YET APPROVED by the owner.
+// and their preview. Wording approved for now (owner, 2026-10-31; full review at the end).
 return [
     'titles' => [
         'revenue' => 'Revenue',
