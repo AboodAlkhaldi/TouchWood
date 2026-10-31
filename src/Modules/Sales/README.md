@@ -127,5 +127,5 @@ Tests: `tests/Modules/Sales/Integration` — `SalesPermissionsTest`, `SalesSetti
 ## Ops' reads (sales.md §2.5; 2026-10-29)
 
 - `Public/Contracts/SalesReports` (bound to `Infrastructure/Eloquent/DatabaseSalesReports`): `orderForMessage`,
-  `returnForMessage`, `counts`, `moneyOn`, `transfersWaiting`, `revenueByDay` (refunds by the return's asked day,
+  `returnForMessage`, `moneyRecordForMessage`, `counts`, `moneyOn`, `transfersWaiting`, `revenueByDay` (refunds by the return's asked day,
   the waiting ones estimated with `Domain/Service/ReturnRefunds`), `productSales`. Tests: `tests/Modules/Sales/Integration/SalesReportsTest.php`.

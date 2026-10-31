@@ -25,8 +25,9 @@ interface SalesReports
 {
     /**
      * **An order as its messages need it**: number, state, lines and totals as sold (or as edited), way to
-     * pay, carrier and number, the reasons staff gave — names and values in `locale` (`ar`; anything else
-     * reads as English). Null for none. The tracking link comes with stage 7's Shipping.
+     * pay, carrier and number, where it goes (the recipient and the address formatted), the reasons staff
+     * gave — names and values in `locale` (`ar`; anything else reads as English). Null for none. The
+     * tracking link comes with stage 7's Shipping.
      */
     public function orderForMessage(string $orderId, string $locale): ?OrderMessageDto;
 

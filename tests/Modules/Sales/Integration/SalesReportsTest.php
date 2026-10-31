@@ -204,10 +204,10 @@ it('gives a payment or a refund as its message needs it, and says when it was vo
     [$payment, $refund] = [(string) DB::table('sales.payments')->where('order_id', $order)->value('id'), (string) DB::table('sales.refunds')->where('order_id', $order)->value('id')];
     $paid = (int) DB::table('sales.orders')->where('id', $order)->value('paid_minor');
     $read = static fn (string $id): ?array => ($one = salesReports()->moneyRecordForMessage($id)) === null ? null
-        : [$one->moneyRecordId, $one->kind, $one->orderId, $one->orderNumber, $one->customerId, $one->amount->minorUnits, $one->amount->currencyCode, $one->way, $one->happenedOn, $one->voided];
+        : [$one->moneyRecordId, $one->kind, $one->orderId, $one->orderNumber, $one->storeId, $one->customerId, $one->amount->minorUnits, $one->amount->currencyCode, $one->way, $one->happenedOn, $one->voided];
 
-    expect($read(strtoupper($payment)))->toBe([$payment, 'PAYMENT', $order, $number, $customer, $paid, 'SAR', 'BANK_TRANSFER', '2026-10-19', false])
-        ->and($read($refund))->toBe([$refund, 'REFUND', $order, $number, $customer, 10_00, 'SAR', 'OTHER', '2026-10-21', false])
+    expect($read(strtoupper($payment)))->toBe([$payment, 'PAYMENT', $order, $number, Fx::storeId('sa'), $customer, $paid, 'SAR', 'BANK_TRANSFER', '2026-10-19', false])
+        ->and($read($refund))->toBe([$refund, 'REFUND', $order, $number, Fx::storeId('sa'), $customer, 10_00, 'SAR', 'OTHER', '2026-10-21', false])
         ->and($read(strtolower((string) Str::ulid())))->toBeNull()
         ->and($read('nope'))->toBeNull();
 
