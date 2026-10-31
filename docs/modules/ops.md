@@ -306,6 +306,11 @@ categories add up to the net total — until Sales gives refunds by product, tha
 with no figures; Favourites keep archived products, marked; Searches cover at most 12 months, every other report
 at most 5 years, from 2020 to next year. A range that includes today is read until the moment it was asked,
 the same for every page, and says so; an all-stores report names that moment in the base store's time zone.
+**VAT is net of refunds** (owner, 2026-10-30; Sales #293): each day's VAT less the goods' VAT of the refunds asked
+that day (`refundsVat`), with "VAT if the waiting refunds go through" beside revenue's (`waitingRefundsVat`) and
+each waiting refund's VAT on its sheet (`estimateVat`). VAT is the goods' alone (owner: no VAT on shipping) - Ops
+takes Sales' `vat` as it is (Stage 7 makes it leave shipping out). **Money received is read day by day** in one
+read per store however long the range (`moneyByDay`, #295); by month, each month's days are summed.
 
 ### 1.11 The daily report
 
@@ -350,9 +355,11 @@ report's header date, its past-day check (a past day must also be before today i
 time of an all-stores email. **Revenue is net of refunds** (§1.10) everywhere it is shown - cards, today,
 yesterday, month to date, change, average order (net revenue ÷ orders that count) and the totals per currency;
 refunds stay as their own row, and "revenue if the waiting refunds go through" is net less the waiting ones.
-**VAT and revenue with VAT are net of refunds too** (owner, 2026-10-30): Sales is asked for `refundsVat` and
-`waitingRefundsVat` per day on `revenueByDay`; until that lands, the VAT and revenue-with-VAT rows (the store's
-Sales table and the totals per currency) show "waits for Sales", as transfers overdue wait for stage 7.
+**VAT and revenue with VAT are net of refunds too** (owner, 2026-10-30; Sales #293): VAT is the day's less the
+goods' VAT of the refunds asked that day (`refundsVat`), revenue with VAT is net revenue plus net VAT - in the
+store's Sales table and the totals per currency. Where refunds wait, "revenue with VAT if the waiting refunds go
+through" takes off their estimate and its VAT (`waitingRefundsVat`), and each waiting refund shows its VAT
+(`estimateVat`). VAT is the goods' alone (owner: no VAT on shipping); Ops takes Sales' `vat` as it is.
 The email runs as a delayed job queued by the person who switched it on and then by itself a day at a time, so
 it reads only what that person may see (no Access read answers that for another person; the owner accepted this
 design, 2026-10-30). The setting holds the one moment it may go next, moved on by compare-and-set with the next

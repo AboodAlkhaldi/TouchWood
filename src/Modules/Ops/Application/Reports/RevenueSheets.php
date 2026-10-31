@@ -7,12 +7,12 @@ namespace Modules\Ops\Application\Reports;
 use Generator;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Sales\Public\Contracts\SalesReports;
-use Modules\Sales\Public\Dto\MoneyDaysDto;
+use Modules\Sales\Public\Dto\MoneyByWayDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
 use Shared\Domain\ValueObject\Money;
 
 /**
- * The Revenue report (ops.md §1.10), from Sales' `revenueByDay` and `moneyOn` - each store in its own days,
+ * The Revenue report (ops.md §1.10), from Sales' `revenueByDay` and `moneyByDay` - each store in its own days,
  * then one total per currency, never converted.
  *
  * **Revenue is net of refunds** (owner, 2026-10-28; §1.10): what customers pay for the goods after the coupon
@@ -20,23 +20,21 @@ use Shared\Domain\ValueObject\Money;
  * Where returns are still waiting, "revenue if the waiting refunds go through" takes their estimate off too,
  * and the Waiting refunds sheet names them by return and order number - never a customer.
  *
- * **Waiting for Sales** - said, never a figure (owner, 2026-10-30):
- * - VAT net of refunds needs the refunds' VAT, which `revenueByDay` does not give yet;
- * - revenue **by category** must be net of refunds too, so the categories add up to the net total - and no
- *   Sales read gives refunds by product yet. Its sheet holds the columns and the note, no rows.
+ * **VAT is net of refunds too** (owner, 2026-10-30): the day's VAT less the goods' VAT of those refunds
+ * (`refundsVat`); "VAT if the waiting refunds go through" takes the waiting ones' VAT off too
+ * (`waitingRefundsVat`), each listed with its own (`estimateVat`). VAT is the goods' alone (owner: no VAT on
+ * shipping) - Sales' `vat` is taken as it is, never adjusted here.
+ *
+ * **Waiting for Sales** - said, never a figure (owner, 2026-10-30): revenue **by category** must be net of
+ * refunds too, so the categories add up to the net total - and no Sales read gives refunds by product yet.
+ * Its sheet holds the columns and the note, no rows.
  *
  * **Money received** is beside it, by the day the money moved (§1.10: "shown beside it, by the day the
- * payment arrived"): payments in and refunds out, by way. `moneyOn` sums a range, so it is asked once for
- * the whole range - a store with none is passed over - then once per day or month.
+ * payment arrived"): payments in and refunds out, by way - `moneyByDay`, one read per store however long the
+ * range, each month summed from its days when asked by month.
  */
 final readonly class RevenueSheets
 {
-    /**
-     * The most days Money received is read day by day: `moneyOn` costs two queries a day, so a longer range
-     * is read by month until Sales gives a read by day - and the sheet says so (coordinator, 2026-10-30).
-     */
-    public const int MONEY_DAYS = 93;
-
     public function __construct(
         private SalesReports $sales,
     ) {}
@@ -53,8 +51,6 @@ final readonly class RevenueSheets
         }
         $totals = count($stores) > 1 ? [$words->get('notes.totals')] : [];
         $when = $byMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day);
-        $moneyByMonth = $byMonth || $period->days() > self::MONEY_DAYS;
-        $moneyNotes = [$words->get('notes.money'), ...(! $byMonth && $moneyByMonth ? [$words->get('notes.money_by_month', ['days' => (string) self::MONEY_DAYS])] : []), ...$totals];
 
         return [
             new ReportSheet(
@@ -67,6 +63,7 @@ final readonly class RevenueSheets
                     $words->column('revenue', ColumnType::Money),
                     $words->column('revenue_if_waiting', ColumnType::Money),
                     $words->column('vat', ColumnType::Money),
+                    $words->column('vat_if_waiting', ColumnType::Money),
                     $words->column('shipping', ColumnType::Money),
                     $words->column('refunds', ColumnType::Money),
                     $words->column('waiting_refunds', ColumnType::Money),
@@ -78,7 +75,7 @@ final readonly class RevenueSheets
                 $words->get('sheets.money'),
                 [
                     $words->column('store', ColumnType::Text),
-                    $moneyByMonth ? $words->column('month', ColumnType::Month) : $words->column('day', ColumnType::Day),
+                    $when,
                     $words->column('currency', ColumnType::Text),
                     $words->column('way', ColumnType::Text),
                     $words->column('payments', ColumnType::Count),
@@ -86,8 +83,8 @@ final readonly class RevenueSheets
                     $words->column('refunds_made', ColumnType::Count),
                     $words->column('refunded', ColumnType::Money),
                 ],
-                $moneyNotes,
-                $this->moneyRows($stores, $period, $moneyByMonth, $words),
+                [$words->get('notes.money'), ...$totals],
+                $this->moneyRows($stores, $period, $byMonth, $words),
             ),
             new ReportSheet(
                 $words->get('sheets.waiting_refunds'),
@@ -98,6 +95,7 @@ final readonly class RevenueSheets
                     $words->column('order', ColumnType::Text),
                     $words->column('currency', ColumnType::Text),
                     $words->column('estimate', ColumnType::Money),
+                    $words->column('estimate_vat', ColumnType::Money),
                 ],
                 [$words->get('notes.waiting_list')],
                 $this->waitingRows($stores, $days, $words),
@@ -132,13 +130,13 @@ final readonly class RevenueSheets
 
         foreach ($stores as $store) {
             foreach (self::periods($days[$store->id], $byMonth, $store->currencyCode) as $period => $figures) {
-                yield self::revenueRow($words->store($store), (string) $period, $store->currencyCode, $store->currencyExponent, $figures, $words);
+                yield self::revenueRow($words->store($store), (string) $period, $store->currencyCode, $store->currencyExponent, $figures);
                 $totals[$store->currencyCode] = self::add($totals[$store->currencyCode], $figures);
             }
         }
 
         foreach ($totals as $currency => $figures) {
-            yield self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures, $words);
+            yield self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures);
         }
     }
 
@@ -146,7 +144,7 @@ final readonly class RevenueSheets
      * Each day's figures, or each month's summed.
      *
      * @param  list<RevenueDayDto>  $days
-     * @return array<string, array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money}>
+     * @return array<string, array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}>
      */
     private static function periods(array $days, bool $byMonth, string $currency): array
     {
@@ -156,9 +154,12 @@ final readonly class RevenueSheets
             $periods[$key] = self::add($periods[$key] ?? self::zeroFigures($currency), [
                 'orders' => $day->orders,
                 'revenue' => $day->revenue,
+                // Net of the refunds' VAT, as revenue is of the refunds.
+                'vat' => $day->vat->subtract($day->refundsVat),
                 'shipping' => $day->shipping,
                 'refunds' => $day->refunds,
                 'waiting' => $day->waitingRefunds,
+                'waitingVat' => $day->waitingRefundsVat,
             ]);
         }
 
@@ -166,13 +167,14 @@ final readonly class RevenueSheets
     }
 
     /**
-     * @param  array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money}  $figures
+     * @param  array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}  $figures
      * @return list<string|int|ReportMoney|null>
      */
-    private static function revenueRow(string $store, ?string $period, string $currency, int $exponent, array $figures, ReportWords $words): array
+    private static function revenueRow(string $store, ?string $period, string $currency, int $exponent, array $figures): array
     {
         $money = static fn (Money $amount): ReportMoney => new ReportMoney($amount, $exponent);
         $net = $figures['revenue']->subtract($figures['refunds']);
+        $waits = ! $figures['waiting']->isZero() || ! $figures['waitingVat']->isZero();
 
         return [
             $store,
@@ -180,40 +182,44 @@ final readonly class RevenueSheets
             $currency,
             $figures['orders'],
             $money($net),
-            $figures['waiting']->isZero() ? null : $money($net->subtract($figures['waiting'])),
-            $words->get('waits_sales'),
+            $waits ? $money($net->subtract($figures['waiting'])) : null,
+            $money($figures['vat']),
+            $waits ? $money($figures['vat']->subtract($figures['waitingVat'])) : null,
             $money($figures['shipping']),
             $money($figures['refunds']),
             $money($figures['waiting']),
         ];
     }
 
-    /** @return array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money} */
+    /** @return array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money} */
     private static function zeroFigures(string $currency): array
     {
         $zero = Money::zero($currency);
 
-        return ['orders' => 0, 'revenue' => $zero, 'shipping' => $zero, 'refunds' => $zero, 'waiting' => $zero];
+        return ['orders' => 0, 'revenue' => $zero, 'vat' => $zero, 'shipping' => $zero, 'refunds' => $zero, 'waiting' => $zero, 'waitingVat' => $zero];
     }
 
     /**
-     * @param  array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money}  $a
-     * @param  array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money}  $b
-     * @return array{orders: int, revenue: Money, shipping: Money, refunds: Money, waiting: Money}
+     * @param  array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}  $a
+     * @param  array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}  $b
+     * @return array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}
      */
     private static function add(array $a, array $b): array
     {
         return [
             'orders' => $a['orders'] + $b['orders'],
             'revenue' => $a['revenue']->add($b['revenue']),
+            'vat' => $a['vat']->add($b['vat']),
             'shipping' => $a['shipping']->add($b['shipping']),
             'refunds' => $a['refunds']->add($b['refunds']),
             'waiting' => $a['waiting']->add($b['waiting']),
+            'waitingVat' => $a['waitingVat']->add($b['waitingVat']),
         ];
     }
 
     /**
-     * Payments in and refunds out by way, per day or month, then one total per currency and way.
+     * Payments in and refunds out by way, per day or month, then one total per currency and way: one
+     * `moneyByDay` read per store, over its own days in the range.
      *
      * @param  non-empty-list<StoreDto>  $stores
      * @return Generator<int, list<string|int|ReportMoney|null>>
@@ -227,20 +233,25 @@ final readonly class RevenueSheets
 
         foreach ($stores as $store) {
             $exponents[$store->currencyCode] = $store->currencyExponent;
-            $periods = $period->periods($store, $byMonth);
-            if ($periods === []) {
-                continue;
-            }
-            // The whole range first: a store that moved no money is not asked day by day.
-            if (self::byWay($this->sales->moneyOn($store->storeId(), $periods[0][1], $periods[array_key_last($periods)][2]), $store->currencyCode) === []) {
+            $days = $period->storeDays($store);
+            if ($days === null) {
                 continue;
             }
 
-            foreach ($periods as [$key, $first, $last]) {
-                foreach (self::byWay($this->sales->moneyOn($store->storeId(), $first, $last), $store->currencyCode) as $way => $figures) {
+            // Each day's ways, or each month's summed from its days.
+            /** @var array<string, array<string, array{int, Money, int, Money}>> $periods by day or month, then way */
+            $periods = [];
+            foreach ($this->sales->moneyByDay($store->storeId(), $days[0], $days[1]) as $day) {
+                $key = $byMonth ? substr($day->day, 0, 7) : $day->day;
+                foreach (self::byWay($day->payments, $day->refunds, $store->currencyCode) as $way => $figures) {
+                    $periods[$key][$way] = self::addWay($periods[$key][$way] ?? null, $figures);
+                }
+            }
+
+            foreach ($periods as $key => $ways) {
+                foreach ($ways as $way => $figures) {
                     yield self::moneyRow($words->store($store), $key, $store->currencyCode, $store->currencyExponent, $way, $figures, $words);
-                    $sum = $totals[$store->currencyCode][$way] ?? [0, Money::zero($store->currencyCode), 0, Money::zero($store->currencyCode)];
-                    $totals[$store->currencyCode][$way] = [$sum[0] + $figures[0], $sum[1]->add($figures[1]), $sum[2] + $figures[2], $sum[3]->add($figures[3])];
+                    $totals[$store->currencyCode][$way] = self::addWay($totals[$store->currencyCode][$way] ?? null, $figures);
                 }
             }
         }
@@ -253,18 +264,30 @@ final readonly class RevenueSheets
     }
 
     /**
+     * @param  array{int, Money, int, Money}|null  $sum
+     * @param  array{int, Money, int, Money}  $figures
+     * @return array{int, Money, int, Money}
+     */
+    private static function addWay(?array $sum, array $figures): array
+    {
+        return $sum === null ? $figures : [$sum[0] + $figures[0], $sum[1]->add($figures[1]), $sum[2] + $figures[2], $sum[3]->add($figures[3])];
+    }
+
+    /**
      * Payments and refunds side by side, by way, in Sales' order of the ways.
      *
+     * @param  list<MoneyByWayDto>  $payments
+     * @param  list<MoneyByWayDto>  $refunds
      * @return array<string, array{int, Money, int, Money}> records in, amount in, records out, amount out
      */
-    private static function byWay(MoneyDaysDto $money, string $currency): array
+    private static function byWay(array $payments, array $refunds, string $currency): array
     {
         $ways = [];
         $zero = Money::zero($currency);
-        foreach ($money->payments as $payment) {
+        foreach ($payments as $payment) {
             $ways[$payment->way] = [$payment->records, $payment->amount, 0, $zero];
         }
-        foreach ($money->refunds as $refund) {
+        foreach ($refunds as $refund) {
             $ways[$refund->way] = [$ways[$refund->way][0] ?? 0, $ways[$refund->way][1] ?? $zero, $refund->records, $refund->amount];
         }
 
@@ -290,7 +313,7 @@ final readonly class RevenueSheets
         foreach ($stores as $store) {
             foreach ($days[$store->id] as $day) {
                 foreach ($day->waiting as $waiting) {
-                    yield [$words->store($store), $day->day, $waiting->returnId, $waiting->orderNumber, $store->currencyCode, new ReportMoney($waiting->estimate, $store->currencyExponent)];
+                    yield [$words->store($store), $day->day, $waiting->returnId, $waiting->orderNumber, $store->currencyCode, new ReportMoney($waiting->estimate, $store->currencyExponent), new ReportMoney($waiting->estimateVat, $store->currencyExponent)];
                 }
             }
         }

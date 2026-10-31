@@ -74,12 +74,6 @@ final readonly class ReportPeriod
         return min($this->fullEnd($store), $this->now->setTimezone(new DateTimeZone($store->timezone)));
     }
 
-    /** How many days the range names, both included. */
-    public function days(): int
-    {
-        return (int) new DateTimeImmutable($this->fromDay)->diff(new DateTimeImmutable($this->toDay))->days + 1;
-    }
-
     /** Whether the range reaches past the moment asked in any of the stores: it then runs "until" it. */
     public function cutAtNow(StoreDto ...$stores): bool
     {
@@ -93,23 +87,18 @@ final readonly class ReportPeriod
     }
 
     /**
-     * The store's days or months in the range up to the moment asked, each with its first and last day.
+     * The store's first and last day in the range up to the moment asked, as its own dates (midnight there);
+     * null when the range starts after that moment.
      *
-     * @return list<array{string, DateTimeImmutable, DateTimeImmutable}> the day (`Y-m-d`) or month (`Y-m`), first day, last day
+     * @return array{DateTimeImmutable, DateTimeImmutable}|null
      */
-    public function periods(StoreDto $store, bool $byMonth): array
+    public function storeDays(StoreDto $store): ?array
     {
         $zone = new DateTimeZone($store->timezone);
         $first = new DateTimeImmutable($this->fromDay.' 00:00:00', $zone);
         $last = new DateTimeImmutable($this->end($store)->modify('-1 second')->format('Y-m-d').' 00:00:00', $zone);
-        $periods = [];
 
-        for ($day = $first; $day <= $last; $day = $byMonth ? $day->modify('first day of next month') : $day->modify('+1 day')) {
-            $end = $byMonth ? min($day->modify('last day of this month'), $last) : $day;
-            $periods[] = [$day->format($byMonth ? 'Y-m' : 'Y-m-d'), $day, $end];
-        }
-
-        return $periods;
+        return $first <= $last ? [$first, $last] : null;
     }
 
     private function fullEnd(StoreDto $store): DateTimeImmutable
