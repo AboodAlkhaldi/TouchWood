@@ -196,6 +196,7 @@ it('gives the money moved day by day in one query, oldest first, the days with n
 
     DB::table('sales.refunds')->where('amount_minor', 10_00)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);
     expect($rows(salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-19'), CarbonImmutable::parse('2026-10-19'))[0]->refunds))->toBe([]);
+});
 
 it('gives a payment or a refund as its message needs it, and says when it was voided', function () {
     ['order' => $order, 'number' => $number, 'customer' => $customer] = salesReportsOrder();

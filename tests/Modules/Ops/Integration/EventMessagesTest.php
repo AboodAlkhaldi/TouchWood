@@ -108,6 +108,7 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
         $id, $order->number, $order->storeId, $order->customerId, $order->locale, $order->status, $order->shipmentStatus, $order->wayToPay,
         $locale === 'ar' ? [new OrderMessageLineDto('كرسي', [['attribute' => 'اللون', 'value' => 'بني']], 2, Money::of(20000, 'SAR'), false)] : $order->lines,
         $order->subtotal, $order->couponDiscount, $order->pointsDiscount, $order->shipping, $order->vat, $order->total, $order->carrier, $order->trackingNumber, $order->rejectionReason, $order->cancelReason,
+        $order->recipientName, $order->deliveryAddress,
     ));
     $sales->allows('returnForMessage')->andReturn($return);
     app()->instance(SalesReports::class, $sales);
@@ -119,7 +120,7 @@ function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?strin
         strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
-        $carrier, $tracking, $rejection, null,
+        $carrier, $tracking, $rejection, null, 'Sara Ali', 'King Fahd Road 12, Riyadh',
     );
 }
 
