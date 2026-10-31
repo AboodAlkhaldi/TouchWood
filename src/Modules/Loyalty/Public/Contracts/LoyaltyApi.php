@@ -15,8 +15,10 @@ use Modules\Loyalty\Public\Dto\PointsEntryDto;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
+use Modules\Loyalty\Public\Dto\ReservePoints;
 use Modules\Loyalty\Public\Dto\SettleEdit;
 use Modules\Loyalty\Public\Dto\SettleOrder;
+use Modules\Loyalty\Public\Dto\SettlePointsHold;
 use Modules\Loyalty\Public\Dto\SettleReturn;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -39,6 +41,18 @@ interface LoyaltyApi
 
     /** Takes the quoted points, inside the order's placement; once per order. */
     public function redeem(RedeemPoints $change): void;
+
+    /**
+     * Paying online (§9.6): the quoted points held for the try under the order's future id - every check
+     * of `redeem`, on the free points - and spent by nothing else while held. The same try again does nothing.
+     */
+    public function reserveRedemption(ReservePoints $change): void;
+
+    /** The paid order made: its held points become its redemption, with its number; never checked again. Once. */
+    public function confirmRedemption(SettlePointsHold $change): void;
+
+    /** The try did not pay: its points are free again with their own dates. Nothing to release does nothing. */
+    public function releaseRedemption(SettlePointsHold $change): void;
 
     /** Records the order's delivery and its points, even 0; once per order. */
     public function earn(EarnPoints $change): void;

@@ -6,10 +6,13 @@ namespace Modules\Loyalty\Application;
 
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
+use Modules\Loyalty\Application\Command\ConfirmRedemption\ConfirmRedemptionHandler;
 use Modules\Loyalty\Application\Command\Earn\Earn;
 use Modules\Loyalty\Application\Command\Earn\EarnHandler;
 use Modules\Loyalty\Application\Command\Redeem\Redeem;
 use Modules\Loyalty\Application\Command\Redeem\RedeemHandler;
+use Modules\Loyalty\Application\Command\ReleaseRedemption\ReleaseRedemptionHandler;
+use Modules\Loyalty\Application\Command\ReserveRedemption\ReserveRedemptionHandler;
 use Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrder;
 use Modules\Loyalty\Application\Command\SettleCancelledOrder\SettleCancelledOrderHandler;
 use Modules\Loyalty\Application\Command\SettleEditedOrder\SettleEditedOrder;
@@ -30,8 +33,10 @@ use Modules\Loyalty\Public\Dto\PointsEntryDto;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
+use Modules\Loyalty\Public\Dto\ReservePoints;
 use Modules\Loyalty\Public\Dto\SettleEdit;
 use Modules\Loyalty\Public\Dto\SettleOrder;
+use Modules\Loyalty\Public\Dto\SettlePointsHold;
 use Modules\Loyalty\Public\Dto\SettleReturn;
 use Modules\Loyalty\Public\Enums\EntryKind;
 use Shared\Domain\ValueObject\Money;
@@ -55,7 +60,25 @@ final readonly class LoyaltyApiImpl implements LoyaltyApi
         private SettleReturnedOrderHandler $returned,
         private SettleEditedOrderHandler $edited,
         private PointsReader $reader,
+        private ReserveRedemptionHandler $reserve,
+        private ConfirmRedemptionHandler $confirm,
+        private ReleaseRedemptionHandler $release,
     ) {}
+
+    public function reserveRedemption(ReservePoints $change): void
+    {
+        $this->reserve->handle($change);
+    }
+
+    public function confirmRedemption(SettlePointsHold $change): void
+    {
+        $this->confirm->handle($change);
+    }
+
+    public function releaseRedemption(SettlePointsHold $change): void
+    {
+        $this->release->handle($change);
+    }
 
     public function earningPreview(string $storeId, Money $goodsTotal): int
     {
