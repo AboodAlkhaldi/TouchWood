@@ -12,6 +12,7 @@ use Modules\Loyalty\Application\Command\DeductPoints\DeductPoints;
 use Modules\Loyalty\Application\Command\DeductPoints\DeductPointsHandler;
 use Modules\Loyalty\Application\LoyaltyPermissions;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
+use Modules\Loyalty\Domain\Exception\DeductionTooLarge;
 use Modules\Loyalty\Domain\Exception\PointsHeld;
 use Modules\Loyalty\Domain\Exception\RedemptionChanged;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
@@ -159,6 +160,32 @@ it('never covers a returned order\'s earning with held points (gap 7.2)', functi
 
     expect(loyaltyHoldsBalance($customer))->toBe(0)
         ->and(DB::table('loyalty.entries')->where('order_id', $try)->where('kind', 'REDEEMED')->value('points'))->toBe(-200);
+});
+
+it('expires a dead lot\'s points but those a hold keeps, and spends or deducts only free points (the review)', function () {
+    $customer = Fx::customer();
+    Lx::programme(settings: [ProgrammeSettings::EXPIRY_MONTHS => 1]);
+    loyaltyHoldsGive($customer, 200);
+    CarbonImmutable::setTestNow('2026-06-15 12:00:00 UTC');
+    loyaltyHoldsGive($customer, 100);
+    // Held a minute before the first lot's date: the hold keeps 50 of it.
+    CarbonImmutable::setTestNow('2026-07-01 11:59:00 UTC');
+    $try = loyaltyHoldsReserve($customer, Lx::quote($customer, 50, 1000_00), 1000_00);
+    CarbonImmutable::setTestNow('2026-07-01 12:01:00 UTC');
+    Fx::actAsAdmin(['sa'], [LoyaltyPermissions::ADJUST]);
+    $deduct = static fn (int $points) => app(DeductPointsHandler::class)->handle(new DeductPoints($customer, Fx::storeId('sa'), $points, 'A mistake'));
+
+    // The first lot's other 150 expired; 100 live and free, 50 kept.
+    expect(fn () => $deduct(200))->toThrow(DeductionTooLarge::class)
+        ->and(Lx::quote($customer, null, 1000_00)->mostUsable)->toBeLessThanOrEqual(100);
+
+    $deduct(100);
+    Fx::actAsCustomer($customer);
+    loyaltyHoldsConfirm($try);
+
+    expect(loyaltyHoldsBalance($customer))->toBe(0)
+        ->and((int) DB::table('loyalty.entries')->where('kind', 'EXPIRED')->sum('points'))->toBe(-150)
+        ->and(DB::table('loyalty.entries')->where('order_id', $try)->where('kind', 'REDEEMED')->value('points'))->toBe(-50);
 });
 
 it('keeps held points from expiring until the hold ends; expired at the release, spent at a confirm', function () {
