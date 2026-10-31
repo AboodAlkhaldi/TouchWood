@@ -17,6 +17,7 @@ use Modules\Loyalty\Domain\Exception\RedemptionChanged;
 use Modules\Loyalty\Domain\Repository\PointsAccounts;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsAccounts;
 use Modules\Loyalty\Infrastructure\Eloquent\DatabasePointsLedger;
+use Modules\Loyalty\Infrastructure\Eloquent\DatabaseRedemptionHolds;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Enums\Audience;
@@ -84,7 +85,7 @@ it('lets one of two placements at once through, and refuses the other; never bel
     // The second placement's own repositories, on its own connection.
     $other = new RedeemHandler(
         app(CallerCheck::class), app(ProgrammeReader::class), app(AccessApi::class),
-        new DatabasePointsAccounts($second), new DatabasePointsLedger($second),
+        new DatabasePointsAccounts($second), new DatabasePointsLedger($second), new DatabaseRedemptionHolds($second),
     );
     $secondOrder = loyaltyRaceRedeem($customer, $quote);
     $second->statement("SET lock_timeout = '500ms'");

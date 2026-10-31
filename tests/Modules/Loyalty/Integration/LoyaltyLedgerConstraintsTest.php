@@ -303,11 +303,18 @@ it('runs the migration itself down and up again', function () {
     $tables = static fn (): int => DB::table('information_schema.tables')->where('table_schema', 'loyalty')->count();
     $function = static fn (): bool => DB::table('pg_proc')->where('proname', 'ledger_is_append_only')->exists();
 
-    expect($tables())->toBe(8)->and($function())->toBeTrue();
+    // The holds of stage 7 (loyalty.md §9.6) name the accounts: their own migration goes first and comes back last.
+    $holds = require base_path('src/Modules/Loyalty/Infrastructure/Persistence/Migrations/2026_10_31_100000_create_redemption_holds.php');
 
+    expect($tables())->toBe(9)->and($function())->toBeTrue();
+
+    $holds->down();
     $migration->down();
     expect($tables())->toBe(0)->and($function())->toBeFalse();
 
     $migration->up();
     expect($tables())->toBe(8)->and($function())->toBeTrue();
+
+    $holds->up();
+    expect($tables())->toBe(9);
 });
