@@ -125,9 +125,17 @@ final readonly class DatabasePointsAccounts implements PointsAccounts
      * Expires the locked account's lots whose date has passed (§1.10): each loses its remaining points
      * as one EXPIRED entry, dated the moment of the write, with its movement, and the balance falls
      * by them. Answers the points expired; a lot already empty needs nothing.
+     *
+     * Not while the account holds points for an online payment (loyalty.md §9.6): held points are spent
+     * as they stood when held, and what passed meanwhile expires at the release - a try lasts the hold
+     * limit at most.
      */
     private function expireDeadLots(PointsAccount $account, DateTimeImmutable $now): int
     {
+        if ($this->db->table('loyalty.redemption_holds')->where('account_id', $account->id)->exists()) {
+            return 0;
+        }
+
         $dead = $this->db->table('loyalty.lots')
             ->where('account_id', $account->id)
             ->where('points_left', '>', 0)

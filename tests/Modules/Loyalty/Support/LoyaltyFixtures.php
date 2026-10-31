@@ -143,9 +143,9 @@ final class LoyaltyFixtures
                 return $this->hideUnderLock ? null : $this->real->lockOrder($orderId);
             }
 
-            public function redeem(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $points, int $discountMinor, int $capPercent, DateTimeImmutable $now): bool
+            public function redeem(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $points, int $discountMinor, int $capPercent, DateTimeImmutable $now, ?DateTimeImmutable $liveAt = null): bool
             {
-                return ! $this->recordedMeanwhile && $this->real->redeem($account, $orderId, $orderNumber, $currencyCode, $points, $discountMinor, $capPercent, $now);
+                return ! $this->recordedMeanwhile && $this->real->redeem($account, $orderId, $orderNumber, $currencyCode, $points, $discountMinor, $capPercent, $now, $liveAt);
             }
 
             public function earn(PointsAccount $account, string $orderId, string $orderNumber, string $currencyCode, int $goodsTotalMinor, int $points, DateTimeImmutable $expiresAt, DateTimeImmutable $now): ?int

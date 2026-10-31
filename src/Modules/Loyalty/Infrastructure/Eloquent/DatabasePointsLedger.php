@@ -45,6 +45,7 @@ final readonly class DatabasePointsLedger implements PointsLedger
         int $discountMinor,
         int $capPercent,
         DateTimeImmutable $now,
+        ?DateTimeImmutable $liveAt = null,
     ): bool {
         $this->guard();
 
@@ -65,7 +66,7 @@ final readonly class DatabasePointsLedger implements PointsLedger
             return false;
         }
 
-        $lots = $this->spendable($account, $now);
+        $lots = $this->spendable($account, $liveAt ?? $now);
         $entry = $this->entry($account, 'REDEEMED', -$points, $orderId, $now);
         $left = $points;
 
