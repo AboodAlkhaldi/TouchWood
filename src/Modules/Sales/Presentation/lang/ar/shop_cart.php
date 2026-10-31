@@ -60,10 +60,12 @@ return [
     'block' => [
         'ACCOUNT_NOT_ACTIVE' => 'لا يمكن لحسابك تقديم طلبات. تواصل مع المتجر للمساعدة.',
         'EMAIL_UNVERIFIED' => 'أكّد بريدك الإلكتروني لتقديم الطلبات.',
+        'PHONE_COUNTRY_NOT_SERVED' => 'لا يمكننا قبول الطلبات برقم جوال من هذه الدولة. غيّر رقم جوالك لتطلب.',
         'PHONE_UNVERIFIED' => 'أكّد رقم جوالك لتقديم الطلبات.',
         'COMPANY_NOT_APPROVED' => 'يجب اعتماد شركتك هنا قبل أن تطلب.',
         'fix' => [
             'EMAIL_UNVERIFIED' => 'تأكيد البريد الإلكتروني',
+            'PHONE_COUNTRY_NOT_SERVED' => 'تغيير رقم الجوال',
             'PHONE_UNVERIFIED' => 'تأكيد رقم الجوال',
             'COMPANY_NOT_APPROVED' => 'عرض شركتك',
         ],
