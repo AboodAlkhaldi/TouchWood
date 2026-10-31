@@ -17,6 +17,7 @@ use Modules\Loyalty\Domain\Exception\RedemptionChanged;
 use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Dto\ReservePoints;
 use Modules\Loyalty\Public\Dto\SettlePointsHold;
+use Modules\Loyalty\Public\Dto\SettleReturn;
 use Modules\Loyalty\Public\Enums\Audience;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
@@ -142,6 +143,22 @@ it('never lets a second try spend points the first holds', function () {
     // The second Pay was quoted before the first hold: refused as changed, never on held points.
     expect(fn () => loyaltyHoldsReserve($customer, $quote, 1000_00))->toThrow(RedemptionChanged::class)
         ->and(fn () => Lx::place($customer, $quote, 1000_00))->toThrow(RedemptionChanged::class);
+});
+
+it('never covers a returned order\'s earning with held points (gap 7.2)', function () {
+    $customer = Fx::customer();
+    // 300 earned on order X (1 point a riyal), then 200 by hand; order Y spends the 300 of X's lot first.
+    $x = Lx::deliver($customer, 300_00);
+    loyaltyHoldsGive($customer, 200);
+    Lx::place($customer, Lx::quote($customer, 300, 1000_00), 1000_00);
+    $try = loyaltyHoldsReserve($customer, Lx::quote($customer, 200, 1000_00), 1000_00);
+
+    // X returned whole: its 300 are out with Y, and the only other points are held - nothing covers them.
+    Fx::asSystem(fn () => DB::transaction(fn () => Lx::api()->orderReturned(new SettleReturn($x, Fx::storeId('sa'), Lx::orderId(), Lx::money(300_00), Lx::money(0), Lx::delivering()))));
+    loyaltyHoldsConfirm($try);
+
+    expect(loyaltyHoldsBalance($customer))->toBe(0)
+        ->and(DB::table('loyalty.entries')->where('order_id', $try)->where('kind', 'REDEEMED')->value('points'))->toBe(-200);
 });
 
 it('keeps held points from expiring until the hold ends; expired at the release, spent at a confirm', function () {

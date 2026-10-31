@@ -9,12 +9,19 @@ use Illuminate\Support\Facades\DB;
 use Modules\Pricing\Public\Dto\LinePriceDto;
 use Modules\Promotions\Domain\Exception\CouponRefused;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
+use Modules\Promotions\Domain\Model\Coupon;
+use Modules\Promotions\Domain\Model\CouponReservation;
+use Modules\Promotions\Domain\Model\CouponTerms;
+use Modules\Promotions\Domain\Model\CouponUsage;
+use Modules\Promotions\Domain\Model\CouponUse;
+use Modules\Promotions\Domain\Repository\Coupons;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\ReserveCoupon;
 use Modules\Promotions\Public\Dto\SettleReservation;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience;
 use Modules\Promotions\Public\Enums\CouponRefusal;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
@@ -196,6 +203,116 @@ it('takes the hold with a coupon deleted under it; the confirm then records noth
 
     expect(DB::table('promotions.coupon_reservations')->count())->toBe(0)
         ->and(DB::table('promotions.coupon_uses')->where('order_id', $try)->exists())->toBeFalse();
+});
+
+it('holds once when the same try comes twice at the same moment: the second finds the first under the lock', function () {
+    $customer = Fx::customer();
+    [$a] = Px::ready()['variants'];
+    $coupon = Pr::coupon();
+    Fx::actAsCustomer($customer);
+    $try = Pr::orderId();
+    $request = couponHoldsRequest($customer, [Pr::line($a, 200_00)]);
+    $quote = Pr::api()->applyCoupon($request);
+    $hold = new ReserveCoupon($try, $coupon, $request, $quote->discount ?? Pr::money(0), false, Pr::placing());
+    Pr::api()->reserveCoupon($hold);
+
+    // The second call's first look, before the lock, saw no hold yet - as a call racing the first does.
+    $real = app(Coupons::class);
+    app()->instance(Coupons::class, new class($real) implements Coupons
+    {
+        private int $looks = 0;
+
+        public function __construct(private Coupons $real) {}
+
+        public function reservationOf(string $orderId, bool $lock = false): ?CouponReservation
+        {
+            return ++$this->looks === 1 ? null : $this->real->reservationOf($orderId, $lock);
+        }
+
+        public function byCode(StoreId $store, string $code): ?Coupon
+        {
+            return $this->real->byCode($store, $code);
+        }
+
+        public function byId(StoreId $store, string $couponId): ?Coupon
+        {
+            return $this->real->byId($store, $couponId);
+        }
+
+        public function lock(StoreId $store, string $couponId): ?Coupon
+        {
+            return $this->real->lock($store, $couponId);
+        }
+
+        public function storeOf(string $couponId): ?StoreId
+        {
+            return $this->real->storeOf($couponId);
+        }
+
+        public function usage(StoreId $store, string $couponId, string $customerId): CouponUsage
+        {
+            return $this->real->usage($store, $couponId, $customerId);
+        }
+
+        public function useOf(string $orderId, bool $lock = false): ?CouponUse
+        {
+            return $this->real->useOf($orderId, $lock);
+        }
+
+        public function reserve(Coupon $coupon, string $customerId, string $orderId, int $discountMinor, DateTimeImmutable $at): void
+        {
+            $this->real->reserve($coupon, $customerId, $orderId, $discountMinor, $at);
+        }
+
+        public function dropReservation(string $orderId): bool
+        {
+            return $this->real->dropReservation($orderId);
+        }
+
+        public function recordUse(Coupon $coupon, string $customerId, string $orderId, string $orderNumber, int $discountMinor, DateTimeImmutable $at): void
+        {
+            $this->real->recordUse($coupon, $customerId, $orderId, $orderNumber, $discountMinor, $at);
+        }
+
+        public function lowerUse(string $orderId, string $editId, int $discountMinor): void
+        {
+            $this->real->lowerUse($orderId, $editId, $discountMinor);
+        }
+
+        public function codeTaken(StoreId $store, string $code): bool
+        {
+            return $this->real->codeTaken($store, $code);
+        }
+
+        public function create(string $couponId, StoreId $store, string $code, CouponTerms $terms, bool $active, DateTimeImmutable $at): void
+        {
+            $this->real->create($couponId, $store, $code, $terms, $active, $at);
+        }
+
+        public function change(Coupon $coupon, CouponTerms $terms, DateTimeImmutable $at): void
+        {
+            $this->real->change($coupon, $terms, $at);
+        }
+
+        public function switchTo(Coupon $coupon, bool $active, DateTimeImmutable $at): void
+        {
+            $this->real->switchTo($coupon, $active, $at);
+        }
+
+        public function wasUsed(Coupon $coupon): bool
+        {
+            return $this->real->wasUsed($coupon);
+        }
+
+        public function delete(Coupon $coupon): void
+        {
+            $this->real->delete($coupon);
+        }
+    });
+
+    Pr::api()->reserveCoupon($hold);
+
+    expect(couponHoldsHeld($coupon))->toBe(1);
 });
 
 it('refuses a hold for an order that already used a coupon, and a second coupon on one try', function () {
