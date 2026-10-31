@@ -98,6 +98,18 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         $this->email('staff_phone_changed', ['name' => $staff->firstName], $staff->locale, $staff->email, null, $staff);
     }
 
+    /**
+     * Access amendment 91 (owner, 2026-10-31): the time in UTC, written in Latin digits; nothing else
+     * about the attempt. A locked app step adds its line.
+     */
+    public function staffAppCodeFailed(StaffDto $staff, DateTimeImmutable $at, bool $locked): void
+    {
+        $values = ['name' => $staff->firstName, 'time' => CarbonImmutable::instance($at)->utc()->format('Y-m-d H:i').' UTC'];
+        $more = $locked ? [(string) $this->translator->get('ops::security.staff_app_code_failed.locked', $values, $staff->locale)] : [];
+
+        $this->email('staff_app_code_failed', $values, $staff->locale, $staff->email, null, $staff, null, $more);
+    }
+
     public function phoneCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
         $this->sms($phone, (string) $this->translator->get('ops::security.phone_code', ['code' => $code], $locale));

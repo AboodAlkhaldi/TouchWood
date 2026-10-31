@@ -72,6 +72,14 @@ interface SecurityMessages
      */
     public function staffPhoneChanged(StaffDto $staff): void;
 
+    /**
+     * Told to a staff member's email address at once when a sign-in ran out of wrong authenticator app
+     * codes - the right password was given, then the app's code failed every try (amendment 91; owner,
+     * 2026-10-31). It names the time only: no code, no address. $locked: the third such sign-in in 24
+     * hours, after which the app step stays locked until the password is reset.
+     */
+    public function staffAppCodeFailed(StaffDto $staff, DateTimeImmutable $at, bool $locked): void;
+
     /*
      * B2B's decisions about a company, told to the account holder (b2b.md §2.3; amendment 48).
      * B2B's own messages, sent from here until Ops, like every other email to a customer. Each
