@@ -163,6 +163,38 @@ it('gives the money moved by the day it moved and by way, never a voided record,
     expect(salesReports()->moneyOn($sa, CarbonImmutable::parse('2026-10-19'), CarbonImmutable::parse('2026-10-19'))->refunds)->toBe([]);
 });
 
+it('gives the money moved day by day in one query, oldest first, the days with nothing left out, never a voided record', function () {
+    ['order' => $paid] = salesReportsOrder();
+    salesReportsShip($paid);
+    $refund = static fn (string $amount, string $day) => app(RecordRefundHandler::class)->handle(new RecordRefund($paid, $amount, 'OTHER', null, 'Cash at the counter', $day, (string) Str::uuid()));
+    $refund('10.00', '2026-10-19');
+    $refund('5.00', '2026-10-21');
+    // A second way the same day, and a payment voided that day: the ways in order, the voided one never.
+    DB::table('sales.refunds')->insert([...(array) DB::table('sales.refunds')->where('amount_minor', 5_00)->first(), 'id' => strtolower((string) Str::ulid()), 'way' => 'BANK_TRANSFER', 'note' => null, 'amount_minor' => 3_00, 'request_id' => (string) Str::uuid()]);
+    DB::table('sales.payments')->insert([...(array) DB::table('sales.payments')->where('order_id', $paid)->first(), 'id' => strtolower((string) Str::ulid()), 'happened_on' => '2026-10-21', 'voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake', 'request_id' => (string) Str::uuid()]);
+
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    $rows = static fn (array $ways): array => array_map(static fn (MoneyByWayDto $way): array => [$way->way, $way->records, $way->amount->minorUnits], $ways);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $days = salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-18'), CarbonImmutable::parse('2026-10-25'));
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+    $whole = salesReports()->moneyOn($sa, CarbonImmutable::parse('2026-10-18'), CarbonImmutable::parse('2026-10-25'));
+
+    expect($queries)->toBe(1)
+        ->and(array_map(static fn ($day): array => [$day->day, $rows($day->payments), $rows($day->refunds)], $days))->toBe([
+            ['2026-10-19', [['BANK_TRANSFER', 1, (int) DB::table('sales.orders')->where('id', $paid)->value('paid_minor')]], [['OTHER', 1, 10_00]]],
+            ['2026-10-21', [], [['BANK_TRANSFER', 1, 3_00], ['OTHER', 1, 5_00]]],
+        ])
+        // The days add up to the whole range, as moneyOn reads it.
+        ->and($rows($whole->refunds))->toBe([['BANK_TRANSFER', 1, 3_00], ['OTHER', 2, 15_00]])
+        ->and(salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-22'), CarbonImmutable::parse('2026-10-25')))->toBe([]);
+
+    DB::table('sales.refunds')->where('amount_minor', 10_00)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);
+    expect($rows(salesReports()->moneyByDay($sa, CarbonImmutable::parse('2026-10-19'), CarbonImmutable::parse('2026-10-19'))[0]->refunds))->toBe([]);
+});
+
 /** @return array{order: string, number: string, customer: string, first: string, second: string, variants: list<string>} an order delivered: 2 of 100.00 and 1 of 50.00 */
 function salesReportsDelivered(): array
 {
@@ -174,7 +206,7 @@ function salesReportsDelivered(): array
     return [...$sold, 'first' => $line(2), 'second' => $line(1)];
 }
 
-it('gives revenue by the store\'s day: the orders that count, the refunds of returns asked that day, the waiting ones estimated', function () {
+it('gives revenue by the store\'s day: the orders that count, the refunds of returns asked that day and their VAT, the waiting ones estimated', function () {
     ['order' => $order, 'number' => $number, 'customer' => $customer, 'first' => $first, 'second' => $second] = salesReportsDelivered();
     ['order' => $rejected] = salesReportsOrder();
     app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
@@ -193,6 +225,10 @@ it('gives revenue by the store\'s day: the orders that count, the refunds of ret
     $open = $ask($second);
 
     $row = DB::table('sales.orders')->where('id', $order)->first();
+    // The refund recorded on completing it, less its goods: the goods' VAT (no shipping: not every piece is back).
+    $doneVat = (int) DB::table('sales.returns')->where('id', $done)->value('refund_due_minor') - 100_00;
+    $openLine = DB::table('sales.order_lines')->where('id', $second)->first(['quantity', 'vat_share_minor']);
+    $openVat = intdiv((int) $openLine?->vat_share_minor, (int) $openLine?->quantity);
     $sa = StoreId::fromString(Fx::storeId('sa'));
     $days = salesReports()->revenueByDay($sa, CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
 
@@ -202,6 +238,8 @@ it('gives revenue by the store\'s day: the orders that count, the refunds of ret
         ->toBe([1, (int) $row?->goods_total_minor, (int) $row?->vat_minor, (int) $row?->shipping_fee_minor])
         ->and([$days[0]->refunds->minorUnits, $days[0]->waitingRefunds->minorUnits])->toBe([100_00, 50_00])
         ->and(array_map(static fn ($one): array => [$one->returnId, $one->orderNumber, $one->estimate->minorUnits], $days[0]->waiting))->toBe([[$open, $number, 50_00]])
+        ->and($doneVat)->toBeGreaterThan(0)
+        ->and([$days[0]->refundsVat->minorUnits, $days[0]->waitingRefundsVat->minorUnits, $days[0]->waiting[0]->estimateVat->minorUnits])->toBe([$doneVat, $openVat, $openVat])
         ->and(salesReports()->revenueByDay($sa, CarbonImmutable::now(), CarbonImmutable::now()->subDay()))->toBe([])
         ->and(fn () => salesReports()->revenueByDay(StoreId::fromString(strtolower((string) Str::ulid())), CarbonImmutable::now()->subDay(), CarbonImmutable::now()))
         ->toThrow(InvalidArgumentException::class);
@@ -238,7 +276,13 @@ it('estimates two returns not finished on one line one after the other, each pie
     $two = $ask();
 
     $days = salesReports()->revenueByDay(StoreId::fromString(Fx::storeId('sa')), CarbonImmutable::now()->subHours(2), CarbonImmutable::now()->addMinute());
+    // The line's two pieces' VAT, as two returns move it: the first floor(S / 2), the second the rest.
+    $line = DB::table('sales.order_lines')->where('id', $first)->first(['quantity', 'vat_share_minor']);
+    $vat = (int) $line?->vat_share_minor;
 
-    expect(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits], $days[0]->waiting ?? []))->toBe([[$one, 100_00], [$two, 100_00]])
-        ->and($days[0]->waitingRefunds->minorUnits ?? null)->toBe(200_00);
+    expect((int) $line?->quantity)->toBe(2)
+        ->and($vat)->toBeGreaterThan(1)
+        ->and(array_map(static fn ($w): array => [$w->returnId, $w->estimate->minorUnits, $w->estimateVat->minorUnits], $days[0]->waiting ?? []))
+        ->toBe([[$one, 100_00, intdiv($vat, 2)], [$two, 100_00, $vat - intdiv($vat, 2)]])
+        ->and([$days[0]->waitingRefunds->minorUnits ?? null, $days[0]->waitingRefundsVat->minorUnits ?? null])->toBe([200_00, $vat]);
 });

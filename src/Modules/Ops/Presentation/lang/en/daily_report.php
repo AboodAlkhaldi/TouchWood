@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
-| The daily report's words (ops.md §1.11), for the owner's approval with its design. Numbers are written
+| The daily report's words (ops.md §1.11), approved for now (owner, 2026-10-31; full review at the end). Numbers are written
 | in Latin digits (owner, 2026-10-06); :placeholders are filled in the view.
 */
 return [

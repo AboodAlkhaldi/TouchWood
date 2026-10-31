@@ -22,6 +22,7 @@ final readonly class RevenueDayDto
         public int $orders,
         /** What their customers pay for the goods after the coupon and the points — without VAT, without shipping. */
         public Money $revenue,
+        /** Their VAT as charged: the goods' and the shipping's. */
         public Money $vat,
         public Money $shipping,
         /** The goods refunded by returns asked that day and completed. */
@@ -29,5 +30,9 @@ final readonly class RevenueDayDto
         /** The goods the returns asked that day and not finished would refund, estimated. */
         public Money $waitingRefunds,
         public array $waiting,
+        /** The goods' VAT those completed returns refunded (the shipping's never, as `refunds`). */
+        public Money $refundsVat,
+        /** The goods' VAT the returns not finished would refund, estimated as `waitingRefunds`. */
+        public Money $waitingRefundsVat,
     ) {}
 }

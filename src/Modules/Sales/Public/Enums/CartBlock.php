@@ -16,6 +16,11 @@ enum CartBlock: string
     /** Blocked, its deletion asked for, or emptied: verifying would not help. */
     case AccountNotActive = 'ACCOUNT_NOT_ACTIVE';
     case EmailUnverified = 'EMAIL_UNVERIFIED';
+    /**
+     * The saved phone's country is not on the SMS countries list (access.md amendment 90; the owner,
+     * 2026-10-30): verifying would not help — another number would.
+     */
+    case PhoneCountryNotServed = 'PHONE_COUNTRY_NOT_SERVED';
     case PhoneUnverified = 'PHONE_UNVERIFIED';
     /** A company account not approved in this store (B2B). */
     case CompanyNotApproved = 'COMPANY_NOT_APPROVED';

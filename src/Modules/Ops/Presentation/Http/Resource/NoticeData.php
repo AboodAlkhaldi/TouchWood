@@ -34,5 +34,7 @@ final class NoticeData extends Data
         public int $emailCount,
         public int $failedCount,
         public string $createdAt,
+        /** One of the store's Promotions segments (§1.7); null: every customer of the store. */
+        public ?string $segmentId,
     ) {}
 }

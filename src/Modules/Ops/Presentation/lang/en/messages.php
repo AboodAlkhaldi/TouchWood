@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
-| Wording for the owner's approval (ops.md §1.1). Every message kind Ops sends (MessageKind), in the
+| Wording approved for now (owner, 2026-10-31; full review at the end) (ops.md §1.1). Every message kind Ops sends (MessageKind), in the
 | person's language: the bell's title and line, and the email's subject and lines. Fixed here - there
 | is no template editor (owner, round 1 #22). Numbers are written in Latin digits (owner, 2026-10-06).
 |
@@ -57,6 +57,14 @@ return [
         'lines' => [
             'Hello :name,',
             'Your order :order has been shipped with :carrier.',
+        ],
+        // When the order names no carrier.
+        'without_carrier' => [
+            'line' => 'Your order is on its way.',
+            'lines' => [
+                'Hello :name,',
+                'Your order :order has been shipped.',
+            ],
         ],
         'optional' => [
             'tracking_number' => 'Tracking number: :tracking_number',
@@ -335,7 +343,26 @@ return [
         ],
     ],
 
-    // Step 7 (§1.7-§1.9). NOT YET APPROVED by the owner: the frame around what staff write, the
+    // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
+    // two emails (C1, C6b).
+    'open' => 'View details',
+    'summary' => [
+        'gift' => 'Free gift',
+        'subtotal' => 'Subtotal',
+        'coupon' => 'Coupon',
+        'points' => 'Points',
+        'shipping' => 'Shipping',
+        'vat' => 'VAT',
+        'total' => 'Total',
+        'way_to_pay' => 'Payment',
+        'ways' => [
+            'ONLINE' => 'Paid online',
+            'BANK_TRANSFER' => 'Bank transfer',
+            'STAFF_CONTACT' => 'Our team arranges payment with you',
+        ],
+    ],
+
+    // Step 7 (§1.7-§1.9), approved for now (owner, 2026-10-31; full review at the end): the frame around what staff write, the
     // unsubscribe line, and the newsletter's confirmation. :title and :line are the staff's own words.
     'offer_notice' => [
         'title' => ':title',

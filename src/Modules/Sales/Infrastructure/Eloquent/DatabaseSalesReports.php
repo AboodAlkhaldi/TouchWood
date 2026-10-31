@@ -11,6 +11,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Domain\Service\ReturnRefunds;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
+use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
@@ -124,6 +125,36 @@ final readonly class DatabaseSalesReports implements SalesReports
         return new MoneyDaysDto($read('sales.payments'), $read('sales.refunds'));
     }
 
+    public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array
+    {
+        [$from, $to] = [$fromDay->format('Y-m-d'), $toDay->format('Y-m-d')];
+        /** @var array<string, array{payments: list<MoneyByWayDto>, refunds: list<MoneyByWayDto>}> $days */
+        $days = [];
+
+        // Both tables at once, grouped in SQL by day, way and currency: one query for any range.
+        foreach ($this->db->select(<<<'SQL'
+            SELECT 'payments' AS kind, happened_on::text AS day, way, currency_code, count(*) AS records, sum(amount_minor) AS amount
+            FROM sales.payments WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+            GROUP BY 2, 3, 4
+            UNION ALL
+            SELECT 'refunds', happened_on::text, way, currency_code, count(*), sum(amount_minor)
+            FROM sales.refunds WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+            GROUP BY 2, 3, 4
+            ORDER BY 2, 1, 3
+            SQL, [$store->value, $from, $to, $store->value, $from, $to]) as $row) {
+            $day = (string) $row->day;
+            $days[$day] ??= ['payments' => [], 'refunds' => []];
+            $days[$day][$row->kind === 'payments' ? 'payments' : 'refunds'][] = new MoneyByWayDto(
+                (string) $row->way, (int) $row->records, Money::of((int) $row->amount, (string) $row->currency_code),
+            );
+        }
+
+        return array_map(
+            static fn (string $day, array $moved): MoneyDayDto => new MoneyDayDto($day, $moved['payments'], $moved['refunds']),
+            array_keys($days), $days,
+        );
+    }
+
     public function transfersWaiting(StoreId $store): TransfersWaitingDto
     {
         $row = $this->db->table('sales.orders')
@@ -161,6 +192,8 @@ final readonly class DatabaseSalesReports implements SalesReports
         $sold = [];
         /** @var array<string, int> $refunds */
         $refunds = [];
+        /** @var array<string, int> $refundsVat */
+        $refundsVat = [];
         /** @var array<string, list<WaitingRefundDto>> $waiting */
         $waiting = [];
 
@@ -187,9 +220,10 @@ final readonly class DatabaseSalesReports implements SalesReports
             [$id, $key] = [(string) $return->id, (string) $return->day];
 
             if ($return->status === 'COMPLETED') {
-                $refunds[$key] = ($refunds[$key] ?? 0) + $goods[$id];
+                $refunds[$key] = ($refunds[$key] ?? 0) + $goods[$id]['goods'];
+                $refundsVat[$key] = ($refundsVat[$key] ?? 0) + $goods[$id]['vat'];
             } else {
-                $waiting[$key][] = new WaitingRefundDto($id, (string) $return->number, Money::of($goods[$id], $currency));
+                $waiting[$key][] = new WaitingRefundDto($id, (string) $return->number, Money::of($goods[$id]['goods'], $currency), Money::of($goods[$id]['vat'], $currency));
             }
         }
 
@@ -197,13 +231,15 @@ final readonly class DatabaseSalesReports implements SalesReports
         sort($days);
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
 
-        return array_map(static function (string $day) use ($sold, $refunds, $waiting, $money): RevenueDayDto {
+        return array_map(static function (string $day) use ($sold, $refunds, $refundsVat, $waiting, $money): RevenueDayDto {
             [$orders, $revenue, $vat, $shipping] = $sold[$day] ?? [0, 0, 0, 0];
             $list = $waiting[$day] ?? [];
 
             return new RevenueDayDto(
                 $day, $orders, $money($revenue), $money($vat), $money($shipping), $money($refunds[$day] ?? 0),
                 $money(array_sum(array_map(static fn (WaitingRefundDto $one): int => $one->estimate->minorUnits, $list))), $list,
+                $money($refundsVat[$day] ?? 0),
+                $money(array_sum(array_map(static fn (WaitingRefundDto $one): int => $one->estimateVat->minorUnits, $list))),
             );
         }, $days);
     }
@@ -254,12 +290,12 @@ final readonly class DatabaseSalesReports implements SalesReports
     }
 
     /**
-     * The goods each return refunds, or would (§1.8, `ReturnRefunds`): a completed one counted against the
+     * The goods each return refunds, or would, and their VAT (§1.8, `ReturnRefunds`): a completed one counted against the
      * returns of its order completed before it, as its completion did; one not finished against every return
      * completed so far and those not finished asked before it, over the pieces received, or else asked.
      *
      * @param  list<stdClass>  $returns
-     * @return array<string, int> by return id
+     * @return array<string, array{goods: int, vat: int}> by return id: the goods, and the goods' VAT
      */
     private function goodsOf(array $returns): array
     {
@@ -316,8 +352,10 @@ final readonly class DatabaseSalesReports implements SalesReports
                 }
             }
 
-            // The goods alone: the shipping is outside revenue, so it never rides along here.
-            $goods[$id] = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0)['goods'];
+            // The goods alone: the shipping is outside revenue, so it never rides along here — and so what the
+            // refund holds beyond the goods is exactly their VAT.
+            $refund = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0);
+            $goods[$id] = ['goods' => $refund['goods'], 'vat' => $refund['refund'] - $refund['goods']];
         }
 
         return $goods;

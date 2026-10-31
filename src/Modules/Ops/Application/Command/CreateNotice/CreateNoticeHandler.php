@@ -53,8 +53,8 @@ final readonly class CreateNoticeHandler
 
         $text = WrittenText::of($command->titleAr, $command->titleEn, $command->bodyAr, $command->bodyEn, $command->link);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
-        $notice = Notice::write((string) Str::ulid(), $store->storeId(), $text, $command->byBell, $command->byEmail, Writers::sendAt($command->sendAt, $store), $staffId, $now);
-        $this->writers->requireCustomers($store->storeId());
+        $segment = $this->writers->audience($store->storeId(), $command->segmentId);
+        $notice = Notice::write((string) Str::ulid(), $store->storeId(), $text, $command->byBell, $command->byEmail, Writers::sendAt($command->sendAt, $store), $staffId, $now, $segment);
 
         $this->db->transaction(function () use ($notice): void {
             $this->notices->add($notice);

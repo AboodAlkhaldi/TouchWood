@@ -40,7 +40,7 @@ return [
         'ONLINE' => 'Paid online',
     ],
     'order' => [
-        // NOT YET APPROVED by the owner (2026-10-30): the delivery phone's label, access.md amendment 89.
+        // Approved for now (owner, 2026-10-31; full review at the end): the delivery phone's label, access.md amendment 89.
         'account_phone' => 'Account phone',
         'title' => 'Order :number',
         'back' => 'My Orders',

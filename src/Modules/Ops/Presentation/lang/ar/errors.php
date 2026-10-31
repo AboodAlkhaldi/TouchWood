@@ -32,7 +32,7 @@ return [
         'title' => 'استخدم حسابك',
         'detail' => 'هذا البريد مرتبط بحساب. سجّل الدخول وفعّل العروض والأخبار من حسابك.',
     ],
-    // Step 8's reports (§1.10, §7). NOT YET APPROVED by the owner.
+    // Step 8's reports (§1.10, §7). Wording approved for now (owner, 2026-10-31; full review at the end).
     'report_range_refused' => [
         'title' => 'اختر أيامًا أخرى',
         'detail' => 'لا يمكن أن يغطي التقرير هذه الأيام.',
@@ -65,7 +65,7 @@ return [
 
     'fields' => [
         'after' => 'الموضع في القائمة',
-        // Step 8's reports (§1.10). NOT YET APPROVED by the owner.
+        // Step 8's reports (§1.10). Wording approved for now (owner, 2026-10-31; full review at the end).
         'report' => 'التقرير',
         'from' => 'اليوم الأول',
         'to' => 'اليوم الأخير',

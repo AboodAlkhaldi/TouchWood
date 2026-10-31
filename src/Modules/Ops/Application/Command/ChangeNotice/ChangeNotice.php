@@ -20,5 +20,10 @@ final readonly class ChangeNotice
         public bool $byBell,
         public bool $byEmail,
         public ?string $sendAt,
+        /**
+         * The audience (§1.7): one of the store's Promotions segments; an empty text: every customer of
+         * the store; none: the notice keeps the audience it has.
+         */
+        public ?string $segmentId = null,
     ) {}
 }

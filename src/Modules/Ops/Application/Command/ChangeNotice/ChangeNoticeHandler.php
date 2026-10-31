@@ -51,10 +51,12 @@ final readonly class ChangeNoticeHandler
         $store = $this->writers->store($found->store->value);
         $text = WrittenText::of($command->titleAr, $command->titleEn, $command->bodyAr, $command->bodyEn, $command->link);
         $sendAt = Writers::sendAt($command->sendAt, $store);
+        // No audience given keeps the notice's; an empty one is every customer of the store.
+        $segment = $this->writers->audience($found->store, $command->segmentId ?? $found->segmentId);
 
-        $this->db->transaction(function () use ($found, $text, $command, $sendAt): void {
+        $this->db->transaction(function () use ($found, $text, $command, $sendAt, $segment): void {
             $notice = $this->notices->lock($found->id) ?? throw new NoticeNotFound;
-            $changed = $notice->changed($text, $command->byBell, $command->byEmail, $sendAt, CarbonImmutable::now()->toDateTimeImmutable());
+            $changed = $notice->changed($text, $command->byBell, $command->byEmail, $sendAt, CarbonImmutable::now()->toDateTimeImmutable(), $segment);
             $this->notices->update($changed);
             $this->platform->recordAudit(WrittenAudit::noticeChanged($notice, $changed));
 

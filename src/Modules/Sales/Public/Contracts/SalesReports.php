@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Public\Contracts;
 
 use DateTimeImmutable;
+use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
@@ -46,6 +47,16 @@ interface SalesReports
     public function moneyOn(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): MoneyDaysDto;
 
     /**
+     * **The money moved, day by day** (ops.md §1.10, the Excel "Money received" sheet): as `moneyOn`, but one
+     * row per day with anything in it, from `fromDay` to `toDay` both included, oldest first — each day's
+     * payments in and refunds out by way; voided records never. One query, however long the range. The days
+     * are the store's own, as for `moneyOn` (only the date is read).
+     *
+     * @return list<MoneyDayDto>
+     */
+    public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array;
+
+    /**
      * **The bank transfers still awaited** (ops.md §1.11 item 3): open orders to be paid by transfer that
      * hold less than they owe, and how much. Overdue ones are stage 7's mark (sales.md §9.5 #9). A store
      * that does not exist is refused (`InvalidArgumentException`), as by the two reads below.
@@ -61,7 +72,11 @@ interface SalesReports
      *   coupon and the points, **without VAT and without shipping**; their VAT and shipping apart;
      * - **a refund on the day its return was asked**: the goods refunded by those completed, and those not
      *   finished estimated with the same arithmetic (`ReturnRefunds`) over the pieces received, or else
-     *   asked, in the order they were asked — each by return and order number, never a customer.
+     *   asked, in the order they were asked — each by return and order number, never a customer;
+     * - **the goods' VAT those refunds return**, counted the same way (`refundsVat`, `waitingRefundsVat`, each
+     *   waiting one's `estimateVat`; ops.md §1.11, the owner, 2026-10-30), so the VAT can be shown net of
+     *   refunds as revenue is. The shipping's VAT never rides along, as the shipping never does — but `vat`
+     *   is the orders' VAT as charged, the shipping's included.
      *
      * @return list<RevenueDayDto> by day
      */

@@ -174,7 +174,8 @@ final readonly class ViewCartHandler
 
     /**
      * The first reason checkout would not take this account (§1.2 step 1) — Access's own rule for the person
-     * (`Customer::mayOrder`: active, both verified, no deletion asked for, not emptied), then B2B's for a
+     * (`Customer::mayOrder`: active, both verified, no deletion asked for, not emptied; and `customerMayOrder`'s
+     * phone SMS reaches, named apart because only another number helps), then B2B's for a
      * company — or null when it would.
      */
     private static function block(?string $customerId, ?CustomerDto $customer, bool $approvedCompany): ?CartBlock
@@ -183,6 +184,8 @@ final readonly class ViewCartHandler
             $customerId === null => CartBlock::SignIn,
             $customer === null || $customer->status !== CustomerStatus::Active || $customer->deletionScheduledFor !== null || $customer->anonymized => CartBlock::AccountNotActive,
             ! $customer->emailVerified => CartBlock::EmailUnverified,
+            // Before "verify": such a phone reads as unverified, but only another number helps.
+            ! $customer->phoneCountryAllowed => CartBlock::PhoneCountryNotServed,
             ! $customer->phoneVerified => CartBlock::PhoneUnverified,
             $customer->accountType === AccountType::Company && ! $approvedCompany => CartBlock::CompanyNotApproved,
             default => null,

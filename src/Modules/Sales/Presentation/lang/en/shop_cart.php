@@ -60,10 +60,12 @@ return [
     'block' => [
         'ACCOUNT_NOT_ACTIVE' => 'Your account can\'t place orders. Contact the store for help.',
         'EMAIL_UNVERIFIED' => 'Verify your email to place orders.',
+        'PHONE_COUNTRY_NOT_SERVED' => 'We can\'t take orders with a phone number from this country. Change your phone number to order.',
         'PHONE_UNVERIFIED' => 'Verify your phone number to place orders.',
         'COMPANY_NOT_APPROVED' => 'Your company must be approved here before it can order.',
         'fix' => [
             'EMAIL_UNVERIFIED' => 'Verify Email',
+            'PHONE_COUNTRY_NOT_SERVED' => 'Change Phone',
             'PHONE_UNVERIFIED' => 'Verify Phone',
             'COMPANY_NOT_APPROVED' => 'View Your Company',
         ],

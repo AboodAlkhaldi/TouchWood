@@ -321,7 +321,7 @@ it('writes the reader\'s language: Arabic headers and words, the sheet right to 
         ->and($sheet[0])->toBe(['الإيرادات'])
         ->and($sheet[1][0])->toBe("السعودية · من {$today} إلى {$today}")
         ->and($sheet[2][0])->toStartWith('تشمل الفترة اليوم: يُحتسب حتى ')
-        ->and($sheet[7])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد إذا تمت المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
+        ->and($sheet[7])->toBe(['المتجر', 'اليوم', 'العملة', 'الطلبات', 'الإيراد دون الضريبة', 'الإيراد بعد خصم المبالغ المستردة المنتظرة', 'ضريبة القيمة المضافة', 'الشحن', 'المبالغ المستردة', 'مبالغ مستردة منتظرة'])
         ->and($sheet[8][6])->toBe('بانتظار وحدة المبيعات (ضريبة المبالغ المستردة)')
         ->and($file['xml']['sheet1'])->toContain('rightToLeft="true"');
 });
@@ -496,6 +496,11 @@ function reportsOneDayEach(string $day): void
             return new MoneyDaysDto([], []);
         }
 
+        public function moneyByDay(StoreId $store, DateTimeImmutable $fromDay, DateTimeImmutable $toDay): array
+        {
+            return [];
+        }
+
         public function transfersWaiting(StoreId $store): TransfersWaitingDto
         {
             throw new LogicException('Not read by the reports.');
@@ -505,7 +510,7 @@ function reportsOneDayEach(string $day): void
         {
             $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');
 
-            return [new RevenueDayDto($this->day, 2, $sar(300_00), $sar(45_00), $sar(20_00), $sar(50_00), $sar(0), [])];
+            return [new RevenueDayDto($this->day, 2, $sar(300_00), $sar(45_00), $sar(20_00), $sar(50_00), $sar(0), [], $sar(7_50), $sar(0))];
         }
 
         public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto
