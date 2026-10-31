@@ -99,6 +99,10 @@ it('gives a coupon\'s code for the assigned message, none once it is deleted', f
         ->and($api->couponCode(strtolower((string) Str::ulid())))->toBeNull()
         ->and($api->couponCode('nope'))->toBeNull();
 
+    // Switched off since: the message still names it.
+    DB::table('promotions.coupons')->where('id', $coupon)->update(['active' => false]);
+    expect($api->couponCode($coupon))->toBe($code);
+
     DB::table('promotions.coupons')->where('id', $coupon)->delete();
     expect($api->couponCode($coupon))->toBeNull();
 });

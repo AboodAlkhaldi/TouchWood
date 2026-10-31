@@ -102,8 +102,8 @@ interface PromotionsApi
 
     /**
      * Ops' message for `CouponAssigned` (ops.md §1.5 C15; the owner's go 2026-10-31): **the code the
-     * customers type** for the event's `couponId`, as staff wrote it. Null for a coupon deleted since, or an
-     * id that is not one. Reads only.
+     * customers type** for the event's `couponId`, as saved (capitals, Latin digits) — switched off, ended or
+     * used up alike. Null for a coupon deleted since, or an id that is not one. Reads only.
      */
     public function couponCode(string $couponId): ?string;
 
