@@ -12,7 +12,6 @@ use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
-use Ramsey\Uuid\Uuid;
 
 /**
  * C14, points expiring (ops.md §1.5): **7 days** before a lot expires, one message per customer per day,
@@ -20,8 +19,9 @@ use Ramsey\Uuid\Uuid;
  * own day a week ahead, midnight to midnight in its time zone. Every store, a switched-off one too (owner,
  * 2026-10-29).
  *
- * Each message is sent once by an id made of the store, the customer and the day (a name-based UUID in
- * `ops.handled_events`): a run repeated the same day - a retry, a second worker - sends nothing again.
+ * Each message is sent once by an id made of the store, the customer and the day (a hash of the three,
+ * written as a UUID, in `ops.handled_events`): a run repeated the same day - a retry, a second worker -
+ * sends nothing again.
  */
 final readonly class ExpiringPointsReminder
 {
@@ -29,9 +29,6 @@ final readonly class ExpiringPointsReminder
 
     /** Customers a page. */
     public const int PAGE = 500;
-
-    /** The namespace of the ids C14 is sent once by. */
-    private const string NAMESPACE = 'b5c7f0de-5a8f-4a43-9b2e-0b6a4f3e7c14';
 
     public function __construct(
         private PlatformApi $platform,
@@ -56,7 +53,7 @@ final readonly class ExpiringPointsReminder
                     }
 
                     $message = new EventMessage(MessageKind::PointsExpiring, $store->id, ['points' => $row->points, 'date' => $date]);
-                    $once = Uuid::uuid5(self::NAMESPACE, "{$store->id}|".strtolower($row->customerId)."|{$date}")->toString();
+                    $once = self::onceId($store->id, $row->customerId, $date);
 
                     $this->handled->once($once, self::class, fn () => $this->customers->tell($message, $row->customerId));
                 }
@@ -64,5 +61,13 @@ final readonly class ExpiringPointsReminder
                 $after = $page->next;
             } while ($after !== null);
         }
+    }
+
+    /** The same id for the same store, customer and day, always: the first 32 hex digits of a SHA-1. */
+    public static function onceId(string $storeId, string $customerId, string $date): string
+    {
+        $hash = substr(sha1('points_expiring|'.strtolower($storeId).'|'.strtolower($customerId).'|'.$date), 0, 32);
+
+        return implode('-', [substr($hash, 0, 8), substr($hash, 8, 4), substr($hash, 12, 4), substr($hash, 16, 4), substr($hash, 20, 12)]);
     }
 }

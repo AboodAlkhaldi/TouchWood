@@ -127,11 +127,11 @@ function eventMessagesBell(?string $customerId = null, ?string $staffId = null):
 /** @return list<string> "KIND CHANNEL STATUS" */
 function eventMessagesSent(?string $customerId = null, ?string $staffId = null): array
 {
-    return DB::table('ops.sent_messages')
+    return array_values(DB::table('ops.sent_messages')
         ->when($customerId !== null, fn ($query) => $query->where('customer_id', strtolower((string) $customerId)))
         ->when($staffId !== null, fn ($query) => $query->where('staff_id', strtolower((string) $staffId)))
         ->orderBy('created_at')->get()
-        ->map(static fn (object $row): string => "{$row->kind} {$row->channel} {$row->status}")->values()->all();
+        ->map(static fn (object $row): string => "{$row->kind} {$row->channel} {$row->status}")->all());
 }
 
 function eventMessagesSwitch(string $staffId, StaffNotificationTopic $topic, bool $panel, bool $email): void
@@ -215,7 +215,8 @@ describe('messages to customers (§1.5)', function () {
 
         expect($withReason)->toContain('Reason: Out of stock')
             ->and(str_contains($without, 'Reason:'))->toBeFalse()
-            ->and($shipped)->toContain('has been shipped with SMSA')->toContain('Tracking number: TRK123')->not->toContain('Track your order');
+            ->and($shipped)->toContain('has been shipped with SMSA')->toContain('Tracking number: TRK123')
+            ->and(str_contains($shipped, 'Track your order'))->toBeFalse();
     });
 
     it('tells the store\'s return window on delivery, and a cancellation, consent or not: service messages ignore it', function () {
