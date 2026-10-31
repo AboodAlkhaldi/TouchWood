@@ -218,6 +218,13 @@ describe('test or live, on or off (§1.2; gap 8.2)', function () {
         expect(Fx::audits('payments.gateway.mode_switched', payStore()))->toBe(1);
     });
 
+    it('never switches on a gateway whose mode has no key', function () {
+        // No command leaves a gateway without a key for its mode; a row written another way is still refused.
+        DB::table('payments.gateways')->insert(['store_id' => strtolower(payStore()), 'gateway' => 'MYFATOORAH', 'active' => false, 'mode' => 'LIVE', 'created_by' => Fx::staff(), 'created_at' => now(), 'updated_at' => now()]);
+
+        expect(fn () => app(SwitchGatewayHandler::class)->handle(new SwitchGateway(payStore(), true)))->toThrow(NoGatewayKey::class);
+    });
+
     it('switches on, and off, and audits each once', function () {
         saveKey(payStore(), 'TEST');
         app(SwitchGatewayHandler::class)->handle(new SwitchGateway(payStore(), true));
@@ -303,9 +310,11 @@ describe('the expiry warnings (§1.2; gap 8.7)', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-12-30 00:05', 'Asia/Riyadh'));
         expect($send())->toBe(1)->and($send())->toBe(0);
 
-        // Past its date: no more warnings; payment goes on until MyFatoorah refuses the key (gap 8.6).
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2027-01-02 00:05', 'Asia/Riyadh'));
-        expect($send())->toBe(0);
+        // Past its date: no more warnings; payment goes on until MyFatoorah refuses the key (gap 8.6). Five
+        // minutes into the store's day, still the day before in UTC, the date is a day behind.
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2027-01-01 00:05', 'Asia/Riyadh'));
+        expect($send())->toBe(0)
+            ->and(app(ViewGatewayHandler::class)->handle(new ViewGateway(payStore()))->liveKey['daysLeft'] ?? null)->toBe(-1);
 
         $store = strtolower(payStore());
         expect(warnings())->toEqual([
