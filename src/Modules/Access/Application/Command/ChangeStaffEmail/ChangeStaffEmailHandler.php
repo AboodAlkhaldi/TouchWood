@@ -12,11 +12,13 @@ use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Application\Staff\InvitationDelivery;
 use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Staff\StaffMapper;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Model\StaffUser;
@@ -52,12 +54,15 @@ final readonly class ChangeStaffEmailHandler
         private Connection $db,
     ) {}
 
+    /**
+     * @throws InvitationNotSent someone still invited: the new email is saved; only the email failed
+     */
     public function handle(ChangeStaffEmail $command): void
     {
         $this->rules->requireSomewhere(self::PERMISSION);
         $email = EmailAddress::of($command->newEmail);
 
-        $this->db->transaction(function () use ($command, $email): void {
+        $delivery = $this->db->transaction(function () use ($command, $email): ?InvitationDelivery {
             $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
 
             foreach ($this->rules->scopesFor($this->assignments->byStaff($target->id())?->staffStores()) as $scope) {
@@ -90,9 +95,7 @@ final readonly class ChangeStaffEmailHandler
             }
 
             if ($target->status() === StaffStatus::Invited) {
-                $this->replaceInvitation($target, $email, $author->staffId);
-
-                return;
+                return $this->replaceInvitation($target, $email, $author->staffId);
             }
 
             $link = SecretTokens::issue();
@@ -101,7 +104,11 @@ final readonly class ChangeStaffEmailHandler
 
             // Sent to the new address: it becomes the email only once its owner uses the link.
             $this->db->afterCommit(fn () => $this->messages->staffEmailChange(StaffMapper::toDto($target), $email->value, $this->links->emailChange($link['token'])));
+
+            return null;
         }, 3);
+
+        $delivery?->requireSent();
     }
 
     /**
@@ -109,12 +116,14 @@ final readonly class ChangeStaffEmailHandler
      * one. The email changes at once and a new invitation goes there; the link sent to the old
      * address — perhaps a stranger's, if it was mistyped — dies (amendment 25).
      */
-    private function replaceInvitation(StaffUser $target, EmailAddress $email, ?string $authorId): void
+    private function replaceInvitation(StaffUser $target, EmailAddress $email, ?string $authorId): InvitationDelivery
     {
         $before = clone $target;
         $target->changeEmail($email);
         $this->staff->update($target);
-        $this->invitations->send($target, $authorId);
+        $delivery = $this->invitations->send($target, $authorId);
         $this->platform->recordAudit(StaffAudit::updated('access.staff_user.email_changed', $before, $target, $target->pullChanges()));
+
+        return $delivery;
     }
 }

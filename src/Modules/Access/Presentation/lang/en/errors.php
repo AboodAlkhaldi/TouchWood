@@ -88,6 +88,10 @@ return [
         'title' => 'Email Already Used',
         'detail' => 'Couldn\'t use this email: another account already has it. Enter a different email.',
     ],
+    'invitation_not_sent' => [
+        'title' => 'Invitation Email Not Sent',
+        'detail' => 'Couldn\'t send the invitation email, but the account is saved. Press Resend Invitation to try again.',
+    ],
     'phone_already_in_use' => [
         'title' => 'Phone Number Already Used',
         'detail' => 'Couldn\'t use this phone number: another account already has it. Enter a different number.',

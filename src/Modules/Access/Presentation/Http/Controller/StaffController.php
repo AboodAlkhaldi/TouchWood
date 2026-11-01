@@ -35,6 +35,7 @@ use Modules\Access\Application\Query\ListStaff\StaffSummary;
 use Modules\Access\Application\Query\RoleEditorPermissions\RoleEditorPermissionsHandler;
 use Modules\Access\Application\Query\ViewStaff\ViewStaff;
 use Modules\Access\Application\Query\ViewStaff\ViewStaffHandler;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\StaffPages;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -108,6 +109,8 @@ final readonly class StaffController
     {
         try {
             $handler->handle(new ChangeStaffEmail($staffId, $request->string('email')->toString()));
+        } catch (InvitationNotSent) {
+            return back()->with('warning', __('access::staff.email_changed_invitation_not_sent'));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['email']);
         }
@@ -166,6 +169,9 @@ final readonly class StaffController
                     $admin ? RoleLevel::Admin : RoleLevel::Staff,
                 ),
             ));
+        } catch (InvitationNotSent $notSent) {
+            // The member exists now: their page, where Resend Invitation is, never the form again.
+            return redirect("/admin/staff/{$notSent->staffId}")->with('warning', __('access::staff.invitation_not_sent'));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, $fields);
         }
@@ -250,6 +256,8 @@ final readonly class StaffController
     {
         try {
             $handler->handle(new ResendStaffInvitation($staffId));
+        } catch (InvitationNotSent) {
+            return back()->with('warning', __('access::staff.invitation_resend_failed'));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }

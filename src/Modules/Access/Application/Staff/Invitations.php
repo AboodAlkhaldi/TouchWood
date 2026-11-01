@@ -16,7 +16,8 @@ use Modules\Access\Public\Contracts\SecurityMessages;
  * Every invitation link, from wherever it is sent. A new link replaces the earlier one and its
  * phone code. A Super Admin's works 24 hours, anyone else's the staff invitation hours (amendment
  * 30). The email leaves once the transaction commits, never through the queue: a queued job would
- * keep the link in the jobs table.
+ * keep the link in the jobs table. A provider's failure goes to the log and leaves what was committed
+ * alone; the caller must then read the answer, and say it was not sent (amendment 93).
  */
 final readonly class Invitations
 {
@@ -30,8 +31,9 @@ final readonly class Invitations
 
     /**
      * @param  string|null  $sentBy  the staff member sending it; null for the console
+     * @return InvitationDelivery read it once the transaction has returned, not inside it
      */
-    public function send(StaffUser $staff, ?string $sentBy): void
+    public function send(StaffUser $staff, ?string $sentBy): InvitationDelivery
     {
         $hours = $staff->isSuperAdmin() ? $this->settings->superAdminInvitationHours() : $this->settings->invitationHours();
         $invitation = SecretTokens::issue();
@@ -39,6 +41,15 @@ final readonly class Invitations
         $this->tokens->putInvitation($staff->id(), $invitation['hash'], CarbonImmutable::now()->addHours($hours), $sentBy);
         $this->tokens->deletePhoneCode($staff->id());
 
-        $this->db->afterCommit(fn () => $this->messages->staffInvitation(StaffMapper::toDto($staff), $this->links->invitation($invitation['token'])));
+        $delivery = new InvitationDelivery($staff->id());
+
+        // Caught here, not left to leave through the commit: an exception there would stop the other
+        // callbacks of this commit too.
+        $this->db->afterCommit(fn () => rescue(
+            fn () => $this->messages->staffInvitation(StaffMapper::toDto($staff), $this->links->invitation($invitation['token'])),
+            fn () => $delivery->fail(),
+        ));
+
+        return $delivery;
     }
 }

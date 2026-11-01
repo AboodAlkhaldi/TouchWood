@@ -6,7 +6,7 @@ declare(strict_types=1);
 // The screens themselves (stage 2b step 1) read the same file: there are no separate frontend
 // translation files, so one line is written once and used on both sides (frontend.md §1.5).
 return [
-    'registered' => 'Account created; confirm your address from the email we sent',
+    'registered' => 'Account created; confirm your address from our email. If it doesn\'t arrive, press Confirm Your Email for a new link',
     'verification_sent' => 'Confirmation link sent',
     'email_verified' => 'Email address confirmed',
     'code_sent' => 'Code sent to your phone',

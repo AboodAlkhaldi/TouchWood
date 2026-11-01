@@ -14,7 +14,9 @@ use Modules\Access\Application\Command\ChangeStaffRole\ChangeStaffRoleHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\ServedPhones;
 use Modules\Access\Application\Staff\Avatars;
+use Modules\Access\Application\Staff\InvitationDelivery;
 use Modules\Access\Application\Staff\Invitations;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\RoleAssignment;
@@ -59,6 +61,8 @@ final readonly class InviteStaffHandler
 
     /**
      * @return string the new staff member's id
+     *
+     * @throws InvitationNotSent the member is saved, with their id on it; only the email failed
      */
     public function handle(InviteStaff $command): string
     {
@@ -78,7 +82,7 @@ final readonly class InviteStaffHandler
         $language = Language::of($command->locale);
         $this->avatars->requireUsable($command->avatarMediaId);
 
-        return $this->db->transaction(function () use ($command, $author, $email, $profile, $phone, $language): string {
+        $delivery = $this->db->transaction(function () use ($command, $author, $email, $profile, $phone, $language): InvitationDelivery {
             // One email, one account (amendment 13): a customer's address is taken too, and is
             // answered the same way, so the panel never says which kind of account holds it.
             if ($this->staff->emailInUse($email) || $this->customers->emailInUse($email)) {
@@ -105,9 +109,11 @@ final readonly class InviteStaffHandler
                 $command->personalRole,
             ));
 
-            $this->invitations->send($staff, $author->staffId);
-
-            return $staff->id();
+            return $this->invitations->send($staff, $author->staffId);
         }, 3);
+
+        $delivery->requireSent();
+
+        return $delivery->staffId;
     }
 }

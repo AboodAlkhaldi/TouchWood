@@ -465,7 +465,11 @@ password ─┬─ trusted browser ───────────────
   back, and no link ever sits in the `jobs` table. A message whose *timing* would tell a stranger
   something — the password-reset and deletion messages, whose page must answer the same either way —
   is also wrapped in `defer()`, so it goes out after the response rather than inside it. A message is
-  never queued.
+  never queued. **A provider's failure never undoes what was committed** (amendment 93): registration
+  and invitations catch it with `rescue()`, which reports it to the log. The customer lands signed in
+  and can ask for the link again. `Invitations::send` hands back an `InvitationDelivery`; the handler
+  reads it after its transaction and throws `InvitationNotSent`, so nobody can say an invitation went
+  by forgetting to look. The screens say it in amber, and the console prints it and exits non-zero.
 - **Audited:** each sign-in, sign-out, lockout and browser trusted, and each address made to wait.
   Wrong passwords are counted, not logged one by one. An address made to wait belongs to no staff
   member, and Platform keeps IP addresses only for staff actions, so its entry names it by a keyed
