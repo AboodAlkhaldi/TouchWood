@@ -24,6 +24,15 @@ return [
         'title' => 'Notice Can\'t Be Changed',
         'detail' => 'This notice has started sending or was cancelled, so it can\'t be changed any more.',
     ],
+    // Wording approved for now (owner, 2026-11-01; full review at the end).
+    'daily_email_at_midnight' => [
+        'title' => 'Choose Another Time',
+        'detail' => 'The daily report email can\'t go at 00:00: the day has only just started and the report would be empty. Choose 00:01 or later.',
+    ],
+    'newsletter_unavailable' => [
+        'title' => 'Message Not Sent',
+        'detail' => 'We couldn\'t send the message just now. Try again in a few minutes.',
+    ],
     'subscriber_not_found' => [
         'title' => 'Subscriber Not Found',
         'detail' => 'This subscriber isn\'t in the list.',

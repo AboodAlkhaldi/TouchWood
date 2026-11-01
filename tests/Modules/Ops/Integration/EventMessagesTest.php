@@ -53,6 +53,10 @@ use Modules\Ops\Infrastructure\Queue\SendEventEmailJob;
 use Modules\Ops\Infrastructure\Queue\SendEventSmsJob;
 use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Ops\Public\Enums\MessageKind;
+use Modules\Payments\Public\Events\GatewayKeyExpiring;
+use Modules\Payments\Public\Events\GatewayKeyRejected;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -126,20 +130,20 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
         $id, $order->number, $order->storeId, $order->customerId, $order->locale, $order->status, $order->shipmentStatus, $order->wayToPay,
         $locale === 'ar' ? [new OrderMessageLineDto('كرسي', [['attribute' => 'اللون', 'value' => 'بني']], 2, Money::of(20000, 'SAR'), false)] : $order->lines,
         $order->subtotal, $order->couponDiscount, $order->pointsDiscount, $order->shipping, $order->vat, $order->total, $order->carrier, $order->trackingNumber, $order->rejectionReason, $order->cancelReason,
-        $order->recipientName, $order->deliveryAddress,
+        $order->recipientName, $order->deliveryAddress, $order->trackingLink,
     ));
     $sales->allows('returnForMessage')->andReturn($return);
     $sales->allows('moneyRecordForMessage')->andReturn($money);
     app()->instance(SalesReports::class, $sales);
 }
 
-function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh'): OrderMessageDto
+function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh', ?string $trackingLink = null): OrderMessageDto
 {
     return new OrderMessageDto(
         strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
-        $carrier, $tracking, $rejection, null, 'Sara Ali', $address,
+        $carrier, $tracking, $rejection, null, 'Sara Ali', $address, $trackingLink,
     );
 }
 
@@ -294,6 +298,36 @@ describe('messages to customers (§1.5)', function () {
             ->and($shipped)->toContain('has been shipped with SMSA')->toContain('Tracking number: TRK123')
             ->and(str_contains($shipped, 'Track your order'))->toBeFalse();
     });
+
+    it('offers Track on C4 only when the order holds a link, beside the number, in the email alone', function (string $locale, string $words) {
+        $sara = Fx::customer('sara@example.test');
+        Wx::set($sara, ['locale' => $locale]);
+        $link = 'https://track.example/?n=1&from=shop';
+
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', tracking: 'TRK123', trackingLink: $link));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        $email = CapturedEmails::installed()->last();
+        $bell = DB::table('ops.inbox_entries')->where('customer_id', $sara)->value('link');
+
+        expect($email->html)->toContain('<a href="'.e($link).'">'.$words.'</a>')->toContain('TRK123')
+            ->and($email->text)->toContain($words.': '.$link)->toContain('TRK123')
+            ->and($bell)->toBe('/sa/'.$locale.'/account/orders/SA-0007');
+
+        // A link and no number: Track alone.
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', trackingLink: $link));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->html)->toContain($words)
+            ->and(str_contains(CapturedEmails::installed()->last()->html, 'TRK123'))->toBeFalse();
+
+        // A number and no link: no Track.
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', tracking: 'TRK123'));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->html)->toContain('TRK123')
+            ->and(str_contains(CapturedEmails::installed()->last()->html, $words))->toBeFalse();
+    })->with([
+        'English' => ['en', 'Track your order'],
+        'Arabic' => ['ar', 'تتبّع طلبك'],
+    ]);
 
     it('tells the store\'s return window on delivery, and a cancellation, consent or not: service messages ignore it', function () {
         $sara = Fx::customer('sara@example.test');
@@ -914,12 +948,142 @@ describe('alerts to staff (§1.4, §1.6)', function () {
     });
 });
 
+it('writes an event\'s job into the jobs table with its row: a rollback leaves neither, and a job with no row sends nothing', function () {
+    config(['queue.default' => 'database']);
+    $sara = Fx::customer('sara@example.test');
+    $super = Fx::staff(superAdmin: true);
+    $message = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
+    $deliveries = app(EventDeliveries::class);
+    DB::table('jobs')->delete();
+    $before = DB::table('ops.sent_messages')->count();
+
+    DB::beginTransaction();
+    $deliveries->emailCustomer($message, $sara);
+    $deliveries->emailStaff($message, $super);
+    $deliveries->smsStaff($message, $super, StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
+    $inside = [DB::table('jobs')->count(), DB::table('ops.sent_messages')->count() - $before];
+    DB::rollBack();
+
+    expect($inside)->toBe([3, 3])
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('ops.sent_messages')->count())->toBe($before);
+
+    config(['queue.default' => 'sync']);
+    app(EventSender::class)->emailStaff($message, $super, strtolower((string) Str::ulid()));
+    expect(CapturedEmails::installed()->sent)->toBe([]);
+});
+
 describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', function () {
-    /**
-     * The Stage 7 events are not in main yet (GatewayKeyExpiring, GatewayKeyRejected) and Payments
-     * declares no `payments.gateway.manage` yet: the alert is driven here as their listener will drive
-     * it, with Access's read answering for the people given.
-     */
+    it('alerts super admins alone on GatewayKeyExpiring, once per event, and sends the SMS only at 1 day', function () {
+        $super = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $super)->update(['critical_sms' => true]);
+        $admin = Fx::staffWith(['sales.order.view'], ['sa'], RoleLevel::Admin);
+        cache()->flush();
+        $sms = RecordingSmsSenders::install();
+        $key = static fn (int $days): GatewayKeyExpiring => new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', $days, '2026-11-30', CarbonImmutable::now());
+
+        event($key(30));
+        event($key(7));
+
+        expect(eventMessagesBell(staffId: $super))->toHaveCount(2)
+            ->and(eventMessagesBell(staffId: $admin))->toBe([])
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('kind')->unique()->all())->toBe(['gateway_key_expiring'])
+            // Nowhere to go: the alert names the key and its date, no page.
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('link')->unique()->all())->toBe([null])
+            ->and($sms->sent)->toBe([]);
+
+        $oneDay = $key(1);
+        event($oneDay);
+        event($oneDay);
+
+        expect(eventMessagesBell(staffId: $super))->toHaveCount(3)
+            ->and(array_column($sms->sent, 'phone'))->toBe([(string) DB::table('access.staff_users')->where('id', $super)->value('phone')])
+            ->and($sms->sent[0]['message'])->toContain('2026-11-30');
+    });
+
+    it('says which key is expiring and counts the days as each language does, never that payments stop', function (string $locale, string $mode, int $days, string $key, string $count) {
+        $super = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $super)->update(['locale' => $locale]);
+        cache()->flush();
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), $mode, $days, '2026-11-30', CarbonImmutable::now()));
+        $email = CapturedEmails::installed()->last();
+
+        expect($email->text)->toContain($key)->toContain($count)
+            ->and($email->subject)->toContain($key)
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value($locale === 'ar' ? 'title_ar' : 'title_en'))->toContain($count)
+            ->and(str_contains($email->text, 'payments stop') || str_contains($email->text, 'يتوقف'))->toBeFalse()
+            ->and(str_contains($email->text, '1 days') || str_contains($email->text, '1 يومًا') || str_contains($email->text, '7 يومًا'))->toBeFalse()
+            // Latin digits always.
+            ->and(preg_match('/[٠-٩]/u', $email->text))->toBe(0);
+    })->with([
+        'English, 1 day, live' => ['en', 'LIVE', 1, 'live payment', 'in 1 day'],
+        'English, 7 days, test' => ['en', 'TEST', 7, 'test payment', 'in 7 days'],
+        'Arabic, 1 day, live' => ['ar', 'LIVE', 1, 'الدفع الفعلي', 'يوم واحد'],
+        'Arabic, 7 days, test' => ['ar', 'TEST', 7, 'الدفع التجريبي', '7 أيام'],
+        'Arabic, 30 days, live' => ['ar', 'LIVE', 30, 'الدفع الفعلي', '30 يومًا'],
+    ]);
+
+    it('counts a return window of any length as the language does', function (string $locale, int $window, string $count) {
+        $sara = Fx::customer('sara@example.test');
+        Wx::set($sara, ['locale' => $locale]);
+        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting('sales.returns.window_days', 'sa', $window)));
+        eventMessagesSales($order = eventMessagesOrder($sara));
+
+        event(new OrderDelivered(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(CapturedEmails::installed()->last()->text)->toContain($count);
+    })->with([
+        'English, 1' => ['en', 1, 'within 1 day of delivery'],
+        'English, 14' => ['en', 14, 'within 14 days of delivery'],
+        'Arabic, 2' => ['ar', 2, 'خلال يومين'],
+        'Arabic, 7' => ['ar', 7, 'خلال 7 أيام'],
+        'Arabic, 14' => ['ar', 14, 'خلال 14 يومًا'],
+    ]);
+
+    it('sends an alert\'s email only by the staff member\'s switch, on the Payment problems topic', function () {
+        $super = Fx::staff(superAdmin: true);
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', 30, '2026-11-30', CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->sent)->toBe([]);
+
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', 7, '2026-11-30', CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)]);
+    });
+
+    it('alerts super admins alone on GatewayKeyRejected, once per event, always with the SMS, saying which key', function (string $mode, string $locale, string $words) {
+        $super = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $super)->update(['critical_sms' => true, 'locale' => $locale]);
+        $admin = Fx::staffWith(['sales.order.view'], ['sa'], RoleLevel::Admin);
+        cache()->flush();
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+        $sms = RecordingSmsSenders::install();
+        $refused = new GatewayKeyRejected(eventMessagesId(), Fx::storeId('sa'), $mode, CarbonImmutable::now());
+
+        event($refused);
+        event($refused);
+
+        $email = CapturedEmails::installed()->last();
+
+        expect(eventMessagesBell(staffId: $super))->toHaveCount(1)
+            ->and(eventMessagesBell(staffId: $admin))->toBe([])
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('kind'))->toBe('gateway_key_rejected')
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('link'))->toBeNull()
+            ->and(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)])
+            ->and($sms->sent)->toHaveCount(1)
+            ->and($sms->sent[0]['message'])->toContain($words)
+            ->and($email->text)->toContain($words)
+            ->and($email->subject)->toContain($locale === 'ar' ? 'رُفض' : 'refused')
+            // A key of the mode not in use stops nothing: no word says payments stopped.
+            ->and(str_contains($email->text, 'do not work') || str_contains($email->text, 'لا يعمل'))->toBeFalse();
+    })->with([
+        'the live key, in English' => ['LIVE', 'en', 'refused the live key of Saudi Arabia'],
+        'the test key, in English' => ['TEST', 'en', 'refused the test key of Saudi Arabia'],
+        'the live key, in Arabic' => ['LIVE', 'ar', 'المفتاح الفعلي'],
+        'the test key, in Arabic' => ['TEST', 'ar', 'المفتاح التجريبي'],
+    ]);
+
     it('queues the SMS only at 1 day or for a refused key, only to super admins whose switch is on and who have a phone', function () {
         $deliveries = new class implements EventDeliveries
         {
@@ -954,10 +1118,10 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         $alerts = app(StaffAlerts::class);
 
         foreach ([30, 7, 1] as $days) {
-            $alerts->alert(new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => $days, 'date' => '2026-11-30']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
+            $alerts->alert(new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => $days, 'date' => '2026-11-30', 'mode' => 'LIVE']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
         }
 
-        $alerts->alert(new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
+        $alerts->alert(new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
 
         expect($deliveries->sms)->toBe(["gateway_key_expiring 1 {$on}", "gateway_key_rejected 0 {$on}"])
             ->and(eventMessagesBell(staffId: $on))->toHaveCount(4)
@@ -969,13 +1133,13 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         $sms = RecordingSmsSenders::install();
         DB::table('ops.sms_countries')->where('country_code', 'SA')->update(['provider' => 'second']);
         $phone = (string) DB::table('access.staff_users')->where('id', $super)->value('phone');
-        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
-        $sevenDays = new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30']);
+        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
+        $sevenDays = new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30', 'mode' => 'LIVE']);
 
         eventMessagesSms($refused, $super);
         eventMessagesSms($sevenDays, $super);
 
-        expect($sms->sent)->toBe([['provider' => 'second', 'phone' => $phone, 'message' => 'TouchWood: the payment gateway refused the key of Saudi Arabia. Replace it now.']])
+        expect($sms->sent)->toBe([['provider' => 'second', 'phone' => $phone, 'message' => 'TouchWood: the payment gateway refused the live key of Saudi Arabia. Replace it now.']])
             ->and(eventMessagesSent(staffId: $super))->toBe(['gateway_key_rejected SMS SENT']);
     });
 
@@ -985,7 +1149,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         DB::table('access.staff_users')->where('id', $switchedOff)->update(['critical_sms' => false]);
         cache()->flush();
         $sms = RecordingSmsSenders::install();
-        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
+        $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
 
         expect((bool) DB::table('access.staff_users')->where('id', $admin)->value('critical_sms'))->toBeTrue();
 
@@ -1003,7 +1167,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         DB::table('access.staff_users')->where('id', $super)->update(['phone' => '+201000000001']);
         DB::table('ops.sms_countries')->where('country_code', 'EG')->delete();
         cache()->flush();
-        $message = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), []);
+        $message = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
         $id = eventMessagesQueued($message, MessageChannel::Sms, null, $super);
         $job = new SendEventSmsJob($message, $super, StaffNotificationTopic::PaymentProblems, 'sales.order.view', $id);
 

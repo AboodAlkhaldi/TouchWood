@@ -6,6 +6,7 @@ use App\Http\StorefrontArea;
 use Illuminate\Support\Facades\Route;
 use Modules\Ops\Presentation\Http\Controller\BellController;
 use Modules\Ops\Presentation\Http\Controller\NewsletterController;
+use Modules\Ops\Presentation\Http\Middleware\StopEmailStore;
 
 /*
 | The shop's bell (ops.md §1.2, §4), under the store and language as every shop page is, for a
@@ -25,7 +26,7 @@ Route::prefix('{store}/{locale}')
 
 /*
 | The newsletter box and its links (ops.md §1.9, §1.3), open to anyone: the box is a guest's; the
-| confirmation link carries its token; the unsubscribe link is signed and needs no sign-in.
+| confirmation link carries its token.
 */
 Route::prefix('{store}/{locale}')
     ->middleware(StorefrontArea::MIDDLEWARE)
@@ -33,12 +34,24 @@ Route::prefix('{store}/{locale}')
         Route::post('newsletter', [NewsletterController::class, 'subscribe'])->name('storefront.ops.newsletter.subscribe');
         Route::get('newsletter/confirm/{token}', [NewsletterController::class, 'confirmation'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm');
         Route::post('newsletter/confirm/{token}', [NewsletterController::class, 'confirm'])->where('token', '[A-Za-z0-9]{1,128}')->name('storefront.ops.newsletter.confirm.post');
-        // The unsubscribe links (owner, 2026-10-30): GET is the page with its one button and changes
-        // nothing - mail scanners open links too; POST, with the same signature, does it. The POST is
-        // also the mail client's one-click unsubscribe (RFC 8058), so it takes no CSRF token: the
-        // signature is its authority (OpsServiceProvider).
-        Route::get('newsletter/leave/{subscriber}', [NewsletterController::class, 'leavePage'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave');
-        Route::post('newsletter/leave/{subscriber}', [NewsletterController::class, 'leave'])->whereUlid('subscriber')->middleware('signed:relative')->name('storefront.ops.newsletter.leave.post');
-        Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribePage'])->whereUlid('customer')->middleware('signed:relative')->name('storefront.ops.unsubscribe');
-        Route::post('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->middleware('signed:relative')->name('storefront.ops.unsubscribe.post');
+    });
+
+/*
+| The stop-email pages (ops.md §1.3, §1.9; owner, 2026-11-01): the one thing of a switched-off store that
+| still answers, because a link already sent must always stop the email. So they stay at their addresses
+| but outside the group above, whose "store" middleware makes an off store a 404, and find the store
+| themselves (StopEmailStore). The signature comes first: without a good one any code is the same 403,
+| and nothing says whether the store exists or is off.
+|
+| GET is the page with its one button and changes nothing - mail scanners open links too (owner,
+| 2026-10-30); POST, with the same signature, does it. The POST is also the mail client's one-click
+| unsubscribe (RFC 8058), so it takes no CSRF token: the signature is its authority (OpsServiceProvider).
+*/
+Route::prefix('{store}/{locale}')
+    ->middleware([StorefrontArea::SESSION, 'web', 'signed:relative', StopEmailStore::class])
+    ->group(function (): void {
+        Route::get('newsletter/leave/{subscriber}', [NewsletterController::class, 'leavePage'])->whereUlid('subscriber')->name('storefront.ops.newsletter.leave');
+        Route::post('newsletter/leave/{subscriber}', [NewsletterController::class, 'leave'])->whereUlid('subscriber')->name('storefront.ops.newsletter.leave.post');
+        Route::get('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribePage'])->whereUlid('customer')->name('storefront.ops.unsubscribe');
+        Route::post('unsubscribe/{customer}', [NewsletterController::class, 'unsubscribe'])->whereUlid('customer')->name('storefront.ops.unsubscribe.post');
     });

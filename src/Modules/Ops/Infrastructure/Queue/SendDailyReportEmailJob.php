@@ -16,7 +16,7 @@ use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmailHan
  * The daily report's email at its time (ops.md §1.11), queued with a delay by the person switching it on
  * and then by itself, a day at a time - so it runs as the system on that person's behalf and reads only
  * what they may see. One try: the next day is queued before any work, and a failed making waits in the
- * failed jobs.
+ * failed jobs, where retrying it makes that moment's report, once.
  */
 final class SendDailyReportEmailJob implements ShouldQueue
 {

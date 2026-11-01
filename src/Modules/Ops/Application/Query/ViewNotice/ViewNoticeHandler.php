@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Application\Query\ViewNotice;
 
+use Modules\Ops\Application\Delivery\Writers;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\NoticeNotFound;
 use Modules\Ops\Domain\Model\Notice;
@@ -17,13 +18,20 @@ final readonly class ViewNoticeHandler
 {
     public function __construct(
         private Authorizer $authorizer,
+        private Writers $writers,
         private Notices $notices,
     ) {}
 
     /** @throws NoticeNotFound|Unauthorized */
     public function handle(ViewNotice $query): Notice
     {
-        $notice = $this->notices->find($query->noticeId) ?? throw new NoticeNotFound;
+        $stores = $this->writers->storesHolding(OpsPermissions::NOTICE_MANAGE);
+        $notice = $this->notices->find($query->noticeId);
+
+        if ($notice === null || ! Writers::among($notice->store, $stores)) {
+            throw new NoticeNotFound;
+        }
+
         $this->authorizer->authorize(OpsPermissions::NOTICE_MANAGE, PermissionScope::store($notice->store));
 
         return $notice;

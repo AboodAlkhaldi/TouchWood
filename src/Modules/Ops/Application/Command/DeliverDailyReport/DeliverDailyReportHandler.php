@@ -17,8 +17,9 @@ use Shared\Application\Unauthorized;
 /**
  * Sends the made report to the person who made it, the PDF attached (ops.md §1.11), and marks it emailed.
  * Its own job, apart from the making: a provider that fails is tried again by the queue without making
- * another report, then lands in the failed jobs - never lost silently (§7). One already emailed is not
- * sent twice.
+ * another report, then lands in the failed jobs - never lost silently (§7). One marked emailed is not sent
+ * again. **At least once** (owner, 2026-11-01): it sends, then marks, so a crash in that gap may send it
+ * twice; it is never lost.
  */
 final readonly class DeliverDailyReportHandler
 {

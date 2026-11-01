@@ -27,10 +27,13 @@ use Shared\Infrastructure\Persistence\Ulids;
  * Sends a staff member's message (ops.md §1.8), at once, on the queue:
  *
  * - **to one customer** under `ops.message.send_one` in the store - a service message, its email sent
- *   whatever their consent (§9.3 #2) - registered in a store where the writer holds send_one and may
- *   view customers (owner, 2026-10-30); any other is refused as an unknown one;
- * - **to every customer of the store** under `ops.message.send_many` - admins only (round 1 #18) -
- *   marketing for its email (§1.3): only those who agreed get it; the bell goes to all.
+ *   whatever their consent (§9.3 #2) - registered in **this** store, so the entry lands in the bell they
+ *   see (owner, 2026-11-01), where the writer holds send_one and may view customers (owner, 2026-10-30);
+ *   any other is refused as an unknown one;
+ * - **to every customer of the store, or the members of one of its segments** (owner, 2026-11-01) under
+ *   `ops.message.send_many` - admins only (round 1 #18) - marketing for its email (§1.3): only those who
+ *   agreed get it; the bell goes to all. Another store's segment and an empty audience are refused as for
+ *   a notice (Writers::audience).
  *
  * Recorded with who sent it, to whom, the channels and when, and audited in the same transaction;
  * nothing can be recalled.
@@ -54,6 +57,7 @@ final readonly class SendStaffMessageHandler
      */
     public function handle(SendStaffMessage $command): string
     {
+        self::requireAudience($command);
         $store = $this->writers->store($command->storeId);
         $permission = $command->customerId === null ? OpsPermissions::MESSAGE_SEND_MANY : OpsPermissions::MESSAGE_SEND_ONE;
         $this->authorizer->authorize($permission, PermissionScope::store($store->storeId()));
@@ -61,19 +65,20 @@ final readonly class SendStaffMessageHandler
         $text = WrittenText::of($command->titleAr, $command->titleEn, $command->bodyAr, $command->bodyEn);
 
         if ($command->customerId === null) {
-            $this->writers->requireCustomers($store->storeId());
+            $segmentId = $this->writers->audience($store->storeId(), $command->segmentId);
             $customerId = null;
         } else {
+            $segmentId = null;
             $customerId = strtolower(trim($command->customerId));
             $customer = Ulids::valid($customerId) ? $this->access->customer($customerId) : null;
 
-            // Only a customer of a store where the writer may send to one and view customers.
-            if ($customer === null || ! $this->writers->mayWriteToOne($customer)) {
+            // Only a customer of this store, where the writer may send to one and view customers.
+            if ($customer === null || strtolower($customer->homeStoreId) !== $store->id || ! $this->writers->mayWriteToOne($customer)) {
                 throw new InvalidOpsInput('customer', 'a customer');
             }
         }
 
-        $message = new StaffMessage((string) Str::ulid(), $store->storeId(), $staffId, $customerId, $text, $command->byBell, $command->byEmail, CarbonImmutable::now()->toDateTimeImmutable());
+        $message = new StaffMessage((string) Str::ulid(), $store->storeId(), $staffId, $customerId, $text, $command->byBell, $command->byEmail, CarbonImmutable::now()->toDateTimeImmutable(), $segmentId);
 
         $this->db->transaction(function () use ($message): void {
             $this->messages->add($message);
@@ -82,5 +87,24 @@ final readonly class SendStaffMessageHandler
         });
 
         return strtolower($message->id);
+    }
+
+    /**
+     * The audience said, and what it names: a customer for `ONE`, a segment for `SEGMENT`, neither for `STORE`.
+     *
+     * @throws InvalidOpsInput
+     */
+    private static function requireAudience(SendStaffMessage $command): void
+    {
+        $matches = match ($command->audience) {
+            'ONE' => $command->customerId !== null && $command->segmentId === null,
+            'SEGMENT' => $command->customerId === null && $command->segmentId !== null,
+            'STORE' => $command->customerId === null && $command->segmentId === null,
+            default => false,
+        };
+
+        if (! $matches) {
+            throw new InvalidOpsInput('audience', 'ONE with a customer, SEGMENT with a segment, or STORE with neither');
+        }
     }
 }

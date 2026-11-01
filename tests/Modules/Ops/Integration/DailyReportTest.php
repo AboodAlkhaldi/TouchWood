@@ -410,3 +410,34 @@ it('sweeps the month folders older than twelve months, files whose row is gone i
         ->and($disk->exists('ops/daily-reports/'.CarbonImmutable::now('UTC')->format('Y/m').'/01jbxqz2y8k4n6p9r3t5v7w1xb.pdf'))->toBeTrue()
         ->and($disk->exists('ops/other/keep.txt'))->toBeTrue();
 });
+
+it('labels transfers waiting as current on a past day\'s report, in both languages, and not on today\'s', function (string $locale, string $today, string $past) {
+    $store = dailyStore('sa');
+    $now = CarbonImmutable::now()->toDateTimeImmutable();
+    $yesterday = CarbonImmutable::now()->subDay()->setTimezone($store->timezone)->format('Y-m-d');
+    $html = static function (?string $day) use ($store, $now, $locale): string {
+        $section = app(DailyReportReader::class)->store($store, $now, $day);
+        $daily = new DailyReport($now, 'Asia/Riyadh', false, [$section], []);
+
+        return view('ops::daily-report', ['report' => $daily, 'locale' => $locale, 'rtl' => $locale === 'ar', 'f' => new ReportFormat($locale), 'logo' => public_path('icons/email-logo.png')])->render();
+    };
+
+    expect($html(null))->toContain($today)
+        ->and(str_contains($html(null), $past))->toBeFalse()
+        ->and($html($yesterday))->toContain($past);
+})->with([
+    'English' => ['en', 'Transfers waiting', 'Transfers waiting (as of now, not that day)'],
+    'Arabic' => ['ar', 'تحويلات منتظرة', 'تحويلات منتظرة (حتى الآن، لا في ذلك اليوم)'],
+]);
+
+it('labels transfers waiting as current on a today\'s report read the next day: a late worker\'s, or a retry\'s', function () {
+    $store = dailyStore('sa');
+    $due = CarbonImmutable::now()->subDay()->toDateTimeImmutable();
+    $section = app(DailyReportReader::class)->store($store, $due, null);
+    $daily = new DailyReport($due, 'Asia/Riyadh', false, [$section], []);
+    $html = view('ops::daily-report', ['report' => $daily, 'locale' => 'en', 'rtl' => false, 'f' => new ReportFormat('en'), 'logo' => public_path('icons/email-logo.png')])->render();
+
+    expect($section->pastDay)->toBeFalse()
+        ->and($section->notReadThatDay)->toBeTrue()
+        ->and($html)->toContain('Transfers waiting (as of now, not that day)');
+});

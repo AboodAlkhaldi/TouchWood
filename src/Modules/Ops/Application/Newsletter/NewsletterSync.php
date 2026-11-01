@@ -60,8 +60,10 @@ final readonly class NewsletterSync
     }
 
     /**
-     * A row that is gone: its email off its list, and - when asked, and no row of any store still
-     * holds the email - the contact itself deleted.
+     * A row that is gone: its email off its list; or - when asked, and no row of any store still holds the
+     * email - the contact itself deleted, which takes it off every list. A contact with no place on this
+     * list is why that comes alone: Brevo's reference does not say removing one succeeds, and a refusal
+     * must not keep the contact.
      *
      * @throws ProviderFailed for the queue to try again
      */
@@ -76,10 +78,12 @@ final readonly class NewsletterSync
             }
         }
 
-        $this->list->remove($email, $store, $locale);
-
         if ($forget && $again === []) {
             $this->list->forget($email);
+
+            return;
         }
+
+        $this->list->remove($email, $store, $locale);
     }
 }

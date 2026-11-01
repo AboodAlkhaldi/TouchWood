@@ -3,13 +3,21 @@
 declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessage;
 use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessage;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessageHandler;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegment;
+use Modules\Promotions\Application\Command\CreateSegment\CreateSegmentHandler;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembers;
+use Modules\Promotions\Application\Command\SetSegmentMembers\SetSegmentMembersHandler;
+use Modules\Promotions\Application\PromotionsPermissions;
+use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
@@ -40,6 +48,7 @@ function staffMessagesSend(?string $customerId, string $storeCode = 'sa', bool $
 {
     return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(
         Fx::storeId($storeCode),
+        $customerId === null ? 'STORE' : 'ONE',
         $customerId,
         'بخصوص طلبك',
         'About your order',
@@ -141,4 +150,131 @@ it('audits a message to one customer and a message to many, in the same transact
     // A refused message writes nothing.
     expect(fn () => staffMessagesSend($omar, bell: false, email: false))->toThrow(InvalidOpsInput::class)
         ->and(DB::table('platform.audit_entries')->where('action', 'ops.staff_message.sent')->count())->toBe(2);
+});
+
+/**
+ * A static segment of the store, made as a manager makes one; the actor afterwards is the test's.
+ *
+ * @param  list<string>  $members
+ */
+function staffMessagesSegment(array $members, string $storeCode = 'sa'): string
+{
+    Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['sa', 'ae']));
+    $segment = app(CreateSegmentHandler::class)->handle(new CreateSegment(Fx::storeId($storeCode), 'شريحة', 'Picked', 'STATIC', 'INDIVIDUAL'));
+
+    if ($members !== []) {
+        app(SetSegmentMembersHandler::class)->handle(new SetSegmentMembers($segment, $members));
+    }
+
+    return $segment;
+}
+
+/** The field a sending is refused on; none when it is not refused so. */
+function staffMessagesRefusedOn(Closure $send): ?string
+{
+    try {
+        $send();
+    } catch (InvalidOpsInput $refused) {
+        return $refused->attribute;
+    }
+
+    return null;
+}
+
+function staffMessagesSendToSegment(?string $segment, ?string $customer = null, string $audience = 'SEGMENT'): string
+{
+    return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), $audience, $customer, 'ع', 'Hello', 'ن', 'Text', true, true, $segment));
+}
+
+it('writes to a segment: its members only, the bell to each, the email only to those who agreed, audited', function () {
+    $agreeing = Wx::agreeing('sara@example.test');
+    $notAgreeing = Fx::customer('omar@example.test');
+    $outside = Wx::agreeing('lina@example.test');
+    $segment = staffMessagesSegment([$agreeing, $notAgreeing]);
+    Fx::actAsAdmin(['sa'], ['ops.message.send_many']);
+
+    $id = staffMessagesSendToSegment($segment);
+
+    expect(DB::table('ops.staff_messages')->where('id', $id)->first())->toMatchArray(['audience' => 'SEGMENT', 'segment_id' => $segment, 'customer_id' => null, 'status' => 'SENT', 'bell_count' => 2, 'email_count' => 1, 'cursor_type' => 'SEGMENT'])
+        ->and(CapturedEmails::installed()->to())->toBe(['sara@example.test'])
+        ->and(CapturedEmails::installed()->last()->headers)->toHaveKey('List-Unsubscribe')
+        ->and(DB::table('ops.inbox_entries')->where('kind', 'staff_message')->pluck('customer_id')->all())->not->toContain($outside)
+        ->and(Fx::audits('ops.staff_message.sent', $id))->toBe(1);
+    $changes = (string) DB::table('platform.audit_entries')->where('subject_id', $id)->value('changes');
+    expect($changes)->toContain('SEGMENT')->toContain($segment);
+});
+
+it('refuses a segment as a notice does: another store\'s, an empty one, without send_many, or beside a customer', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    $theirs = staffMessagesSegment([Fx::customer('lina@example.test', 'ae')], 'ae');
+    $empty = staffMessagesSegment([]);
+    $ours = staffMessagesSegment([$sara]);
+
+    Fx::actAsAdmin(['sa'], ['ops.message.send_many', 'ops.message.send_one', 'access.customer.view']);
+    expect(fn () => staffMessagesSendToSegment($theirs))->toThrow(SegmentNotFound::class)
+        ->and(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($empty)))->toBe('audience')
+        ->and(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($ours, $sara)))->toBe('audience');
+
+    Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
+    expect(fn () => staffMessagesSendToSegment($ours))->toThrow(Unauthorized::class)
+        ->and(DB::table('ops.staff_messages')->count())->toBe(0);
+});
+
+it('refuses an audience that does not match what it names: an empty segment never reaches a whole store', function (string $audience, bool $customer, bool $segment) {
+    $sara = Wx::agreeing('sara@example.test');
+    $ours = staffMessagesSegment([$sara]);
+    Fx::actAsAdmin(['sa'], ['ops.message.send_one', 'ops.message.send_many', 'access.customer.view']);
+
+    expect(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($segment ? $ours : null, $customer ? $sara : null, $audience)))->toBe('audience')
+        ->and(DB::table('ops.staff_messages')->count())->toBe(0);
+})->with([
+    'none said' => ['', false, false],
+    'not an audience' => ['EVERYONE', false, false],
+    'small letters' => ['store', false, false],
+    'STORE with a customer' => ['STORE', true, false],
+    'STORE with a segment' => ['STORE', false, true],
+    'ONE with no customer' => ['ONE', false, false],
+    'ONE with a segment' => ['ONE', true, true],
+    'SEGMENT with no segment' => ['SEGMENT', false, false],
+    'SEGMENT with a customer' => ['SEGMENT', true, true],
+]);
+
+describe('a segment\'s audience and cursor in the database', function () {
+    /** @param  array<string, mixed>  $values */
+    function staffMessagesRow(array $values): void
+    {
+        // Its own savepoint: a CHECK refused here does not abort the test's transaction.
+        DB::transaction(static fn () => DB::table('ops.staff_messages')->insert([
+            'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'sender_id' => Fx::staff(), 'title_ar' => 'ع', 'title_en' => 'T', 'body_ar' => 'ن', 'body_en' => 'B',
+            'by_bell' => true, 'by_email' => false, 'status' => 'SENDING', 'created_at' => now(), ...$values,
+        ]));
+    }
+
+    it('refuses each by its own CHECK', function (array $values, string $check) {
+        expect(fn () => staffMessagesRow($values))->toThrow(QueryException::class, $check);
+    })->with([
+        'SEGMENT with no segment' => [['audience' => 'SEGMENT'], 'staff_messages_segment'],
+        'STORE with a segment' => [['audience' => 'STORE', 'segment_id' => '01jbxqz2y8k4n6p9r3t5v7w1xa'], 'staff_messages_segment'],
+        'a segment cursor with no segment' => [['audience' => 'STORE', 'cursor_type' => 'SEGMENT'], 'staff_messages_segment_cursor'],
+        'not an audience' => [['audience' => 'ALL'], 'staff_messages_audience'],
+        'not a cursor' => [['audience' => 'STORE', 'cursor_type' => 'OTHER'], 'staff_messages_cursor_type'],
+    ]);
+
+    it('takes a segment with its cursor, and a store with the customers\' cursors', function () {
+        staffMessagesRow(['audience' => 'SEGMENT', 'segment_id' => '01jbxqz2y8k4n6p9r3t5v7w1xa', 'cursor_type' => 'SEGMENT']);
+        staffMessagesRow(['audience' => 'STORE', 'cursor_type' => 'COMPANY']);
+
+        expect(DB::table('ops.staff_messages')->count())->toBe(2);
+    });
+});
+
+it('refuses a message to one customer when the chosen store is not their home store, where the writer holds both', function () {
+    $sara = Fx::customer('sara@example.test', 'ae');
+    Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa', 'ae']));
+
+    expect(staffMessagesRefusedOn(fn () => staffMessagesSend($sara, 'sa')))->toBe('customer')
+        ->and(DB::table('ops.inbox_entries')->count())->toBe(0);
+
+    staffMessagesSend($sara, 'ae');
+    expect(DB::table('ops.inbox_entries')->where('customer_id', $sara)->value('store_id'))->toBe(Fx::storeId('ae'));
 });

@@ -18,6 +18,6 @@ final readonly class QueuedBroadcasts implements BroadcastQueue
 
     public function start(Broadcast $broadcast, string $id): void
     {
-        $this->jobs->dispatch(new SendBroadcastBatchJob($broadcast, $id));
+        $this->jobs->dispatch((new SendBroadcastBatchJob($broadcast, $id))->beforeCommit());
     }
 }

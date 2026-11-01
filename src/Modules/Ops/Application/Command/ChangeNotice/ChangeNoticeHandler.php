@@ -45,7 +45,13 @@ final readonly class ChangeNoticeHandler
      */
     public function handle(ChangeNotice $command): void
     {
-        $found = $this->notices->find($command->noticeId) ?? throw new NoticeNotFound;
+        $stores = $this->writers->storesHolding(self::PERMISSION);
+        $found = $this->notices->find($command->noticeId);
+
+        if ($found === null || ! Writers::among($found->store, $stores)) {
+            throw new NoticeNotFound;
+        }
+
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($found->store));
         $this->writers->staffId(self::PERMISSION);
         $store = $this->writers->store($found->store->value);

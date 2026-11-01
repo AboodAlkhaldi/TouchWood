@@ -43,8 +43,8 @@ use Modules\Platform\Public\Dto\StoreDto;
  *   used or week-old link confirms nothing.
  * - **A guest's unsubscribe link** - signed, carried by the confirmation email, valid as long as the
  *   sign-up is on the list - takes the guest off at once, and the provider's list follows (§3).
- * - **A marketing email's unsubscribe link** withdraws the customer's consent at once, through Access,
- *   as the system - on the queue, because only the system may (access.md amendment 79).
+ * - **A marketing email's unsubscribe link** withdraws the customer's consent at once, through Access, as
+ *   the system - a job run within the request, because only the system may (access.md amendment 79).
  */
 final readonly class NewsletterSignUps
 {
@@ -173,7 +173,7 @@ final readonly class NewsletterSignUps
     /** A marketing email's unsubscribe link, its signature already checked by the route. */
     public function unsubscribeCustomer(string $customerId): void
     {
-        $this->queue->withdrawConsent(strtolower($customerId), MarketingConsentSource::UnsubscribeLink);
+        $this->queue->withdrawConsentNow(strtolower($customerId), MarketingConsentSource::UnsubscribeLink);
     }
 
     /** @throws ProviderFailed */

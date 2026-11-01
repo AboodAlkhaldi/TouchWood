@@ -9,7 +9,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * One of the reader's daily report emails (ops.md §1.11, §4): its store (none: every store's), on or
- * off, the time, and the time zone it is read in.
+ * off, the time, the time zone it is read in, and the moment it goes next.
  */
 #[TypeScript]
 final class DailyReportEmailData extends Data
@@ -22,5 +22,7 @@ final class DailyReportEmailData extends Data
         /** `HH:MM`. */
         public string $sendAt,
         public string $timezone,
+        /** UTC, with its offset; null while off. */
+        public ?string $nextDueAt,
     ) {}
 }

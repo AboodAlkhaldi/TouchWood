@@ -5,13 +5,16 @@ declare(strict_types=1);
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
 use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\CustomerDeletionScheduled;
 use Modules\Access\Public\Events\CustomerLocaleChanged;
+use Modules\Access\Public\Events\CustomerRegistered;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Ops\Application\Command\PruneWrittenMessages\PruneWrittenMessages;
 use Modules\Ops\Application\Command\PruneWrittenMessages\PruneWrittenMessagesHandler;
@@ -21,7 +24,9 @@ use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessage;
 use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Newsletter\CustomerSubscriptions;
+use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\Newsletter\NewsletterSignUps;
+use Modules\Ops\Application\Newsletter\NewsletterSync;
 use Modules\Ops\Application\Query\ListSubscribers\ListSubscribers;
 use Modules\Ops\Application\Query\ListSubscribers\ListSubscribersHandler;
 use Modules\Ops\Domain\Exception\ConfirmationLinkInvalid;
@@ -30,7 +35,9 @@ use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Ops\Domain\Exception\SubscriberNotFound;
 use Modules\Ops\Domain\Model\Subscriber;
 use Modules\Ops\Domain\Repository\Subscribers;
+use Modules\Ops\Infrastructure\Queue\RemoveNewsletterContactJob;
 use Modules\Ops\Presentation\Http\Resource\WrittenPages;
+use Modules\Platform\Application\FailedJobs\FailedJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
@@ -250,17 +257,135 @@ describe('a customer', function () {
         $kept = Ox::customerEntry($omar);
         DB::table('ops.sent_messages')->insert(['id' => strtolower((string) Str::ulid()), 'kind' => 'order_taken', 'customer_id' => $sara, 'store_id' => null, 'channel' => 'EMAIL', 'provider_id' => null, 'status' => 'SENT', 'created_at' => now()]);
         Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
-        app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), $sara, 'ع', 'T', 'ن', 'B', true, false));
+        app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), 'ONE', $sara, 'ع', 'T', 'ن', 'B', true, false));
 
         $event = new CustomerAnonymized((string) Str::uuid(), $sara, CarbonImmutable::now());
         event($event);
         event($event);
 
         expect(DB::table('ops.subscribers')->count())->toBe(0)
-            ->and(array_slice(CapturedNewsletterList::installed()->calls, -2))->toBe(['remove sara@example.test '.Fx::storeId('sa').' en', 'forget sara@example.test'])
+            ->and(array_slice(CapturedNewsletterList::installed()->calls, -1))->toBe(['forget sara@example.test'])
             ->and(DB::table('ops.inbox_entries')->pluck('id')->all())->toBe([$kept])
             ->and(DB::table('ops.sent_messages')->where('customer_id', $sara)->count())->toBe(0)
             ->and(DB::table('ops.staff_messages')->count())->toBe(0);
+    });
+});
+
+describe('a contact with no row, when a deletion is pending (the module pass, 2026-11-01)', function () {
+    it('deletes the contact of a customer who withdrew earlier: the email still known, the list left already', function () {
+        $sara = Wx::agreeing('sara@example.test');
+        event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
+        Wx::set($sara, ['marketing_consent' => false]);
+        event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
+        $calls = CapturedNewsletterList::installed();
+        expect(DB::table('ops.subscribers')->count())->toBe(0)
+            ->and($calls->calls)->not->toContain('forget sara@example.test');
+
+        Wx::set($sara, ['deletion_scheduled_for' => CarbonImmutable::now()->addDays(14)->toIso8601String()]);
+        event(new CustomerDeletionScheduled((string) Str::uuid(), $sara, CarbonImmutable::now()));
+
+        expect($calls->last())->toBe('forget sara@example.test');
+    });
+
+    it('deletes the contact of a guest who registered without agreeing', function () {
+        newsletterGuestRow('sa', 'sara@example.test');
+        $sara = Fx::customer('sara@example.test');
+        event(new CustomerRegistered((string) Str::uuid(), $sara, AccountType::Individual, Fx::storeId('sa'), CarbonImmutable::now()));
+        $calls = CapturedNewsletterList::installed();
+        expect(DB::table('ops.subscribers')->count())->toBe(0)
+            ->and($calls->calls)->toBe(['remove sara@example.test '.Fx::storeId('sa').' en']);
+
+        Wx::set($sara, ['deletion_scheduled_for' => CarbonImmutable::now()->addDays(14)->toIso8601String()]);
+        event(new CustomerDeletionScheduled((string) Str::uuid(), $sara, CarbonImmutable::now()));
+
+        expect($calls->last())->toBe('forget sara@example.test');
+    });
+
+    it('leaves a contact another store\'s row still holds, and sends nothing for one who only withdrew', function () {
+        $sara = Fx::customer('sara@example.test');
+        event(new MarketingConsentChanged((string) Str::uuid(), $sara, CarbonImmutable::now()));
+        expect(CapturedNewsletterList::installed()->calls)->not->toContain('forget sara@example.test');
+
+        app(NewsletterSync::class)->remove('kept@example.test', StoreId::fromString(Fx::storeId('sa')), 'en', true);
+        expect(CapturedNewsletterList::installed()->last())->toBe('forget kept@example.test');
+
+        newsletterGuestRow('ae', 'held@example.test');
+        app(NewsletterSync::class)->remove('held@example.test', StoreId::fromString(Fx::storeId('sa')), 'en', true);
+        expect(CapturedNewsletterList::installed()->last())->toBe('remove held@example.test '.Fx::storeId('sa').' en');
+    });
+});
+
+describe('the removal job', function () {
+    it('keeps the address out of the queue\'s tables, and the failed jobs screen reads its name and tries', function () {
+        config(['queue.default' => 'database']);
+        app(NewsletterQueue::class)->remove('private@example.test', StoreId::fromString(Fx::storeId('sa')), 'en', true);
+
+        $payload = (string) DB::table('jobs')->value('payload');
+        $decoded = json_decode($payload, true);
+        $job = unserialize(decrypt($decoded['data']['command']));
+        $failed = new FailedJob('uuid', 'database', 'default', $payload, 'Brevo refused', CarbonImmutable::now()->toDateTimeImmutable());
+
+        expect($payload)->not->toContain('private@example.test')
+            ->and($job)->toBeInstanceOf(RemoveNewsletterContactJob::class)
+            ->and($job->email)->toBe('private@example.test')
+            ->and($failed->className())->toBe(RemoveNewsletterContactJob::class)
+            ->and($failed->triesAllowed())->toBe(5);
+    });
+
+    it('still runs from the queue with its address', function () {
+        Wx::agreeing('unused@example.test');
+        config(['queue.default' => 'database']);
+        app(NewsletterQueue::class)->remove('private@example.test', StoreId::fromString(Fx::storeId('sa')), 'en', true);
+
+        Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
+
+        expect(CapturedNewsletterList::installed()->last())->toBe('forget private@example.test');
+    });
+
+    it('is the only Ops job carrying an address', function () {
+        foreach (glob(base_path('src/Modules/Ops/Infrastructure/Queue/*Job.php')) ?: [] as $file) {
+            /** @var class-string $class */
+            $class = 'Modules\\Ops\\Infrastructure\\Queue\\'.basename($file, '.php');
+            $constructor = (new ReflectionClass($class))->getConstructor();
+            $names = array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $constructor?->getParameters() ?? []);
+
+            if ($class !== RemoveNewsletterContactJob::class) {
+                expect(array_filter($names, static fn (string $name): bool => str_contains(strtolower($name), 'email') || str_contains(strtolower($name), 'phone')))->toBe([]);
+            }
+        }
+    });
+});
+
+describe('the twelve-month removal (§5; owner, 2026-11-01)', function () {
+    it('takes notices and staff messages sent, cancelled or failed; keeps what waits, what sends, and what is younger', function () {
+        $staff = Fx::staff();
+        $old = CarbonImmutable::now()->subMonths(12)->subDay();
+        $young = CarbonImmutable::now()->subMonths(11);
+        $notice = static function (string $status, CarbonImmutable $at) use ($staff): string {
+            $id = strtolower((string) Str::ulid());
+            DB::table('ops.notices')->insert(['id' => $id, 'store_id' => Fx::storeId('sa'), 'title_ar' => 'ع', 'title_en' => 'T', 'body_ar' => 'ن', 'body_en' => 'B', 'by_bell' => true, 'by_email' => false, 'status' => $status, 'send_at' => $at, 'created_by' => $staff, 'created_at' => $at, 'updated_at' => $at, 'started_at' => in_array($status, ['SCHEDULED', 'CANCELLED'], true) ? null : $at, 'finished_at' => $status === 'SENT' ? $at : null]);
+
+            return $id;
+        };
+        $message = static function (string $status, CarbonImmutable $at) use ($staff): string {
+            $id = strtolower((string) Str::ulid());
+            DB::table('ops.staff_messages')->insert(['id' => $id, 'store_id' => Fx::storeId('sa'), 'sender_id' => $staff, 'audience' => 'STORE', 'title_ar' => 'ع', 'title_en' => 'T', 'body_ar' => 'ن', 'body_en' => 'B', 'by_bell' => true, 'by_email' => false, 'status' => $status, 'created_at' => $at, 'finished_at' => $status === 'SENT' ? $at : null]);
+
+            return $id;
+        };
+        foreach (['SENT', 'CANCELLED', 'FAILED'] as $status) {
+            $notice($status, $old);
+        }
+        $message('SENT', $old);
+        $message('FAILED', $old);
+        $keptNotices = [$notice('SCHEDULED', $old), $notice('SENDING', $old), $notice('SENT', $young), $notice('FAILED', $young)];
+        $keptMessages = [$message('SENDING', $old), $message('SENT', $young), $message('FAILED', $young)];
+
+        $gone = Fx::asSystem(fn () => app(PruneWrittenMessagesHandler::class)->handle(new PruneWrittenMessages));
+
+        expect($gone)->toMatchArray(['notices' => 3, 'staff_messages' => 2])
+            ->and(DB::table('ops.notices')->pluck('id')->all())->toEqualCanonicalizing($keptNotices)
+            ->and(DB::table('ops.staff_messages')->pluck('id')->all())->toEqualCanonicalizing($keptMessages);
     });
 });
 
@@ -311,7 +436,7 @@ describe('fix round 2', function () {
         Wx::set($sara, ['deletion_scheduled_for' => CarbonImmutable::now()->addDays(14)->toIso8601String()]);
         event(new CustomerDeletionScheduled((string) Str::uuid(), $sara, CarbonImmutable::now()));
         expect(DB::table('ops.subscribers')->count())->toBe(0)
-            ->and(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$sa} en", 'allow sara@example.test', "remove sara@example.test {$sa} en", 'forget sara@example.test']);
+            ->and(CapturedNewsletterList::installed()->calls)->toBe(["add sara@example.test {$sa} en", 'allow sara@example.test', 'forget sara@example.test']);
 
         Wx::set($sara, ['deletion_scheduled_for' => null]);
         event(new CustomerDeletionCancelled((string) Str::uuid(), $sara, CarbonImmutable::now()));
@@ -442,3 +567,12 @@ final class NewsletterTestLateSubscribers implements Subscribers
         return $this->real->page($store, $afterId, $limit);
     }
 }
+
+describe('the emails\' frame (§1.1: the store\'s logo and name)', function () {
+    it('carries them on the newsletter\'s confirmation', function () {
+        app(NewsletterSignUps::class)->subscribe(newsletterStore(), 'en', 'guest@example.test');
+        $email = CapturedEmails::installed()->last();
+
+        expect($email->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>');
+    });
+});

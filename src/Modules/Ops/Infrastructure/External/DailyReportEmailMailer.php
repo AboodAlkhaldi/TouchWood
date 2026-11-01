@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Contracts\View\Factory;
 use Modules\Access\Public\Dto\StaffDto;
+use Modules\Ops\Application\Alerts\EventSender;
 use Modules\Ops\Application\DailyReport\DailyReportMailer;
 use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
@@ -16,8 +17,9 @@ use Modules\Ops\Domain\Model\DailyReportFile;
 use Modules\Platform\Public\Dto\StoreDto;
 
 /**
- * The daily report's email (ops.md §1.11): a few lines in the person's language, the PDF attached, from
- * the application's sender address (`mail.from`), through Ops' email adapter.
+ * The daily report's email (ops.md §1.11): a few lines in the person's language, the PDF attached, the
+ * logo and the store's name (§1.1) - every store's report TouchWood's own, as a security message with no
+ * store is - from the application's sender address (`mail.from`), through Ops' email adapter.
  */
 final readonly class DailyReportEmailMailer implements DailyReportMailer
 {
@@ -41,14 +43,15 @@ final readonly class DailyReportEmailMailer implements DailyReportMailer
             ['ops::daily_report.email.hello', 'ops::daily_report.email.attached', 'ops::daily_report.email.kept'],
         );
         $subject = (string) $this->words->get('ops::daily_report.email.subject', $replace, $locale);
+        $brand = $store === null ? (string) $this->config->get('mail.from.name') : $store->name->in($locale);
 
         $this->sender->send(new OutgoingEmail(
             fromEmail: (string) $this->config->get('mail.from.address'),
-            fromName: (string) $this->config->get('mail.from.name'),
+            fromName: $brand,
             toEmail: $to->email,
             toName: trim($to->firstName.' '.$to->lastName),
             subject: $subject,
-            html: $this->views->make('ops::daily-report-email', ['lines' => $lines, 'rtl' => $locale === 'ar', 'locale' => $locale])->render(),
+            html: $this->views->make('ops::daily-report-email', ['lines' => $lines, 'rtl' => $locale === 'ar', 'locale' => $locale, 'brand' => $brand, 'logo' => rtrim((string) $this->config->get('app.url'), '/').'/'.EventSender::LOGO])->render(),
             text: implode("\n\n", $lines),
             attachments: [new EmailAttachment('daily-report-'.($store === null ? 'all' : $store->code).'-'.$report->day.'.pdf', $pdf)],
         ));

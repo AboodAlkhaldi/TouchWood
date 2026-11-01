@@ -154,6 +154,7 @@ it('reads a number\'s country by the calling code it starts with, the longest wh
 });
 
 it('reads the list once for every phone it is asked about', function () {
+    config(['session.lottery' => [0, 100]]);
     $countries = app(ListedPhoneCountries::class);
     DB::flushQueryLog();
     DB::enableQueryLog();

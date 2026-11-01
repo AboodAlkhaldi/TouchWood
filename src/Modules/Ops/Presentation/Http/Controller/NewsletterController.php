@@ -7,7 +7,9 @@ namespace Modules\Ops\Presentation\Http\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Newsletter\NewsletterSignUps;
+use Modules\Ops\Domain\Exception\NewsletterUnavailable;
 use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\ActorContext;
@@ -28,6 +30,7 @@ use Shared\Application\StoreContext;
 |   a marketing email's link (§1.3). Both signed on their path, no sign-in. GET is the page with its one
 |   "Unsubscribe" button (owner, 2026-10-30) and changes nothing; POST, with the same signature, takes
 |   the guest off or withdraws the consent at once - and is the mail client's one-click POST (RFC 8058).
+|   They answer for a switched-off store too (owner, 2026-11-01; shop-routes.php).
 */
 final readonly class NewsletterController
 {
@@ -56,14 +59,28 @@ final readonly class NewsletterController
         }
 
         $store = $platform->store($stores->current()) ?? abort(404);
-        $this->signUps->subscribe($store, app()->getLocale(), $email);
+
+        try {
+            $this->signUps->subscribe($store, app()->getLocale(), $email);
+        } catch (ProviderFailed $failed) {
+            // Logged for us, its own answer for the person; it names no address.
+            report($failed);
+
+            throw new NewsletterUnavailable;
+        }
 
         return new JsonResponse(['sent' => true], 202);
     }
 
     public function confirmation(string $token): JsonResponse
     {
-        return new JsonResponse(['token' => $token]);
+        return new JsonResponse([
+            'token' => $token,
+            'title' => __('ops::newsletter.confirm.title'),
+            'text' => __('ops::newsletter.confirm.text'),
+            'action' => __('ops::newsletter.confirm.action'),
+            'done' => __('ops::newsletter.confirm.done'),
+        ]);
     }
 
     public function confirm(string $token): JsonResponse

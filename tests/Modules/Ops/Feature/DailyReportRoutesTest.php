@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -67,7 +68,9 @@ it('makes a store\'s report, lists it and downloads its PDF, and keeps the reade
         ->and($pdf->getContent())->toStartWith('%PDF');
 
     $emails = $browser->post('/admin/daily-reports/emails', ['store' => Fx::storeId('sa'), 'on' => '1', 'sendAt' => '07:30'])->assertOk()->json();
-    expect($emails)->toBe([['storeId' => Fx::storeId('sa'), 'storeCode' => 'sa', 'storeName' => 'Saudi Arabia', 'on' => true, 'sendAt' => '07:30', 'timezone' => 'Asia/Riyadh']])
+    $nextDueAt = DB::table('ops.daily_report_settings')->value('next_due_at');
+    expect($emails)->toBe([['storeId' => Fx::storeId('sa'), 'storeCode' => 'sa', 'storeName' => 'Saudi Arabia', 'on' => true, 'sendAt' => '07:30', 'timezone' => 'Asia/Riyadh', 'nextDueAt' => CarbonImmutable::parse((string) $nextDueAt)->utc()->format('Y-m-d\TH:i:s.vP')]])
+        ->and($made['storeId'])->toBe(Fx::storeId('sa'))
         ->and($browser->get('/admin/daily-reports/emails', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json())->toBe($emails);
 });
 

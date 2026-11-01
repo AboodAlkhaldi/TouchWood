@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Command\RemoveSubscriber;
 
 use Illuminate\Database\ConnectionInterface;
+use Modules\Ops\Application\Delivery\Writers;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\SubscriberNotFound;
@@ -16,7 +17,7 @@ use Shared\Application\Unauthorized;
 /**
  * Takes a guest off a store's newsletter list (ops.md §3), under `ops.newsletter.manage` in its store;
  * the provider's list follows from the queue. A customer is never removed here: staff never set their
- * consent (§1.3) - the customer is not found.
+ * consent (§1.3) - the customer is not found, as is a guest of a store the reader does not manage.
  */
 final readonly class RemoveSubscriberHandler
 {
@@ -24,6 +25,7 @@ final readonly class RemoveSubscriberHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private Writers $writers,
         private Subscribers $subscribers,
         private NewsletterQueue $queue,
         private ConnectionInterface $db,
@@ -32,9 +34,10 @@ final readonly class RemoveSubscriberHandler
     /** @throws SubscriberNotFound|Unauthorized */
     public function handle(RemoveSubscriber $command): void
     {
+        $stores = $this->writers->storesHolding(self::PERMISSION);
         $found = $this->subscribers->find($command->subscriberId);
 
-        if ($found === null || ! $found->isGuest()) {
+        if ($found === null || ! $found->isGuest() || ! Writers::among($found->store, $stores)) {
             throw new SubscriberNotFound;
         }
 
