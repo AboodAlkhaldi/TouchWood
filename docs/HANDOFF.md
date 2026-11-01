@@ -1151,9 +1151,9 @@ coupon_discount
 points_discount
 goods_total     = net_subtotal − coupon_discount − points_discount
 shipping
-taxable_base    = goods_total + shipping
+taxable_base    = goods_total                  no VAT on shipping (owner, 2026-10-27)
 vat             = taxable_base × store.tax_percentage
-order_total     = taxable_base + vat
+order_total     = goods_total + vat + shipping
 ```
 
 | Threshold | Binds to |
@@ -1164,7 +1164,7 @@ order_total     = taxable_base + vat
 | Points earning base | `goods_total` |
 | Max points redemption % | `net_subtotal` |
 | Discount ceiling | `gross_subtotal` |
-| VAT | `taxable_base` |
+| VAT | `taxable_base` (the goods only: 1,000 + 150 VAT + 30 shipping = 1,180) |
 
 ### 10.3 Tax
 
@@ -1496,9 +1496,13 @@ to confirm with Payments.
 
 ### 12.5 Shipping
 
-Carriers are **fixed-rate tables** defined by staff. **No live carrier rate APIs.**
-Tracking is a URL template rendered with the tracking number. Domestic only per store.
-Free-shipping threshold per store per carrier.
+Carriers are **fixed-rate tables** defined by staff, priced by place (a region, a city or a district — the
+most specific wins). **No live carrier rate APIs.** **No VAT on shipping** (§10.2). A store may ship to
+several countries, each country belonging to one store; an address no carrier serves is placed with the
+fee **to be set by staff** and paid through staff only; another store's country is refused (shipping.md
+§1.2, sales.md §9.5). Tracking is a URL template rendered with the tracking number, or a link staff type;
+the full link is stored on the order when it ships. Free-shipping threshold per carrier, and one per store
+that overrides them all. **[AMENDED 2026-10-30, stage 7 step 6]**
 
 **Packaging engine.** Products are auto or manual. Auto compares weight and three
 dimensions against box maxima with admin-set padding and picks the smallest fit. Manual

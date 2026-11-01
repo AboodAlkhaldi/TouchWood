@@ -255,7 +255,11 @@ interface ShippingApi
 - **`ShippingOptionDto`**: `carrierId`, `nameAr`, `nameEn`, `logoUrl` (null), `fee` (Money, free
   shipping applied), `freeBecause` (`CARRIER`, `STORE`, null). Sorted by fee, then the carrier's place in
   the list. (Replaces the provisional `carrierCode` and `trackingUrlTemplate`: the pattern is read when
-  the order ships, through `trackingLink`.)
+  the order ships, through `trackingLink`.) **Added in stage 7 step 6** (2026-10-30, agreed with the step 5
+  session), so Sales keeps the order's shipping rule for its later edits (sales.md §9.5 #11, #12): `price`
+  (Money: the place's price before free shipping), `freeAbove` (Money or null: the free-above amount that
+  applies — the store-wide one while set, else the carrier's; null when neither) and `freeAboveBecause`
+  (`STORE`, `CARRIER`, null: whose that amount is, free or not yet).
 - **`CarrierDto`**: `id`, `storeId`, `countryCode`, `nameAr`, `nameEn`, `logoUrl`, `phone`, `website`,
   `hasTrackingPattern`, `active`.
 - Built in step 4: `quote`, `carrier`, `carriers`, `trackingLink` and their DTOs, with the enums
@@ -700,12 +704,13 @@ Every error extends `ShippingError` → `DomainError` ("shipping.*"), with both 
    `NOT_COVERED`/`OUTSIDE` order ("fee to be set", staff only payment, never auto-cancelled, staff set the
    fee later); `OTHER_STORE` refused; the flat fee and free-above settings removed; marking shipped picks
    the carrier from `carriers()` (or changes it), with a number and/or a typed link; **no VAT on
-   shipping** in the totals and the returns' refunds.
-4. **Pricing** — `totals()`: shipping is outside the taxable base.
+   shipping** in the totals and the returns' refunds. **Applied in stage 7 step 6** (sales.md §9.5).
+4. **Pricing** — `totals()`: shipping is outside the taxable base. **Applied in stage 7 step 6**
+   (pricing.md §9.5).
 5. **The handoff** — §4.4: Shipping → Access and Payments → Access "only to declare permissions", for
    the owner (as Catalog, Pricing, Inventory and Sync were allowed); §10.2: shipping outside the VAT;
    §12.5: "domestic only per store" becomes "a store ships to its countries"; the free-above amount per
-   carrier with a store-wide override (§1.5).
+   carrier with a store-wide override (§1.5). §10.2 and §12.5 **applied in stage 7 step 6**.
 6. **Promotions** — nothing to change: its "free shipping above an amount" already names Shipping,
    stage 7; it is §1.5.
 
@@ -889,3 +894,17 @@ owner, 2026-10-31: (a) in all fourteen** ("all as rec"). No round 4.
 | 12 | The list of sizes packed by hand? | **(a)** Photo, product name, size code and values, **Pack Automatically**; 25 at a time with Load More and a filter box. (b) All at once, no filter — long once a store marks many. |
 | 13 | The page's and menu entry's name? | **(a)** **Boxes** / **الصناديق**. (b) **Packaging** / **التغليف**. (c) **Shipping Boxes** / **صناديق الشحن**. |
 | 14 | Explaining what boxes do on the page? | **(a)** A short note at the top: a suggestion for whoever packs, shown on the order page and packing slip; it never changes the price or holds an order; sizes missing a weight or a size are packed by hand. (b) No note. |
+
+### 9.10 Stage 7 step 6 — Shipping in Sales's checkout (2026-10-30)
+
+Built by the step 6 session (sales.md §9.5 #1–#3, #11, #12; sales.md §9.6), agreed with the step 5 session:
+
+1. **`ShippingOptionDto` gains `price`, `freeAbove` and `freeAboveBecause`** (§2.1), set in `quote()`: the
+   place's price before free shipping, the free-above amount that applies (the store-wide one while set, else
+   the carrier's) and whose it is — so Sales keeps the order's shipping rule for its later edits.
+2. **Gap 5.1 is Sales's side**: the staff order page and the packing slip ask `suggestBox` for the order's
+   pieces as they stand (the gift packed like any piece) each time they are shown — never stored. A store with
+   no box switched on shows none.
+3. Sales lists `carriers()` for Ship… with the order's country first, reads `trackingLink()` when an order
+   ships and stores the link whole; it reads the store-wide free-above setting (`shipping.free.above_all`) by
+   its key for the cart's free-shipping bar (gap 6.6) — a `ShippingApi` read would be cleaner, a follow-up.

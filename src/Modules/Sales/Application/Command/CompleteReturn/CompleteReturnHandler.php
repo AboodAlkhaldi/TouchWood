@@ -28,7 +28,7 @@ use Shared\Infrastructure\Outbox\Outbox;
 
 /**
  * **Staff complete a received return** (sales.md §1.8): it refunds what came — each piece its goods share
- * plus its VAT share, by running totals (`ReturnRefunds`); a gift's nothing; the shipping and its VAT share
+ * plus its VAT share, by running totals (`ReturnRefunds`); a gift's nothing; the shipping (no VAT on it, §9.5 #1)
  * with the return that makes every bought piece returned. The refund comes off what the order is due, so
  * the money it holds above that is a refund staff record by hand (handoff §12.4). Loyalty settles the
  * points used and earned on the pieces' goods and points shares (`orderReturned`, once per return), and
@@ -63,7 +63,7 @@ final readonly class CompleteReturnHandler
             [$order, $return] = $this->changes->lock($returnId, null, [ReturnState::RECEIVED]);
             $facts = $this->returns->forRefund($order->id);
             $received = array_map(static fn (array $line): int => $line['received'] ?? 0, $this->returns->lines($return->id));
-            $refund = ReturnRefunds::of($facts['lines'], $facts['before'], $received, $facts['shippingRefunded'], $facts['shippingFee'], $facts['shippingVat']);
+            $refund = ReturnRefunds::of($facts['lines'], $facts['before'], $received, $facts['shippingRefunded'], $facts['shippingFee']);
 
             $now = CarbonImmutable::now();
             $this->returns->complete($return->id, $refund['refund'], $refund['shipping'], $now);

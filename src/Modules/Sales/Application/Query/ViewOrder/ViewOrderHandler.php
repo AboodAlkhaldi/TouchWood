@@ -6,7 +6,9 @@ namespace Modules\Sales\Application\Query\ViewOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Order\OrderAccess;
+use Modules\Sales\Application\Order\PackingBox;
 use Modules\Sales\Application\Query\OrderLines;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Application\Query\Staff\EditRow;
@@ -39,6 +41,7 @@ final readonly class ViewOrderHandler
         private OwnReads $own,
         private OrderLines $lines,
         private StaffReader $reader,
+        private PackingBox $box,
     ) {}
 
     /**
@@ -86,7 +89,7 @@ final readonly class ViewOrderHandler
             $name($order['decided_by']), $at($order['decided_at']), $order['decision_reason'] === null ? null : (string) $order['decision_reason'],
             $order['cancel_reason'] === null ? null : (string) $order['cancel_reason'], $order['cancel_other'] === null ? null : (string) $order['cancel_other'],
             $name($order['cancelled_by']), $at($order['cancelled_at']),
-            $order['carrier'] === null ? null : (string) $order['carrier'], $order['tracking_number'] === null ? null : (string) $order['tracking_number'],
+            $order['carrier_en'] === null ? null : (string) $order['carrier_en'], $order['tracking_number'] === null ? null : (string) $order['tracking_number'],
             $at($order['shipped_at']), $at($order['delivered_at']), $at($order['return_deadline_at']), $at($order['came_back_at']),
             array_map(static fn (array $row): MoneyRow => new MoneyRow(
                 (string) $row['id'], (string) $row['kind'], $money($row['amount_minor']), (string) $row['way'],
@@ -111,6 +114,8 @@ final readonly class ViewOrderHandler
             $this->reader->exponent($currency),
             $wired,
             $wired ? $counting : [],
+            OrderShippingView::of($order),
+            $this->box->of((string) $order['store_id'], $lines),
         );
     }
 }

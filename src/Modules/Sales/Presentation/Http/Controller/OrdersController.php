@@ -20,6 +20,8 @@ use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrderHandler;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlag;
 use Modules\Sales\Application\Command\ClearShortFlag\ClearShortFlagHandler;
+use Modules\Sales\Application\Command\CorrectShipment\CorrectShipment;
+use Modules\Sales\Application\Command\CorrectShipment\CorrectShipmentHandler;
 use Modules\Sales\Application\Command\EditOrder\EditOrder;
 use Modules\Sales\Application\Command\EditOrder\EditOrderHandler;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
@@ -32,6 +34,8 @@ use Modules\Sales\Application\Command\RecordRefund\RecordRefund;
 use Modules\Sales\Application\Command\RecordRefund\RecordRefundHandler;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
+use Modules\Sales\Application\Command\SetShippingFee\SetShippingFee;
+use Modules\Sales\Application\Command\SetShippingFee\SetShippingFeeHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\Command\TickReducedInProvider\TickReducedInProvider;
@@ -105,9 +109,29 @@ final readonly class OrdersController
 
     public function ship(Request $request, string $order, ShipOrderHandler $handler): RedirectResponse
     {
-        $tracking = trim(self::text($request, 'tracking_number'));
+        return self::act($request, fn () => $handler->handle(new ShipOrder(
+            $order, self::optional($request, 'carrier_id'), self::optional($request, 'other_carrier'),
+            self::optional($request, 'tracking_number'), self::optional($request, 'tracking_link'),
+        )), 'shipped');
+    }
 
-        return self::act($request, fn () => $handler->handle(new ShipOrder($order, trim(self::text($request, 'carrier')), $tracking === '' ? null : $tracking)), 'shipped');
+    /** A shipped order's carrier, number or link corrected (gap 6.5). */
+    public function correctShipment(Request $request, string $order, CorrectShipmentHandler $handler): RedirectResponse
+    {
+        return self::act($request, fn () => $handler->handle(new CorrectShipment(
+            $order, self::optional($request, 'carrier_id'), self::optional($request, 'other_carrier'),
+            self::optional($request, 'tracking_number'), self::optional($request, 'tracking_link'),
+        )), 'shipment_corrected');
+    }
+
+    /** A "shipping fee to be set" order's fee, in the smallest unit (gap 6.2). */
+    public function shippingFee(Request $request, string $order, SetShippingFeeHandler $handler): RedirectResponse
+    {
+        $amount = self::text($request, 'amount');
+
+        return self::act($request, fn () => $handler->handle(new SetShippingFee(
+            $order, ctype_digit($amount) && strlen($amount) <= 12 ? (int) $amount : -1, self::text($request, 'reason'),
+        )), 'shipping_fee_set');
     }
 
     public function deliver(Request $request, string $order, MarkDeliveredHandler $handler): RedirectResponse
@@ -196,7 +220,7 @@ final readonly class OrdersController
     public function editPreview(Request $request, string $order, EditPages $pages, PreviewOrderEditHandler $previews, ViewOrderHandler $view): JsonResponse
     {
         try {
-            return response()->json($pages->preview($order, self::lines($request), self::optional($request, 'address'), self::gift($request), $previews, $view)->toArray());
+            return response()->json($pages->preview($order, self::lines($request), self::optional($request, 'address'), self::gift($request), $previews, $view, self::optional($request, 'carrier_id'), self::optional($request, 'shipping_fee'))->toArray());
         } catch (DomainError $error) {
             return response()->json(['refused' => FormErrors::message($error)], 422);
         }
@@ -206,7 +230,7 @@ final readonly class OrdersController
     public function saveEdit(Request $request, string $order, EditOrderHandler $handler): RedirectResponse
     {
         try {
-            $handler->handle(new EditOrder($order, self::text($request, 'reason'), self::lines($request), self::optional($request, 'address'), self::gift($request)));
+            $handler->handle(new EditOrder($order, self::text($request, 'reason'), self::lines($request), self::optional($request, 'address'), self::gift($request), self::optional($request, 'carrier_id'), self::optional($request, 'shipping_fee')));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }

@@ -6,7 +6,7 @@ namespace Modules\Sales\Domain\Model;
 
 /**
  * An order's totals after a staff edit (sales.md §1.7): what it is worth now, with its coupon and points as
- * the edit left them, its gift and — when it changed — its address. Amounts in its currency's smallest unit.
+ * the edit left them, its shipping (re-quoted when the address moved — §9.5 #12), its gift and — when it changed — its address. Amounts in its currency's smallest unit.
  */
 final readonly class EditedTotals
 {
@@ -20,7 +20,7 @@ final readonly class EditedTotals
         public int $grossSubtotal,
         public int $netSubtotal,
         public int $goodsTotal,
-        public int $shippingFee,
+        public OrderShipping $shipping,
         public int $taxableBase,
         public int $vat,
         public int $orderTotal,

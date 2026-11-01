@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\Own;
 
 use DateTimeImmutable;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
 use Modules\Sales\Public\Enums\WayToPay;
@@ -61,5 +62,7 @@ final readonly class OwnOrderView
         public bool $mayUploadTransferDocument,
         /** The currency's exponent, to show the amounts. */
         public int $exponent,
+        /** The carriers ordered and shipped with, the tracking link, the fee still to be set (§9.5 #11; gap 6.7). */
+        public ?OrderShippingView $shippingDetail = null,
     ) {}
 }

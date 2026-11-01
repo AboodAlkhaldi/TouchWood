@@ -41,7 +41,6 @@ use Modules\Sales\Application\Query\PreviewReturnRefund\PreviewReturnRefundHandl
 use Modules\Sales\Application\Query\SearchEditSizes\SearchEditSizes;
 use Modules\Sales\Application\Query\SearchEditSizes\SearchEditSizesHandler;
 use Modules\Sales\Application\SalesPermissions;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Public\Enums\CartLineProblem;
@@ -99,7 +98,7 @@ function smReturn(array $sold, int $pieces = 1, bool $accept = true): string
     if (DB::table('sales.orders')->where('id', $sold['order'])->value('status') !== 'COMPLETED') {
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($sold['order']));
         DB::table('sales.orders')->where('id', $sold['order'])->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($sold['order'], 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($sold['order'], otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($sold['order']));
     }
     $line = (string) DB::table('sales.order_lines')->where('order_id', $sold['order'])->where('is_gift', false)->orderBy('unit_minor', 'desc')->value('id');
@@ -233,7 +232,7 @@ describe('the order edit\'s size search', function () {
 
 describe('returns', function () {
     it('shows what completing a received return refunds, as completing it does, the shipping with the last pieces', function (int $pieces, bool $withShipping) {
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+        Cx::serve('sa', 25_00);
         $sold = smOrder();
         // One size only, of two pieces: a return of both makes every bought piece returned.
         DB::table('sales.order_lines')->where('order_id', $sold['order'])->where('variant_id', $sold['variants'][1])->delete();
@@ -244,12 +243,10 @@ describe('returns', function () {
         $preview = app(PreviewReturnRefundHandler::class)->handle(new PreviewReturnRefund($return));
         $refunded = app(CompleteReturnHandler::class)->handle(new CompleteReturn($return));
 
-        $shippingVat = (int) DB::table('sales.orders')->where('id', $sold['order'])->value('vat_minor')
-            - (int) DB::table('sales.order_lines')->where('order_id', $sold['order'])->sum('vat_share_minor');
-
         expect($preview->total->minorUnits)->toBe($refunded)
-            ->and($preview->goods->minorUnits + $preview->vat->minorUnits + $preview->shipping->minorUnits + $preview->shippingVat->minorUnits)->toBe($refunded)
-            ->and([$preview->shipping->minorUnits, $preview->shippingVat->minorUnits])->toBe($withShipping ? [25_00, $shippingVat] : [0, 0])
+            ->and($preview->goods->minorUnits + $preview->vat->minorUnits + $preview->shipping->minorUnits)->toBe($refunded)
+            // The shipping alone: no VAT on it (§9.5 #1).
+            ->and($preview->shipping->minorUnits)->toBe($withShipping ? 25_00 : 0)
             ->and($preview->vat->minorUnits)->toBeGreaterThan(0)
             ->and($preview->exponent)->toBe(2);
     })->with([

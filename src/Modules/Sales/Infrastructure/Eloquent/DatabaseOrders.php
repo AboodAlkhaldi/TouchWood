@@ -12,8 +12,10 @@ use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
 use Modules\Sales\Domain\Model\OrderForEdit;
 use Modules\Sales\Domain\Model\OrderLine;
+use Modules\Sales\Domain\Model\OrderShipping;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\PlacedOrder;
+use Modules\Sales\Domain\Model\Shipment;
 use Modules\Sales\Domain\Repository\Orders;
 use stdClass;
 
@@ -57,9 +59,7 @@ final readonly class DatabaseOrders implements Orders
             'gross_subtotal_minor' => $order->grossSubtotal,
             'net_subtotal_minor' => $order->netSubtotal,
             'goods_total_minor' => $order->goodsTotal,
-            'shipping_fee_minor' => $order->shippingFee,
-            'shipping_rule_fee_minor' => $order->shippingRuleFee,
-            'shipping_rule_free_above_minor' => $order->shippingRuleFreeAbove,
+            ...self::shippingColumns($order->shipping),
             'taxable_base_minor' => $order->taxableBase,
             'vat_minor' => $order->vat,
             'vat_rate_basis_points' => $order->vatRateBasisPoints,
@@ -113,7 +113,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired', 'shipping_fee_pending']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -131,6 +131,7 @@ final readonly class DatabaseOrders implements Orders
             (string) $row->way_to_pay,
             (int) $row->goods_total_minor,
             (bool) $row->wired,
+            (bool) $row->shipping_fee_pending,
         ) : null;
     }
 
@@ -243,10 +244,10 @@ final readonly class DatabaseOrders implements Orders
         ], $rows->all()));
     }
 
-    public function ship(string $orderId, string $carrier, ?string $trackingNumber, DateTimeImmutable $at): void
+    public function ship(string $orderId, Shipment $shipment, DateTimeImmutable $at): void
     {
         $this->db->table('sales.orders')->where('id', $orderId)->update([
-            'shipment_status' => OrderState::SHIPPED, 'shipped_at' => Moment::of($at), 'carrier' => $carrier, 'tracking_number' => $trackingNumber,
+            'shipment_status' => OrderState::SHIPPED, 'shipped_at' => Moment::of($at), ...self::shipmentColumns($shipment),
         ]);
     }
 
@@ -299,7 +300,7 @@ final readonly class DatabaseOrders implements Orders
 
         return new OrderForEdit(
             (string) $row->id, (string) $row->store_id, (string) $row->customer_id, (string) $row->audience, (string) $row->currency_code,
-            (int) $row->vat_rate_basis_points, (int) $row->shipping_rule_fee_minor, (int) $row->shipping_rule_free_above_minor,
+            (int) $row->vat_rate_basis_points, self::shippingOf($row),
             $row->coupon_id === null ? null : (string) $row->coupon_id, (int) $row->coupon_discount_minor, (int) $row->points_used, (int) $row->points_discount_minor,
             $row->gift_level_id === null ? null : (string) $row->gift_level_id, (int) $row->order_total_minor, (int) $row->paid_minor, (int) $row->refunded_minor,
             $address, (bool) $row->wired,
@@ -334,7 +335,7 @@ final readonly class DatabaseOrders implements Orders
             'gross_subtotal_minor' => $totals->grossSubtotal,
             'net_subtotal_minor' => $totals->netSubtotal,
             'goods_total_minor' => $totals->goodsTotal,
-            'shipping_fee_minor' => $totals->shippingFee,
+            ...self::shippingColumns($totals->shipping),
             'taxable_base_minor' => $totals->taxableBase,
             'vat_minor' => $totals->vat,
             'order_total_minor' => $totals->orderTotal,
@@ -342,6 +343,11 @@ final readonly class DatabaseOrders implements Orders
             'gift_level_id' => $totals->giftLevelId,
             ...($totals->address === null ? [] : ['address' => json_encode($totals->address, JSON_THROW_ON_ERROR)]),
         ]);
+    }
+
+    public function setShippingFee(string $orderId, OrderShipping $shipping, int $orderTotal): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update([...self::shippingColumns($shipping), 'order_total_minor' => $orderTotal, 'due_minor' => $orderTotal]);
     }
 
     public function forgetEmail(string $customerId): void
@@ -360,5 +366,58 @@ final readonly class DatabaseOrders implements Orders
             'at' => Moment::of($at),
             'detail' => json_encode($detail === [] ? (object) [] : $detail, JSON_THROW_ON_ERROR),
         ]);
+    }
+
+    public function shipment(string $orderId): ?Shipment
+    {
+        $row = $this->db->table('sales.orders')->where('id', $orderId)->first(['carrier_id', 'carrier_ar', 'carrier_en', 'tracking_number', 'tracking_link']);
+
+        if (! $row instanceof stdClass || $row->carrier_en === null) {
+            return null;
+        }
+
+        $text = static fn (mixed $value): ?string => $value === null ? null : (string) $value;
+
+        return new Shipment($text($row->carrier_id), (string) $row->carrier_ar, (string) $row->carrier_en, $text($row->tracking_number), $text($row->tracking_link));
+    }
+
+    public function correctShipment(string $orderId, Shipment $shipment): void
+    {
+        $this->db->table('sales.orders')->where('id', $orderId)->update(self::shipmentColumns($shipment));
+    }
+
+    /** @return array<string, mixed> the columns of an order's shipping */
+    private static function shippingColumns(OrderShipping $shipping): array
+    {
+        return [
+            'shipping_fee_minor' => $shipping->fee,
+            'shipping_rule_fee_minor' => $shipping->ruleFee,
+            'shipping_rule_free_above_minor' => $shipping->ruleFreeAbove,
+            'shipping_free_kind' => $shipping->ruleFreeKind,
+            'shipping_fee_pending' => $shipping->pending,
+            'ordered_carrier_id' => $shipping->carrierId,
+            'ordered_carrier_ar' => $shipping->carrierAr,
+            'ordered_carrier_en' => $shipping->carrierEn,
+        ];
+    }
+
+    private static function shippingOf(stdClass $row): OrderShipping
+    {
+        $text = static fn (mixed $value): ?string => $value === null ? null : (string) $value;
+
+        return new OrderShipping(
+            (int) $row->shipping_fee_minor, (int) $row->shipping_rule_fee_minor,
+            $row->shipping_rule_free_above_minor === null ? null : (int) $row->shipping_rule_free_above_minor, $text($row->shipping_free_kind),
+            (bool) $row->shipping_fee_pending, $text($row->ordered_carrier_id), $text($row->ordered_carrier_ar), $text($row->ordered_carrier_en),
+        );
+    }
+
+    /** @return array<string, mixed> the columns of an order's shipment */
+    private static function shipmentColumns(Shipment $shipment): array
+    {
+        return [
+            'carrier_id' => $shipment->carrierId, 'carrier_ar' => $shipment->carrierAr, 'carrier_en' => $shipment->carrierEn,
+            'tracking_number' => $shipment->trackingNumber, 'tracking_link' => $shipment->trackingLink,
+        ];
     }
 }

@@ -32,6 +32,7 @@ use Modules\Sales\Application\Query\Staff\MoneyRow;
 use Modules\Sales\Application\Query\Staff\StaffOrderRow;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrder;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
+use Modules\Shipping\Public\Dto\CarrierDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -197,7 +198,7 @@ final readonly class OrderPages
             $order->cancelOther,
             $order->cancelledBy,
             self::maybe($order->cancelledAt),
-            $order->carrier,
+            $order->shippingDetail === null ? $order->carrier : ($this->locale() === 'en' ? $order->shippingDetail->carrierEn : $order->shippingDetail->carrierAr),
             $order->trackingNumber,
             self::maybe($order->shippedAt),
             self::maybe($order->deliveredAt),
@@ -222,20 +223,32 @@ final readonly class OrderPages
             $store->timezone ?? 'UTC',
             $order->exponent,
             self::decimal($owed, $order->exponent),
-            $actions->mayFulfil ? $this->carriers($order->storeId, $carriers) : [],
+            $actions->mayFulfil ? $this->carriers($order->storeId, $order->address, $carriers) : [],
+            $order->shippingDetail?->carrierId,
+            $order->shippingDetail?->trackingLink,
+            $this->locale() === 'en' ? $order->shippingDetail?->orderedCarrierEn : $order->shippingDetail?->orderedCarrierAr,
+            $order->shippingDetail->feePending ?? false,
+            OrderBoxData::of($order->box),
         );
     }
 
     /**
-     * @return list<string>
+     * @param  array<string, mixed>  $address  the order's snapshot: its country first
+     * @return list<OrderCarrierData>
      */
-    private function carriers(string $storeId, ListCarriersHandler $carriers): array
+    private function carriers(string $storeId, array $address, ListCarriersHandler $carriers): array
     {
         try {
-            return $carriers->handle(new ListCarriers($storeId));
+            $list = $carriers->handle(new ListCarriers($storeId, is_string($address['countryCode'] ?? null) ? $address['countryCode'] : null));
         } catch (Unauthorized) {
             return [];
         }
+
+        $english = $this->locale() === 'en';
+
+        return array_map(static fn (CarrierDto $carrier): OrderCarrierData => new OrderCarrierData(
+            $carrier->id, $english ? $carrier->nameEn : $carrier->nameAr, $carrier->countryCode, $carrier->active, $carrier->hasTrackingPattern,
+        ), $list);
     }
 
     /** An amount in its decimals ("248.00"), as Record Payment's `shown` reads it. */
@@ -277,6 +290,7 @@ final readonly class OrderPages
             $money($order->total),
             $order->wayToPay->value,
             $store->timezone ?? 'UTC',
+            OrderBoxData::of($order->box),
         );
     }
 

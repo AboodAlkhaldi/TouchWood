@@ -145,7 +145,7 @@ final readonly class ReturnPages
         $preview = $previews->handle(new PreviewReturnRefund($returnId));
         $money = fn (Money $amount): MoneyData => $this->money($amount, $storeId, $preview->exponent);
 
-        return new ReturnPreviewData($money($preview->goods), $money($preview->vat), $money($preview->shipping), $money($preview->shippingVat), $money($preview->total));
+        return new ReturnPreviewData($money($preview->goods), $money($preview->vat), $money($preview->shipping), $money($preview->total));
     }
 
     /** The refund in its decimals, as Record Refund reads it ("120.00"), to fill the dialog with. */

@@ -129,10 +129,10 @@ final readonly class EditPages
      *
      * @throws Unauthorized|DomainError
      */
-    public function preview(string $orderId, array $lines, ?string $addressId, string $gift, PreviewOrderEditHandler $previews, ViewOrderHandler $view): EditPreviewData
+    public function preview(string $orderId, array $lines, ?string $addressId, string $gift, PreviewOrderEditHandler $previews, ViewOrderHandler $view, ?string $carrierId = null, ?string $shippingFee = null): EditPreviewData
     {
         $order = $view->handle(new ViewOrder($orderId));
-        $plan = $previews->handle(new PreviewOrderEdit($orderId, $lines, $addressId, $gift));
+        $plan = $previews->handle(new PreviewOrderEdit($orderId, $lines, $addressId, $gift, $carrierId, $shippingFee));
         $money = fn (Money $amount): MoneyData => $this->money($amount, $order->storeId, $order->exponent);
         $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
         // What the order holds, against what it owed before and owes after (R2-37): a refund once it holds more than its
@@ -161,6 +161,13 @@ final readonly class EditPages
                 $money($option->amount),
             ), $plan->giftOptions),
             $plan->giftLevelId,
+            $plan->requote !== null,
+            array_map(fn (array $option): CheckoutCarrierData => new CheckoutCarrierData(
+                $option['carrierId'], $this->en() ? $option['nameEn'] : $option['nameAr'], $option['logoUrl'],
+                $money(Money::of($option['fee'], $plan->difference->currencyCode)), $option['freeBecause'] !== null,
+            ), $plan->requote->options ?? []),
+            $plan->shipping->carrierId,
+            $plan->shipping->pending,
         );
     }
 

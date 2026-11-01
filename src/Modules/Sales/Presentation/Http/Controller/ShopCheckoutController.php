@@ -54,6 +54,8 @@ final readonly class ShopCheckoutController
                 is_string($asked) && ctype_digit($asked) && strlen($asked) <= 9 && (int) $asked > 0 ? (int) $asked : null,
                 self::query($request, 'way'),
                 $start,
+                // The carrier the customer chose among those serving the address (§9.5 #2).
+                self::query($request, 'carrier'),
             );
         } catch (DomainError $error) {
             return redirect()->route('storefront.sales.cart')->withErrors(['form' => FormErrors::message($error)]);

@@ -15,5 +15,8 @@ final readonly class PreviewOrderEdit
         public array $lines,
         public ?string $addressId = null,
         public string $gift = 'KEEP',
+        /** At an address at another place: a carrier, and `TODAY` or `KEEP` for the fee (gap 6.1). */
+        public ?string $carrierId = null,
+        public ?string $shippingFee = null,
     ) {}
 }

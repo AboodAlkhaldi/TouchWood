@@ -72,7 +72,7 @@ function salesReportsShip(string $order): void
 {
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-1', null, '2026-10-19', (string) Str::uuid()));
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'TRK-77'));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: 'TRK-77'));
 }
 
 function salesReports(): SalesReports

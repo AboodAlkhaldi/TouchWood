@@ -14,7 +14,6 @@ use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Model\RemovedLine;
 use Modules\Sales\Domain\Repository\Carts;
 use Shared\Application\ActorContext;
@@ -35,6 +34,10 @@ use function Pest\Laravel\seed;
 |
 | Deliberately no RefreshDatabase, as the other browser tests: every row here is new, from the clock.
 */
+
+// The browser suite keeps its data: the Saudi test region retired after each test, so later files may still
+// type a Saudi region (CheckoutFixtures::unserve).
+afterEach(fn () => Cx::unserve());
 
 beforeEach(function () {
     config(['session.driver' => 'database']);
@@ -97,7 +100,7 @@ it('draws My Orders, an order, asking a return and the return at a phone\'s widt
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($placed->id));
         DB::table('sales.orders')->where('id', $placed->id)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($placed->id, 'SMSA', '123'));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($placed->id, otherCarrier: 'SMSA', trackingNumber: '123'));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($placed->id));
     } finally {
         app()->scoped(ActorContext::class, $previous);
@@ -137,8 +140,8 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
 
     try {
         $ready = Cx::ready();
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
-        Cx::setting(SalesSettings::FREE_ABOVE, 300_00);
+        Cx::serve('sa', 25_00);
+        Cx::freeForAll(300_00);
         // A line that left at a sign-in, for the notice's Close (R2-8; B17).
         $cart = app(Carts::class)->find(StoreId::fromString(Fx::storeId('sa')), $ready['customer'], null) ?? throw new LogicException('No cart.');
         app(Carts::class)->setNotice($cart->id, [new RemovedLine($ready['variants'][1], SaleMode::Wholesale, 3, RemovedLine::WHOLESALE)], CarbonImmutable::now());
@@ -156,12 +159,12 @@ it('draws the cart\'s shipping, how much more ships free and the header\'s piece
     expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue()
         ->and($text($page, '[data-test="header-cart-pieces"]'))->toBe('3');
 
-    // The goods, 250.00: 50.00 short of free shipping at 300.00; the fee 25.00 in the summary.
+    // The goods, 250.00: 50.00 short of free shipping at 300.00; no fee before checkout (gap 6.6).
     $page->resize(375, 812);
     $page->click('[data-test="header-cart"]');
     expect(browserUntil($page, "location.pathname === '/sa/en/cart'"))->toBeTrue()
         ->and($text($page, '[data-test="free-shipping"]'))->toContain('Add')->toContain('50.00')->toContain('more for free shipping.')
-        ->and($text($page, '[data-test="summary-shipping"]'))->toContain('Shipping')->toContain('25.00')->toContain('free above')->toContain('300.00')
+        ->and($text($page, '[data-test="summary-shipping"]'))->toBe('')
         ->and(salesShopWide($page))->toBe('', 'the cart scrolls sideways');
 
     // Closed, the notice stays away: the cart again has none.

@@ -9,14 +9,13 @@ use Illuminate\Support\Str;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\RedemptionRequest;
 use Modules\Loyalty\Public\Enums\Audience as LoyaltyAudience;
-use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Public\Contracts\PricingApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\CartPricesDto;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
-use Modules\Sales\Application\SalesSettings;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\MayNotOrder;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
@@ -33,7 +32,7 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * A checkout's quote (sales.md §1.2), built in its fixed order (handoff §10.2, §11.3): who may order,
  * what may be bought, the address, the prices, the coupon, the points, the goods total, the gift, the
- * shipping, the totals, the ways to pay, the points it would earn. **A refused coupon or points never
+ * shipping (Shipping's quote for the address), the totals, the ways to pay, the points it would earn. **A refused coupon or points never
  * fail the quote** (answer 31): it is built without them, with the reason. Reads only.
  */
 final readonly class QuoteBuilder
@@ -48,20 +47,21 @@ final readonly class QuoteBuilder
     public const string PASSES_CEILING = 'PASSES_CEILING';
 
     public function __construct(
-        private PlatformApi $platform,
         private QuoteRules $rules,
         private PricingApi $pricing,
         private PromotionsApi $promotions,
         private LoyaltyApi $loyalty,
         private Carts $carts,
+        private ShippingQuotes $shipping,
     ) {}
 
     /**
-     * Prices that end while the quote is built are asked again, once; ending again, `QuoteExpired`.
+     * Prices that end while the quote is built are asked again, once; ending again, `QuoteExpired`. The
+     * carrier asked for is picked when it serves the address, else the cheapest (gap 6.9).
      *
-     * @throws MayNotOrder|TooManyWaitingOrders|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
+     * @throws MayNotOrder|TooManyWaitingOrders|NotForYourAccount|NotOrderable|AddressNotUsable|AddressInOtherStore|WayToPayNotOffered|QuoteExpired
      */
-    public function build(StoreId $store, string $customerId, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay, int $attempt = 1): QuoteView
+    public function build(StoreId $store, string $customerId, string $addressId, bool $usePoints, ?int $pointsAsked, WayToPay $wayToPay, ?string $carrierId = null, int $attempt = 1): QuoteView
     {
         // 1. The store is on, who may order, and fewer orders waiting than allowed.
         $audience = $this->rules->audience($store, $customerId);
@@ -73,7 +73,7 @@ final readonly class QuoteBuilder
         $this->rules->lines($store, $lines, $audience);
 
         // 3. The delivery address.
-        $this->rules->address($store, $customerId, $addressId);
+        $address = $this->rules->address($store, $customerId, $addressId);
 
         // 4. The prices.
         $prices = $this->pricing->prices($store, $lines);
@@ -101,16 +101,15 @@ final readonly class QuoteBuilder
         // 8. The gift.
         [$giftLevelId, $giftVariantId] = $this->rules->gift($store, $audience, $goodsTotal, $lines);
 
-        // 9. The shipping — the store's flat fee until stage 7, free from its free-above amount.
-        $fee = Money::of($this->platform->setting(SalesSettings::FLAT_FEE, $store)->int(), $prices->currencyCode);
-        $freeAbove = Money::of($this->platform->setting(SalesSettings::FREE_ABOVE, $store)->int(), $prices->currencyCode);
-        $shipping = ! $freeAbove->isZero() && $goodsTotal->compareTo($freeAbove) >= 0 ? $zero : $fee;
+        // 9. The shipping — Shipping's carriers for the address, for this goods total (§9.5 #2). Another
+        // store's country is refused; no carrier serving the place leaves the fee to staff.
+        $shipping = $this->shipping->quote($store, ShippingQuotes::destination($address), $goodsTotal, $carrierId);
 
-        // 10. The totals.
-        $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $shipping);
+        // 10. The totals — no VAT on the shipping (§9.5 #1).
+        $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $shipping->fee);
 
-        // 11. The ways to pay.
-        $ways = $this->rules->waysToPay($store, $audience);
+        // 11. The ways to pay — only staff's contact while the fee is to be set, a company's too (shipping.md §9.3 #7).
+        $ways = $shipping->pending() ? [WayToPay::StaffContact] : $this->rules->waysToPay($store, $audience);
 
         if (! in_array($wayToPay, $ways, true)) {
             throw new WayToPayNotOffered;
@@ -128,7 +127,7 @@ final readonly class QuoteBuilder
         }
 
         if ($expiresAt <= $now) {
-            return $attempt === 1 ? $this->build($store, $customerId, $addressId, $usePoints, $pointsAsked, $wayToPay, 2) : throw new QuoteExpired;
+            return $attempt === 1 ? $this->build($store, $customerId, $addressId, $usePoints, $pointsAsked, $wayToPay, $carrierId, 2) : throw new QuoteExpired;
         }
 
         return new QuoteView(
@@ -155,8 +154,7 @@ final readonly class QuoteBuilder
             $pointsRefusal,
             $giftLevelId,
             $giftVariantId,
-            $fee,
-            $freeAbove,
+            $shipping,
             $totals,
             $ways,
             $wayToPay,

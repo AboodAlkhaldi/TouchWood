@@ -5,8 +5,8 @@ transaction. The specification is [`docs/modules/sales.md`](../../../docs/module
 2026-10-10, the owner's answers of 2026-10-19 in §9.1b, 31–44).
 
 Backend only in this stage's build; the screens are another session's. Shipping and Payments are stage
-7's: Sales declares what it needs of them (`Modules\Shipping\Public`, `Modules\Payments\Public`,
-provisional) and, until they exist, uses its flat shipping fee and offers no online payment.
+7's: since stage 7 step 6 the quote asks `ShippingApi::quote` (the carrier picked and snapshotted, or the
+fee to be set by staff; no VAT on shipping), and Payments is still to come — no online payment yet.
 
 ## Build steps
 
@@ -18,6 +18,7 @@ provisional) and, until they exist, uses its flat shipping fee and offers no onl
 | S3 — what Sales reads of Catalog and Access | catalog.md amendment 29: `storeVariants` (many sizes in a store in one read) and `productsOpenTo` (which products the category switches leave open to a shopper); access.md amendment 74: `GuestIdentity` (`current`, `ensure` — the guest cart's id, its cookie Access's) | `src/Modules/Catalog/Public`, `src/Modules/Access/Public` |
 | S4 — the cart | Tables `sales.carts`, `sales.cart_lines`; `AddCartLine` (permissive: any size, either mode, 1 to 1,000,000, the same size and mode once; a signed-in individual never wholesale — answer 32; a guest's first line creates the guest), `ChangeCartLine`, `RemoveCartLine`, `SetCartCoupon` (a customer's only; a guest is told to sign in); a guest's carts move or merge at sign-in, the lines the account may not buy leaving with why (`GuestCartMover`, `MoveGuestCart`); an anonymized account's carts deleted (`ForgetCustomer`, which from S6b also clears its orders' email); carts untouched for 90 days emptied each night (`EmptyOldCarts`) | below |
 | S5–S11 — the quote, placing, decisions, money, fulfilment, edits, returns, the Best-Selling ranks, the reads | One step each, every one in the list below (S11a–S11c the ranks and the reads: §3.1, §3.2) | below |
+| Stage 7 step 6 — shipping wired in (sales.md §9.5 #1–#3, #11, #12; §9.6) | `Quote/ShippingQuotes` and `Quote/QuoteShipping` (the quote's step 9: served, not covered, outside; another store's country refused — `AddressInOtherStore`); `Domain/Model/OrderShipping` (the fee, its rule, the ordered carrier, the fee to be set) and `Shipment`; `Order/ShipmentInputs` (one of the store's carriers or "Other carrier", a typed link wins over the pattern); `ShipOrder` refused while the fee is to be set (`ShippingFeeNotSet`); `CorrectShipment`; `SetShippingFee`; staff address changes re-quoted (`OrderEditing::shipping`, gap 6.1); returns refund the shipping with no VAT share; the flat-fee settings removed; migration `2026_10_30_600000_wire_shipping_into_orders` | `Application/Quote`, `Application/Order`, `Application/Command/{ShipOrder,CorrectShipment,SetShippingFee}`, `Domain/Model` |
 | S12 — the module pass | A whole-module review: every refused value worded in both languages (tested against the code), `OrderSnapshot` reading sizes through `SizeRecords`, an unused per-piece helper removed, the spec's and this file's stale lines, the §8 scenarios still untested (placing, fulfilment, decisions, edits, returns, the tables). Left untested: a store's VAT rate changed under an edit and a VAT of 0 (the rate is Platform's cached store row, changed only through its own command), a retail and a wholesale line of one size held as one (Inventory's hold-line key) | below |
 
 ## What is here

@@ -39,7 +39,6 @@ use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Quote\QuoteBuilder;
 use Modules\Sales\Application\Quote\QuoteRules;
 use Modules\Sales\Application\Quote\QuoteView;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\MayNotOrder;
@@ -188,7 +187,7 @@ function quoteVariant(string $variantId, array $changes): StoreVariantDto
 describe('a quote', function () {
     it('prices the cart, totals it, offers staff contact to an individual and keeps it whole for 15 minutes', function () {
         ['address' => $address, 'variants' => $variants, 'customer' => $customer] = quoteReady();
-        quoteSetting(SalesSettings::FLAT_FEE, 25_00);
+        Cx::serve('sa', 25_00);
         $t0 = Cx::clockAhead();
         CarbonImmutable::setTestNow($t0);
 
@@ -219,16 +218,22 @@ describe('a quote', function () {
             ->and(QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, WayToPay::from($kept->wayToPay), $kept->expiresAt, $kept->createdAt, $kept->result)->toArray())->toBe($quote->toArray());
     });
 
-    it('ships for free once the goods total reaches the free-above amount, and never while that is 0', function (int $freeAbove, int $shipping) {
+    it('ships for free once the goods total reaches the carrier free-above amount, or the store-wide one over it', function (?int $carrier, int $store, int $shipping, ?string $kind) {
         ['address' => $address] = quoteReady();
-        quoteSetting(SalesSettings::FLAT_FEE, 25_00);
-        quoteSetting(SalesSettings::FREE_ABOVE, $freeAbove);
+        Cx::serve('sa', 25_00);
+        Cx::carrierFreeAbove($carrier);
+        Cx::freeForAll($store);
 
-        expect(quoteStart($address)->totals->shipping->minorUnits)->toBe($shipping);
+        $quote = quoteStart($address);
+
+        // The rule snapshotted with the fee: the price before free shipping, and whose amount applied (§9.5 #11).
+        expect([$quote->totals->shipping->minorUnits, $quote->shipping->price->minorUnits, $quote->shipping->freeKind])->toBe([$shipping, 25_00, $kind]);
     })->with([
-        'never free' => [0, 25_00],
-        'reached exactly' => [250_00, 0],
-        'one short' => [250_01, 25_00],
+        'never free' => [null, 0, 25_00, null],
+        'the carrier amount, reached exactly' => [250_00, 0, 0, 'CARRIER'],
+        'the carrier amount, one short' => [250_01, 0, 25_00, 'CARRIER'],
+        'the store-wide one over the carrier amount' => [100_00, 300_00, 25_00, 'STORE'],
+        'the store-wide one reached' => [null, 250_00, 0, 'STORE'],
     ]);
 
     it('expires with the prices when they end before the 15 minutes', function () {

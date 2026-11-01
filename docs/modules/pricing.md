@@ -186,10 +186,12 @@ no database, no clock** — from the prices (§1.6) and the amounts Sales hands 
 gross_subtotal = Σ (list price × quantity)            over the priced lines (§1.6 step 5)
 net_subtotal   = Σ (unit price × quantity)
 goods_total    = net_subtotal − coupon_discount − points_discount
-taxable_base   = goods_total + shipping
+taxable_base   = goods_total                          no VAT on shipping (§9.5)
 vat            = taxable_base × the store's rate      rounded once, half up, to the coin
-order_total    = taxable_base + vat
+order_total    = goods_total + vat + shipping
 ```
+
+The shipping carries no VAT (owner, 2026-10-27; §9.5): 1,000 of goods + 150 VAT + 30 shipping = 1,180.
 
 It refuses a cart holding an unpriced line, an amount in another currency, a negative amount, and
 discounts larger than `net_subtotal`. The rate is the store's at the moment the prices were read
@@ -284,13 +286,14 @@ store's currency. **On `main` since #97.**
 | Method | For | Says |
 |---|---|---|
 | `prices(StoreId $store, list<CartLineDto> $lines): CartPricesDto` | Sales (cart, quote), Promotions (via Sales) | Each line's price: its unit price (the lowest applicable), the base price it compares with, the kind that won, the line amounts, and when that price stops applying; the lines with no price, apart; `gross_subtotal` and `net_subtotal` over the priced lines; the store's VAT rate. Reads the materialized prices — never resolves at request time (handoff §10.1). |
-| `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base`, `vat` (rounded once, half up), `order_total`. **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
+| `totals(CartPricesDto $prices, Money $couponDiscount, Money $pointsDiscount, Money $shipping): TotalsDto` | Sales | The canonical amounts (handoff §10.2): `goods_total`, `taxable_base` (the goods only — no VAT on shipping, §9.5), `vat` (rounded once, half up), `order_total` (goods + VAT + shipping). **Pure** — no database, no clock; the same input gives the same answer. Refuses prices holding lines with no price, amounts in another currency, a negative amount, and discounts larger than `net_subtotal`. |
 | `pricesForEdit(StoreId $store, list<KeptPartDto> $kept, list<CartLineDto> $added, int $taxRateBasisPoints): CartPricesDto` **[PROPOSED]** | Sales (staff edited an order before it ships) | §1.11: the kept parts as they are, the added lines priced now (a wholesale one by the band for its new total), the order's VAT rate. A variant and mode may appear more than once among the parts; once among the added lines (`pricing.duplicate_lines`). `validUntil` from the added lines only. |
 | `wholesaleBands(StoreId $store, list<string> $variantIds): array<string, list<WholesaleBandDto>>` | Sales's order edit and the shop's product page (stage 6, 2026-10-27) | Each size's wholesale bands in the store — `WholesaleBandDto{fromQuantity, unit}`, lowest start first, without VAT; a size with none left out. One query however many. |
 | `salesNamed(list<string> $saleIds, array<string, VariantDto> $knownVariants = []): list<OfferNameDto>` · `discountsNamed(list<string> $discountIds): list<OfferNameDto>` | Sync's report (stage 5's screens step 2) | Each id in the order asked: whether the sale or discount still exists and, while it does, its short description in the reader's language - "−10% · 60 cm, 80 cm" (a percentage or its price, then its sizes by their values, "One Size" for a product with one), "Kitchens: 50.00 off" with the currency's sign. A fixed few queries however many. The sizes a caller read already (`$knownVariants`, Catalog's, by id) are not read again - Sync's report names its sizes first (Sync's screens step 6, its budget). |
 
 `totals` may be called more than once while Sales builds a quote: with the coupon and points first
-(for `goods_total`, which free shipping and points earning bind to), then with the shipping.
+(for `goods_total`, which free shipping and points earning bind to), then with the shipping, which only
+adds to `order_total`.
 
 **The lines come back in the order given** (stage 6's request, 2026-10-10): `prices` returns its
 lines in the order they were passed; `pricesForEdit` the kept parts as passed, then the added lines
@@ -1116,6 +1119,5 @@ vat            = taxable_base × the store's rate  rounded once, half up, to the
 order_total    = goods_total + vat + shipping
 ```
 
-Applied in place — §1's formula (lines "taxable_base = goods_total + shipping" and "order_total =
-taxable_base + vat"), the `totals()` row of §2 and its note on the shipping, and `TotalsDto` — with
-Sales's §9.5 #1, once the owner accepts. Handoff §10.2 is amended with it.
+**Applied in place** (stage 7 step 6, 2026-10-30): §1.7's formula, the `totals()` row of §2 and its note on the
+shipping, and `TotalsDto`, with Sales's §9.5 #1; handoff §10.2 amended with it.

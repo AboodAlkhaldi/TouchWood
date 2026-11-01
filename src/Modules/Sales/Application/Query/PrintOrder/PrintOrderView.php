@@ -7,6 +7,7 @@ namespace Modules\Sales\Application\Query\PrintOrder;
 use DateTimeImmutable;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Public\Enums\WayToPay;
+use Modules\Shipping\Public\Dto\BoxSuggestionDto;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -39,5 +40,7 @@ final readonly class PrintOrderView
         public Money $total,
         public WayToPay $wayToPay,
         public int $exponent,
+        /** The box Shipping suggests, or pack by hand with why; null with no boxes (gap 5.1). */
+        public ?BoxSuggestionDto $box = null,
     ) {}
 }

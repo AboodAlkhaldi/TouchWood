@@ -122,9 +122,8 @@ final readonly class DatabaseReturns implements Returns
 
     public function forRefund(string $orderId): array
     {
-        $order = $this->db->table('sales.orders')->where('id', $orderId)->first(['shipping_fee_minor', 'vat_minor']);
+        $order = $this->db->table('sales.orders')->where('id', $orderId)->first(['shipping_fee_minor']);
         $lines = [];
-        $linesVat = 0;
 
         foreach ($this->db->table('sales.order_lines')->where('order_id', $orderId)->orderBy('id')
             ->get(['id', 'quantity', 'total_minor', 'coupon_share_minor', 'points_share_minor', 'vat_share_minor', 'is_gift']) as $row) {
@@ -132,7 +131,6 @@ final readonly class DatabaseReturns implements Returns
                 'quantity' => (int) $row->quantity, 'total' => (int) $row->total_minor, 'coupon' => (int) $row->coupon_share_minor,
                 'points' => (int) $row->points_share_minor, 'vat' => (int) $row->vat_share_minor, 'gift' => (bool) $row->is_gift,
             ];
-            $linesVat += (int) $row->vat_share_minor;
         }
 
         $before = $this->db->table('sales.return_lines AS rl')->join('sales.returns AS r', 'r.id', '=', 'rl.return_id')
@@ -144,8 +142,6 @@ final readonly class DatabaseReturns implements Returns
             'before' => array_map('intval', $before->all()),
             'shippingRefunded' => $this->db->table('sales.returns')->where('order_id', $orderId)->where('shipping_refunded', true)->exists(),
             'shippingFee' => (int) ($order->shipping_fee_minor ?? 0),
-            // The shipping's VAT share: the order's VAT less what its lines carry (§1.8, the shares).
-            'shippingVat' => (int) ($order->vat_minor ?? 0) - $linesVat,
         ];
     }
 

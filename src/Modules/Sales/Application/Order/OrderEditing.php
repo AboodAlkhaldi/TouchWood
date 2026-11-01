@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Order;
 
+use Modules\Access\Public\Dto\AddressDto;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Public\Contracts\LoyaltyApi;
@@ -17,12 +18,17 @@ use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
 use Modules\Sales\Application\Quote\QuoteRules;
+use Modules\Sales\Application\Quote\QuoteShipping;
+use Modules\Sales\Application\Quote\ShippingQuotes;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Model\OrderForEdit;
+use Modules\Sales\Domain\Model\OrderShipping;
 use Modules\Sales\Public\Enums\OrderAudience;
+use Modules\Shipping\Public\Contracts\ShippingApi;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -33,10 +39,18 @@ use Shared\Domain\ValueObject\StoreId;
  * added pieces); **a lowered one takes pieces off the newest part first**. Added and raised lines follow
  * checkout's rules on their new totals — orderable, in their mode, within their limits, wholesale only for
  * a company, their category open — their stock checked by the hold; a lowered line only its limits.
- * **The order's own rules hold**: its VAT rate, its ceiling (`orderDiscountRoom`), its shipping fee and
- * free-above; the coupon can only stay or shrink; the points give way first; and an edit that leaves every
+ * **The order's own rules hold**: its VAT rate, its ceiling (`orderDiscountRoom`), its shipping rule (the
+ * price and the free-above amount snapshotted, or the fee still to be set); the coupon can only stay or shrink; the points give way first; and an edit that leaves every
  * line as it is (the address or the gift only) keeps both as they are. The gift: staff keep it, remove it,
  * or take a level the edited order reaches whose gift is in stock beyond what the edit itself holds.
+ *
+ * **An address at another place is quoted again** (§9.5 #12; owner, 2026-10-29, gap 6.1) — another store's
+ * country refused. Staff choose the fee: **`TODAY`** (the default) — the carrier's fee today with today's
+ * free-above, the carrier one serving the new place (asked for, else the order's own when it serves it,
+ * else the cheapest), and a place no carrier serves makes the fee to be set; or **`KEEP`** — the order's own
+ * rule, with any of the store's carriers (asked for, else the order's own); an order whose fee is still to
+ * be set has none to keep. A difference owed is settled as any edit's. The same address place, or none
+ * given, keeps the shipping as it is: a carrier or a fee choice then is refused.
  */
 final readonly class OrderEditing
 {
@@ -46,21 +60,30 @@ final readonly class OrderEditing
     /** Remove the gift. */
     public const string REMOVE = 'REMOVE';
 
+    /** The carrier's fee today for the new place (gap 6.1). */
+    public const string TODAY = 'TODAY';
+
+    /** The order's own shipping rule kept at the new place (gap 6.1). */
+    public const string KEEP_FEE = 'KEEP';
+
     public function __construct(
         private QuoteRules $rules,
         private PricingApi $pricing,
         private PromotionsApi $promotions,
         private LoyaltyApi $loyalty,
         private InventoryApi $inventory,
+        private ShippingQuotes $quotes,
+        private ShippingApi $shipping,
     ) {}
 
     /**
      * @param  list<CartLineDto>  $wanted  the order's lines as they should be, a size and mode once each
      * @param  string  $gift  `KEEP`, `REMOVE`, or a gift level's id
+     * @param  string|null  $fee  `TODAY` or `KEEP` — only with an address at another place (none: `TODAY`)
      *
-     * @throws InvalidSalesAttribute|NotOrderable|NotForYourAccount|AddressNotUsable
+     * @throws InvalidSalesAttribute|NotOrderable|NotForYourAccount|AddressNotUsable|AddressInOtherStore
      */
-    public function plan(OrderForEdit $order, array $wanted, ?string $addressId, string $gift): EditPlan
+    public function plan(OrderForEdit $order, array $wanted, ?string $addressId, string $gift, ?string $carrierId = null, ?string $fee = null): EditPlan
     {
         $store = StoreId::fromString($order->storeId);
         $audience = OrderAudience::from($order->audience);
@@ -191,22 +214,79 @@ final readonly class OrderEditing
             $pointsDiscount = $points->discount;
         }
 
-        // 6. The shipping by the order's own rule, then the totals.
+        // 6. The shipping — by the order's own rule, or quoted again at a new place — then the totals.
         $goods = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $zero)->goodsTotal;
-        $freeAbove = Money::of($order->shippingRuleFreeAbove, $currency);
-        $shipping = ! $freeAbove->isZero() && $goods->compareTo($freeAbove) >= 0 ? $zero : Money::of($order->shippingRuleFee, $currency);
-        $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, $shipping);
+        $address = $addressId === null ? null : $this->rules->address($store, $order->customerId, $addressId);
+        [$shipping, $requote] = $this->shipping($order, $store, $address, $goods, $carrierId, $fee);
+        $totals = $this->pricing->totals($prices, $couponDiscount, $pointsDiscount, Money::of($shipping->fee, $currency));
 
         // The gift, staff's choice.
         $options = $this->giftOptions($store, $audience, $goods, $order, $wanted, $counts);
         [$giftLevelId, $giftVariantId] = $this->gift($order, $gift, $options);
 
-        $address = $addressId === null ? null : $this->rules->address($store, $order->customerId, $addressId);
-
         return new EditPlan(
-            $order, $kept, $added, $prices, $couponDiscount, $couponShares, $pointsUsed, $pointsDiscount, $shipping, $totals,
+            $order, $kept, $added, $prices, $couponDiscount, $couponShares, $pointsUsed, $pointsDiscount, $shipping, $requote, $totals,
             $giftLevelId, $giftVariantId, $options, $address, $counts, Money::of($order->paid - $order->refunded, $currency)->subtract($totals->orderTotal),
         );
+    }
+
+    /**
+     * The edited order's shipping, and the new place's quote when the address moved to another place.
+     *
+     * @return array{OrderShipping, ?QuoteShipping}
+     *
+     * @throws InvalidSalesAttribute|AddressInOtherStore
+     */
+    private function shipping(OrderForEdit $order, StoreId $store, ?AddressDto $address, Money $goods, ?string $carrierId, ?string $fee): array
+    {
+        $own = $order->shipping;
+        $place = $address === null ? null : ShippingQuotes::destination($address);
+        $carrierId = $carrierId === null || trim($carrierId) === '' ? null : strtolower(trim($carrierId));
+        $fee = $fee === null || trim($fee) === '' ? null : strtoupper(trim($fee));
+
+        if ($place === null || ShippingQuotes::samePlace($place, ShippingQuotes::placeOf($order->address))) {
+            if ($carrierId !== null || $fee !== null) {
+                throw new InvalidSalesAttribute('carrier', 'chosen only with an address at another place');
+            }
+
+            return [$own->paying($own->feeFor($goods->minorUnits)), null];
+        }
+
+        $fee ??= self::TODAY;
+
+        if ($fee === self::KEEP_FEE) {
+            if ($own->pending) {
+                throw new InvalidSalesAttribute('shipping_fee', 'today\'s: the order has no fee to keep');
+            }
+
+            // Asked for coverage only: another store's country is refused whichever fee is kept.
+            $requote = $this->quotes->quote($store, $place, $goods);
+            [$id, $ar, $en] = [$own->carrierId, $own->carrierAr, $own->carrierEn];
+
+            if ($carrierId !== null) {
+                $carrier = array_values(array_filter($this->shipping->carriers($store), static fn ($each): bool => $each->id === $carrierId))[0]
+                    ?? throw new InvalidSalesAttribute('carrier', 'one of the store\'s carriers');
+                [$id, $ar, $en] = [$carrier->id, $carrier->nameAr, $carrier->nameEn];
+            }
+
+            return [new OrderShipping($own->feeFor($goods->minorUnits), $own->ruleFee, $own->ruleFreeAbove, $own->ruleFreeKind, false, $id, $ar, $en), $requote];
+        }
+
+        if ($fee !== self::TODAY) {
+            throw new InvalidSalesAttribute('shipping_fee', 'today\'s or the order\'s own');
+        }
+
+        // The carrier asked for must serve the new place; none asked, the order's own when it does, else the cheapest.
+        $requote = $this->quotes->quote($store, $place, $goods, $carrierId ?? $own->carrierId, $carrierId !== null);
+
+        if ($requote->pending()) {
+            return [new OrderShipping(0, 0, null, null, true, null, null, null), $requote];
+        }
+
+        return [new OrderShipping(
+            $requote->fee->minorUnits, $requote->price->minorUnits, $requote->freeAbove?->minorUnits, $requote->freeKind, false,
+            $requote->carrierId, $requote->carrierAr, $requote->carrierEn,
+        ), $requote];
     }
 
     /**

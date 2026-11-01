@@ -46,7 +46,7 @@ final readonly class PreviewOrderEditHandler
             $state = $this->orders->lock($orderId) ?? throw new OrderNotFound;
             EditOrderHandler::editable($state, $this->orders->ticked($state->id));
 
-            return $this->editing->plan($this->orders->forEdit($state->id) ?? throw new OrderNotFound, $wanted, $query->addressId, $query->gift);
+            return $this->editing->plan($this->orders->forEdit($state->id) ?? throw new OrderNotFound, $wanted, $query->addressId, $query->gift, $query->carrierId, $query->shippingFee);
         });
     }
 }

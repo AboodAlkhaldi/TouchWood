@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\FormErrors;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Lang;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
@@ -22,6 +23,7 @@ use Modules\Sales\Domain\Exception\RefundTooLarge;
 use Modules\Sales\Domain\Exception\ReturnNotAllowed;
 use Modules\Sales\Domain\Exception\ReturnNotFound;
 use Modules\Sales\Domain\Exception\SalesError;
+use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
 use Modules\Sales\Domain\Exception\SignInToUseCoupon;
 use Modules\Sales\Domain\Exception\TooManyCouponTries;
 use Modules\Sales\Domain\Exception\TooManyFiles;
@@ -45,6 +47,8 @@ function salesErrors(): array
         'NotForYourAccount' => [new NotForYourAccount, 'sales.not_for_your_account', ErrorCategory::Forbidden],
         'NotOrderable' => [new NotOrderable, 'sales.not_orderable', ErrorCategory::Invalid],
         'AddressNotUsable' => [new AddressNotUsable, 'sales.address_not_usable', ErrorCategory::Invalid],
+        'AddressInOtherStore' => [new AddressInOtherStore('01J9STORE000000000000000AE', 'ae', 'المتجر', 'The UAE Store'), 'sales.address_in_other_store', ErrorCategory::Invalid],
+        'ShippingFeeNotSet' => [new ShippingFeeNotSet, 'sales.shipping_fee_not_set', ErrorCategory::Conflict],
         'WayToPayNotOffered' => [new WayToPayNotOffered, 'sales.way_to_pay_not_offered', ErrorCategory::Invalid],
         'SignInToUseCoupon' => [new SignInToUseCoupon, 'sales.sign_in_to_use_coupon', ErrorCategory::Invalid],
         'TooManyCouponTries' => [new TooManyCouponTries(360), 'sales.too_many_coupon_tries', ErrorCategory::Forbidden],
@@ -90,7 +94,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(salesErrors()));
     sort($listed);
 
-    expect(salesErrorClassesInFolder())->toHaveCount(21)
+    expect(salesErrorClassesInFolder())->toHaveCount(23)
         ->and(salesErrorClassesInFolder())->toBe($listed);
 });
 

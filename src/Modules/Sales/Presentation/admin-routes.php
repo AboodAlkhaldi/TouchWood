@@ -31,6 +31,8 @@ Route::prefix(AdminArea::PREFIX)
         Route::post('orders/{order}/reject', [OrdersController::class, 'reject'])->name('sales.admin.orders.reject');
         Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('sales.admin.orders.cancel');
         Route::post('orders/{order}/ship', [OrdersController::class, 'ship'])->name('sales.admin.orders.ship');
+        Route::post('orders/{order}/shipment', [OrdersController::class, 'correctShipment'])->name('sales.admin.orders.shipment');
+        Route::post('orders/{order}/shipping-fee', [OrdersController::class, 'shippingFee'])->name('sales.admin.orders.shipping-fee');
         Route::post('orders/{order}/deliver', [OrdersController::class, 'deliver'])->name('sales.admin.orders.deliver');
         Route::post('orders/{order}/came-back', [OrdersController::class, 'cameBack'])->name('sales.admin.orders.came-back');
         Route::post('orders/{order}/tick', [OrdersController::class, 'tick'])->name('sales.admin.orders.tick');

@@ -59,6 +59,8 @@ final readonly class OrderState
         public int $goodsTotal,
         /** Wired to a provider when placed (§1.5): ticks and a parcel that came back go by it. */
         public bool $wired,
+        /** A place no carrier served: staff set the fee before it ships (§9.5 #11; gap 6.2). */
+        public bool $shippingFeePending = false,
     ) {}
 
     public function isWaiting(): bool

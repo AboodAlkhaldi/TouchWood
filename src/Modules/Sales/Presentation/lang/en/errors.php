@@ -21,6 +21,14 @@ return [
         'title' => 'Address Can\'t Be Used',
         'detail' => 'Choose a delivery address in this store, or complete the one you chose.',
     ],
+    'address_in_other_store' => [
+        'title' => 'Served by Another Store',
+        'detail' => 'This address is served by our :storeEn store — order from there, or choose another address.',
+    ],
+    'shipping_fee_not_set' => [
+        'title' => 'Shipping Fee Not Set',
+        'detail' => 'Set this order\'s shipping fee before marking it shipped.',
+    ],
     'way_to_pay_not_offered' => [
         'title' => 'Way to Pay Not Offered',
         'detail' => 'This way to pay isn\'t offered for your account. Choose another.',
@@ -110,6 +118,8 @@ return [
         'file' => 'file',
         'carrier' => 'carrier',
         'tracking_number' => 'tracking number',
+        'tracking_link' => 'tracking link',
+        'shipping_fee' => 'shipping fee',
         'gift' => 'gift',
         'lines' => 'pieces asked',
         'filter' => 'filter',

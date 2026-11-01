@@ -18,6 +18,7 @@ final class EditPreviewData extends Data
 {
     /**
      * @param  list<EditGiftData>  $gifts
+     * @param  list<CheckoutCarrierData>  $carriers  at an address at another place: the carriers serving it with today's fees, cheapest first (gap 6.1)
      */
     public function __construct(
         public MoneyData $subtotal,
@@ -31,5 +32,11 @@ final class EditPreviewData extends Data
         public MoneyData $difference,
         public array $gifts,
         public ?string $giftLevelId,
+        /** The address moved to another place: its shipping was quoted again (gap 6.1). */
+        public bool $placeChanged = false,
+        public array $carriers = [],
+        /** The carrier the edit leaves on the order, and whether its fee is then to be set. */
+        public ?string $carrierId = null,
+        public bool $shippingPending = false,
     ) {}
 }

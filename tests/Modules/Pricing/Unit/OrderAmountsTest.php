@@ -73,7 +73,14 @@ describe('the totals (§1.7, handoff §10.2)', function () {
             $totals->grossSubtotal->minorUnits, $totals->netSubtotal->minorUnits, $totals->couponDiscount->minorUnits,
             $totals->pointsDiscount->minorUnits, $totals->goodsTotal->minorUnits, $totals->shipping->minorUnits,
             $totals->taxableBase->minorUnits, $totals->vat->minorUnits, $totals->orderTotal->minorUnits, $totals->taxRateBasisPoints,
-        ])->toBe([120000, 100000, 10000, 5000, 85000, 2500, 87500, 13125, 100625, 1500]);
+        ])->toBe([120000, 100000, 10000, 5000, 85000, 2500, 85000, 12750, 100250, 1500]);
+    });
+
+    it('charges no VAT on the shipping: 1,000 of goods + 150 VAT + 30 shipping = 1,180 (owner, 2026-10-27; §9.5)', function () {
+        $totals = OrderTotals::of(pricingAmountsPrices(gross: 100000, net: 100000), Money::zero('SAR'), Money::zero('SAR'), Money::of(3000, 'SAR'));
+
+        expect([$totals->taxableBase->minorUnits, $totals->vat->minorUnits, $totals->shipping->minorUnits, $totals->orderTotal->minorUnits])
+            ->toBe([100000, 15000, 3000, 118000]);
     });
 
     it('rounds VAT once, half up: exactly half a halala goes up, less goes down', function (int $net, int $vat) {
@@ -96,8 +103,9 @@ describe('the totals (§1.7, handoff §10.2)', function () {
         $totals = OrderTotals::of(pricingAmountsPrices(gross: 10000, net: 10000), Money::of(6000, 'SAR'), Money::of(4000, 'SAR'), Money::of(2000, 'SAR'));
 
         expect($totals->goodsTotal->minorUnits)->toBe(0)
-            ->and($totals->taxableBase->minorUnits)->toBe(2000)
-            ->and($totals->vat->minorUnits)->toBe(300);
+            ->and($totals->taxableBase->minorUnits)->toBe(0)
+            ->and($totals->vat->minorUnits)->toBe(0)
+            ->and($totals->orderTotal->minorUnits)->toBe(2000);
     });
 
     it('refuses prices holding a line with no price', function () {

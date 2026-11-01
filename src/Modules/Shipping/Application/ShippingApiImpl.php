@@ -87,7 +87,7 @@ final readonly class ShippingApiImpl implements ShippingApi
         $options = [];
 
         foreach ($carriers as $carrier) {
-            [$fee, $because] = self::fee($best[$carrier->id]['amountMinor'], $carrier, $storeWide, $goodsTotal);
+            [$fee, $because, $threshold, $whose] = self::fee($best[$carrier->id]['amountMinor'], $carrier, $storeWide, $goodsTotal);
             $options[] = ['position' => $carrier->position, 'option' => new ShippingOptionDto(
                 $carrier->id,
                 $carrier->details()->nameAr,
@@ -95,6 +95,9 @@ final readonly class ShippingApiImpl implements ShippingApi
                 $logos[$carrier->id] ?? null,
                 $fee,
                 $because,
+                Money::of($best[$carrier->id]['amountMinor'], $goodsTotal->currencyCode),
+                $threshold === null ? null : Money::of($threshold, $goodsTotal->currencyCode),
+                $threshold === null ? null : $whose,
             )];
         }
 
@@ -180,7 +183,7 @@ final readonly class ShippingApiImpl implements ShippingApi
      * The store-wide amount, while set, overrides every carrier's own (§1.5); the goods total reaching
      * it - equal included - makes the fee 0. A price that is 0 already is not "free because".
      *
-     * @return array{Money, FreeShippingReason|null}
+     * @return array{Money, FreeShippingReason|null, int|null, FreeShippingReason} the fee, why it is free, the amount that applies and whose it is
      */
     private static function fee(int $amountMinor, Carrier $carrier, int $storeWide, Money $goodsTotal): array
     {
@@ -190,10 +193,10 @@ final readonly class ShippingApiImpl implements ShippingApi
             : [$carrier->freeAboveMinor(), FreeShippingReason::Carrier];
 
         if ($amountMinor > 0 && $threshold !== null && $goodsTotal->minorUnits >= $threshold) {
-            return [Money::zero($currency), $reason];
+            return [Money::zero($currency), $reason, $threshold, $reason];
         }
 
-        return [Money::of($amountMinor, $currency), null];
+        return [Money::of($amountMinor, $currency), null, $threshold, $reason];
     }
 
     /**

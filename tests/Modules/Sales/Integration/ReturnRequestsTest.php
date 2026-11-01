@@ -83,7 +83,7 @@ function returnable(bool $withGift = false): array
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
     app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
     Fx::actAsCustomer($ready['customer']);
     $lines = [];
@@ -209,7 +209,7 @@ describe('asking', function () {
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['eg']));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
         // Made while the store is on: an off store's code no longer names it here.
         $staff = Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['eg']);

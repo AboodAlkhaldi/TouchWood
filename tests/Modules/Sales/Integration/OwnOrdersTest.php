@@ -80,7 +80,7 @@ function ownDeliver(string $order, string $customer): void
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'T-1'));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: 'T-1'));
     app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
     Fx::actAsCustomer($customer);
 }
@@ -122,7 +122,7 @@ it('shows the customer their order: its lines as sold, its totals, its statuses 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'T-1'));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: 'T-1'));
     Fx::actAsCustomer($customer);
     $shipped = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_FULFIL], ['sa']));

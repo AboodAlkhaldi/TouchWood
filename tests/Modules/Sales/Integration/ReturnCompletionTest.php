@@ -27,7 +27,6 @@ use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Public\Contracts\SalesApi;
@@ -67,7 +66,7 @@ beforeEach(function () {
 function completionOrder(bool $withGift = false, int $fee = 25_00, array $coupon = []): array
 {
     $ready = Cx::ready();
-    Cx::setting(SalesSettings::FLAT_FEE, $fee);
+    Cx::serve('sa', $fee);
     Pr::ceiling(100);
     Pr::coupon('SUMMER-15', with: $coupon);
     app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
@@ -82,7 +81,7 @@ function completionOrder(bool $withGift = false, int $fee = 25_00, array $coupon
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
     app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
     $lines = [];
 
@@ -255,7 +254,7 @@ describe('receiving', function () {
         ], null, 'KEEP'));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
         $parts = DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $ready['variants'][0])->pluck('quantity', 'id')->map(fn ($q): int => (int) $q)->all();
         $before = (int) Ix::stock('sa', $ready['variants'][0])?->in_stock;
@@ -338,7 +337,7 @@ describe('what Sales tells Feedback', function () {
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($later));
         DB::table('sales.orders')->where('id', $later)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($later, 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($later, otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($later));
 
         $purchase = app(SalesApi::class)->deliveredPurchase($sold['customer'], $sold['product']);

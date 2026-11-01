@@ -32,6 +32,10 @@ use function Pest\Laravel\seed;
 | Deliberately no RefreshDatabase, as the other browser tests: every row here is new, from the clock.
 */
 
+// The browser suite keeps its data: the Saudi test region retired after each test, so later files may still
+// type a Saudi region (CheckoutFixtures::unserve).
+afterEach(fn () => Cx::unserve());
+
 beforeEach(function () {
     config(['session.driver' => 'database']);
     seed(PlatformSeeder::class);
@@ -125,7 +129,7 @@ it('accepts, receives and completes a return, records its refund, and draws it a
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
         Fx::actAsCustomer($ready['customer']);
         $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->where('is_gift', false)->value('id');

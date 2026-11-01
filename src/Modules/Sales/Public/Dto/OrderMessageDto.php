@@ -37,6 +37,7 @@ final readonly class OrderMessageDto
         public Money $shipping,
         public Money $vat,
         public Money $total,
+        /** The carrier it shipped with, else the one ordered with (sales.md §9.5 #3; gap 6.7) — in `locale`. */
         public ?string $carrier,
         public ?string $trackingNumber,
         /** Staff's words when they rejected it; null otherwise. */
@@ -47,5 +48,9 @@ final readonly class OrderMessageDto
         public string $recipientName,
         /** The delivery address as placed (or as staff last set it), formatted in the store's way. */
         public string $deliveryAddress,
+        /** The full tracking link stored when it shipped; null: no Track (§9.5 #3, #11). */
+        public ?string $trackingLink = null,
+        /** No carrier served the place: the shipping fee is still to be set by staff (§9.5 #2). */
+        public bool $shippingFeePending = false,
     ) {}
 }

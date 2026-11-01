@@ -18,7 +18,6 @@ use Modules\Sales\Application\Order\EditPlan;
 use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEdit;
 use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEditHandler;
 use Modules\Sales\Application\SalesPermissions;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotEditable;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
@@ -299,10 +298,10 @@ describe('the order own rules', function () {
     });
 
     it('ships free above the amount the order was placed under', function () {
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
-        Cx::setting(SalesSettings::FREE_ABOVE, 200_00);
+        Cx::serve('sa', 25_00);
+        Cx::carrierFreeAbove(200_00);
         ['order' => $order, 'variants' => $variants] = edited();
-        Cx::setting(SalesSettings::FREE_ABOVE, 0);
+        Cx::carrierFreeAbove(null);
 
         editTo($order, [[$variants[0], 2]]);
         expect((int) editedRow($order)?->shipping_fee_minor)->toBe(0);
@@ -312,9 +311,9 @@ describe('the order own rules', function () {
     });
 
     it('keeps the shipping rule the order was placed under', function () {
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
+        Cx::serve('sa', 25_00);
         ['order' => $order, 'variants' => $variants] = edited();
-        Cx::setting(SalesSettings::FLAT_FEE, 99_00);
+        Cx::serve('sa', 99_00);
 
         editTo($order, [[$variants[0], 1]]);
 
@@ -425,7 +424,7 @@ describe('what may be edited', function () {
             ->and(fn () => editPreview($order, [[$variants[0], 1]]))->toThrow(NotEditable::class);
     })->with([
         'shipped' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update([
-            'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+            'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier_en' => 'SMSA', 'carrier_ar' => 'SMSA',
         ])],
         'ticked' => [fn (string $order, array $v) => DB::table('sales.order_ticks')->insert(['order_id' => $order, 'store_id' => Fx::storeId('sa'), 'variant_id' => $v[0], 'ticked_by' => Fx::staff(), 'ticked_at' => CarbonImmutable::now()])],
         'cancelled' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update(['status' => 'CANCELLED', 'cancelled_at' => CarbonImmutable::now(), 'cancel_reason' => 'CHANGED_MIND', 'due_minor' => 0])],

@@ -311,7 +311,7 @@ describe('may ship unpaid', function () {
         }
 
         if ($ship) {
-            DB::table('sales.orders')->where('id', $order)->update(['shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA']);
+            DB::table('sales.orders')->where('id', $order)->update(['shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier_en' => 'SMSA', 'carrier_ar' => 'SMSA']);
         }
 
         expect(fn () => app(AllowShipUnpaidHandler::class)->handle(new AllowShipUnpaid($order, true)))->toThrow(InvalidOrderChange::class);

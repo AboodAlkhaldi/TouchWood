@@ -18,7 +18,7 @@ them and works without them until then (owner, 2026-10-07: "interfaces now, stag
 
 Sales owns **the transaction**: the cart, checkout's quote, the order with its four state machines —
 the order, its payment, its shipment, its returns — cancellation, returns, staff edits before shipping,
-the bank transfer's document, and, until stage 7, a flat shipping fee. It is the widest module by
+the bank transfer's document, and the order's shipping as Shipping quoted it (§9.5 #2). It is the widest module by
 design (handoff §4.4): it asks Pricing for prices and totals, Inventory to hold stock, Promotions for
 the coupon and the gift, Loyalty for points — **and owns none of their rules**.
 
@@ -31,7 +31,7 @@ the coupon and the gift, Loyalty for points — **and owns none of their rules**
 | Coupons — the edited order's coupon too — the discount ceiling, segments' order facts, gift levels | Promotions |
 | Points — the edited order's points too | Loyalty |
 | Which categories an account type may see and buy | Catalog (catalog.md §1.13) |
-| Carriers, rate tables, tracking links, packaging (stage 7) | Shipping — **a flat fee per store in Sales until then** (owner, 2026-10-10) |
+| Carriers, rate tables, tracking links, packaging | Shipping (shipping.md) — Sales snapshots what it quotes (§9.5 #2; the flat fee of 2026-10-10 is gone) |
 | Gateways and online payment; checking a transfer within a target time (stage 7) | Payments — **staff record payments by hand until then** (§1.9) |
 | Who a customer is, their addresses, whether they may order | Access (the person) and B2B (the company) — handoff §7.4 |
 | Invoices | The external accounting system (handoff §12.6) — Sales prints an order confirmation / packing document only |
@@ -111,11 +111,16 @@ Built in this fixed order (handoff §10.2, §11.3):
 8. **The gift** — `PromotionsApi::giftLevels` for `goods_total`, highest first; the first whose variant
    is available as a gift (`InventoryApi::stock` → `availableAsGift`) **after the order's own pieces of
    that variant**; none, no gift, and the quote says so (promotions.md §1.7).
-9. **Shipping** — until stage 7, **the store's flat fee, free when `goods_total` reaches the store's
-   free-above amount** (owner, 2026-10-10; §1.10). From stage 7, Shipping's options for the address.
-10. **The totals** — `PricingApi::totals` again with the shipping: `taxable_base`, VAT (rounded once,
-    half up), `order_total`.
-11. **The ways to pay** — by account type (owner, 2026-10-09; §1.9). The way chosen must be offered.
+9. **Shipping** — `ShippingApi::quote` for the address's place and `goods_total` (§9.5 #2; shipping.md
+   §1.2): **served** — the carrier the customer chose among those serving it, else the cheapest (a chosen
+   carrier no longer serving it: the cheapest, and the quote says the carrier changed — gap 6.9), its fee
+   with free shipping applied, and its rule (the price, the free-above amount that applied and whose)
+   snapshotted; **not covered / outside** — no carrier, the fee 0 and **to be set by staff**; **another
+   store's country** — refused (`AddressInOtherStore`), naming that store.
+10. **The totals** — `PricingApi::totals` again with the shipping: `taxable_base` (the goods only — **no VAT
+    on shipping**, §9.5 #1), VAT (rounded once, half up), `order_total` = goods + VAT + shipping.
+11. **The ways to pay** — by account type (owner, 2026-10-09; §1.9); **only staff's contact while the fee is to
+    be set**, a company's too (shipping.md §9.3 #7). The way chosen must be offered.
 12. **The points this order would earn** — `LoyaltyApi::earningPreview`, shown in the cart and at
     checkout (owner, 2026-10-07; loyalty.md §2.1).
 
@@ -237,8 +242,12 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
 
 ### 1.5 Shipping, delivery, and a parcel that comes back
 
-- **Marking shipped**: the carrier, and a tracking number when there is one (free text until stage 7;
-  the number optional — my assumption, stated for the owner to reject);
+- **Marking shipped** (§9.5 #3; gaps 6.2–6.5): **one of the store's carriers** (`ShippingApi::carriers`, any
+  country, the order's first) **or "Other carrier"** with its name typed; the tracking number (optional)
+  and/or **a full tracking link** typed by staff — **a typed link wins** (HTTPS, at most 500), else the
+  carrier's pattern with the number, else none and the customer sees no Track; the link and the carrier's
+  names stored on the order. **Refused while the fee is to be set** (`ShippingFeeNotSet`; 0 is a real fee).
+  **Correcting** the carrier, number or link is allowed while it is `SHIPPED` (`CorrectShipment`), audited;
   `InventoryApi::ship` takes the stock off (in a store with no provider; a wired store's provider is the
   source); refused (`NotShippable`) only if it holds less than is due without "may ship unpaid" —
   **an order flagged "stock was reduced" ships** (answer 36), and in a store with no provider a
@@ -266,8 +275,8 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
   Cancelled, then Refunded.
 
 **As built (step S8)** — my assumptions, stated for the owner to reject:
-- **Shipping** needs the order approved and not yet shipped; the carrier is 1–100 characters, the
-  tracking number optional (up to 100). Inventory's `ship` is called once per order, last, after the
+- **Shipping** needs the order approved and not yet shipped, its fee set; "Other carrier" is 1–100
+  characters, the tracking number optional (up to 100), the link at most 500. Inventory's `ship` is called once per order, last, after the
   shipment is written under the order's lock (stage 5: a repeated partial shipment would be taken twice).
 - **"Reduced in the provider"** is ticked only on an order placed in a wired store, approved or completed,
   for its gift and its sizes whose stock counted when it was placed; once each. **The order keeps the
@@ -278,8 +287,8 @@ order cannot be marked shipped until what it holds covers what is due — `PAID`
 - **Came back**: staff name the pieces put back, a size and gift at a time, never more than the parcel
   held; none for a parcel lost for good. For an order placed wired only the ticked sizes are given back
   to Inventory. Loyalty, then Inventory's `release` and `returned`, last.
-- The return deadline is cut to the minute. The carrier and the tracking number, typed by staff, are
-  audited as written only, never in the history (§1.12).
+- The return deadline is cut to the minute. The carrier, the tracking number and the link, partly typed by
+  staff, are audited as written only, never in the history (§1.12).
 
 ### 1.6 Cancellation
 
@@ -347,7 +356,13 @@ had none (owner, 2026-10-19, answer 33).
    `net_subtotal` and the room the coupon left: the points discount becomes the least of what it was,
    Loyalty's cap on the edited `net_subtotal` (by the percent the order redeemed under), and that room — **the points give way before the coupon**
    (handoff §11.3: "points are evaluated last and refused first").
-5. **Shipping** — worked out again by the order's own snapshotted fee and free-above amount.
+5. **Shipping** — worked out again by the order's own snapshotted rule (the price and the free-above amount
+   that applied); a fee still to be set stays so. **An address at another place is quoted again** (§9.5 #12;
+   owner, 2026-10-29, gap 6.1): staff pick the carrier (the preview lists those serving the new place with
+   today's fee) and the fee — **today's** (`TODAY`, the default: the carrier must serve the place; a place no
+   carrier serves makes the fee to be set) or **the order's own** (`KEEP`, any of the store's carriers; none
+   to keep while the fee is to be set); another store's country refused. A difference owed is settled as any
+   edit's (a staff payment request from stage 7 step 12).
 6. **The totals** — `PricingApi::totals` over the edited prices, the coupon, the points and the
    shipping. **The gift — staff decide** (owner, 2026-10-10): keep it, swap it for the gift of the level
    the edited order now reaches (up or down, stock permitting), or remove it.
@@ -407,8 +422,8 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
 - **Completing it** refunds what was received:
   - **each received piece's refund** = its goods share (its line's `total` less its coupon and points
     shares) **plus its share of the order's VAT**; a gift's is 0;
-  - **the shipping fee and its VAT share** go with the return that makes **every bought piece** (the
-    gift aside) returned — my assumption, stated for the owner to reject;
+  - **the shipping fee** — no VAT on it (§9.5 #1) — goes with the return that makes **every bought piece**
+    (the gift aside) returned — my assumption, stated for the owner to reject;
   - `LoyaltyApi::orderReturned` with the received pieces' goods shares (their part of `goods_total`)
     and points shares (their part of the points discount) (loyalty.md §1.8);
   - `ReturnCompleted` written to the outbox (§6) — Feedback flips its reviews (feedback.md).
@@ -430,8 +445,8 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
 - `ReceiveReturn` names **every line of the return once**: how many came (0 to all asked) and how many of
   those go back into stock; only those going back are told to Inventory (`returned`, last; not called when
   none go back).
-- `CompleteReturn` refunds by `Domain/Service/ReturnRefunds` (the running totals above). The shipping's VAT
-  share is the order's VAT less what its lines carry. The refund comes off `due`; the money itself is
+- `CompleteReturn` refunds by `Domain/Service/ReturnRefunds` (the running totals above). The shipping
+  carries no VAT share (§9.5 #1, stage 7 step 6). The refund comes off `due`; the money itself is
   paid back by hand (`RecordRefund`, §1.9) — an order holding more than it is now due shows `REFUND_DUE`
   until then. It answers the refund, so staff see it. Each piece's goods share moves as **one** share
   (total less coupon and points shares), never the three rounded apart — so no return's goods go below 0 —
@@ -452,9 +467,9 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
    less their coupon share**, so no line's goods share goes below 0. None when the points discount is
    0 (Pricing refuses discounts above `net_subtotal`, pricing.md §1.7, so a points discount above 0
    always has a line to land on).
-3. **The VAT's** — the order's VAT spread over the lines' taxable amounts (total less both shares) and
-   the shipping fee, in proportion; none when the VAT is 0. `taxable_base` = the lines' taxable amounts
-   plus shipping, so the shares add up to the VAT.
+3. **The VAT's** — the order's VAT spread over the lines' taxable amounts (total less both shares), in
+   proportion; none when the VAT is 0. `taxable_base` = the lines' taxable amounts — the shipping carries
+   no VAT (§9.5 #1) — so the shares add up to the VAT.
 4. **Per piece, by running totals**: for a line of `n` pieces with a share `S`, the first `k` pieces
    returned carry `floor(S × k ÷ n)`, and each return moves that less what earlier returns moved — so
    the last piece takes what is left, and a line returned in parts lands exactly on `S`.
@@ -462,7 +477,7 @@ An edit does not clear the "stock was reduced" flag by itself (§1.11).
 **A line is each part** (§1.7): an order line edited to hold pieces at two prices shows as two lines,
 each at its price, and a return names the part its pieces come from.
 
-The sum over every piece, plus the shipping and its VAT share, is `goods_total` + shipping + VAT =
+The sum over every piece, plus the shipping, is `goods_total` + shipping + VAT =
 `order_total` (pricing.md §1.7). The gift has no shares.
 
 ### 1.9 Money: the ways to pay, payments and refunds
@@ -531,17 +546,16 @@ Payments' (stage 7).
   stays with it after anonymizing — an order is a financial record (§1.12).
 ### 1.10 Store settings
 
-Declared by Sales, per store (owner, 2026-10-10: "a flat shipping fee per store until stage 7"):
+Declared by Sales, per store (the flat shipping fee and its free-above amount of 2026-10-10 were removed in
+stage 7 — Shipping's carriers, §9.5 #2):
 
 | Key | Type | Range | Default | Means |
 |---|---|---|---|---|
-| `sales.shipping.flat_fee` | Integer, the currency's smallest unit | 0–100,000,000 | 0 | The one fee every order pays (the panel shows it in the currency, e.g. 25.00) |
-| `sales.shipping.free_above` | Integer, the smallest unit | 0–1,000,000,000 | 0 | `goods_total` from which shipping is free; **0 means never free** (handoff §10.2: free shipping binds `goods_total`) |
 | `sales.returns.window_days` | Integer | 1–365 | **14** (owner, 2026-10-09) | The return window from delivery |
 
 Changed under `sales.settings.update`, **admin-only** — they decide money. My assumption, stated for the
-owner to reject, with the defaults 0. **Shipping (stage 7) replaces the two shipping settings** with
-carriers and rates per store; the return window stays Sales's.
+owner to reject. The cart's free-shipping bar reads Shipping's store-wide free-above amount
+(`shipping.free.above_all`, by its key — gap 6.6); the return window stays Sales's.
 
 And **once for every store** (answers 50 and 51; owner, 2026-10-28), the coupon box's limit (§1.1) and
 the orders waiting a customer may have:
@@ -665,7 +679,8 @@ Declared in those modules' `Public/Contracts`, implemented in stage 7 — **with
 - **`ShippingApi::options(StoreId, ShippingDestinationDto, list<ParcelLineDto>, Money $goodsTotal):
   list<ShippingOptionDto>`** — the destination as Shipping's own DTO (country, city, district, postal
   code — never Access's address); each option a carrier, its fee (free-shipping thresholds applied,
-  handoff §12.5) and its tracking URL template. Until stage 7 Sales uses its flat fee (§1.10).
+  handoff §12.5) and its tracking URL template. **Replaced in stage 7** by `ShippingApi::quote`, `carrier`,
+  `carriers` and `trackingLink` (shipping.md §2.1; §9.5 #2, #10).
 - **`PaymentsApi::methods(StoreId, PaymentAudience, Money $amount)`**, **`start(orderId, method, Money
   $amount)`** — Payments takes an order id and an amount, nothing more (handoff §4.4) — and
   **`payment(paymentId): ?PaymentDto`** (its order, amount and the gateway's reference), which Sales reads
@@ -685,7 +700,7 @@ who may see them; amounts in the order's or the store's currency, never converte
 
 | Method | Answers |
 |---|---|
-| `orderForMessage(string $orderId, string $locale): ?OrderMessageDto` | An order as its messages need it: number, store, customer, its language, `status`, `shipment_status`, `way_to_pay`; the lines as sold or edited (`OrderMessageLineDto{name, values, quantity, total, gift}`, names and values in `ar` or else English); subtotal, coupon and points discounts, shipping, VAT, total; carrier and number; staff's words when rejected; the cancel reason; **where it goes** — the recipient's name and the address formatted, as placed or as staff last set it (`recipientName`, `deliveryAddress`; the owner, 2026-10-31, for the "order taken" email). The tracking link comes with stage 7 |
+| `orderForMessage(string $orderId, string $locale): ?OrderMessageDto` | An order as its messages need it: number, store, customer, its language, `status`, `shipment_status`, `way_to_pay`; the lines as sold or edited (`OrderMessageLineDto{name, values, quantity, total, gift}`, names and values in `ar` or else English); subtotal, coupon and points discounts, shipping, VAT, total; carrier (shipped with, else ordered with — gap 6.7) and number, the tracking link and whether the fee is to be set (stage 7 step 6); staff's words when rejected; the cancel reason; **where it goes** — the recipient's name and the address formatted, as placed or as staff last set it (`recipientName`, `deliveryAddress`; the owner, 2026-10-31, for the "order taken" email). |
 | `returnForMessage(string $returnId): ?ReturnMessageDto` | A return: its order's number, store, customer, `status`, the store's words when refused, the refund once completed |
 | `moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto` | **A payment or a refund as its message needs it** (ops.md C9b, C10; the owner's go 2026-10-31): the record `PaymentRecorded` or `RefundRecorded` names — `{moneyRecordId, kind, orderId, orderNumber, storeId, customerId, amount, way, happenedOn, voided}` — `kind` is `PAYMENT` or `REFUND`. Null for none |
 | `counts(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): SalesCountsDto` | The daily report's orders over the range (`to` not included): placed — individuals and companies apart — and of those the ones that count as sales (`counted`); of orders placed any day, cancelled, rejected, come back in it. One query |
@@ -727,12 +742,12 @@ order's or cart's store — Promotions and Loyalty build their scope from it, lo
 | `ListOwnOrders`, `ViewOwnOrder`, `ViewOwnReturn` | Query | `sales.order.view_own` |
 | `ListOrders` (all, unpaid, flagged short — handoff §14: Sales › All orders · Store orders · Unpaid orders), `ViewOrder`, `ListReturns`, `ViewReturn`, `OpenOrderFile` (return photos, transfer documents), `PrintOrder`, `ListOrderStores` (the screens' store filter, §1.12) | Query | `sales.order.view` |
 | `ApproveOrder`, `RejectOrder` | Command | `sales.order.approve` |
-| `PreviewOrderEdit`, `EditOrder`, `ClearShortFlag` | Query, Command, Command | `sales.order.edit` |
+| `PreviewOrderEdit`, `EditOrder`, `ClearShortFlag`, `SetShippingFee` | Query, Command, Command, Command | `sales.order.edit` |
 | `CancelOrder` | Command | `sales.order.cancel` |
-| `ShipOrder`, `TickReducedInProvider`, `AllowShipUnpaid`, `MarkDelivered`, `MarkCameBack` | Command | `sales.order.fulfil` |
+| `ShipOrder`, `CorrectShipment`, `TickReducedInProvider`, `AllowShipUnpaid`, `MarkDelivered`, `MarkCameBack` | Command | `sales.order.fulfil` |
 | `RecordPayment`, `RecordRefund`, `VoidMoneyRecord` | Command | `sales.payment.record` |
 | `AcceptReturn`, `RefuseReturn`, `ReceiveReturn`, `CloseReturn`, `CompleteReturn` | Command | `sales.return.manage` |
-| Platform's `UpdateSetting`, on its settings page (Sales declares the three settings, no command of its own) | Command | `sales.settings.update` |
+| Platform's `UpdateSetting`, on its settings page (Sales declares its settings, no command of its own) | Command | `sales.settings.update` |
 | `EmptyOldCarts`, `DeleteExpiredQuotes`, `PushSalesRanks` | Command, scheduled | `sales.system.run` |
 | `MoveGuestCart`, `ForgetCustomer`, `FlagShortOrders`, `CreateOrderSequence`, `RecordGatewayPayment` (stage 7) | Listeners | — (the events of §6, run as the system) |
 
@@ -826,9 +841,9 @@ the order's store.
   counts (owner: tabs without badges); newest first, **50 a page**, `after` the last order id →
   `StaffOrdersPage{orders, next}`, each `StaffOrderRow{orderId, number, storeId, placedAt, customer, status,
   shipment, payment, customerStatus, total, exponent, shortOfStock, mayShipUnpaid}`.
-- **`ListCarriers(storeId)`** (`sales.order.fulfil` in the store) → `list<string>`: the carriers the store's
-  orders were shipped with, each once, the most lately shipped with first, at most 20 — the Ship dialog's
-  suggestions; the carrier is still typed freely (§1.5).
+- **`ListCarriers(storeId, countryCode?)`** (`sales.order.fulfil` in the store) → `list<CarrierDto>`: the
+  store's carriers from `ShippingApi::carriers` — the order's country first, switched-on first — for Ship…
+  and its correction; "Other carrier" is typed (§1.5, §9.5 #3; gap 6.3).
 - **`ListCustomerOrders(customerId)`** → `list<StaffOrderRow>`: the customer's 10 latest orders in the stores
   listed to the reader — the staff customer page's **`sales.orders`** section (access.md amendment 72(a)):
   `CustomerOrdersSectionData{customerId, orders: list<OrderRowData>}` — each order as the panel's list draws it,
@@ -869,9 +884,9 @@ the order's store.
   through Platform's expiring link, to staff who view the orders of its store; any other file, or one of a store
   not covered: `OrderNotFound` (Platform asks the module to check its reader first: catalog.md §2.4).
 - **`PreviewReturnRefund(returnId)`** (the screens' B10; `sales.return.manage`) → `ReturnRefundPreview{goods,
-  vat, shipping, shippingVat, total, exponent}`: what `CompleteReturn` would refund for a received return —
-  the pieces' goods, their VAT share, the shipping and its VAT when it is the return that makes every bought
-  piece returned — by the same `ReturnRefunds` on the same facts, written nowhere (owner R2-40: the
+  vat, shipping, total, exponent}`: what `CompleteReturn` would refund for a received return —
+  the pieces' goods, their VAT share, the shipping (no VAT on it, §9.5 #1) when it is the return that makes
+  every bought piece returned — by the same `ReturnRefunds` on the same facts, written nowhere (owner R2-40: the
   Complete confirmation). Any other state: `InvalidOrderChange`.
 - **`SearchEditSizes(orderId, q)`** (the screens' B7; `sales.order.edit`) → `list<EditSizeRow{variantId,
   productId, productNameAr, productNameEn, code, values, photoMediaId, retail {now, before}, wholesale {now,
@@ -1121,7 +1136,7 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 | B7 | **The edit's product search** — a store's sizes by name or code, with their values, today's price and the stock available | P4 |
 | B8 | **Prices in the shop** — on the cards (now, before, for the viewer's side, and the lowest among the sizes for "From"; a guest's wholesale "from") and on the product page (each size's price and old price; wholesale bands), without VAT; Catalog keeps the listing prices Pricing pushes (catalog.md amendment 15) | S1 |
 | B9 | **What may be ticked "reduced in the provider"** — the staff view says whether the order was placed wired (`orders.wired`) and, for each line, whether it counts on stock (`order_lines.counts_on_stock`, the gift always) | P2 |
-| B10 | **A return's refund worked out before it is completed** — `PreviewReturnRefund`: the pieces' goods, their VAT share, and the shipping with its VAT when it is the last bought piece, without writing | P6 |
+| B10 | **A return's refund worked out before it is completed** — `PreviewReturnRefund`: the pieces' goods, their VAT share, and the shipping (no VAT on it, §9.5 #1) when it is the last bought piece, without writing | P6 |
 | B11 | **`ListReturns` by a group of states** — Closed: refused, withdrawn and closed together | P5 |
 | B12 | **What the cart page says beside the lines** (`ViewCart`, owner's go 2026-10-27) — `mayNotOrder`, the first reason checkout would not take the account: `SIGN_IN`, `ACCOUNT_NOT_ACTIVE` (blocked, deletion asked for, emptied — before the confirmations, which would not help), `EMAIL_UNVERIFIED`, `PHONE_COUNTRY_NOT_SERVED` (the saved phone's country is not on the SMS countries list, access.md amendment 90 — before `PHONE_UNVERIFIED`, which it would otherwise read as; its fix is another number; the owner, 2026-10-30), `PHONE_UNVERIFIED`, `COMPANY_NOT_APPROVED`; null exactly when `mayOrder` (an off store has no cart, so no reason for it). `shippingFee` and `freeAbove` (null when shipping is never free); `nextGift` {amount, missing}: the lowest level on now for this buyer above the goods, whose gift is in stock after the cart's own pieces (Promotions' `giftLevelsAbove`); `pointsToEarn` (Loyalty's preview; 0 for a guest). These compare with `goodsTotal`: the orderable lines' subtotal **less the coupon typed** (owner, 2026-10-27) — the points are chosen at checkout, so using them can still move it | S4 |
 | B13 | **The header's piece count** — `CountCartPieces`: the pieces on every line of the shopper's cart in a store (one that cannot be ordered too), a customer's or a guest's; one query; 0 with no cart, for a browser not yet a guest, in an off store, and for staff | S3 |
@@ -1146,7 +1161,7 @@ and the rows of one order carry its store through composite keys.
 | `sales.carts` | `id`, `store_id`, `customer_id` NULL → `access.customers` CASCADE, `guest_id` NULL, `coupon_code` NULL, `notice` NULL (the lines removed at sign-in), `created_at`, `updated_at` | CHECK `num_nonnulls(customer_id, guest_id) = 1`; CHECK `customer_id IS NOT NULL OR coupon_code IS NULL`; UNIQUE (`store_id`, `customer_id`), UNIQUE (`store_id`, `guest_id`) |
 | `sales.cart_lines` | `cart_id` → carts CASCADE, `variant_id` → `catalog.variants` CASCADE, `sale_mode`, `quantity`, `added_at` | PK (`cart_id`, `variant_id`, `sale_mode`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `quantity BETWEEN 1 AND 1000000` |
 | `sales.quotes` | `id`, `store_id` → `platform.stores` RESTRICT, `customer_id` → `access.customers` CASCADE, `address_id`, `coupon_code` NULL, `use_points`, `points_asked` NULL (with `use_points`: none is as many as allowed — answer 44), `way_to_pay`, `result` jsonb (the itemised §1.2), `expires_at`, `created_at` | CHECK `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `points_asked IS NULL OR (use_points AND points_asked >= 1)`, `coupon_code` 1–64 characters, `expires_at > created_at`; indexes on `customer_id` and `expires_at`; deleted nightly once expired and not placed |
-| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor`, `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier` NULL, `tracking_number` NULL, `shipped_at` NULL, `delivered_at` NULL, `return_deadline_at` NULL (fixed at delivery — answers 34, 44), `came_back_id` NULL, `came_back_at` NULL | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN ('CHANGED_MIND','ORDERED_BY_MISTAKE','FOUND_CHEAPER','TOO_SLOW','OTHER','BY_STAFF')`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`, `status <> 'REJECTED' OR decision_reason IS NOT NULL`; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `(status = 'CANCELLED') = (cancel_reason IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `COALESCE(cancel_reason IN ('OTHER','BY_STAFF'), false) = (cancel_other IS NOT NULL)`, `(cancel_reason IS NOT DISTINCT FROM 'BY_STAFF') = (cancelled_by IS NOT NULL)` — a customer's cancellation names a reason from the list, a staff member's is `BY_STAFF` with their words in `cancel_other`; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `num_nonnulls(came_back_at, came_back_id) IN (0, 2)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL)`, `(shipment_status = 'NOT_SHIPPED') = (carrier IS NULL)`, `carrier IS NOT NULL OR tracking_number IS NULL`, `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
+| `sales.orders` | `id`, `store_id`, `number`, `quote_id`, `customer_id` → `access.customers` RESTRICT, `audience`, `locale`, `currency_code` → `platform.currencies`; the snapshot: `customer_name`, `customer_email` NULL (cleared on anonymizing), `customer_phone`, `address` jsonb; `status`, `shipment_status`, `way_to_pay`, `coupon_id` NULL, `coupon_code` NULL, `coupon_discount_minor`, `points_used`, `points_discount_minor`, `gross_subtotal_minor`, `net_subtotal_minor`, `goods_total_minor`, `shipping_fee_minor`, `shipping_rule_fee_minor`, `shipping_rule_free_above_minor` NULL (none: never free), `shipping_free_kind` NULL (`CARRIER`, `STORE`; together with it), `shipping_fee_pending` (the fee to be set: 0, not shipped, no ordered carrier), `ordered_carrier_id` / `_ar` / `_en` NULL (all or none, snapshotted at placing), `taxable_base_minor`, `vat_minor`, `vat_rate_basis_points`, `order_total_minor`, `due_minor`, `paid_minor`, `refunded_minor`, `may_ship_unpaid`, `short_of_stock_at` NULL, `gift_level_id` NULL, `placed_at`, `decided_by` NULL → `access.staff_users`, `decided_at` NULL, `decision_reason` NULL, `cancel_reason` NULL, `cancel_other` NULL, `cancelled_by` NULL, `cancelled_at` NULL, `carrier_id` NULL (none: "Other carrier"), `carrier_ar` / `carrier_en` NULL (set exactly when shipped), `tracking_number` NULL, `tracking_link` NULL (HTTPS, at most 500), `shipped_at` NULL, `delivered_at` NULL, `return_deadline_at` NULL (fixed at delivery — answers 34, 44), `came_back_id` NULL, `came_back_at` NULL | UNIQUE (`store_id`, `number`); UNIQUE (`quote_id`); UNIQUE (`id`, `store_id`); UNIQUE (`id`, `store_id`, `currency_code`); CHECK `audience IN ('PUBLIC','COMPANY')`, `status IN ('PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED','COMPLETED','UNDELIVERED')`, `shipment_status IN ('NOT_SHIPPED','SHIPPED','DELIVERED','CAME_BACK')`, `way_to_pay IN ('ONLINE','BANK_TRANSFER','STAFF_CONTACT')`, `cancel_reason IN ('CHANGED_MIND','ORDERED_BY_MISTAKE','FOUND_CHEAPER','TOO_SLOW','OTHER','BY_STAFF')`; **the decision**: CHECK `(status = 'PENDING_APPROVAL' AND decided_at IS NULL) OR (status IN ('APPROVED','REJECTED','COMPLETED','UNDELIVERED') AND decided_at IS NOT NULL) OR status = 'CANCELLED'` — a cancelled order was cancelled waiting or after approval; CHECK `(decided_by IS NULL) = (decided_at IS NULL)`, `status <> 'REJECTED' OR decision_reason IS NOT NULL`; **the cancellation**: CHECK `(status = 'CANCELLED') = (cancelled_at IS NOT NULL)`, `(status = 'CANCELLED') = (cancel_reason IS NOT NULL)`, `status <> 'CANCELLED' OR shipment_status = 'NOT_SHIPPED'`, `COALESCE(cancel_reason IN ('OTHER','BY_STAFF'), false) = (cancel_other IS NOT NULL)`, `(cancel_reason IS NOT DISTINCT FROM 'BY_STAFF') = (cancelled_by IS NOT NULL)` — a customer's cancellation names a reason from the list, a staff member's is `BY_STAFF` with their words in `cancel_other`; **the shipment**: CHECK `(shipment_status = 'NOT_SHIPPED') = (shipped_at IS NULL)`, `(shipment_status = 'DELIVERED') = (delivered_at IS NOT NULL)`, `num_nonnulls(came_back_at, came_back_id) IN (0, 2)`, `(shipment_status = 'CAME_BACK') = (came_back_at IS NOT NULL)`, `(shipment_status = 'NOT_SHIPPED') = (carrier_en IS NULL)`, `carrier_en IS NOT NULL OR (tracking_number IS NULL AND tracking_link IS NULL)` (stage 7 step 6: `orders_carrier_names`, `orders_carrier_id`, `orders_tracking_link`, `orders_ordered_carrier`, `orders_fee_pending`, `orders_free_kind`), `(status = 'COMPLETED') = (shipment_status = 'DELIVERED')`, `(status = 'UNDELIVERED') = (shipment_status = 'CAME_BACK')`, `shipment_status = 'NOT_SHIPPED' OR status IN ('APPROVED','COMPLETED','UNDELIVERED')`; **the coupon**: CHECK `(coupon_id IS NULL) = (coupon_code IS NULL)`, `coupon_id IS NOT NULL OR coupon_discount_minor = 0` (an edit may leave a coupon at 0); **the points**: CHECK `(points_used = 0) = (points_discount_minor = 0)`; CHECK every amount `>= 0`, `due_minor <= order_total_minor`, `refunded_minor <= paid_minor` |
 | `sales.order_lines` | `id`, `order_id`, `store_id`, `product_id` → `catalog.products` RESTRICT, `variant_id` → `catalog.variants` RESTRICT, `edit_id` NULL (the part an edit added), `is_gift`, the snapshot (`name_ar`, `name_en` — the Arabic name where the product has no English one, answer 44 —, `variant_values` jsonb, `code`), `sale_mode`, `price_kind` NULL (none for the gift), `quantity`, `unit_minor`, `list_unit_minor`, `total_minor`, `coupon_share_minor`, `points_share_minor`, `vat_share_minor` | (`order_id`, `store_id`) → orders (`id`, `store_id`) RESTRICT; (`edit_id`, `order_id`) → order_edits (`id`, `order_id`) RESTRICT; UNIQUE (`id`, `order_id`); CHECK `sale_mode IN ('RETAIL','WHOLESALE')`, `(price_kind IS NULL) = is_gift`, `price_kind IN ('BASE','SALE','CAMPAIGN','CATEGORY','QUANTITY')`, `quantity >= 1`; CHECK every share `>= 0` and `coupon_share_minor + points_share_minor <= total_minor`; CHECK a gift line has `sale_mode = 'RETAIL'`, `unit_minor = 0`, `list_unit_minor = 0`, `total_minor = 0` and every share 0; one gift line per order (UNIQUE (`order_id`) WHERE `is_gift`). Rows change only before shipping (edits) |
 | `sales.order_ticks` | `order_id`, `store_id`, `variant_id`, `ticked_by` → `access.staff_users`, `ticked_at` | PK (`order_id`, `variant_id`); (`order_id`, `store_id`) → orders RESTRICT — "reduced in the provider" |
 | `sales.order_edits` | `id`, `order_id`, `store_id`, `reason`, `by` → `access.staff_users`, `at`, `before` jsonb, `after` jsonb | (`order_id`, `store_id`) → orders RESTRICT; UNIQUE (`id`, `order_id`); CHECK `char_length(reason) BETWEEN 1 AND 500`; append-only (trigger); the edit's id is Loyalty's and Promotions' idempotency key |
@@ -1690,3 +1705,42 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
     becomes overdue by #9 — its receipt uploaded more than `transferCheckHours` (72) ago and still not
     paid. Ops tells staff holding `sales.payment.record` on Payments to check. Built with #9 in stage 7's
     step 12 (payments.md §9.7).
+
+### 9.6 Stage 7 step 6 — #1–#3, #11 (its shipping parts) and #12 built (2026-10-30)
+
+**Applied in place** above: §1.2 steps 9–11, §1.5, §1.7 step 5, §1.8, §1.10, §2.4, §3, §5. The owner's
+gap answers: **6.1** (staff changing an order's place pick any carrier — the preview lists those serving
+the new place with today's fee — and the fee: today's, or the order's own), **6.2–6.7** as recommended,
+**6.8–6.9** (a quote's carrier and fee hold for its 15 minutes; a chosen carrier gone at re-quote → the
+cheapest, shown as changed). **Shipping gap 5.1** is in too (after Shipping step 5 merged, #286): the staff order page and the packing
+slip ask `ShippingApi::suggestBox` live for the order's pieces (`Order/PackingBox`; `box` on `ViewOrder` and
+`PrintOrder`). Not in this step: the checkout try (#4–#8, steps 7 and 11), payment requests for a difference
+owed (#8, step 12).
+
+As built — **my picks**, for the owner to reject:
+
+1. **Placing re-checks the address's place**: an address edited to another place since the quote is
+   `QuoteChanged('address')` — the honoured fee was for the place quoted.
+2. **An order whose fee is still to be set has none to keep**: a staff address change with `KEEP` is refused
+   for it (`TODAY` only); `TODAY` at a place no carrier serves makes the fee to be set again.
+3. **A carrier or a fee choice with no new place is refused** (`InvalidSalesAttribute`), never dropped silently.
+4. **"Set the shipping fee" is an edit row of its own** with a reason, `OrderEdited`, in the history as an
+   edit; the fee 0–100,000,000 (the carriers' price limit); **usable again until shipped** (gap 6.2) for an
+   order with no carrier's fee — a fee to be set, or one staff set — and refused for an order with a carrier's
+   quoted fee (`InvalidOrderChange`): that one changes through an address change (gap 6.1).
+5. **"Correct shipment" (gap 6.5) sends no event and no message**: only the order's row, its history
+   (`SHIPMENT_CORRECTED`) and the audit change.
+6. **The cart reads Shipping's store-wide free-above by its key** (`shipping.free.above_all`) — no Shipping
+   read for it exists; a `ShippingApi` read would be cleaner (a follow-up).
+7. **The old flat-fee settings' stored values are left in `platform.settings`** (a Sales migration does not
+   write Platform's table); no declared setting reads them.
+8. **`OrderMessageDto`** (Ops) gains `trackingLink` and `shippingFeePending`; its `carrier` is the carrier
+   shipped with, else the one ordered (gap 6.7), in the order's language.
+9. **The Ship dialog as built today** (until the screens session's carrier picker): a typed name matching one
+   of the store's carriers ships with it; any other is "Other carrier".
+10. **The screens' words are the screens session's**: the cart's "Shipping: worked out at checkout" (gap 6.6)
+    and "Shipping: to be confirmed" with the total before shipping (shipping.md §9.3 #8) — the backend sends
+    `shippingFee` null and `shippingPending`; the pages built today hide the shipping row until then.
+11. **For the owner: an edit that makes the fee to be set keeps the order's way to pay.** At placing, such an
+    order is staff contact only; a company's bank-transfer order moved by staff to a place no carrier serves
+    stays a bank transfer, the fee set by staff before it ships.

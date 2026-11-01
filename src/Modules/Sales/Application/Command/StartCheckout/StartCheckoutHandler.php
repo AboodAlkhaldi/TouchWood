@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Modules\Sales\Application\Quote\QuoteBuilder;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Application\SalesPermissions;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\MayNotOrder;
@@ -45,7 +46,7 @@ final readonly class StartCheckoutHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|WayToPayNotOffered|QuoteExpired
+     * @throws Unauthorized|InvalidSalesAttribute|MayNotOrder|NotForYourAccount|NotOrderable|AddressNotUsable|AddressInOtherStore|WayToPayNotOffered|QuoteExpired
      */
     public function handle(StartCheckout $command): QuoteView
     {
@@ -69,7 +70,7 @@ final readonly class StartCheckoutHandler
             throw new InvalidSalesAttribute('points', 'a number of points from 1 to '.self::MOST_POINTS.', when using points');
         }
 
-        $view = $this->builder->build($store, $customerId, trim($command->addressId), $command->usePoints, $command->pointsAsked, $wayToPay);
+        $view = $this->builder->build($store, $customerId, trim($command->addressId), $command->usePoints, $command->pointsAsked, $wayToPay, $command->carrierId === null || trim($command->carrierId) === '' ? null : trim($command->carrierId));
 
         $this->quotes->add(new Quote(
             $view->id,

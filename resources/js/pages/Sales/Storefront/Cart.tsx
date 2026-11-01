@@ -357,8 +357,8 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
 function Extras({ cart }: { cart: CartPage }) {
     const t = useTranslator();
     const locale = useLocale();
-    // A store shipping for nothing needs no line toward free shipping.
-    const free = cart.freeAbove !== null && cart.shippingFee !== null && cart.shippingFee.minor > 0;
+    // The bar only while the store ships everything free from an amount: the fee itself is worked out at checkout (gap 6.6).
+    const free = cart.freeAbove !== null;
 
     if (!free && cart.nextGift === null && cart.pointsToEarn === 0) {
         return null;

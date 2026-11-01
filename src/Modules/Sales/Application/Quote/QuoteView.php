@@ -17,7 +17,8 @@ use Shared\Domain\ValueObject\Money;
 
 /**
  * A checkout's quote (sales.md §1.2): **server-computed, itemised, immutable** — the prices of each line,
- * the coupon taken or why not, the points used or why not, the gift or why none, the shipping, the
+ * the coupon taken or why not, the points used or why not, the gift or why none, the shipping (the carrier
+ * picked and its rule, or the fee to be set by staff — §9.5 #2), the
  * totals, the ways to pay and the points the order would earn — valid until `expiresAt`. Kept whole on
  * the quote's row (`toArray` / `fromArray`), so placing the order reads exactly what was shown, and
  * Promotions re-checks the coupon against the very prices quoted.
@@ -55,8 +56,7 @@ final readonly class QuoteView
         public ?string $pointsRefusal,
         public ?string $giftLevelId,
         public ?string $giftVariantId,
-        public Money $shippingRuleFee,
-        public Money $shippingRuleFreeAbove,
+        public QuoteShipping $shipping,
         public TotalsDto $totals,
         public array $waysToPay,
         public WayToPay $wayToPay,
@@ -91,7 +91,7 @@ final readonly class QuoteView
             'coupon' => ['code' => $this->couponCode, 'id' => $this->couponId, 'nameAr' => $this->couponNameAr, 'nameEn' => $this->couponNameEn, 'discount' => $money($this->couponDiscount), 'shares' => $this->couponShares, 'allowWithPoints' => $this->allowWithPoints, 'refusal' => $this->couponRefusal],
             'points' => ['use' => $this->usePoints, 'asked' => $this->pointsAsked, 'mode' => $this->pointsMode, 'mostUsable' => $this->pointsMostUsable, 'used' => $this->pointsUsed, 'discount' => $money($this->pointsDiscount), 'refusal' => $this->pointsRefusal],
             'gift' => ['levelId' => $this->giftLevelId, 'variantId' => $this->giftVariantId],
-            'shipping' => ['fee' => $money($this->shippingRuleFee), 'freeAbove' => $money($this->shippingRuleFreeAbove)],
+            'shipping' => $this->shipping->toArray(),
             'totals' => [
                 'gross' => $money($this->totals->grossSubtotal), 'net' => $money($this->totals->netSubtotal), 'coupon' => $money($this->totals->couponDiscount),
                 'points' => $money($this->totals->pointsDiscount), 'goods' => $money($this->totals->goodsTotal), 'shipping' => $money($this->totals->shipping),
@@ -108,7 +108,7 @@ final readonly class QuoteView
      */
     public static function fromArray(string $id, string $storeId, string $customerId, string $addressId, WayToPay $wayToPay, DateTimeImmutable $expiresAt, DateTimeImmutable $createdAt, array $result): self
     {
-        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, nameAr: ?string, nameEn: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, mode: ?string, mostUsable: int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{fee: int, freeAbove: int}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int} $result */
+        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, nameAr: ?string, nameEn: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, mode: ?string, mostUsable: int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{coverage: string, carrierId: ?string, carrierAr: ?string, carrierEn: ?string, fee: int, price: int, freeAbove: ?int, freeKind: ?string, carrierChanged: bool, options: list<array{carrierId: string, nameAr: string, nameEn: string, logoUrl: ?string, fee: int, freeBecause: ?string}>, destination: array{countryCode: string, regionId: ?string, cityId: ?string, districtId: ?string}}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int} $result */
         $currency = $result['prices']['currency'];
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
         $moment = static fn (?string $at): ?DateTimeImmutable => $at === null ? null : CarbonImmutable::parse($at);
@@ -152,8 +152,7 @@ final readonly class QuoteView
             $result['points']['refusal'],
             $result['gift']['levelId'],
             $result['gift']['variantId'],
-            $money($result['shipping']['fee']),
-            $money($result['shipping']['freeAbove']),
+            QuoteShipping::fromArray($result['shipping'], $currency),
             new TotalsDto(
                 $money($totals['gross']), $money($totals['net']), $money($totals['coupon']), $money($totals['points']), $money($totals['goods']),
                 $money($totals['shipping']), $money($totals['taxable']), $money($totals['vat']), $money($totals['order']), $totals['taxRate'],

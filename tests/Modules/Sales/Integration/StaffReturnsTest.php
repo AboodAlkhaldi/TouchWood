@@ -79,7 +79,7 @@ function sretDelivered(string $storeCode = 'sa'): array
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], [$storeCode]));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
     app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
     Fx::actAsCustomer($ready['customer']);
     $returns = [];

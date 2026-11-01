@@ -71,6 +71,17 @@ formatted: string,
 isDefault: boolean,
 isComplete: boolean,
 };
+export type CheckoutCarrierData = {
+id: string,
+name: string,
+logoUrl: string | null,
+fee: MoneyData,
+free: boolean,
+};
+export type CheckoutOtherStoreData = {
+name: string,
+url: string,
+};
 export type CheckoutPage = {
 quoteId: string | null,
 addresses: CheckoutAddressData[],
@@ -93,7 +104,6 @@ savings: MoneyData | null,
 coupon: MoneyData | null,
 points: MoneyData | null,
 shipping: MoneyData | null,
-freeAbove: MoneyData | null,
 vat: MoneyData | null,
 vatRateBasisPoints: number,
 total: MoneyData | null,
@@ -101,6 +111,11 @@ gift: string | null,
 giftPrice: MoneyData | null,
 earns: number,
 phone: string | null,
+shippingPending: boolean,
+carriers: CheckoutCarrierData[],
+carrierId: string | null,
+carrierChanged: boolean,
+otherStore: CheckoutOtherStoreData | null,
 };
 export type CustomerOrdersSectionData = {
 customerId: string,
@@ -148,6 +163,10 @@ money: string,
 difference: MoneyData,
 gifts: EditGiftData[],
 giftLevelId: string | null,
+placeChanged: boolean,
+carriers: CheckoutCarrierData[],
+carrierId: string | null,
+shippingPending: boolean,
 };
 export type EditSizeData = {
 variantId: string,
@@ -185,6 +204,18 @@ mayCancel: boolean,
 mayFulfil: boolean,
 mayRecordMoney: boolean,
 mayManageReturns: boolean,
+};
+export type OrderBoxData = {
+name: string | null,
+byHand: boolean,
+reason: string | null,
+};
+export type OrderCarrierData = {
+id: string,
+name: string,
+countryCode: string,
+active: boolean,
+hasTrackingPattern: boolean,
 };
 export type OrderCustomerData = {
 id: string,
@@ -285,7 +316,12 @@ actions: OrderActionsData,
 storeTimezone: string,
 exponent: number,
 owedDecimal: string,
-carriers: string[],
+carriers: OrderCarrierData[],
+carrierId: string | null,
+trackingLink: string | null,
+orderedCarrier: string | null,
+shippingFeePending: boolean,
+box: OrderBoxData | null,
 };
 export type OrderReturnData = {
 id: string,
@@ -369,6 +405,8 @@ returns: OwnReturnRowData[],
 mayCancel: boolean,
 mayReturn: boolean,
 storeTimezone: string,
+trackingLink: string | null,
+shippingPending: boolean,
 };
 export type OwnOrderRowData = {
 number: string,
@@ -440,6 +478,7 @@ vatRateBasisPoints: number,
 total: MoneyData,
 wayToPay: string,
 storeTimezone: string,
+box: OrderBoxData | null,
 };
 export type ReturnLineData = {
 orderLineId: string,
@@ -487,7 +526,6 @@ export type ReturnPreviewData = {
 goods: MoneyData,
 vat: MoneyData,
 shipping: MoneyData,
-shippingVat: MoneyData,
 total: MoneyData,
 };
 export type ReturnRowData = {

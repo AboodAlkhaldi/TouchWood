@@ -15,8 +15,8 @@ use Shared\Domain\ValueObject\Money;
  * 1. the coupon's — Promotions' answer, one a line, as given;
  * 2. the points' — the points discount spread with `Money::allocate` over the lines by their total less
  *    their coupon share, so no line's goods share goes below 0;
- * 3. the VAT's — the order's VAT spread over the lines' taxable amounts (total less both shares) and the
- *    shipping fee, in proportion; the shipping's part apart.
+ * 3. the VAT's — the order's VAT spread over the lines' taxable amounts (total less both shares), in
+ *    proportion. The shipping carries no VAT (owner, 2026-10-27; §9.5 #1), so it takes no share.
  *
  * None of a kind when its amount is 0. Pure: no database, no clock.
  */
@@ -25,18 +25,18 @@ final class OrderShares
     /**
      * @param  list<Money>  $lineTotals  each line's total, a gift's 0
      * @param  list<Money>  $couponShares  one a line, in the same order
-     * @return array{lines: list<array{coupon: Money, points: Money, vat: Money}>, shippingVat: Money}
+     * @return list<array{coupon: Money, points: Money, vat: Money}>
      *
      * @throws InvalidArgumentException when the lists do not line up, a coupon share passes its line, an
      *                                  amount is below 0, or the points discount passes what the coupon left of the lines
      */
-    public static function of(array $lineTotals, array $couponShares, Money $pointsDiscount, Money $vat, Money $shippingFee): array
+    public static function of(array $lineTotals, array $couponShares, Money $pointsDiscount, Money $vat): array
     {
         if ($lineTotals === [] || count($lineTotals) !== count($couponShares)) {
             throw new InvalidArgumentException('One coupon share a line, and at least one line.');
         }
 
-        if ($pointsDiscount->isNegative() || $vat->isNegative() || $shippingFee->isNegative()) {
+        if ($pointsDiscount->isNegative() || $vat->isNegative()) {
             throw new InvalidArgumentException('An amount below 0.');
         }
 
@@ -64,8 +64,7 @@ final class OrderShares
             $taxable[] = $left->subtract($points[$index]);
         }
 
-        $vatShares = self::spread($vat, [...array_map(static fn (Money $amount): int => $amount->minorUnits, $taxable), $shippingFee->minorUnits], $zero, 'VAT');
-        $shippingVat = array_pop($vatShares) ?? $zero;
+        $vatShares = self::spread($vat, array_map(static fn (Money $amount): int => $amount->minorUnits, $taxable), $zero, 'VAT');
 
         $lines = [];
 
@@ -73,7 +72,7 @@ final class OrderShares
             $lines[] = ['coupon' => $couponShares[$index], 'points' => $points[$index], 'vat' => $vatShares[$index]];
         }
 
-        return ['lines' => $lines, 'shippingVat' => $shippingVat];
+        return $lines;
     }
 
     /**

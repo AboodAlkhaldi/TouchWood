@@ -88,7 +88,7 @@ function solShip(string $order, string $carrier): void
 {
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, $carrier, null));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: $carrier, trackingNumber: null));
 }
 
 it('lists the orders waiting, to ship and shipped, and the bank transfers to check', function () {
@@ -160,18 +160,11 @@ it('lists one customer\'s orders alone', function () {
         ->and(solIds(new ListOrders(customerId: 'nobody')))->toBe([]);
 });
 
-it('lists the carriers a store shipped with, each once, the latest first, to staff who ship', function () {
-    ['order' => $first] = solOrder();
-    ['order' => $second] = solOrder();
-    ['order' => $third] = solOrder();
+it('lists the store\'s carriers from Shipping to staff who ship (§9.5 #3)', function () {
+    solOrder();
     solStaff();
-    solShip($first, 'SMSA');
-    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
-    solShip($second, 'Aramex');
-    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
-    solShip($third, 'SMSA');
 
-    expect(app(ListCarriersHandler::class)->handle(new ListCarriers(Fx::storeId('sa'))))->toBe(['SMSA', 'Aramex'])
+    expect(array_map(static fn ($carrier): string => $carrier->nameEn, app(ListCarriersHandler::class)->handle(new ListCarriers(Fx::storeId('sa')))))->toBe([Cx::CARRIER])
         ->and(fn () => app(ListCarriersHandler::class)->handle(new ListCarriers(Fx::storeId('eg'))))->toThrow(Unauthorized::class);
 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));

@@ -20,5 +20,11 @@ final readonly class ShippingOptionDto
         public ?string $logoUrl,
         public Money $fee,
         public ?FreeShippingReason $freeBecause,
+        /** The place's price before free shipping - what Sales keeps for an order's later edits (sales.md §9.5 #11). */
+        public ?Money $price = null,
+        /** The free-above amount that applies: the store-wide one while set, else the carrier's; null when neither. */
+        public ?Money $freeAbove = null,
+        /** Whose that amount is (`STORE`, `CARRIER`), free or not yet; null when there is none. */
+        public ?FreeShippingReason $freeAboveBecause = null,
     ) {}
 }

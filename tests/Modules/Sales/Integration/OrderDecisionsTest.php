@@ -213,7 +213,7 @@ describe('cancelling', function () {
     })->with([
         'shipped' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update([
             'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(),
-            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier_en' => 'SMSA', 'carrier_ar' => 'SMSA',
         ])],
         'rejected' => [fn (string $order) => DB::table('sales.orders')->where('id', $order)->update([
             'status' => 'REJECTED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(), 'decision_reason' => 'No', 'due_minor' => 0,
@@ -270,7 +270,7 @@ describe('stock was reduced', function () {
         $shipped = Cx::place(Cx::start(Cx::ready()['address'])->id)->id;
         DB::table('sales.orders')->where('id', $shipped)->update([
             'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(),
-            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier_en' => 'SMSA', 'carrier_ar' => 'SMSA',
         ]);
         $event = new HoldsShort((string) Str::uuid(), Fx::storeId('sa'), $variants[0], [$open, $cancelled, $shipped, strtolower((string) Str::ulid())], CarbonImmutable::now());
 
@@ -375,7 +375,7 @@ describe('what the review asked for', function () {
         ['order' => $order] = decidedOrder();
         DB::table('sales.orders')->where('id', $order)->update([
             'status' => 'APPROVED', 'decided_by' => Fx::staff(), 'decided_at' => CarbonImmutable::now(),
-            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier' => 'SMSA',
+            'shipment_status' => 'SHIPPED', 'shipped_at' => CarbonImmutable::now(), 'carrier_en' => 'SMSA', 'carrier_ar' => 'SMSA',
         ]);
 
         expect(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND')))->toThrow(NotCancellable::class);

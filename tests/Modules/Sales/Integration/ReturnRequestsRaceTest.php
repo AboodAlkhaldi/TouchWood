@@ -66,7 +66,7 @@ it('lets a request wait on a change of the order under way, then refuses pieces 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
     app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
     Fx::actAsCustomer($ready['customer']);
     $line = (string) DB::table('sales.order_lines')->where('order_id', $order)->where('variant_id', $ready['variants'][0])->value('id');

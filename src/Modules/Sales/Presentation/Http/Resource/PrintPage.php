@@ -37,5 +37,7 @@ final class PrintPage extends Data
         public MoneyData $total,
         public string $wayToPay,
         public string $storeTimezone,
+        /** The box suggested, or pack by hand with why; null while the store has no boxes (gap 5.1). */
+        public ?OrderBoxData $box = null,
     ) {}
 }

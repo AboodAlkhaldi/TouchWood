@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Query\PrintOrder;
 
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Order\OrderAccess;
+use Modules\Sales\Application\Order\PackingBox;
 use Modules\Sales\Application\Query\OrderLines;
 use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
@@ -25,6 +26,7 @@ final readonly class PrintOrderHandler
         private StaffReads $reads,
         private OrderLines $lines,
         private StaffReader $reader,
+        private PackingBox $box,
     ) {}
 
     /**
@@ -47,6 +49,7 @@ final readonly class PrintOrderHandler
             $money($order['points_discount_minor']), $money($order['goods_total_minor']), $money($order['shipping_fee_minor']),
             $money($order['vat_minor']), (int) $order['vat_rate_basis_points'], $money($order['order_total_minor']), WayToPay::from((string) $order['way_to_pay']),
             $this->reader->exponent($currency),
+            $this->box->of((string) $order['store_id'], $lines),
         );
     }
 }

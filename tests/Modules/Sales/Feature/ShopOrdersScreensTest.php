@@ -65,7 +65,7 @@ function shopOrdersScreensOrder(bool $delivered = false): array
             Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
             app(ApproveOrderHandler::class)->handle(new ApproveOrder($placed->id));
             DB::table('sales.orders')->where('id', $placed->id)->update(['paid_minor' => DB::raw('due_minor')]);
-            app(ShipOrderHandler::class)->handle(new ShipOrder($placed->id, 'SMSA', '123'));
+            app(ShipOrderHandler::class)->handle(new ShipOrder($placed->id, otherCarrier: 'SMSA', trackingNumber: '123'));
             app(MarkDeliveredHandler::class)->handle(new MarkDelivered($placed->id));
         }
     } finally {

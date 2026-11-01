@@ -66,12 +66,6 @@ final readonly class DatabaseStaffReads implements StaffReads
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $query->get()->all()));
     }
 
-    public function carriers(string $storeId, int $limit): array
-    {
-        return array_values(array_map('strval', $this->db->table('sales.orders')->where('store_id', $storeId)->whereNotNull('carrier')
-            ->groupBy('carrier')->orderByRaw('max(shipped_at) DESC NULLS LAST')->orderBy('carrier')->limit($limit)->pluck('carrier')->all()));
-    }
-
     public function order(string $orderId): ?array
     {
         $row = $this->db->table('sales.orders')->where('id', $orderId)->first();

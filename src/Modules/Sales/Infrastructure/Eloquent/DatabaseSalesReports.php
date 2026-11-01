@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use InvalidArgumentException;
 use Modules\Platform\Public\Contracts\PlatformApi;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Domain\Service\ReturnRefunds;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
@@ -69,11 +70,13 @@ final readonly class DatabaseSalesReports implements SalesReports
             }, $lines)),
             $money($order->net_subtotal_minor), $money($order->coupon_discount_minor), $money($order->points_discount_minor),
             $money($order->shipping_fee_minor), $money($order->vat_minor), $money($order->order_total_minor),
-            $order->carrier === null ? null : (string) $order->carrier,
+            OrderShippingView::of((array) $order)->carrier($arabic ? 'ar' : 'en'),
             $order->tracking_number === null ? null : (string) $order->tracking_number,
             $order->status === 'REJECTED' && $order->decision_reason !== null ? (string) $order->decision_reason : null,
             $order->cancel_reason === null ? null : (string) $order->cancel_reason,
             (string) ($address['recipientName'] ?? ''), (string) ($address['formatted'] ?? ''),
+            $order->tracking_link === null ? null : (string) $order->tracking_link,
+            (bool) $order->shipping_fee_pending,
         );
     }
 
@@ -380,7 +383,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
             // The goods alone: the shipping is outside revenue, so it never rides along here — and so what the
             // refund holds beyond the goods is exactly their VAT.
-            $refund = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0, 0);
+            $refund = ReturnRefunds::of($lines[$order] ?? [], $before, $pieces[$id] ?? [], true, 0);
             $goods[$id] = ['goods' => $refund['goods'], 'vat' => $refund['refund'] - $refund['goods']];
         }
 

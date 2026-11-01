@@ -6,7 +6,7 @@ namespace Modules\Sales\Domain\Model;
 
 /**
  * What an edit reads of a placed order (sales.md §1.7): its rules as placed — the VAT rate, the shipping
- * fee and free-above amount — its coupon and points, its gift, its address, and its lines, the parts of a
+ * (its fee, rule, carrier, or the fee to be set) — its coupon and points, its gift, its address, and its lines, the parts of a
  * size oldest first (placement, then each edit in turn). Amounts in its currency's smallest unit.
  */
 final readonly class OrderForEdit
@@ -22,8 +22,7 @@ final readonly class OrderForEdit
         public string $audience,
         public string $currencyCode,
         public int $vatRateBasisPoints,
-        public int $shippingRuleFee,
-        public int $shippingRuleFreeAbove,
+        public OrderShipping $shipping,
         public ?string $couponId,
         public int $couponDiscount,
         public int $pointsUsed,

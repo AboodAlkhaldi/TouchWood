@@ -219,18 +219,17 @@ final readonly class ViewCartHandler
     }
 
     /**
-     * The store's flat fee and the goods total from which shipping is free — null when it never is (§1.2 step 9).
+     * No fee before checkout — it depends on the address and the carrier (gap 6.6: "worked out at
+     * checkout"); the goods total from which every carrier ships free while the store-wide amount is set
+     * (shipping.md §1.5), else none, so no bar.
      *
-     * @return array{Money, ?Money}
+     * @return array{null, ?Money}
      */
     private function shipping(StoreId $store, string $currency): array
     {
-        $freeAbove = $this->platform->setting(SalesSettings::FREE_ABOVE, $store)->int();
+        $freeAbove = $this->platform->setting(SalesSettings::SHIPPING_FREE_FOR_ALL, $store)->int();
 
-        return [
-            Money::of($this->platform->setting(SalesSettings::FLAT_FEE, $store)->int(), $currency),
-            $freeAbove === 0 ? null : Money::of($freeAbove, $currency),
-        ];
+        return [null, $freeAbove > 0 ? Money::of($freeAbove, $currency) : null];
     }
 
     /**

@@ -43,13 +43,11 @@ use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
 use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
-use Modules\Sales\Domain\Service\OrderShares;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Shared\Application\Actor;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
-use Shared\Domain\ValueObject\Money;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures as Bx;
@@ -453,23 +451,21 @@ describe('what the review asked for', function () {
         nothingPlaced();
     });
 
-    it('spreads the VAT over the lines and the shipping', function () {
+    it('spreads the VAT over the lines only: the shipping carries none (§9.5 #1)', function () {
+        Cx::serve('sa', 25_00);
         ['address' => $address] = Cx::ready();
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
         $quote = Cx::start($address);
 
         $placed = Cx::place($quote->id);
 
-        $shares = OrderShares::of(
-            array_map(fn ($line) => $line->total, $quote->prices->lines),
-            array_map(fn ($line) => Money::zero('SAR'), $quote->prices->lines),
-            $quote->totals->pointsDiscount, $quote->totals->vat, $quote->totals->shipping,
-        );
         $lines = (int) DB::table('sales.order_lines')->where('order_id', $placed->id)->sum('vat_share_minor');
-        expect($quote->totals->shipping->minorUnits)->toBe(25_00)
-            ->and($shares['shippingVat']->minorUnits)->toBeGreaterThan(0)
-            ->and($lines + $shares['shippingVat']->minorUnits)->toBe($quote->totals->vat->minorUnits)
-            ->and((int) DB::table('sales.orders')->value('shipping_fee_minor'))->toBe(25_00);
+        $order = DB::table('sales.orders')->where('id', $placed->id)->first();
+        // 250.00 of goods: VAT 37.50 on them alone; 250.00 + 37.50 + 25.00 = 312.50.
+        expect([$quote->totals->shipping->minorUnits, $quote->totals->taxableBase->minorUnits, $quote->totals->vat->minorUnits, $quote->totals->orderTotal->minorUnits])
+            ->toBe([25_00, 250_00, 37_50, 312_50])
+            ->and($lines)->toBe($quote->totals->vat->minorUnits)
+            ->and([(int) $order?->shipping_fee_minor, (int) $order?->shipping_rule_fee_minor, $order?->ordered_carrier_en, (bool) $order?->shipping_fee_pending])
+            ->toBe([25_00, 25_00, Cx::CARRIER, false]);
     });
 
     it('keeps the coupon code on the order as Promotions keeps codes', function () {
