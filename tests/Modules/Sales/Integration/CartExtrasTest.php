@@ -23,7 +23,6 @@ use Modules\Sales\Application\Query\CountCartPieces\CountCartPiecesHandler;
 use Modules\Sales\Application\Query\ViewCart\CartView;
 use Modules\Sales\Application\Query\ViewCart\ViewCart;
 use Modules\Sales\Application\Query\ViewCart\ViewCartHandler;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Public\Enums\CartBlock;
 use Shared\Application\Actor;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -123,20 +122,21 @@ describe('the goods total', function () {
 });
 
 describe('the shipping', function () {
-    it('gives the store\'s fee and the amount shipping is free from, null when it never is', function () {
+    it('gives no fee before checkout, and the amount every carrier ships free from only while the store sets one (gap 6.6)', function () {
         Cx::ready();
-        Cx::setting(SalesSettings::FLAT_FEE, 25_00);
-        Cx::setting(SalesSettings::FREE_ABOVE, 300_00);
+        Cx::serve('sa', 25_00);
+        Cx::carrierFreeAbove(300_00);
+        // A carrier's own amount depends on the carrier picked at checkout: no bar.
+        $carrierOnly = cartExtras();
+        Cx::freeForAll(300_00);
         $view = cartExtras();
-        Cx::setting(SalesSettings::FREE_ABOVE, 0);
-        $never = cartExtras();
         DB::table('sales.cart_lines')->delete();
         $empty = cartExtras();
 
-        expect([$view->shippingFee?->minorUnits, $view->freeAbove?->minorUnits])->toBe([25_00, 300_00])
-            ->and([$never->shippingFee?->minorUnits, $never->freeAbove])->toBe([25_00, null])
+        expect([$carrierOnly->shippingFee, $carrierOnly->freeAbove])->toBe([null, null])
+            ->and([$view->shippingFee, $view->freeAbove?->minorUnits])->toBe([null, 300_00])
             // An empty cart still says it, in the store's currency.
-            ->and([$empty->shippingFee?->minorUnits, $empty->shippingFee?->currencyCode])->toBe([25_00, Pr::currency()]);
+            ->and([$empty->shippingFee, $empty->freeAbove?->minorUnits, $empty->freeAbove?->currencyCode])->toBe([null, 300_00, Pr::currency()]);
     });
 });
 
@@ -292,8 +292,8 @@ describe('the header\'s piece count (B13)', function () {
 it('agrees with checkout: the goods total, free shipping, the points, and the gift once the next level is reached', function () {
     ['address' => $address] = Cx::ready();
     Lx::programme();
-    Cx::setting(SalesSettings::FLAT_FEE, 25_00);
-    Cx::setting(SalesSettings::FREE_ABOVE, 200_00);
+    Cx::serve('sa', 25_00);
+    Cx::freeForAll(200_00);
     $gift = cartExtrasGift(50);
     $reached = Pr::giftLevel($gift, 200_00);
     $next = Pr::giftLevel($gift, 300_00);
@@ -306,7 +306,7 @@ it('agrees with checkout: the goods total, free shipping, the points, and the gi
 
     // 250.00 less 15% = 212.50: shipping free from 200.00, the 200.00 gift held, 300.00 next.
     expect([$cart->goodsTotal?->minorUnits, $cart->pointsToEarn, $cart->freeAbove?->minorUnits, $free])
-        ->toBe([$quote->totals->goodsTotal->minorUnits, $quote->earningPreview, $quote->shippingRuleFreeAbove->minorUnits, $quote->totals->shipping->isZero()])
+        ->toBe([$quote->totals->goodsTotal->minorUnits, $quote->earningPreview, $quote->shipping->freeAbove?->minorUnits, $quote->totals->shipping->isZero()])
         ->and([$cart->goodsTotal?->minorUnits, $free, $quote->giftLevelId, $cart->nextGift?->amount->minorUnits])->toBe([212_50, true, $reached, 300_00]);
 
     // 87.50 missing after 15% off: 11 × 10.00 more (360.00 less 15% = 306.00) reaches the next level at checkout.

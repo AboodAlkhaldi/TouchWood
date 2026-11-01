@@ -8,7 +8,7 @@ use DateTimeImmutable;
 
 /**
  * An order as it is placed (sales.md §1.3 step 7, §5 `orders`): everything snapshotted — the customer,
- * the address, the totals, the rules it was placed under — waiting for approval, unpaid, nothing
+ * the address, the totals, the rules it was placed under, the shipping and its carrier — waiting for approval, unpaid, nothing
  * shipped. Amounts in its currency's smallest unit.
  */
 final readonly class NewOrder
@@ -39,9 +39,7 @@ final readonly class NewOrder
         public int $grossSubtotal,
         public int $netSubtotal,
         public int $goodsTotal,
-        public int $shippingFee,
-        public int $shippingRuleFee,
-        public int $shippingRuleFreeAbove,
+        public OrderShipping $shipping,
         public int $taxableBase,
         public int $vat,
         public int $vatRateBasisPoints,

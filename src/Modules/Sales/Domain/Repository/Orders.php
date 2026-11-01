@@ -9,8 +9,10 @@ use Modules\Sales\Domain\Model\EditedTotals;
 use Modules\Sales\Domain\Model\NewOrder;
 use Modules\Sales\Domain\Model\NewOrderLine;
 use Modules\Sales\Domain\Model\OrderForEdit;
+use Modules\Sales\Domain\Model\OrderShipping;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\PlacedOrder;
+use Modules\Sales\Domain\Model\Shipment;
 
 /** The orders (sales.md §5): written whole when placed, each change kept in their history. */
 interface Orders
@@ -88,7 +90,13 @@ interface Orders
      */
     public function pieces(string $orderId): array;
 
-    public function ship(string $orderId, string $carrier, ?string $trackingNumber, DateTimeImmutable $at): void;
+    public function ship(string $orderId, Shipment $shipment, DateTimeImmutable $at): void;
+
+    /** The order's shipment; null while it is not shipped. */
+    public function shipment(string $orderId): ?Shipment;
+
+    /** The carrier, number or link of a shipped order corrected by staff (gap 6.5). */
+    public function correctShipment(string $orderId, Shipment $shipment): void;
 
     /** Delivered: completed, its return window fixed to the minute (answer 34). */
     public function deliver(string $orderId, DateTimeImmutable $at, DateTimeImmutable $returnDeadline): void;
@@ -134,6 +142,9 @@ interface Orders
 
     /** The totals, the gift and — when it changed — the address an edit left; what is due follows. */
     public function changeTotals(string $orderId, EditedTotals $totals): void;
+
+    /** The fee staff set on a "fee to be set" order (gap 6.2): its shipping and its total; what is due follows. */
+    public function setShippingFee(string $orderId, OrderShipping $shipping, int $orderTotal): void;
 
     /** An anonymized account's orders keep their name, phone and address, never their email (§1.12). */
     public function forgetEmail(string $customerId): void;

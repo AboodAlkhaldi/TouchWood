@@ -16,6 +16,7 @@ use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
 use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
+use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Public\Enums\OrderAudience;
 use Modules\Sales\Public\Enums\WayToPay;
@@ -43,7 +44,7 @@ final readonly class CheckoutPages
     /**
      * @throws Unauthorized|DomainError
      */
-    public function checkout(string $storeId, string $locale, ?string $addressId, bool $usePoints, ?int $pointsAsked, ?string $way, StartCheckoutHandler $start): CheckoutPage
+    public function checkout(string $storeId, string $locale, ?string $addressId, bool $usePoints, ?int $pointsAsked, ?string $way, StartCheckoutHandler $start, ?string $carrierId = null): CheckoutPage
     {
         $customerId = $this->actors->current()->id ?? throw new Unauthorized(StartCheckoutHandler::PERMISSION);
         $addresses = $this->access->addresses($customerId, $storeId);
@@ -66,18 +67,26 @@ final readonly class CheckoutPages
         $phone = $account?->phoneVerified === true ? $account->phone : null;
 
         if ($chosen === null) {
-            return new CheckoutPage(null, $rows, null, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null, null, null, null, null, null, null, null, 0, null, null, null, 0, $phone);
+            return self::none($rows, null, $phone);
         }
 
         // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
         // staff's contact, which changes no amount.
         $asked = WayToPay::tryFrom((string) $way);
         // A way the account is not offered (an old address, the bank account since emptied) is no choice made.
+        // An address another store serves gets no quote: the customer picks another, or orders from there (§9.5 #2).
         try {
-            $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, ($asked ?? WayToPay::StaffContact)->value));
-        } catch (WayToPayNotOffered) {
-            $asked = null;
-            $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, WayToPay::StaffContact->value));
+            try {
+                $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, ($asked ?? WayToPay::StaffContact)->value, $carrierId));
+            } catch (WayToPayNotOffered) {
+                $asked = null;
+                $quote = $start->handle(new StartCheckout($storeId, $chosen->id, $usePoints, $pointsAsked, WayToPay::StaffContact->value, $carrierId));
+            }
+        } catch (AddressInOtherStore $other) {
+            return self::none($rows, $chosen->id, $phone, new CheckoutOtherStoreData(
+                $locale === 'en' ? $other->storeEn : $other->storeAr,
+                route('storefront.home', ['store' => strtolower($other->storeCode), 'locale' => $locale]),
+            ));
         }
         $ways = array_map(static fn (WayToPay $each): string => $each->value, $quote->waysToPay);
         $wayChosen = count($ways) === 1 ? $ways[0] : ($asked !== null && in_array($asked->value, $ways, true) ? $asked->value : null);
@@ -110,8 +119,7 @@ final readonly class CheckoutPages
             $some($totals->grossSubtotal->subtract($totals->netSubtotal)),
             $some($totals->couponDiscount),
             $some($totals->pointsDiscount),
-            $money($totals->shipping),
-            $quote->shippingRuleFreeAbove->isZero() ? null : $money($quote->shippingRuleFreeAbove),
+            $quote->shipping->pending() ? null : $money($totals->shipping),
             $money($totals->vat),
             $totals->taxRateBasisPoints,
             $money($totals->orderTotal),
@@ -119,6 +127,26 @@ final readonly class CheckoutPages
             $gift === null ? null : $money(Money::zero($totals->orderTotal->currencyCode)),
             $quote->earningPreview,
             $phone,
+            $quote->shipping->pending(),
+            array_map(static fn (array $option): CheckoutCarrierData => new CheckoutCarrierData(
+                $option['carrierId'], $locale === 'en' ? $option['nameEn'] : $option['nameAr'], $option['logoUrl'],
+                $money(Money::of($option['fee'], $totals->orderTotal->currencyCode)), $option['freeBecause'] !== null,
+            ), $quote->shipping->options),
+            $quote->shipping->carrierId,
+            $quote->shipping->carrierChanged,
+        );
+    }
+
+    /**
+     * No quote: no usable address yet, or the one chosen is served by another store.
+     *
+     * @param  list<CheckoutAddressData>  $rows
+     */
+    private static function none(array $rows, ?string $addressId, ?string $phone, ?CheckoutOtherStoreData $otherStore = null): CheckoutPage
+    {
+        return new CheckoutPage(
+            null, $rows, $addressId, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null,
+            null, null, null, null, null, null, 0, null, null, null, 0, $phone, otherStore: $otherStore,
         );
     }
 

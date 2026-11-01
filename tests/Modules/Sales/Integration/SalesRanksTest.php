@@ -119,7 +119,7 @@ it('leaves out an order waiting, cancelled, rejected or undelivered', function (
     'undelivered' => [function (string $order) {
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
-        app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', null));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
         app(MarkCameBackHandler::class)->handle(new MarkCameBack($order, []));
     }],
 ]);

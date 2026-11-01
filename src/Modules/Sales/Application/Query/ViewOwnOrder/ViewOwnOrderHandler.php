@@ -7,6 +7,7 @@ namespace Modules\Sales\Application\Query\ViewOwnOrder;
 use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
 use Modules\Sales\Application\Query\OrderLines;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnOrderView;
 use Modules\Sales\Application\Query\Own\OwnReader;
@@ -65,7 +66,7 @@ final readonly class ViewOwnOrderHandler
             $order['coupon_code'] === null ? null : (string) $order['coupon_code'], $money($order['coupon_discount_minor']),
             (int) $order['points_used'], $money($order['points_discount_minor']), $money($order['goods_total_minor']), $money($order['shipping_fee_minor']),
             $money($order['vat_minor']), $money($order['order_total_minor']), $money($order['due_minor']), $money($order['paid_minor']), $money($order['refunded_minor']),
-            (string) $order['shipment_status'], $order['carrier'] === null ? null : (string) $order['carrier'],
+            (string) $order['shipment_status'], $order['carrier_en'] === null ? null : (string) $order['carrier_en'],
             $order['tracking_number'] === null ? null : (string) $order['tracking_number'], $at($order['shipped_at']), $at($order['delivered_at']), $deadline,
             $address,
             (string) $order['customer_phone'],
@@ -80,6 +81,7 @@ final readonly class ViewOwnOrderHandler
             $order['way_to_pay'] === WayToPay::BankTransfer->value && (int) $order['paid_minor'] - (int) $order['refunded_minor'] < (int) $order['due_minor']
                 && $documents < UploadTransferDocumentHandler::MOST,
             $this->reader->exponent($currency),
+            OrderShippingView::of($order),
         );
     }
 }

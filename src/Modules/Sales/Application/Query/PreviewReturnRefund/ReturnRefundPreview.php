@@ -8,7 +8,7 @@ use Shared\Domain\ValueObject\Money;
 
 /**
  * What completing a received return would refund (sales.md §1.8, §3.2): the pieces' goods, their share of
- * the VAT, and the shipping with its VAT when it is the return that makes every bought piece returned;
+ * the VAT, and the shipping — no VAT on it (§9.5 #1) — when it is the return that makes every bought piece returned;
  * `total` their sum, what `CompleteReturn` answers.
  */
 final readonly class ReturnRefundPreview
@@ -17,7 +17,6 @@ final readonly class ReturnRefundPreview
         public Money $goods,
         public Money $vat,
         public Money $shipping,
-        public Money $shippingVat,
         public Money $total,
         public int $exponent,
     ) {}

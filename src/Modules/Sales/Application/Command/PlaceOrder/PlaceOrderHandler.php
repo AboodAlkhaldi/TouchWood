@@ -28,6 +28,7 @@ use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
 use Modules\Sales\Application\Order\OrderSnapshot;
 use Modules\Sales\Application\Quote\QuoteRules;
 use Modules\Sales\Application\Quote\QuoteView;
+use Modules\Sales\Application\Quote\ShippingQuotes;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\QuoteChanged;
@@ -63,7 +64,8 @@ use Shared\Infrastructure\Persistence\Ulids;
  *    itself, not as `QuoteChanged`);
  * 2. the store's next number;
  * 3. every rule that can change in 15 minutes, again, on the quote's own lines — the store, the
- *    account, the lines, the address, the way to pay, **the gift as quoted**, **the coupon and points
+ *    account, the lines, the address (still at the place quoted: its carrier and fee are honoured, gap
+ *    6.8), the way to pay, **the gift as quoted**, **the coupon and points
  *    within the discount room** (answer 37);
  * 4. the order written, snapshotted;
  * 5. the coupon used, the points redeemed, the order's fact recorded, the stock held (no expiry);
@@ -234,6 +236,12 @@ final readonly class PlaceOrderHandler
         $lines = array_map(static fn (LinePriceDto $line): CartLineDto => new CartLineDto($line->variantId, $line->mode, $line->quantity), $view->prices->lines);
         $this->rules->lines($store, $lines, $audience);
         $address = $this->rules->address($store, $customerId, $view->addressId);
+
+        // The quote's carrier and fee hold for its 15 minutes (gap 6.8) — for the place it quoted: an address
+        // moved to another place since is quoted again.
+        if (! ShippingQuotes::samePlace(ShippingQuotes::destination($address), $view->shipping->destination)) {
+            throw new QuoteChanged('address');
+        }
 
         if (! in_array($view->wayToPay, $this->rules->waysToPay($store, $audience), true)) {
             throw new QuoteChanged('way_to_pay');

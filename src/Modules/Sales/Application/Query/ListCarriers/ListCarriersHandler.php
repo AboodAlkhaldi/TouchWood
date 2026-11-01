@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\ListCarriers;
 
-use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
+use Modules\Shipping\Public\Contracts\ShippingApi;
+use Modules\Shipping\Public\Dto\CarrierDto;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
 use Shared\Application\Authorizer;
@@ -16,24 +17,22 @@ use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 
 /**
- * **The carriers a store shipped with before** (sales.md §3.2; the Ship dialog's suggestions): each once,
- * the most lately shipped with first, at most 20 — for staff who ship that store's orders. The carrier is
- * still typed freely until stage 7 (§1.5).
+ * **The store's carriers** for the Ship dialog (sales.md §3.2, §9.5 #3; gap 6.3): Shipping's, switched-on
+ * first, **the order's country first** — staff may ship with any of them, or type "Other carrier" (an order to a
+ * country none of them serves) — for staff who ship that store's orders.
  */
 final readonly class ListCarriersHandler
 {
     public const string PERMISSION = SalesPermissions::ORDER_FULFIL;
 
-    public const int MOST = 20;
-
     public function __construct(
         private Authorizer $authorizer,
         private ActorContext $actors,
-        private StaffReads $reads,
+        private ShippingApi $shipping,
     ) {}
 
     /**
-     * @return list<string>
+     * @return list<CarrierDto>
      *
      * @throws Unauthorized|InvalidSalesAttribute
      */
@@ -48,6 +47,13 @@ final readonly class ListCarriersHandler
 
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
 
-        return $this->reads->carriers($store->value, self::MOST);
+        $country = $query->countryCode === null ? null : strtoupper(trim($query->countryCode));
+        $carriers = $this->shipping->carriers($store);
+
+        // Stable: within each part, Shipping's own order (switched-on first, each country's in turn).
+        return [
+            ...array_values(array_filter($carriers, static fn (CarrierDto $carrier): bool => $carrier->countryCode === $country)),
+            ...array_values(array_filter($carriers, static fn (CarrierDto $carrier): bool => $carrier->countryCode !== $country)),
+        ];
     }
 }

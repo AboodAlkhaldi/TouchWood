@@ -10,9 +10,9 @@ use Shared\Domain\ValueObject\Money;
  * The canonical amounts of an order (handoff §10.2; pricing.md §1.6, §1.7):
  *
  *   goods_total  = net_subtotal - coupon_discount - points_discount
- *   taxable_base = goods_total + shipping
+ *   taxable_base = goods_total                 no VAT on shipping (pricing.md §9.5)
  *   vat          = taxable_base x the store's rate, rounded once, half up
- *   order_total  = taxable_base + vat
+ *   order_total  = goods_total + vat + shipping
  *
  * Every threshold in the system binds to one of these names, never to a number of its own.
  */

@@ -83,10 +83,16 @@ final class B2BFixtures
      *
      * In an HTTP test, save another account's address before the browser signs in: saved after a
      * signed-in request, it went to the signed-in account instead (step 6, round 3).
+     *
+     * Where the store's country has the checkout's test region (CheckoutFixtures::serve), the address is
+     * in it — a country with a place list takes no typed region (access.md amendment 76).
      */
     public static function savedAddress(string $customerId, string $storeCode = 'sa', string $label = 'Head office', string $street = 'King Fahd Road'): string
     {
         $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
+        $store = Fx::storeId($storeCode);
+        $region = DB::table('platform.places')->where('kind', 'REGION')->where('name->en', 'Test Region')->where('retired', false)
+            ->where('country_code', DB::table('platform.stores')->where('id', $store)->value('country_code'))->value('id');
         Fx::actAsCustomer($customerId);
 
         try {
@@ -99,6 +105,7 @@ final class B2BFixtures
                 longitude: null,
                 isDefault: false,
                 addressId: null,
+                regionId: $region === null ? null : (string) $region,
             ));
         } finally {
             if ($previous !== null) {

@@ -263,7 +263,8 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
         [t(`${W}.summary.savings`), page.savings, true],
         [t(`${W}.summary.coupon`), page.coupon, true],
         [t(`${W}.summary.points`), page.points, true],
-        [page.freeAbove === null ? t(`${W}.summary.shipping`) : `${t(`${W}.summary.shipping`)} ${t(`${W}.summary.free_above`, { amount: page.freeAbove.text })}`, page.shipping, false],
+        // Null while no carrier serves the address: the fee is to be set by staff (§9.5 #2); the screens session words it.
+        [t(`${W}.summary.shipping`), page.shipping, false],
         [t(`${W}.summary.vat`, { rate: figure(locale, page.vatRateBasisPoints / 100) }), page.vat, false],
     ];
     const reason = page.addressId === null ? t(`${W}.summary.choose_address`) : page.way === null ? t(`${W}.summary.choose_way`) : undefined;

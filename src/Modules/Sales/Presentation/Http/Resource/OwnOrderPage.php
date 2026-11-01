@@ -45,6 +45,7 @@ final class OwnOrderPage extends Data
         public int $receipts,
         public bool $mayUpload,
         public string $shipment,
+        /** The carrier it shipped with, else the one ordered with, in the customer's language (gap 6.7). */
         public ?string $carrier,
         public ?string $trackingNumber,
         public ?string $shippedAt,
@@ -54,5 +55,9 @@ final class OwnOrderPage extends Data
         public bool $mayCancel,
         public bool $mayReturn,
         public string $storeTimezone,
+        /** The full tracking link: Track is shown only with one (§9.5 #3). */
+        public ?string $trackingLink = null,
+        /** No carrier served the place: "Shipping: to be confirmed", the total before shipping (§9.5 #2). */
+        public bool $shippingPending = false,
     ) {}
 }

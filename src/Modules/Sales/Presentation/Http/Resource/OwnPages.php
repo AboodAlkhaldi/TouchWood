@@ -89,7 +89,7 @@ final readonly class OwnPages
             $order->transferDocuments,
             $order->mayUploadTransferDocument,
             $order->shipment,
-            $order->carrier,
+            $order->shippingDetail?->carrier($locale) ?? $order->carrier,
             $order->trackingNumber,
             self::maybe($order->shippedAt),
             self::maybe($order->deliveredAt),
@@ -100,6 +100,8 @@ final readonly class OwnPages
             $order->mayCancel,
             $order->mayReturn,
             $this->zone($order->storeId),
+            $order->shippingDetail?->trackingLink,
+            $order->shippingDetail->feePending ?? false,
         );
     }
 

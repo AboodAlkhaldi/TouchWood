@@ -15,8 +15,8 @@ use InvalidArgumentException;
  * is left and a line returned in parts lands exactly on `S`. Each received piece refunds its goods share
  * (its part of the line's total less its coupon and points shares, moved as one share) plus its share of
  * the VAT; a gift's is
- * 0. **The shipping fee and its VAT share** go with the return that makes every bought piece returned —
- * once an order.
+ * 0. **The shipping fee** goes with the return that makes every bought piece returned — once an order, and
+ * with no VAT share: the shipping carries none (owner, 2026-10-27; §9.5 #1).
  */
 final class ReturnRefunds
 {
@@ -27,7 +27,7 @@ final class ReturnRefunds
      * @return array{refund: int, goods: int, points: int, shipping: bool} the refund; the goods and points shares it moves (Loyalty's);
      *                                                                     whether it carries the shipping
      */
-    public static function of(array $lines, array $before, array $now, bool $shippingRefunded, int $shippingFee, int $shippingVat): array
+    public static function of(array $lines, array $before, array $now, bool $shippingRefunded, int $shippingFee): array
     {
         $refund = 0;
         $goods = 0;
@@ -67,6 +67,6 @@ final class ReturnRefunds
 
         $shipping = $all && ! $shippingRefunded;
 
-        return ['refund' => $refund + ($shipping ? $shippingFee + $shippingVat : 0), 'goods' => $goods, 'points' => $points, 'shipping' => $shipping];
+        return ['refund' => $refund + ($shipping ? $shippingFee : 0), 'goods' => $goods, 'points' => $points, 'shipping' => $shipping];
     }
 }

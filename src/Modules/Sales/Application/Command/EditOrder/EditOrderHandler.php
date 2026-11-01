@@ -24,6 +24,7 @@ use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderEditing;
 use Modules\Sales\Application\Order\OrderInputs;
 use Modules\Sales\Application\Order\SizeRecords;
+use Modules\Sales\Application\Quote\ShippingQuotes;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\NotEditable;
 use Modules\Sales\Domain\Exception\NotOrderable;
@@ -43,7 +44,8 @@ use Shared\Infrastructure\Outbox\Outbox;
 /**
  * A staff edit confirmed (sales.md §1.7): worked out again under the order's lock, in one transaction —
  * the order kept as the edit leaves it (its lines, every share allocated again, its totals, gift and
- * address; what is due follows the new total, a difference settled by hand), the edit kept with its own
+ * address, its shipping — quoted again at a new place (gap 6.1); what is due follows the new total, a
+ * difference settled by hand), the edit kept with its own
  * id and reason, then Promotions' `updateCouponUse`, Loyalty's `orderEdited`, and Inventory's
  * `adjustHold` last — all or nothing. Waiting or approved, unshipped, nothing ticked "reduced in the
  * provider" (`NotEditable`). The reason, typed by staff, stays on the edit's row; audited as written.
@@ -81,7 +83,7 @@ final readonly class EditOrderHandler
             $state = $this->orders->lock($orderId) ?? throw new OrderNotFound;
             self::editable($state, $this->orders->ticked($state->id));
             $order = $this->orders->forEdit($state->id) ?? throw new OrderNotFound;
-            $plan = $this->editing->plan($order, $wanted, $command->addressId, $command->gift);
+            $plan = $this->editing->plan($order, $wanted, $command->addressId, $command->gift, $command->carrierId, $command->shippingFee);
 
             $editId = strtolower((string) Str::ulid());
             $now = CarbonImmutable::now();
@@ -91,17 +93,23 @@ final readonly class EditOrderHandler
             $this->orders->replaceLines($order->id, $order->storeId, $lines);
             $this->orders->changeTotals($order->id, new EditedTotals(
                 $plan->couponDiscount->minorUnits, $plan->pointsUsed, $plan->pointsDiscount->minorUnits, $plan->totals->grossSubtotal->minorUnits,
-                $plan->totals->netSubtotal->minorUnits, $plan->totals->goodsTotal->minorUnits, $plan->shipping->minorUnits, $plan->totals->taxableBase->minorUnits,
+                $plan->totals->netSubtotal->minorUnits, $plan->totals->goodsTotal->minorUnits, $plan->shipping, $plan->totals->taxableBase->minorUnits,
                 $plan->totals->vat->minorUnits, $plan->totals->orderTotal->minorUnits, $plan->giftLevelId,
                 $plan->address === null ? null : [
                     'label' => $plan->address->label, 'recipientName' => $plan->address->recipientName, 'fields' => $plan->address->fields,
                     'latitude' => $plan->address->latitude, 'longitude' => $plan->address->longitude, 'formatted' => $plan->address->formatted,
+                    ...ShippingQuotes::destination($plan->address),
                 ],
             ));
             $this->outbox->record(new OrderEdited((string) Str::uuid(), $editId, $order->id, $order->storeId, $order->customerId, $now));
             $this->orders->recordHistory($order->id, $order->storeId, 'EDITED', $editId, $staffId, $now, ['orderTotal' => $plan->totals->orderTotal->minorUnits]);
             $changes = AuditChanges::none()->changed('edit_id', null, $editId)
                 ->changed('order_total_minor', $order->orderTotal, $plan->totals->orderTotal->minorUnits)->personal('reason');
+
+            if ($plan->requote !== null) {
+                $changes = $changes->changed('shipping_fee_minor', $order->shipping->fee, $plan->shipping->fee)
+                    ->changed('ordered_carrier_id', $order->shipping->carrierId, $plan->shipping->carrierId)->changed('shipping_fee_pending', $order->shipping->pending, $plan->shipping->pending);
+            }
             $this->platform->recordAudit(new AuditEntryDto('sales.order.edited', 'sales.order', $order->id, $order->storeId, $plan->address === null ? $changes : $changes->personal('address')));
 
             // The other modules, Inventory last.
@@ -146,7 +154,7 @@ final readonly class EditOrderHandler
         $order = $plan->order;
         $prices = $plan->prices;
         $shares = OrderShares::of(
-            array_map(static fn (LinePriceDto $line) => $line->total, $prices->lines), $plan->couponShares, $plan->pointsDiscount, $plan->totals->vat, $plan->shipping,
+            array_map(static fn (LinePriceDto $line) => $line->total, $prices->lines), $plan->couponShares, $plan->pointsDiscount, $plan->totals->vat,
         );
         $existingGift = array_values(array_filter($order->lines, static fn ($line): bool => $line->isGift))[0] ?? null;
         $keepGift = $existingGift !== null && $plan->giftVariantId === $existingGift->variantId && $plan->giftLevelId === $order->giftLevelId;
@@ -155,7 +163,7 @@ final readonly class EditOrderHandler
         $lines = [];
 
         foreach ($prices->lines as $index => $priced) {
-            $share = $shares['lines'][$index];
+            $share = $shares[$index];
             $part = $plan->kept[$index] ?? null;
 
             if ($part !== null) {
@@ -223,6 +231,7 @@ final readonly class EditOrderHandler
                 'variantId' => $line->variantId, 'mode' => $line->saleMode, 'quantity' => $line->quantity, 'unit' => $line->unit, 'gift' => $line->isGift,
             ], $order->lines),
             'couponDiscount' => $order->couponDiscount, 'pointsDiscount' => $order->pointsDiscount, 'orderTotal' => $order->orderTotal, 'giftLevelId' => $order->giftLevelId,
+            'shippingFee' => $order->shipping->fee, 'shippingPending' => $order->shipping->pending,
         ];
     }
 
@@ -238,7 +247,7 @@ final readonly class EditOrderHandler
             ], $lines),
             'couponDiscount' => $plan->couponDiscount->minorUnits, 'pointsDiscount' => $plan->pointsDiscount->minorUnits,
             'orderTotal' => $plan->totals->orderTotal->minorUnits, 'difference' => $plan->difference->minorUnits, 'giftLevelId' => $plan->giftLevelId,
-            'addressChanged' => $plan->address !== null,
+            'addressChanged' => $plan->address !== null, 'shippingFee' => $plan->shipping->fee, 'shippingPending' => $plan->shipping->pending,
         ];
     }
 }

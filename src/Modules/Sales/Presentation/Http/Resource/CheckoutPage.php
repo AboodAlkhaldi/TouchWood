@@ -19,6 +19,7 @@ final class CheckoutPage extends Data
     /**
      * @param  list<CheckoutAddressData>  $addresses
      * @param  list<string>  $ways
+     * @param  list<CheckoutCarrierData>  $carriers  the carriers serving the address, cheapest first
      */
     public function __construct(
         public ?string $quoteId,
@@ -44,7 +45,6 @@ final class CheckoutPage extends Data
         public ?MoneyData $coupon,
         public ?MoneyData $points,
         public ?MoneyData $shipping,
-        public ?MoneyData $freeAbove,
         public ?MoneyData $vat,
         public int $vatRateBasisPoints,
         public ?MoneyData $total,
@@ -54,5 +54,14 @@ final class CheckoutPage extends Data
         public int $earns,
         /** The account's verified phone, the one the courier calls (access.md amendment 89); null until verified. */
         public ?string $phone,
+        /** No carrier serves the address: "Shipping: to be confirmed", the total before shipping, staff's contact only (§9.5 #2). */
+        public bool $shippingPending = false,
+        public array $carriers = [],
+        /** The carrier picked: the customer's, else the cheapest. */
+        public ?string $carrierId = null,
+        /** The carrier asked for no longer serves the address: the cheapest was picked instead (gap 6.9). */
+        public bool $carrierChanged = false,
+        /** The address is in a country another of our stores serves: no quote, the customer picks another or orders there. */
+        public ?CheckoutOtherStoreData $otherStore = null,
     ) {}
 }

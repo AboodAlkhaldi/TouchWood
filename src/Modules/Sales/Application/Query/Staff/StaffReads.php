@@ -45,13 +45,6 @@ interface StaffReads
     /** @return array<string, mixed>|null */
     public function order(string $orderId): ?array;
 
-    /**
-     * The carriers the store's orders were shipped with, each once, the most lately shipped with first.
-     *
-     * @return list<string>
-     */
-    public function carriers(string $storeId, int $limit): array;
-
     /** @return list<array<string, mixed>> payments and refunds, oldest first, each with `kind` PAYMENT or REFUND */
     public function money(string $orderId): array;
 

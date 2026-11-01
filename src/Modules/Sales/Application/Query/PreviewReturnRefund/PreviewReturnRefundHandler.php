@@ -47,12 +47,12 @@ final readonly class PreviewReturnRefundHandler
         $currency = (string) $return['currency_code'];
         $facts = $this->returns->forRefund((string) $return['order_id']);
         $received = array_map(static fn (array $line): int => $line['received'] ?? 0, $this->returns->lines($returnId));
-        $refund = ReturnRefunds::of($facts['lines'], $facts['before'], $received, $facts['shippingRefunded'], $facts['shippingFee'], $facts['shippingVat']);
-        [$shipping, $shippingVat] = $refund['shipping'] ? [$facts['shippingFee'], $facts['shippingVat']] : [0, 0];
+        $refund = ReturnRefunds::of($facts['lines'], $facts['before'], $received, $facts['shippingRefunded'], $facts['shippingFee']);
+        $shipping = $refund['shipping'] ? $facts['shippingFee'] : 0;
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
 
         return new ReturnRefundPreview(
-            $money($refund['goods']), $money($refund['refund'] - $refund['goods'] - $shipping - $shippingVat), $money($shipping), $money($shippingVat),
+            $money($refund['goods']), $money($refund['refund'] - $refund['goods'] - $shipping), $money($shipping),
             $money($refund['refund']), $this->reader->exponent($currency),
         );
     }

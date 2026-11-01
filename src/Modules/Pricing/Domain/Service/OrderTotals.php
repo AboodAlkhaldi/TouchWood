@@ -16,9 +16,9 @@ use Shared\Domain\ValueObject\Money;
  * database, no clock; the same input gives the same answer.
  *
  *   goods_total  = net_subtotal − coupon_discount − points_discount
- *   taxable_base = goods_total + shipping
+ *   taxable_base = goods_total                 no VAT on shipping (owner, 2026-10-27; §9.5)
  *   vat          = taxable_base × the rate     rounded once, half up, to the coin
- *   order_total  = taxable_base + vat
+ *   order_total  = goods_total + vat + shipping
  *
  * The rate is the one the prices were read with (`CartPricesDto::taxRateBasisPoints`) - an edited
  * order's own (§1.11).
@@ -44,7 +44,7 @@ final class OrderTotals
         }
 
         $goodsTotal = $prices->netSubtotal->subtract($couponDiscount)->subtract($pointsDiscount);
-        $taxableBase = $goodsTotal->add($shipping);
+        $taxableBase = $goodsTotal;
         $vat = $taxableBase->multiply(self::rate($prices->taxRateBasisPoints), RoundingMode::HalfUp);
 
         return new TotalsDto(
@@ -56,7 +56,7 @@ final class OrderTotals
             shipping: $shipping,
             taxableBase: $taxableBase,
             vat: $vat,
-            orderTotal: $taxableBase->add($vat),
+            orderTotal: $goodsTotal->add($vat)->add($shipping),
             taxRateBasisPoints: $prices->taxRateBasisPoints,
         );
     }

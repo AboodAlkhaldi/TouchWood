@@ -90,7 +90,7 @@ function salesOpsPayAndShip(string $order): string
 {
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
     $payment = app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'BANK_TRANSFER', 'T-1', null, '2026-10-19', (string) Str::uuid()));
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, 'SMSA', 'T-1'));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: 'T-1'));
 
     return $payment;
 }

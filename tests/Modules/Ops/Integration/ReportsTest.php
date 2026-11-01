@@ -463,7 +463,7 @@ it('never counts an order that came back', function () {
     Fx::actAsStaff($staff);
     app(ApproveOrderHandler::class)->handle(new ApproveOrder($back));
     app(RecordPaymentHandler::class)->handle(new RecordPayment($back, 'BANK_TRANSFER', 'T-2', null, reportsToday(), (string) Str::uuid()));
-    app(ShipOrderHandler::class)->handle(new ShipOrder($back, 'SMSA', 'TRK-2'));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($back, otherCarrier: 'SMSA', trackingNumber: 'TRK-2'));
     app(MarkCameBackHandler::class)->handle(new MarkCameBack($back, [['variantId' => $ready['variants'][0], 'quantity' => 2], ['variantId' => $ready['variants'][1], 'quantity' => 1]]));
     $today = reportsToday();
     reportsReader();

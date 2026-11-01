@@ -52,7 +52,7 @@ final class SalesPermissions
     /** Accept, refuse, receive, close and complete the store's returns. */
     public const string RETURN_MANAGE = 'sales.return.manage';
 
-    /** The flat shipping fee, free shipping from, the return window — admin-only: they decide money. */
+    /** The return window and the store-wide limits — admin-only: they decide money. */
     public const string SETTINGS_UPDATE = 'sales.settings.update';
 
     /** Empty old carts, delete expired quotes, push the sales ranks: the system only. */

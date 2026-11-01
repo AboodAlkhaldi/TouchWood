@@ -168,7 +168,7 @@ it('works every amount of an order through totals()', function () {
 
     $totals = $api->totals($prices, Money::of(1000, 'SAR'), Money::zero('SAR'), Money::of(2500, 'SAR'));
 
-    expect([$totals->goodsTotal->minorUnits, $totals->taxableBase->minorUnits, $totals->vat->minorUnits, $totals->orderTotal->minorUnits])->toBe([19000, 21500, 3225, 24725]);
+    expect([$totals->goodsTotal->minorUnits, $totals->taxableBase->minorUnits, $totals->vat->minorUnits, $totals->orderTotal->minorUnits])->toBe([19000, 19000, 2850, 24350]);
 });
 
 describe('pricesForEdit() (§1.11)', function () {

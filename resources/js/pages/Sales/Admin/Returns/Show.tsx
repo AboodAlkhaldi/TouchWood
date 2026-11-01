@@ -337,7 +337,6 @@ function CompleteDialog({ url, preview, onOpenChange }: { url: string; preview: 
                             ['preview_goods', preview.goods, true],
                             ['preview_vat', preview.vat, true],
                             ['preview_shipping', preview.shipping, false],
-                            ['preview_shipping_vat', preview.shippingVat, false],
                         ] as const
                     )
                         .filter(([, value, always]) => always || value.minor > 0)

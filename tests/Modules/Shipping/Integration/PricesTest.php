@@ -311,6 +311,27 @@ describe('free shipping (§1.5)', function () {
             ->and([$at->fee->minorUnits, $at->freeBecause])->toBe([0, FreeShippingReason::Carrier]);
     });
 
+    it('gives Sales the price before free shipping and the amount that applies, with whose it is, free or not yet (sales.md §9.5 #11)', function () {
+        $places = pricesSaudiPlaces();
+        $aramex = pricesCarrier('Aramex');
+        pricesSave($aramex, 3000, [$places['Riyadh']]);
+        pricesSave(pricesCarrier('SMSA'), 2000, [$places['Riyadh']]);
+        app(SetCarrierFreeAboveHandler::class)->handle(new SetCarrierFreeAbove(pricesStore(), $aramex, 50000));
+        $rule = static fn (ShippingOptionDto $option): array => [$option->nameEn, $option->fee->minorUnits, $option->price?->minorUnits, $option->freeAbove?->minorUnits, $option->freeAboveBecause];
+
+        // Not free yet: Aramex's own amount is there; SMSA has none.
+        expect(array_map($rule, pricesQuote(city: $places['Riyadh'], goods: 49999)->options))
+            ->toBe([['SMSA', 2000, 2000, null, null], ['Aramex', 3000, 3000, 50000, FreeShippingReason::Carrier]])
+            // Free: the price still the place's; the store-wide amount over both once set.
+            ->and(array_map($rule, pricesQuote(city: $places['Riyadh'], goods: 50000)->options))
+            ->toBe([['Aramex', 0, 3000, 50000, FreeShippingReason::Carrier], ['SMSA', 2000, 2000, null, null]]);
+
+        pricesFreeForAll(40000);
+
+        expect(array_map($rule, pricesQuote(city: $places['Riyadh'], goods: 40000)->options))
+            ->toBe([['Aramex', 0, 3000, 40000, FreeShippingReason::Store], ['SMSA', 0, 2000, 40000, FreeShippingReason::Store]]);
+    });
+
     it('lets the store-wide amount override every carrier\'s while set, and each carrier\'s own apply once cleared', function () {
         $places = pricesSaudiPlaces();
         $aramex = pricesCarrier('Aramex');

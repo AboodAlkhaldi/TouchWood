@@ -121,8 +121,12 @@ export function ReasonDialog({ open, onOpenChange, url, kind }: Open & { url: st
     );
 }
 
-/** Ship…: the carrier, offering the store's earlier ones, and an optional tracking number (§1.5). */
-export function ShipDialog({ open, onOpenChange, url, carriers = [] }: Open & { url: string; carriers?: string[] }) {
+/**
+ * Ship…: the carrier, offering the store's carriers, and an optional tracking number (§1.5). A name matching one of
+ * them ships with it (its tracking link made from the number); any other is "Other carrier" (§9.5 #3). The screens
+ * session replaces this with the carrier picker.
+ */
+export function ShipDialog({ open, onOpenChange, url, carriers = [] }: Open & { url: string; carriers?: { id: string; name: string }[] }) {
     const t = useTranslator();
     const [carrier, setCarrier] = useState('');
     const [tracking, setTracking] = useState('');
@@ -143,7 +147,7 @@ export function ShipDialog({ open, onOpenChange, url, carriers = [] }: Open & { 
             description={t(`${W}.dialog.ship_body`)}
             busy={busy}
             confirm={
-                <ActionButton loading={busy} disabledReason={checks.reason} onClick={() => checks.submit(() => send({ carrier, tracking_number: tracking }))} data-test="confirm-ship">
+                <ActionButton loading={busy} disabledReason={checks.reason} onClick={() => checks.submit(() => send({ ...shipWith(carriers, carrier), tracking_number: tracking }))} data-test="confirm-ship">
                     {t(`${W}.dialog.ship_title`)}
                 </ActionButton>
             }
@@ -152,13 +156,20 @@ export function ShipDialog({ open, onOpenChange, url, carriers = [] }: Open & { 
                 <TextField id="carrier" list="known-carriers" label={t(`${W}.dialog.carrier`)} value={carrier} check={checks.box('carrier')} onChange={(event) => setCarrier(event.target.value)} data-test="carrier" />
                 <datalist id="known-carriers">
                     {carriers.map((each) => (
-                        <option key={each} value={each} />
+                        <option key={each.id} value={each.name} />
                     ))}
                 </datalist>
                 <TextField id="tracking_number" dir="ltr" label={t(`${W}.dialog.tracking`)} value={tracking} check={checks.box('tracking_number')} onChange={(event) => setTracking(event.target.value)} data-test="tracking" />
             </div>
         </PanelDialog>
     );
+}
+
+/** The store's carrier whose name was typed, or the name as "Other carrier". */
+function shipWith(carriers: { id: string; name: string }[], typed: string): { carrier_id: string } | { other_carrier: string } {
+    const found = carriers.find((each) => each.name.trim().toLowerCase() === typed.trim().toLowerCase());
+
+    return found === undefined ? { other_carrier: typed } : { carrier_id: found.id };
 }
 
 /** Came Back…: for each size and the gift, how many go back to stock - or lost for good, none (§1.5). */

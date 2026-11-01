@@ -65,7 +65,6 @@ return [
         'preview_goods' => 'القطع',
         'preview_vat' => 'ضريبتها',
         'preview_shipping' => 'الشحن',
-        'preview_shipping_vat' => 'ضريبة الشحن',
         'preview_total' => 'المبلغ المسترد',
         'complete_body' => 'يُحسب الاسترداد من القطع المستلمة: قيمتها وحصتها من الضريبة، والشحن إن كانت آخر قطعة. ثم تسجّل الاسترداد.',
     ],

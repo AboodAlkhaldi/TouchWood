@@ -15,9 +15,9 @@ use Shared\Domain\ValueObject\Money;
  * or VAT, which the quote works out (§1.2).
  *
  * **What the page tells the shopper beside the lines** (§4.2 B12): why checkout will not take this account
- * (`mayNotOrder`, the first reason; null exactly when `mayOrder`); the store's shipping fee and the goods
- * total from which shipping is free (`freeAbove`, null when it never is); the next gift level not reached
- * yet whose gift is in stock; and about how many points the order earns. These three compare with the goods
+ * (`mayNotOrder`, the first reason; null exactly when `mayOrder`); no shipping fee — it is worked out at
+ * checkout (gap 6.6) — and the goods total from which every carrier ships free (`freeAbove`: the store-wide
+ * amount, null while none is set); the next gift level not reached yet whose gift is in stock; and about how many points the order earns. These three compare with the goods
  * total as checkout does, as far as the cart knows it (`goodsTotal`): the subtotal less the coupon typed
  * (owner, 2026-10-27) — the points are chosen at checkout, so using them can still move it.
  */

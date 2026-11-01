@@ -13,7 +13,6 @@ use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
-use Modules\Sales\Application\SalesSettings;
 use Modules\Sales\Domain\Model\RemovedLine;
 use Modules\Sales\Domain\Repository\Carts;
 use Shared\Application\ActorContext;
@@ -162,8 +161,8 @@ describe('S3, S4 · The cart', function () {
     it('shows the shipping and how much more ships free, the next gift, the points and the header\'s pieces (B12, B13)', function () {
         [$ready, $browser] = shopCartScreensCustomer();
         shopCartScreensAsSystem(function (): void {
-            Cx::setting(SalesSettings::FLAT_FEE, 25_00);
-            Cx::setting(SalesSettings::FREE_ABOVE, 300_00);
+            Cx::serve('sa', 25_00);
+            Cx::freeForAll(300_00);
             ['variants' => [$gift]] = Px::ready(['90 cm']);
             Rx::switchOn('sa', [$gift]);
             Rx::set('sa', [$gift => '10.00']);
@@ -175,7 +174,7 @@ describe('S3, S4 · The cart', function () {
         $cart = shopCartScreensProps($browser, '/sa/en/cart', 'Sales/Storefront/Cart');
 
         // The goods: 2 × 100.00 + 50.00 = 250.00 - 50.00 short of free shipping, 150.00 of the gift.
-        expect([$cart['shippingFee']['minor'], $cart['freeAbove']['minor'], $cart['freeMissing']['minor'], $cart['freeShare']])->toBe([25_00, 300_00, 50_00, 83])
+        expect([$cart['shippingFee'], $cart['freeAbove']['minor'], $cart['freeMissing']['minor'], $cart['freeShare']])->toBe([null, 300_00, 50_00, 83])
             ->and([$cart['nextGift']['amount']['minor'], $cart['nextGift']['missing']['minor']])->toBe([400_00, 150_00])
             ->and($cart['pointsToEarn'])->toBeGreaterThan(0)
             ->and([$cart['mayNotOrder'], $cart['bestSellers']])->toBe([null, []])

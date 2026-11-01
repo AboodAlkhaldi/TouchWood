@@ -57,7 +57,7 @@ final class ReportFixtures
         $staff = self::staff($storeCode);
         app(ApproveOrderHandler::class)->handle(new ApproveOrder($delivered['order']));
         app(RecordPaymentHandler::class)->handle(new RecordPayment($delivered['order'], 'BANK_TRANSFER', 'T-1', null, CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d'), (string) Str::uuid()));
-        app(ShipOrderHandler::class)->handle(new ShipOrder($delivered['order'], 'SMSA', 'TRK-1'));
+        app(ShipOrderHandler::class)->handle(new ShipOrder($delivered['order'], otherCarrier: 'SMSA', trackingNumber: 'TRK-1'));
         app(MarkDeliveredHandler::class)->handle(new MarkDelivered($delivered['order']));
         $line = static fn (int $quantity): string => (string) DB::table('sales.order_lines')->where('order_id', $delivered['order'])->where('is_gift', false)->where('quantity', $quantity)->value('id');
 

@@ -19,7 +19,7 @@ final class OrderPage extends Data
      * @param  list<OrderEditData>  $edits
      * @param  list<OrderTickData>  $ticks
      * @param  list<string>  $tickable
-     * @param  list<string>  $carriers
+     * @param  list<OrderCarrierData>  $carriers
      * @param  list<OrderReturnData>  $returns
      * @param  list<OrderFileData>  $transferDocuments
      */
@@ -86,7 +86,17 @@ final class OrderPage extends Data
         public int $exponent,
         /** What is owed in its decimals ("248.00"), sent back with Record Payment: refused once it is no longer so. */
         public string $owedDecimal,
-        /** The carriers this store shipped with before, for Ship's suggestions; none for a reader who does not ship. */
+        /** The store's carriers for Ship… and its correction (gap 6.3), the order's country first; none for a reader who does not ship. */
         public array $carriers,
+        /** The carrier it shipped with — one of the store's; null for "Other carrier" or not shipped. */
+        public ?string $carrierId = null,
+        /** The full tracking link stored when it shipped; null: no Track. */
+        public ?string $trackingLink = null,
+        /** The carrier ordered with, in the reader's language (§9.5 #11). */
+        public ?string $orderedCarrier = null,
+        /** No carrier served the place: staff set the fee before it ships (gap 6.2). */
+        public bool $shippingFeePending = false,
+        /** The box suggested, or pack by hand with why; null while the store has no boxes (gap 5.1). */
+        public ?OrderBoxData $box = null,
     ) {}
 }

@@ -106,7 +106,7 @@ function fulfilledPaid(string $order): void
 
 function fulfilledShip(string $order, string $carrier = 'SMSA', ?string $tracking = 'T-100'): void
 {
-    app(ShipOrderHandler::class)->handle(new ShipOrder($order, $carrier, $tracking));
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: $carrier, trackingNumber: $tracking));
 }
 
 function fulfilledRow(string $order): ?stdClass
@@ -133,7 +133,7 @@ describe('shipping', function () {
         fulfilledShip($order);
 
         $row = fulfilledRow($order);
-        expect([$row?->shipment_status, $row?->carrier, $row?->tracking_number, $row?->status])->toBe(['SHIPPED', 'SMSA', 'T-100', 'APPROVED'])
+        expect([$row?->shipment_status, $row?->carrier_en, $row?->carrier_id, $row?->tracking_number, $row?->status])->toBe(['SHIPPED', 'SMSA', null, 'T-100', 'APPROVED'])
             ->and([fulfilledInStock($variants[0]), fulfilledInStock($variants[1])])->toBe([98, 99])
             ->and(Fx::audits('sales.order.shipped', $order))->toBe(1)
             ->and(fn () => fulfilledShip($order))->toThrow(InvalidOrderChange::class)

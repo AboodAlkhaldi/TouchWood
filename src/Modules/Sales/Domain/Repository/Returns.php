@@ -56,9 +56,9 @@ interface Returns
 
     /**
      * What a completion refunds by (§1.8): the order's lines and their shares, the pieces of each received
-     * in returns completed already, whether one carried the shipping, the shipping fee and its VAT share.
+     * in returns completed already, whether one carried the shipping, and the shipping fee (no VAT on it, §9.5 #1).
      *
-     * @return array{lines: array<string, array{quantity: int, total: int, coupon: int, points: int, vat: int, gift: bool}>, before: array<string, int>, shippingRefunded: bool, shippingFee: int, shippingVat: int}
+     * @return array{lines: array<string, array{quantity: int, total: int, coupon: int, points: int, vat: int, gift: bool}>, before: array<string, int>, shippingRefunded: bool, shippingFee: int}
      */
     public function forRefund(string $orderId): array;
 

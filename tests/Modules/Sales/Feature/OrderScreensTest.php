@@ -197,11 +197,11 @@ describe('P2 · An order', function () {
         $base = "/admin/orders/{$order}";
 
         $approved = $browser->post("{$base}/approve");
-        $refusedShip = $browser->post("{$base}/ship", ['carrier' => 'SMSA']);
+        $refusedShip = $browser->post("{$base}/ship", ['other_carrier' => 'SMSA']);
         $shown = orderScreensProps($browser, $base, 'Sales/Admin/Orders/Show')['owedDecimal'];
         // An amount sent is never read: the whole balance is recorded (§4.2 B1), the one the page showed.
         $paid = $browser->post("{$base}/payment", ['amount' => '1.00', 'shown' => $shown, 'way' => 'BANK_TRANSFER', 'reference' => 'TR-1', 'happened_on' => now('Asia/Riyadh')->toDateString(), 'request_id' => (string) Str::uuid()]);
-        $shipped = $browser->post("{$base}/ship", ['carrier' => 'SMSA', 'tracking_number' => '123']);
+        $shipped = $browser->post("{$base}/ship", ['carrier_id' => Cx::serve()['carrier'], 'tracking_number' => '123']);
         $delivered = $browser->post("{$base}/deliver");
         $row = orderScreensRow($order);
 
@@ -225,13 +225,13 @@ describe('P2 · An order', function () {
             ->and(orderScreensRow($order)['paid_minor'])->toBe(0);
     });
 
-    it('offers the carriers the store shipped with before, and ticks a wired order\'s sizes reduced in the provider', function () {
+    it('offers the store\'s carriers (gap 6.3), and ticks a wired order\'s sizes reduced in the provider', function () {
         $shipped = orderScreensOrder();
         $wired = orderScreensOrder(wired: true);
         $browser = orderScreensStaff(ORDER_SCREENS_ALL);
         $browser->post("/admin/orders/{$shipped}/approve");
         $browser->post("/admin/orders/{$shipped}/ship-unpaid", ['allow' => true]);
-        $browser->post("/admin/orders/{$shipped}/ship", ['carrier' => 'Aramex']);
+        $browser->post("/admin/orders/{$shipped}/ship", ['other_carrier' => 'Aramex']);
         $browser->post("/admin/orders/{$wired}/approve");
 
         $page = orderScreensProps($browser, "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
@@ -239,7 +239,8 @@ describe('P2 · An order', function () {
         $after = orderScreensProps($browser, "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
         $viewer = orderScreensProps(orderScreensStaff([SalesPermissions::ORDER_VIEW]), "/admin/orders/{$wired}", 'Sales/Admin/Orders/Show');
 
-        expect([$page['carriers'], $page['wired'], $viewer['carriers']])->toBe([['Aramex'], true, []])
+        expect([array_column($page['carriers'], 'name'), $page['wired'], $viewer['carriers']])->toBe([[Cx::CARRIER], true, []])
+            ->and(DB::table('sales.orders')->where('id', $shipped)->first(['carrier_en', 'carrier_id']))->toEqual((object) ['carrier_en' => 'Aramex', 'carrier_id' => null])
             ->and($page['tickable'])->not->toBe([])
             ->and(AdminBrowser::flashed($ticked, 'status'))->toBe('Ticks saved.')
             ->and(array_column($after['ticks'], 'variantId'))->toBe([$page['tickable'][0]])
@@ -292,8 +293,9 @@ describe('P2 · An order', function () {
         $browser = orderScreensStaff([SalesPermissions::ORDER_VIEW]);
 
         // 13 and 5 since 2026-10-30: the SMS countries list, read once with the customers (access.md
-        // amendment 90).
-        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(13)
+        // amendment 90); 14 with stage 7 step 6 — the store's boxes, for the box suggestion (gap 5.1; no
+        // choice: it is worked out live, never stored). The carriers are read only for staff who ship.
+        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(14)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(5);
     });
@@ -306,7 +308,7 @@ describe('P2 · The rest of an order\'s changes, and another store\'s orders', f
         $browser->post("/admin/orders/{$order}/approve");
 
         $allowed = $browser->post("/admin/orders/{$order}/ship-unpaid", ['allow' => true]);
-        $browser->post("/admin/orders/{$order}/ship", ['carrier' => 'Aramex']);
+        $browser->post("/admin/orders/{$order}/ship", ['other_carrier' => 'Aramex']);
         $lines = DB::table('sales.order_lines')->where('order_id', $order)->get(['variant_id', 'quantity', 'is_gift'])
             ->map(fn ($line): array => ['variantId' => (string) $line->variant_id, 'quantity' => (int) $line->quantity, 'gift' => (bool) $line->is_gift])->all();
         $back = $browser->post("/admin/orders/{$order}/came-back", ['put_back' => array_values($lines)]);

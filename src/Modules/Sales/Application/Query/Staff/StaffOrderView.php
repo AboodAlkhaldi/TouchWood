@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\Staff;
 
 use DateTimeImmutable;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
 use Modules\Sales\Public\Enums\WayToPay;
+use Modules\Shipping\Public\Dto\BoxSuggestionDto;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -86,5 +88,9 @@ final readonly class StaffOrderView
         public bool $wired = false,
         /** @var list<string> the sizes that may be ticked: a wired order's sizes whose stock counted, and its gift */
         public array $tickable = [],
+        /** The carriers ordered and shipped with, the tracking link, the fee still to be set (§9.5 #11). */
+        public ?OrderShippingView $shippingDetail = null,
+        /** The box Shipping suggests, or pack by hand with why; null with no boxes (gap 5.1). */
+        public ?BoxSuggestionDto $box = null,
     ) {}
 }

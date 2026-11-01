@@ -34,15 +34,15 @@ beforeEach(function () {
     seed(PlatformSeeder::class);
 });
 
-it('declares the six settings of the spec, the store ones with their defaults', function () {
+it('declares the four settings of the spec — the flat shipping fee gone with stage 7 (§9.5 #2) — the store one with its default', function () {
     $declared = array_values(array_filter(
         array_map(static fn (SettingDefinitionDto $definition): string => $definition->key, app(InMemorySettingsRegistry::class)->all()),
         static fn (string $key): bool => str_starts_with($key, 'sales.'),
     ));
 
-    expect($declared)->toBe([SalesSettings::FLAT_FEE, SalesSettings::FREE_ABOVE, SalesSettings::RETURN_WINDOW_DAYS, SalesSettings::COUPON_WRONG_CODES, SalesSettings::COUPON_WINDOW_MINUTES, SalesSettings::WAITING_ORDERS]);
+    expect($declared)->toBe([SalesSettings::RETURN_WINDOW_DAYS, SalesSettings::COUPON_WRONG_CODES, SalesSettings::COUPON_WINDOW_MINUTES, SalesSettings::WAITING_ORDERS]);
 
-    foreach ([SalesSettings::FLAT_FEE => 0, SalesSettings::FREE_ABOVE => 0, SalesSettings::RETURN_WINDOW_DAYS => 14] as $key => $default) {
+    foreach ([SalesSettings::RETURN_WINDOW_DAYS => 14] as $key => $default) {
         $definition = app(SettingsRegistry::class)->definition($key);
 
         expect([$definition?->scope, $definition?->type, $definition?->permission, $definition?->sensitive])->toBe([SettingScope::Store, SettingType::Integer, SalesPermissions::SETTINGS_UPDATE, false])
@@ -61,17 +61,15 @@ it('takes each value within its range and refuses one outside it', function (str
         ->and(fn () => $set($lowest - 1))->toThrow(InvalidSettingValue::class)
         ->and(fn () => $set($highest + 1))->toThrow(InvalidSettingValue::class);
 })->with([
-    'the fee' => [SalesSettings::FLAT_FEE, 0, 100_000_000],
-    'free from' => [SalesSettings::FREE_ABOVE, 0, 1_000_000_000],
     'the window' => [SalesSettings::RETURN_WINDOW_DAYS, 1, 365],
 ]);
 
 it('refuses them to staff who run the store\'s orders, and to an admin of another store', function () {
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW, SalesPermissions::ORDER_FULFIL, SalesPermissions::PAYMENT_RECORD], ['sa']));
-    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::FLAT_FEE, 'sa', 25_00)))->toThrow(Unauthorized::class);
+    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::RETURN_WINDOW_DAYS, 'sa', 30)))->toThrow(Unauthorized::class);
 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::SETTINGS_UPDATE], ['ae'], RoleLevel::Admin));
-    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::FLAT_FEE, 'sa', 25_00)))->toThrow(Unauthorized::class);
+    expect(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting(SalesSettings::RETURN_WINDOW_DAYS, 'sa', 30)))->toThrow(Unauthorized::class);
 });
 
 // The coupon box's limit (answer 50; owner, 2026-10-28): one pair for every store, 5 and 10 by default.
