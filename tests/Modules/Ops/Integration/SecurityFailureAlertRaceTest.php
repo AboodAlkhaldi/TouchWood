@@ -15,7 +15,6 @@ use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Domain\Repository\Inbox;
-use Modules\Ops\Infrastructure\Eloquent\DatabaseInbox;
 use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 use Modules\Ops\Infrastructure\Messages\SecurityFailureAlert;
 use Modules\Ops\Public\Enums\MessageChannel;
