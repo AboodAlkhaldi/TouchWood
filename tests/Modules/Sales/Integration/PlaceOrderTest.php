@@ -15,12 +15,13 @@ use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhone;
 use Modules\Access\Application\Command\VerifyCustomerPhone\VerifyCustomerPhoneHandler;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\Inventory\Domain\Exception\InvalidInventoryInput;
 use Modules\Inventory\Domain\Exception\NotEnoughStock;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Loyalty\Application\Settings\ProgrammeSettings;
 use Modules\Loyalty\Public\Events\PointsEarned;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
@@ -278,7 +279,9 @@ describe('what changed since the quote', function () {
         $b2b->shouldReceive('isApproved')->andReturnUsing(function () use (&$approved) {
             return $approved;
         });
-        $b2b->shouldReceive('bankAccount')->andReturn(null);
+        $bankAccount = Mockery::mock(PaymentsApi::class);
+        $bankAccount->shouldReceive('bankAccount')->andReturn(null);
+        app()->instance(PaymentsApi::class, $bankAccount);
         app()->instance(B2BApi::class, $b2b);
         $quote = Cx::start($address);
         $approved = false;
@@ -383,10 +386,12 @@ describe('what changed since the quote', function () {
         $account = new BankAccountDto('SA00 0000', 'Bank', 'TouchWood');
         $b2b = Mockery::mock(B2BApi::class);
         $b2b->shouldReceive('isApproved')->andReturn(true);
-        $b2b->shouldReceive('bankAccount')->andReturnUsing(function () use (&$account) {
+        app()->instance(B2BApi::class, $b2b);
+        $payments = Mockery::mock(PaymentsApi::class);
+        $payments->shouldReceive('bankAccount')->andReturnUsing(function () use (&$account) {
             return $account;
         });
-        app()->instance(B2BApi::class, $b2b);
+        app()->instance(PaymentsApi::class, $payments);
         $quote = Cx::start($address, 'BANK_TRANSFER');
         $account = null;
 

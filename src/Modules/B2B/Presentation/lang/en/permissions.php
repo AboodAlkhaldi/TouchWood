@@ -29,7 +29,4 @@ return [
         'update' => 'Rename, Reorder and Require Document Types',
         'deactivate' => 'Deactivate and Reactivate Document Types',
     ],
-    'settings' => [
-        'update' => 'Change the Store\'s Bank Account',
-    ],
 ];

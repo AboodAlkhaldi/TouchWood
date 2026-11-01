@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Application;
 
+use Modules\Payments\Application\Settings\StoreBankAccount;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Enums\OnlinePaymentReason;
@@ -18,6 +20,7 @@ final readonly class PaymentsApiImpl implements PaymentsApi
     public function __construct(
         private Gateways $gateways,
         private PlatformApi $platform,
+        private StoreBankAccount $bankAccount,
     ) {}
 
     /**
@@ -50,6 +53,11 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         }
 
         return new OnlinePaymentDto(true, $gateway->mode, null);
+    }
+
+    public function bankAccount(StoreId $store): ?BankAccountDto
+    {
+        return $this->bankAccount->for($store);
     }
 
     public function transferCheckHours(StoreId $store): int

@@ -7,8 +7,8 @@ namespace Modules\Sales\Presentation\Http\Resource;
 use InvalidArgumentException;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\AddressDto;
-use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -36,7 +36,7 @@ final readonly class CheckoutPages
     public function __construct(
         private PlatformApi $platform,
         private AccessApi $access,
-        private B2BApi $b2b,
+        private PaymentsApi $payments,
         private CatalogApi $catalog,
         private ActorContext $actors,
     ) {}
@@ -94,7 +94,7 @@ final readonly class CheckoutPages
         $exponent = self::exponent($quote->totals->orderTotal, $store);
         $money = fn (Money $amount): MoneyData => self::money($amount, $store, $exponent, $locale);
         $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
-        $bank = in_array(WayToPay::BankTransfer->value, $ways, true) ? $this->b2b->bankAccount($storeId) : null;
+        $bank = in_array(WayToPay::BankTransfer->value, $ways, true) ? $this->payments->bankAccount(StoreId::fromString($storeId)) : null;
         $gift = $quote->giftVariantId === null ? null : ($this->catalog->variantBriefs([$quote->giftVariantId])[$quote->giftVariantId] ?? null);
         $totals = $quote->totals;
 
@@ -157,7 +157,7 @@ final readonly class CheckoutPages
     {
         $order = $view->handle(new ViewOwnOrder($number));
         $store = $this->platform->store(StoreId::fromString($order->storeId));
-        $bank = $order->wayToPay === WayToPay::BankTransfer ? $this->b2b->bankAccount($order->storeId) : null;
+        $bank = $order->wayToPay === WayToPay::BankTransfer ? $this->payments->bankAccount(StoreId::fromString($order->storeId)) : null;
 
         return new PlacedPage(
             $order->number,

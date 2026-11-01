@@ -189,7 +189,8 @@ it('passes its own check of the renames and removals every module declared', fun
     $catalog->verify();
 
     expect($catalog->renames())->toBe([])
-        ->and($catalog->removals())->toBe([]);
+        ->and($catalog->removals())->toBe(['b2b.settings.update'])
+        ->and($catalog->copies())->toBe(['payments.payment.view' => 'sales.order.view', 'payments.bank_account.update' => 'b2b.settings.update']);
 });
 
 it('gives every command handler a PERMISSION constant, save those that read it from elsewhere', function () {

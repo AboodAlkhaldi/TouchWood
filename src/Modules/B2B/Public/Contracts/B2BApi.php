@@ -7,7 +7,6 @@ namespace Modules\B2B\Public\Contracts;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Modules\B2B\Public\Dto\ApplicationCountsDto;
-use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\B2B\Public\Dto\CompanyDto;
 use Modules\B2B\Public\Enums\CompanyStatus;
 
@@ -41,15 +40,6 @@ interface B2BApi
      * store's company is approved — and never while the store is off (platform.md §1.6).
      */
     public function isApproved(string $customerId, string $storeId): bool;
-
-    /**
-     * The account a company of this store transfers to — **null while bank transfer is temporarily
-     * off**, until the store has filled in all three settings (amendment 13(c)). Checkout then
-     * offers paying through staff alone, and the server refuses a transfer.
-     *
-     * @param  string  $storeId  a store's ULID; anything else is a caller's bug and throws
-     */
-    public function bankAccount(string $storeId): ?BankAccountDto;
 
     /**
      * For Ops's daily report (amendment 34): how many of this store's applications were sent, and

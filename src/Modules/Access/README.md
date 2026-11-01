@@ -136,7 +136,7 @@ $this->app->make(ShopperLines::class)->register(CompanyShopperLine::class);
 | `Infrastructure/Queue` | `CancelExpiredSuperAdminInvitationsJob`, every ten minutes; `AnonymizeDueAccountsJob`, daily at 03:00 in Riyadh, which the application runs in UTC keeps as `dailyAt('00:00')`. |
 | `Infrastructure/Messages` | `UrlStaffLinks`, `UrlCustomerLinks` (the signed verification link). |
 | `Infrastructure/Security`, `Media` | `HmacCodes`, `LaravelPasswordPolicy`, `LoggedBreachList` (the leaked-password service, whose outages are logged and never refuse a password); `StaffAvatarUsage` (the avatar as Platform media). |
-| `Infrastructure/Permission` | `PermissionSync`: carries renames and removals into the roles on every migrate. |
+| `Infrastructure/Permission` | `PermissionSync`: carries renames, removals and one-time copies into the roles on every migrate. |
 | `Infrastructure/Persistence` | Migrations: the schema and `staff_users`, the role tables, the staff account tables (invitations, phone codes, email changes, notification preferences), the sign-in tables (sign-in codes, password resets, trusted browsers), the customer tables (`customers`, `phone_codes`), the customer sign-in tables (`customers.session_version`, `customer_password_resets`), the admin panel's own `admin_sessions`, the address tables (`addresses`, `store_address_formats`) and the one that drops `customers.remember_token`. |
 | Empty by design | `Application/Listener`, `Domain/Event`, `Domain/Service`, `Infrastructure/External` and `Presentation/Http/Resource` hold only a `.gitkeep`: Access listens to no other module, raises its events from `Public/Events`, keeps its rules in the models, calls no outside service of its own, and answers with views rather than API resources. |
 | `Presentation/` | `routes.php` (the `/admin` form endpoints and the storefront ones under `{store}/{locale}/account/…`), controllers, form requests, the middleware (`IdentifyRequestActor`, `UseAdminSession`, `IdentifyStaff`, `RequireStaff`, `UseStorefrontSession`, `IdentifyCustomer`, `RequireCustomer`), `FormErrors`; the five Super Admin console commands, the security email view, translations. |
@@ -241,7 +241,7 @@ web request, so no route can act as the system, and `RoleAuthorizer` lets the sy
 Platform's wrapper still makes a queued job the system acting for whoever queued it. Customers act
 from step 4; integrations hold nothing yet.
 
-### Renamed and removed permissions
+### Renamed, removed and copied permissions
 
 `PermissionSync` runs at the end of every `php artisan migrate` — on `MigrationsEnded`, and on
 `NoPendingMigrations` because Laravel fires that one instead when there is nothing to migrate. It
@@ -250,6 +250,12 @@ change. Two permissions renamed into one are refused at boot (their store choice
 safely: rename one, remove the other), and a rename never puts a management action into a staff
 role. A name that is neither declared nor removed is left alone and logged: it grants nothing,
 and a module switched off by mistake cannot wipe anyone's roles.
+
+A **copy** (`copied`, amendment 92) gives a new permission to whoever holds another, once: every role
+holding the old name gets the new one, and every exception on it gets one on the new name for the same
+stores. A rename cannot do this, since it replaces the old name and stays inside one module. Each pair
+runs once, recorded in `access.permission_copies`, so a box unticked later stays unticked. The module
+that owns the new name declares the copy, and the old name may be another module's.
 
 ### Staff accounts: invited, then active or disabled — or cancelled
 

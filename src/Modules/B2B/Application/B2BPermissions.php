@@ -67,9 +67,6 @@ final class B2BPermissions
     /** Deactivate a document type, and activate it again. */
     public const string DOCUMENT_TYPE_DEACTIVATE = 'b2b.document_type.deactivate';
 
-    /** Change the store's bank account a company transfers to — admin-only (amendment 32). */
-    public const string SETTINGS_UPDATE = 'b2b.settings.update';
-
     /**
      * @return list<PermissionDefinitionDto>
      */
@@ -87,9 +84,7 @@ final class B2BPermissions
             self::staff(),
         );
 
-        $admin = new PermissionDefinitionDto(self::SETTINGS_UPDATE, PermissionAudience::Role, adminOnly: true, kind: PermissionKind::PerStore, group: PermissionGroup::Companies);
-
-        return [...$own, ...$staff, $admin];
+        return [...$own, ...$staff];
     }
 
     /**

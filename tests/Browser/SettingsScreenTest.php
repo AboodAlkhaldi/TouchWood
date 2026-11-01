@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\DB;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\ValueObject\RoleLevel;
-use Modules\B2B\Application\B2BPermissions;
-use Modules\B2B\Application\Settings\BankAccountSettings;
+use Modules\Payments\Application\PaymentsPermissions;
+use Modules\Payments\Application\Settings\BankAccountSettings;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Settings\SettingValues;
@@ -144,7 +144,7 @@ it('says a letter typed in a number setting at once, and keeps its Save out of r
     expect($saved)->toBe('28');
 });
 
-it('says in the Companies section whether bank transfer is on, and names no value for a setting still empty (b2b.md amendment 13(c))', function () {
+it('says in the Payments section whether bank transfer is on, and names no value for a setting still empty (payments.md §1.9)', function () {
     // The browser suite keeps its data, so the three start with no stored row — never set, their
     // default in force — and are left that way after. A stored '' would not do: a stored value is no
     // default, and the hint this proves hidden would be absent anyway (the review of step 5b).
@@ -157,9 +157,9 @@ it('says in the Companies section whether bank transfer is on, and names no valu
     };
     $empty();
 
-    // An admin of one store who may change its store settings and its bank account (b2b.md amendment 32):
-    // the Companies section shows, and Payments' transfer check hours (gap 8.3).
-    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE, B2BPermissions::SETTINGS_UPDATE], ['sa'], RoleLevel::Admin);
+    // An admin of one store who may change its store settings and its bank account (b2b.md amendment 33):
+    // the Payments section shows, with its transfer check hours (gap 8.3).
+    $staffId = Fx::staffWith([PlatformPermissions::SETTINGS_UPDATE, PaymentsPermissions::BANK_ACCOUNT_UPDATE], ['sa'], RoleLevel::Admin);
     $email = (string) DB::table('access.staff_users')->where('id', $staffId)->value('email');
 
     $page = visit('/admin/sign-in')
@@ -172,11 +172,11 @@ it('says in the Companies section whether bank transfer is on, and names no valu
         ->assertPathIs('/admin')
         ->navigate('/admin/settings', BROWSER_PAGE_LOAD);
 
-    $page->assertSee('Companies')
+    $page->assertSee('Payments')
         ->assertSee('Bank transfer: temporarily off — fill in all three to turn it on.')
-        // An empty default is "not set yet": no value in force to name (owner, 2026-09-29). The Payments
-        // section shows too, since its transfer check hours are the store settings' (payments.md §5, gap
-        // 8.3): its default of 72 is the one value named in force.
+        // An empty default is "not set yet": no value in force to name (owner, 2026-09-29). The section's
+        // transfer check hours are the store settings' (payments.md §5, gap 8.3): their default of 72 is
+        // the one value named in force.
         ->assertSee('Not set; 72 is in force')
         ->assertScript("! document.body.innerText.split('Not set; 72 is in force').join('').includes('is in force')")
         ->assertNoJavaScriptErrors();

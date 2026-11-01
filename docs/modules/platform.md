@@ -95,7 +95,7 @@ hours to verify a bank transfer, and so on.
   stays refused when empty. The rules still apply to a value that is not empty.
 - **[DECIDED 2026-09-29] A module may show one line at the top of its section of the settings page**
   (B2B step 5, §9.4): what its settings add up to in the store the page shows, in the reader's
-  language — B2B's says whether bank transfer is on or temporarily off. The module answers when the
+  language — Payments' says whether online payment and bank transfer are on (payments.md §1.2, moved from B2B). The module answers when the
   page is shown; Platform only places the line. It is shown with the section, so only to someone who
   sees one of its settings.
 - Reading a declared key that has no stored row returns the definition's default. Reading a

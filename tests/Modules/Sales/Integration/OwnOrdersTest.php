@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -236,7 +237,9 @@ it('offers cancelling while approved and unshipped, carrying the order id to act
 it('offers a transfer document only while a bank-transfer order holds less than is due, under three', function () {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
-    $b2b->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+    $bankAccount = Mockery::mock(PaymentsApi::class);
+    $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+    app()->instance(PaymentsApi::class, $bankAccount);
     app()->instance(B2BApi::class, $b2b);
     $ready = Cx::ready('company');
     $placed = Cx::place(Cx::start($ready['address'], 'BANK_TRANSFER')->id);

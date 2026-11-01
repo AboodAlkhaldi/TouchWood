@@ -43,12 +43,12 @@ $this->app->make(SettingsRegistry::class)->define('loyalty',
         SettingType::Integer, ['min:1'], 365, 'loyalty.settings.update'),
 );
 // A text setting that starts "not set yet" takes mayBeEmpty: true and the default '': its rules
-// then apply only to a value that is not empty (§1.3). B2B's bank account settings are the first.
+// then apply only to a value that is not empty (§1.3). Payments' bank account settings are the first.
 
 // One line at the top of your settings section, for the store in the header (§1.3): a class
-// implementing SettingsSectionLine, resolved only when the page is shown. B2B's says whether bank
-// transfer is on.
-$this->app->make(SettingsSectionLines::class)->register('b2b', BankTransferLine::class);
+// implementing SettingsSectionLine, resolved only when the page is shown. Payments' says whether
+// online payment and bank transfer are on.
+$this->app->make(SettingsSectionLines::class)->register('payments', PaymentsSettingsLine::class);
 ```
 
 ```php

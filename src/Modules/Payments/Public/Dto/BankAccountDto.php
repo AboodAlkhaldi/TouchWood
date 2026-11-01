@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Modules\B2B\Public\Dto;
+namespace Modules\Payments\Public\Dto;
 
 /**
- * The account a store's companies transfer to (b2b.md §2.1, amendments 12(b), 13(c)). There is one
+ * The account a store's companies transfer to (payments.md §1.9, b2b.md amendments 12(b), 13(c)). There is one
  * only while bank transfer is on — all three settings filled in.
  */
 final readonly class BankAccountDto

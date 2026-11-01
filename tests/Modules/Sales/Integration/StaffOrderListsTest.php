@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
@@ -94,7 +95,9 @@ function solShip(string $order, string $carrier): void
 it('lists the orders waiting, to ship and shipped, and the bank transfers to check', function () {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
-    $b2b->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+    $bankAccount = Mockery::mock(PaymentsApi::class);
+    $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+    app()->instance(PaymentsApi::class, $bankAccount);
     app()->instance(B2BApi::class, $b2b);
     ['order' => $waiting] = solOrder();
     ['order' => $toShip] = solOrder();
