@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Access\Infrastructure\Permission;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Database\Connection;
 use Modules\Access\Application\Audit\RoleAudit;
 use Modules\Access\Application\Authorization\GrantsReader;
@@ -14,7 +16,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Psr\Log\LoggerInterface;
 
 /**
- * Carries renamed and removed permissions into the roles and exceptions, at the end of every
+ * Carries renamed, removed and copied permissions into the roles and exceptions, at the end of every
  * `php artisan migrate` (owner's decisions, 2026-09-19). A data migration, run as the system: it
  * checks no permission, and audits every role and staff member it changes.
  *
@@ -57,10 +59,11 @@ final readonly class PermissionSync
         }
 
         // Roles, then assignments, are locked as the handlers lock them; a deadlock is retried.
-        $result = $this->db->transaction(fn (): array => [
-            'roles' => $this->syncRoles(),
-            'staff' => $this->syncExceptions(),
-        ], 3);
+        $result = $this->db->transaction(function (): array {
+            $copies = $this->claimCopies();
+
+            return ['roles' => $this->syncRoles($copies), 'staff' => $this->syncExceptions($copies)];
+        }, 3);
 
         $unknown = $this->unknownNames();
 
@@ -71,11 +74,36 @@ final readonly class PermissionSync
         return [...$result, 'unknown' => $unknown];
     }
 
-    private function syncRoles(): int
+    /**
+     * The copies not yet run, each marked as run here: once per pair, however many times migrate runs, so
+     * a box unticked later stays unticked (amendment 92). A failed sync rolls its marks back with it.
+     *
+     * @return array<string, string> new name => the name it is copied from
+     */
+    private function claimCopies(): array
+    {
+        if (! $this->db->getSchemaBuilder()->hasTable('access.permission_copies')) {
+            return [];
+        }
+
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:sP');
+
+        return array_filter(
+            $this->catalog->copies(),
+            fn (string $from, string $to): bool => $this->db->table('access.permission_copies')
+                ->insertOrIgnore(['from_permission' => $from, 'to_permission' => $to, 'copied_at' => $now]) === 1,
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    /**
+     * @param  array<string, string>  $copies  new name => the name it is copied from
+     */
+    private function syncRoles(array $copies): int
     {
         $renames = $this->catalog->renames();
         $removals = $this->catalog->removals();
-        $old = [...array_keys($renames), ...$removals];
+        $old = [...array_keys($renames), ...$removals, ...array_values($copies)];
 
         if ($old === []) {
             return 0;
@@ -91,6 +119,7 @@ final readonly class PermissionSync
         /** @var array<string, string> $levels role id => level, locked in id order */
         $levels = $this->db->table('access.roles')->whereIn('id', $affected)->orderBy('id')->lockForUpdate()->pluck('level', 'id')->all();
         $holders = [];
+        $changed = 0;
 
         foreach ($levels as $roleId => $level) {
             /** @var list<string> $before */
@@ -114,9 +143,32 @@ final readonly class PermissionSync
                 $after[] = $to;
             }
 
+            foreach ($copies as $to => $from) {
+                if (! in_array($from, $before, true)) {
+                    continue;
+                }
+
+                // As with a rename: a management action never enters a staff role.
+                if ($level === RoleLevel::Staff->value && $this->catalog->isAdminOnly($to)) {
+                    $this->logger->warning('A copy would put a management action into a staff role; it was left out.', ['role_id' => $roleId, 'permission' => $to]);
+
+                    continue;
+                }
+
+                $after[] = $to;
+            }
+
             $after = array_values(array_unique($after));
             sort($after);
+            $sortedBefore = $before;
+            sort($sortedBefore);
 
+            // A copy into a role already holding the name changes nothing.
+            if ($after === $sortedBefore) {
+                continue;
+            }
+
+            $changed++;
             $this->db->table('access.role_permissions')->where('role_id', $roleId)->delete();
             $this->db->table('access.role_permissions')->insert(array_map(
                 fn (string $permission): array => ['role_id' => $roleId, 'permission' => $permission],
@@ -136,31 +188,44 @@ final readonly class PermissionSync
 
         $this->grants->refresh(...$holders);
 
-        return count($levels);
+        return $changed;
     }
 
-    private function syncExceptions(): int
+    /**
+     * @param  array<string, string>  $copies  new name => the name it is copied from
+     */
+    private function syncExceptions(array $copies): int
     {
         $renames = $this->catalog->renames();
         $removals = $this->catalog->removals();
         $old = [...array_keys($renames), ...$removals];
+        $watched = [...$old, ...array_values($copies)];
 
-        if ($old === []) {
+        if ($watched === []) {
             return 0;
         }
 
         /** @var list<string> $affected */
-        $affected = $this->db->table('access.role_assignment_exceptions')->whereIn('permission', $old)->distinct()->pluck('staff_user_id')->all();
+        $affected = $this->db->table('access.role_assignment_exceptions')->whereIn('permission', $watched)->distinct()->pluck('staff_user_id')->all();
 
         /** @var list<string> $staffIds locked in id order */
         $staffIds = $affected === [] ? [] : $this->db->table('access.role_assignments')->whereIn('staff_user_id', $affected)
             ->orderBy('staff_user_id')->lockForUpdate()->pluck('staff_user_id')->all();
+        $changed = [];
 
         foreach ($staffIds as $staffId) {
             /** @var list<string> $before */
             $before = $this->db->table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->orderBy('permission')->pluck('permission')->all();
             // The names this person's exceptions have after each step: a rename never lands on one.
             $present = $before;
+
+            // Copied first: a name this same sync removes still has its exception to copy from.
+            foreach ($copies as $to => $from) {
+                if (in_array($from, $before, true) && ! in_array($to, $present, true) && $this->catalog->definition($to)?->kind === PermissionKind::PerStore) {
+                    $this->copyException($staffId, $from, $to);
+                    $present[] = $to;
+                }
+            }
 
             foreach ($before as $permission) {
                 if (! in_array($permission, $old, true)) {
@@ -196,12 +261,34 @@ final readonly class PermissionSync
 
             /** @var list<string> $after */
             $after = $this->db->table('access.role_assignment_exceptions')->where('staff_user_id', $staffId)->orderBy('permission')->pluck('permission')->all();
+
+            // A copy the person's role did not take leaves them as they were.
+            if ($after === $before) {
+                continue;
+            }
+
+            $changed[] = $staffId;
             $this->platform->recordAudit(RoleAudit::exceptionsSynced($staffId, $before, $after));
         }
 
-        $this->grants->refresh(...$staffIds);
+        $this->grants->refresh(...$changed);
 
-        return count($staffIds);
+        return count($changed);
+    }
+
+    /** The same narrowing on the new name: the same level, and the same stores. */
+    private function copyException(string $staffId, string $from, string $to): void
+    {
+        $this->db->statement(
+            'INSERT INTO access.role_assignment_exceptions (staff_user_id, permission, access_level)
+             SELECT staff_user_id, ?, access_level FROM access.role_assignment_exceptions WHERE staff_user_id = ? AND permission = ?',
+            [$to, $staffId, $from],
+        );
+        $this->db->statement(
+            'INSERT INTO access.role_assignment_exception_stores (staff_user_id, permission, store_id)
+             SELECT staff_user_id, ?, store_id FROM access.role_assignment_exception_stores WHERE staff_user_id = ? AND permission = ?',
+            [$to, $staffId, $from],
+        );
     }
 
     /**

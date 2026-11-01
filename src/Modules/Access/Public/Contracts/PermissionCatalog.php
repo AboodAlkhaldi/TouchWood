@@ -34,6 +34,17 @@ interface PermissionCatalog
     public function renamed(string $module, string $from, string $to): void;
 
     /**
+     * Whoever holds $from gets $to as well, **once**: at the end of the next `php artisan migrate`, every
+     * role holding $from gets $to, and every exception on $from gets one on $to for the same stores. After
+     * that $to is its own box: taking it away stays taken away (amendment 92). $from may be another
+     * module's, or one this same migrate removes. A management action never enters a staff role.
+     *
+     * @throws \LogicException once every module has booted, if $from is neither declared nor removed, $to
+     *                         is not a declared role permission, or $to is copied from two names
+     */
+    public function copied(string $module, string $from, string $to): void;
+
+    /**
      * Permissions that no longer exist: at the end of the next `php artisan migrate`, they are taken
      * out of every role, and each change is audited. A name in a role that is neither declared nor
      * removed is left alone and reported, so a module switched off by mistake wipes nothing.

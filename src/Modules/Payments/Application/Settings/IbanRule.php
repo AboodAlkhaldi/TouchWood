@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\B2B\Application\Settings;
+namespace Modules\Payments\Application\Settings;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;

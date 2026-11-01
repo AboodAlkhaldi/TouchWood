@@ -487,7 +487,7 @@ The sum over every piece, plus the shipping, is `goods_total` + shipping + VAT =
 | Account | Ways |
 |---|---|
 | Individual | **Online** (Payments, stage 7) **or "staff will contact you"** |
-| Company | **Bank transfer** (to the store's account, `B2BApi::bankAccount` — off while the store has not filled it in, b2b.md amendment 13(c)) **or "staff will contact you"** — never online |
+| Company | **Bank transfer** (to the store's account, `PaymentsApi::bankAccount` — off while the store has not filled it in, b2b.md amendment 13(c)) **or "staff will contact you"** — never online |
 
 **No cash on delivery** in any store (handoff §12.4, §16). **Every gateway is an adapter behind
 `PaymentsApi`** (owner, 2026-10-19, answer 38): MyFatoorah (KSA) first; Tamara and Tabby — individuals
@@ -658,7 +658,7 @@ each recorded through the outbox inside its change's transaction — a change re
 | Loyalty | `earningPreview`, `quoteRedemption`, `redeem`, `earn`, `orderCancelled`, `orderReturned`; **`pointsAfterEdit`** (reads, by the cap the order redeemed under) and **`orderEdited` answering the points still used** | loyalty.md (PR #96) — added there with this spec |
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read** — Catalog additions, built in S3 (catalog.md amendment 29) |
 | Access | `customerMayOrder`, `customer`, `addresses`, `address`, `GuestBecameCustomer`, `CustomerAnonymized` | Exist |
-| B2B | `isApproved`, `bankAccount` | Exist |
+| B2B | `isApproved` | Exists |
 | Platform | `store` (`isActive`), `allStores`, `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
 | Shared | **`outbox_messages` and `processed_events`, in the `public` schema** (platform.md §5.6), and the outbox's relay | **Built with Sales** — the first module to publish through the outbox |
 
@@ -1656,7 +1656,7 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    a payment is in progress on the order** (`PaymentsApi::refresh` says so), with the reason shown;
    **recording a payment by hand withdraws the order's open request** (payments.md §1.5). **A customer's cancellation waits
    too** while a request is being paid (owner, 2026-10-28, payments.md §9.6 #5).
-9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount`. An order whose receipt
+9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount` (built, stage 7 step 8b). An order whose receipt
    was uploaded more than `payments.transfer.check_hours` (**72**) ago and is not yet paid is marked
    **overdue** in the staff list (owner, 2026-10-27 P8, P28).
 10. **Contract changes**: `ShippingApi` and `PaymentsApi` change as in shipping.md §2.1 and payments.md

@@ -18,9 +18,11 @@ and an amount, nothing more: it depends on Platform, and on Access only to decla
 | 8 | **What other modules ask** (§2.1): `availability()` (with why not: no gateway, off, key refused, a company) and `transferCheckHours()` | `Application/PaymentsApiImpl` |
 | 8 | **The expiry warnings** (§1.2): 30, 7 and 1 days before a current key's date, once each, as `GatewayKeyExpiring` through the outbox for Ops | `Application/Gateway/KeyExpiryWarnings`, `Infrastructure/Queue/WarnExpiringKeysJob` (hourly) |
 | 8 | **The timers' guard** (§1.7): the hold limit stays longer than the window and the wait together | `Infrastructure/TimersGuard` (registered with Platform's `SettingGuards`) |
+| 8b | **The bank account** (§1.9, moved from B2B): the IBAN, the bank and the holder per store, an admin's alone; `bankAccount()`, null until all three are filled in | `Application/Settings`, `Application/PaymentsApiImpl` |
+| 8b | **The settings line** (§1.2, gap 8.8): how the store shown takes money, online and by transfer | `Infrastructure/Settings/PaymentsSettingsLine` |
+| 8b | **The one-time grants** (§9.10 #1): whoever views orders gets `payments.payment.view`, whoever held `b2b.settings.update` gets `payments.bank_account.update` | `Infrastructure/PaymentsServiceProvider`, Access's `copied` |
 
-Still to come: the bank account moved from B2B and the one-time `payments.payment.view` grant (step 8b);
-the session, the charge, `RegisterApplePayDomain` and the notices (steps 9-10); payment requests (step 11).
+Still to come: the session, the charge, `RegisterApplePayDomain` and the notices (steps 9-10); payment requests (step 11).
 
 ## How a change runs
 

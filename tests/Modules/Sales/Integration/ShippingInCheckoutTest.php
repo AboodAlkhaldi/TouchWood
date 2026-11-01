@@ -11,7 +11,8 @@ use Illuminate\Support\Str;
 use Modules\Access\Application\Command\SaveAddress\SaveAddress;
 use Modules\Access\Application\Command\SaveAddress\SaveAddressHandler;
 use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountry;
 use Modules\Platform\Application\Command\AddAddressCountry\AddAddressCountryHandler;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
@@ -195,7 +196,9 @@ describe('the quote (§1.2 step 9)', function () {
         // An approved company of a store with a bank account (b2b.md): a bank transfer offered where shipping is known.
         $b2b = Mockery::mock(B2BApi::class);
         $b2b->shouldReceive('isApproved')->andReturn(true);
-        $b2b->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+        $bankAccount = Mockery::mock(PaymentsApi::class);
+        $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
+        app()->instance(PaymentsApi::class, $bankAccount);
         app()->instance(B2BApi::class, $b2b);
         $unserved = shipCheckoutAddress($customer, shipCheckoutRegion());
 

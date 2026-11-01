@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Modules\B2B\Application\Settings;
+namespace Modules\Payments\Application\Settings;
 
-use Modules\B2B\Public\Dto\BankAccountDto;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 

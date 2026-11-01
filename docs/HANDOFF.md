@@ -141,6 +141,7 @@ Each amendment is applied in place in the section named; this list only records 
 | 2026-10-28 | §4.4 | **Shipping → Access and Payments → Access**, only to declare their permissions — and Payments also hears `CustomerAnonymized` (shipping.md §9.2, payments.md §6) | Owner decision |
 | 2026-10-28 | §12.1, §15.4 | **The stock-dependent switch is on by default**: in a store wired to a provider every variant depends on stock — every variant already there too, not only new ones; staff may switch a variant off, and back on. A store with no provider is unchanged. Replaces "off by default; a variant added later starts off" (2026-10-09). Promotions' gift tick box then changes only a variant staff switched off. The details: `docs/modules/inventory.md` §1.2, §9.2 #24 | Owner decision |
 | 2026-10-28 | §13.3, §17 | **Ops' rules** (`docs/modules/ops.md`, draft for acceptance): Ops is specified before Content; email by **Brevo**, SMS by an adapter (provider not chosen) and **only for codes and the gateway key's critical alerts to super admins**; staff messages to customers by bell and email (not SMS); besides queued listeners, Ops runs scheduled jobs (points expiring, the daily report's email); marketing email only with the customer's consent (access.md amendments 79–84); newsletters designed in Brevo; reports in Excel and a **daily report** in PDF; revenue = what the customer pays for goods after coupon and points, without VAT or shipping; no visitor counting | Owner decision |
+| 2026-11-01 | §4.4 | **B2B → Payments**, for a store's bank account alone: the account moved to Payments, and B2B's company page reads it from there (b2b.md amendment 33, payments.md §9.10 #4) | Stage 7 step 8b, the owner's acceptance of amendment 33 |
 
 ---
 
@@ -356,7 +357,7 @@ Consequences that are easy to get wrong:
 ```
 Platform   → (nothing)
 Access     → Platform
-B2B        → Platform, Access
+B2B        → Platform, Access, Payments   (Payments only for a store's bank account, 2026-11-01)
 Catalog    → Platform, Access   (Access only to declare its permissions)
 Pricing    → Platform, Catalog, Access   (Access only to declare its permissions; no B2B: one price for everyone, 2026-10-07)
 Inventory  → Platform, Catalog, Access   (Access only to declare its permissions)

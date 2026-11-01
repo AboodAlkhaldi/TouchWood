@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\NoPendingMigrations;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\PendingCommand;
@@ -13,6 +14,8 @@ use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
+use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
@@ -161,6 +164,137 @@ it('changes nothing the second time', function () {
     expect($result)->toBe(['roles' => 0, 'staff' => 0, 'unknown' => []])
         ->and(DB::table('platform.audit_entries')->count())->toBe($audits)
         ->and(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::STORE_UPDATE]);
+});
+
+it('copies a permission into every role holding it, keeping the old one, and only once', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD]);
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+
+    event(new NoPendingMigrations('up'));
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE])
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(1)
+        ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toEqualCanonicalizing([Fx::storeId('sa'), Fx::storeId('ae')])
+        ->and(DB::table('access.permission_copies')->where('from_permission', PlatformPermissions::MEDIA_UPLOAD)->where('to_permission', PlatformPermissions::STORE_UPDATE)->count())->toBe(1);
+
+    // An admin unticks it afterwards: the next migrate does not give it back, nor audit anything.
+    DB::table('access.role_permissions')->where('role_id', $holder['role'])->where('permission', PlatformPermissions::STORE_UPDATE)->delete();
+    event(new NoPendingMigrations('up'));
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD])
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(1);
+});
+
+it('copies an exception with its level and its stores', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD], [PlatformPermissions::MEDIA_UPLOAD => ['sa']]);
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+
+    app(PermissionSync::class)->run();
+
+    expect(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::MEDIA_UPLOAD => [Fx::storeId('sa')], PlatformPermissions::STORE_UPDATE => [Fx::storeId('sa')]])
+        ->and(Fx::audits('access.staff_user.exceptions_synced', $holder['staff']))->toBe(1)
+        ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toBe([Fx::storeId('sa')]);
+});
+
+it('narrows a role already holding the new name by the copied exception, in the cached permissions too', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE], [PlatformPermissions::MEDIA_UPLOAD => ['sa']]);
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+
+    $result = app(PermissionSync::class)->run();
+
+    expect($result)->toBe(['roles' => 0, 'staff' => 1, 'unknown' => []])
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(0)
+        ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toBe([Fx::storeId('sa')]);
+});
+
+it('keeps the exception a person already has on the new name', function () {
+    $holder = holderOfOldNames(
+        [PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE],
+        [PlatformPermissions::MEDIA_UPLOAD => ['sa'], PlatformPermissions::STORE_UPDATE => ['ae']],
+    );
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+
+    $result = app(PermissionSync::class)->run();
+
+    expect(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::MEDIA_UPLOAD => [Fx::storeId('sa')], PlatformPermissions::STORE_UPDATE => [Fx::storeId('ae')]])
+        ->and($result)->toBe(['roles' => 0, 'staff' => 0, 'unknown' => []]);
+});
+
+it('copies a name another module declares, or one this same sync removes', function () {
+    $holder = holderOfOldNames(['catalog.old.thing', PlatformPermissions::MEDIA_UPLOAD], ['catalog.old.thing' => ['ae']]);
+    $catalog = app(InMemoryPermissionCatalog::class);
+    $catalog->copied('platform', 'catalog.old.thing', PlatformPermissions::STORE_UPDATE);
+    $catalog->removed('catalog', 'catalog.old.thing');
+
+    $result = app(PermissionSync::class)->run();
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE])
+        ->and(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::STORE_UPDATE => [Fx::storeId('ae')]])
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(1)
+        ->and($result)->toBe(['roles' => 1, 'staff' => 1, 'unknown' => []]);
+});
+
+it('never lets a copy put a management action into a staff role, nor its exception stay', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD], [PlatformPermissions::MEDIA_UPLOAD => ['sa']]);
+    app(InMemoryPermissionCatalog::class)->copied('access', PlatformPermissions::MEDIA_UPLOAD, AccessPermissions::ROLE_MANAGE);
+
+    $result = app(PermissionSync::class)->run();
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD])
+        ->and(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::MEDIA_UPLOAD => [Fx::storeId('sa')]])
+        ->and($result)->toBe(['roles' => 0, 'staff' => 0, 'unknown' => []])
+        ->and(Fx::audits('access.role.permissions_synced', $holder['role']))->toBe(0)
+        ->and(Fx::audits('access.staff_user.exceptions_synced', $holder['staff']))->toBe(0);
+});
+
+it('takes a copy\'s run back with the sync that fails, so it runs again', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD]);
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+    // A lasting failure inside the sync's transaction: the audit log cannot be written.
+    DB::statement('ALTER TABLE platform.audit_entries RENAME TO audit_entries_gone');
+
+    try {
+        app(PermissionSync::class)->run();
+
+        throw new LogicException('Expected the sync to fail.');
+    } catch (QueryException) {
+        // The failure is the point.
+    } finally {
+        DB::statement('ALTER TABLE platform.audit_entries_gone RENAME TO audit_entries');
+    }
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD])
+        ->and(DB::table('access.permission_copies')->where('to_permission', PlatformPermissions::STORE_UPDATE)->count())->toBe(0);
+
+    app(PermissionSync::class)->run();
+
+    expect(Fx::rolePermissions($holder['role']))->toBe([PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE]);
+});
+
+it('refuses at boot a copy from a name nobody has, to one a role cannot hold, or two into one', function (Closure $declare, string $message) {
+    $catalog = new InMemoryPermissionCatalog;
+    $declare($catalog);
+
+    expect(fn () => $catalog->verify())->toThrow(LogicException::class, $message);
+})->with([
+    'from a name nobody declares or removes' => [function (InMemoryPermissionCatalog $catalog): void {
+        $catalog->declare('platform', new PermissionDefinitionDto('platform.thing.to', group: PermissionGroup::StoreSettings));
+        $catalog->copied('platform', 'catalog.never.declared', 'platform.thing.to');
+    }, 'neither declared nor removed'],
+    'to a name nobody declares' => [function (InMemoryPermissionCatalog $catalog): void {
+        $catalog->removed('catalog', 'catalog.old.thing');
+        $catalog->copied('platform', 'catalog.old.thing', 'platform.never.declared');
+    }, 'not a declared permission a role can hold'],
+]);
+
+it('refuses a copy into another module, into itself, or a second one into the same name', function () {
+    $catalog = new InMemoryPermissionCatalog;
+    $catalog->copied('platform', 'catalog.old.thing', 'platform.thing.to');
+
+    expect(fn () => $catalog->copied('platform', 'platform.thing.from', 'catalog.thing.to'))->toThrow(LogicException::class, 'must start with')
+        ->and(fn () => $catalog->copied('platform', 'platform.thing.to', 'platform.thing.to'))->toThrow(LogicException::class, 'to itself')
+        ->and(fn () => $catalog->copied('platform', 'catalog.other.thing', 'platform.thing.to'))->toThrow(LogicException::class, 'already copied from')
+        ->and(fn () => $catalog->copied('platform', 'NOT a name', 'platform.other.to'))->toThrow(LogicException::class, 'must look like');
 });
 
 it('leaves a name nobody declares or removes alone, and reports it', function () {

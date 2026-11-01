@@ -6,7 +6,6 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
-use Modules\Access\Domain\Exception\AdminOnlyPermission;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
 use Modules\Access\Public\Enums\PermissionAudience;
@@ -49,21 +48,7 @@ it('declares the twelve staff jobs the owner confirmed and the bank account\'s, 
         'b2b.document_type.create',
         'b2b.document_type.deactivate',
         'b2b.document_type.update',
-        'b2b.settings.update',
     ]);
-});
-
-it('keeps the bank account\'s job per store, under Companies, and for admin roles only (amendment 32)', function () {
-    $catalog = app(InMemoryPermissionCatalog::class);
-    $permission = $catalog->definition(B2BPermissions::SETTINGS_UPDATE);
-
-    expect($permission?->kind)->toBe(PermissionKind::PerStore)
-        ->and($permission?->group)->toBe(PermissionGroup::Companies)
-        ->and($permission?->reserved)->toBeFalse()
-        ->and($catalog->isAdminOnly(B2BPermissions::SETTINGS_UPDATE))->toBeTrue()
-        ->and(B2BPermissions::staff())->not->toContain(B2BPermissions::SETTINGS_UPDATE)
-        ->and(Fx::rolePermissions(Fx::role([B2BPermissions::SETTINGS_UPDATE], RoleLevel::Admin)))->toBe([B2BPermissions::SETTINGS_UPDATE])
-        ->and(fn () => Fx::role([B2BPermissions::SETTINGS_UPDATE], RoleLevel::Staff))->toThrow(AdminOnlyPermission::class);
 });
 
 it('makes every staff job per store, offered in the role editor under Companies, and never reserved', function (string $name) {

@@ -26,6 +26,9 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
     /** @var array<string, string> old name => new name */
     private array $renames = [];
 
+    /** @var array<string, string> new holder's name => the name it is copied from, once */
+    private array $copies = [];
+
     /** @var array<string, true> */
     private array $removals = [];
 
@@ -82,6 +85,23 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
         $this->renames[$from] = $to;
     }
 
+    public function copied(string $module, string $from, string $to): void
+    {
+        $this->requireWellFormed(strstr($from, '.', true) ?: $from, $from);
+        $this->requireWellFormed($module, $to);
+
+        if ($from === $to) {
+            throw new InvalidPermissionDefinition("\"{$from}\" cannot be copied to itself.");
+        }
+
+        // Two names copied into one would have to merge two people's store choices for it.
+        if (isset($this->copies[$to])) {
+            throw new InvalidPermissionDefinition("\"{$to}\" is already copied from \"{$this->copies[$to]}\".");
+        }
+
+        $this->copies[$to] = $from;
+    }
+
     public function removed(string $module, string ...$names): void
     {
         foreach ($names as $name) {
@@ -120,6 +140,18 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
 
             if (isset($this->removals[$from])) {
                 throw new InvalidPermissionDefinition("\"{$from}\" is both renamed and removed.");
+            }
+        }
+
+        foreach ($this->copies as $to => $from) {
+            if (! isset($this->definitions[$from]) && ! isset($this->removals[$from])) {
+                throw new InvalidPermissionDefinition("\"{$to}\" is copied from \"{$from}\", which is neither declared nor removed.");
+            }
+
+            $target = $this->definitions[$to] ?? null;
+
+            if ($target === null || $target->audience !== PermissionAudience::Role || $target->reserved) {
+                throw new InvalidPermissionDefinition("\"{$from}\" is copied to \"{$to}\", which is not a declared permission a role can hold.");
             }
         }
 
@@ -182,6 +214,14 @@ final class InMemoryPermissionCatalog implements PermissionCatalog
     public function renames(): array
     {
         return $this->renames;
+    }
+
+    /**
+     * @return array<string, string> new holder's name => the name it is copied from, once
+     */
+    public function copies(): array
+    {
+        return $this->copies;
     }
 
     /**

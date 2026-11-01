@@ -241,7 +241,7 @@ web request, so no route can act as the system, and `RoleAuthorizer` lets the sy
 Platform's wrapper still makes a queued job the system acting for whoever queued it. Customers act
 from step 4; integrations hold nothing yet.
 
-### Renamed and removed permissions
+### Renamed, removed and copied permissions
 
 `PermissionSync` runs at the end of every `php artisan migrate` — on `MigrationsEnded`, and on
 `NoPendingMigrations` because Laravel fires that one instead when there is nothing to migrate. It
@@ -250,6 +250,12 @@ change. Two permissions renamed into one are refused at boot (their store choice
 safely: rename one, remove the other), and a rename never puts a management action into a staff
 role. A name that is neither declared nor removed is left alone and logged: it grants nothing,
 and a module switched off by mistake cannot wipe anyone's roles.
+
+A **copy** (`copied`, amendment 92) gives a new permission to whoever holds another, once: every role
+holding the old name gets the new one, and every exception on it gets one on the new name for the same
+stores. A rename cannot do this, since it replaces the old name and stays inside one module. Each pair
+runs once, recorded in `access.permission_copies`, so a box unticked later stays unticked. The module
+that owns the new name declares the copy, and the old name may be another module's.
 
 ### Staff accounts: invited, then active or disabled — or cancelled
 

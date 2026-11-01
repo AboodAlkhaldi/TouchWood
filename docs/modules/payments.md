@@ -737,7 +737,7 @@ owner 2026-10-28, Super Admins), `payments.timers.wait_minutes` (STORE, 1–10, 
 2026-10-28, Super Admins), `payments.timers.hold_minutes` (STORE, 10–60, default **15** — owner 2026-10-29,
 gap 8.3, Super Admins; always longer than the window and the wait together), `payments.transfer.check_hours` (STORE, 1–720, default **72** — owner 2026-10-27), and the bank
 account's three, moved from B2B (`payments.bank.iban`, `payments.bank.name`, `payments.bank.holder`,
-"may be empty", sensitive).
+"may be empty", not sensitive: §9.10 #2).
 
 ---
 
@@ -1117,3 +1117,23 @@ method from the card's brand.
    the key, still current; days left are counted as calendar days (a daylight-saving day is a whole one).
 10. **Payments' line on the settings page** ("Online payment: … · Bank transfer: …", gap 8.8) is built in
     **step 8b**, with the bank account it names.
+
+### 9.10 The build's own picks (step 8b, 2026-11-01 — simple, taken as recommended under the owner's rule)
+
+1. **A one-time copy in Access** (access.md amendment 92): `PermissionCatalog::copied(module, from, to)`. A rename
+   could not do either job: it stays inside one module and takes the old name away. Two pairs use it:
+   `sales.order.view` → `payments.payment.view` (gap 8.4 (a)) and `b2b.settings.update` →
+   `payments.bank_account.update` (b2b.md amendment 33), after which B2B's name is removed. An exception's stores
+   are copied too, so a person's narrowing holds. Each pair runs once: a box unticked later stays unticked.
+2. **The bank settings stay not sensitive**, though §5 said "sensitive": §1.9 keeps B2B's rules unchanged, and
+   every approved company of the store is shown them. Masking them would also hide a changed IBAN from the audit
+   log, where it is most needed.
+3. **The stored values move in a migration**: each row keeps its value, who saved it and when. A value already
+   under the new name wins.
+4. **B2B → Payments** in the dependency map (handoff §4.4), for `bankAccount` alone, as amendment 33 says the
+   company page reads it from here. Payments depends on nothing of B2B's, so there is no cycle.
+5. **The line's other two states**, beside the two the owner worded in §1.2: "Online payment: on" when live, and
+   "Online payment: stopped — MyFatoorah refused the key; individuals pay through staff until a new one is saved".
+   A gateway in test mode but switched off says "off". The bank's half keeps B2B's words. The line moves from the
+   Companies section to the Payments section, which an admin with either the store settings or the bank account's
+   job sees.
