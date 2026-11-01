@@ -26,6 +26,10 @@
         </table>
     @endif
 
+    @if ($trackLink)
+        <p><a href="{{ $trackLink }}">{{ $trackAction }}</a></p>
+    @endif
+
     @if ($link)
         <p><a href="{{ $link }}">{{ $action }}</a></p>
     @endif

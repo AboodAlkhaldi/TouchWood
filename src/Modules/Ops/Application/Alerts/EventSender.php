@@ -166,6 +166,8 @@ final readonly class EventSender
                 'summary' => $text->summary,
                 'action' => $text->action,
                 'link' => $link,
+                'trackLink' => $text->trackLink,
+                'trackAction' => $text->trackAction,
                 'locale' => $locale,
                 'brand' => $brand,
                 'logo' => $this->root().'/'.self::LOGO,
@@ -174,6 +176,7 @@ final readonly class EventSender
             implode("\n\n", [
                 ...$text->lines,
                 ...($text->summary === [] ? [] : [implode("\n", array_map(static fn (array $row): string => "{$row['label']}: {$row['value']}", $text->summary))]),
+                ...($text->trackLink === null ? [] : ["{$text->trackAction}: {$text->trackLink}"]),
                 ...($link === null ? [] : ["{$text->action}: {$link}"]),
             ]),
         );

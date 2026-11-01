@@ -76,6 +76,7 @@ use Modules\Sales\Public\Events\OrderDelivered;
 use Modules\Sales\Public\Events\OrderEdited;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\OrderRejected;
+use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Sales\Public\Events\OrderShipped;
 use Modules\Sales\Public\Events\PaymentRecorded;
 use Modules\Sales\Public\Events\RefundRecorded;
@@ -126,20 +127,20 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
         $id, $order->number, $order->storeId, $order->customerId, $order->locale, $order->status, $order->shipmentStatus, $order->wayToPay,
         $locale === 'ar' ? [new OrderMessageLineDto('كرسي', [['attribute' => 'اللون', 'value' => 'بني']], 2, Money::of(20000, 'SAR'), false)] : $order->lines,
         $order->subtotal, $order->couponDiscount, $order->pointsDiscount, $order->shipping, $order->vat, $order->total, $order->carrier, $order->trackingNumber, $order->rejectionReason, $order->cancelReason,
-        $order->recipientName, $order->deliveryAddress,
+        $order->recipientName, $order->deliveryAddress, $order->trackingLink,
     ));
     $sales->allows('returnForMessage')->andReturn($return);
     $sales->allows('moneyRecordForMessage')->andReturn($money);
     app()->instance(SalesReports::class, $sales);
 }
 
-function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh'): OrderMessageDto
+function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh', ?string $trackingLink = null): OrderMessageDto
 {
     return new OrderMessageDto(
         strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
-        $carrier, $tracking, $rejection, null, 'Sara Ali', $address,
+        $carrier, $tracking, $rejection, null, 'Sara Ali', $address, $trackingLink,
     );
 }
 
@@ -294,6 +295,34 @@ describe('messages to customers (§1.5)', function () {
             ->and($shipped)->toContain('has been shipped with SMSA')->toContain('Tracking number: TRK123')
             ->and(str_contains($shipped, 'Track your order'))->toBeFalse();
     });
+
+    it('offers Track on C4 only when the order holds a link, beside the number, in the email alone', function (string $locale, string $words) {
+        $sara = Fx::customer('sara@example.test');
+        Wx::set($sara, ['locale' => $locale]);
+        $link = 'https://track.example/?n=1&from=shop';
+
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', tracking: 'TRK123', trackingLink: $link));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        $email = CapturedEmails::installed()->last();
+        $bell = DB::table('ops.inbox_entries')->where('customer_id', $sara)->value('link');
+
+        expect($email->html)->toContain('<a href="'.e($link).'">'.$words.'</a>')->toContain('TRK123')
+            ->and($email->text)->toContain($words.': '.$link)->toContain('TRK123')
+            ->and($bell)->toBe('/sa/'.$locale.'/account/orders/SA-0007');
+
+        // A link and no number: Track alone.
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', trackingLink: $link));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->html)->toContain($words)->not->toContain('TRK123');
+
+        // A number and no link: no Track.
+        eventMessagesSales($order = eventMessagesOrder($sara, carrier: 'SMSA', tracking: 'TRK123'));
+        event(new OrderShipped(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->html)->toContain('TRK123')->not->toContain($words);
+    })->with([
+        'English' => ['en', 'Track your order'],
+        'Arabic' => ['ar', 'تتبّع طلبك'],
+    ]);
 
     it('tells the store\'s return window on delivery, and a cancellation, consent or not: service messages ignore it', function () {
         $sara = Fx::customer('sara@example.test');
@@ -915,10 +944,46 @@ describe('alerts to staff (§1.4, §1.6)', function () {
 });
 
 describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', function () {
+    it('alerts super admins alone on GatewayKeyExpiring, once per event, and sends the SMS only at 1 day', function () {
+        $super = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $super)->update(['critical_sms' => true]);
+        $admin = Fx::staffWith(['sales.order.view'], ['sa'], RoleLevel::Admin);
+        cache()->flush();
+        $sms = RecordingSmsSenders::install();
+        $key = static fn (int $days): GatewayKeyExpiring => new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', $days, '2026-11-30', CarbonImmutable::now());
+
+        event($key(30));
+        event($key(7));
+
+        expect(eventMessagesBell(staffId: $super))->toHaveCount(2)
+            ->and(eventMessagesBell(staffId: $admin))->toBe([])
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('kind')->unique()->all())->toBe(['gateway_key_expiring'])
+            // Nowhere to go: the alert names the key and its date, no page.
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('link')->unique()->all())->toBe([null])
+            ->and($sms->sent)->toBe([]);
+
+        $oneDay = $key(1);
+        event($oneDay);
+        event($oneDay);
+
+        expect(eventMessagesBell(staffId: $super))->toHaveCount(3)
+            ->and(array_column($sms->sent, 'phone'))->toBe([(string) DB::table('access.staff_users')->where('id', $super)->value('phone')])
+            ->and($sms->sent[0]['message'])->toContain('2026-11-30');
+    });
+
+    it('sends an alert\'s email only by the staff member\'s switch, on the Payment problems topic', function () {
+        $super = Fx::staff(superAdmin: true);
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', 30, '2026-11-30', CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->sent)->toBe([]);
+
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', 7, '2026-11-30', CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)]);
+    });
+
     /**
-     * The Stage 7 events are not in main yet (GatewayKeyExpiring, GatewayKeyRejected) and Payments
-     * declares no `payments.gateway.manage` yet: the alert is driven here as their listener will drive
-     * it, with Access's read answering for the people given.
+     * `GatewayKeyRejected` is not in main yet: S5b is driven here as its listener will drive it, with
+     * Access's read answering for the people given.
      */
     it('queues the SMS only at 1 day or for a refused key, only to super admins whose switch is on and who have a phone', function () {
         $deliveries = new class implements EventDeliveries

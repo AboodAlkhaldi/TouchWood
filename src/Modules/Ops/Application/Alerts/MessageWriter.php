@@ -37,7 +37,8 @@ use Shared\Domain\ValueObject\Money;
  * logged with its ids only, never a name or an address: a message never reaches the wrong person.
  *
  * C1 shows the recipient and the delivery address in the email only, never the bell (owner, 2026-10-31); an
- * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one.
+ * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one,
+ * and offers Track only when it holds a tracking link.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -146,7 +147,12 @@ final readonly class MessageWriter
             $values['days'] = (string) (int) $this->platform->setting(self::RETURN_WINDOW, $to->store->storeId())->value;
         }
 
-        return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional, words: $words);
+        $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional, words: $words);
+
+        // C4: the number's line stays whether or not there is a link; "Track" only when a link is stored (§1.5).
+        return $kind === MessageKind::OrderShipped && ! self::blank($order->trackingLink)
+            ? new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, trackLink: $order->trackingLink, trackAction: (string) $this->translator->get('ops::messages.order_shipped.optional.track', [], $locale))
+            : $text;
     }
 
     /** @param  array<string, string> $values */
