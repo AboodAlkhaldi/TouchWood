@@ -11,6 +11,7 @@ use Modules\Feedback\Infrastructure\FeedbackServiceProvider;
 use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
 use Modules\Ops\Infrastructure\OpsServiceProvider;
+use Modules\Payments\Infrastructure\PaymentsServiceProvider;
 use Modules\Platform\Infrastructure\PlatformServiceProvider;
 use Modules\Pricing\Infrastructure\PricingServiceProvider;
 use Modules\Promotions\Infrastructure\PromotionsServiceProvider;
@@ -51,6 +52,9 @@ return [
     // After Platform, Access and Catalog: Shipping declares its permissions through Access and its
     // say over a store's ship-to countries through Platform (handoff §4.4, shipping.md §1.3).
     ShippingServiceProvider::class,
+    // After Platform and Access: Payments declares its permissions through Access and its settings
+    // and their guard through Platform (handoff §4.4, payments.md §2.3).
+    PaymentsServiceProvider::class,
     // Last: Ops reads every module's public surface and declares its permissions through Access;
     // nothing depends on it (handoff §4.4, ops.md §2).
     OpsServiceProvider::class,
