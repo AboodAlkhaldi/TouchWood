@@ -1148,7 +1148,7 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 
 ---
 
-### 4.3 The screens for shipping (stage 7 step 6) — **[DRAFT: waits on the owner's answers, §9.7]**
+### 4.3 The screens for shipping (stage 7 step 6) — **[ACCEPTED by the owner, 2026-11-01]**
 
 Written 2026-11-01 by the screens session, after step 6 merged (#304). It covers what §9.5 #2, #3, #11 and #12
 and §9.6 leave to the screens. §4.1's rules all hold: a reader without the job sees no button, one whom the
@@ -1870,9 +1870,9 @@ As built — **my picks**, for the owner to reject:
     order is staff contact only; a company's bank-transfer order moved by staff to a place no carrier serves
     stays a bank transfer, the fee set by staff before it ships.
 
-### 9.7 The step 6 screens' questions (2026-11-01) — **waits on the owner**
+### 9.7 The step 6 screens' questions (2026-11-01) — **answered**
 
-The screens are §4.3, written to the (a) answers. (a) is my recommendation in each.
+The owner answered **(a) for all fourteen** (2026-11-01: "All as recommended"). The questions are kept as they were asked. The screens are §4.3.
 
 **The shop**
 
@@ -1909,5 +1909,5 @@ The screens are §4.3, written to the (a) answers. (a) is my recommendation in e
   leaves the fee out **[Recommended]**; (b) allowed with no line; (c) refused until the fee is set: a rule change, and
   it needs the backend.
 
-**Your call from the backend's list** (§9.6): pick #11 says a company's bank-transfer order moved by staff to a place no
-carrier serves stays a bank transfer. The screens say so in the preview; tell me if you reject it.
+**From the backend's list** (§9.6): pick #11 says a company's bank-transfer order moved by staff to a place no
+carrier serves stays a bank transfer. The screens say so in the preview; the owner didn't reject it.
