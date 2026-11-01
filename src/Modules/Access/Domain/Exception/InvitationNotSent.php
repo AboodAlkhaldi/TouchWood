@@ -10,7 +10,8 @@ use Shared\Domain\Error\ErrorCategory;
  * The invitation's email could not be sent (amendment 93). Unlike every other refusal, what was asked
  * **is saved**: the transaction had committed, and only the email failed. An exception so that no
  * caller can say the invitation went by forgetting to look. The provider's failure itself is already
- * in the log; this one, like every DomainError, is not reported.
+ * in the log; this one, like every DomainError, is not reported. Rarely it is a false alarm: a provider
+ * took the email and the send's own record then failed. A second invitation is harmless.
  */
 final class InvitationNotSent extends AccessError
 {

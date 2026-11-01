@@ -9,7 +9,8 @@ use Modules\Access\Domain\Exception\InvitationNotSent;
 /**
  * What became of one invitation's email. The email leaves once the transaction commits, so
  * Invitations cannot answer when it is asked to send: it hands this back, and the handler reads it
- * when its transaction has returned (amendment 93).
+ * when its transaction has returned (amendment 93). Inside a caller's outer transaction the email has
+ * not left yet, so a later failure would reach the log and the audit only; no caller does that today.
  */
 final class InvitationDelivery
 {

@@ -64,7 +64,7 @@ final class RecordingSecurityMessages implements SecurityMessages
     public array $appCodeFailures = [];
 
     /**
-     * The provider is down for the two emails of amendment 93: each throws and is not kept. A real
+     * The provider is down for the emails of amendment 93: each throws and is not kept. A real
      * provider's failure is tested through Ops' own sender too (MessageFailureTest).
      */
     public bool $emailsFail = false;
@@ -130,16 +130,22 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
     {
+        $this->failIfDown();
+
         $this->emailChanges[] = ['staff' => $staff->id, 'to' => $newEmail, 'link' => $link];
     }
 
     public function staffPhoneChanged(StaffDto $staff): void
     {
+        $this->failIfDown();
+
         $this->phoneChanges[] = ['staff' => $staff->id, 'to' => $staff->email];
     }
 
     public function staffAppCodeFailed(StaffDto $staff, DateTimeImmutable $at, bool $locked): void
     {
+        $this->failIfDown();
+
         $this->appCodeFailures[] = ['staff' => $staff->id, 'to' => $staff->email, 'locked' => $locked];
     }
 

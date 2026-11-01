@@ -6,11 +6,13 @@ namespace Modules\Access\Application\Staff;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
+use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Security\SecretTokens;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Domain\Model\StaffUser;
 use Modules\Access\Domain\Repository\StaffTokenRepository;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Platform\Public\Contracts\PlatformApi;
 
 /**
  * Every invitation link, from wherever it is sent. A new link replaces the earlier one and its
@@ -26,6 +28,7 @@ final readonly class Invitations
         private StaffSecuritySettings $settings,
         private SecurityMessages $messages,
         private StaffLinks $links,
+        private PlatformApi $platform,
         private Connection $db,
     ) {}
 
@@ -47,7 +50,12 @@ final readonly class Invitations
         // callbacks of this commit too.
         $this->db->afterCommit(fn () => rescue(
             fn () => $this->messages->staffInvitation(StaffMapper::toDto($staff), $this->links->invitation($invitation['token'])),
-            fn () => $delivery->fail(),
+            function () use ($delivery, $staff): void {
+                $delivery->fail();
+                // Beside any entry the transaction wrote: "invitation resent" says a link was issued, this
+                // says the email did not go. Never a reason to stop what follows.
+                rescue(fn () => $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_not_sent', $staff)));
+            },
         ));
 
         return $delivery;

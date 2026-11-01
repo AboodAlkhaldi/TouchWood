@@ -16,6 +16,7 @@ use Modules\Access\Application\Staff\InvitationDelivery;
 use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Application\Staff\StaffLinks;
 use Modules\Access\Application\Staff\StaffMapper;
+use Modules\Access\Domain\Exception\EmailChangeLinkNotSent;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
 use Modules\Access\Domain\Exception\InvitationNotSent;
@@ -56,13 +57,16 @@ final readonly class ChangeStaffEmailHandler
 
     /**
      * @throws InvitationNotSent someone still invited: the new email is saved; only the email failed
+     * @throws EmailChangeLinkNotSent someone active: the link is saved; only the email failed
      */
     public function handle(ChangeStaffEmail $command): void
     {
         $this->rules->requireSomewhere(self::PERMISSION);
         $email = EmailAddress::of($command->newEmail);
 
-        $delivery = $this->db->transaction(function () use ($command, $email): ?InvitationDelivery {
+        $linkFailed = false;
+
+        $delivery = $this->db->transaction(function () use ($command, $email, &$linkFailed): ?InvitationDelivery {
             $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
 
             foreach ($this->rules->scopesFor($this->assignments->byStaff($target->id())?->staffStores()) as $scope) {
@@ -102,13 +106,25 @@ final readonly class ChangeStaffEmailHandler
             $this->tokens->putEmailChange($target->id(), $email, $link['hash'], CarbonImmutable::now()->addHours($this->settings->emailChangeHours()), $author->staffId);
             $this->platform->recordAudit(new AuditEntryDto('access.staff_user.email_change_requested', 'access.staff_user', $target->id(), null, AuditChanges::none()->personal('email')));
 
-            // Sent to the new address: it becomes the email only once its owner uses the link.
-            $this->db->afterCommit(fn () => $this->messages->staffEmailChange(StaffMapper::toDto($target), $email->value, $this->links->emailChange($link['token'])));
+            // Sent to the new address: it becomes the email only once its owner uses the link. A
+            // provider's failure goes to the log and leaves the change saved (amendment 93).
+            $this->db->afterCommit(function () use ($target, $email, $link, &$linkFailed): void {
+                rescue(
+                    fn () => $this->messages->staffEmailChange(StaffMapper::toDto($target), $email->value, $this->links->emailChange($link['token'])),
+                    function () use (&$linkFailed): void {
+                        $linkFailed = true;
+                    },
+                );
+            });
 
             return null;
         }, 3);
 
         $delivery?->requireSent();
+
+        if ($linkFailed) {
+            throw new EmailChangeLinkNotSent;
+        }
     }
 
     /**

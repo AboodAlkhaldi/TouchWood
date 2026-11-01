@@ -92,8 +92,11 @@ return [
     'invitation_resent' => 'Invitation resent',
     // Amendment 93: what was asked is saved, only the email failed. Said in amber, never as a success.
     'invitation_not_sent' => 'Account created, but the invitation email couldn\'t be sent. Press Resend Invitation',
-    'invitation_resend_failed' => 'The invitation email couldn\'t be sent. Press Resend Invitation to try again',
-    'email_changed_invitation_not_sent' => 'Email changed, but the invitation email couldn\'t be sent. Press Resend Invitation',
+    'invitation_not_sent_ask' => 'Account created, but the invitation email couldn\'t be sent. Ask someone who can view and invite staff to resend it',
+    'invitation_resend_failed' => 'The invitation email couldn\'t be sent, and the earlier link no longer works. Press Resend Invitation to try again',
+    'email_changed_invitation_not_sent' => 'Email changed, but the invitation email couldn\'t be sent, and the earlier link no longer works. Press Resend Invitation',
+    'email_changed_invitation_not_sent_ask' => 'Email changed, but the invitation email couldn\'t be sent, and the earlier link no longer works. Ask someone who can view and invite staff to resend it',
+    'email_link_not_sent' => 'The change is saved, but the link couldn\'t be sent to the new address. Enter the address again to send a new link',
     'invitation_cancelled' => 'Invitation cancelled',
     // C6 - one person's role and stores.
     'role_saved' => 'Role and stores saved',

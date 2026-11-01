@@ -9,14 +9,24 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Testing\PendingCommand;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
+use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitation;
+use Modules\Access\Application\Command\AcceptStaffInvitation\AcceptStaffInvitationHandler;
+use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmail;
+use Modules\Access\Application\Command\ChangeStaffEmail\ChangeStaffEmailHandler;
+use Modules\Access\Application\Command\ConfirmStaffEmailChange\ConfirmStaffEmailChange;
+use Modules\Access\Application\Command\ConfirmStaffEmailChange\ConfirmStaffEmailChangeHandler;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
 use Modules\Access\Application\Command\InviteStaff\InviteStaff;
 use Modules\Access\Application\Command\InviteStaff\InviteStaffHandler;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomer;
 use Modules\Access\Application\Command\RegisterCustomer\RegisterCustomerHandler;
+use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitation;
+use Modules\Access\Application\Command\ResendStaffInvitation\ResendStaffInvitationHandler;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Settings\StaffSecuritySettings;
 use Modules\Access\Application\Staff\Invitations;
+use Modules\Access\Domain\Exception\InvalidOrExpiredLink;
 use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\Repository\StaffUserRepository;
 use Modules\Access\Domain\ValueObject\RoleLevel;
@@ -29,6 +39,7 @@ use Shared\Application\Actor;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
+use Tests\Modules\Access\Support\AuthenticatorFixtures as App;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
@@ -358,4 +369,334 @@ describe('the console while the provider is down', function () {
             ->and(DB::table('access.staff_users')->where('id', $staffId)->value('is_super_admin'))->toBeTrue();
         messageFailureProviderIsReported();
     });
+});
+
+/**
+ * The admin of the Saudi store holding exactly these permissions, signed in completely.
+ *
+ * @param  list<string>  $permissions
+ */
+function messageFailureAdminHolding(array $permissions): AdminBrowser
+{
+    return messageFailureSignIn(Fx::staffWith($permissions, ['sa'], RoleLevel::Admin));
+}
+
+function messageFailureSignIn(string $staffId): AdminBrowser
+{
+    $browser = new AdminBrowser('10.6.2.'.random_int(20, 250));
+
+    $browser->post('/admin/sign-in', [
+        'email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'),
+        'password' => Fx::STAFF_PASSWORD,
+    ])->assertRedirect('/admin/sign-in/code');
+
+    $browser->post('/admin/sign-in/code', ['code' => messageFailureOutbox()->lastCode()])->assertRedirect('/admin');
+
+    return $browser;
+}
+
+/**
+ * Someone a store's admin manages, in the Saudi store, with this status.
+ */
+function messageFailureMember(StaffStatus $status): string
+{
+    $staffId = Fx::staff($status);
+    Fx::assign($staffId, Fx::role([PlatformPermissions::STORE_UPDATE]), ['sa']);
+
+    return $staffId;
+}
+
+function messageFailureAcceptAs(string $token): void
+{
+    Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+    app(AcceptStaffInvitationHandler::class)->handle(new AcceptStaffInvitation($token, 'a long enough password', '+966501111111'));
+}
+
+function messageFailureInviteDirectly(): string
+{
+    Fx::actAsAdmin(['sa'], [AccessPermissions::STAFF_INVITE, AccessPermissions::STAFF_UPDATE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+
+    return app(InviteStaffHandler::class)->handle(new InviteStaff(
+        'noura@example.test', 'Noura', 'Saleh', 'Store keeper', '1995-03-10', 'SA', null, '+966501111111', 'en',
+        AccessLevel::SelectedStores, [Fx::storeId('sa')], savedRoleId: Fx::role([PlatformPermissions::STORE_UPDATE]),
+    ));
+}
+
+describe('a customer resending their link', function () {
+    it('tells the truth when the send fails, logs it, and does not count the press', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        $browser->post('/sa/en/account/sign-in', [
+            'email' => (string) DB::table('access.customers')->where('id', $customerId)->value('email'),
+            'password' => Fx::CUSTOMER_PASSWORD,
+        ])->assertRedirect('/sa/en');
+        $fromRegistering = count(messageFailureOutbox()->emailVerifications);
+        messageFailureOutbox()->emailsFail = true;
+
+        // More presses than the limit allows, none of them counted.
+        foreach (range(1, 5) as $press) {
+            $failed = $browser->post('/sa/en/account/verify-email/resend');
+
+            expect(AdminBrowser::formError($failed))->toBe(__('access::errors.verification_email_not_sent.detail'))
+                ->and(AdminBrowser::flashed($failed, 'status'))->toBeNull();
+        }
+
+        messageFailureProviderIsReported();
+
+        // Back up: the 3 an hour are all still there, and the fourth is refused as ever.
+        messageFailureOutbox()->emailsFail = false;
+
+        foreach (range(1, 3) as $press) {
+            $sent = $browser->post('/sa/en/account/verify-email/resend');
+
+            expect(AdminBrowser::flashed($sent, 'status'))->toBe(__('access::auth.verification_sent'));
+        }
+
+        $refused = $browser->post('/sa/en/account/verify-email/resend');
+
+        expect(AdminBrowser::flashed($refused, 'status'))->toBeNull()
+            ->and(AdminBrowser::formError($refused))->not->toBeNull()
+            ->and(messageFailureOutbox()->emailVerifications)->toHaveCount($fromRegistering + 3);
+    });
+
+    it('counts a press that is sent before a later one fails', function () {
+        $customerId = Fx::customer();
+        $browser = new AdminBrowser;
+        $browser->post('/sa/en/account/sign-in', [
+            'email' => (string) DB::table('access.customers')->where('id', $customerId)->value('email'),
+            'password' => Fx::CUSTOMER_PASSWORD,
+        ]);
+        $fromRegistering = count(messageFailureOutbox()->emailVerifications);
+
+        foreach ([false, true, false, true, false, false] as $down) {
+            messageFailureOutbox()->emailsFail = $down;
+            $browser->post('/sa/en/account/verify-email/resend');
+        }
+
+        // Three sent and two given back; the sixth press is the fourth to count, and is refused.
+        expect(messageFailureOutbox()->emailVerifications)->toHaveCount($fromRegistering + 3);
+    });
+});
+
+describe('a failed resend, and the old link', function () {
+    it('kills the old link after a failed resend, says so, and audits both truths', function () {
+        $staffId = messageFailureInviteDirectly();
+        $old = messageFailureOutbox()->lastInvitationToken();
+        messageFailureOutbox()->emailsFail = true;
+
+        expect(fn () => app(ResendStaffInvitationHandler::class)->handle(new ResendStaffInvitation($staffId)))->toThrow(InvitationNotSent::class)
+            ->and(Fx::audits('access.staff_user.invitation_resent', $staffId))->toBe(1)
+            ->and(Fx::audits('access.staff_user.invitation_not_sent', $staffId))->toBe(1)
+            ->and(fn () => messageFailureAcceptAs($old))->toThrow(InvalidOrExpiredLink::class);
+
+        foreach (['en' => 'the earlier link no longer works', 'ar' => 'الرابط السابق لم يعد يعمل'] as $locale => $words) {
+            expect(__('access::staff.invitation_resend_failed', [], $locale))->toContain($words)
+                ->and(__('access::staff.email_changed_invitation_not_sent', [], $locale))->toContain($words);
+        }
+    });
+
+    it('kills the old link after a failed email change on someone invited', function () {
+        $staffId = messageFailureInviteDirectly();
+        $old = messageFailureOutbox()->lastInvitationToken();
+        messageFailureOutbox()->emailsFail = true;
+
+        expect(fn () => app(ChangeStaffEmailHandler::class)->handle(new ChangeStaffEmail($staffId, 'corrected@example.test')))->toThrow(InvitationNotSent::class)
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('email'))->toBe('corrected@example.test')
+            ->and(Fx::audits('access.staff_user.invitation_not_sent', $staffId))->toBe(1)
+            ->and(fn () => messageFailureAcceptAs($old))->toThrow(InvalidOrExpiredLink::class);
+    });
+
+    it('writes no failure entry when the email went', function () {
+        $staffId = messageFailureInviteDirectly();
+
+        app(ResendStaffInvitationHandler::class)->handle(new ResendStaffInvitation($staffId));
+
+        expect(Fx::audits('access.staff_user.invitation_resent', $staffId))->toBe(1)
+            ->and(Fx::audits('access.staff_user.invitation_not_sent', $staffId))->toBe(0);
+    });
+});
+
+describe('the staff sign-in notices while the provider is down', function () {
+    it('still signs in a Super Admin whose phone was replaced', function () {
+        $superAdmin = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $superAdmin)->update(['phone' => '+971501234567']);
+        $browser = new AdminBrowser;
+        $browser->post('/admin/sign-in', [
+            'email' => (string) DB::table('access.staff_users')->where('id', $superAdmin)->value('email'),
+            'password' => Fx::STAFF_PASSWORD,
+        ])->assertRedirect('/admin/sign-in/phone');
+        $browser->post('/admin/sign-in/phone', ['phone' => '+966507777777'])->assertRedirect('/admin/sign-in/code');
+        messageFailureOutbox()->emailsFail = true;
+
+        $browser->post('/admin/sign-in/code', ['code' => messageFailureOutbox()->lastCode()])->assertRedirect('/admin');
+
+        expect(DB::table('access.staff_users')->where('id', $superAdmin)->value('phone'))->toBe('+966507777777')
+            ->and(messageFailureOutbox()->phoneChanges)->toBe([]);
+        messageFailureProviderIsReported();
+        $browser->get('/admin')->assertOk();
+    });
+
+    it('answers the wrong-code refusal when the notice of used-up tries fails', function () {
+        App::methods(sms: false, authenticator: true);
+        $staffId = Fx::staff();
+        $app = App::giveApp($staffId);
+        $tries = app(StaffSecuritySettings::class)->codeAttempts();
+        $browser = new AdminBrowser;
+        $browser->post('/admin/sign-in', [
+            'email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'),
+            'password' => Fx::STAFF_PASSWORD,
+        ])->assertRedirect('/admin/sign-in/app');
+        messageFailureOutbox()->emailsFail = true;
+
+        for ($i = 1; $i < $tries; $i++) {
+            $browser->post('/admin/sign-in/app', ['code' => App::wrongCode($app['secret'])]);
+        }
+
+        $last = $browser->post('/admin/sign-in/app', ['code' => App::wrongCode($app['secret'])]);
+
+        expect(AdminBrowser::formError($last))->toBe(__('access::errors.app_code_tries_used_up.detail'))
+            ->and(Fx::audits('access.staff_user.app_code_tries_used_up', $staffId))->toBe(1)
+            ->and(messageFailureOutbox()->appCodeFailures)->toBe([]);
+        messageFailureProviderIsReported();
+    });
+});
+
+describe('an email change to an active member while the provider is down', function () {
+    it('keeps the link saved, logs the failure, and tells the admin what to do', function () {
+        $staffId = messageFailureMember(StaffStatus::Active);
+        $browser = messageFailureAdminHolding([AccessPermissions::STAFF_VIEW, AccessPermissions::STAFF_UPDATE, PlatformPermissions::STORE_UPDATE]);
+        messageFailureOutbox()->emailsFail = true;
+
+        $answer = $browser->post("/admin/staff/{$staffId}/email", ['email' => 'new.address@example.test']);
+        $answer->assertRedirect();
+
+        expect(AdminBrowser::flashed($answer, 'warning'))->toBe(__('access::staff.email_link_not_sent'))
+            ->and(AdminBrowser::flashed($answer, 'status'))->toBeNull()
+            ->and(DB::table('access.staff_email_changes')->where('staff_user_id', $staffId)->exists())->toBeTrue()
+            ->and(messageFailureOutbox()->emailChanges)->toBe([]);
+        messageFailureProviderIsReported();
+
+        // Asking again, as the words say, sends a link that works.
+        messageFailureOutbox()->emailsFail = false;
+        $again = $browser->post("/admin/staff/{$staffId}/email", ['email' => 'new.address@example.test']);
+
+        expect(AdminBrowser::flashed($again, 'status'))->toBe(__('access::staff.email_link_sent'))
+            ->and(messageFailureOutbox()->emailChanges)->toHaveCount(1);
+
+        Fx::actAs(Actor::guest(strtolower((string) Str::ulid())));
+        app(ConfirmStaffEmailChangeHandler::class)->handle(new ConfirmStaffEmailChange(messageFailureOutbox()->lastEmailChangeToken()));
+
+        expect(DB::table('access.staff_users')->where('id', $staffId)->value('email'))->toBe('new.address@example.test');
+    });
+
+    it('tells a Super Admin changing their own address the same', function () {
+        // Only a Super Admin changes their own: anyone else's goes through an admin.
+        $staffId = Fx::staff(superAdmin: true);
+        $browser = messageFailureSignIn($staffId);
+        messageFailureOutbox()->emailsFail = true;
+
+        $answer = $browser->post('/admin/account/email', ['email' => 'mine@example.test']);
+        $answer->assertRedirect();
+
+        expect(AdminBrowser::flashed($answer, 'warning'))->toBe(__('access::account.email_change_not_sent'))
+            ->and(AdminBrowser::flashed($answer, 'status'))->toBeNull()
+            ->and(AdminBrowser::formError($answer))->toBeNull()
+            ->and(DB::table('access.staff_email_changes')->where('staff_user_id', $staffId)->exists())->toBeTrue();
+        messageFailureProviderIsReported();
+    });
+});
+
+describe('an admin who cannot press Resend Invitation', function () {
+    it('sends an admin who may invite but not view to a page they may see, in the right words', function () {
+        $browser = messageFailureAdminHolding([AccessPermissions::STAFF_INVITE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+        messageFailureOutbox()->emailsFail = true;
+
+        $answer = messageFailureInvite($browser);
+        $answer->assertRedirect('/admin/staff/invite');
+
+        expect(AdminBrowser::flashed($answer, 'warning'))->toBe(__('access::staff.invitation_not_sent_ask'))
+            ->and(__('access::staff.invitation_not_sent_ask'))->toContain('invite staff')
+            ->and(__('access::staff.invitation_not_sent_ask'))->not->toContain(__('access::staff.resend_invitation'));
+
+        $staffId = messageFailureStaffId('noura@example.test');
+        $browser->get('/admin/staff/invite')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('flash.warning', __('access::staff.invitation_not_sent_ask'))
+        );
+        $browser->get("/admin/staff/{$staffId}")->assertNotFound();
+    });
+
+    it('sends the same admin to the form on success too, not to a page that answers not found', function () {
+        $browser = messageFailureAdminHolding([AccessPermissions::STAFF_INVITE, AccessPermissions::STAFF_ASSIGN_ROLE, PlatformPermissions::STORE_UPDATE]);
+
+        $answer = messageFailureInvite($browser);
+        $answer->assertRedirect('/admin/staff/invite');
+
+        expect(AdminBrowser::flashed($answer, 'status'))->toBe(__('access::staff.invitation_sent'));
+    });
+
+    it('tells an admin who may update but not invite that someone else must resend it', function () {
+        $staffId = messageFailureMember(StaffStatus::Invited);
+        $browser = messageFailureAdminHolding([AccessPermissions::STAFF_VIEW, AccessPermissions::STAFF_UPDATE, PlatformPermissions::STORE_UPDATE]);
+        messageFailureOutbox()->emailsFail = true;
+
+        $browser->get("/admin/staff/{$staffId}")->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia
+            ->where('mayChangeEmail', true)
+            ->where('mayResendInvitation', false)
+        );
+
+        $answer = $browser->post("/admin/staff/{$staffId}/email", ['email' => 'corrected@example.test']);
+
+        expect(AdminBrowser::flashed($answer, 'warning'))->toBe(__('access::staff.email_changed_invitation_not_sent_ask'))
+            ->and(__('access::staff.email_changed_invitation_not_sent_ask'))->toContain('invite staff')
+            ->and(__('access::staff.email_changed_invitation_not_sent_ask'))->not->toContain(__('access::staff.resend_invitation'))
+            ->and(DB::table('access.staff_users')->where('id', $staffId)->value('email'))->toBe('corrected@example.test');
+    });
+});
+
+describe('through Ops\' real sender', function () {
+    beforeEach(function () {
+        app()->forgetInstance(SecurityMessages::class);
+    });
+
+    it('records an invitation that failed against the staff member', function () {
+        $emails = CapturedEmails::install();
+        $emails->fails = true;
+        DB::table('ops.sent_messages')->delete();
+
+        try {
+            messageFailureInviteDirectly();
+            $staffId = null;
+        } catch (InvitationNotSent $notSent) {
+            $staffId = $notSent->staffId;
+        }
+
+        expect($staffId)->not->toBeNull()
+            ->and(DB::table('ops.sent_messages')->where('status', 'FAILED')->where('staff_id', $staffId)->count())->toBe(1)
+            ->and(DB::table('ops.sent_messages')->where('status', 'SENT')->count())->toBe(0)
+            ->and($emails->sent)->toBe([]);
+        Exceptions::assertReported(ProviderFailed::class);
+    });
+
+    it('records a console invitation that failed, with no store, and the console says so', function () {
+        $emails = CapturedEmails::install();
+        $emails->fails = true;
+        DB::table('ops.sent_messages')->delete();
+
+        messageFailureConsole('access:super-admin:create', [
+            'email' => 'owner@example.test', 'first_name' => 'Abood', 'last_name' => 'Owner', '--job-title' => 'Founder',
+            '--date-of-birth' => '1995-01-01', '--country' => 'SA', '--phone' => '+966501112233', '--locale' => 'en',
+        ])->expectsOutputToContain('could not be sent')->assertFailed()->run();
+
+        $staffId = messageFailureStaffId('owner@example.test');
+
+        expect(DB::table('ops.sent_messages')->where('status', 'FAILED')->where('staff_id', $staffId)->whereNull('store_id')->count())->toBe(1);
+        Exceptions::assertReported(ProviderFailed::class);
+    });
+});
+
+it('names the badge a customer must press, in both languages', function () {
+    // auth.registered sends them to the header's badge by its label: renaming one must fail here.
+    foreach (['en', 'ar'] as $locale) {
+        expect(__('access::auth.registered', [], $locale))->toContain(__('access::auth.verify_pending', [], $locale));
+    }
 });
