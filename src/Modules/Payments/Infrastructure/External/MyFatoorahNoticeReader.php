@@ -17,12 +17,10 @@ final class MyFatoorahNoticeReader implements NoticeReader
 {
     private const int PAYMENT_STATUS_CHANGED = 1;
 
+    private const int LONGEST_REFERENCE = 200;
+
     public function read(string $body, ?string $signature, #[\SensitiveParameter] array $secrets): NoticeReading
     {
-        if ($signature === null || $signature === '' || $secrets === []) {
-            return new NoticeReading(false);
-        }
-
         try {
             $notice = json_decode($body, true, 32, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
         } catch (JsonException) {
@@ -39,6 +37,10 @@ final class MyFatoorahNoticeReader implements NoticeReader
             return new NoticeReading(true);
         }
 
+        if ($signature === null || $signature === '' || $secrets === []) {
+            return new NoticeReading(false);
+        }
+
         $signed = implode(',', [
             'Invoice.Id='.(self::path($notice, 'Data', 'Invoice', 'Id') ?? ''),
             'Invoice.Status='.(self::path($notice, 'Data', 'Invoice', 'Status') ?? ''),
@@ -49,13 +51,29 @@ final class MyFatoorahNoticeReader implements NoticeReader
 
         foreach ($secrets as $secret) {
             if (hash_equals(base64_encode(hash_hmac('sha256', $signed, $secret, true)), $signature)) {
-                $reference = self::path($notice, 'Event', 'Reference');
-
-                return new NoticeReading(true, $reference === '' ? null : $reference, MyFatoorahScrub::clean($notice));
+                return self::signed($notice, $body);
             }
         }
 
         return new NoticeReading(false);
+    }
+
+    /**
+     * A signed notice we could not store would come back 500 and be sent again for nothing: the attempt's own
+     * checks cover it, so it is thanked and dropped. Its reference and most of its body are unsigned.
+     *
+     * @param  array<array-key, mixed>  $notice
+     */
+    private static function signed(array $notice, string $body): NoticeReading
+    {
+        $reference = self::path($notice, 'Event', 'Reference');
+        $payload = MyFatoorahScrub::clean($notice);
+
+        if ($reference === null || $reference === '' || strlen($reference) > self::LONGEST_REFERENCE || str_contains($body, '\\u0000') || json_encode($payload) === false) {
+            return new NoticeReading(true);
+        }
+
+        return new NoticeReading(true, $reference, $payload);
     }
 
     /**

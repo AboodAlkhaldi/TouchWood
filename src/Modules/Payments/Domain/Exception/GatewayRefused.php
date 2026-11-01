@@ -7,7 +7,8 @@ namespace Modules\Payments\Domain\Exception;
 use Shared\Domain\Error\ErrorCategory;
 
 /**
- * The gateway answered and said no (payments.md §7). Its own words are logged and shown to staff only.
+ * The gateway answered and said no (payments.md §7). Its own words stay out of the answer a page gets:
+ * they are in the call's log, and `$reason` is for staff's screens only.
  */
 final class GatewayRefused extends PaymentsError
 {
@@ -24,10 +25,5 @@ final class GatewayRefused extends PaymentsError
     public function category(): ErrorCategory
     {
         return ErrorCategory::Invalid;
-    }
-
-    public function context(): array
-    {
-        return ['reason' => $this->reason];
     }
 }

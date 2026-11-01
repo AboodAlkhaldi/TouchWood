@@ -42,7 +42,7 @@ return [
     ],
     'gateway_refused' => [
         'title' => 'رفضت بوابة الدفع',
-        'detail' => 'رفضت MyFatoorah هذا الطلب: :reason',
+        'detail' => 'لم تقبل بوابة الدفع هذا الطلب. حاول مرة أخرى أو اطلب مساعدة موظفينا.',
     ],
     'gateway_key_refused' => [
         'title' => 'رُفض المفتاح',

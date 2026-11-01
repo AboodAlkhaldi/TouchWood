@@ -43,7 +43,7 @@ return [
     ],
     'gateway_refused' => [
         'title' => 'The Payment Gateway Said No',
-        'detail' => 'MyFatoorah refused this: :reason',
+        'detail' => 'The payment gateway did not accept this. Try again, or ask our staff to help.',
     ],
     'gateway_key_refused' => [
         'title' => 'The Key Was Refused',

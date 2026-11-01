@@ -15,6 +15,7 @@ use Modules\Payments\Domain\Exception\GatewayNotSetUp;
 use Modules\Payments\Domain\Exception\GatewayRefused;
 use Modules\Payments\Domain\Exception\GatewayUnreachable;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
+use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoGatewayKey;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Enums\PaymentMode;
@@ -34,7 +35,7 @@ final readonly class RegisterApplePayDomainHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidPaymentsInput|GatewayNotSetUp|NoGatewayKey|GatewayRefused|GatewayUnreachable
+     * @throws Unauthorized|InvalidPaymentsInput|GatewayNotSetUp|NoGatewayKey|KeyPermissionMissing|GatewayRefused|GatewayUnreachable
      */
     public function handle(RegisterApplePayDomain $command): void
     {
@@ -53,7 +54,8 @@ final readonly class RegisterApplePayDomainHandler
         $access = $this->accesses->current($store, $mode) ?? throw new NoGatewayKey($mode);
 
         // Outside the lock: nothing waits on MyFatoorah's answer. Asked again even when listed: Apple may
-        // need a domain revalidated (§1.2).
+        // need a domain revalidated (§1.2). A key without this one permission still takes payments, so
+        // KeyPermissionMissing only tells the Super Admin what to switch on.
         try {
             $this->client->registerApplePayDomain($access, $domain);
         } catch (GatewayKeyRefused) {

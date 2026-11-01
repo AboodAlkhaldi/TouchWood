@@ -7,8 +7,10 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Modules\Payments\Application\Gateway\GatewayAccess;
@@ -16,6 +18,9 @@ use Modules\Payments\Application\Gateway\GatewayClient;
 use Modules\Payments\Domain\Exception\GatewayKeyRefused;
 use Modules\Payments\Domain\Exception\GatewayRefused;
 use Modules\Payments\Domain\Exception\GatewayUnreachable;
+use Modules\Payments\Domain\Exception\KeyPermissionMissing;
+use Modules\Payments\Domain\Model\GatewayCall;
+use Modules\Payments\Domain\Repository\GatewayCalls;
 use Modules\Payments\Public\Enums\PaymentMode;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Payments\Support\MyFatoorahAnswers as Answers;
@@ -79,10 +84,20 @@ describe('opening a session', function () {
         Sleep::assertNeverSlept();
     });
 
-    it('does not take a session with no id for one', function () {
-        Http::fake([CLIENT_MF.'/*' => Http::response(['IsSuccess' => true, 'Data' => []], 201)]);
+    it('does not take a session with no id for one, nor one too long to keep', function (array $data) {
+        Http::fake([CLIENT_MF.'/*' => Http::response(['IsSuccess' => true, 'Data' => $data], 201)]);
 
         expect(fn () => app(GatewayClient::class)->openSession(clientAccess(), '10.00', 'SAR', 'en', new CarbonImmutable('+1 hour')))->toThrow(GatewayUnreachable::class);
+    })->with([
+        'no id' => [[]],
+        'too long' => [['SessionId' => str_repeat('x', 101)]],
+    ]);
+
+    it('keeps the end we asked for when the answer\'s cannot be read', function () {
+        Http::fake([CLIENT_MF.'/*' => Http::response(Answers::session(expiry: 'not a date'), 201)]);
+        $end = new CarbonImmutable('2027-01-01T10:15:00Z');
+
+        expect(app(GatewayClient::class)->openSession(clientAccess(), '10.00', 'SAR', 'en', $end)->expiresAt->getTimestamp())->toBe($end->getTimestamp());
     });
 });
 
@@ -136,10 +151,78 @@ describe('asking about a payment', function () {
     });
 
     it('does not ask again after the key was refused, and says so', function () {
-        Http::fake([CLIENT_PAYMENT => Http::response(['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'], 401)]);
+        Http::fake([CLIENT_PAYMENT => Http::response(['IsSuccess' => false, 'Message' => 'Unauthorized'], 401)]);
 
         expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayKeyRefused::class)
             ->and(clientCalls())->toBe(1);
+    });
+
+    it('tells a permission the key lacks from a key refused, naming the call', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response(['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'], 401)]);
+
+        try {
+            app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273');
+
+            throw new LogicException('Expected a refusal');
+        } catch (KeyPermissionMissing $e) {
+            expect($e->permission)->toBe('GET /v3/payments/07077320290391998273');
+        }
+    });
+
+    it('asks again after a 4xx that says "not now": it is no refusal', function (int $status) {
+        Http::fake([CLIENT_PAYMENT => Http::response(['IsSuccess' => false, 'Message' => 'Busy'], $status)]);
+
+        expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(3);
+    })->with([408, 409, 423, 425, 429]);
+
+    it('does not follow a redirect: it asks again, then says it does not know', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response('', 302, ['Location' => 'https://elsewhere.example.test/'])]);
+
+        expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(3);
+    });
+
+    it('reads IsSuccess false as text too', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response(['IsSuccess' => 'false', 'Message' => 'No'])]);
+
+        expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayRefused::class);
+    });
+
+    it('does not take a 4xx it cannot read for a no', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response('<html>Forbidden</html>', 403)]);
+
+        expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(3);
+    });
+
+    it('keeps the answer when writing the call down fails, and logs that with no key', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response(Answers::payment())]);
+        app()->instance(GatewayCalls::class, new class implements GatewayCalls
+        {
+            public function record(GatewayCall $call): void
+            {
+                throw new RuntimeException('The log is down');
+            }
+        });
+        $logged = [];
+        Log::listen(function (MessageLogged $message) use (&$logged): void {
+            $logged[] = (string) json_encode([$message->level, $message->message, $message->context]);
+        });
+
+        $answer = app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273');
+
+        expect($answer->transactionStatus)->toBe('SUCCESS')
+            ->and(implode(' ', $logged))->toContain('could not be logged')
+            ->and(implode(' ', $logged))->not->toContain('sk_test_the_secret_key');
+    });
+
+    it('cuts a very long address to what the log can hold', function () {
+        Http::fake([CLIENT_MF.'/*' => Http::response(Answers::payment())]);
+
+        app(GatewayClient::class)->paymentDetails(clientAccess(), str_repeat('9', 400));
+
+        expect(strlen((string) DB::table('payments.calls')->value('endpoint')))->toBe(300);
     });
 
     it('does not ask again after MyFatoorah said no, in a 4xx or in an answer of 200', function (int $status) {
@@ -191,11 +274,17 @@ describe('asking about a session', function () {
         expect([$answer->isUsed, $answer->payment?->paymentId])->toBe([true, '07077320290391998273']);
     });
 
-    it('does not take an answer without IsUsed for "never charged"', function () {
-        Http::fake([CLIENT_MF.'/v3/sessions/KWT-1' => Http::response(['IsSuccess' => true, 'Data' => ['TransactionResult' => null]])]);
+    it('never says "never charged" unless the answer says so clearly', function (array $data) {
+        Http::fake([CLIENT_MF.'/v3/sessions/KWT-1' => Http::response(['IsSuccess' => true, 'Data' => $data])]);
 
         expect(fn () => app(GatewayClient::class)->sessionDetails(clientAccess(), 'KWT-1'))->toThrow(GatewayUnreachable::class);
-    });
+    })->with([
+        'no IsUsed' => [['TransactionResult' => null]],
+        'used, with no result' => [['IsUsed' => true, 'TransactionResult' => null]],
+        'used, with a result it cannot read' => [['IsUsed' => true, 'TransactionResult' => ['Invoice' => ['Id' => '1', 'Status' => 'PENDING']]]],
+        'unused, yet with a result it cannot read' => [['IsUsed' => false, 'TransactionResult' => ['Invoice' => ['Id' => '1']]]],
+        'a result that is not a list' => [['IsUsed' => false, 'TransactionResult' => 'odd']],
+    ]);
 });
 
 describe('the log', function () {
@@ -238,6 +327,15 @@ describe('the log', function () {
             ->and($call?->response)->toBeNull();
     });
 });
+
+it('takes only a clear yes for registering a domain', function (array $answer) {
+    Http::fake([CLIENT_MF.'/v2/RegisterApplePayDomain' => Http::response($answer)]);
+
+    expect(fn () => app(GatewayClient::class)->registerApplePayDomain(clientAccess(), 'shop.example.com'))->toThrow(GatewayUnreachable::class);
+})->with([
+    'nothing' => [[]],
+    'words alone' => [['Message' => 'Done']],
+]);
 
 it('registers a domain for Apple Pay', function () {
     Http::fake([CLIENT_MF.'/v2/RegisterApplePayDomain' => Http::response(['IsSuccess' => true, 'Data' => []])]);

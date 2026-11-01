@@ -40,6 +40,7 @@ final readonly class ViewGatewayHandler
             GatewayView::key($this->gateways->currentKey($store->id, PaymentMode::Test), $store->timezone),
             GatewayView::key($this->gateways->currentKey($store->id, PaymentMode::Live), $store->timezone),
             $gateway === null ? [] : $gateway->applePayDomains,
+            $this->own->domain(),
             ['TEST' => $this->own->noticeUrl($store->id, PaymentMode::Test), 'LIVE' => $this->own->noticeUrl($store->id, PaymentMode::Live)],
         );
     }

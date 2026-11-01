@@ -183,14 +183,26 @@ it('refuses a store with no key, one that does not exist, and a body that is not
         ->and(noticesPost($store, 'test', '"a string"', $notice['signature'])->status())->toBe(401);
 });
 
-it('thanks a notice of another kind and keeps nothing: it is not read, and must not be sent again', function () {
+it('thanks a notice of another kind and keeps nothing: it is not read, and must not be sent again', function (?string $signature) {
     $store = Fx::storeId('sa');
-    noticesKey($store);
     $notice = Answers::notice('whsec_secret_1', code: 2);
 
-    expect(noticesPost($store, 'test', $notice['body'], 'any')->status())->toBe(200)
+    expect(noticesPost($store, 'test', $notice['body'], $signature)->status())->toBe(200)
         ->and(DB::table('payments.notices')->count())->toBe(0);
-});
+})->with(['with one' => ['any'], 'with none' => [null]]);
+
+it('thanks and drops a signed notice it could not store, rather than answering 500', function (Closure $body) {
+    $store = Fx::storeId('sa');
+    noticesKey($store);
+    $notice = Answers::notice('whsec_secret_1');
+
+    expect(noticesPost($store, 'test', $body($notice['body']), $notice['signature'])->status())->toBe(200)
+        ->and(DB::table('payments.notices')->count())->toBe(0);
+})->with([
+    'a very long reference' => [fn (string $body): string => str_replace('"evt-1"', '"'.str_repeat('r', 201).'"', $body)],
+    'a NUL in it' => [fn (string $body): string => str_replace('"10.10"', '"10\\u0000"', $body)],
+    'a number too big to write back' => [fn (string $body): string => str_replace('"10.10"', '1e999', $body)],
+]);
 
 it('keeps nothing of a signed notice with no reference', function () {
     $store = Fx::storeId('sa');
@@ -216,7 +228,7 @@ it('turns away the call over 120 a minute for a store, before any work', functio
     $notice = Answers::notice('whsec_secret_1');
 
     foreach (range(1, PaymentNoticeController::CALLS_A_MINUTE) as $call) {
-        RateLimiter::hit('payments-notice:'.$store, 60);
+        expect(noticesPost($store, 'test', $notice['body'], 'x')->status())->toBe(401);
     }
 
     $response = noticesPost($store, 'test', $notice['body'], $notice['signature']);
@@ -234,7 +246,7 @@ it('turns away one address over 600 a minute, whatever store it names', function
     noticesKey($store);
 
     foreach (range(1, PaymentNoticeController::CALLS_A_MINUTE_AN_ADDRESS) as $call) {
-        RateLimiter::hit('payments-notice-ip:127.0.0.1', 60);
+        expect(noticesPost(strtolower((string) Str::ulid()), 'test', Answers::notice('another')['body'], 'x')->status())->toBe(401);
     }
 
     expect(noticesPost($store, 'test', '{}', 'x')->status())->toBe(429);
@@ -242,7 +254,7 @@ it('turns away one address over 600 a minute, whatever store it names', function
     RateLimiter::clear('payments-notice-ip:127.0.0.1');
 });
 
-it('answers 413 to what is too large to be a notice, before reading it', function () {
+it('answers 413 to what is too large to be a notice', function () {
     $store = Fx::storeId('sa');
     noticesKey($store);
 

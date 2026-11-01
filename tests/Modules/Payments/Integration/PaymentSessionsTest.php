@@ -28,6 +28,7 @@ use Modules\Payments\Domain\Exception\GatewayNotSetUp;
 use Modules\Payments\Domain\Exception\GatewayRefused;
 use Modules\Payments\Domain\Exception\GatewayUnreachable;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
+use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoGatewayKey;
 use Modules\Payments\Domain\Exception\NoOnlinePayment;
 use Modules\Payments\Domain\Repository\Gateways;
@@ -189,7 +190,69 @@ describe('opening a session', function () {
     });
 });
 
+describe('opening the page again (§1.4 step 0)', function () {
+    it('reuses an unused, unexpired session of the same quote, buyer and amount, with no call', function () {
+        Http::fake([SESSIONS_MF.'/v3/sessions' => fn () => Http::response(Answers::session('KWT-'.Str::uuid()), 201)]);
+        $store = sessionsGateway();
+
+        $first = app(PaymentsApi::class)->openSession(sessionsAsk($store));
+        $again = app(PaymentsApi::class)->openSession(sessionsAsk($store));
+
+        expect($again->sessionId)->toBe($first->sessionId)
+            ->and($again->expiresAt->getTimestamp())->toBe($first->expiresAt->getTimestamp())
+            ->and($again->scriptUrl)->toBe($first->scriptUrl);
+        Http::assertSentCount(1);
+    });
+
+    it('opens a new one for another amount, owner or buyer, or once the last was used or is over', function (Closure $change) {
+        Http::fake([SESSIONS_MF.'/v3/sessions' => fn () => Http::response(Answers::session('KWT-'.Str::uuid()), 201)]);
+        $store = sessionsGateway();
+        $first = app(PaymentsApi::class)->openSession(sessionsAsk($store));
+
+        $next = app(PaymentsApi::class)->openSession($change($store));
+
+        expect($next->sessionId)->not->toBe($first->sessionId);
+        Http::assertSentCount(2);
+    })->with([
+        'another amount' => [fn (string $store) => sessionsAsk($store, Money::of(118051, 'SAR'))],
+        'another owner' => [fn (string $store) => new SessionRequestDto(StoreId::fromString($store), 'quote-2', 'buyer-1', Money::of(118050, 'SAR'), 'en', new CarbonImmutable('+15 minutes'))],
+        'another buyer' => [fn (string $store) => new SessionRequestDto(StoreId::fromString($store), 'quote-1', 'buyer-2', Money::of(118050, 'SAR'), 'en', new CarbonImmutable('+15 minutes'))],
+        'used' => [function (string $store) {
+            DB::table('payments.sessions')->update(['used_by' => strtolower((string) Str::ulid())]);
+
+            return sessionsAsk($store);
+        }],
+        'over' => [function (string $store) {
+            DB::table('payments.sessions')->update(['expires_at' => now()->subSecond()]);
+
+            return sessionsAsk($store);
+        }],
+    ]);
+
+    it('does not reuse a session of the other mode', function () {
+        Http::fake([
+            SESSIONS_MF.'/v3/sessions' => Http::response(Answers::session('KWT-TEST'), 201),
+            'https://api-sa.myfatoorah.com/v3/sessions' => Http::response(Answers::session('SAU-LIVE'), 201),
+        ]);
+        $store = sessionsGateway();
+        sessionsGateway(mode: 'LIVE', on: false);
+
+        app(PaymentsApi::class)->openSession(sessionsAsk($store));
+        app(SwitchModeHandler::class)->handle(new SwitchMode($store, 'LIVE'));
+
+        expect(app(PaymentsApi::class)->openSession(sessionsAsk($store))->sessionId)->toBe('SAU-LIVE');
+    });
+});
+
 describe('a key MyFatoorah refuses (§1.2)', function () {
+    it('stops online payment when the key lacks the sessions\' permission: it can take no payment', function () {
+        Http::fake([SESSIONS_MF.'/v3/sessions' => Http::response(['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'], 401)]);
+        $store = sessionsGateway();
+
+        expect(fn () => app(PaymentsApi::class)->openSession(sessionsAsk($store)))->toThrow(NoOnlinePayment::class)
+            ->and(sessionsRejected())->toBe(1);
+    });
+
     it('stops online payment by itself, tells the Super Admins once, and comes back with a new key', function () {
         Http::fakeSequence(SESSIONS_MF.'/v3/sessions')
             ->push(['IsSuccess' => false, 'Message' => 'Unauthorized'], 401)
@@ -294,6 +357,16 @@ describe('registering a domain for Apple Pay (§1.2, gap 8.5)', function () {
         expect(fn () => app(RegisterApplePayDomainHandler::class)->handle(new RegisterApplePayDomain(Fx::storeId('sa'), 'TEST', 'shop.example.com')))->toThrow(GatewayNotSetUp::class);
     });
 
+    it('only names the permission when the key lacks this one: the key still takes payments', function () {
+        Http::fake([SESSIONS_MF.'/v2/RegisterApplePayDomain' => Http::response(['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'], 401)]);
+        $store = sessionsGateway();
+
+        expect(fn () => app(RegisterApplePayDomainHandler::class)->handle(new RegisterApplePayDomain($store, 'TEST', 'shop.example.com')))->toThrow(KeyPermissionMissing::class)
+            ->and(sessionsRejected())->toBe(0)
+            ->and(DB::table('payments.gateway_keys')->whereNotNull('rejected_at')->count())->toBe(0)
+            ->and(app(PaymentsApi::class)->availability(StoreId::fromString($store), PaymentAudience::Individual)->available)->toBeTrue();
+    });
+
     it('lists nothing when MyFatoorah says no, and marks a key it refuses', function () {
         Http::fakeSequence(SESSIONS_MF.'/v2/RegisterApplePayDomain')
             ->push(Answers::refusal('The domain is not verified'), 400)
@@ -322,10 +395,13 @@ it('shows each mode\'s notice address on the gateway page, to paste into MyFatoo
     config(['app.url' => 'https://shop.example.com']);
     $store = sessionsGateway();
 
-    expect(app(ViewGatewayHandler::class)->handle(new ViewGateway($store))->noticeAddresses)->toBe([
-        'TEST' => "https://shop.example.com/payments/notice/{$store}/test",
-        'LIVE' => "https://shop.example.com/payments/notice/{$store}/live",
-    ]);
+    $view = app(ViewGatewayHandler::class)->handle(new ViewGateway($store));
+
+    expect($view->currentDomain)->toBe('shop.example.com')
+        ->and($view->noticeAddresses)->toBe([
+            'TEST' => "https://shop.example.com/payments/notice/{$store}/test",
+            'LIVE' => "https://shop.example.com/payments/notice/{$store}/live",
+        ]);
 });
 
 it('never names a real store\'s key in a stored session', function () {

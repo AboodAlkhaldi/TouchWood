@@ -1,7 +1,7 @@
 # Payments
 
 Each store's online payment gateway - MyFatoorah - its keys, test or live, and the timers of a payment;
-from steps 9-11, the session, the charge, the notices and the payment requests. The specification is
+from steps 10-12, the session, the charge, the notices and the payment requests. The specification is
 [`docs/modules/payments.md`](../../../docs/modules/payments.md) (accepted 2026-10-28; the build's own
 picks in §9.9).
 
@@ -37,7 +37,7 @@ are filled in**: until then `bankAccount()` answers null, checkout offers paying
 line says so. `StoreBankAccount` is the one reader. Not sensitive: every approved company of the store is shown them,
 and a changed IBAN must stay readable in the audit log.
 
-Still to come: the charge, the attempts and handling the notices (step 10); payment requests (step 12).
+Still to come: the charge, the attempts and handling the notices (step 10); Sales's checkout try (step 11); payment requests, the lists and pruning the logs (step 12).
 
 ## How a change runs
 

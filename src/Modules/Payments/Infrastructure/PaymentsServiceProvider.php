@@ -38,7 +38,7 @@ use Modules\Platform\Public\Contracts\SettingsSectionLines;
 
 /**
  * Payments (payments.md): each store's gateway - MyFatoorah - and its keys, and the timers of a payment;
- * from steps 9-11, the session, the charge, the notices and the requests. Backend only; the screens are
+ * the session and the notices; from steps 10-12, the charge and the requests. Backend only; the screens are
  * the screens session's (§4.1).
  */
 final class PaymentsServiceProvider extends ServiceProvider
