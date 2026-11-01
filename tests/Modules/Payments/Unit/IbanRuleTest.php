@@ -5,10 +5,10 @@ declare(strict_types=1);
 use Illuminate\Translation\ArrayLoader;
 use Illuminate\Translation\PotentiallyTranslatedString;
 use Illuminate\Translation\Translator;
-use Modules\B2B\Application\Settings\IbanRule;
+use Modules\Payments\Application\Settings\IbanRule;
 
 /*
-| The IBAN a store's companies transfer to (b2b.md amendment 12(b)): its shape and its check digits
+| The IBAN a store's companies transfer to (payments.md §1.9, b2b.md amendment 12(b)): its shape and its check digits
 | (ISO 13616). The valid numbers are published examples, not accounts; the "ZZ" ones are made to
 | pass the check digits, so their shape is the only thing that can refuse them.
 */

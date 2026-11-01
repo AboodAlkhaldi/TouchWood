@@ -11,7 +11,6 @@ use Modules\B2B\Application\Account\CurrentCompanyAccount;
 use Modules\B2B\Application\Account\SavedAddresses;
 use Modules\B2B\Application\B2BPermissions;
 use Modules\B2B\Application\Query\ApplicationViews;
-use Modules\B2B\Application\Settings\StoreBankAccount;
 use Modules\B2B\Domain\Exception\NotACompanyAccount;
 use Modules\B2B\Domain\Model\Application;
 use Modules\B2B\Domain\Model\Company;
@@ -23,6 +22,7 @@ use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\Repository\DocumentTypeRepository;
 use Modules\B2B\Domain\ValueObject\ApplicationState;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
@@ -57,7 +57,7 @@ final readonly class ViewMyCompanyHandler
         private CompanyTypeRepository $companyTypes,
         private DocumentTypeRepository $documentTypes,
         private ConnectionInterface $db,
-        private StoreBankAccount $storeBankAccount,
+        private PaymentsApi $payments,
         private SavedAddresses $savedAddresses,
         private CarriedOver $carriedOver,
         private PlatformApi $platform,
@@ -192,7 +192,7 @@ final readonly class ViewMyCompanyHandler
 
     /**
      * The home store's bank account (amendment 12(b)), for an approved company only — only it can
-     * order —, and only while bank transfer is on: all three filled in (StoreBankAccount, 13(c)).
+     * order —, and only while bank transfer is on: all three filled in (Payments' answer, 13(c), 33).
      */
     private function bankAccount(Company $company): ?BankAccountView
     {
@@ -200,7 +200,7 @@ final readonly class ViewMyCompanyHandler
             return null;
         }
 
-        $account = $this->storeBankAccount->for(StoreId::fromString($company->homeStoreId()));
+        $account = $this->payments->bankAccount(StoreId::fromString($company->homeStoreId()));
 
         return $account === null ? null : new BankAccountView($account->iban, $account->bank, $account->holder);
     }

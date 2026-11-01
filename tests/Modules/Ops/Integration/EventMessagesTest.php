@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
+use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -44,13 +45,27 @@ use Modules\Ops\Domain\Model\SentMessage;
 use Modules\Ops\Domain\Repository\Inbox;
 use Modules\Ops\Domain\Repository\SentMessages;
 use Modules\Ops\Domain\ValueObject\InboxOwner;
+use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 use Modules\Ops\Infrastructure\Listener\AlertStaff;
+use Modules\Ops\Infrastructure\Listener\TellCustomersAboutCoupon;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\SendEventEmailJob;
 use Modules\Ops\Infrastructure\Queue\SendEventSmsJob;
 use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Ops\Public\Enums\MessageKind;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
+use Modules\Promotions\Public\Events\CouponAssigned;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
+use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
+use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefund;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefundHandler;
+use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
+use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
+use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageLineDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
@@ -62,6 +77,8 @@ use Modules\Sales\Public\Events\OrderEdited;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\OrderRejected;
 use Modules\Sales\Public\Events\OrderShipped;
+use Modules\Sales\Public\Events\PaymentRecorded;
+use Modules\Sales\Public\Events\RefundRecorded;
 use Modules\Sales\Public\Events\ReturnAccepted;
 use Modules\Sales\Public\Events\ReturnCompleted;
 use Modules\Sales\Public\Events\ReturnReceived;
@@ -75,6 +92,7 @@ use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\RecordingSmsSenders;
 use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
+use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
 
@@ -100,8 +118,8 @@ beforeEach(function () {
     eventMessagesSales(null);
 });
 
-/** Sales' read for messages, answering this order for any id, and this return. */
-function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return = null): void
+/** Sales' read for messages, answering this order for any id, this return and this money record. */
+function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return = null, ?MoneyRecordMessageDto $money = null): void
 {
     $sales = Mockery::mock(SalesReports::class);
     $sales->allows('orderForMessage')->andReturnUsing(static fn (string $id, string $locale): ?OrderMessageDto => $order === null ? null : new OrderMessageDto(
@@ -111,17 +129,42 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
         $order->recipientName, $order->deliveryAddress,
     ));
     $sales->allows('returnForMessage')->andReturn($return);
+    $sales->allows('moneyRecordForMessage')->andReturn($money);
     app()->instance(SalesReports::class, $sales);
 }
 
-function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED'): OrderMessageDto
+function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh'): OrderMessageDto
 {
     return new OrderMessageDto(
         strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
-        $carrier, $tracking, $rejection, null, 'Sara Ali', 'King Fahd Road 12, Riyadh',
+        $carrier, $tracking, $rejection, null, 'Sara Ali', $address,
     );
+}
+
+/** A payment or refund of 150.00, as Sales' read gives it. */
+function eventMessagesMoney(string $customerId, string $kind = 'REFUND', string $way = 'BANK_TRANSFER', bool $voided = false): MoneyRecordMessageDto
+{
+    return new MoneyRecordMessageDto(strtolower((string) Str::ulid()), $kind, strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId('sa'), $customerId, Money::of(15000, 'SAR'), $way, '2026-11-01', $voided);
+}
+
+/**
+ * Promotions' reads for C15: this code, and these pages of customers by the cursor they follow ('' for the first).
+ *
+ * @param  array<string, list<string>>  $pages
+ * @param  ArrayObject<int, string|null>|null  $asked  each cursor asked for, in order
+ */
+function eventMessagesPromotions(?string $code, array $pages, ?ArrayObject $asked = null): void
+{
+    $promotions = Mockery::mock(PromotionsApi::class);
+    $promotions->allows('couponCode')->andReturn($code);
+    $promotions->allows('assignedCustomers')->andReturnUsing(static function (string $id, ?string $after, int $limit) use ($pages, $asked): array {
+        $asked?->append($after);
+
+        return $pages[$after ?? ''] ?? [];
+    });
+    app()->instance(PromotionsApi::class, $promotions);
 }
 
 /** A message's row, written QUEUED as a listener writes it; its id. */
@@ -262,7 +305,7 @@ describe('messages to customers (§1.5)', function () {
 
         expect(CapturedEmails::installed()->sent[0]->text)->toContain('within 14 days of delivery')
             ->and(CapturedEmails::installed()->sent[1]->subject)->toBe('Your order SA-0007 is cancelled')
-            ->and(eventMessagesSent($sara))->toBe(['order_delivered EMAIL SENT', 'order_cancelled EMAIL SENT']);
+            ->and(eventMessagesSent($sara))->toEqualCanonicalizing(['order_delivered EMAIL SENT', 'order_cancelled EMAIL SENT']);
     });
 
     it('sends nothing to an anonymized account, nor for an order Sales no longer knows', function () {
@@ -275,6 +318,238 @@ describe('messages to customers (§1.5)', function () {
         event(new OrderApproved(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
 
         expect(eventMessagesBell($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
+    });
+
+    it('shows where the order goes in the order-taken email only, in both languages: escaped, its line breaks kept, nothing in the bell', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        Wx::set($omar, ['locale' => 'ar']);
+        eventMessagesSales($order = eventMessagesOrder($sara, address: "King Fahd Road 12\nRiyadh <b>north</b>"));
+        event(new OrderPlaced(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        $english = CapturedEmails::installed()->for('sara@example.test');
+        eventMessagesSales($theirs = eventMessagesOrder($omar, address: 'طريق الملك فهد 12'));
+        event(new OrderPlaced(eventMessagesId(), $theirs->orderId, Fx::storeId('sa'), $omar, CarbonImmutable::now()));
+        $arabic = CapturedEmails::installed()->for('omar@example.test');
+        $bell = eventMessagesBell($sara)[0];
+
+        expect($english->text)->toContain("Delivery to:\nSara Ali\nKing Fahd Road 12\nRiyadh <b>north</b>")
+            ->and($english->html)->toContain('King Fahd Road 12<br />')->toContain('&lt;b&gt;north&lt;/b&gt;')
+            ->and(str_contains($english->html, '<b>'))->toBeFalse()
+            ->and($arabic->text)->toContain("التوصيل إلى:\nSara Ali\nطريق الملك فهد 12")
+            ->and([$bell->title_en, $bell->line_en])->each->not->toContain('King Fahd');
+    });
+
+    it('has no address line for an order with none, and none in the order-changed email', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales($order = eventMessagesOrder($sara, address: ''));
+        event(new OrderPlaced(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+        $placed = CapturedEmails::installed()->last()->text;
+
+        eventMessagesSales($edited = eventMessagesOrder($sara));
+        event(new OrderEdited(eventMessagesId(), strtolower((string) Str::ulid()), $edited->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(str_contains($placed, 'Delivery to'))->toBeFalse()
+            ->and(str_contains(CapturedEmails::installed()->last()->text, 'Delivery to'))->toBeFalse();
+    });
+
+    it('tells the customer a refund was sent, the amount and the way - once per event', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales(null, null, $record = eventMessagesMoney($sara));
+        $event = new RefundRecorded(eventMessagesId(), $record->moneyRecordId, $record->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now());
+
+        event($event);
+        event($event);
+
+        $bell = eventMessagesBell($sara);
+        $email = CapturedEmails::installed()->last();
+
+        expect($bell)->toHaveCount(1)
+            ->and([$bell[0]->kind, $bell[0]->title_en, $bell[0]->line_en, $bell[0]->link, $bell[0]->store_id])
+            ->toBe(['refund_sent', 'Refund sent for order SA-0007', 'We sent you 150.00 SAR by bank transfer.', '/sa/en/account/orders/SA-0007', Fx::storeId('sa')])
+            ->and(CapturedEmails::installed()->to())->toBe(['sara@example.test'])
+            ->and($email->subject)->toBe('Your refund for order SA-0007 is sent')
+            ->and($email->text)->toContain('Hello Sara,')->toContain('We sent you a refund of 150.00 SAR for order SA-0007, by bank transfer.')
+            ->and(eventMessagesSent($sara))->toBe(['refund_sent EMAIL SENT']);
+    });
+
+    it('writes the refund to an Arabic customer in Arabic, the way in words', function () {
+        $sara = Fx::customer('sara@example.test');
+        Wx::set($sara, ['locale' => 'ar']);
+        eventMessagesSales(null, null, $record = eventMessagesMoney($sara, way: 'OTHER'));
+
+        event(new RefundRecorded(eventMessagesId(), $record->moneyRecordId, $record->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(CapturedEmails::installed()->last()->subject)->toBe('أُرسل استرداد الطلب SA-0007')
+            ->and(CapturedEmails::installed()->last()->text)->toContain('أرسلنا لك استردادًا بمبلغ 150.00 ر.س للطلب SA-0007 عبر طريقة أخرى.')
+            ->and(eventMessagesBell($sara)[0]->link)->toBe('/sa/ar/account/orders/SA-0007');
+    });
+
+    it('tells the customer a payment was received, in their language - once per event', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        Wx::set($omar, ['locale' => 'ar']);
+        eventMessagesSales(null, null, $record = eventMessagesMoney($sara, 'PAYMENT'));
+        $event = new PaymentRecorded(eventMessagesId(), $record->moneyRecordId, $record->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now());
+
+        event($event);
+        event($event);
+
+        $bell = eventMessagesBell($sara);
+        expect($bell)->toHaveCount(1)
+            ->and([$bell[0]->kind, $bell[0]->title_en, $bell[0]->line_en, $bell[0]->link])->toBe(['payment_received', 'Payment received for order SA-0007', 'We received 150.00 SAR.', '/sa/en/account/orders/SA-0007'])
+            ->and(CapturedEmails::installed()->to())->toBe(['sara@example.test'])
+            ->and(CapturedEmails::installed()->last()->subject)->toBe('We received your payment for order SA-0007')
+            ->and(CapturedEmails::installed()->last()->text)->toContain('We received your payment of 150.00 SAR for order SA-0007. Thank you.')
+            ->and(eventMessagesSent($sara))->toBe(['payment_received EMAIL SENT']);
+
+        eventMessagesSales(null, null, $theirs = eventMessagesMoney($omar, 'PAYMENT'));
+        event(new PaymentRecorded(eventMessagesId(), $theirs->moneyRecordId, $theirs->orderId, Fx::storeId('sa'), $omar, CarbonImmutable::now()));
+
+        expect(CapturedEmails::installed()->for('omar@example.test')->text)->toContain('استلمنا دفعتك بمبلغ 150.00 ر.س للطلب SA-0007. شكرًا لك.');
+    });
+
+    it('sends nothing for a money record that is voided, gone, of the other kind, or another customer\'s', function (string $case) {
+        $sara = Fx::customer('sara@example.test');
+        $record = match ($case) {
+            'voided' => eventMessagesMoney($sara, voided: true),
+            'gone' => null,
+            'other kind' => eventMessagesMoney($sara, 'PAYMENT'),
+            'other customer' => eventMessagesMoney(Fx::customer('omar@example.test')),
+            default => throw new LogicException($case),
+        };
+        eventMessagesSales(null, null, $record);
+        $id = strtolower((string) Str::ulid());
+
+        event(new RefundRecorded(eventMessagesId(), $id, $id, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(eventMessagesBell($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([])->and(eventMessagesSent($sara))->toBe([]);
+    })->with(['voided', 'gone', 'other kind', 'other customer']);
+
+    it('sends nothing for a payment that is voided or gone', function (bool $voided) {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales(null, null, $voided ? eventMessagesMoney($sara, 'PAYMENT', voided: true) : null);
+        $id = strtolower((string) Str::ulid());
+
+        event(new PaymentRecorded(eventMessagesId(), $id, $id, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(eventMessagesBell($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
+    })->with([true, false]);
+
+    it('sends no email for a record voided after its message was queued: its row is removed', function () {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales(null, null, eventMessagesMoney($sara, voided: true));
+        $message = new EventMessage(MessageKind::RefundSent, Fx::storeId('sa'), ['moneyRecordId' => strtolower((string) Str::ulid())]);
+        $id = eventMessagesQueued($message, MessageChannel::Email, $sara, null);
+
+        app()->call([new SendEventEmailJob($message, $sara, null, $id), 'handle']);
+
+        expect(eventMessagesSent($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
+    });
+
+    it('writes C1, C9b and C10 from Sales\' own reads, and nothing once the record is voided', function () {
+        seed(CatalogSeeder::class);
+        app()->forgetInstance(SalesReports::class);
+        $ready = Cx::ready();
+        $placed = Cx::place(Cx::start($ready['address'])->id);
+        $store = Fx::storeId('sa');
+        $row = DB::table('sales.orders')->where('id', $placed->id)->first();
+        /** @var array{recipientName: string, formatted: string} $address */
+        $address = json_decode((string) $row?->address, true);
+        $amount = number_format((int) $row?->due_minor / 100, 2, '.', '');
+        $day = CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d');
+        $email = (string) DB::table('access.customers')->where('id', $ready['customer'])->value('email');
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::PAYMENT_RECORD], ['sa']));
+
+        event(new OrderPlaced(eventMessagesId(), $placed->id, $store, $ready['customer'], CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->toEmail)->toBe($email)
+            ->and($address['formatted'])->not->toBe('')
+            ->and(CapturedEmails::installed()->last()->text)->toContain("Delivery to:\n{$address['recipientName']}\n{$address['formatted']}");
+
+        app(ApproveOrderHandler::class)->handle(new ApproveOrder($placed->id));
+        $paid = app(RecordPaymentHandler::class)->handle(new RecordPayment($placed->id, 'BANK_TRANSFER', 'T-1', null, $day, (string) Str::uuid()));
+        event(new PaymentRecorded(eventMessagesId(), $paid, $placed->id, $store, $ready['customer'], CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->text)->toContain("We received your payment of {$amount} SAR for order {$placed->number}.");
+
+        $refund = app(RecordRefundHandler::class)->handle(new RecordRefund($placed->id, '100.00', 'BANK_TRANSFER', 'T-2', null, $day, (string) Str::uuid()));
+        event(new RefundRecorded(eventMessagesId(), $refund, $placed->id, $store, $ready['customer'], CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->last()->text)->toContain("We sent you a refund of 100.00 SAR for order {$placed->number}, by bank transfer.");
+
+        $sent = count(CapturedEmails::installed()->sent);
+        app(VoidMoneyRecordHandler::class)->handle(new VoidMoneyRecord('REFUND', $refund, 'Recorded by mistake'));
+        event(new RefundRecorded(eventMessagesId(), $refund, $placed->id, $store, $ready['customer'], CarbonImmutable::now()));
+        expect(CapturedEmails::installed()->sent)->toHaveCount($sent);
+    });
+
+    it('tells each customer the assignment added their coupon\'s code, in their language, consent or not - once per event', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        Wx::set($sara, ['marketing_consent' => false]);
+        Wx::set($omar, ['locale' => 'ar']);
+        eventMessagesPromotions('SAVE10', ['' => [$sara, $omar]]);
+        $event = new CouponAssigned(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now());
+
+        event($event);
+        event($event);
+
+        $bell = eventMessagesBell($sara);
+        $email = CapturedEmails::installed()->for('sara@example.test');
+
+        expect($bell)->toHaveCount(1)
+            ->and([$bell[0]->kind, $bell[0]->title_en, $bell[0]->line_en, $bell[0]->link, $bell[0]->store_id])
+            ->toBe(['coupon_assigned', 'A coupon for you', 'Use the code SAVE10 at checkout.', '/sa/en/account/coupons', Fx::storeId('sa')])
+            ->and(CapturedEmails::installed()->sent)->toHaveCount(2)
+            ->and($email->subject)->toBe('A coupon for you from Saudi Arabia')
+            ->and($email->text)->toContain('Hello Sara,')->toContain('You have a new coupon. Use the code SAVE10 at checkout.')
+            ->and(CapturedEmails::installed()->for('omar@example.test')->text)->toContain('لديك قسيمة جديدة. استخدم الرمز SAVE10 عند إتمام الطلب.')
+            ->and(eventMessagesBell($omar)[0]->link)->toBe('/sa/ar/account/coupons')
+            ->and(eventMessagesSent($sara))->toBe(['coupon_assigned EMAIL SENT'])
+            ->and(eventMessagesSent($omar))->toBe(['coupon_assigned EMAIL SENT']);
+    });
+
+    it('pages through the customers an assignment added', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        // A full page: Sara and ids of no one, which Access leaves out.
+        $first = [$sara];
+        while (count($first) < TellCustomersAboutCoupon::PAGE) {
+            $first[] = strtolower((string) Str::ulid());
+        }
+        $after = $first[count($first) - 1];
+        $asked = new ArrayObject;
+        eventMessagesPromotions('SAVE10', ['' => $first, $after => [$omar]], $asked);
+
+        event(new CouponAssigned(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now()));
+
+        expect($asked->getArrayCopy())->toBe([null, $after])
+            ->and(CapturedEmails::installed()->to())->toEqualCanonicalizing(['sara@example.test', 'omar@example.test']);
+    });
+
+    it('carries on from where a failure stopped: a customer already told is not told again', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        eventMessagesPromotions('SAVE10', ['' => [$sara, $omar]]);
+        $event = new CouponAssigned(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now());
+        app(HandledEvents::class)->once(TellCustomersAboutCoupon::onceId($event->eventId, $sara), TellCustomersAboutCoupon::class, static fn () => null);
+
+        event($event);
+
+        expect(CapturedEmails::installed()->to())->toBe(['omar@example.test'])->and(eventMessagesBell($sara))->toBe([]);
+    });
+
+    it('sends nothing for a coupon deleted since, and nothing to an anonymized account', function () {
+        $sara = Fx::customer('sara@example.test');
+        $omar = Fx::customer('omar@example.test');
+        Wx::set($omar, ['anonymized_at' => CarbonImmutable::now()->toIso8601String()]);
+        eventMessagesPromotions(null, ['' => [$sara]]);
+        $id = static fn (): string => strtolower((string) Str::ulid());
+        event(new CouponAssigned(eventMessagesId(), $id(), $id(), Fx::storeId('sa'), CarbonImmutable::now()));
+
+        expect(eventMessagesBell($sara))->toBe([])->and(eventMessagesSent($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
+
+        eventMessagesPromotions('SAVE10', ['' => [$omar]]);
+        event(new CouponAssigned(eventMessagesId(), $id(), $id(), Fx::storeId('sa'), CarbonImmutable::now()));
+
+        expect(eventMessagesBell($omar))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
     });
 
     it('puts the bell entry in the event\'s store only: the customer\'s bell in another store shows nothing', function () {
@@ -300,7 +575,7 @@ describe('messages to customers (§1.5)', function () {
 
         expect($refused)->toContain('Reason: Used item')
             ->and(CapturedEmails::installed()->last()->text)->toContain('A refund of 150.00 SAR is owed to you.')
-            ->and(eventMessagesBell($sara)[1]->link)->toBe("/sa/en/account/returns/{$returnId}");
+            ->and(array_column(eventMessagesBell($sara), 'link', 'kind')['return_completed'])->toBe("/sa/en/account/returns/{$returnId}");
     });
 
     it('tells points earned, and points changed by hand signed, with the admin\'s reason', function () {
@@ -371,7 +646,7 @@ describe('messages to customers (§1.5)', function () {
             'We received your return for order SA-0007',
         ])
             ->and(array_map(static fn (object $entry): string => $entry->kind, eventMessagesBell($sara)))->toEqualCanonicalizing(['order_came_back', 'return_accepted', 'return_received'])
-            ->and(eventMessagesSent($sara))->toBe(['order_came_back EMAIL SENT', 'return_accepted EMAIL SENT', 'return_received EMAIL SENT']);
+            ->and(eventMessagesSent($sara))->toEqualCanonicalizing(['order_came_back EMAIL SENT', 'return_accepted EMAIL SENT', 'return_received EMAIL SENT']);
     });
 
     it('skips what no longer stands: an approval of an order no longer approved, an acceptance of a return withdrawn since', function () {

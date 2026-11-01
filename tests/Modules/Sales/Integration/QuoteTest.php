@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\B2B\Public\Contracts\B2BApi;
-use Modules\B2B\Public\Dto\BankAccountDto;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Dto\StoreVariantDto;
 use Modules\Catalog\Public\Enums\SaleMode;
@@ -23,6 +22,8 @@ use Modules\Loyalty\Public\Dto\RedemptionQuote;
 use Modules\Loyalty\Public\Enums\Audience as LoyaltyAudience;
 use Modules\Loyalty\Public\Enums\RedemptionMode;
 use Modules\Loyalty\Public\Enums\RedemptionRefusal;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Pricing\Public\Contracts\PricingApi;
@@ -125,11 +126,12 @@ function quoteMoney(int $minor): Money
 function quoteWith(array $answers): void
 {
     $pass = fn (object $real, string $method): Closure => $answers[$method] ?? fn (mixed ...$arguments): mixed => $real->{$method}(...$arguments);
-    [$b2b, $catalog, $inventory, $promotions, $loyalty] = [app(B2BApi::class), app(CatalogApi::class), app(InventoryApi::class), app(PromotionsApi::class), app(LoyaltyApi::class)];
+    [$b2b, $payments, $catalog, $inventory, $promotions, $loyalty] = [app(B2BApi::class), app(PaymentsApi::class), app(CatalogApi::class), app(InventoryApi::class), app(PromotionsApi::class), app(LoyaltyApi::class)];
 
     $b2bStandIn = Mockery::mock(B2BApi::class);
     $b2bStandIn->shouldReceive('isApproved')->andReturnUsing($pass($b2b, 'isApproved'));
-    $b2bStandIn->shouldReceive('bankAccount')->andReturnUsing($pass($b2b, 'bankAccount'));
+    $paymentsStandIn = Mockery::mock(PaymentsApi::class);
+    $paymentsStandIn->shouldReceive('bankAccount')->andReturnUsing($pass($payments, 'bankAccount'));
     $catalogStandIn = Mockery::mock(CatalogApi::class);
     $catalogStandIn->shouldReceive('storeVariants')->andReturnUsing($pass($catalog, 'storeVariants'));
     $catalogStandIn->shouldReceive('productsOpenTo')->andReturnUsing($pass($catalog, 'productsOpenTo'));
@@ -148,7 +150,7 @@ function quoteWith(array $answers): void
     $pricingStandIn->shouldReceive('totals')->andReturnUsing($pass($pricing, 'totals'));
 
     // The rules are read again when the order is placed: the same stand-ins answer there.
-    $rules = app()->make(QuoteRules::class, ['b2b' => $b2bStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn]);
+    $rules = app()->make(QuoteRules::class, ['b2b' => $b2bStandIn, 'payments' => $paymentsStandIn, 'catalog' => $catalogStandIn, 'inventory' => $inventoryStandIn, 'promotions' => $promotionsStandIn]);
     app()->instance(QuoteRules::class, $rules);
     app()->instance(QuoteBuilder::class, app()->make(QuoteBuilder::class, [
         'rules' => $rules, 'promotions' => $promotionsStandIn, 'loyalty' => $loyaltyStandIn, 'pricing' => $pricingStandIn,

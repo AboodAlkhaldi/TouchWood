@@ -19,7 +19,6 @@ use Modules\B2B\Application\Query\ListCompanies\CompanyReader;
 use Modules\B2B\Application\Query\ShopLine\CompanyStandings;
 use Modules\B2B\Application\Query\ViewTypeLists\TypeHolders;
 use Modules\B2B\Application\Query\ViewTypeLists\ViewTypeListsHandler;
-use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Application\Settings\FormRules;
 use Modules\B2B\Domain\Repository\ApplicationReferenceCounter;
 use Modules\B2B\Domain\Repository\ApplicationRepository;
@@ -40,7 +39,6 @@ use Modules\B2B\Infrastructure\Eloquent\DatabaseTypeHolders;
 use Modules\B2B\Infrastructure\Listener\AnonymizeCompany;
 use Modules\B2B\Infrastructure\Listener\WriteStartingTypes;
 use Modules\B2B\Infrastructure\Media\ApplicationFilesUsage;
-use Modules\B2B\Infrastructure\Settings\BankTransferLine;
 use Modules\B2B\Presentation\Home\CompanyApprovalsCard;
 use Modules\B2B\Presentation\Storefront\CompanyShopperLine;
 use Modules\B2B\Public\Contracts\B2BApi;
@@ -48,7 +46,6 @@ use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
-use Modules\Platform\Public\Contracts\SettingsSectionLines;
 use Modules\Platform\Public\Dto\HomeCardDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Events\StoreCreated;
@@ -82,17 +79,15 @@ final class B2BServiceProvider extends ServiceProvider
         // B2B sits above Access, so it declares its own permissions through Access's public
         // catalog (Access spec §2.2); Access checks them at boot like its own.
         $this->app->make(PermissionCatalog::class)->declare('b2b', ...B2BPermissions::definitions());
+        // The bank account's job went to Payments with the account (amendment 33), which copies it first.
+        $this->app->make(PermissionCatalog::class)->removed('b2b', 'b2b.settings.update');
 
         // A company's papers are Platform media, and every application holding one blocks its
         // delete (b2b.md §1.4).
         $this->app->make(MediaUsages::class)->register('b2b', ApplicationFilesUsage::class);
 
-        // The bank account an approved company transfers to, one per store (amendment 12(b)).
-        $this->app->make(SettingsRegistry::class)->define('b2b', ...BankAccountSettings::definitions());
         // The company form's minimums, one set for every store (amendment 16(b)).
         $this->app->make(SettingsRegistry::class)->define('b2b', ...FormRules::definitions());
-        // Bank transfer is on only while all three are filled in; the section says which (13(c)).
-        $this->app->make(SettingsSectionLines::class)->register('b2b', BankTransferLine::class);
 
         // A store opened later starts with the same type lists as the others, until its admins
         // change them (amendment 6(a)).

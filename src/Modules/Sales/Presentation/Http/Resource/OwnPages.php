@@ -7,7 +7,7 @@ namespace Modules\Sales\Presentation\Http\Resource;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
-use Modules\B2B\Public\Contracts\B2BApi;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -37,7 +37,7 @@ final readonly class OwnPages
 {
     public function __construct(
         private PlatformApi $platform,
-        private B2BApi $b2b,
+        private PaymentsApi $payments,
     ) {}
 
     /**
@@ -62,7 +62,7 @@ final readonly class OwnPages
         $some = fn (Money $amount): ?MoneyData => $amount->isZero() ? null : $money($amount);
         $held = $order->paid->minorUnits - $order->refunded->minorUnits;
         $currency = $order->due->currencyCode;
-        $bank = $order->wayToPay === WayToPay::BankTransfer ? $this->b2b->bankAccount($order->storeId) : null;
+        $bank = $order->wayToPay === WayToPay::BankTransfer ? $this->payments->bankAccount(StoreId::fromString($order->storeId)) : null;
 
         return new OwnOrderPage(
             $order->number,

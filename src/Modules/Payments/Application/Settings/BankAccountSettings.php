@@ -2,27 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Modules\B2B\Application\Settings;
+namespace Modules\Payments\Application\Settings;
 
-use Modules\B2B\Application\B2BPermissions;
+use Modules\Payments\Application\PaymentsPermissions;
 use Modules\Platform\Public\Dto\SettingDefinitionDto;
 use Modules\Platform\Public\Enums\SettingScope;
 use Modules\Platform\Public\Enums\SettingType;
 
 /**
- * The bank account an approved company transfers to (b2b.md §2.3, amendment 12(b)): three settings
- * per store — a store's bank is its own —, changed only by an admin, under B2B's own admin-only
- * `b2b.settings.update` (amendment 32). **They start empty**, meaning not set yet (a text setting
- * that may be empty, platform.md §1.3), and a company is shown them only once all three are filled
- * in, and only while it is approved. Payments owns them from stage 7.
+ * The bank account an approved company transfers to (payments.md §1.9, b2b.md amendment 33): three
+ * settings per store - a store's bank is its own -, changed only by an admin, under
+ * `payments.bank_account.update`. **They start empty**, meaning not set yet (a text setting that may be
+ * empty, platform.md §1.3), and a company is shown them only once all three are filled in, and only
+ * while it is approved.
  */
 final class BankAccountSettings
 {
-    public const string IBAN = 'b2b.bank.iban';
+    public const string IBAN = 'payments.bank.iban';
 
-    public const string BANK = 'b2b.bank.name';
+    public const string BANK = 'payments.bank.name';
 
-    public const string HOLDER = 'b2b.bank.holder';
+    public const string HOLDER = 'payments.bank.holder';
 
     /** One line of text: a bank's or a holder's name. */
     private const string ONE_LINE = 'regex:/\A[^\p{Cc}]+\z/u';
@@ -46,7 +46,7 @@ final class BankAccountSettings
     private static function setting(string $key, array $rules): SettingDefinitionDto
     {
         return new SettingDefinitionDto(
-            $key, SettingScope::Store, SettingType::Text, $rules, '', B2BPermissions::SETTINGS_UPDATE, mayBeEmpty: true,
+            $key, SettingScope::Store, SettingType::Text, $rules, '', PaymentsPermissions::BANK_ACCOUNT_UPDATE, mayBeEmpty: true,
         );
     }
 }

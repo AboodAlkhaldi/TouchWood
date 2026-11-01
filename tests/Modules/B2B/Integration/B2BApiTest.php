@@ -5,15 +5,12 @@ declare(strict_types=1);
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
-use Modules\B2B\Application\Settings\BankAccountSettings;
 use Modules\B2B\Domain\Repository\CompanyRepository;
 use Modules\B2B\Domain\Repository\CompanyTypeRepository;
 use Modules\B2B\Domain\ValueObject\CompanyTypeChoice;
 use Modules\B2B\Domain\ValueObject\InactiveTypeDisplay;
 use Modules\B2B\Public\Contracts\B2BApi;
 use Modules\B2B\Public\Enums\CompanyStatus;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
-use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\B2B\Support\B2BFixtures;
 
@@ -79,46 +76,6 @@ it('gives a company still "Other" no type yet, and never its words (amendment 13
     expect($dto?->typeNameAr)->toBeNull()
         ->and($dto?->typeNameEn)->toBeNull()
         ->and(serialize($dto))->not->toContain('Cooperative');
-});
-
-/**
- * A store's three bank settings, as its staff fill them in. Named for this file: a function declared
- * in a Pest file is global to the whole suite.
- */
-function b2bApiBank(string $storeCode, string $iban, string $bank, string $holder): void
-{
-    foreach ([BankAccountSettings::IBAN => $iban, BankAccountSettings::BANK => $bank, BankAccountSettings::HOLDER => $holder] as $key => $value) {
-        app(UpdateSettingHandler::class)->handle(new UpdateSetting($key, $storeCode, $value));
-    }
-}
-
-describe('the bank account a store\'s companies transfer to (amendment 13(c))', function () {
-    it('gives the store\'s own account once all three are filled in', function () {
-        b2bApiBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
-        b2bApiBank('eg', 'DE89 3704 0044 0532 0130 00', 'Another Bank', 'Another Holder');
-
-        $account = app(B2BApi::class)->bankAccount(Fx::storeId('sa'));
-
-        expect([$account?->iban, $account?->bank, $account?->holder])->toBe(['GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading']);
-    });
-
-    it('gives none while any one of the three is empty: bank transfer is temporarily off', function (string $empty) {
-        b2bApiBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
-        app(UpdateSettingHandler::class)->handle(new UpdateSetting($empty, 'sa', ''));
-
-        expect(app(B2BApi::class)->bankAccount(Fx::storeId('sa')))->toBeNull();
-    })->with([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER]);
-
-    it('gives none for a store that has entered nothing, or that does not exist', function () {
-        b2bApiBank('sa', 'GB82 WEST 1234 5698 7654 32', 'Al Noor Bank', 'TouchWood Trading');
-
-        expect(app(B2BApi::class)->bankAccount(Fx::storeId('eg')))->toBeNull()
-            ->and(app(B2BApi::class)->bankAccount(strtolower((string) Str::ulid())))->toBeNull();
-    });
-
-    it('refuses an id that is not a store id: a caller\'s bug', function () {
-        app(B2BApi::class)->bankAccount('sa');
-    })->throws(InvalidArgumentException::class);
 });
 
 it('still names a type that was deactivated since: the company keeps it', function () {

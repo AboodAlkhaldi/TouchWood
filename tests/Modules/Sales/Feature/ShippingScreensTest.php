@@ -467,7 +467,9 @@ describe('what the review found (§4.3)', function () {
         shippingScreensCarrier('Second', 100, [$region]);
         shippingScreensCarrier('Third', 200, [$region]);
 
-        expect($count())->toBe($one);
+        // The whole request, session and panel frame included; the carriers add none per carrier.
+        expect($count())->toBe($one)
+            ->and($one)->toBe(25);
     });
 });
 

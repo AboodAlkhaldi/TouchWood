@@ -78,9 +78,11 @@ use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
 use Modules\Ops\Infrastructure\Listener\RefreshNewsletterSubscription;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutFeedback;
+use Modules\Ops\Infrastructure\Listener\TellCustomerAboutMoney;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutOrder;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutPoints;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutReturn;
+use Modules\Ops\Infrastructure\Listener\TellCustomersAboutCoupon;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
 use Modules\Ops\Infrastructure\Newsletter\QueuedNewsletter;
 use Modules\Ops\Infrastructure\Pdf\MpdfDailyReportRenderer;
@@ -93,6 +95,7 @@ use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Public\Events\OrderApproved;
 use Modules\Sales\Public\Events\OrderCameBack;
 use Modules\Sales\Public\Events\OrderCancelled;
@@ -101,6 +104,8 @@ use Modules\Sales\Public\Events\OrderEdited;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\OrderRejected;
 use Modules\Sales\Public\Events\OrderShipped;
+use Modules\Sales\Public\Events\PaymentRecorded;
+use Modules\Sales\Public\Events\RefundRecorded;
 use Modules\Sales\Public\Events\ReturnAccepted;
 use Modules\Sales\Public\Events\ReturnCompleted;
 use Modules\Sales\Public\Events\ReturnReceived;
@@ -211,6 +216,12 @@ final class OpsServiceProvider extends ServiceProvider
         foreach ([ReturnAccepted::class, ReturnRefused::class, ReturnReceived::class, ReturnCompleted::class] as $event) {
             Event::listen($event, [TellCustomerAboutReturn::class, 'handle']);
         }
+
+        foreach ([RefundRecorded::class, PaymentRecorded::class] as $event) {
+            Event::listen($event, [TellCustomerAboutMoney::class, 'handle']);
+        }
+
+        Event::listen(CouponAssigned::class, [TellCustomersAboutCoupon::class, 'handle']);
 
         foreach ([PointsEarned::class, PointsChangedByHand::class] as $event) {
             Event::listen($event, [TellCustomerAboutPoints::class, 'handle']);

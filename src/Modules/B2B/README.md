@@ -1,6 +1,6 @@
 # B2B module
 
-**Build stage 3. Depends on Platform and Access** (handoff §4.4). Pricing and Sales will read it.
+**Build stage 3. Depends on Platform and Access, and on Payments for a store's bank account alone** (handoff §4.4). Pricing and Sales will read it.
 
 B2B owns **the company behind a company account**: its details, its documents, and the approval
 that decides whether it may order. It owns nothing about who the person is (Access), what anything
@@ -19,8 +19,8 @@ with each step.
 
 | Folder | What is in it |
 |---|---|
-| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order, a store's bank account while bank transfer is on, and a store's applications sent and approved in a range, for Ops's daily report (amendment 34) |
-| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents nor an "Other" company's words; `BankAccountDto`; `ApplicationCountsDto`, two numbers |
+| `Public/Contracts` | `B2BApi` — what other modules may ask: the company behind an account, its status, whether it may order, and a store's applications sent and approved in a range, for Ops's daily report (amendment 34) |
+| `Public/Dto` | `CompanyDto` — a company as other modules see it, never its documents nor an "Other" company's words; `ApplicationCountsDto`, two numbers |
 | `Public/Enums` | `CompanyStatus` — the four statuses, and the only company status in the system |
 | `Public/Events` | `CompanyStatusChanged`, `CompanyApplicationSubmitted` (with the application's store, amendment 34) — ids only, after commit |
 | `Domain/Model` | `Company` and its state machine; `Application`, draft to decision, with its files, a rejection's flags and requests, and a draft's answers; `CompanyType`, `DocumentType` — the two lists staff manage, one of each per store; `StoreTypeLists`, each store's "copied, not yet reviewed" flag over its two lists |
@@ -28,8 +28,8 @@ with each step.
 | `Domain/Exception` | `B2BError`, the base of every error here, and one class per refusal |
 | `Domain/Repository` | One per aggregate: companies, applications (with their files, flags, requests and answers), the two type lists, the stores' "copied" flags |
 | `Application/Types` | `StartingTypes`, the lists every store starts with; `GiveEveryStoreTheStartingTypes`, which writes them into a store that has none; `StaffTypeAction`, what every staff change to a list shares; `TypeListsNotice`, which clears a store's "copied" notice |
-| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, and the admin-only bank account job (amendment 32), declared into Access's catalog at boot; `B2BApiImpl` |
-| `Application/Settings` | `BankAccountSettings`: the three per-store bank settings, declared into Platform's registry at boot; `IbanRule`, an IBAN's shape and check digits; `StoreBankAccount`, the one reader of the three — no account while any is empty |
+| `Application` | `B2BPermissions` — the two automatic permissions of the company's own side and the twelve staff jobs, declared into Access's catalog at boot; `B2BApiImpl` |
+| `Application/Settings` | `FormRules`: the company form's minimums, declared into Platform's registry at boot |
 | `Application/Events` | `CompanyEvents`: the two events, dispatched inside a use case's transaction |
 | `Application/Command` | The company's own side (step 3b): `StartApplicationDraft`, `SaveApplicationDraft`, `AttachApplicationDocument`, `RemoveApplicationDocument`, `AnswerApplicationRequest`, `RemoveApplicationAnswer`, `SubmitApplication`, `DiscardApplicationDraft`, `UpdateCompanyContact`. Staff (step 4): `ApproveCompany`, `RejectCompany`, `SuspendCompany`, `ReinstateCompany`, `CorrectCompanyType`, `TransferCompanyType`, `DownloadCompanyDocument`; the lists: `Add`/`Rename`/`Move`/`Deactivate`/`ActivateCompanyType`, the same for `DocumentType` with `RequireDocumentType`, and `MarkTypeListsReviewed` |
 | `Application/Query` | `ViewMyCompany` and its read classes — what the account is shown; `OpenMyApplicationFile`, a 30-minute link to one of its own files; staff's `ListCompanies` and `ViewCompany`; `ApplicationViews`, how an application is shown to both; for the staff screens (step 7), `StaffCompanyActionsForReader` — what a reader may do next to one company, and which stores the list may be filtered by — and `ViewTypeLists`, one store's list of one kind with what the reader may do to it; `ApplicationCounts`, the read behind `B2BApi::applicationCounts` (amendment 34) |
@@ -41,7 +41,6 @@ with each step.
 | `Infrastructure/Eloquent` | The database repositories; `DatabaseCompanyReader`, the staff company list; `DatabaseCompanyStandings`, the shop line's one query; `DatabaseApplicationCounts`, a store's applications sent and approved in a range, in one query; `DatabaseApplicationReferenceCounter`, the year's count of application numbers; `TypeNames`, the one "is this name taken" query both lists share; `DatabaseTypeHolders`, how many companies hold each company type of a store, in one query |
 | `Infrastructure/Listener` | `WriteStartingTypes`: a store opened later gets the starting lists, on Platform's `StoreCreated`; `AnonymizeCompany`, on Access's `CustomerAnonymized`, from the queue |
 | `Infrastructure/Media` | `ApplicationFilesUsage`: B2B's answer when Platform asks where a file is used |
-| `Infrastructure/Settings` | `BankTransferLine`: the line at the top of the Companies settings section — bank transfer on, or temporarily off |
 | `Infrastructure/Persistence/Migrations` | The `b2b` schema; the two type tables and the stores' "copied" flags; the companies, applications and their files; a rejection's flags and requests and a draft's answers; the applications' numbers and the yearly counter behind them |
 | `Presentation/Http` | The company's own page (step 6): `MyCompanyController`, its two form requests, and the page's data (`CompanyPage` and its parts, built by `CompanyPages` in the home store's clock). The staff screens (step 7): `StaffCompaniesController` and `StaffTypesController`, `StaffRefusals` (where a refusal is said), the `Staff…Request` form requests, shape only, and the pages' data (`StaffCompanyListPage`, `StaffCompanyPage`, `StaffTypeListPage` and their parts, built by `StaffCompanyPages` and `StaffTypePages`) |
 | `Presentation/Storefront` | `CompanyShopperLine`: the line under the shop's header while a company account cannot order |
@@ -229,7 +228,7 @@ the owner's Latin digits rule, 2026-10-06).
 **One permission per job** (amendments 10 and 11(c)): twelve, in `B2BPermissions::staff()`, named as every
 module's are, an action sharing one with its undo (suspend and reinstate, deactivate and activate).
 Every one is per store and none of the twelve is admin-only: any staff or admin role may be given any
-of them. The bank account's `b2b.settings.update` is apart from them, and admin-only (amendment 32).
+of them.
 Holding one job never grants another — viewing a company does not open its papers, reviewing does
 not suspend.
 
@@ -339,20 +338,10 @@ application creates the company), an approval, a rejection, a suspension, a rein
 reason the company now carries. `CompanyApplicationSubmitted` goes when an application leaves its
 draft, with the store it was made in (amendment 34), so Ops alerts that store's reviewers. A type corrected or an address changed is not a status change and tells nobody.
 
-**The bank account an approved company transfers to** (amendment 12(b)) is three **per-store
-Platform settings** B2B declares — `b2b.bank.iban`, `b2b.bank.name`, `b2b.bank.holder` — changed only
-by an admin, under B2B's own **admin-only** `b2b.settings.update` (amendment 32). They **start empty**, which means "not set
-yet": a Platform addition lets a text setting say it may be empty, and then its rules apply only to a
-value that is not (platform.md §1.3, §9.4). `IbanRule` checks an IBAN's shape (two letters, two
-digits, 11 to 30 letters and digits) and its check digits (ISO 13616, the number modulo 97), with
-spaces ignored; the value is **kept as typed**, so up to 42 characters — 34 in groups of four. No
-country's length is written in: the store knows its own bank; check digits 00, 01 and 99, which no
-IBAN has, are refused though the remainder comes out right for them. **Bank transfer is on only while
-all three are filled in** (amendment 13(c)); until then it is temporarily off and a company pays
-through staff. `StoreBankAccount` is the one reader: `ViewMyCompany` shows the home store's account
-**only while the company is `APPROVED`**, `B2BApi::bankAccount` gives it to Sales (null while off),
-and `BankTransferLine` says which, in one line at the top of the Companies section of the settings
-page — a Platform addition, `SettingsSectionLines`.
+**The bank account an approved company transfers to** is Payments' since stage 7 (amendment 33): B2B asks
+`PaymentsApi::bankAccount`, and `ViewMyCompany` shows the home store's account **only while the company is
+`APPROVED`** and bank transfer is on. Its settings, their rules and the settings line are in
+Payments' README.
 
 **Anonymizing an account** (amendments 12(a), 13(a), scenario 18) runs on Access's
 `CustomerAnonymized`, **from the queue** (`AnonymizeCompany` → `CompanyAnonymizer`), in one

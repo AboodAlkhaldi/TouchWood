@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Reports;
 
 use Generator;
+use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
@@ -25,9 +26,9 @@ use Shared\Domain\ValueObject\Money;
  * (`waitingRefundsVat`), each listed with its own (`estimateVat`). VAT is the goods' alone (owner: no VAT on
  * shipping) - Sales' `vat` is taken as it is, never adjusted here.
  *
- * **Waiting for Sales** - said, never a figure (owner, 2026-10-30): revenue **by category** must be net of
- * refunds too, so the categories add up to the net total - and no Sales read gives refunds by product yet.
- * Its sheet holds the columns and the note, no rows.
+ * **By category** is net of refunds too (owner, 2026-10-30), from Sales' `productNetSales`, each product under
+ * its own category through Catalog, so the categories add up to the Revenue sheet's total; beside it the same
+ * "revenue if the waiting refunds go through", empty where none wait (owner, 2026-11-01).
  *
  * **Money received** is beside it, by the day the money moved (§1.10: "shown beside it, by the day the
  * payment arrived"): payments in and refunds out, by way - `moneyByDay`, one read per store however long the
@@ -35,8 +36,12 @@ use Shared\Domain\ValueObject\Money;
  */
 final readonly class RevenueSheets
 {
+    /** The page `productNetSales` is walked with: the most it allows. */
+    private const int PAGE = 1000;
+
     public function __construct(
         private SalesReports $sales,
+        private CatalogApi $catalog,
     ) {}
 
     /**
@@ -107,9 +112,10 @@ final readonly class RevenueSheets
                     $words->column('category', ColumnType::Text),
                     $words->column('currency', ColumnType::Text),
                     $words->column('revenue', ColumnType::Money),
+                    $words->column('revenue_if_waiting', ColumnType::Money),
                 ],
-                [$words->get('notes.categories')],
-                [],
+                [$words->get('notes.categories'), ...$totals],
+                $this->categoryRows($stores, $period, $words),
             ),
         ];
     }
@@ -317,5 +323,76 @@ final readonly class RevenueSheets
                 }
             }
         }
+    }
+
+    /**
+     * Each store's categories over the whole range, most revenue first, then one total per currency.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @return Generator<int, list<string|int|ReportMoney|null>>
+     */
+    private function categoryRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
+    {
+        // The totals by currency: its decimals, net revenue and the refunds waiting.
+        $exponents = $net = $waiting = [];
+        foreach ($stores as $store) {
+            $exponents[$store->currencyCode] = $store->currencyExponent;
+            $net[$store->currencyCode] = $waiting[$store->currencyCode] = Money::zero($store->currencyCode);
+        }
+
+        foreach ($stores as $store) {
+            $groups = $this->categoryFigures($store, $period);
+            $paths = $this->catalog->categoriesWithPaths(array_values(array_filter(array_keys($groups), static fn (string $category): bool => $category !== '')));
+            uasort($groups, static fn (array $a, array $b): int => $b['net']->compareTo($a['net']));
+
+            foreach ($groups as $category => $figures) {
+                $path = $paths[$category] ?? null;
+                $name = $path === null ? $words->get('no_category') : implode(' › ', array_map(static fn ($step): string => $step->in($words->locale), $path->path));
+                yield self::categoryRow($words->store($store), $name, $store->currencyCode, $store->currencyExponent, $figures['net'], $figures['waiting']);
+                $net[$store->currencyCode] = $net[$store->currencyCode]->add($figures['net']);
+                $waiting[$store->currencyCode] = $waiting[$store->currencyCode]->add($figures['waiting']);
+            }
+        }
+
+        foreach ($net as $currency => $revenue) {
+            yield self::categoryRow($words->get('total'), null, $currency, $exponents[$currency], $revenue, $waiting[$currency]);
+        }
+    }
+
+    /**
+     * One store's net revenue and refunds waiting by category id, a product with no category - or one Catalog
+     * no longer knows - under the empty id: a page of Sales' products and their categories at a time.
+     *
+     * @return array<string, array{net: Money, waiting: Money}>
+     */
+    private function categoryFigures(StoreDto $store, ReportPeriod $period): array
+    {
+        $zero = Money::zero($store->currencyCode);
+        $groups = [];
+        $after = null;
+        do {
+            $page = $this->sales->productNetSales($store->storeId(), $period->start($store), $period->end($store), $after, self::PAGE);
+            $products = $this->catalog->products(array_map(static fn ($row): string => $row->productId, $page->rows));
+            foreach ($page->rows as $row) {
+                $key = $products[$row->productId]->categoryId ?? '';
+                $group = $groups[$key] ?? ['net' => $zero, 'waiting' => $zero];
+                $groups[$key] = ['net' => $group['net']->add($row->revenue)->subtract($row->refunds), 'waiting' => $group['waiting']->add($row->waitingRefunds)];
+            }
+            $after = $page->next;
+        } while ($after !== null);
+
+        return $groups;
+    }
+
+    /** @return list<string|int|ReportMoney|null> */
+    private static function categoryRow(string $store, ?string $category, string $currency, int $exponent, Money $net, Money $waiting): array
+    {
+        return [
+            $store,
+            $category,
+            $currency,
+            new ReportMoney($net, $exponent),
+            $waiting->isZero() ? null : new ReportMoney($net->subtract($waiting), $exponent),
+        ];
     }
 }
