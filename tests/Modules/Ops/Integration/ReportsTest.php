@@ -81,6 +81,15 @@ beforeEach(function () {
     CarbonImmutable::setTestNow(Cx::clockAhead()->addMinutes(30));
 });
 
+/** The English name of the category of a product made by the fixtures (a top category: its path is itself). */
+function reportsCategoryName(string $productId): string
+{
+    $catalog = app(CatalogApi::class);
+    $category = (string) $catalog->product($productId)?->categoryId;
+
+    return $catalog->categoriesWithPaths([$category])[$category]->nameEn;
+}
+
 function reportsToday(): string
 {
     return CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d');
@@ -140,9 +149,86 @@ it('counts revenue as the orders counted by hand: the cancelled and rejected lef
         ->and($paid)->toBeGreaterThan(0)
         // The return still waiting, by return and order number - no customer - with its VAT.
         ->and(Rx::rows($preview, 2))->toBe([['Saudi Arabia', $today, $day['open'], $day['number'], 'SAR', '50.00', '7.50']])
-        // By category waits for Sales' refunds by product (owner, 2026-10-30): no figures at all.
-        ->and(Rx::rows($preview, 3))->toBe([])
-        ->and($preview->report->sheets[3]->notes[1])->toStartWith('Waits for Sales');
+        // By category, net of the refund, and the same figure if the waiting one goes through (owner, 2026-11-01).
+        ->and(Rx::rows($preview, 3))->toBe([
+            ['Saudi Arabia', reportsCategoryName($day['product']), 'SAR', '150.00', '100.00'],
+            ['Total', null, 'SAR', '150.00', '100.00'],
+        ])
+        ->and($preview->report->sheets[3]->notes[1])->toStartWith('Revenue of each category');
+});
+
+it('adds the categories up to the Revenue sheet\'s total, with a completed return and a waiting one, no category and the moment asked', function () {
+    $day = Rx::aDay();
+    // Another category's product, sold whole; a product with no category; and an order after the moment asked.
+    $other = Cx::ready();
+    Cx::place(Cx::start($other['address'])->id);
+    $bare = Cx::ready();
+    Cx::place(Cx::start($bare['address'])->id);
+    // Only a product not ready may have no category: taken back to a draft since.
+    DB::table('catalog.products')->where('id', $bare['product'])->update(['stage' => 'DRAFT', 'category_id' => null]);
+    $late = Cx::ready();
+    $later = Cx::place(Cx::start($late['address'])->id);
+    DB::table('sales.orders')->where('id', $later->id)->update(['placed_at' => CarbonImmutable::now()->addHours(2)]);
+    $today = reportsToday();
+    reportsReader();
+
+    $preview = Rx::preview('revenue', Fx::storeId('sa'), $today, $today);
+    $revenue = Rx::rows($preview);
+    $revenueTotal = $revenue[count($revenue) - 1];
+    $all = Rx::rows($preview, 3);
+    $total = $all[count($all) - 1];
+    $categories = array_slice($all, 0, -1);
+    $byName = [];
+    foreach ($categories as $row) {
+        $byName[(string) $row[1]] = [$row[3], $row[4]];
+    }
+
+    expect($byName)->toEqualCanonicalizing([
+        reportsCategoryName($day['product']) => ['150.00', '100.00'],
+        reportsCategoryName($other['product']) => ['250.00', null],
+        'No category' => ['250.00', null],
+    ])
+        // Most revenue first.
+        ->and($categories[2][3])->toBe('150.00')
+        // The sheet's total is the Revenue sheet's net total, and its waiting column agrees.
+        ->and([$total[3], $total[4]])->toBe(['650.00', '600.00'])
+        ->and([$total[3], $total[4]])->toBe([$revenueTotal[4], $revenueTotal[5]]);
+});
+
+it('takes a refund off its category on the day its return was asked, whatever day the order was placed', function () {
+    $day = Rx::aDay();
+    DB::table('sales.orders')->where('id', $day['delivered'])->update(['placed_at' => CarbonImmutable::now()->subDays(7)]);
+    $today = reportsToday();
+    reportsReader();
+
+    $preview = Rx::preview('revenue', Fx::storeId('sa'), $today, $today);
+
+    // Nothing sold today, 100.00 refunded, 50.00 waiting.
+    expect(Rx::rows($preview, 3))->toBe([
+        ['Saudi Arabia', reportsCategoryName($day['product']), 'SAR', '-100.00', '-150.00'],
+        ['Total', null, 'SAR', '-100.00', '-150.00'],
+    ])
+        ->and(array_slice(Rx::rows($preview)[0], 4, 2))->toBe(['-100.00', '-150.00']);
+});
+
+it('gives every store\'s categories, in the reader\'s language, then one total per currency', function () {
+    $day = Rx::aDay();
+    $today = reportsToday();
+    reportsAMinuteLater();
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+    DB::table('access.staff_users')->update(['locale' => 'ar']);
+    cache()->flush();
+
+    $preview = Rx::preview('revenue', 'all', $today, $today);
+    $category = app(CatalogApi::class)->categoriesWithPaths([(string) app(CatalogApi::class)->product($day['product'])?->categoryId]);
+
+    expect(Rx::rows($preview, 3))->toBe([
+        ['السعودية', array_values($category)[0]->nameAr, 'SAR', '150.00', '100.00'],
+        ['الإجمالي', null, 'SAR', '150.00', '100.00'],
+        ['الإجمالي', null, 'EGP', '0.00', null],
+        ['الإجمالي', null, 'AED', '0.00', null],
+    ])
+        ->and($preview->report->sheets[3]->notes)->toContain('كل المتاجر: كل متجر، ثم إجمالي واحد لكل عملة، دون تحويل أبدًا.');
 });
 
 it('sums the days of a month, and leaves the waiting figure empty when nothing waits', function () {
@@ -556,6 +642,7 @@ it('sums two stores of one currency into one total, never converted', function (
 });
 
 it('reads a preview in a fixed number of queries', function () {
+    config(['session.lottery' => [0, 100]]);
     Rx::aDay();
     $today = reportsToday();
     Fx::actAsStaff(Fx::staff(superAdmin: true));
@@ -576,8 +663,9 @@ it('reads a preview in a fixed number of queries', function () {
     // Measured 2026-10-31, a one-day range. Revenue, one store: the reader (1), revenueByDay (4), moneyByDay
     // (1) = 6, however many days. Every store: the reader, revenueByDay (4 for the store with orders, 2 for
     // each of the two without), moneyByDay for each (3) = 12. Product sales: the reader, productSales (1),
-    // the names (3) = 5.
-    expect($counts)->toBe([6, 12, 5]);
+    // the names (3) = 5. By category adds, measured 2026-11-01: for a store with sales productNetSales (4), its
+    // products (1) and their categories' paths (1) = 6; for a store without, productNetSales (1).
+    expect($counts)->toBe([12, 20, 5]);
 });
 
 it('reads money received day by day over any range in one read, and sums a month\'s days when asked by month', function () {
