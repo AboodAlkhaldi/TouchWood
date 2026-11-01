@@ -440,27 +440,422 @@ default (roles nest).
 
 ## 4 · What the screens agent gets
 
-Data shapes only; the screens are the screens agent's (owner, 2026-10-28). Listed in full in the build
-plan: the two bells (unread count, entries, mark read), the message composer, the notices list and form,
-the subscribers list, the reports page (filters, preview rows, Excel download), the daily reports page
-(make, list, download PDF, the email switch), the customer's consent switch, the shop's newsletter box.
+Data shapes only; the screens are the screens agent's (owner, 2026-10-28). Every fact here is the code's, as
+of the module pass (2026-11-01): the routes in `Presentation/admin-routes.php` and `shop-routes.php`, the
+fields in `Presentation/Http/Resource`. What a screen needs and the code does not give is in §4.13, not here.
+
+### 4.1 What holds for every route
+
+- **The answers are JSON, not pages.** Every GET of §4 answers JSON even to a plain visit, except the two
+  downloads; no route here renders a page (§4.13). The consent switch (§4.8) is Access's and answers with a
+  redirect. The panel's route list carries `ops.admin.*`, the shop's `storefront.*` (`config/ziggy.php`).
+- **Types.** Each `…Data` class below is `#[TypeScript]`: generated in
+  `resources/js/types/generated/Modules/Ops/Presentation/Http/Resource/index.ts`, `MessageKind` in
+  `…/Modules/Ops/Public/Enums/index.ts`. Fields typed `string` there may hold a fixed list named below.
+- **Ask with `Accept: application/json`.** A refusal then comes as a problem document (`ProblemDetails`,
+  `application/problem+json`): `{type, title, status, detail, correlation_id}`, the title and detail in the
+  page's language. Without that header a refused GET gets the panel's or the shop's error page, and a refused
+  POST Laravel's own page.
+- **Every POST needs the CSRF token** (the routes are in the `web` group; 419 when it is stale), except the
+  two signed unsubscribe POSTs (§4.11).
+- **Signed out.** `AdminArea::SIGNED_IN` (`access.staff`): with JSON asked, `401 {message}`, not a problem
+  document; otherwise a redirect to `/admin/sign-in`. A staff member who must set up an authenticator app first:
+  `403 {message}`. `StorefrontArea::SIGNED_IN` (`access.customer`): a redirect to the store's home, JSON asked
+  or not.
+- **Common refusals**, not repeated below: `shared.unauthorized` 403 (the permission is not held there; a store
+  code not on offer; an inactive staff member). `ops.invalid_ops_input` 422 is one type for every bad value: the
+  document **names no field**, and its `detail` carries the field's key unworded (§4.13); each section lists
+  the keys it can name.
+- **Moments** are texts in UTC with their offset, in one format, `YYYY-MM-DDTHH:MM:SS.mmm+00:00`
+  (`format('Y-m-d\TH:i:s.vP')`). Days are `YYYY-MM-DD`, months `YYYY-MM`. The server converts nothing for a
+  screen, except a notice's `sendAtLocal` (§4.4) and a report's own texts.
+- **Digits.** Every number shown is in Latin digits (owner, 2026-10-06): format through `intlLocale`
+  (`resources/js/lib/digits.ts`). `send_at`, `sendAt`, `day`, `from` and `to` take 0-9 only: a typed date or time
+  goes through `toLatinDigits` first.
+
+**Which store a request names:**
+
+| Routes | `store` is | Left out |
+|---|---|---|
+| Notices list and write, composer lookup and send, subscribers list | The store's **code**, through `StoreChoices::chosen` | The first store on offer that is on; 403 when there is none |
+| Reports preview and download | The store's **id**, or `all` | 422, `store` |
+| Daily report make, email switch | The store's **id** | Every store's report: a super admin's alone, 403 for anyone else |
+
+`StoreChoices` offers a Super Admin every store and anyone else the stores that are on. The reports, the daily
+reports, and a notice or subscriber named by id check only the permission in its store, on or off. An unknown
+store id is 422 `store`; an unknown or unoffered code is 403.
+
+**Paging.** A cursor, never a number of pages and never a total. `next` is null on the last page, otherwise
+sent back as `?after=`. An `after` that is no ULID is 422 `after` (the bell and the daily reports ignore one
+over 64 characters and show the first page).
+
+| List | Page | Order | A ULID not in the reader's list |
+|---|---|---|---|
+| A bell | 20 | Newest first | An empty page |
+| Notices | 20 | Newest first, by when written | An empty page |
+| Subscribers | 50 | By id | Carries on after that id |
+| Daily reports | 20 | Newest made first | An empty page |
+| Composer lookup | At most 20 | None promised; no paging | — |
+| A report's preview | First 50 rows of each sheet | The sheet's own; no paging, the rest is in the file | — |
+
+### 4.2 The two bells (§1.2)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.bell` / `storefront.ops.bell` | GET `admin/notifications` / `{store}/{locale}/account/notifications` | Signed in: staff `ops.panel_inbox.view_own`, customer `ops.inbox.view_own`, each held automatically | `InboxPageData` |
+| `ops.admin.bell.unread` / `storefront.ops.bell.unread` | GET `…/notifications/unread` | The same | `UnreadData` |
+| `ops.admin.bell.read` / `storefront.ops.bell.read` | POST `…/notifications/{entry}/read` | The same | `UnreadData`, the number after it |
+| `ops.admin.bell.read-all` / `storefront.ops.bell.read-all` | POST `…/notifications/read-all` | The same | `UnreadData`, counted again |
+
+Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next: string|null, unread: int}`,
+`unread` over all the reader's entries, not the page's. `UnreadData` is `{unread: int}`.
+
+| `InboxEntryData` | Type | What |
+|---|---|---|
+| `id` | string | The entry's id |
+| `kind` | `MessageKind` | §1.5, §1.6, or `offer_notice`, `staff_message` |
+| `storeCode`, `storeName` | string | The store it is about, the name in the page's language; empty if the store is not found |
+| `title`, `line` | string | In the page's language: the shop's `{locale}`, the panel's language |
+| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts) |
+| `read` | bool | |
+| `createdAt` | moment | |
+
+- A customer's bell is the store being shopped only; a staff member's spans every store `AccessApi::staffStores`
+  gives, on or off. Another person's entry never appears.
+- **Reading the list marks nothing:** "opening an entry marks it read" (§1.2) is the screen's POST.
+- Refusals: `ops.inbox_entry_not_found` 404 on a mark, for an entry unknown, another person's, or of a store the
+  bell does not show. An entry read already answers 200, unchanged. 422 key: `after`.
+
+### 4.3 The message composer (§1.8)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.messages.customers` | GET `admin/messages/customers` | `ops.message.send_one` in the store | `{customers: CustomerToMessageData[]}` |
+| `ops.admin.messages.send` | POST `admin/messages` | With `customer`: `ops.message.send_one` in the store. Without: `ops.message.send_many` there, admins only | 201 `{id: string}` |
+
+Lookup inputs: `store` (code); `search`, 3 to 100 characters after trimming, no control characters, through
+`AccessApi::customerIdsMatching`: a name in any store, an email or phone among the customers the reader may
+view. `CustomerToMessageData` is `{id, firstName, lastName, email}`, all strings.
+
+- Only customers a message may reach are offered (`Writers::mayWriteToOne`): not anonymized, registered in a store
+  where the reader holds `ops.message.send_one` and may view customers (`AccessApi::customerViewStores`,
+  `access.customer.view`). **That is not limited to the `store` asked.** The 20 are matched first and filtered
+  after, so fewer than 20 does not mean nobody else matches.
+- Refused: `access.invalid_access_attribute` 422 for a `search` too short, too long or empty. A short text is
+  refused, not answered with an empty list.
+
+| Send input | Rules |
+|---|---|
+| `store` | Code |
+| `customer` | The customer's id, or left out or empty for **every customer of the store**; a segment is not accepted (§1.8) |
+| `title_ar`, `title_en` | 1 to 200 characters after trimming; one line, no control characters |
+| `body_ar`, `body_en` | 1 to 500 characters after trimming; line breaks allowed, no other control characters |
+| `by_bell`, `by_email` | A tick: `true`, `1`, `"1"`, `"true"` or `"on"`; anything else, or left out, is no. At least one |
+
+Sent at once on the queue; nothing can be recalled. The answer carries no counts and no status (§4.13). To one
+customer it is a service message; to the store, its email goes only to those who agreed, its bell to all (§1.3).
+422 keys: `title_ar`, `title_en`, `body_ar`, `body_en`, `channels`, `customer` (unknown, anonymized, or not one
+the reader may reach), `audience` (a store with no customers).
+
+### 4.4 The notices list and form (§1.7)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.notices` | GET `admin/notices` | `ops.notice.manage` in the store | `{notices: NoticeData[], next: string or null}` |
+| `ops.admin.notices.store` | POST `admin/notices` | `ops.notice.manage` in the store | 201 `NoticeData` |
+| `ops.admin.notices.show` | GET `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
+| `ops.admin.notices.update` | POST `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
+| `ops.admin.notices.cancel` | POST `admin/notices/{notice}/cancel` | `ops.notice.manage` in the notice's store | `NoticeData` |
+
+| Input | Rules |
+|---|---|
+| `store` | Code; list and write only. A change never moves a notice |
+| `after` | List only |
+| `title_ar`, `title_en`, `body_ar`, `body_en` | As in §4.3 |
+| `link` | Optional: a page of the shop **without its store and language**. A leading `/` is dropped; at most 500 characters; no `//`, backslash, `:` or white space |
+| `by_bell`, `by_email` | Ticks, as in §4.3; at least one. Left out is **no**, not "as it was" |
+| `send_at` | `YYYY-MM-DD HH:MM`, or with a `T`, read in the store's time zone; a real date, still to come. Left out or empty: **it starts sending now** |
+| `segment` or `segment_id` | On writing: one of the store's Promotions segments, left out for every customer of the store. On a change: left out keeps the notice's audience; sent empty makes it every customer; an id makes it that segment |
+
+**A change replaces the whole notice.** A field left out is not "unchanged", except the audience: a change sent
+without `send_at` sends the notice at once.
+
+| `NoticeData` | Type | What |
+|---|---|---|
+| `id`, `storeCode` | string | |
+| `titleAr`, `titleEn`, `bodyAr`, `bodyEn` | string | As written |
+| `link` | string or null | As stored, without store and language |
+| `byBell`, `byEmail` | bool | |
+| `status` | string | `SCHEDULED`, `SENDING`, `SENT`, `CANCELLED` or `FAILED` (a batch failed its last attempt) |
+| `sendAt` | moment | When it sends, or was sent |
+| `sendAtLocal` | string | The same in the store's time zone, `YYYY-MM-DD HH:MM`, as `send_at` takes it |
+| `changeable` | bool | True only while `SCHEDULED` |
+| `bellCount`, `emailCount`, `failedCount` | int | Bell entries made, emails sent, emails failed so far |
+| `createdAt` | moment | |
+| `segmentId` | string or null | Null: every customer of the store. The id only, no name (§4.13) |
+
+Refusals: `ops.notice_not_found` 404, an unknown id. `ops.notice_already_started` 409, a change or cancel once it
+is not `SCHEDULED`; cancelling twice is refused the same way. `promotions.segment_not_found` 404, a segment
+unknown or another store's. `promotions.invalid_promotion_attribute` 422, a `segment` that is no id. A notice of a
+store the reader does not hold is `shared.unauthorized` 403. 422 keys: `title_ar`, `title_en`, `body_ar`,
+`body_en`, `link`, `send_at` (not a date and time, or not to come), `channels`, `audience` (a store with no
+customers, a segment with no member), `after`.
+
+### 4.5 The subscribers list and remove (§1.9)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.subscribers` | GET `admin/newsletter/subscribers` | `ops.newsletter.manage` in the store | `{subscribers: SubscriberData[], next: string or null}` |
+| `ops.admin.subscribers.remove` | POST `admin/newsletter/subscribers/{subscriber}/remove` | `ops.newsletter.manage` in the subscriber's store | 204, no body |
+
+Inputs: `store` (code) and `after` on the list.
+
+| `SubscriberData` | Type | What |
+|---|---|---|
+| `id` | string | |
+| `email` | string or null | **Null for a customer's row when the reader may not view customers in that store** (`AccessApi::customerViewStores`); a guest's is always shown |
+| `locale` | string | `ar` or `en` |
+| `kind` | string | `GUEST` or `CUSTOMER` |
+| `confirmed` | bool | A guest still waiting is listed too, false; a customer is always true |
+| `createdAt` | moment | |
+| `confirmedAt` | moment or null | |
+
+Only a `GUEST` can be removed; staff never set a customer's consent (§1.3). Refusals:
+`ops.subscriber_not_found` 404, an unknown id or a `CUSTOMER` row. A guest of a store the reader does not hold is
+`shared.unauthorized` 403. 422 key: `after`.
+
+### 4.6 The reports page (§1.10)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.reports.show` | GET `admin/reports/{report}` | Active staff; `ops.report.view` in the store; Stock also `inventory.stock.manage` there; `all` a super admin's alone | `ReportPreviewData` |
+| `ops.admin.reports.download` | GET `admin/reports/{report}/download` | The same | The `.xlsx` file, as an attachment |
+
+| Input | Rules |
+|---|---|
+| `{report}` | `revenue`, `product-sales`, `stock`, `searches` or `favourites` |
+| `store` | The store's id, or `all` |
+| `from`, `to` | `YYYY-MM-DD`, both included, both required, read in each store's own time zone. **Stock and Favourites ignore them**: they are as they stand now |
+| `by` | `day` (or left out) or `month`. Only Revenue reads it |
+
+| `ReportPreviewData` | Type | What |
+|---|---|---|
+| `report` | string | The kind |
+| `locale`, `rightToLeft` | string, bool | **The reader's account language**, not the page's: `ar` is right to left |
+| `title`, `subtitle` | string | In that language; the subtitle names the store (or all stores) and the days, or the moment |
+| `sheets` | `ReportSheetData[]` | Revenue has four, the others one |
+| `filename` | string | The file's name, Latin letters |
+| `downloadUrl` | string | A path from the site's root, the same choices, to `…/download` |
+
+`ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, more: bool}`. `columns`
+are `{key: string, label: string, type: string}`, type `text`, `count`, `money`, `day` or `month`. `rows` is a list
+of lists, **one value per column, in the columns' order**. `notes` says what the figures are (the first says
+"until" when the range includes today). `more` is true when the file holds rows past the
+preview's 50.
+
+| Sheet, in order | Columns: key (type) |
+|---|---|
+| Revenue | `store` (text), `day` (day) or `month` (month), `currency` (text), `orders` (count), `revenue` (money), `revenue_if_waiting` (money), `vat` (money), `vat_if_waiting` (money), `shipping` (money), `refunds` (money), `waiting_refunds` (money) |
+| Money received | `store` (text), `day` or `month`, `currency` (text), `way` (text), `payments` (count), `received` (money), `refunds_made` (count), `refunded` (money) |
+| Waiting refunds | `store` (text), `asked_on` (day), `return` (text, the return's id), `order` (text, its number), `currency` (text), `estimate` (money), `estimate_vat` (money) |
+| By category | `store` (text), `category` (text), `currency` (text), `revenue` (money), `revenue_if_waiting` (money) |
+| Product sales | `store` (text), `product` (text), `size` (text), `code` (text), `currency` (text), `units` (count), `sold` (money) |
+| Stock | `store` (text), `product` (text), `size` (text), `code` (text), `in_stock`, `returned_extra`, `held`, `available`, `threshold` (count), `limited_by_stock`, `low`, `out`, `archived` (text) |
+| Searches | `store` (text), `language` (text), `phrase` (text), `searches`, `no_results` (count) |
+| Favourites | `store` (text), `product` (text), `archived` (text), `customers` (count) |
+
+Refusals, in the order they are met: 422 key `report`, not a report. 403, staff not active. 422 key `store`,
+missing or no store. 403, the permission, or `all` for anyone but a super admin. 422 keys `from`, `to` (not a day;
+`to` before `from`). `ops.report_range_refused` 422, whose `detail` says the rule in words: `years` (before
+2020 or after next year), `too_long` (more than five years), `searches_too_long` (more than twelve months of
+searches). 422 key `by`. A plain visit to the download address gets these as the panel's error page.
+
+### 4.7 The daily reports page (§1.11)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.daily-reports` | GET `admin/daily-reports` | Active staff with `ops.report.daily` in at least one store | `{reports: DailyReportData[], next: string or null}` |
+| `ops.admin.daily-reports.make` | POST `admin/daily-reports` | `ops.report.daily` in the store; every store's a super admin's alone | 201 `DailyReportData` |
+| `ops.admin.daily-reports.pdf` | GET `admin/daily-reports/{report}/pdf` | `ops.report.daily` in the report's store; every store's a super admin's alone | The PDF, as an attachment |
+| `ops.admin.daily-reports.emails` | GET `admin/daily-reports/emails` | As the list | `DailyReportEmailData[]`, a bare list, the reader's own |
+| `ops.admin.daily-reports.emails.set` | POST `admin/daily-reports/emails` | As make | `DailyReportEmailData[]`, the whole list after it |
+
+The list shows every report of the reader's stores, whoever made it; every store's reports to super admins alone.
+
+| Input | Rules |
+|---|---|
+| `after` | List only |
+| `store` | Make and email switch: the store's id; left out or empty, every store's |
+| `day` | Make only, optional: `YYYY-MM-DD`, a day before today where the report is read and in every store it covers. Left out: today until now |
+| `on` | Email switch: a boolean (`true`, `1`, `"1"`, `"on"`, `"yes"`, `"true"`); left out is off |
+| `sendAt` | Email switch: `HH:MM`, 00:00 to 23:59. **Required when switching off too**: a switch off with no time is refused |
+
+| `DailyReportData` | Type | What |
+|---|---|---|
+| `id` | string | |
+| `storeCode` | string or null | Null: every store's |
+| `storeName` | string | In the page's language; every store's reads as the words for "All stores" |
+| `day` | string | `YYYY-MM-DD`: the store's own, or the base store's for every store's |
+| `pastDay` | bool | |
+| `madeBy` | string | As `AccessApi::staffDisplayNames` names them to this reader; empty if not found |
+| `madeAt` | moment | |
+| `emailedAt` | moment or null | When the scheduled email took it; null for one made on the button |
+| `language` | string | `ar` or `en`: the PDF's, the maker's account language |
+| `bytes` | int | The file's size |
+| `downloadUrl` | string | A **full address**, unlike a report's |
+
+| `DailyReportEmailData` | Type | What |
+|---|---|---|
+| `storeId`, `storeCode` | string or null | Null: the email of every store's report |
+| `storeName` | string | As above |
+| `on` | bool | |
+| `sendAt` | string | `HH:MM` |
+| `timezone` | string | The zone `sendAt` is read in: the store's, or the base store's for every store's |
+
+An empty list means no email was ever set; the default is off. Making a report takes as long as the PDF does, in
+the request; nothing is queued. The file opens as it was made, whatever later edits do to that day (§1.10).
+
+Refusals: 403, no permission. `ops.daily_report_not_found` 404 on a download: unknown, not the reader's to open
+(which is **not** 403 here), or its file gone. 422 keys: `store` (no such store), `day` (not a date, or not a past
+day), `send_at` (the time; note the key is `send_at` though the input is `sendAt`), `after`.
+
+### 4.8 The customer's consent switch (§1.3): Access's, not Ops'
+
+The switch lives in **Access** (amendment 79); Ops only reads it. Staff never set it.
+
+| Route | Method, path | Who | Takes | Answers |
+|---|---|---|---|---|
+| `storefront.account` | GET `{store}/{locale}/account` | Signed-in customer | — | Access's Inertia page; `marketingConsent` (bool) in `CustomerAccountPage` |
+| `storefront.account.marketing` | POST `{store}/{locale}/account/marketing` | Signed-in customer, `access.account.update` (`SetOwnMarketingConsentHandler`) | `marketing_consent`, required, boolean | A redirect to the account's profile tab with "Changes saved" |
+| `storefront.account.register` | POST `{store}/{locale}/account/register` | A visitor | `marketing_consent`, optional, boolean; left out is off | Access's registration |
+
+Refused: the field missing or not a boolean comes back in the form's errors under `marketing_consent`
+(`MarketingConsentRequest`). One account has one switch, whichever store it is changed in (§1.3).
+
+### 4.9 The shop's newsletter box (§1.9)
+
+| Route | Method, path | Who | Takes | Answers |
+|---|---|---|---|---|
+| `storefront.ops.newsletter.subscribe` | POST `{store}/{locale}/newsletter` | Anyone but a signed-in customer; no permission | `email`: 3 to 254 characters, a valid address, kept in small letters | 202 `{sent: true}` |
+
+The list's language is the address's `{locale}`. **202 means the same whether the email was on the list or not**:
+the box never tells who subscribed, and the person is on the list only after the link (§4.10).
+
+Refusals: `ops.subscribe_in_your_account` 409, a signed-in customer or an email that belongs to an account. 422
+key `email`. **429 `{retryAfter: int}`**, seconds, not a problem document: more than 5 sign-ups an hour for one
+email, or 20 from one address; a refused attempt counts too. `http.500` 500 when the provider did not take the
+confirmation email (§4.13); the sign-up stays and the person may try again.
+
+### 4.10 The confirmation page (§1.9)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `storefront.ops.newsletter.confirm` | GET `{store}/{locale}/newsletter/confirm/{token}` | Whoever holds the link | `{token: string}`. **Changes nothing**: mail scanners open links too |
+| `storefront.ops.newsletter.confirm.post` | POST the same path | The same; CSRF token needed | `{confirmed: true}` |
+
+`{token}` is 1 to 128 letters and digits; any other address does not match the route (404). Refused:
+`ops.confirmation_link_invalid` 404, unknown, used, or over 7 days old, the same answer for all.
+
+### 4.11 The leave and unsubscribe pages (§1.3, §1.9)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `storefront.ops.newsletter.leave` | GET `{store}/{locale}/newsletter/leave/{subscriber}` | A valid signature (`signed:relative`), no sign-in | `{title, text, action, done}`, strings in the page's language. **Changes nothing** |
+| `storefront.ops.newsletter.leave.post` | POST the same path, with the same `signature` | The same; no CSRF token | `{unsubscribed: true}`, a guest taken off |
+| `storefront.ops.unsubscribe` | GET `{store}/{locale}/unsubscribe/{customer}` | The same | `{title, text, action, done}`. **Changes nothing** |
+| `storefront.ops.unsubscribe.post` | POST the same path, with the same `signature` | The same; no CSRF token | `{unsubscribed: true}`; also the mail client's one-click POST (RFC 8058) |
+
+`action` is the one button's label, `done` the line after it (`ops::unsubscribe`). The POST must carry the query
+string the page was opened with. Refused: a missing or wrong signature is 403 (`http.403`). Pressed twice, or for
+a row already gone, still answers `{unsubscribed: true}`: nothing tells the two apart.
+
+### 4.12 What a screen must not assume
+
+- **A `money` cell is not always a number.** In the preview it is a decimal string (Latin digits, no grouping, the
+  currency's own decimals, **possibly negative**: a day of refunds and no sales), or null. `ColumnType::Money` also
+  allows a text where a figure waits for a module, and the Excel writer prints one as text; no sheet writes one
+  today. Show a value that is not a decimal as it stands; never add up what comes back.
+- **Null is not 0.** `revenue_if_waiting` and `vat_if_waiting` are null where nothing waits: one figure, not two
+  (§1.10). A `day`, `month`, `category` or `product` cell is null on a total row.
+- **A total row has no mark.** It holds the word for "Total" in `store` and null where it has no period or name.
+  Revenue, Product sales and By category always end with one total per currency, even over no rows, at zero; Money
+  received has one per currency and way that moved. Waiting refunds, Stock, Searches and Favourites have none.
+- **The totals may not be in the preview:** with `more` true they sit past the 50 rows, in the file.
+- **Read a row by column position**; a sheet has no key, only its name in the reader's language, so tell sheets
+  apart by order. Column keys are stable; labels are not.
+- **Words are words:** `limited_by_stock`, `low`, `out`, `archived` hold the reader's "Yes" or "No", never a boolean;
+  `way` and `language` are words too, and `store` carries "(switched off)" in the name. `product`, `size` and `code`
+  are empty when Catalog no longer knows the size. A `phrase` is what a shopper typed and may begin with `=`.
+- **Money has its currency beside it**, in the row's `currency`; an all-stores report is never converted or summed
+  across currencies. A past day's figures may change on the next read; a kept PDF never does (§1.10).
+- **The daily report's figures are not in the JSON.** The list gives the file's facts only; "Transfers overdue"
+  inside the PDF reads "Waits for Payments (stage 7)" for now.
+- **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
+- **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
+  a daily report's PDF follow the reader's account.
+- **`kind` is an open list:** C11, S5–S8 will start appearing without any change here.
+- **Ids come in small letters;** send them back as given.
+- **`{unsubscribed: true}` for a customer means asked, not done:** Access withdraws the consent from a queued job
+  (`WithdrawMarketingConsentJob`), so a page read at once may still show it on.
+
+### 4.13 Missing for the screens
+
+Listed, not invented. Each is for the owner or the screens agent to raise; none is built.
+
+1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
+   frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist.
+2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
+   `marketing_consent`: the account's switch and the registration box have routes and no screen.
+3. **A refusal does not name its field.** `ops.invalid_ops_input` carries no `attribute` in the problem document, and
+   its `detail` reads "The title_ar isn't valid." with the key as it is (run through the handler, 2026-11-01):
+   `ProblemDetails` does not use the words in `ops::errors.fields`, which only `FormErrors` applies. A screen cannot
+   mark the field or say it in words from the answer alone.
+4. **The box's provider failure has no error of its own.** `ProviderFailed` is no `DomainError`, so it reaches the
+   screen as a bare `http.500`.
+5. **The confirmation page has no words.** Its GET gives only the token; `ops::unsubscribe` holds the unsubscribe
+   pages' words, and nothing holds the confirmation page's or the newsletter box's.
+6. **Staff messages cannot be read back.** §1.8 records who sent what to whom; no route lists them, and the send
+   answers only an id, with no status or counts.
+7. **The notice form's segment picker.** Ops has no read of a store's segments, and `NoticeData` gives no segment
+   name. Promotions' `ListSegments` asks `promotions.marketing.view` or a manage permission, which
+   `ops.notice.manage` alone does not hold.
+8. **A staff message to a segment** is not built (§1.8), so the composer has no such audience to offer.
+9. **Which reports a reader may open.** No read says; the kinds live in the PHP enum `ReportKind`, which is not in the
+   generated types, and the Stock report's second permission is learned from a 403.
+10. **The stores on offer.** No Ops route lists them: the page builder asks Platform's `StoreChoices::forJobs`.
+    `DailyReportData` gives a store's code while make takes its id; `StoreDto` has both.
+11. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
+    store: none exists, and the bell's number is the only count.
+12. **The notice's other facts.** Who wrote it, when it started and finished, and how many it will reach are not in
+    `NoticeData`: the counts have no total to compare with.
+13. **The next email's moment.** `next_due_at` is kept but not in `DailyReportEmailData`.
+14. **The composer's result** has no phone or home store, though a search may match the phone and is not limited to
+    the store chosen.
+15. **The SMS countries (§3).** The handlers exist (`ListSmsCountries`, `AddSmsCountry`, `ChangeSmsCountryProvider`,
+    `ChangeSmsCountryCallingCode`, `RemoveSmsCountry`); no route reaches them.
 
 ## 5 · Tables (`ops` schema)
 
 | Table | Holds |
 |---|---|
-| `ops.inbox_entries` | person (customer or staff), store, kind, title and line (ar, en), link, read_at, created_at |
-| `ops.sent_messages` | kind, person, store, channel, provider id, status (queued, sent, failed), created_at — no codes or links ever (access.md §2.3) |
-| `ops.handled_events` | event id — every listener runs once per event |
-| `ops.notices` | store, title and body (ar, en), link, audience (all / segment), channels, send_at, status, counts, created_by |
-| `ops.staff_messages` | store, sender, audience, channels, body (ar, en), counts, created_at |
-| `ops.subscribers` | store, email, locale, kind (guest / customer), `customer_id` (null for a guest), confirmation token **hash**, created_at, confirmed_at, brevo_synced_at. A guest whose email belongs to a customer is told to tick the box in their account instead |
-| `ops.daily_reports` | store (or all), day, made_by, made_at, file, emailed |
-| `ops.daily_report_settings` | staff, store (or all), auto email on/off, the time |
-| `ops.sms_countries` | country code (ISO), calling code (typed, unique), provider — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 90 |
+| `ops.inbox_entries` | person (`customer_id` or `staff_id`, exactly one), `store_id`, kind, title and line (ar, en; at most 200 and 500 characters), link (a path inside the site, at most 2000), read_at, created_at |
+| `ops.sent_messages` | kind, person (`customer_id` or `staff_id`, at most one: a message to an address alone names nobody), `store_id` (none outside a store), channel (`EMAIL`, `SMS`), provider_id, status (`QUEUED`, `SENT`, `FAILED`), created_at — no codes or links ever (access.md §2.3), and no column for a text or an address |
+| `ops.handled_events` | `event_id` and `listener`, one key (one event may have two listeners: `OrderPlaced`'s C1 and S1), handled_at — every listener runs once per event |
+| `ops.notices` | `store_id`, title and body (ar, en; at most 200 and 500 characters), link (a page of the shop, at most 500), `segment_id` (none: every customer of the store; no foreign key across modules), by_bell, by_email, send_at, status (`SCHEDULED`, `SENDING`, `SENT`, `CANCELLED`, `FAILED`), `cursor_type` (`INDIVIDUAL`, `COMPANY`, `SEGMENT`) and `cursor_after` (where the next batch starts), bell_count, email_count, failed_count, created_by, created_at, updated_at, started_at, finished_at |
+| `ops.staff_messages` | `store_id`, `sender_id`, audience (`ONE`, `STORE`), `customer_id` (set only for `ONE`), title and body (ar, en), by_bell, by_email, status (`SENDING`, `SENT`, `FAILED`), `cursor_type` (`INDIVIDUAL`, `COMPANY`), `cursor_after`, bell_count, email_count, failed_count, created_at, finished_at |
+| `ops.subscribers` | `store_id`, email (in small letters, one row per email in a store), locale, kind (`GUEST`, `CUSTOMER`), `customer_id` (null for a guest; a customer on one list only), `token_hash` (the confirmation token's hash, a waiting guest's only), created_at, confirmed_at, `brevo_email` and `brevo_locale` (what the provider holds), brevo_synced_at. A guest whose email belongs to a customer is told to tick the box in their account instead |
+| `ops.newsletter_lists` | `store_id`, locale, `brevo_list_id`, created_at — one Brevo list per store and language, made the first time a contact needs it |
+| `ops.daily_reports` | `store_id` (none: every store's), day, past_day, made_by, made_at, locale, file, bytes, emailed_at |
+| `ops.daily_report_settings` | `staff_id`, `store_id` (none: all stores; one row per person per store, and one for all), is_on, send_at (`HH:MM`), version, next_due_at (set exactly while on), updated_at |
+| `ops.sms_countries` | `country_code` (ISO), `calling_code` (typed, unique), provider, created_at, updated_at — **[ACCEPTED — stage 8, Ops step 3; owner 2026-10-29]**, access.md amendment 90 |
 
 Deleted after 12 months: inbox entries, sent messages, handled events, staff messages, sent notices,
 daily report files (owner, 2026-10-28). Unconfirmed guests: after 7 days (from created_at).
+
+As built: inbox entries and sent messages by created_at, handled events by handled_at (`PruneOpsLog`, 04:30
+Riyadh); staff messages of status `SENT`, and notices of status `SENT` **or `CANCELLED`**, by created_at, with
+unconfirmed guests (`PruneWrittenMessages`, 04:40); a daily report's row and file by made_at (`PruneDailyReports`,
+04:50). A notice or a staff message still sending, or `FAILED`, is kept.
 
 ## 6 · Events
 
@@ -472,17 +867,87 @@ another module's tables, and never blocks the sender (Stage 5's rules for Sync).
 
 ## 7 · Errors
 
-To write with the use cases: a notice with no channel; a schedule in the past; an audience that is empty;
-a report range over 12 months for searches; a daily report for a store the person may not view; a
-provider failure (retried by the queue, then recorded as failed — never lost silently).
+Each is a `DomainError`, answered by `ProblemDetails` (§4.1): its type, its status, and its title and detail in
+both languages at `ops::errors.{snake}`. `Tests` names the file in `tests/Modules/Ops` that drives it.
+
+| Type | Status | When | Tests |
+|---|---|---|---|
+| `ops.invalid_ops_input` | 422 | **A notice with no channel** (`channels`); **a schedule in the past**, or no date and time (`send_at`); **an audience that is empty**: a store with no customer, a segment with no member (`audience`); a text empty or too long (`title_ar`, `title_en`, `body_ar`, `body_en`); a link that leaves the shop (`link`); a message to a customer unknown, anonymized or out of reach (`customer`); not an email (`email`); a cursor that is no id (`after`); a report or store that is not one, days that are not days, a grouping not day or month (`report`, `store`, `from`, `to`, `by`); a past day that is not one (`day`); an SMS country, calling code or provider that is not one (`country_code`, `calling_code`, `provider`). Also the domain's last line for what no request can send (`kind`, `person`, `channel`, `locale`, `token`, `file`, `version`, …) | `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `BellsTest`, `SmsCountriesTest`, `OpsTablesTest` |
+| `ops.report_range_refused` | 422 | **More than 12 months of searches** (`searches_too_long`); more than five years (`too_long`); a year before 2020 or after next year (`years`). The rule's own words in `detail` | `ReportsTest` |
+| `ops.inbox_entry_not_found` | 404 | A mark on an entry unknown, another person's, or of a store the bell does not show | `BellsTest`, `BellRoutesTest` |
+| `ops.notice_not_found` | 404 | An unknown notice | No test names it |
+| `ops.notice_already_started` | 409 | Changing or cancelling a notice once sending started, or one cancelled | `NoticesTest`, `WrittenRoutesTest` |
+| `ops.subscriber_not_found` | 404 | Removing a subscriber unknown, or a customer's row | `NewsletterTest` |
+| `ops.subscribe_in_your_account` | 409 | The box given an account's email, or used by a signed-in customer | `NewsletterTest`, `WrittenRoutesTest` (the email; the signed-in customer is untested over HTTP) |
+| `ops.confirmation_link_invalid` | 404 | A confirmation link unknown, used, or over 7 days old | `NewsletterTest`, `WrittenRoutesTest` |
+| `ops.daily_report_not_found` | 404 | **A daily report the person may not open**, unknown, or its file gone | `DailyReportTest`, `DailyReportRoutesTest` |
+| `ops.sms_country_not_found` | 404 | A country not on the list | `SmsCountriesTest` |
+| `ops.sms_country_taken` | 409 | A country already listed | `SmsCountriesTest` |
+| `ops.calling_code_taken` | 409 | A calling code another country has | `SmsCountriesTest` |
+| `ops.calling_code_overlaps` | 409 | A calling code that starts another listed one, or starts with one (owner, 2026-10-30) | `SmsCountriesTest` |
+
+Other modules' errors a request here can meet: `shared.unauthorized` 403, the permission not held, including
+**making a daily report for a store the person may not view** (`DailyReportTest`, `NoticesTest`, `ReportsTest`,
+`StaffMessagesTest`); `promotions.segment_not_found` 404, a segment unknown or another store's (`NoticeSegmentTest`);
+`promotions.invalid_promotion_attribute` 422, a segment that is no id (no test); `access.invalid_access_attribute`
+422, a composer search too short or too long (no test here). The newsletter box's 429 `{retryAfter}` is the
+controller's own (`WrittenRoutesTest`, the limit by email), and a bad unsubscribe signature is the framework's 403
+(`WrittenRoutesTest`).
+
+**A provider failure** is `ProviderFailed`, not a `DomainError`, naming no address or text; it is never lost
+silently, and where it ends depends on the path:
+
+| Path | What happens | Tests |
+|---|---|---|
+| An event's email or SMS (`SendEventEmailJob`, `SendEventSmsJob`) | Retried by the queue; the `ops.sent_messages` row stays `QUEUED`, then `FAILED` after the last attempt | `EventMessagesTest` |
+| A notice's or message's email (`SendBroadcastEmailJob`) | Retried; after the last attempt recorded as failed and counted in `failed_count` | `NoticesTest` |
+| A notice's or message's batch (`SendBroadcastBatchJob`) | After the last attempt the row shows `FAILED` and the job waits on the failed jobs screen; retrying it carries on | `NoticesTest` |
+| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again" | `SecurityMessagesTest` |
+| The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, answered as a 500 (§4.9); the person may try again | `NewsletterTest` |
+| The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals) |
+| The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | No test of the retries by name |
 
 ## 8 · Test scenarios
 
-To write with the build plan; at least: every row of §1.5 and §1.6 sends once per event, in the
-person's language, by its channels; a duplicate event sends nothing; consent off → no marketing email,
-the bell entry still made; an unsubscribe switches consent off; staff switches respected; critical SMS
-only to super admins (§1.6), their switch read again when it leaves; the daily report's figures against hand-counted orders, a cancelled
-order excluded, a refund on its day; all stores totalled per currency; a past day's file unchanged.
+Each with where it is tested, in `tests/Modules/Ops` unless named.
+
+| Scenario | Where |
+|---|---|
+| Every kind of §1.5 and §1.6 is listed once, with its channels, and worded in both languages with the same placeholders | `Integration/MessageKindsTest` |
+| C1–C8b, C9, C9b, C10, C12, C13, C15–C17b each send on their event: the bell entry in the event's store, one email, recorded. A voided, withdrawn or no-longer-standing moment sends nothing; a read naming another store or customer sends nothing and logs ids only | `Integration/EventMessagesTest`, "messages to customers" |
+| **Once per event, a duplicate sends nothing**: C2, C9b, C10, C15 by name; the mechanism for every listener; a failure keeps no record, so it runs again | `Integration/EventMessagesTest`, `Integration/PruneTest` |
+| **In the person's language**: an Arabic customer, an Arabic staff member, the bell opening their own page | `Integration/EventMessagesTest` |
+| An email's row: QUEUED, then SENT; a retry of a SENT row sends nothing; a provider's failure keeps it QUEUED, then FAILED; a listener rolled back leaves nothing | `Integration/EventMessagesTest`, "each email and SMS" |
+| C14: one message a day per customer, a week ahead, in every store's own day, whatever runs it again | `Integration/EventMessagesTest`, "the reminder before points expire" |
+| C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
+| S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
+| **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4. Driven through `StaffAlerts::alert`, no listener being wired yet | `Integration/EventMessagesTest`, "the critical SMS" |
+| **Consent off: no marketing email, the bell entry still made**, for a notice, a segment notice and a message to many; checked again as the email leaves; a message to one ignores consent | `Integration/NoticesTest`, `Integration/NoticeSegmentTest`, `Integration/StaffMessagesTest` |
+| Notices: now and scheduled in the store's zone, changed or cancelled until they start, started within the minute, audited, a failed batch `FAILED` then carried on | `Integration/NoticesTest`; over HTTP `Feature/WrittenRoutesTest` |
+| Staff messages: who may send to one and to many, whom the composer offers, audited | `Integration/StaffMessagesTest`; over HTTP `Feature/WrittenRoutesTest` |
+| The bells: own entries only, the store shopped, the stores a staff member may view, paging, marks, none for a guest or the system | `Integration/BellsTest`; over HTTP `Feature/BellRoutesTest` |
+| Guests: double opt-in, the same answer on a repeat, an account's email refused, the signed link, the 7-day limit, the box's limit | `Integration/NewsletterTest`; over HTTP `Feature/WrittenRoutesTest` |
+| Customers on the lists: joining, moving language, leaving; not while they may not receive offers; forgotten when anonymized | `Integration/NewsletterTest` |
+| **An unsubscribe switches consent off**: the marketing email's signed link, Brevo's webhook; opening a link changes nothing | `Feature/WrittenRoutesTest`, `Integration/NewsletterTest`; Access's side `tests/Modules/Access/Integration/MarketingConsentTest` |
+| The consent switch and the registration box | `tests/Modules/Access/Integration/MarketingConsentTest`, `tests/Modules/Access/Feature/CustomerAccountPageTest` |
+| Reports: figures against hand-counted orders, a cancelled, rejected or came-back order excluded, **a refund on the day its return was asked**, categories adding up, **all stores totalled per currency**, a store's permission, days refused, the preview's 50 rows, the file's cells, fixed queries | `Integration/ReportsTest`; over HTTP `Feature/ReportRoutesTest` |
+| **The daily report's figures against hand-counted orders, a cancelled order excluded, a refund on its day**; net VAT; yesterday and month to date; **all stores totalled per currency**, each in its own day, the off ones marked; **a past day's file unchanged**; who may make and open | `Integration/DailyReportTest`; over HTTP `Feature/DailyReportRoutesTest` |
+| The daily email: off by default, each store's zone, on the person's behalf, one email however often switched on, stopped when changed, a late worker's one report | `Integration/DailyReportEmailTest` |
+| SMS countries: the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest` |
+| The adapters: Brevo's requests as its reference shows, the log drivers refused on a live system | `Integration/SendersTest`, `Integration/BrevoNewsletterListTest`, `Integration/RealEmailDriverTest` |
+| The tables' last lines, the schema, the permissions, the nightly removal of the three log tables and of the daily reports | `Integration/OpsTablesTest`, `Integration/OpsSchemaTest`, `Integration/OpsPermissionsTest`, `Integration/PruneTest`, `Integration/DailyReportTest` |
+
+**Not tested:**
+
+- C11, S5, S5b, S6, S7, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
+  for the rows built; S5 and S5b are driven through `StaffAlerts::alert` directly.
+- Over HTTP: `ops.admin.subscribers` and `ops.admin.subscribers.remove` (their handlers are tested in `NewsletterTest`,
+  and the 403 and 404 they answer through `ProblemDetails` are not); `ops.admin.notices.show`; the staff's
+  `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box;
+  the box's 500.
+- The twelve-month removal of staff messages and notices: `PruneWrittenMessages` runs in `NewsletterTest` for the
+  7-day guests only.
+- No browser test: there are no screens yet (§4.13).
 
 ## 9 · Open questions and answers
 
