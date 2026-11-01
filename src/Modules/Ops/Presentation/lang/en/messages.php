@@ -27,6 +27,7 @@ return [
         ],
         'optional' => [
             'paid' => 'Your payment of :amount is received.',
+            'address' => "Delivery to:\n:recipient\n:address",
         ],
     ],
     'order_approved' => [
@@ -157,6 +158,11 @@ return [
         'lines' => [
             'Hello :name,',
             'We sent you a refund of :amount for order :order, by :way.',
+        ],
+        'ways' => [
+            'BANK_TRANSFER' => 'bank transfer',
+            'ONLINE' => 'online payment',
+            'OTHER' => 'another method',
         ],
     ],
     'payment_received' => [

@@ -26,6 +26,7 @@ return [
         ],
         'optional' => [
             'paid' => 'استلمنا دفعتك بمبلغ :amount.',
+            'address' => "التوصيل إلى:\n:recipient\n:address",
         ],
     ],
     'order_approved' => [
@@ -156,6 +157,11 @@ return [
         'lines' => [
             'مرحبًا :name،',
             'أرسلنا لك استردادًا بمبلغ :amount للطلب :order عبر :way.',
+        ],
+        'ways' => [
+            'BANK_TRANSFER' => 'تحويل بنكي',
+            'ONLINE' => 'الدفع الإلكتروني',
+            'OTHER' => 'طريقة أخرى',
         ],
     ],
     'payment_received' => [
