@@ -14,6 +14,7 @@ use Modules\Access\Application\Settings\CustomerSecuritySettings;
 use Modules\Access\Domain\Exception\CodeRequestTooSoon;
 use Modules\Access\Domain\Exception\CustomerNotFound;
 use Modules\Access\Domain\Exception\InvalidAccessAttribute;
+use Modules\Access\Domain\Exception\VerificationEmailNotSent;
 use Modules\Access\Domain\Repository\CustomerRepository;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -21,12 +22,11 @@ use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\StoreContext;
 
-use function Illuminate\Support\defer;
-
 /**
  * A new verification link for the customer signed in (spec §1.2), at most a few an hour so nobody
  * can flood their own inbox — or anyone else's, since the address comes from the account. An
- * address already verified is left alone.
+ * address already verified is left alone. A press whose email failed is said, and not counted
+ * (amendment 93).
  */
 final readonly class ResendCustomerEmailVerificationHandler
 {
@@ -46,7 +46,7 @@ final readonly class ResendCustomerEmailVerificationHandler
     ) {}
 
     /**
-     * @throws CodeRequestTooSoon|CustomerNotFound|InvalidAccessAttribute
+     * @throws CodeRequestTooSoon|CustomerNotFound|InvalidAccessAttribute|VerificationEmailNotSent
      */
     public function handle(ResendCustomerEmailVerification $command): void
     {
@@ -74,8 +74,21 @@ final readonly class ResendCustomerEmailVerificationHandler
         );
         $dto = $this->mapper->toDto($customer);
 
-        // This handler opens no transaction, so there is nothing to wait for: the mail goes out
-        // after the answer, never through the queue (a job would keep the link in the jobs table).
-        defer(fn () => $this->messages->emailVerification($dto, $link));
+        // No transaction to wait for, and never through the queue (a job would keep the link in the
+        // jobs table). Inside the request, so the answer can be true: the customer's own address, on
+        // their own account, tells a stranger nothing by its timing.
+        $sent = rescue(function () use ($dto, $link): bool {
+            $this->messages->emailVerification($dto, $link);
+
+            return true;
+        }, false);
+
+        // Counted before the send and given back after, not counted after: presses made during a send
+        // must all see each other, or several together would pass the limit.
+        if (! $sent) {
+            $this->limiter->decrement($hourly, 3600);
+
+            throw new VerificationEmailNotSent;
+        }
     }
 }

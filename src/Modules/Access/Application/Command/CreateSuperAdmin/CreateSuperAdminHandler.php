@@ -14,7 +14,9 @@ use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
 use Modules\Access\Application\Security\ServedPhones;
+use Modules\Access\Application\Staff\InvitationDelivery;
 use Modules\Access\Application\Staff\Invitations;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\Exception\PhoneAlreadyInUse;
 use Modules\Access\Domain\Exception\StaffEmailInUse;
 use Modules\Access\Domain\Model\StaffUser;
@@ -66,6 +68,8 @@ final readonly class CreateSuperAdminHandler
 
     /**
      * @return self::CREATED|self::PROMOTED
+     *
+     * @throws InvitationNotSent the account is saved; only the email failed
      */
     public function handle(CreateSuperAdmin $command): string
     {
@@ -73,22 +77,20 @@ final readonly class CreateSuperAdminHandler
         $this->rules->requireConsole(self::PERMISSION);
         $email = EmailAddress::of($command->email);
 
-        return $this->db->transaction(function () use ($command, $email): string {
+        [$result, $delivery] = $this->db->transaction(function () use ($command, $email): array {
             $existing = $this->staff->byEmail($email);
 
-            if ($existing !== null) {
-                $this->promote($existing);
-
-                return self::PROMOTED;
-            }
-
-            $this->create($command, $email);
-
-            return self::CREATED;
+            return $existing !== null
+                ? [self::PROMOTED, $this->promote($existing)]
+                : [self::CREATED, $this->create($command, $email)];
         }, 3);
+
+        $delivery?->requireSent();
+
+        return $result;
     }
 
-    private function create(CreateSuperAdmin $command, EmailAddress $email): void
+    private function create(CreateSuperAdmin $command, EmailAddress $email): InvitationDelivery
     {
         $profile = StaffProfile::of((string) $command->firstName, (string) $command->lastName, (string) $command->jobTitle, (string) $command->dateOfBirth, (string) $command->country, $command->address);
         $phone = PhoneNumber::of((string) $command->phone);
@@ -109,10 +111,14 @@ final readonly class CreateSuperAdminHandler
         $this->staff->add($staff);
         $this->preferences->createDefaults($staff->id());
         $this->platform->recordAudit(StaffAudit::invited($staff));
-        $this->invitations->send($staff, null);
+
+        return $this->invitations->send($staff, null);
     }
 
-    private function promote(StaffUser $staff): void
+    /**
+     * @return InvitationDelivery|null null when no invitation is due
+     */
+    private function promote(StaffUser $staff): ?InvitationDelivery
     {
         $before = clone $staff;
         $assignment = $this->assignments->byStaff($staff->id());
@@ -149,9 +155,13 @@ final readonly class CreateSuperAdminHandler
 
         // Someone who never accepted gets a Super Admin's invitation: 24 hours (amendment 30).
         if ($staff->status() === StaffStatus::Invited) {
-            $this->invitations->send($staff, null);
-        } elseif ($before->status() === StaffStatus::Disabled) {
+            return $this->invitations->send($staff, null);
+        }
+
+        if ($before->status() === StaffStatus::Disabled) {
             $this->events->dispatch(new StaffActivated((string) Str::uuid(), $staff->id(), CarbonImmutable::now()));
         }
+
+        return null;
     }
 }

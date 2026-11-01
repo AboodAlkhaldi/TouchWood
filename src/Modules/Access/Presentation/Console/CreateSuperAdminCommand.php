@@ -7,6 +7,7 @@ namespace Modules\Access\Presentation\Console;
 use Illuminate\Console\Command;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdmin;
 use Modules\Access\Application\Command\CreateSuperAdmin\CreateSuperAdminHandler;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Shared\Domain\Error\DomainError;
 
 /**
@@ -43,6 +44,10 @@ final class CreateSuperAdminCommand extends Command
                 $this->optionText('locale'),
                 $this->optionText('address'),
             ));
+        } catch (InvitationNotSent) {
+            $this->error('The account is saved, but the invitation email could not be sent. Send it with access:super-admin:resend-invitation.');
+
+            return self::FAILURE;
         } catch (DomainError $error) {
             $this->error($error->getMessage());
 

@@ -7,6 +7,7 @@ namespace Modules\Access\Presentation\Console;
 use Illuminate\Console\Command;
 use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitation;
 use Modules\Access\Application\Command\ResendSuperAdminInvitation\ResendSuperAdminInvitationHandler;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Shared\Domain\Error\DomainError;
 
 final class ResendSuperAdminInvitationCommand extends Command
@@ -19,6 +20,10 @@ final class ResendSuperAdminInvitationCommand extends Command
     {
         try {
             $handler->handle(new ResendSuperAdminInvitation($this->argument('email')));
+        } catch (InvitationNotSent) {
+            $this->error('The invitation email could not be sent, and the earlier link no longer works. Run this command again to send a new one.');
+
+            return self::FAILURE;
         } catch (DomainError $error) {
             $this->error($error->getMessage());
 

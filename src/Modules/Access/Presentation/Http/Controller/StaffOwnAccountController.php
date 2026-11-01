@@ -38,6 +38,7 @@ use Modules\Access\Application\Query\MySessions\MySessionsForStaff;
 use Modules\Access\Application\Query\MySessions\StaffSessionDto;
 use Modules\Access\Application\Query\MySessions\TrustedBrowserDto;
 use Modules\Access\Application\Settings\StaffSecuritySettings;
+use Modules\Access\Domain\Exception\EmailChangeLinkNotSent;
 use Modules\Access\Presentation\Http\Request\CriticalSmsRequest;
 use Modules\Access\Presentation\Http\Request\EmailRequest;
 use Modules\Access\Presentation\Http\Request\NotificationSwitchRequest;
@@ -250,6 +251,8 @@ final readonly class StaffOwnAccountController
         try {
             // Their own account, and no other: the id is the one signed in, never one from the form.
             $handler->handle(new ChangeStaffEmail($this->account->forCurrentStaff()->id, $request->text('email')));
+        } catch (EmailChangeLinkNotSent) {
+            return $this->backTo('account')->with('warning', __('access::account.email_change_not_sent'));
         } catch (DomainError $error) {
             return $this->refused($request, $error, ['email']);
         }

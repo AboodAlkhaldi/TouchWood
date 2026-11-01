@@ -12,6 +12,7 @@ return [
     'staff_user.invited' => 'دُعي موظف',
     'staff_user.accepted' => 'قُبلت دعوة',
     'staff_user.invitation_resent' => 'أُعيد إرسال دعوة',
+    'staff_user.invitation_not_sent' => 'لم يُرسل بريد الدعوة',
     'staff_user.invitation_cancelled' => 'أُلغيت دعوة',
     'staff_user.enabled' => 'فُعّل موظف',
     'staff_user.disabled' => 'عُطّل موظف',
