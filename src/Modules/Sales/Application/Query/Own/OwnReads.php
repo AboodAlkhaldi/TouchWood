@@ -16,7 +16,7 @@ interface OwnReads
     /**
      * The customer's orders in every store, newest first, after the order with that number.
      *
-     * @return list<array{number: string, storeId: string, placedAt: DateTimeImmutable, status: string, shipment: string, currency: string, total: int, due: int, paid: int, refunded: int, pieces: int}>
+     * @return list<array{number: string, storeId: string, placedAt: DateTimeImmutable, status: string, shipment: string, currency: string, total: int, due: int, paid: int, refunded: int, pieces: int, shippingPending: bool}>
      */
     public function orders(string $customerId, ?string $afterNumber, int $limit): array;
 

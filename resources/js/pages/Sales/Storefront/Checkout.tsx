@@ -12,10 +12,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StorefrontLayout } from '@/layouts/StorefrontLayout';
+import { isolate } from '@/lib/bidi';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
-import type { CheckoutPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { CheckoutCarrierData, CheckoutPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 
 /*
@@ -25,12 +26,14 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 | staff will be in touch (R2-13), a company chooses, nothing chosen first (R2-14), a bank transfer with the
 | store's details to copy (R1-24); the summary with the lines that hold something (R2-15), the gift at 0.00,
 | the points earned and, once, that prices exclude VAT (R2-1). Place Order sends the quote; pressed twice it
-| places once (§1.3). A changed quote comes back here with its new totals and why (R1-21, R1-22).
+| places once (§1.3). A changed quote comes back here with its new totals and why (R1-21, R1-22). Delivery (§4.3):
+| the carriers serving the address, the cheapest first; none serving it, a fee staff confirm; another store's
+| country, a way there and no quote.
 */
 
 const W = 'sales::shop_checkout';
 
-type Choice = { address?: string | null; points?: boolean; asked?: number | null; way?: string | null };
+type Choice = { address?: string | null; points?: boolean; asked?: number | null; way?: string | null; carrier?: string | null };
 
 export default function Checkout(page: CheckoutPage) {
     const t = useTranslator();
@@ -38,13 +41,16 @@ export default function Checkout(page: CheckoutPage) {
     const [busy, setBusy] = useState(false);
     // Each choice worked out again by the server, kept in the address so a reload keeps it.
     const choose = (next: Choice) => {
-        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.way, ...next };
+        // The carrier the customer asked for, not the cheapest picked for them: it stays while it serves the address (E4).
+        const carrier = page.carrierChanged ? null : new URLSearchParams(window.location.search).get('carrier');
+        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.way, carrier, ...next };
         const query: Record<string, string> = {};
 
         if (now.address) query.address = now.address;
         if (now.points) query.points = '1';
         if (now.points && now.asked !== null && now.asked !== undefined) query.asked = String(now.asked);
         if (now.way) query.way = now.way;
+        if (now.carrier) query.carrier = now.carrier;
 
         router.get(link('storefront.sales.checkout'), query, { preserveScroll: true, replace: true, onStart: () => setBusy(true), onFinish: () => setBusy(false) });
     };
@@ -59,6 +65,7 @@ export default function Checkout(page: CheckoutPage) {
                         <Addresses page={page} busy={busy} choose={choose} />
                         {page.quoteId === null ? null : (
                             <>
+                                <Delivery page={page} busy={busy} choose={choose} />
                                 <CouponAndPoints page={page} busy={busy} choose={choose} />
                                 <WayToPay page={page} busy={busy} choose={choose} />
                             </>
@@ -124,9 +131,71 @@ function Addresses({ page, busy, choose }: Part) {
                     </bdi>
                 </p>
             )}
+            {page.otherStore === null ? null : (
+                <div className="grid gap-1 rounded-md bg-surface-sunken p-3 text-copy-14" data-test="other-store">
+                    <p className="text-ink">{t(`${W}.delivery.other_store`, { store: isolate(page.otherStore.name) })}</p>
+                    <a href={page.otherStore.url} className="w-fit text-ink underline underline-offset-4" data-test="other-store-link">
+                        {t(`${W}.delivery.other_link`, { store: isolate(page.otherStore.name) })}
+                    </a>
+                    <p className="text-copy-13 text-ink-muted">{t(`${W}.delivery.other_cart`)}</p>
+                </div>
+            )}
             <Link href={manage} className="text-copy-14 text-ink underline underline-offset-4" data-test="manage-addresses">
                 {page.addresses.length === 0 ? t(`${W}.address.add`) : t(`${W}.address.manage`)}
             </Link>
+        </Section>
+    );
+}
+
+/** A carrier's logo if it has one, its name, and its fee for this order: Free when free shipping made it 0 (E3). */
+function CarrierLine({ carrier }: { carrier: CheckoutCarrierData }) {
+    const t = useTranslator();
+
+    return (
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2">
+                {carrier.logoUrl === null ? null : <img src={carrier.logoUrl} alt="" loading="lazy" className="h-6 w-auto max-w-16 shrink-0 object-contain" />}
+                <bdi className="min-w-0 text-copy-14 break-words text-ink">{carrier.name}</bdi>
+            </span>
+            {carrier.free || carrier.fee.minor === 0 ? <span className="shrink-0 text-label-14 text-ink">{t(`${W}.delivery.free`)}</span> : <Money value={carrier.fee} className="shrink-0 text-label-14 text-ink" />}
+        </span>
+    );
+}
+
+/** The carriers serving the address (§4.3): radios for two or more (the cheapest picked first), one with nothing to choose (E2), none: a fee staff confirm. */
+function Delivery({ page, busy, choose }: Part) {
+    const t = useTranslator();
+    const [only] = page.carriers;
+
+    if (!page.shippingPending && only === undefined) {
+        return null;
+    }
+
+    return (
+        <Section title={t(`${W}.delivery.title`)} test="checkout-delivery">
+            {page.carrierChanged ? (
+                <p role="status" className="text-copy-13 text-ink" data-test="carrier-changed">
+                    {t(`${W}.delivery.changed`)}
+                </p>
+            ) : null}
+            {page.shippingPending ? (
+                <p className="text-copy-14 text-ink" data-test="delivery-pending">
+                    {t(`${W}.delivery.none`)}
+                </p>
+            ) : page.carriers.length === 1 && only !== undefined ? (
+                <div className="material-small flex items-center p-3" data-test={`carrier-${only.id}`}>
+                    <CarrierLine carrier={only} />
+                </div>
+            ) : (
+                <RadioGroup value={page.carrierId ?? ''} onValueChange={(carrier) => choose({ carrier })} disabled={busy} className="grid gap-2" aria-label={t(`${W}.delivery.title`)}>
+                    {page.carriers.map((carrier) => (
+                        <Label key={carrier.id} htmlFor={`carrier-${carrier.id}`} className="material-small flex cursor-pointer items-center gap-3 p-3 font-normal" data-test={`carrier-${carrier.id}`}>
+                            <RadioGroupItem id={`carrier-${carrier.id}`} value={carrier.id} />
+                            <CarrierLine carrier={carrier} />
+                        </Label>
+                    ))}
+                </RadioGroup>
+            )}
         </Section>
     );
 }
@@ -258,13 +327,14 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
     const link = useLink();
     const [placing, setPlacing] = useState(false);
     // [label, amount, taken off]: a line with nothing in it is not shown (R2-15); shipping and VAT always are.
-    const rows: [string, MoneyData | null, boolean][] = [
+    const free = page.shipping !== null && page.shipping.minor === 0 ? t(`${W}.summary.free`) : page.shipping;
+    const rows: [string, MoneyData | string | null, boolean][] = [
         [t(`${W}.summary.subtotal`), page.subtotal, false],
         [t(`${W}.summary.savings`), page.savings, true],
         [t(`${W}.summary.coupon`), page.coupon, true],
         [t(`${W}.summary.points`), page.points, true],
-        // Null while no carrier serves the address: the fee is to be set by staff (§9.5 #2); the screens session words it.
-        [t(`${W}.summary.shipping`), page.shipping, false],
+        // No carrier serves the address: the fee is to be set by staff (§9.5 #2).
+        [t(`${W}.summary.shipping`), page.shippingPending ? t(`${W}.summary.shipping_pending`) : free, false],
         [t(`${W}.summary.vat`, { rate: figure(locale, page.vatRateBasisPoints / 100) }), page.vat, false],
     ];
     const reason = page.addressId === null ? t(`${W}.summary.choose_address`) : page.way === null ? t(`${W}.summary.choose_way`) : undefined;
@@ -285,7 +355,7 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
                                 <dt className="text-ink-muted">{label}</dt>
                                 <dd className="text-ink">
                                     {minus ? <span aria-hidden="true">− </span> : null}
-                                    <Money value={value as MoneyData} />
+                                    {typeof value === 'string' ? value : <Money value={value as MoneyData} />}
                                 </dd>
                             </div>
                         ))}
@@ -299,7 +369,9 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
                     )}
                     {page.total === null ? null : (
                         <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2">
-                            <dt className="text-label-14 text-ink">{t(`${W}.summary.total`)}</dt>
+                            <dt className="text-label-14 text-ink" data-test="summary-total-label">
+                                {page.shippingPending ? t(`${W}.summary.total_before`) : t(`${W}.summary.total`)}
+                            </dt>
                             <dd>
                                 <Money value={page.total} className="text-heading-16 text-ink" />
                             </dd>
@@ -318,7 +390,8 @@ function Summary({ page, busy }: { page: CheckoutPage; busy: boolean }) {
                     }
                     data-test="place-order"
                 >
-                    {t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
+                    {/* The total isn't final while the fee is to be set (E6). */}
+                    {page.shippingPending ? t(`${W}.summary.place_pending`) : t(`${W}.summary.place`, { total: page.total?.text ?? '' })}
                 </ActionButton>
             </CardContent>
         </Card>

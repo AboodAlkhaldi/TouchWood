@@ -22,12 +22,12 @@ export default function Print(slip: PrintPage) {
     const other = slip.recipientName !== '' && slip.recipientName !== slip.contactName;
     const placed = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: 'medium', timeStyle: 'short', timeZone: slip.storeTimezone }).format(new Date(slip.placedAt));
     // [label, amount, shown at 0, taken off]: a summary line with nothing in it is not shown (R2-15).
-    const rows: [string, PrintPage['total'], boolean, boolean][] = [
+    const rows: [string, PrintPage['total'] | string, boolean, boolean][] = [
         [t(`${W}.show.subtotal`), slip.grossSubtotal, true, false],
         [t(`${W}.show.savings`), slip.savings, false, true],
         [t(`${W}.print.coupon`), slip.couponDiscount, false, true],
         [t(`${W}.print.points`), slip.pointsDiscount, false, true],
-        [t(`${W}.show.shipping`), slip.shipping, true, false],
+        [t(`${W}.show.shipping`), slip.shippingFeePending ? t(`${W}.show.shipping_pending`) : slip.shipping, true, false],
         [`${t(`${W}.show.vat`)} (${figure('en', slip.vatRateBasisPoints / 100)}%)`, slip.vat, true, false],
     ];
 
@@ -99,18 +99,18 @@ export default function Print(slip: PrintPage) {
 
                 <dl className="ms-auto grid w-full max-w-xs gap-1 text-copy-14">
                     {rows
-                        .filter(([, value, always]) => always || value.minor !== 0)
+                        .filter(([, value, always]) => always || (typeof value !== 'string' && value.minor !== 0))
                         .map(([label, value, , minus]) => (
                             <div key={label} className="flex justify-between gap-3">
                                 <dt className="text-ink-muted">{label}</dt>
                                 <dd>
                                     {minus ? <span aria-hidden="true">− </span> : null}
-                                    <Money value={value} />
+                                    {typeof value === 'string' ? value : <Money value={value} />}
                                 </dd>
                             </div>
                         ))}
                     <div className="flex justify-between gap-3 border-t border-line pt-1 text-label-16">
-                        <dt>{t(`${W}.show.total`)}</dt>
+                        <dt>{slip.shippingFeePending ? t(`${W}.show.total_before`) : t(`${W}.show.total`)}</dt>
                         <dd>
                             <Money value={slip.total} />
                         </dd>
@@ -119,6 +119,12 @@ export default function Print(slip: PrintPage) {
                 <p className="text-copy-13 text-ink-muted">
                     {t(`${W}.show.way_to_pay`)}: {t(`${W}.way.${slip.wayToPay}`)}
                 </p>
+                {slip.box === null ? null : (
+                    <p className="text-copy-14" data-test="slip-box">
+                        {t(`${W}.show.box`)}: {slip.box.byHand ? t(`${W}.show.by_hand`) : <bdi>{slip.box.name}</bdi>}
+                        {slip.box.byHand && slip.box.reason !== null ? <span className="block text-copy-13 text-ink-muted">{t(`${W}.show.box_reason.${slip.box.reason}`)}</span> : null}
+                    </p>
+                )}
             </div>
         </AdminLayout>
     );

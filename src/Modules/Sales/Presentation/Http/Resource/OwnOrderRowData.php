@@ -18,5 +18,7 @@ final class OwnOrderRowData extends Data
         public string $status,
         public MoneyData $total,
         public int $pieces,
+        /** The total is before shipping: staff set the fee (sales.md §9.7 E7). */
+        public bool $shippingPending = false,
     ) {}
 }

@@ -13,7 +13,7 @@ import { useTranslator } from '@/lib/t';
 import { tone, type Tone } from '@/lib/tones';
 import { useChecks } from '@/lib/use-checks';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
-import type { OrderLineData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { OrderCarrierData, OrderLineData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 
 /*
 | What the panel's order screens share (sales.md §4.1 P1–P3): the three states' badges, in the system's tones
@@ -28,7 +28,7 @@ const SHIPMENT: Record<string, Tone> = { NOT_SHIPPED: 'gray-subtle', SHIPPED: 'b
 const PAYMENT: Record<string, Tone> = { NOTHING_DUE: 'gray-subtle', UNPAID: 'red-subtle', PARTLY_PAID: 'amber-subtle', PAID: 'green-subtle', REFUND_DUE: 'amber-subtle', REFUNDED: 'gray-subtle' };
 
 /** The order's, payment's and shipment's states, each a badge in its own words. */
-export function StateBadges({ status, payment, shipment, short = false }: { status: string; payment: string; shipment: string; short?: boolean }) {
+export function StateBadges({ status, payment, shipment, short = false, fee }: { status: string; payment: string; shipment: string; short?: boolean; /** The fee to be set, in the page's words. */ fee?: string | null }) {
     const t = useTranslator();
 
     return (
@@ -47,8 +47,36 @@ export function StateBadges({ status, payment, shipment, short = false }: { stat
                     {t(`${W}.orders.short`)}
                 </Badge>
             ) : null}
+            {fee === null || fee === undefined ? null : (
+                <Badge className={tone('amber-subtle')} data-test="order-fee-pending">
+                    {fee}
+                </Badge>
+            )}
         </span>
     );
+}
+
+/** A carrier's line in a list: another country's says which, a switched-off one says so (§4.3). */
+export function carrierLabel(carrier: OrderCarrierData, locale: string, off: string): string {
+    const parts = [carrier.name];
+
+    if (!carrier.inOrderCountry) {
+        parts.push(countryName(carrier.countryCode, locale));
+    }
+
+    if (!carrier.active) {
+        parts.push(off);
+    }
+
+    return parts.join(' · ');
+}
+
+function countryName(code: string, locale: string): string {
+    try {
+        return new Intl.DisplayNames([intlLocale(locale)], { type: 'region' }).of(code) ?? code;
+    } catch {
+        return code;
+    }
 }
 
 /** A form's own id, so pressing twice records once (sales.md §1.9): one per dialog opened. */
@@ -78,7 +106,7 @@ function useRequestId(open: boolean): string {
     return id;
 }
 
-function useSend(url: string, onDone: () => void) {
+export function useSend(url: string, onDone: () => void) {
     const [busy, setBusy] = useState(false);
 
     return {
@@ -119,57 +147,6 @@ export function ReasonDialog({ open, onOpenChange, url, kind }: Open & { url: st
             <TextareaField id="reason" rows={3} label={t(`${W}.dialog.reason`)} value={reason} check={checks.box('reason')} onChange={(event) => setReason(event.target.value)} data-test="reason" />
         </PanelDialog>
     );
-}
-
-/**
- * Ship…: the carrier, offering the store's carriers, and an optional tracking number (§1.5). A name matching one of
- * them ships with it (its tracking link made from the number); any other is "Other carrier" (§9.5 #3). The screens
- * session replaces this with the carrier picker.
- */
-export function ShipDialog({ open, onOpenChange, url, carriers = [] }: Open & { url: string; carriers?: { id: string; name: string }[] }) {
-    const t = useTranslator();
-    const [carrier, setCarrier] = useState('');
-    const [tracking, setTracking] = useState('');
-    const { busy, send } = useSend(url, () => onOpenChange(false));
-    const checks = useChecks(
-        [
-            { id: 'carrier', label: t(`${W}.dialog.carrier`), value: carrier, rules: { required: true, length: { max: 100 } } },
-            { id: 'tracking_number', label: t(`${W}.dialog.tracking`), value: tracking, rules: { length: { max: 100 } } },
-        ],
-        open,
-    );
-
-    return (
-        <PanelDialog
-            open={open}
-            onOpenChange={onOpenChange}
-            title={t(`${W}.dialog.ship_title`)}
-            description={t(`${W}.dialog.ship_body`)}
-            busy={busy}
-            confirm={
-                <ActionButton loading={busy} disabledReason={checks.reason} onClick={() => checks.submit(() => send({ ...shipWith(carriers, carrier), tracking_number: tracking }))} data-test="confirm-ship">
-                    {t(`${W}.dialog.ship_title`)}
-                </ActionButton>
-            }
-        >
-            <div className="grid gap-4">
-                <TextField id="carrier" list="known-carriers" label={t(`${W}.dialog.carrier`)} value={carrier} check={checks.box('carrier')} onChange={(event) => setCarrier(event.target.value)} data-test="carrier" />
-                <datalist id="known-carriers">
-                    {carriers.map((each) => (
-                        <option key={each.id} value={each.name} />
-                    ))}
-                </datalist>
-                <TextField id="tracking_number" dir="ltr" label={t(`${W}.dialog.tracking`)} value={tracking} check={checks.box('tracking_number')} onChange={(event) => setTracking(event.target.value)} data-test="tracking" />
-            </div>
-        </PanelDialog>
-    );
-}
-
-/** The store's carrier whose name was typed, or the name as "Other carrier". */
-function shipWith(carriers: { id: string; name: string }[], typed: string): { carrier_id: string } | { other_carrier: string } {
-    const found = carriers.find((each) => each.name.trim().toLowerCase() === typed.trim().toLowerCase());
-
-    return found === undefined ? { other_carrier: typed } : { carrier_id: found.id };
 }
 
 /** Came Back…: for each size and the gift, how many go back to stock - or lost for good, none (§1.5). */
@@ -257,7 +234,7 @@ function today(zone: string): string {
  * Record Payment… and Record Refund… (§1.9). A payment is the whole amount still owed, shown and never typed
  * (the owner's R3-1, §4.2 B1); a refund any amount up to what the order holds.
  */
-export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, exponent, initial = '' }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** The order currency's decimals. */ exponent: number; /** A refund's amount to start with (a completed return's); a payment's, the owed amount shown, sent back to be checked. */ initial?: string }) {
+export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, exponent, initial = '', feePending = false }: Open & { url: string; kind: 'payment' | 'refund'; amount: MoneyData; zone: string; /** The order currency's decimals. */ exponent: number; /** A refund's amount to start with (a completed return's); a payment's, the owed amount shown, sent back to be checked. */ initial?: string; /** The fee is still to be set: a payment says it leaves it out (E14). */ feePending?: boolean }) {
     const t = useTranslator();
     const requestId = useRequestId(open);
     const [typed, setTyped] = useState('');
@@ -314,6 +291,11 @@ export function MoneyDialog({ open, onOpenChange, url, kind, amount, zone, expon
                         <Money value={amount} className="text-heading-20" />
                     </p>
                 )}
+                {!refund && feePending ? (
+                    <p className="text-copy-13 text-ink-muted" data-test="payment-fee-note">
+                        {t(`${W}.dialog.fee_payment`)}
+                    </p>
+                ) : null}
                 <SelectField id="way" label={t(`${W}.dialog.way`)} value={way} onChange={(event) => setWay(event.target.value as (typeof WAYS)[number])} data-test="way">
                     {WAYS.map((each) => (
                         <NativeSelectOption key={each} value={each}>

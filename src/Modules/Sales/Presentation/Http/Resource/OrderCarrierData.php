@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Resource;
 
+use Modules\Shipping\Public\Dto\CarrierDto;
 use Spatie\LaravelData\Data;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -17,5 +18,19 @@ final class OrderCarrierData extends Data
         public string $countryCode,
         public bool $active,
         public bool $hasTrackingPattern,
+        /** Of the order's country: the others say theirs in the list (sales.md §4.3). */
+        public bool $inOrderCountry = true,
     ) {}
+
+    /**
+     * @param  list<CarrierDto>  $carriers
+     * @return list<self>
+     */
+    public static function list(array $carriers, ?string $country, bool $english): array
+    {
+        return array_map(static fn (CarrierDto $carrier): self => new self(
+            $carrier->id, $english ? $carrier->nameEn : $carrier->nameAr, $carrier->countryCode, $carrier->active, $carrier->hasTrackingPattern,
+            $carrier->countryCode === ($country === null ? null : strtoupper($country)),
+        ), $carriers);
+    }
 }

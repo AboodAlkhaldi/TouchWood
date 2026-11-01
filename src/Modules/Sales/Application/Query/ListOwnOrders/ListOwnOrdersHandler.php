@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\ListOwnOrders;
 
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OwnOrderRow;
 use Modules\Sales\Application\Query\Own\OwnOrdersPage;
 use Modules\Sales\Application\Query\Own\OwnReader;
@@ -45,6 +46,7 @@ final readonly class ListOwnOrdersHandler
                 $row['number'], $row['storeId'], $row['placedAt'],
                 OrderStatuses::customer($row['status'], $row['shipment'], OrderStatuses::payment($row['due'], $row['paid'], $row['refunded'])),
                 Money::of($row['total'], $row['currency']), $row['pieces'], $this->reader->exponent($row['currency']),
+                OrderShippingView::feeOpen(['shipping_fee_pending' => $row['shippingPending'], 'status' => $row['status']]),
             ), $page),
             count($rows) > self::PAGE && $page !== [] ? $page[count($page) - 1]['number'] : null,
         );

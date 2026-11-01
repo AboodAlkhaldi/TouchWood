@@ -12,6 +12,8 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
+use Modules\Sales\Application\Query\ListCarriers\ListCarriers;
+use Modules\Sales\Application\Query\ListCarriers\ListCarriersHandler;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEdit;
 use Modules\Sales\Application\Query\PreviewOrderEdit\PreviewOrderEditHandler;
@@ -44,7 +46,7 @@ final readonly class EditPages
     /**
      * @throws Unauthorized
      */
-    public function page(string $orderId, ViewOrderHandler $view): EditPage
+    public function page(string $orderId, ViewOrderHandler $view, ListCarriersHandler $carriers): EditPage
     {
         $order = $view->handle(new ViewOrder($orderId));
 
@@ -78,6 +80,7 @@ final readonly class EditPages
 
         // Another of the customer's addresses in the order's store (§1.7); none of a deleted customer's.
         $addresses = $order->customer->deleted ? [] : $this->access->addresses($order->customer->customerId, $order->storeId);
+        $country = is_string($order->address['countryCode'] ?? null) ? $order->address['countryCode'] : null;
 
         return new EditPage(
             $order->orderId,
@@ -95,6 +98,11 @@ final readonly class EditPages
             $money($order->shipping),
             $money($order->vat),
             $this->platform->store(StoreId::fromString($order->storeId))->timezone ?? 'UTC',
+            OrderCarrierData::list($carriers->handle(new ListCarriers($order->storeId, $country, true)), $country, $this->en()),
+            $order->shippingDetail?->orderedCarrierId,
+            $this->en() ? $order->shippingDetail?->orderedCarrierEn : $order->shippingDetail?->orderedCarrierAr,
+            $order->shippingDetail->feePending ?? false,
+            $order->wayToPay->value,
         );
     }
 
