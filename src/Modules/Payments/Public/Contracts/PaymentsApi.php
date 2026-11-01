@@ -4,32 +4,25 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Public\Contracts;
 
+use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
-use Modules\Payments\Public\Dto\PaymentMethodDto;
-use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Enums\PaymentAudience;
-use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
- * What Sales asks Payments (sales.md §2.4) — **declared by Sales for stage 7 to fill, provisional**.
- * Each gateway is an adapter behind it: MyFatoorah first; Tamara and Tabby, for individuals only, and
- * an Egypt gateway later (owner, 2026-10-19, answer 38). Payments takes an order id and an amount,
- * nothing more (handoff §4.4: Payments → Platform), and publishes `PaymentSucceeded` / `PaymentFailed`.
- * Not bound until stage 7: until then no online method exists (§1.9).
+ * What other modules ask Payments (payments.md §2.1), built step by step in stage 7: the gateway's
+ * availability and the transfer check time now (step 8); the session, the charge and the request with
+ * the attempts (steps 9-11); the bank account when it moves from B2B (step 8b). Each gateway is an
+ * adapter behind it: MyFatoorah first. Payments publishes `PaymentSucceeded` / `PaymentFailed`.
  */
 interface PaymentsApi
 {
-    /**
-     * The online methods offered in the store for this buyer and amount.
-     *
-     * @return list<PaymentMethodDto>
-     */
-    public function methods(StoreId $store, PaymentAudience $audience, Money $amount): array;
+    /** Whether this store takes online payment now, for this buyer: live or test, or why not (§1.2, §1.3). */
+    public function availability(StoreId $store, PaymentAudience $audience): OnlinePaymentDto;
 
-    /** Starts paying this amount of an order online, by a method `methods` offered: where to send the buyer. */
-    public function start(string $orderId, string $method, Money $amount): PaymentStartDto;
+    /** The hours staff have to check a transfer (§1.9). */
+    public function transferCheckHours(StoreId $store): int;
 
-    /** A payment as Payments recorded it — read by Sales when `PaymentSucceeded` arrives with ids only. */
+    /** One successful (or refused) transaction as Payments recorded it - null until the charge is built (step 9). */
     public function payment(string $paymentId): ?PaymentDto;
 }

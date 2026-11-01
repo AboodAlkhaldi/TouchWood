@@ -37,6 +37,7 @@ use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\MoneyByWayDto;
+use Modules\Sales\Public\Dto\ProductNetSaleDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -214,6 +215,81 @@ it('gives a payment or a refund as its message needs it, and says when it was vo
 
     DB::table('sales.payments')->where('id', $payment)->update(['voided_by' => Fx::staff(), 'voided_at' => CarbonImmutable::now(), 'void_reason' => 'Recorded by mistake']);
     expect(salesReports()->moneyRecordForMessage($payment)?->voided)->toBeTrue();
+});
+
+it('gives each product\'s sales net of its refunds, a product sold before the range but given back in it too, adding up to revenue by day', function () {
+    $ask = static function (array $sold, string $line): string {
+        Fx::actAsCustomer($sold['customer']);
+        $return = app(RequestReturnHandler::class)->handle(new RequestReturn($sold['order'], 'DAMAGED', null, [['orderLineId' => $line, 'quantity' => 1]]));
+        Fx::actAsStaff(Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['sa']));
+
+        return $return;
+    };
+    $a = salesReportsDelivered();
+    $b = salesReportsDelivered();
+    ['order' => $rejected] = salesReportsOrder();
+    app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
+    // A: one 100.00 piece refunded, the 50.00 one asked. B: placed two days ago, one 100.00 piece asked now.
+    $done = $ask($a, $a['first']);
+    app(AcceptReturnHandler::class)->handle(new AcceptReturn($done));
+    app(ReceiveReturnHandler::class)->handle(new ReceiveReturn($done, [['orderLineId' => $a['first'], 'received' => 1, 'restocked' => 1]]));
+    app(CompleteReturnHandler::class)->handle(new CompleteReturn($done));
+    $ask($a, $a['second']);
+    DB::table('sales.orders')->where('id', $b['order'])->update(['placed_at' => CarbonImmutable::now()->subDays(2)]);
+    $ask($b, $b['first']);
+
+    $product = static fn (array $sold): string => (string) DB::table('sales.order_lines')->where('id', $sold['first'])->value('product_id');
+    $goods = (int) DB::table('sales.order_lines')->where('order_id', $a['order'])->where('is_gift', false)->sum(DB::raw('total_minor - coupon_share_minor - points_share_minor'));
+    $expected = [[$product($a), 3, $goods, 100_00, 50_00], [$product($b), 0, 0, 0, 100_00]];
+    usort($expected, static fn (array $x, array $y): int => strcmp($x[0], $y[0]));
+
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    [$from, $to] = [CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addMinute()];
+    $rows = static fn (array $page): array => array_map(static fn (ProductNetSaleDto $one): array => [$one->productId, $one->units, $one->revenue->minorUnits, $one->refunds->minorUnits, $one->waitingRefunds->minorUnits], $page);
+    $first = salesReports()->productNetSales($sa, $from, $to, null, 1);
+    $second = salesReports()->productNetSales($sa, $from, $to, $first->next, 1);
+    $all = salesReports()->productNetSales($sa, $from, $to, 'not-a-cursor', 5)->rows;
+    $days = salesReports()->revenueByDay($sa, $from, $to);
+    $sum = static fn (array $list, callable $of): int => array_sum(array_map($of, $list));
+
+    expect($rows($first->rows))->toBe([$expected[0]])
+        ->and($first->next)->toBe($expected[0][0])
+        ->and($rows($second->rows))->toBe([$expected[1]])
+        ->and($second->next)->toBeNull()
+        ->and($rows($all))->toBe($expected)
+        // The products add up to revenue by day: the same refunds, counted the same way.
+        ->and($sum($all, static fn (ProductNetSaleDto $one): int => $one->revenue->minorUnits))->toBe($sum($days, static fn ($day): int => $day->revenue->minorUnits))
+        ->and($sum($all, static fn (ProductNetSaleDto $one): int => $one->refunds->minorUnits))->toBe($sum($days, static fn ($day): int => $day->refunds->minorUnits))
+        ->and($sum($all, static fn (ProductNetSaleDto $one): int => $one->waitingRefunds->minorUnits))->toBe($sum($days, static fn ($day): int => $day->waitingRefunds->minorUnits))
+        ->and(salesReports()->productNetSales($sa, $to, $from)->rows)->toBe([])
+        ->and(salesReports()->productNetSales(StoreId::fromString(Fx::storeId('ae')), $from, $to)->rows)->toBe([])
+        ->and(fn () => salesReports()->productNetSales(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class);
+});
+
+it('splits one return holding two products between them, a share that does not divide evenly rounded as the refund rounds it', function () {
+    $sold = salesReportsDelivered();
+    // The 50.00 line made another product's (one of a rejected order, so it sells nothing here), and a coupon
+    // share of 0.33 on the 100.00 line (2 pieces): one piece of it moves floor((200.00 - 0.33) / 2) = 99.83.
+    ['order' => $rejected] = salesReportsOrder();
+    app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
+    $other = (string) DB::table('sales.order_lines')->where('order_id', $rejected)->value('product_id');
+    DB::table('sales.order_lines')->where('id', $sold['second'])->update(['product_id' => $other]);
+    DB::table('sales.order_lines')->where('id', $sold['first'])->update(['coupon_share_minor' => 33]);
+    $mine = (string) DB::table('sales.order_lines')->where('id', $sold['first'])->value('product_id');
+    Fx::actAsCustomer($sold['customer']);
+    app(RequestReturnHandler::class)->handle(new RequestReturn($sold['order'], 'DAMAGED', null, [
+        ['orderLineId' => $sold['first'], 'quantity' => 1], ['orderLineId' => $sold['second'], 'quantity' => 1],
+    ]));
+
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    [$from, $to] = [CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addMinute()];
+    $rows = array_map(static fn (ProductNetSaleDto $one): array => [$one->productId, $one->units, $one->revenue->minorUnits, $one->waitingRefunds->minorUnits],
+        salesReports()->productNetSales($sa, $from, $to)->rows);
+    $expected = [[$mine, 2, 199_67, 99_83], [$other, 1, 50_00, 50_00]];
+    usort($expected, static fn (array $x, array $y): int => strcmp($x[0], $y[0]));
+
+    expect($rows)->toBe($expected)
+        ->and(salesReports()->revenueByDay($sa, $from, $to)[0]->waitingRefunds->minorUnits ?? null)->toBe(99_83 + 50_00);
 });
 
 /** @return array{order: string, number: string, customer: string, first: string, second: string, variants: list<string>} an order delivered: 2 of 100.00 and 1 of 50.00 */
