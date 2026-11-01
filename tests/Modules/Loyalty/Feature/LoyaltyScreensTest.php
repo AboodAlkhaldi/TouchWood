@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
@@ -244,8 +245,9 @@ describe('the query budget (frontend.md §5: 15 an admin page, its own; the coun
             loyaltyScreensGive($customer, $n);
         }
 
-        // Recorded: a page that grows fails here, even under the ceiling (frontend.md §5).
-        expect($one)->toBe([5, 8, 3, 3])
+        // Recorded: a page that grows fails here, even under the ceiling (frontend.md §5). A customer's page
+        // reads the points held for a payment in progress too, one query (stage 7 screens, 2026-11-01).
+        expect($one)->toBe([5, 9, 3, 3])
             ->and($counts())->toBe($one)
             ->and(max($one))->toBeLessThanOrEqual(15);
     });
@@ -276,7 +278,7 @@ describe('L2 a customer\'s points and L3 the change by hand', function () {
 
         $props = loyaltyScreensProps(loyaltyScreens([LoyaltyPermissions::VIEW, AccessPermissions::CUSTOMER_VIEW]), "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer');
 
-        expect([$props['points'], $props['history'], $props['lots']])->toBe([0, [], []]);
+        expect([$props['points'], $props['history'], $props['lots'], $props['held']])->toBe([0, [], [], 0]);
     });
 
     it('adds and removes points by hand in the store shown, saying so, and keeps a refused change\'s message for the dialog', function () {
@@ -296,6 +298,35 @@ describe('L2 a customer\'s points and L3 the change by hand', function () {
 
         expect(AdminBrowser::formError($tooMany))->not->toBeNull()
             ->and($balance())->toBe(1000);
+    });
+
+    it('shows the points held for a payment in progress, part of the balance, and refuses taking them off by hand', function () {
+        $customer = loyaltyScreensCustomer('h@example.test', 'Hala', points: 300);
+        $account = (string) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('id');
+        // A payment in progress holds 200 of them (stage 7 step 7) - as the try writes its hold.
+        DB::table('loyalty.redemption_holds')->insert([
+            'order_id' => strtolower((string) Str::ulid()), 'account_id' => $account, 'store_id' => Fx::storeId('sa'), 'points' => 200,
+            'discount_minor' => 2000, 'currency_code' => 'SAR', 'redemption_cap_percent' => 100, 'reserved_at' => now(),
+        ]);
+        $browser = loyaltyScreens([LoyaltyPermissions::VIEW, LoyaltyPermissions::ADJUST], level: RoleLevel::Admin);
+
+        expect(loyaltyScreensProps($browser, "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer'))->toMatchArray(['points' => 300, 'held' => 200]);
+
+        // Never more than the balance: a hold larger than what is left reads as the balance.
+        DB::table('loyalty.redemption_holds')->where('account_id', $account)->update(['points' => 500]);
+        expect(loyaltyScreensProps($browser, "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer')['held'])->toBe(300);
+        DB::table('loyalty.redemption_holds')->where('account_id', $account)->update(['points' => 200]);
+
+        $mine = [];
+        loyaltyScreensShopper($customer)->get('/sa/en/account/points')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$mine) {
+            $mine = $page->toArray()['props'];
+        });
+        expect([$mine['points'], $mine['held']])->toBe([300, 200]);
+
+        // Taking off more than the free 100: refused in its own words, the balance as it was.
+        $refused = $browser->post("/admin/points/customers/{$customer}/change", ['mode' => 'remove', 'points' => '250', 'reason' => 'Correction', 'store' => 'sa']);
+        expect(AdminBrowser::formError($refused))->toContain('held for a payment in progress')
+            ->and((int) DB::table('loyalty.accounts')->where('customer_id', $customer)->value('balance'))->toBe(300);
     });
 
     it('refuses what is not a whole number of points, a mode that is neither, and a reader without the job', function () {
@@ -408,8 +439,9 @@ describe('what the reviews of 2026-10-19 asked', function () {
         $off = $own();
 
         // Recorded (frontend.md §5); off costs the Points tab's own question once more, on the page
-        // and in the account menu (access.md amendment 72(d)).
-        expect([$on, $off])->toBe([3, 5])
+        // and in the account menu (access.md amendment 72(d)). Both read the points held for a payment in
+        // progress, one query (stage 7 screens, 2026-11-01).
+        expect([$on, $off])->toBe([4, 6])
             ->and(max($on, $off))->toBeLessThanOrEqual(8);
     });
 });

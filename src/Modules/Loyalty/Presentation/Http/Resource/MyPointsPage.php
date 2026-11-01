@@ -32,5 +32,7 @@ final class MyPointsPage extends Data
         public int $pointsPerUnitOff,
         public MoneyData $unit,
         public string $timezone,
+        /** Of `points`, those held for a payment in progress - shown only when there are some. */
+        public int $held = 0,
     ) {}
 }

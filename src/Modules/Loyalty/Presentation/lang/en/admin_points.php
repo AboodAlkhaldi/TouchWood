@@ -57,6 +57,7 @@ return [
     ],
 
     'card' => [
+        'held' => ':points held for a payment in progress',
         'points' => 'Points',
         'worth' => 'Worth',
         'expiring' => 'Expiring Next',

@@ -38,5 +38,7 @@ final class CustomerPointsPage extends Data
         public string $storeTimezone,
         public bool $programmeOn,
         public array $stores,
+        /** Of `points`, those held for a payment in progress - shown only when there are some. */
+        public int $held = 0,
     ) {}
 }

@@ -45,6 +45,7 @@ export default function Customer({
     storeIsActive,
     programmeOn,
     stores,
+    held,
 }: CustomerPointsPage) {
     const t = useTranslator();
     const locale = useLocale();
@@ -96,7 +97,21 @@ export default function Customer({
                     <CardContent className="px-6">
                         <Description
                             items={[
-                                { title: t('loyalty::admin_points.card.points'), content: <Points value={points} className="text-heading-24 text-ink" />, 'data-test': 'points' },
+                                {
+                                    title: t('loyalty::admin_points.card.points'),
+                                    content: (
+                                        <span className="grid gap-0.5">
+                                            <Points value={points} className="text-heading-24 text-ink" />
+                                            {/* Held for an online payment in progress (§9.6): part of the balance, only when some are. */}
+                                            {held > 0 ? (
+                                                <span className="text-copy-13 text-ink-muted" data-test="held">
+                                                    {t('loyalty::admin_points.card.held', { points: figure(locale, held) })}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                    ),
+                                    'data-test': 'points',
+                                },
                                 { title: t('loyalty::admin_points.card.worth'), content: <Amount value={worth} /> },
                                 {
                                     title: t('loyalty::admin_points.card.expiring'),
