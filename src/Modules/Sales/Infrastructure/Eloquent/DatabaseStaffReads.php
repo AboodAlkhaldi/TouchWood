@@ -21,7 +21,7 @@ final readonly class DatabaseStaffReads implements StaffReads
         $query = $this->db->table('sales.orders AS o')
             ->orderByDesc('o.placed_at')->orderByDesc('o.id')->limit($limit)
             ->select(['o.id', 'o.number', 'o.store_id', 'o.customer_id', 'o.placed_at', 'o.status', 'o.shipment_status', 'o.currency_code',
-                'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor', 'o.short_of_stock_at', 'o.may_ship_unpaid']);
+                'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor', 'o.short_of_stock_at', 'o.may_ship_unpaid', 'o.shipping_fee_pending']);
 
         if ($storeIds !== null) {
             $query->whereIn('o.store_id', $storeIds);

@@ -48,7 +48,7 @@ final readonly class OwnPages
         $page = $list->handle(new ListOwnOrders($after));
 
         return new MyOrdersPage(array_map(fn (OwnOrderRow $row): OwnOrderRowData => new OwnOrderRowData(
-            $row->number, self::moment($row->placedAt), $row->status->value, $this->money($row->total, $row->storeId, $row->exponent, $locale), $row->pieces,
+            $row->number, self::moment($row->placedAt), $row->status->value, $this->money($row->total, $row->storeId, $row->exponent, $locale), $row->pieces, $row->shippingPending,
         ), $page->orders), $page->next);
     }
 

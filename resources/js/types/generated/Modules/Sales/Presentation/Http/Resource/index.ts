@@ -150,6 +150,11 @@ beforeSubtotal: MoneyData,
 beforeShipping: MoneyData,
 beforeVat: MoneyData,
 storeTimezone: string,
+carriers: OrderCarrierData[],
+orderedCarrierId: string | null,
+orderedCarrier: string | null,
+shippingFeePending: boolean,
+wayToPay: string,
 };
 export type EditPreviewData = {
 subtotal: MoneyData,
@@ -216,6 +221,7 @@ name: string,
 countryCode: string,
 active: boolean,
 hasTrackingPattern: boolean,
+inOrderCountry: boolean,
 };
 export type OrderCustomerData = {
 id: string,
@@ -322,6 +328,7 @@ trackingLink: string | null,
 orderedCarrier: string | null,
 shippingFeePending: boolean,
 box: OrderBoxData | null,
+orderedCarrierId: string | null,
 };
 export type OrderReturnData = {
 id: string,
@@ -341,6 +348,7 @@ shipment: string,
 payment: string,
 total: MoneyData,
 shortOfStock: boolean,
+shippingFeePending: boolean,
 };
 export type OrderTickData = {
 variantId: string,
@@ -414,6 +422,7 @@ placedAt: string,
 status: string,
 total: MoneyData,
 pieces: number,
+shippingPending: boolean,
 };
 export type OwnReturnLineData = {
 name: string,
@@ -455,6 +464,7 @@ wayToPay: string,
 bank: BankData | null,
 receipts: number,
 mayUpload: boolean,
+shippingPending: boolean,
 };
 export type PrintPage = {
 id: string,
@@ -479,6 +489,7 @@ total: MoneyData,
 wayToPay: string,
 storeTimezone: string,
 box: OrderBoxData | null,
+shippingFeePending: boolean,
 };
 export type ReturnLineData = {
 orderLineId: string,

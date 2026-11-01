@@ -32,7 +32,6 @@ use Modules\Sales\Application\Query\Staff\MoneyRow;
 use Modules\Sales\Application\Query\Staff\StaffOrderRow;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrder;
 use Modules\Sales\Application\Query\ViewOrder\ViewOrderHandler;
-use Modules\Shipping\Public\Dto\CarrierDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -138,6 +137,7 @@ final readonly class OrderPages
             $row->payment->value,
             $this->money($row->total, $row->storeId, $row->exponent),
             $row->shortOfStock,
+            $row->shippingFeePending,
         );
     }
 
@@ -229,6 +229,7 @@ final readonly class OrderPages
             $this->locale() === 'en' ? $order->shippingDetail?->orderedCarrierEn : $order->shippingDetail?->orderedCarrierAr,
             $order->shippingDetail->feePending ?? false,
             OrderBoxData::of($order->box),
+            $order->shippingDetail?->orderedCarrierId,
         );
     }
 
@@ -244,11 +245,7 @@ final readonly class OrderPages
             return [];
         }
 
-        $english = $this->locale() === 'en';
-
-        return array_map(static fn (CarrierDto $carrier): OrderCarrierData => new OrderCarrierData(
-            $carrier->id, $english ? $carrier->nameEn : $carrier->nameAr, $carrier->countryCode, $carrier->active, $carrier->hasTrackingPattern,
-        ), $list);
+        return OrderCarrierData::list($list, is_string($address['countryCode'] ?? null) ? $address['countryCode'] : null, $this->locale() === 'en');
     }
 
     /** An amount in its decimals ("248.00"), as Record Payment's `shown` reads it. */
@@ -291,6 +288,7 @@ final readonly class OrderPages
             $order->wayToPay->value,
             $store->timezone ?? 'UTC',
             OrderBoxData::of($order->box),
+            $order->shippingFeePending,
         );
     }
 

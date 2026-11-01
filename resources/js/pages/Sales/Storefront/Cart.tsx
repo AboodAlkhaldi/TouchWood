@@ -307,20 +307,11 @@ function Summary({ cart, checkout }: { cart: CartPage; checkout: string }) {
                         </dt>
                         <dd>{cart.subtotal === null ? '—' : <Money value={cart.subtotal} className="text-label-14 text-ink" />}</dd>
                     </div>
-                    {cart.shippingFee === null ? null : (
-                        <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
-                            <dt className="text-ink-muted">
-                                {t(`${C}.summary.shipping`)}
-                                {cart.freeAbove === null || cart.freeShare >= 100 || cart.shippingFee.minor === 0 ? null : (
-                                    <span className="text-copy-13">
-                                        {' '}
-                                        ({t(`${C}.summary.free_above`)} <Money value={cart.freeAbove} />)
-                                    </span>
-                                )}
-                            </dt>
-                            <dd>{cart.shippingFee.minor === 0 || (cart.freeAbove !== null && cart.freeShare >= 100) ? <span className="text-label-14 text-ink">{t(`${C}.summary.free`)}</span> : <Money value={cart.shippingFee} className="text-label-14 text-ink" />}</dd>
-                        </div>
-                    )}
+                    {/* The fee needs the address: worked out at checkout (gap 6.6). */}
+                    <div className="flex items-baseline justify-between gap-3" data-test="summary-shipping">
+                        <dt className="text-ink-muted">{t(`${C}.summary.shipping`)}</dt>
+                        <dd className="text-copy-13 text-ink-muted">{t(`${C}.summary.shipping_later`)}</dd>
+                    </div>
                 </dl>
                 <p className="text-copy-13 text-ink-muted">{t(`${C}.summary.later`)}</p>
 

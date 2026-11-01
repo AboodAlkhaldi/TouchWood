@@ -192,7 +192,7 @@ it('shows a customer\'s latest orders on the staff customer page, none to a read
         ->and(array_column($section['orders'] ?? [], 'id'))->not->toContain($first)
         ->and(array_column($section['orders'] ?? [], 'id'))->not->toContain($someoneElses)
         // Each order as the panel's list draws it (§4.1 P7), its total written by the server.
-        ->and(array_keys($section['orders'][0] ?? []))->toBe(['id', 'number', 'storeCode', 'placedAt', 'customer', 'status', 'shipment', 'payment', 'total', 'shortOfStock'])
+        ->and(array_keys($section['orders'][0] ?? []))->toBe(['id', 'number', 'storeCode', 'placedAt', 'customer', 'status', 'shipment', 'payment', 'total', 'shortOfStock', 'shippingFeePending'])
         ->and([$section['customerId'] ?? null, $section['orders'][0]['storeCode'] ?? null, array_keys($section['orders'][0]['total'] ?? [])])->toBe([strtolower($customer), 'sa', ['text', 'minor']]);
 
     Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['eg']));

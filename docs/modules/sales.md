@@ -1911,3 +1911,19 @@ The owner answered **(a) for all fourteen** (2026-11-01: "All as recommended"). 
 
 **From the backend's list** (§9.6): pick #11 says a company's bank-transfer order moved by staff to a place no
 carrier serves stays a bank transfer. The screens say so in the preview; the owner didn't reject it.
+
+**As built — my picks, for the owner to reject** (2026-11-01, from the independent review):
+
+1. **A rejected or cancelled order stops saying its fee is to be set**, and shows no box: no shipping is coming. The
+   stored flag stays as it was; only the pages read it so (`OrderShippingView::feeOpen`).
+2. **Correct Shipment… and Change Shipping Fee… stay in the menu out of reach, with the reason**, once the order's state
+   stops them (§4.1's rule). An order with a carrier's fee still doesn't offer the fee at all.
+3. **A tracking number and link are saved in 0-9**, whatever the keyboard typed: `ShipmentInputs` converts them, so a
+   carrier's link made from the number works.
+4. **The edit page reads the store's carriers under the edit job** (`ListCarriers` with `forEdit`), so staff who edit but
+   don't ship can use Keep the order's fee (gap 6.1). Set only by the server, after its own check that the reader may edit.
+5. **Correcting a shipment whose carrier was since deleted keeps its name as a typed one**, in the page's language only,
+   and the dialog says so.
+
+**Still open for the owner**: a fee staff set, kept through a move to another place with a carrier picked, can no longer
+be changed by Change Shipping Fee… (the order then has a carrier, §9.6 #4), only by another address change.

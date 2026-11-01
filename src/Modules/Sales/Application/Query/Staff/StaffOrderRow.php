@@ -26,5 +26,7 @@ final readonly class StaffOrderRow
         public int $exponent,
         public bool $shortOfStock,
         public bool $mayShipUnpaid,
+        /** No carrier served the place: staff set the fee before it ships (shipping.md §9.3 #8). */
+        public bool $shippingFeePending = false,
     ) {}
 }

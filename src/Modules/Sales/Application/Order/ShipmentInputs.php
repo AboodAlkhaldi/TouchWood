@@ -7,6 +7,7 @@ namespace Modules\Sales\Application\Order;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Model\Shipment;
 use Modules\Shipping\Public\Contracts\ShippingApi;
+use Shared\Domain\Text\LatinDigits;
 use Shared\Domain\ValueObject\StoreId;
 
 /**
@@ -33,8 +34,8 @@ final readonly class ShipmentInputs
     {
         $id = self::blank($carrierId) ? null : strtolower(trim((string) $carrierId));
         $other = self::blank($otherCarrier) ? null : trim((string) $otherCarrier);
-        $number = self::blank($trackingNumber) ? null : trim((string) $trackingNumber);
-        $typed = self::blank($trackingLink) ? null : trim((string) $trackingLink);
+        $number = self::blank($trackingNumber) ? null : LatinDigits::of(trim((string) $trackingNumber));
+        $typed = self::blank($trackingLink) ? null : LatinDigits::of(trim((string) $trackingLink));
 
         if ($number !== null && (mb_strlen($number) > self::MOST || preg_match('/[\x00-\x1F\x7F]/', $number) === 1)) {
             throw new InvalidSalesAttribute('tracking_number', 'at most '.self::MOST.' characters, on one line');
