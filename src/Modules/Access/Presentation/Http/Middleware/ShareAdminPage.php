@@ -12,10 +12,14 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
 use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
+use Modules\Platform\Public\Contracts\AdminBanners;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\StoreChoices;
+use Modules\Platform\Public\Dto\AdminBannerDto;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Platform\Public\Dto\StoreDto;
+use Shared\Application\ActorContext;
+use Shared\Application\ActorType;
 use Symfony\Component\HttpFoundation\Response;
 use Tighten\Ziggy\Ziggy;
 
@@ -42,6 +46,8 @@ final readonly class ShareAdminPage
         private StoresForStaff $stores,
         private StoreChoices $choices,
         private AdminMenu $menu,
+        private AdminBanners $banners,
+        private ActorContext $actors,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -54,6 +60,10 @@ final readonly class ShareAdminPage
             'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
             'viewer' => fn (): ?array => $this->viewer($locale),
             'menu' => fn (): array => $this->menuFor($locale),
+            // Only for staff: a sign-in page draws none, and asks for none.
+            'banners' => fn (): array => $this->actors->current()->type === ActorType::Staff ? array_map(static fn (AdminBannerDto $banner): array => [
+                'label' => $banner->label, 'text' => $banner->text, 'everywhere' => $banner->everywhere, 'linkText' => $banner->linkText, 'href' => $banner->href,
+            ], $this->banners->forCurrentActor($locale, fn (): array => $this->stores->forCurrentStaff())) : [],
             // Whether the sidebar is open or shut down to its rail. Remembered per browser by the
             // sidebar component itself, and read back here so the server's first paint already has
             // it right - worked out in the browser instead, the page would flicker on every load.

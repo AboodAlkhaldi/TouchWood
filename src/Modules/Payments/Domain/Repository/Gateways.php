@@ -20,6 +20,9 @@ interface Gateways
 
     public function of(string $storeId): ?Gateway;
 
+    /** @return list<Gateway> every store's gateway that is switched on */
+    public function switchedOn(): array;
+
     public function create(string $storeId, PaymentMode $mode, string $staffId, DateTimeImmutable $now): void;
 
     public function save(Gateway $gateway, DateTimeImmutable $now): void;

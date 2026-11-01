@@ -38,6 +38,8 @@ final class InMemoryAdminMenu implements AdminMenu
         'orders',
         // Shipping's section follows Orders (access.md, stage 7 step 2; shipping.md §4.1 part 1, Q1).
         'shipping',
+        // Payments' section follows Shipping (payments.md §9.12 Q14).
+        'payments',
         'companies',
         'customers',
         // Handoff §14 places Marketing after Customers and before Points (platform.md §9.4).

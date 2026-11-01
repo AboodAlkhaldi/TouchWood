@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { AppSidebar } from '@/components/AppSidebar';
+import { Note } from '@/components/Note';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ViewStoreButton } from '@/components/ViewStoreButton';
@@ -66,8 +67,9 @@ type Props = {
 
 export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail = 'page', children }: Props) {
     const page = usePage<SharedProps>();
-    const { menu, sidebarOpen } = page.props;
+    const { menu, sidebarOpen, banners } = page.props;
     const here = pathOf(page.url);
+    const shownBanners = (banners ?? []).filter((banner) => banner.everywhere || here === '/admin');
     const t = useTranslator();
 
     const trail: Crumb[] = [...(breadcrumbs ?? defaultTrail(menu, here)), { label: title }];
@@ -170,6 +172,24 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                             {action}
                         </div>
 
+                        {/* Over every page, or Home only (payments.md §4.2). Never on paper: the slip prints without them. */}
+                        {shownBanners.length > 0 ? (
+                            <div className="mb-4 grid gap-2 print:hidden" data-test="admin-banners">
+                                {shownBanners.map((banner) => (
+                                    <Note key={banner.text} variant="warning" label={banner.label} data-test="admin-banner">
+                                        {banner.text}
+                                        {banner.href === null ? null : (
+                                            <>
+                                                {' '}
+                                                <Link href={banner.href} className="underline underline-offset-4">
+                                                    {banner.linkText}
+                                                </Link>
+                                            </>
+                                        )}
+                                    </Note>
+                                ))}
+                            </div>
+                        ) : null}
                         {children}
                     </div>
                 </SidebarInset>

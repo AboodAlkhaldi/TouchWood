@@ -21,6 +21,7 @@ use Modules\Platform\Application\Audit\UnnamedStaff;
 use Modules\Platform\Application\AuditLog;
 use Modules\Platform\Application\FailedJobs\FailedJobs;
 use Modules\Platform\Application\FailedJobs\FailedJobsCount;
+use Modules\Platform\Application\Home\InMemoryAdminBanners;
 use Modules\Platform\Application\Home\InMemoryHomeCards;
 use Modules\Platform\Application\Media\ImageVariantGenerator;
 use Modules\Platform\Application\Media\InMemoryMediaUsages;
@@ -82,6 +83,7 @@ use Modules\Platform\Presentation\Http\Middleware\ResolveStore;
 use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
+use Modules\Platform\Public\Contracts\AdminBanners;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
@@ -170,6 +172,8 @@ final class PlatformServiceProvider extends ServiceProvider
         // The admin home's cards, registered by every module as menu entries are (platform.md §2.6).
         $this->app->singleton(InMemoryHomeCards::class);
         $this->app->alias(InMemoryHomeCards::class, HomeCards::class);
+        $this->app->singleton(InMemoryAdminBanners::class);
+        $this->app->alias(InMemoryAdminBanners::class, AdminBanners::class);
 
         // The shop frame's parts - Catalog's menu and search box (catalog.md §4.5, owner's #9).
         $this->app->singleton(InMemoryShopFrameParts::class);

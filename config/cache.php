@@ -19,6 +19,9 @@ return [
 
     'default' => env('CACHE_STORE', 'database'),
 
+    // The panel's banners ask on every admin page, so they stay off the database (payments.md §9.12 Q18).
+    'banner_store' => env('CACHE_BANNERS_STORE', env('APP_ENV') === 'testing' ? 'array' : 'file'),
+
     /*
     |--------------------------------------------------------------------------
     | Cache Stores

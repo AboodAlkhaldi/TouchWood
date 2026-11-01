@@ -80,6 +80,11 @@ final readonly class StaleKeys implements Gateways
         return $this->inner->of($storeId);
     }
 
+    public function switchedOn(): array
+    {
+        return $this->inner->switchedOn();
+    }
+
     public function create(string $storeId, PaymentMode $mode, string $staffId, DateTimeImmutable $now): void
     {
         $this->inner->create($storeId, $mode, $staffId, $now);

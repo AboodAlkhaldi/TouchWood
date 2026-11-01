@@ -1347,3 +1347,16 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
   **[Recommended]**; (b) adds a link to the portal.
 - **Q22. "Request payment" or "handle by hand" on the order.** (a) One Note with Request Payment beside the existing Record Payment;
   by hand needs no press **[Recommended]**; (b) two buttons, with Handle by Hand hiding the Note.
+
+**The Gateway page, as built — my picks, for the owner to reject** (2026-11-01):
+
+1. **The Test banner shows while a store's gateway is on and in Test.** A gateway switched off takes no online payment, so
+   it says nothing about money. It goes to staff who hold that store, whatever their job (Q18).
+2. **A key warning covers every current key, on or off, in either mode**, as the expiry warnings do, so a Live key dying while
+   a store is still in Test is seen before launch day. A date already past stays only for the key in use: an old Test
+   key doesn't sit over a live store's Home for ever.
+3. **The banners' fact is kept in a file for a minute, not in the database** (`cache.banner_store`), so a panel page gains no
+   query. With several web servers, each can lag by up to that minute; a save on the same server shows at once.
+4. **Registering Apple Pay stays offered once registered**, as Register Again: Apple may ask for it yearly (§1.2).
+5. **A refused domain says MyFatoorah's own words** here: this page is Super Admins' alone (§7).
+

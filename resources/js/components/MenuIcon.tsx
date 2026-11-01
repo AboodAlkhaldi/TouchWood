@@ -29,6 +29,7 @@ import {
     TriangleAlert,
     Truck,
     Users,
+    CreditCard,
 } from 'lucide-react';
 
 /*
@@ -91,6 +92,9 @@ const ICONS = {
     carriers: Truck,
     // Shipping's Boxes (shipping.md §4.1 part 3): an icon the panel already draws.
     boxes: Boxes,
+    // Payments' Gateway (payments.md §4.2).
+    gateway: CreditCard,
+    payments: CreditCard,
 } as const;
 
 type Props = {
