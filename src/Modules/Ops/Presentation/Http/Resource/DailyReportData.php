@@ -16,6 +16,8 @@ final class DailyReportData extends Data
 {
     public function __construct(
         public string $id,
+        /** What making one takes as `store`; null: every store's. */
+        public ?string $storeId,
         public ?string $storeCode,
         public string $storeName,
         /** `YYYY-MM-DD`: the store's own day, or the base store's for every store. */

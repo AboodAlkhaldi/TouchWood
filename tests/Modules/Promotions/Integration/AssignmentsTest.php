@@ -40,6 +40,7 @@ use function Pest\Laravel\seed;
 | new ones only; only an ASSIGNED coupon is assigned (owner, 2026-10-18, answer 24), from a segment of
 | its own store and of an audience it allows; an unused assignment can be removed. And
 | `segmentMembers` for Ops, keyset-paged: the store's segment only, another store's refused as unknown.
+| `storeSegments` and `storeSegment` for Ops: the store's own, with their names and counts.
 */
 
 uses(RefreshDatabase::class);
@@ -240,4 +241,53 @@ it('pages a store\'s segment\'s members by id for Ops, refusing an unknown segme
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
         ->and(Pr::thrown(fn () => Pr::api()->segmentMembers($sa, $segment, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
+});
+
+it('lists a store\'s segments for Ops, newest first in pages, each with its names and count, never another store\'s', function () {
+    Fx::customer('sara@example.test');
+    Fx::customer('omar@example.test');
+    marketer();
+    $make = fn (string $name, string $store = 'sa'): string => app(CreateSegmentHandler::class)->handle(new CreateSegment(Fx::storeId($store), "شريحة {$name}", $name, 'DYNAMIC', 'INDIVIDUAL', 'NO_ORDERS_EVER'));
+    $ids = [$make('One'), $make('Two'), $make('Three')];
+    $elsewhere = $make('Elsewhere', 'eg');
+    rsort($ids);
+    $names = DB::table('promotions.segments')->pluck('name_en', 'id')->all();
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    Fx::actAsStaff(Fx::staffWith(['ops.notice.manage'], ['sa']));
+
+    $first = Pr::api()->storeSegments($sa, null, 2);
+    $last = Pr::api()->storeSegments($sa, strtoupper($first[1]->id), 2);
+    $rows = [...$first, ...$last];
+
+    expect(array_map(fn ($row) => $row->id, $rows))->toBe($ids)
+        ->and(array_map(fn ($row) => $row->nameEn, $rows))->toBe(array_map(fn (string $id) => $names[$id], $ids))
+        ->and(array_map(fn ($row) => $row->nameAr, $rows))->toBe(array_map(fn (string $id) => "شريحة {$names[$id]}", $ids))
+        ->and(array_map(fn ($row) => $row->memberCount, $rows))->toBe([2, 2, 2])
+        ->and(Pr::api()->storeSegments($sa, $last[0]->id, 2))->toBe([])
+        ->and(array_map(fn ($row) => $row->id, Pr::api()->storeSegments(StoreId::fromString(Fx::storeId('eg')), null, 10)))->toBe([$elsewhere])
+        ->and(Pr::api()->storeSegments(StoreId::fromString(Fx::storeId('ae')), null, 10))->toBe([])
+        ->and(Pr::thrown(fn () => Pr::api()->storeSegments($sa, null, 0), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
+        ->and(Pr::thrown(fn () => Pr::api()->storeSegments($sa, null, 1001), InvalidPromotionAttribute::class)->attribute)->toBe('limit')
+        ->and(Pr::thrown(fn () => Pr::api()->storeSegments($sa, 'not-an-id', 2), InvalidPromotionAttribute::class)->attribute)->toBe('after');
+});
+
+it('gives one of the store\'s segments for Ops, nothing for another store\'s, one deleted since or an id that is not one', function () {
+    Fx::customer('sara@example.test');
+    marketer();
+    $segment = neverOrderedSegment();
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    $eg = StoreId::fromString(Fx::storeId('eg'));
+    Fx::actAsStaff(Fx::staffWith(['ops.notice.manage'], ['sa']));
+    $row = Pr::api()->storeSegment($sa, strtoupper($segment));
+
+    expect($row?->id)->toBe($segment)
+        ->and($row?->nameAr)->toBe('شريحة')
+        ->and($row?->nameEn)->toBe('Never ordered')
+        ->and($row?->memberCount)->toBe(1)
+        ->and(Pr::api()->storeSegment($eg, $segment))->toBeNull()
+        ->and(Pr::api()->storeSegment($sa, Pr::orderId()))->toBeNull()
+        ->and(Pr::api()->storeSegment($sa, 'nope'))->toBeNull();
+
+    DB::table('promotions.segments')->where('id', $segment)->delete();
+    expect(Pr::api()->storeSegment($sa, $segment))->toBeNull();
 });

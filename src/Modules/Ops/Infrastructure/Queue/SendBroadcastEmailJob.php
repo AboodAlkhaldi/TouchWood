@@ -10,11 +10,12 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Modules\Ops\Application\Delivery\Broadcast;
 use Modules\Ops\Infrastructure\Delivery\BroadcastSender;
-use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 
 /**
- * One email of a notice or a staff member's message (ops.md §1.7, §1.8), sent once by its delivery id
- * (`ops.handled_events`): a retry after it left finds the id and sends nothing. A provider's failure is
+ * One email of a notice or a staff member's message (ops.md §1.7, §1.8), its `ops.sent_messages` row already
+ * written QUEUED with its batch, as an event's email is: the provider is called outside any transaction,
+ * then the row is marked SENT; a retry finds a SENT row and sends nothing. **At least once**: a provider that
+ * took the email just before the row could be marked may get it again on the retry. A provider's failure is
  * retried; after the last attempt it is recorded as failed and counted (§7).
  */
 final class SendBroadcastEmailJob implements ShouldQueue
@@ -33,16 +34,16 @@ final class SendBroadcastEmailJob implements ShouldQueue
         public Broadcast $broadcast,
         public string $id,
         public string $customerId,
-        public string $deliveryId,
+        public string $sentId,
     ) {}
 
-    public function handle(BroadcastSender $sender, HandledEvents $handled): void
+    public function handle(BroadcastSender $sender): void
     {
-        $handled->once($this->deliveryId, self::class, fn () => $sender->email($this->broadcast, $this->id, $this->customerId));
+        $sender->email($this->broadcast, $this->id, $this->customerId, $this->sentId);
     }
 
     public function failed(): void
     {
-        app(BroadcastSender::class)->emailFailed($this->broadcast, $this->id, $this->customerId);
+        app(BroadcastSender::class)->emailFailed($this->broadcast, $this->id, $this->sentId);
     }
 }

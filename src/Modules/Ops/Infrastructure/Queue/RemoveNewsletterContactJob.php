@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Infrastructure\Queue;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -16,7 +17,9 @@ use Throwable;
 /**
  * Takes an email off a store's newsletter list at the provider, once its row is gone (ops.md §1.9);
  * for an anonymized account, deletes the contact too (§6). The email waits in the job until it runs:
- * the row that held it is already deleted.
+ * the row that held it is already deleted. So the job is **encrypted**: an address never lies readable in
+ * the `jobs` or `failed_jobs` tables. The failed jobs screen reads the job's name and tries from the outer
+ * payload (`displayName`, `maxTries`), which stay plain, and a retry pushes the payload back as it is.
  *
  * Brevo's reference does not say what it answers when the email is not on the list or is no contact
  * (https://developers.brevo.com/reference/removecontactfromlist: a 400's codes include "Contact email
@@ -24,7 +27,7 @@ use Throwable;
  * the job waits on the failed jobs screen, with Brevo's status and code - never retried for ever, never
  * silent.
  */
-final class RemoveNewsletterContactJob implements ShouldQueue
+final class RemoveNewsletterContactJob implements ShouldBeEncrypted, ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;

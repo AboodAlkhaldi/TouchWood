@@ -9,8 +9,10 @@ use Modules\Access\Application\Audit\StaffAudit;
 use Modules\Access\Application\Authorization\GrantRules;
 use Modules\Access\Application\Authorization\GrantsReader;
 use Modules\Access\Application\Permission\AccessPermissions;
+use Modules\Access\Application\Staff\InvitationDelivery;
 use Modules\Access\Application\Staff\Invitations;
 use Modules\Access\Domain\Exception\InvalidStaffStatus;
+use Modules\Access\Domain\Exception\InvitationNotSent;
 use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\Repository\RoleAssignmentRepository;
 use Modules\Access\Domain\Repository\StaffUserRepository;
@@ -33,12 +35,15 @@ final readonly class ResendStaffInvitationHandler
         private Connection $db,
     ) {}
 
+    /**
+     * @throws InvitationNotSent the new link is saved and the earlier one dead; only the email failed
+     */
     public function handle(ResendStaffInvitation $command): void
     {
         // Before anything is looked up, so someone without the action learns nothing about ids.
         $this->rules->requireSomewhere(self::PERMISSION);
 
-        $this->db->transaction(function () use ($command): void {
+        $delivery = $this->db->transaction(function () use ($command): InvitationDelivery {
             $target = $this->staff->byId($command->staffId) ?? throw new StaffNotFound($command->staffId);
 
             foreach ($this->rules->scopesFor($this->assignments->byStaff($target->id())?->staffStores()) as $scope) {
@@ -55,8 +60,12 @@ final readonly class ResendStaffInvitationHandler
                 throw new InvalidStaffStatus($target->status());
             }
 
-            $this->invitations->send($target, $author->staffId);
+            $delivery = $this->invitations->send($target, $author->staffId);
             $this->platform->recordAudit(StaffAudit::event('access.staff_user.invitation_resent', $target));
+
+            return $delivery;
         }, 3);
+
+        $delivery->requireSent();
     }
 }

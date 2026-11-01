@@ -6,6 +6,7 @@ namespace Modules\Ops\Application\Command\CancelNotice;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Modules\Ops\Application\Delivery\Writers;
 use Modules\Ops\Application\Delivery\WrittenAudit;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Exception\NoticeAlreadyStarted;
@@ -27,6 +28,7 @@ final readonly class CancelNoticeHandler
 
     public function __construct(
         private Authorizer $authorizer,
+        private Writers $writers,
         private Notices $notices,
         private ConnectionInterface $db,
         private PlatformApi $platform,
@@ -37,7 +39,13 @@ final readonly class CancelNoticeHandler
      */
     public function handle(CancelNotice $command): void
     {
-        $found = $this->notices->find($command->noticeId) ?? throw new NoticeNotFound;
+        $stores = $this->writers->storesHolding(self::PERMISSION);
+        $found = $this->notices->find($command->noticeId);
+
+        if ($found === null || ! Writers::among($found->store, $stores)) {
+            throw new NoticeNotFound;
+        }
+
         $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($found->store));
 
         $this->db->transaction(function () use ($found): void {

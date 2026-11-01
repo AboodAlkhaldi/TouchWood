@@ -117,9 +117,10 @@ final readonly class VerifyStaffSignInCodeHandler
                         $this->tokens->forgetTrustedBrowsers($staff->id());
 
                         // The right password alone set this number: the address on the account hears of
-                        // it, once the change commits (owner, 2026-10-30; amendment 90).
+                        // it, once the change commits (owner, 2026-10-30; amendment 90). A failed notice
+                        // goes to the log and never breaks the sign-in (amendment 93).
                         $changed = StaffMapper::toDto($staff);
-                        $this->db->afterCommit(fn () => $this->messages->staffPhoneChanged($changed));
+                        $this->db->afterCommit(fn () => rescue(fn () => $this->messages->staffPhoneChanged($changed)));
                     }
                 }
 

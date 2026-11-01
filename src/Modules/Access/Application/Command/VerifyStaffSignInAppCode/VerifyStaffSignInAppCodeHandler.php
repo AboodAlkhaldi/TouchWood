@@ -201,7 +201,8 @@ final readonly class VerifyStaffSignInAppCodeHandler
         }
 
         $dto = StaffMapper::toDto($staff);
-        $this->db->afterCommit(fn () => $this->messages->staffAppCodeFailed($dto, $now, $locked));
+        // A failed notice goes to the log and never replaces the answer below (amendment 93).
+        $this->db->afterCommit(fn () => rescue(fn () => $this->messages->staffAppCodeFailed($dto, $now, $locked)));
 
         return new AppCodeTriesUsedUp;
     }

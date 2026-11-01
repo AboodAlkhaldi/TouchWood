@@ -12,6 +12,8 @@ use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\StaffAlerts;
 use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 use Modules\Ops\Public\Enums\MessageKind;
+use Modules\Payments\Public\Events\GatewayKeyExpiring;
+use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Sales\Public\Events\OrderPlaced;
 use Modules\Sales\Public\Events\ReturnRequested;
 use Modules\Sync\Public\Events\SyncNeedsAttention;
@@ -26,7 +28,10 @@ use Modules\Sync\Public\Events\SyncNeedsAttention;
  *   ran out);
  * - S4 a store's reads left problems - Sync problems, `sync.report.view`; bell and email only, never the
  *   critical SMS (owner, 2026-10-28, §9.3 #10);
- * - S9 a customer asked for a return - Returns, `sales.return.manage`.
+ * - S9 a customer asked for a return - Returns, `sales.return.manage`;
+ * - S5 the gateway key expires in 30, 7 or 1 days - Payment problems, `payments.gateway.manage`, a reserved
+ *   permission: super admins alone. At 1 day also the critical SMS (StaffAlerts);
+ * - S5b the gateway refused a store's current key - the same topic and permission, always with the critical SMS.
  *
  * `HoldsShort` sends nothing (§1.6). From the queue, retried on failure; once per event
  * (`ops.handled_events`).
@@ -44,7 +49,7 @@ final class AlertStaff implements ShouldQueue
         private readonly HandledEvents $handled,
     ) {}
 
-    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested $event): void
+    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested|GatewayKeyExpiring|GatewayKeyRejected $event): void
     {
         $store = strtolower($event->storeId);
 
@@ -54,6 +59,8 @@ final class AlertStaff implements ShouldQueue
             $event instanceof LowStockChanged => [new EventMessage(MessageKind::LowStock, $store, ['low' => count($event->becameLow), 'out' => count($event->ranOut)]), StaffNotificationTopic::LowStock, 'inventory.stock.manage'],
             $event instanceof SyncNeedsAttention => [new EventMessage(MessageKind::SyncProblems, $store, ['readId' => $event->readId]), StaffNotificationTopic::SyncProblems, 'sync.report.view'],
             $event instanceof ReturnRequested => [new EventMessage(MessageKind::ReturnRequested, $store, ['returnId' => strtolower($event->returnId)]), StaffNotificationTopic::Returns, 'sales.return.manage'],
+            $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn, 'mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
+            $event instanceof GatewayKeyRejected => [new EventMessage(MessageKind::GatewayKeyRejected, $store, ['mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
         };
 
         if ($message->kind === MessageKind::LowStock && $message->int('low') + $message->int('out') === 0) {

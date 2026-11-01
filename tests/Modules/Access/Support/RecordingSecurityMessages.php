@@ -9,6 +9,7 @@ use LogicException;
 use Modules\Access\Public\Contracts\SecurityMessages;
 use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Dto\StaffDto;
+use RuntimeException;
 
 /**
  * Keeps every security message instead of sending it, so a test can read the link or code a
@@ -62,6 +63,12 @@ final class RecordingSecurityMessages implements SecurityMessages
      */
     public array $appCodeFailures = [];
 
+    /**
+     * The provider is down for the emails of amendment 93: each throws and is not kept. A real
+     * provider's failure is tested through Ops' own sender too (MessageFailureTest).
+     */
+    public bool $emailsFail = false;
+
     private static ?self $installed = null;
 
     public static function install(): self
@@ -89,6 +96,8 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function emailVerification(CustomerDto $customer, string $link): void
     {
+        $this->failIfDown();
+
         $this->emailVerifications[] = ['to' => $customer->email, 'link' => $link, 'locale' => $customer->locale];
     }
 
@@ -99,6 +108,8 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function staffInvitation(StaffDto $staff, string $link): void
     {
+        $this->failIfDown();
+
         $this->invitations[] = ['to' => $staff->email, 'link' => $link, 'locale' => $staff->locale];
     }
 
@@ -119,16 +130,22 @@ final class RecordingSecurityMessages implements SecurityMessages
 
     public function staffEmailChange(StaffDto $staff, string $newEmail, string $link): void
     {
+        $this->failIfDown();
+
         $this->emailChanges[] = ['staff' => $staff->id, 'to' => $newEmail, 'link' => $link];
     }
 
     public function staffPhoneChanged(StaffDto $staff): void
     {
+        $this->failIfDown();
+
         $this->phoneChanges[] = ['staff' => $staff->id, 'to' => $staff->email];
     }
 
     public function staffAppCodeFailed(StaffDto $staff, DateTimeImmutable $at, bool $locked): void
     {
+        $this->failIfDown();
+
         $this->appCodeFailures[] = ['staff' => $staff->id, 'to' => $staff->email, 'locked' => $locked];
     }
 
@@ -175,6 +192,13 @@ final class RecordingSecurityMessages implements SecurityMessages
         $last = end($this->emailChanges);
 
         return $last === false ? '' : basename($last['link']);
+    }
+
+    private function failIfDown(): void
+    {
+        if ($this->emailsFail) {
+            throw new RuntimeException('The email provider is away.');
+        }
     }
 
     public function lastCode(): string

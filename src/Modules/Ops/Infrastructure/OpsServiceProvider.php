@@ -46,6 +46,7 @@ use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Ops\Application\Query\ListStaffMessages\StaffMessageQueries;
 use Modules\Ops\Application\Reports\ReportWriter;
 use Modules\Ops\Domain\Repository\DailyReports;
 use Modules\Ops\Domain\Repository\Inbox;
@@ -63,6 +64,7 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseNotices;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseOpsLog;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSentMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSmsCountries;
+use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessageQueries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
 use Modules\Ops\Infrastructure\Excel\OpenSpoutReportWriter;
@@ -93,6 +95,8 @@ use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 use Modules\Ops\Infrastructure\Queue\QueuedEventDeliveries;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
+use Modules\Payments\Public\Events\GatewayKeyExpiring;
+use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Promotions\Public\Events\CouponAssigned;
@@ -140,6 +144,7 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->bind(OpsLog::class, DatabaseOpsLog::class);
         $this->app->bind(Notices::class, DatabaseNotices::class);
         $this->app->bind(StaffMessages::class, DatabaseStaffMessages::class);
+        $this->app->bind(StaffMessageQueries::class, DatabaseStaffMessageQueries::class);
         $this->app->bind(Subscribers::class, DatabaseSubscribers::class);
         $this->app->bind(BroadcastQueue::class, QueuedBroadcasts::class);
         $this->app->bind(NewsletterQueue::class, QueuedNewsletter::class);
@@ -189,6 +194,7 @@ final class OpsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         self::requireRealEmailDriver($this->app);
+        self::requireRealNewsletterDriver($this->app);
 
         $this->loadMigrationsFrom(__DIR__.'/Persistence/Migrations');
         $this->loadTranslationsFrom(dirname(__DIR__).'/Presentation/lang', 'ops');
@@ -231,7 +237,7 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
         }
 
-        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class] as $event) {
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class] as $event) {
             Event::listen($event, [AlertStaff::class, 'handle']);
         }
 
@@ -292,6 +298,31 @@ final class OpsServiceProvider extends ServiceProvider
 
         if ($app->environment('production') && $name !== 'brevo') {
             throw new InvalidArgumentException('OPS_EMAIL_DRIVER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real email driver.');
+        }
+    }
+
+    /**
+     * The same for the newsletter's lists (ops.md §1.9): on the `log` driver a live server would tell Brevo
+     * nothing - nobody joins a list, and an unsubscribe or a deleted customer stays at the provider. The
+     * binding refuses it only when a job runs, which fails quietly on the queue; this stops the server at boot.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function requireRealNewsletterDriver(Application $app): void
+    {
+        $config = $app->make('config');
+        $key = $config->get('app.key');
+
+        // As requireRealEmailDriver(): no key is a fresh checkout, with nothing to protect.
+        if (! is_string($key) || $key === '') {
+            return;
+        }
+
+        $driver = $config->get('ops.newsletter.driver');
+        $name = is_string($driver) ? $driver : '';
+
+        if ($app->environment('production') && $name !== 'brevo') {
+            throw new InvalidArgumentException('OPS_NEWSLETTER_DRIVER is "'.$name.'": the newsletter\'s lists would be written to the log, never to Brevo. Production never starts without a real newsletter driver.');
         }
     }
 }

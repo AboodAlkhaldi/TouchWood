@@ -12,6 +12,7 @@ use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\ReserveCoupon;
+use Modules\Promotions\Public\Dto\SegmentChoiceDto;
 use Modules\Promotions\Public\Dto\SettleReservation;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
@@ -96,6 +97,21 @@ interface PromotionsApi
      * @return list<string>
      */
     public function segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit): array;
+
+    /**
+     * Ops' notice form and message composer (ops.md §4.13; the owner's go 2026-11-01): **the store's**
+     * segments, newest first by id, at most `$limit` (1 to 1000) after `$after`, each with how many it holds.
+     * Another store's never appear. Ops checks its own permission first. Reads only.
+     *
+     * @return list<SegmentChoiceDto>
+     */
+    public function storeSegments(StoreId $store, ?string $after, int $limit): array;
+
+    /**
+     * Ops' notice, showing its segment's name (ops.md §4.13; the owner's go 2026-11-01): **the store's**
+     * segment. Null for another store's, one deleted since, or an id that is not one. Reads only.
+     */
+    public function storeSegment(StoreId $store, string $segmentId): ?SegmentChoiceDto;
 
     /**
      * Ops' daily report (ops.md §1.11 item 7): **the store's coupon uses** from `from` up to `to` (not

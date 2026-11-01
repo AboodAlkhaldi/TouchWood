@@ -12,6 +12,7 @@ return [
     'staff_user.invited' => 'Staff member invited',
     'staff_user.accepted' => 'Invitation accepted',
     'staff_user.invitation_resent' => 'Invitation resent',
+    'staff_user.invitation_not_sent' => 'Invitation email not sent',
     'staff_user.invitation_cancelled' => 'Invitation cancelled',
     'staff_user.enabled' => 'Staff member enabled',
     'staff_user.disabled' => 'Staff member disabled',

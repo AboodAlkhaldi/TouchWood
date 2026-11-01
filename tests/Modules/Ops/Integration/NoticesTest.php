@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Ops\Application\Command\CancelNotice\CancelNotice;
 use Modules\Ops\Application\Command\CancelNotice\CancelNoticeHandler;
@@ -15,6 +16,8 @@ use Modules\Ops\Application\Command\ChangeNotice\ChangeNoticeHandler;
 use Modules\Ops\Application\Command\CreateNotice\CreateNotice;
 use Modules\Ops\Application\Command\CreateNotice\CreateNoticeHandler;
 use Modules\Ops\Application\Delivery\Broadcast;
+use Modules\Ops\Application\Messages\EmailSender;
+use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Query\ListNotices\ListNotices;
 use Modules\Ops\Application\Query\ListNotices\ListNoticesHandler;
@@ -24,6 +27,7 @@ use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\NoticeAlreadyStarted;
 use Modules\Ops\Domain\Model\BroadcastStatus;
 use Modules\Ops\Domain\Repository\Notices;
+use Modules\Ops\Infrastructure\Delivery\BroadcastSender;
 use Modules\Ops\Infrastructure\Queue\SendBroadcastBatchJob;
 use Modules\Ops\Infrastructure\Queue\SendBroadcastEmailJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
@@ -197,25 +201,83 @@ it('cancels a waiting notice for good: it never sends', function () {
         ->and(fn () => app(CancelNoticeHandler::class)->handle(new CancelNotice($id)))->toThrow(NoticeAlreadyStarted::class);
 });
 
-it('sends one email once by its delivery id, and counts a failure the queue gave up on', function () {
+/** The row a batch writes for one email of a notice: QUEUED. */
+function noticesQueuedEmail(string $customerId): string
+{
+    $id = strtolower((string) Str::ulid());
+    DB::table('ops.sent_messages')->insert(['id' => $id, 'kind' => 'offer_notice', 'customer_id' => $customerId, 'store_id' => Fx::storeId('sa'), 'channel' => 'EMAIL', 'status' => 'QUEUED', 'created_at' => now()]);
+
+    return $id;
+}
+
+it('sends one email once by its row, and counts a failure the queue gave up on, once', function () {
     $sara = Wx::agreeing('sara@example.test');
     Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
     $id = noticesCreate(email: false);
-    $delivery = (string) Str::uuid();
+    $sent = noticesQueuedEmail($sara);
 
-    $job = new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, $delivery);
+    $job = new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, $sent);
     app()->call([$job, 'handle']);
     app()->call([$job, 'handle']);
     expect(CapturedEmails::installed()->to())->toBe(['sara@example.test'])
-        ->and(noticesRow($id)->email_count)->toBe(1);
+        ->and(noticesRow($id)->email_count)->toBe(1)
+        ->and(DB::table('ops.sent_messages')->where('id', $sent)->first())->toMatchArray(['status' => 'SENT', 'provider_id' => 'message-1']);
 
     CapturedEmails::installed()->fails = true;
-    $again = new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, (string) Str::uuid());
+    $failing = noticesQueuedEmail($sara);
+    $again = new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, $failing);
     expect(fn () => app()->call([$again, 'handle']))->toThrow(ProviderFailed::class);
+    expect(DB::table('ops.sent_messages')->where('id', $failing)->value('status'))->toBe('QUEUED');
+    $again->failed();
     $again->failed();
 
     expect(noticesRow($id)->failed_count)->toBe(1)
-        ->and(DB::table('ops.sent_messages')->where('status', 'FAILED')->where('customer_id', $sara)->count())->toBe(1);
+        ->and(DB::table('ops.sent_messages')->where('id', $failing)->value('status'))->toBe('FAILED');
+
+    // Retried from the failed jobs screen, and it goes: no longer a failure.
+    CapturedEmails::installed()->fails = false;
+    app()->call([$again, 'handle']);
+
+    expect(noticesRow($id)->failed_count)->toBe(0)
+        ->and(noticesRow($id)->email_count)->toBe(2)
+        ->and(DB::table('ops.sent_messages')->where('id', $failing)->value('status'))->toBe('SENT');
+});
+
+it('writes each email\'s row QUEUED with its batch, and calls the provider outside any transaction', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    $queue = Queue::fake();
+    $queued = noticesCreate();
+    Queue::assertPushed(SendBroadcastBatchJob::class, 1);
+    app()->call([new SendBroadcastBatchJob(Broadcast::Notice, $queued), 'handle']);
+    /** @var SendBroadcastEmailJob $job */
+    $job = $queue->pushed(SendBroadcastEmailJob::class)->first();
+
+    expect(DB::table('ops.sent_messages')->where('id', $job->sentId)->value('status'))->toBe('QUEUED')
+        ->and(noticesRow($queued)->email_count)->toBe(0);
+
+    /** @var ArrayObject<int, int> $levels */
+    $levels = new ArrayObject;
+    app()->instance(EmailSender::class, new class($levels) implements EmailSender
+    {
+        /** @param  ArrayObject<int, int>  $levels */
+        public function __construct(private ArrayObject $levels) {}
+
+        public function send(OutgoingEmail $email): string
+        {
+            $this->levels->append(DB::transactionLevel());
+
+            return 'message-1';
+        }
+    });
+    $base = DB::transactionLevel();
+
+    app()->call([$job, 'handle']);
+
+    expect($levels->getArrayCopy())->toBe([$base])
+        ->and($job->customerId)->toBe($sara)
+        ->and(noticesRow($queued)->email_count)->toBe(1)
+        ->and(DB::table('ops.sent_messages')->where('id', $job->sentId)->first())->toMatchArray(['status' => 'SENT', 'provider_id' => 'message-1']);
 });
 
 it('checks the customer again as the email leaves: consent withdrawn meanwhile, no email', function () {
@@ -224,9 +286,12 @@ it('checks the customer again as the email leaves: consent withdrawn meanwhile, 
     $id = noticesCreate(email: false);
     Wx::set($sara, ['marketing_consent' => false]);
 
-    app()->call([new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, (string) Str::uuid()), 'handle']);
+    $sent = noticesQueuedEmail($sara);
+    app()->call([new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, $sent), 'handle']);
 
-    expect(CapturedEmails::installed()->sent)->toBe([]);
+    // Nothing left to send, so no record of a send.
+    expect(CapturedEmails::installed()->sent)->toBe([])
+        ->and(DB::table('ops.sent_messages')->where('id', $sent)->exists())->toBeFalse();
 });
 
 it('audits writing, changing and cancelling a notice, in the same transaction', function () {
@@ -267,4 +332,58 @@ it('shows a notice whose batch failed for good as FAILED; retrying the job carri
     // A notice sent already is never set back to FAILED.
     $job->failed();
     expect(noticesRow($id)->status)->toBe('SENT');
+});
+
+it('carries the store\'s logo and name on a notice\'s email', function () {
+    Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+
+    noticesCreate();
+
+    expect(CapturedEmails::installed()->last()->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>');
+});
+
+it('writes a batch\'s email jobs and the next batch into the jobs table inside its transaction: a rollback leaves neither, nor a row', function () {
+    config(['queue.default' => 'database']);
+    Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    $id = noticesCreate();
+    DB::table('jobs')->delete();
+    $sent = DB::table('ops.sent_messages')->count();
+
+    DB::beginTransaction();
+    app(BroadcastSender::class)->batch(Broadcast::Notice, $id);
+    $jobs = DB::table('jobs')->pluck('payload')->map(static fn (string $payload): string => (string) json_decode($payload, true)['displayName'])->all();
+    $rows = DB::table('ops.sent_messages')->where('status', 'QUEUED')->count();
+    DB::rollBack();
+
+    expect($jobs)->toEqualCanonicalizing([SendBroadcastEmailJob::class, SendBroadcastBatchJob::class])
+        ->and($rows)->toBe(1)
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('ops.sent_messages')->count())->toBe($sent)
+        ->and(CapturedEmails::installed()->sent)->toBe([]);
+});
+
+it('writes the first batch into the jobs table with the notice', function () {
+    config(['queue.default' => 'database']);
+    Fx::customer('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    DB::table('jobs')->delete();
+
+    DB::beginTransaction();
+    noticesCreate();
+    $inside = DB::table('jobs')->count();
+    DB::rollBack();
+
+    expect([$inside, DB::table('jobs')->count(), DB::table('ops.notices')->count()])->toBe([1, 0, 0]);
+});
+
+it('sends nothing for a job whose row is gone: the job reads its row again', function () {
+    $sara = Wx::agreeing('sara@example.test');
+    Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
+    $id = noticesCreate(email: false);
+
+    app()->call([new SendBroadcastEmailJob(Broadcast::Notice, $id, $sara, strtolower((string) Str::ulid())), 'handle']);
+
+    expect(CapturedEmails::installed()->sent)->toBe([]);
 });

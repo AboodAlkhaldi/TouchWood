@@ -161,4 +161,7 @@ orders at once on the last use; outside RefreshDatabase, skipped under --paralle
   `PromotionsApi::assignedCustomers` pages whom it added, by the event's `assignmentId` (`MarketingQueries::assignedBy`).
 - `PromotionsApi::couponsUsed` (`CouponsUsedDto`), over `MarketingQueries::usesIn`; index
   `coupon_uses_by_store_time` and the column `coupon_assignments.assignment_id` (migration `2026_10_28_100000`).
+- `PromotionsApi::couponCode`, the code for the `CouponAssigned` message, over `Coupons::storeOf` and `byId`.
+- `PromotionsApi::storeSegments` and `storeSegment` (`SegmentChoiceDto`), for the notice form and message composer,
+  over `MarketingQueries::segmentsById` and `segmentRow`; the store's own only, Ops checks its own permission first.
 - Tests: `tests/Modules/Promotions/Integration/PromotionsOpsTest.php`.

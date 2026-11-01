@@ -215,7 +215,7 @@
         @endforeach
     </tr></table>
     <table class="mini" style="margin-top: 4pt;"><tr>
-        <td style="width: 50%;"><div class="mlabel">{{ $w('money.transfers_waiting') }}</div><div class="mvalue">{!! str_replace([':orders', ':amount'], [$f->int($s->transfersWaiting->orders)->toHtml(), $money($s->transfersWaiting->owed)->toHtml()], e(__('ops::daily_report.money.transfers_waiting_line', [], $locale))) !!}</div></td>
+        <td style="width: 50%;"><div class="mlabel">{{ $w($s->notReadThatDay ? 'money.transfers_waiting_now' : 'money.transfers_waiting') }}</div><div class="mvalue">{!! str_replace([':orders', ':amount'], [$f->int($s->transfersWaiting->orders)->toHtml(), $money($s->transfersWaiting->owed)->toHtml()], e(__('ops::daily_report.money.transfers_waiting_line', [], $locale))) !!}</div></td>
         <td class="wait" style="width: 50%;"><div class="mlabel">{{ $w('money.transfers_overdue') }}</div><div class="mwait">{{ $w('money.waits_stage7') }}</div></td>
     </tr></table>
     </td></tr></table>

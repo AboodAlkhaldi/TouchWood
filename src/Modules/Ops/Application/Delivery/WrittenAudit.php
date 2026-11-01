@@ -13,7 +13,7 @@ use Modules\Platform\Public\Dto\AuditEntryDto;
 
 /**
  * What staff write to customers, in Platform's audit log (owner, 2026-10-30): a notice created,
- * changed or cancelled; a staff message sent, to one customer or to the store. Written in the same
+ * changed or cancelled; a staff message sent, to one customer, the store or a segment. Written in the same
  * transaction as the change; Platform adds who and when. The text's titles, its page, the channels,
  * the time - and the message's audience; never a customer's personal data, only their id.
  */
@@ -41,8 +41,9 @@ final class WrittenAudit
     public static function staffMessageSent(StaffMessage $message): AuditEntryDto
     {
         $changes = AuditChanges::none()
-            ->changed('audience', null, $message->isToOne() ? 'ONE' : 'STORE')
+            ->changed('audience', null, $message->audience())
             ->changed('customer_id', null, $message->customerId)
+            ->changed('segment', null, $message->segmentId)
             ->changed('title_ar', null, $message->text->titleAr)
             ->changed('title_en', null, $message->text->titleEn)
             ->changed('channels', null, self::channels($message->byBell, $message->byEmail));

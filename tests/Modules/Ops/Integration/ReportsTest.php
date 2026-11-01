@@ -678,6 +678,7 @@ it('reads money received day by day over any range in one read, and sums a month
         DB::table('sales.payments')->insert([...$payment, 'id' => strtolower((string) Str::ulid()), 'happened_on' => $month.$day, 'request_id' => (string) Str::uuid()]);
     }
     $amount = static fn (int $times): string => number_format($times * (int) $payment['amount_minor'] / 100, 2, '.', '');
+    config(['session.lottery' => [0, 100]]);
     $today = reportsToday();
     reportsReader();
     $from = CarbonImmutable::now('Asia/Riyadh')->subDays(119)->format('Y-m-d');

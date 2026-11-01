@@ -41,6 +41,11 @@ final readonly class StoreDayReport
         /** The moment the report stops: when it was made, or the next midnight for a past day. */
         public DateTimeImmutable $to,
         public bool $pastDay,
+        /**
+         * The report's day is not this store's current day when it is read: a past day, a late worker's or a
+         * retry's. Transfers waiting are as they stand now, and say so.
+         */
+        public bool $notReadThatDay,
 
         // 1. Today against yesterday, same hours.
         public PeriodFigures $today,

@@ -7,6 +7,7 @@ namespace Modules\Ops\Application\DailyReport;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Dto\StaffDto;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
@@ -28,6 +29,8 @@ final readonly class DailyReportMaker
         private DailyReportRenderer $renderer,
         private ReportFiles $files,
         private DailyReports $reports,
+        private DailyReportEmailQueue $queue,
+        private ConnectionInterface $db,
     ) {}
 
     /**
@@ -39,7 +42,69 @@ final readonly class DailyReportMaker
      */
     public function make(StaffDto $person, ?StoreDto $store, array $stores, ?string $pastDay, string $zone, ?DateTimeImmutable $now = null): DailyReportFile
     {
-        $now ??= CarbonImmutable::now()->toDateTimeImmutable();
+        [$file, $pdf] = $this->written($person, $store, $stores, $pastDay, $zone, $now ?? CarbonImmutable::now()->toDateTimeImmutable());
+        // The file first: a row never names a file that is not there - and a row that cannot be written
+        // leaves no file behind.
+        $this->files->put($file->file, $pdf);
+        try {
+            $this->reports->add($file);
+        } catch (Throwable $failed) {
+            $this->files->delete([$file->file]);
+
+            throw $failed;
+        }
+
+        return $file;
+    }
+
+    /**
+     * The email's report at its moment (§1.11), kept once for that moment, with its delivery queued in the
+     * same transaction: a worker that dies leaves both or neither. Null when that moment's report is kept
+     * already: two jobs of one moment make one report and send one email.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     *
+     * @throws InvalidOpsInput
+     */
+    public function makeForEmail(StaffDto $person, ?StoreDto $store, array $stores, string $zone, DateTimeImmutable $due, string $settingId): ?DailyReportFile
+    {
+        [$file, $pdf] = $this->written($person, $store, $stores, null, $zone, $due);
+        $this->files->put($file->file, $pdf);
+        try {
+            $kept = $this->db->transaction(function () use ($file, $settingId, $due): bool {
+                if (! $this->reports->addForEmail($file, $settingId, $due)) {
+                    return false;
+                }
+                $this->queue->deliver($file->id);
+
+                return true;
+            });
+        } catch (Throwable $failed) {
+            $this->files->delete([$file->file]);
+
+            throw $failed;
+        }
+        if (! $kept) {
+            $this->files->delete([$file->file]);
+
+            return null;
+        }
+
+        return $file;
+    }
+
+    /**
+     * The report read from the modules and written as a PDF, not yet kept.
+     *
+     * @param  StoreDto|null  $store  null: every store that is on, in `$stores`
+     * @param  non-empty-list<StoreDto>  $stores
+     * @param  string|null  $pastDay  `Y-m-d`, a day before today in `$zone`; null for today until now
+     * @return array{DailyReportFile, string}
+     *
+     * @throws InvalidOpsInput
+     */
+    private function written(StaffDto $person, ?StoreDto $store, array $stores, ?string $pastDay, string $zone, DateTimeImmutable $now): array
+    {
         $today = $now->setTimezone(new DateTimeZone($zone))->format('Y-m-d');
         if ($pastDay !== null) {
             $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $pastDay, new DateTimeZone($zone));
@@ -74,17 +139,7 @@ final readonly class DailyReportMaker
             file: DailyReportFile::fileFor($id, $now),
             bytes: strlen($pdf),
         );
-        // The file first: a row never names a file that is not there - and a row that cannot be written
-        // leaves no file behind.
-        $this->files->put($file->file, $pdf);
-        try {
-            $this->reports->add($file);
-        } catch (Throwable $failed) {
-            $this->files->delete([$file->file]);
 
-            throw $failed;
-        }
-
-        return $file;
+        return [$file, $pdf];
     }
 }

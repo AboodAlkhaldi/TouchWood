@@ -37,9 +37,9 @@ final class PaymentsSettings
     public static function definitions(): array
     {
         return [
-            new SettingDefinitionDto(self::WINDOW_MINUTES, SettingScope::Store, SettingType::Integer, ['min:1', 'max:30'], 5, PaymentsPermissions::GATEWAY_MANAGE),
-            new SettingDefinitionDto(self::WAIT_MINUTES, SettingScope::Store, SettingType::Integer, ['min:1', 'max:10'], 2, PaymentsPermissions::GATEWAY_MANAGE),
-            new SettingDefinitionDto(self::HOLD_MINUTES, SettingScope::Store, SettingType::Integer, ['min:10', 'max:60'], 15, PaymentsPermissions::GATEWAY_MANAGE),
+            new SettingDefinitionDto(self::WINDOW_MINUTES, SettingScope::Store, SettingType::Integer, ['min:1', 'max:30'], 5, PaymentsPermissions::GATEWAY_MANAGE, onSettingsPage: false),
+            new SettingDefinitionDto(self::WAIT_MINUTES, SettingScope::Store, SettingType::Integer, ['min:1', 'max:10'], 2, PaymentsPermissions::GATEWAY_MANAGE, onSettingsPage: false),
+            new SettingDefinitionDto(self::HOLD_MINUTES, SettingScope::Store, SettingType::Integer, ['min:10', 'max:60'], 15, PaymentsPermissions::GATEWAY_MANAGE, onSettingsPage: false),
             new SettingDefinitionDto(self::TRANSFER_CHECK_HOURS, SettingScope::Store, SettingType::Integer, ['min:1', 'max:720'], 72, PlatformPermissions::SETTINGS_UPDATE),
         ];
     }

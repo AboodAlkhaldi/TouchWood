@@ -33,8 +33,12 @@ use Modules\Access\Application\Query\ListRoles\ListRolesHandler;
 use Modules\Access\Application\Query\ListStaff\ListStaffHandler;
 use Modules\Access\Application\Query\ListStaff\StaffSummary;
 use Modules\Access\Application\Query\RoleEditorPermissions\RoleEditorPermissionsHandler;
+use Modules\Access\Application\Query\StaffActions\StaffActionsForReader;
 use Modules\Access\Application\Query\ViewStaff\ViewStaff;
 use Modules\Access\Application\Query\ViewStaff\ViewStaffHandler;
+use Modules\Access\Domain\Exception\EmailChangeLinkNotSent;
+use Modules\Access\Domain\Exception\InvitationNotSent;
+use Modules\Access\Domain\Exception\StaffNotFound;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Presentation\Http\Resource\StaffPages;
 use Modules\Access\Public\Enums\AccessLevel;
@@ -104,10 +108,17 @@ final readonly class StaffController
     }
 
     /** C5. The change happens when the link sent to the new address is used. */
-    public function changeEmail(Request $request, string $staffId, ChangeStaffEmailHandler $handler): RedirectResponse
+    public function changeEmail(Request $request, string $staffId, ChangeStaffEmailHandler $handler, StaffActionsForReader $actions): RedirectResponse
     {
         try {
             $handler->handle(new ChangeStaffEmail($staffId, $request->string('email')->toString()));
+        } catch (InvitationNotSent) {
+            // Only someone who can press it is told to press it.
+            $word = $actions->forStaff($staffId)->mayResendInvitation ? 'email_changed_invitation_not_sent' : 'email_changed_invitation_not_sent_ask';
+
+            return back()->with('warning', __("access::staff.{$word}"));
+        } catch (EmailChangeLinkNotSent) {
+            return back()->with('warning', __('access::staff.email_link_not_sent'));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, ['email']);
         }
@@ -129,9 +140,11 @@ final readonly class StaffController
      * C3, sending it.
      *
      * Three steps on the screen, one request at the end of them: nothing is written, and nobody
-     * exists, until the invitation is actually sent [decided 2026-09-19].
+     * exists, until that last step [decided 2026-09-19]. If only the email then fails, the member
+     * stays saved and the admin is told (amendment 93). Someone who may invite but not view them
+     * goes back to the form, because the member's page would answer "not found".
      */
-    public function sendInvitation(Request $request, InviteStaffHandler $handler): RedirectResponse
+    public function sendInvitation(Request $request, InviteStaffHandler $handler, ViewStaffHandler $view, StaffActionsForReader $actions): RedirectResponse
     {
         $fields = [
             'email', 'first_name', 'last_name', 'job_title', 'date_of_birth', 'country', 'address',
@@ -166,11 +179,34 @@ final readonly class StaffController
                     $admin ? RoleLevel::Admin : RoleLevel::Staff,
                 ),
             ));
+        } catch (InvitationNotSent $notSent) {
+            // The member exists now. Only someone who can reach Resend Invitation is told to press it.
+            $opens = $this->mayOpen($notSent->staffId, $view);
+            $word = $opens && $actions->forStaff($notSent->staffId)->mayResendInvitation ? 'invitation_not_sent' : 'invitation_not_sent_ask';
+
+            return $this->afterInviting($notSent->staffId, $opens)->with('warning', __("access::staff.{$word}"));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error, $fields);
         }
 
-        return redirect("/admin/staff/{$staffId}")->with('status', __('access::staff.invitation_sent'));
+        return $this->afterInviting($staffId, $this->mayOpen($staffId, $view))->with('status', __('access::staff.invitation_sent'));
+    }
+
+    private function afterInviting(string $staffId, bool $opens): RedirectResponse
+    {
+        return redirect($opens ? "/admin/staff/{$staffId}" : '/admin/staff/invite');
+    }
+
+    /** Access's own answer to whether this reader may open that member's page (C2). */
+    private function mayOpen(string $staffId, ViewStaffHandler $view): bool
+    {
+        try {
+            $view->handle(new ViewStaff($staffId));
+
+            return true;
+        } catch (StaffNotFound) {
+            return false;
+        }
     }
 
     /** C6, the screen. */
@@ -250,6 +286,8 @@ final readonly class StaffController
     {
         try {
             $handler->handle(new ResendStaffInvitation($staffId));
+        } catch (InvitationNotSent) {
+            return back()->with('warning', __('access::staff.invitation_resend_failed'));
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }

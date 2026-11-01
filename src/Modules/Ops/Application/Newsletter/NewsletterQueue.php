@@ -25,4 +25,10 @@ interface NewsletterQueue
 
     /** The customer unsubscribed - by a link, or at the provider: their consent is withdrawn, as the system (§1.3). */
     public function withdrawConsent(string $customerId, MarketingConsentSource $source): void;
+
+    /**
+     * The same within the request, for a person pressing an unsubscribe button (§1.3: "at once"): Access
+     * lets only the system withdraw consent, and a job run here is the system, on nobody's account.
+     */
+    public function withdrawConsentNow(string $customerId, MarketingConsentSource $source): void;
 }

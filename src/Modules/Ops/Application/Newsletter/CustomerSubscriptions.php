@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Access\Public\Enums\MarketingConsentSource;
 use Modules\Ops\Application\Messages\MarketingReach;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
@@ -25,8 +26,8 @@ use Shared\Domain\ValueObject\StoreId;
  *   theirs, with what the provider already holds. While they may not receive offers, **every guest
  *   row of their email, in every store, goes too**: their consent is the account's switch, never a
  *   guest's sign-up (§1.3). With a **deletion pending** the provider's contact itself is deleted at
- *   once - the email is gone from our side before the account is anonymized; a cancelled deletion
- *   puts them back on, and the provider is told to email them again.
+ *   once, **with or without a row** - the email is gone from our side before the account is anonymized;
+ *   a cancelled deletion puts them back on, and the provider is told to email them again.
  * - **forget** (an anonymized account): the row and every guest row of its email go, and the contact
  *   is deleted at the provider.
  * - **the provider's unsubscribe** (Brevo's webhook): a guest is taken off; a customer's consent is
@@ -67,6 +68,13 @@ final readonly class CustomerSubscriptions
                 }
 
                 $this->dropGuests([$row?->email, $customer === null || $customer->anonymized ? null : $customer->email], $forget);
+
+                // No row, and yet a contact may be there: they withdrew earlier, or a guest registered
+                // without agreeing. Each left a list and kept the contact - and this is the last moment
+                // the email is known: anonymizing erases it.
+                if ($forget && $row === null && $customer !== null && ! $customer->anonymized) {
+                    $this->forgetContact($customer);
+                }
 
                 return;
             }
@@ -153,6 +161,15 @@ final readonly class CustomerSubscriptions
                     $this->drop($guest, $forget);
                 }
             }
+        }
+    }
+
+    private function forgetContact(CustomerDto $customer): void
+    {
+        $email = self::listed($customer->email);
+
+        if ($email !== null) {
+            $this->queue->remove($email, StoreId::fromString(strtolower($customer->homeStoreId)), $customer->locale === 'ar' ? 'ar' : 'en', true);
         }
     }
 

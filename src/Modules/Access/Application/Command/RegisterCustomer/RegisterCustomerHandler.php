@@ -131,8 +131,10 @@ final readonly class RegisterCustomerHandler
             $dto = $this->mapper->toDto($customer);
 
             // Sent once the transaction commits, never queued: a job would keep the link in the
-            // jobs table (spec §2.3).
-            $this->db->afterCommit(fn () => $this->messages->emailVerification($dto, $link));
+            // jobs table (spec §2.3). A provider's failure goes to the log and never to the customer:
+            // the account is theirs, they land signed in, and they can ask for the link again
+            // (amendment 93).
+            $this->db->afterCommit(fn () => rescue(fn () => $this->messages->emailVerification($dto, $link)));
 
             return $customer;
         }, 3);

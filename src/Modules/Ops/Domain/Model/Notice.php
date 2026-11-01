@@ -38,6 +38,7 @@ final readonly class Notice
         public int $failedCount = 0,
         /** One of the store's Promotions segments; none: every customer of the store. */
         public ?string $segmentId = null,
+        public ?DateTimeImmutable $finishedAt = null,
     ) {
         if (! $byBell && ! $byEmail) {
             throw new InvalidOpsInput('channels', 'the bell, the email, or both');

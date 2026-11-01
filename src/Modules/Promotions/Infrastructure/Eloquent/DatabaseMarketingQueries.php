@@ -133,6 +133,19 @@ final readonly class DatabaseMarketingQueries implements MarketingQueries
         return array_values(array_map(self::toSegmentRow(...), $query->orderByDesc('s.created_at')->orderByDesc('s.id')->limit($limit)->get()->all()));
     }
 
+    public function segmentsById(StoreId $store, ?string $beforeId, int $limit): array
+    {
+        $query = $this->db->table('promotions.segments as s')
+            ->where('s.store_id', $store->value)
+            ->select('s.*')
+            ->selectSub(fn (Builder $members) => $members->from('promotions.segment_members as m')->selectRaw('count(*)')->whereColumn('m.segment_id', 's.id'), 'member_count')
+            ->when($beforeId !== null, fn (Builder $page) => $page->where('s.id', '<', $beforeId))
+            ->orderByDesc('s.id')
+            ->limit($limit);
+
+        return array_values(array_map(self::toSegmentRow(...), $query->get()->all()));
+    }
+
     public function segmentRow(StoreId $store, string $segmentId): ?SegmentRow
     {
         $row = $this->db->table('promotions.segments as s')

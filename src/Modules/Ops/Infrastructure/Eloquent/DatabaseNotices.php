@@ -17,7 +17,7 @@ use stdClass;
 /** `Notices` in SQL (ops.md §5: `ops.notices`). */
 final readonly class DatabaseNotices implements Notices
 {
-    private const string COLUMNS = 'id, store_id, title_ar, title_en, body_ar, body_en, link, by_bell, by_email, status, send_at, created_by, created_at, updated_at, started_at, bell_count, email_count, failed_count, segment_id';
+    private const string COLUMNS = 'id, store_id, title_ar, title_en, body_ar, body_en, link, by_bell, by_email, status, send_at, created_by, created_at, updated_at, started_at, bell_count, email_count, failed_count, segment_id, finished_at';
 
     public function __construct(
         private ConnectionInterface $db,
@@ -124,6 +124,7 @@ final readonly class DatabaseNotices implements Notices
             (int) $row->email_count,
             (int) $row->failed_count,
             $row->segment_id === null ? null : (string) $row->segment_id,
+            $row->finished_at === null ? null : self::at($row->finished_at),
         );
     }
 

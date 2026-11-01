@@ -59,6 +59,7 @@ return [
     'email_dialog_body' => 'A link goes to the new address. Your email changes when somebody opens that link, so a mistyped address changes nothing.',
     'new_email' => 'New Email',
     'email_change_sent' => 'Link sent to the new address',
+    'email_change_not_sent' => 'The change is saved, but the link couldn\'t be sent to the new address. Enter the address again to send a new link',
 
     // B2 — the phone, behind the current password.
     'phone' => 'Phone',

@@ -29,6 +29,6 @@ final readonly class QueuedDailyReportEmails implements DailyReportEmailQueue
 
     public function deliver(string $reportId): void
     {
-        $this->bus->dispatch(new DeliverDailyReportJob($reportId));
+        $this->bus->dispatch((new DeliverDailyReportJob($reportId))->beforeCommit());
     }
 }

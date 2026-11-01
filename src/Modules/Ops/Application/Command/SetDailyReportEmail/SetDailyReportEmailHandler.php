@@ -10,6 +10,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportPeople;
+use Modules\Ops\Domain\Exception\DailyEmailAtMidnight;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Model\DailyReportEmail;
 use Modules\Ops\Domain\Repository\DailyReports;
@@ -35,7 +36,7 @@ final readonly class SetDailyReportEmailHandler
         private ConnectionInterface $db,
     ) {}
 
-    /** @throws Unauthorized|InvalidOpsInput */
+    /** @throws Unauthorized|InvalidOpsInput|DailyEmailAtMidnight */
     public function handle(SetDailyReportEmail $command): DailyReportEmail
     {
         $person = $this->people->person();
@@ -51,9 +52,7 @@ final readonly class SetDailyReportEmailHandler
 
         $now = CarbonImmutable::now()->toDateTimeImmutable();
         $sendAt = trim($command->sendAt);
-        if (preg_match(DailyReportEmail::TIME, $sendAt) !== 1) {
-            throw new InvalidOpsInput('send_at', 'a time of day, HH:MM');
-        }
+        DailyReportEmail::requireTime($sendAt);
         $next = $command->on ? DailyReportEmail::nextAt($sendAt, $now, new DateTimeZone($this->people->zone($store))) : null;
         // The setting and its first email commit together (the job written inside the transaction).
         $email = $this->db->transaction(function () use ($person, $store, $command, $sendAt, $next, $now): DailyReportEmail {

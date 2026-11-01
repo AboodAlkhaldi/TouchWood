@@ -22,7 +22,28 @@ final readonly class DatabaseDailyReports implements DailyReports
 
     public function add(DailyReportFile $report): void
     {
-        $this->db->table('ops.daily_reports')->insert([
+        $this->db->table('ops.daily_reports')->insert(self::row($report));
+    }
+
+    public function addForEmail(DailyReportFile $report, string $settingId, DateTimeImmutable $due): bool
+    {
+        // The unique index answers two jobs at once: the one that lost inserts nothing.
+        return $this->db->table('ops.daily_reports')->insertOrIgnore([
+            ...self::row($report),
+            'email_setting_id' => $settingId,
+            'email_due_at' => Moment::of($due),
+        ]) === 1;
+    }
+
+    public function emailMade(string $settingId, DateTimeImmutable $due): bool
+    {
+        return $this->db->selectOne('SELECT 1 FROM ops.daily_reports WHERE email_setting_id = ? AND email_due_at = ?::timestamptz', [$settingId, Moment::of($due)]) !== null;
+    }
+
+    /** @return array<string, mixed> */
+    private static function row(DailyReportFile $report): array
+    {
+        return [
             'id' => $report->id,
             'store_id' => $report->store?->value,
             'day' => $report->day,
@@ -33,7 +54,7 @@ final readonly class DatabaseDailyReports implements DailyReports
             'file' => $report->file,
             'bytes' => $report->bytes,
             'emailed_at' => $report->emailedAt === null ? null : Moment::of($report->emailedAt),
-        ]);
+        ];
     }
 
     public function find(string $id): ?DailyReportFile

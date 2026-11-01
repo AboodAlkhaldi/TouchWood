@@ -10,6 +10,7 @@ use Illuminate\Contracts\Translation\Translator;
 use Illuminate\Contracts\View\Factory as Views;
 use LogicException;
 use Modules\Access\Public\Dto\CustomerDto;
+use Modules\Ops\Application\Alerts\EventSender;
 use Modules\Ops\Domain\ValueObject\WrittenText;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -100,6 +101,7 @@ final readonly class WrittenEmails
                 'unsubscribe' => $unsubscribe,
                 'locale' => $locale,
                 'brand' => $brand,
+                'logo' => $this->root().'/'.EventSender::LOGO,
                 'direction' => $locale === 'ar' ? 'rtl' : 'ltr',
             ])->render(),
             implode("\n\n", [
