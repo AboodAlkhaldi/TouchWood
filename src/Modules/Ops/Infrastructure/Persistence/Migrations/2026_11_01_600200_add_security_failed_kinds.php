@@ -6,9 +6,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /*
-| ops.md §1.6 S10 (owner, 2026-11-01): the alert that security emails are failing, a staff kind with a bell
-| and nothing else. The two kind CHECKs of ops.inbox_entries take it. ops.sent_messages does not: it keeps
-| emails and SMS, and this kind sends neither. MessageKind refuses any other value first.
+| ops.md §1.6 S10, S10b (owner, 2026-11-01): the alerts that a security email or SMS could not be sent, staff
+| kinds with a bell and nothing else. The two kind CHECKs of ops.inbox_entries take them. ops.sent_messages
+| does not: it keeps emails and SMS, and these kinds send neither. MessageKind refuses any other value first.
 */
 
 return new class extends Migration
@@ -29,12 +29,12 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->kinds(self::STAFF_KINDS.", 'security_emails_failing'");
+        $this->kinds(self::STAFF_KINDS.", 'security_email_failed', 'security_sms_failed'");
     }
 
     public function down(): void
     {
-        DB::statement("DELETE FROM ops.inbox_entries WHERE kind = 'security_emails_failing'");
+        DB::statement("DELETE FROM ops.inbox_entries WHERE kind IN ('security_email_failed', 'security_sms_failed')");
         $this->kinds(self::STAFF_KINDS);
     }
 

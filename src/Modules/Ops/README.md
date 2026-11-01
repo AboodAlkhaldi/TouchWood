@@ -27,7 +27,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | 8 — reports | Revenue, Product sales, Stock, Searches, Favourites: a JSON preview and an Excel file | `Application/Reports`, `Application/Query/{ViewReport,DownloadReport}`, `Infrastructure/Excel` |
 | 9 — the daily report | The PDF, every file kept twelve months, a past day, the email at the time the person chose | `Application/DailyReport`, `Application/Command/{MakeDailyReport,SetDailyReportEmail,DeliverDailyReport,SendDailyReportEmail}`, `Infrastructure/Pdf`, `Infrastructure/Files` |
 | 10 — the module pass | This file, ops.md §4's data shapes, §5, §7 and §8 brought in line with the code; then the whole-module review's fixes and the reads the screens need (owner, 2026-11-01): the stop-email pages of an off store, 00:00 refused, the SMS countries' routes, a staff message to a segment, S5, C4's Track, a retried daily email, the staff messages list and each form's choices | here |
-| After the pass | S10, the bell alert that security emails are failing; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityEmailAlert`, `Application/Query/ListSegments` |
+| After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
 
 ## What is here
 
@@ -88,14 +88,14 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 
 - **To customers:** bell and email, in their language, on the queue, consent not asked; an anonymized account
   gets nothing, a switched-off store still sends. C18 is the exception: no bell, codes by SMS and links by email,
-  sent at once. An email of C18 that fails tells the Super Admins, below.
+  sent at once. One that fails tells the Super Admins, below.
 - **To staff:** one read, `AccessApi::staffToAlert`, gives every active holder of the topic's permission in the
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,
   checked again when it leaves. `AlertStaff` calls it on `GatewayKeyExpiring` and `GatewayKeyRejected`.
-- **S10:** a security email that fails puts one bell entry in each Super Admin's inbox, at most once a clock hour, by their
-  in-panel switch for Payment problems (`SecurityEmailAlert`). The bell alone. Written directly, after any transaction the caller
-  has open; a failure here is reported and goes no further.
+- **S10, S10b:** a security email or SMS that fails puts one bell entry in each active Super Admin's inbox, at most once a clock
+  hour per channel, and no switch can stop it (`SecurityFailureAlert`). The bell alone. Written directly, after any transaction the
+  caller has open; it waits 250 ms at most on another's claim; a failure here is reported and goes no further.
 - **Each email and SMS** has its `ops.sent_messages` row written QUEUED, and its job, with the listener's work; the job calls
   the provider outside any transaction and marks it SENT, or FAILED after the last attempt. At least once: a
   provider that took a message just before its row was marked may get it again.
@@ -184,7 +184,7 @@ Each checked against the code on 2026-11-01.
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `MessageKindsTest`, `SecurityMessagesTest`, `SecurityEmailAlertTest`, `SecurityEmailAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,

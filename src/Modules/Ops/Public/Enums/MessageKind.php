@@ -54,7 +54,8 @@ enum MessageKind: string
     case PaymentNotAccepted = 'payment_not_accepted';
     case CampaignExpiring = 'campaign_expiring';
     case ReturnRequested = 'return_requested';
-    case SecurityEmailsFailing = 'security_emails_failing';
+    case SecurityEmailFailed = 'security_email_failed';
+    case SecuritySmsFailed = 'security_sms_failed';
 
     // Written by staff (§1.7, §1.8), and the newsletter's double opt-in (§1.9).
     case OfferNotice = 'offer_notice';
@@ -97,7 +98,8 @@ enum MessageKind: string
             self::PaymentNotAccepted => 'S7',
             self::CampaignExpiring => 'S8',
             self::ReturnRequested => 'S9',
-            self::SecurityEmailsFailing => 'S10',
+            self::SecurityEmailFailed => 'S10',
+            self::SecuritySmsFailed => 'S10b',
             self::OfferNotice => '§1.7',
             self::StaffMessage => '§1.8',
             self::NewsletterConfirmation => '§1.9',
@@ -118,8 +120,8 @@ enum MessageKind: string
      *   their switch on (§1.6; access.md amendment 81) - the 30- and 7-day alerts are bell and email.
      * - S5b: the critical SMS to super admins (§9.3 #12).
      * - The newsletter's confirmation: an email to a guest, who has no bell (§1.9).
-     * - S10: the bell alone. Email is what is failing, and the critical SMS is the gateway key's (owner,
-     *   2026-11-01).
+     * - S10, S10b: the bell alone. A failure of one channel never sends a message about itself, and the
+     *   critical SMS is the gateway key's (owner, 2026-11-01).
      *
      * @return list<MessageChannel>
      */
@@ -128,7 +130,7 @@ enum MessageKind: string
         return match ($this) {
             self::Security => [MessageChannel::Email, MessageChannel::Sms],
             self::NewsletterConfirmation => [MessageChannel::Email],
-            self::SecurityEmailsFailing => [MessageChannel::Bell],
+            self::SecurityEmailFailed, self::SecuritySmsFailed => [MessageChannel::Bell],
             self::GatewayKeyExpiring, self::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };

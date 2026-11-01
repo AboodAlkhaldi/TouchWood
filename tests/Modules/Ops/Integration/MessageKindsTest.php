@@ -18,7 +18,7 @@ it('lists every row of §1.5 and §1.6, once', function () {
 
     expect($codes)->toBe([
         'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C6b', 'C7', 'C8', 'C8', 'C8b', 'C9', 'C9b', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C17b', 'C18',
-        'S1', 'S2', 'S3', 'S4', 'S5', 'S5b', 'S6', 'S7', 'S8', 'S9', 'S10',
+        'S1', 'S2', 'S3', 'S4', 'S5', 'S5b', 'S6', 'S7', 'S8', 'S9', 'S10', 'S10b',
         '§1.7', '§1.8', '§1.9',
     ]);
 });
@@ -32,8 +32,8 @@ it('fixes each kind\'s channels as the spec does', function () {
             MessageKind::GatewayKeyExpiring, MessageKind::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
             // A guest's confirmation: no bell (§1.9).
             MessageKind::NewsletterConfirmation => [MessageChannel::Email],
-            // Email is what is failing, and the critical SMS is the gateway key's (§1.6 S10).
-            MessageKind::SecurityEmailsFailing => [MessageChannel::Bell],
+            // A failure never sends a message about itself, and the critical SMS is the gateway key's (§1.6 S10, S10b).
+            MessageKind::SecurityEmailFailed, MessageKind::SecuritySmsFailed => [MessageChannel::Bell],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };
 

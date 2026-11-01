@@ -138,7 +138,7 @@ must publish it (§2.3).
 | C16 | Question answered | Staff answer a waiting question (a corrected answer sends nothing) | `QuestionAnswered` (feedback.md §2.5, #252) | Read through `FeedbackApi::questionForMessage`; **sent only if the question is still answered** — events are kept in order per order only |
 | C17 | Review not published | Staff reject a review, or take an approved one down, **with a reason** | `ReviewNotPublished` (#252) | **No reason, no message** (feedback.md:75); read through `reviewForMessage`, sent only if it is still not published |
 | C17b | Question not published | Staff reject a question, or take an answered one down, **with a reason** | `QuestionNotPublished` (#252) | Added by the owner, 2026-10-28 (feedback.md §1.3). **No reason, no message**; sent only if it is still not published |
-| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again"; **an email that fails also tells the Super Admins (S10, §1.6)**. Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
+| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again"; **one that fails also tells the Super Admins (S10, S10b, §1.6)**. Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
 
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
 listen to `CompanyStatusChanged` for them, so nothing is sent twice.
@@ -185,7 +185,8 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | With Content | Content's event | Content's | — |
-| S10 | Payment problems (the nearest topic: the only one reserved to Super Admins) | A security email (C18) failed to send: **at most once an hour** | None: `SecurityEmailAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches super admins and no one else | — **The bell alone**: never email, which is what is failing, and never SMS (owner, 2026-11-01) |
+| S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
+| S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
 
 - Every permission key above exists in code today (`payments.gateway.manage`: `PaymentsPermissions`, reserved).
 - **Critical SMS** (owner, round 3 #13; §9.3 #12): **only S5 at 1 day and S5b (the key refused)**, to **super admins only** (owner,
@@ -204,16 +205,25 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
   `PaymentNotAccepted` (S7) are not in main. S8 waits for Content.
-- **S10 is built (owner, 2026-11-01).** Access PR #317 (open that day) stops showing the person a failed security email, so a broken
-  email setup would otherwise show only in the log and a `FAILED` row. **One claim per clock hour (UTC)** in `ops.handled_events`,
-  in one transaction with the entries: of any number of failures at once, one writes them and the rest find the hour taken, each
-  at the cost of one statement; so a failure at 10:59 and another at 11:00 can write two, in two hours. **Written directly, not by a
-  job**, since the queue may be what is down, after the caller's commit when it has a transaction open (none of today's callers has),
-  so a caller that rolls back leaves neither an entry nor a claim, and the next failure alerts. Whatever breaks here is reported and
-  stops here: the claim goes with the failed write, and the next failure tries again. **The in-panel switch for Payment problems
-  applies**, as for S5 and S5b: a Super Admin who turned that switch off gets no S10 either. The words name no person, address, code or
-  link, and it has no link: the provider's settings are the server's. Filed under the failed email's store, otherwise the first store;
-  a Super Admin's bell shows every store. An SMS that fails alerts no one.
+- **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
+  applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
+  SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
+- **Why:** Access PR #317 (open that day) stops showing the person a failed security email, so a broken setup would otherwise show only
+  in the log and a `FAILED` row.
+- **The words** fire on any failure, one customer's bad address or a template error included, so they announce no outage and name no
+  cause, no person, address, code or link: one could not be sent, and if this repeats, check the settings and the log (owner's blanket
+  approval for now). No link: the settings are the server's.
+- **At most once:** one claim per clock hour (UTC) and kind in `ops.handled_events`, in one transaction with the entries: of any number of
+  failures at once, one writes them and the rest find the hour taken, each at the cost of two statements; so a failure at 10:59 and
+  another at 11:00 can write two, in two hours. A Super Admin added mid-hour waits for the next hour's failure.
+- **Never in the person's way.** Written directly, not by a job, since the queue may be what is down, after the caller's commit when it
+  has a transaction open (none of today's callers has), so a caller that rolls back leaves neither an entry nor a claim, and the next
+  failure alerts. A request waits on another's uncommitted claim for **250 ms at most** (`SET LOCAL lock_timeout`, that transaction
+  only), then leaves it to them; if they roll back within that wait it takes the claim itself. Anything else that breaks is reported and stops
+  here: the claim goes with the failed write, and the next failure tries again.
+- **Who, through Access's contract:** `AccessApi::staffToAlert` is the one public read that names Super Admins, and it insists on a
+  topic, only to say each one's switches for it. It filters nobody by them, so the code names a topic and reads no switch.
+- Filed under the failed message's store, otherwise the first store, on or off; a Super Admin's bell shows every store.
 
 ### 1.7 Offer notices
 
@@ -577,7 +587,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | `kind` | `MessageKind` | §1.5, §1.6, or `offer_notice`, `staff_message` |
 | `storeCode`, `storeName` | string | The store it is about, the name in the page's language; empty if the store is not found |
 | `title`, `line` | string | In the page's language: the shop's `{locale}`, the panel's language |
-| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts, S10) |
+| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts, S10, S10b) |
 | `read` | bool | |
 | `createdAt` | moment | |
 
@@ -652,7 +662,8 @@ The list takes `store` (code) and `after`. **Each reader sees what they may send
 
 A form's segments, here and in §4.4, take `store` (code) and `after`. `SegmentsPageData` is `{segments: SegmentChoiceData[], next: string|null}`;
 `SegmentChoiceData` is `{id, nameAr, nameEn, memberCount}`, `memberCount` how many it holds now. Only the store's own appear. Refused: 403 without the
-form's permission in that store, or for another store. 422 key: `after`.
+form's permission in that store, or for another store. 422 key: `after`. **A row with `memberCount` 0 is listed but cannot be sent to:** the write refuses
+an empty segment (`Writers::audience`, 422 `audience`), so the form shows such a row disabled.
 
 ### 4.4 The notices list and form (§1.7)
 
@@ -660,7 +671,7 @@ form's permission in that store, or for another store. 422 key: `after`.
 |---|---|---|---|
 | `ops.admin.notices` | GET `admin/notices` | `ops.notice.manage` in the store | `{notices: NoticeData[], next: string or null}` |
 | `ops.admin.notices.store` | POST `admin/notices` | `ops.notice.manage` in the store | 201 `NoticeData` |
-| `ops.admin.notices.segments` | GET `admin/notices/segments` | `ops.notice.manage` in the store | `SegmentsPageData` (§4.3) |
+| `ops.admin.notices.segments` | GET `admin/notices/segments` | `ops.notice.manage` in the store | `SegmentsPageData` (§4.3); **disable a row with `memberCount` 0**: the write refuses it, 422 `audience` |
 | `ops.admin.notices.show` | GET `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
 | `ops.admin.notices.update` | POST `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
 | `ops.admin.notices.cancel` | POST `admin/notices/{notice}/cancel` | `ops.notice.manage` in the notice's store | `NoticeData` |
@@ -1024,8 +1035,8 @@ silently, and where it ends depends on the path:
 | An event's email or SMS (`SendEventEmailJob`, `SendEventSmsJob`) | Retried by the queue; the `ops.sent_messages` row stays `QUEUED`, then `FAILED` after the last attempt | `EventMessagesTest` |
 | A notice's or message's email (`SendBroadcastEmailJob`) | The provider is called outside any transaction. Retried; after the last attempt the row is `FAILED` and counted in `failed_count`, once; retried from the failed jobs and sent, no longer counted | `NoticesTest` |
 | A notice's or message's batch (`SendBroadcastBatchJob`) | After the last attempt the row shows `FAILED` and the job waits on the failed jobs screen; retrying it carries on | `NoticesTest` |
-| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again". An email's failure also alerts the Super Admins (S10) | `SecurityMessagesTest`, `SecurityEmailAlertTest` |
-| S10, the alert itself (`SecurityEmailAlert`) | Reported and swallowed, never reaching the person's request; the claim of the hour goes with the failed write, so the next failure tries again | `SecurityEmailAlertTest` |
+| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again". It also alerts the Super Admins (S10, S10b) | `SecurityMessagesTest`, `SecurityFailureAlertTest` |
+| S10, S10b, the alert itself (`SecurityFailureAlert`) | Reported and swallowed, never reaching the person's request; the claim of the hour goes with the failed write, so the next failure tries again. Giving up after 250 ms on another's claim is not a failure: they are telling them | `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest` |
 | The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, the failure reported to the logs, answered as `ops.newsletter_unavailable` 503 (§4.9); the person may try again | `NewsletterTest`, `ScreensReadsTest` |
 | The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals) |
 | The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | No test of the retries by name |
@@ -1047,8 +1058,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
 | S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
 | S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
-| S10: one bell entry per Super Admin for a burst, the next in the next hour; two at once write one; no email, no SMS; Admins not reached; the in-panel switch followed; the failed email's store, else the first; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityEmailAlertTest`, `Integration/SecurityEmailAlertRaceTest` |
-| A form's segments: the store's own, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
+| S10, S10b: one bell entry per active Super Admin for a burst, each channel with its own hour, the next in the next hour; a waiter gives up, or takes the claim when the holder rolls back; no email, no SMS; Admins and inactive Super Admins not reached; every switch off and still reached; the failed message's store, else the first, off or on; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityFailureAlertTest`, `Integration/SecurityFailureAlertRaceTest` |
+| A form's segments: the store's own, empty ones listed with 0, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
 | **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4 | `Integration/EventMessagesTest`, "the critical SMS" |
 | **Consent off: no marketing email, the bell entry still made**, for a notice, a segment notice and a message to many; checked again as the email leaves; a message to one ignores consent | `Integration/NoticesTest`, `Integration/NoticeSegmentTest`, `Integration/StaffMessagesTest` |
 | Notices: now and scheduled in the store's zone, changed or cancelled until they start, started within the minute, audited, a failed batch `FAILED` then carried on | `Integration/NoticesTest`; over HTTP `Feature/WrittenRoutesTest` |
