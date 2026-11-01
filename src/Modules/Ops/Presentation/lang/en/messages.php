@@ -350,6 +350,11 @@ return [
             'A customer asked for a return of order :order in :store. It waits under Returns.',
         ],
     ],
+    // S10, the bell alone (ops.md §1.6): no subject or lines, for it has no email. It names no one and nothing of a message.
+    'security_emails_failing' => [
+        'title' => 'Security emails are not going out',
+        'line' => "Security emails, such as verification, invitations and password resets, could not be sent. Check the email provider's settings.",
+    ],
 
     // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
     // two emails (C1, C6b).

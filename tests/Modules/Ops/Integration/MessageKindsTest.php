@@ -18,7 +18,7 @@ it('lists every row of §1.5 and §1.6, once', function () {
 
     expect($codes)->toBe([
         'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C6b', 'C7', 'C8', 'C8', 'C8b', 'C9', 'C9b', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C17b', 'C18',
-        'S1', 'S2', 'S3', 'S4', 'S5', 'S5b', 'S6', 'S7', 'S8', 'S9',
+        'S1', 'S2', 'S3', 'S4', 'S5', 'S5b', 'S6', 'S7', 'S8', 'S9', 'S10',
         '§1.7', '§1.8', '§1.9',
     ]);
 });
@@ -32,6 +32,8 @@ it('fixes each kind\'s channels as the spec does', function () {
             MessageKind::GatewayKeyExpiring, MessageKind::GatewayKeyRejected => [MessageChannel::Bell, MessageChannel::Email, MessageChannel::Sms],
             // A guest's confirmation: no bell (§1.9).
             MessageKind::NewsletterConfirmation => [MessageChannel::Email],
+            // Email is what is failing, and the critical SMS is the gateway key's (§1.6 S10).
+            MessageKind::SecurityEmailsFailing => [MessageChannel::Bell],
             default => [MessageChannel::Bell, MessageChannel::Email],
         };
 
@@ -53,14 +55,16 @@ it('words every kind in Arabic and English, with the same placeholders in both',
         expect($words)->toBeArray("{$kind->value} has no {$locale} words");
         assert(is_array($words) && is_array($theirs));
 
-        // The bell's title and line only where the kind has a bell.
-        foreach ($kind->hasBell() ? ['title', 'line', 'subject'] : ['subject'] as $key) {
+        // The bell's title and line only where the kind has a bell, the email's subject where it has an email.
+        $hasEmail = in_array(MessageChannel::Email, $kind->channels(), true);
+
+        foreach ([...($kind->hasBell() ? ['title', 'line'] : []), ...($hasEmail ? ['subject'] : [])] as $key) {
             $text = $words[$key] ?? null;
             expect(is_string($text) && trim($text) !== '')->toBeTrue("{$kind->value}.{$key} ({$locale})");
         }
 
         $lines = $words['lines'] ?? null;
-        expect(is_array($lines) && $lines !== [])->toBeTrue("{$kind->value}.lines ({$locale})");
+        expect(is_array($lines) && $lines !== [])->toBe($hasEmail, "{$kind->value}.lines ({$locale})");
         expect(isset($words['sms']))->toBe(in_array(MessageChannel::Sms, $kind->channels(), true), "{$kind->value}: an SMS text only where the kind sends one");
 
         preg_match_all('/:([a-z_]+)/', (string) json_encode($words, JSON_UNESCAPED_UNICODE), $mine);
