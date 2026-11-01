@@ -134,7 +134,9 @@ describe('opening a session', function () {
     it('refuses a store the gateway is not offered in, whose gateway somehow stands', function () {
         Http::fake();
         $store = Fx::storeId('ae');
-        DB::table('payments.gateways')->insert(['store_id' => $store, 'gateway' => 'MYFATOORAH', 'active' => true, 'mode' => 'TEST', 'apple_pay_domains' => '[]', 'created_by' => Fx::staff(superAdmin: true), 'created_at' => now(), 'updated_at' => now()]);
+        $staff = Fx::staff(superAdmin: true);
+        DB::table('payments.gateways')->insert(['store_id' => $store, 'gateway' => 'MYFATOORAH', 'active' => true, 'mode' => 'TEST', 'apple_pay_domains' => '[]', 'created_by' => $staff, 'created_at' => now(), 'updated_at' => now()]);
+        app(Gateways::class)->addKey($store, PaymentMode::Test, 'sk_test_key_ABC123', 'whsec_secret_1', new DateTimeImmutable('2027-12-31'), $staff, new DateTimeImmutable);
 
         expect(fn () => app(PaymentsApi::class)->openSession(sessionsAsk($store)))->toThrow(NoOnlinePayment::class);
         Http::assertNothingSent();

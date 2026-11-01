@@ -156,6 +156,13 @@ describe('asking about a payment', function () {
         expect(clientCalls())->toBe(1);
     })->with([404, 400, 200]);
 
+    it('takes a 4xx that does not say IsSuccess for a no all the same', function () {
+        Http::fake([CLIENT_PAYMENT => Http::response(['Message' => 'Bad request'], 400)]);
+
+        expect(fn () => app(GatewayClient::class)->paymentDetails(clientAccess(), '07077320290391998273'))->toThrow(GatewayRefused::class)
+            ->and(clientCalls())->toBe(1);
+    });
+
     it('never takes an answer it cannot read for a no', function (string $body) {
         Http::fake([CLIENT_PAYMENT => Http::response($body)]);
 
