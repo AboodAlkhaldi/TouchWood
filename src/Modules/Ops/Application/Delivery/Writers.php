@@ -118,6 +118,32 @@ final readonly class Writers
     }
 
     /**
+     * The stores where the acting person holds a permission, for naming a row by its id (§4): someone
+     * holding it nowhere is refused; a row of a store outside these is **not found**, as an unknown one,
+     * as the sibling modules answer (Promotions' MarketingReader::covered). Null: every store.
+     *
+     * @return non-empty-list<StoreId>|null
+     *
+     * @throws Unauthorized
+     */
+    public function storesHolding(string $permission): ?array
+    {
+        $stores = $this->authorizer->storesWith($permission);
+
+        return $stores === [] ? throw new Unauthorized($permission) : $stores;
+    }
+
+    /**
+     * Whether a store is among these (null: every store).
+     *
+     * @param  list<StoreId>|null  $stores
+     */
+    public static function among(StoreId $store, ?array $stores): bool
+    {
+        return $stores === null || in_array($store->value, array_map(static fn (StoreId $one): string => $one->value, $stores), true);
+    }
+
+    /**
      * A store with no customer at all is an empty audience (§7).
      *
      * @throws InvalidOpsInput
@@ -134,7 +160,7 @@ final readonly class Writers
     }
 
     /**
-     * The audience of a notice (§1.7): every customer of the store, or one of **its** segments, read
+     * The audience of a notice or a message to many (§1.7, §1.8): every customer of the store, or one of **its** segments, read
      * through the store-scoped `PromotionsApi::segmentMembers` - another store's segment, or one that
      * does not exist, is refused there as Promotions' `SegmentNotFound`; a segment with no member is an
      * empty audience (§7).

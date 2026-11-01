@@ -11,16 +11,18 @@ use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessage;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessageHandler;
+use Modules\Ops\Application\Query\ListStaffMessages\ListStaffMessages;
+use Modules\Ops\Application\Query\ListStaffMessages\ListStaffMessagesHandler;
 use Modules\Ops\Presentation\Http\Resource\WrittenPages;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Shared\Application\Unauthorized;
 
 /*
 | The message composer in the panel (ops.md §1.8, §4): find the customer, then send - to them, or with
-| no customer to every customer of the store. JSON, as the bells are.
+| no customer to a segment or every customer of the store - and the messages sent. JSON, as the bells are.
 |
 | Who may do it is Ops' answer: `ops.message.send_one` for one customer, `ops.message.send_many` for
-| the store, in the store the screen shows.
+| a segment or the store, in the store the screen shows.
 */
 final readonly class StaffMessagesController
 {
@@ -38,6 +40,13 @@ final readonly class StaffMessagesController
         )]);
     }
 
+    public function index(Request $request, StoreChoices $choices, ListStaffMessagesHandler $list): JsonResponse
+    {
+        $store = $choices->chosen(Inputs::text($request, 'store'), OpsPermissions::MESSAGE_SEND_ONE, OpsPermissions::MESSAGE_SEND_MANY) ?? throw new Unauthorized(OpsPermissions::MESSAGE_SEND_ONE);
+
+        return new JsonResponse($this->pages->staffMessages($list->handle(new ListStaffMessages($store->id, Inputs::text($request, 'after'))))->toArray());
+    }
+
     public function send(Request $request, StoreChoices $choices, SendStaffMessageHandler $send): JsonResponse
     {
         $customer = Inputs::text($request, 'customer');
@@ -53,6 +62,7 @@ final readonly class StaffMessagesController
             Inputs::string($request, 'body_en'),
             Inputs::flag($request, 'by_bell'),
             Inputs::flag($request, 'by_email'),
+            Inputs::text($request, 'segment') ?? Inputs::text($request, 'segment_id'),
         ));
 
         return new JsonResponse(['id' => $id], 201);

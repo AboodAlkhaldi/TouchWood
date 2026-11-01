@@ -38,7 +38,7 @@ it('lets a checkout with no .env yet run: composer install discovers packages be
 it('stops a production application at boot while the email driver is log', function () {
     // A real boot, in its own process: the check must run when the application starts.
     $boot = fn (string $driver) => Process::path(base_path())
-        ->env(['APP_ENV' => 'production', 'OPS_EMAIL_DRIVER' => $driver])
+        ->env(['APP_ENV' => 'production', 'OPS_EMAIL_DRIVER' => $driver, 'OPS_NEWSLETTER_DRIVER' => 'brevo'])
         ->run([PHP_BINARY, 'artisan', 'list', '--raw']);
 
     $refused = $boot('log');
@@ -50,8 +50,32 @@ it('stops a production application at boot while the email driver is log', funct
     // A checkout with no .env yet: Laravel calls that "production" too, and `composer install`
     // discovers packages there. It must still boot (CI, and every fresh clone).
     $fresh = Process::path(base_path())
-        ->env(['APP_ENV' => 'production', 'OPS_EMAIL_DRIVER' => 'log', 'APP_KEY' => ''])
+        ->env(['APP_ENV' => 'production', 'OPS_EMAIL_DRIVER' => 'log', 'OPS_NEWSLETTER_DRIVER' => 'log', 'APP_KEY' => ''])
         ->run([PHP_BINARY, 'artisan', 'package:discover', '--ansi']);
 
     expect($fresh->successful())->toBeTrue();
+});
+
+it('refuses the log newsletter driver on a production application, at its check and at boot', function (string $environment, string $driver, bool $refused) {
+    app()->detectEnvironment(fn (): string => $environment);
+    config(['ops.newsletter.driver' => $driver, 'app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
+    $check = fn () => OpsServiceProvider::requireRealNewsletterDriver(app());
+
+    $refused
+        ? expect($check)->toThrow(InvalidArgumentException::class, 'OPS_NEWSLETTER_DRIVER is "'.$driver.'"')
+        : expect($check)->not->toThrow(InvalidArgumentException::class);
+})->with([
+    'production, log' => ['production', 'log', true],
+    'production, none' => ['production', '', true],
+    'production, brevo' => ['production', 'brevo', false],
+    'a developer\'s machine, log' => ['local', 'log', false],
+]);
+
+it('stops a production application at boot while the newsletter driver is log', function () {
+    $boot = Process::path(base_path())
+        ->env(['APP_ENV' => 'production', 'OPS_EMAIL_DRIVER' => 'brevo', 'OPS_NEWSLETTER_DRIVER' => 'log'])
+        ->run([PHP_BINARY, 'artisan', 'list', '--raw']);
+
+    expect($boot->failed())->toBeTrue()
+        ->and($boot->output().$boot->errorOutput())->toContain('OPS_NEWSLETTER_DRIVER is "log"');
 });

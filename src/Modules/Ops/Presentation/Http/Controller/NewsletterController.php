@@ -28,6 +28,7 @@ use Shared\Application\StoreContext;
 |   a marketing email's link (§1.3). Both signed on their path, no sign-in. GET is the page with its one
 |   "Unsubscribe" button (owner, 2026-10-30) and changes nothing; POST, with the same signature, takes
 |   the guest off or withdraws the consent at once - and is the mail client's one-click POST (RFC 8058).
+|   They answer for a switched-off store too (owner, 2026-11-01; shop-routes.php).
 */
 final readonly class NewsletterController
 {
@@ -63,7 +64,13 @@ final readonly class NewsletterController
 
     public function confirmation(string $token): JsonResponse
     {
-        return new JsonResponse(['token' => $token]);
+        return new JsonResponse([
+            'token' => $token,
+            'title' => __('ops::newsletter.confirm.title'),
+            'text' => __('ops::newsletter.confirm.text'),
+            'action' => __('ops::newsletter.confirm.action'),
+            'done' => __('ops::newsletter.confirm.done'),
+        ]);
     }
 
     public function confirm(string $token): JsonResponse

@@ -62,6 +62,7 @@ final readonly class DailyReportPages
                 $email->isOn,
                 $email->sendAt,
                 $store === null ? $allStoresZone : $store->timezone,
+                $email->nextDueAt === null ? null : self::utc($email->nextDueAt),
             );
         }, $emails);
     }
@@ -70,6 +71,7 @@ final readonly class DailyReportPages
     {
         return new DailyReportData(
             $row->id,
+            $store?->id,
             $store?->code,
             $this->storeName($store, $locale),
             $row->day,

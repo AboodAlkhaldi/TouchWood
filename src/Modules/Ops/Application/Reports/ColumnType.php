@@ -16,7 +16,7 @@ enum ColumnType: string
     /** A whole number. */
     case Count = 'count';
 
-    /** A `ReportMoney`; or a text where the figure waits for a module (VAT of refunds), or empty. */
+    /** A `ReportMoney`, or empty where there is no figure (nothing waiting, say). The writers take a text too; no sheet writes one. */
     case Money = 'money';
 
     /** A day, `Y-m-d`; empty on a total row. */
