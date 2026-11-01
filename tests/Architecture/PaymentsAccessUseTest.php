@@ -16,6 +16,8 @@ const PAYMENTS_ACCESS_ALLOWED = [
     'Modules\Access\Public\Enums\PermissionAudience',
     'Modules\Access\Public\Enums\PermissionGroup',
     'Modules\Access\Public\Enums\PermissionKind',
+    // Payments also hears this one, to clear a customer's details (handoff §4.4).
+    'Modules\Access\Public\Events\CustomerAnonymized',
 ];
 
 /**

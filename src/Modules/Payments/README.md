@@ -26,6 +26,11 @@ and an amount, nothing more: it depends on Platform, and on Access only to decla
 | 9 | **A refused key** (§1.2): the current key marked, online payment stopped, `GatewayKeyRejected` once | `Application/Gateway/GatewayAccesses` |
 | 9 | **The notice** (§1.2): `POST /payments/notice/{storeId}/{test,live}`; signature against every secret still kept, stored once. Only a signal: step 10 handles it | `Presentation/notice-routes.php`, `Application/Notice/NoticeReceiver`, `Infrastructure/External/MyFatoorahNoticeReader` |
 | 9 | **Apple Pay's domains** (§1.2): registered per mode | `Application/Command/RegisterApplePayDomain` |
+| 10 | **The attempt** (§1.4, §4): prepared in Sales's transaction with no call; charged after its commit, claimed first; ended unsent by `abandon` | `Application/Attempt/AttemptPreparation`, `AttemptCharge` |
+| 10 | **The answers** (rules 3, 5, 6, 8): one state machine, under the row's lock, with its events through the outbox | `Application/Attempt/AttemptSettlement` |
+| 10 | **The checks** (rules 1, 9, 15): booked per attempt, one call at a time, the hold limit by our own clock, then hourly to 24 hours; the hourly backstop for a lost job | `Application/Attempt/AttemptChecks`, `CheckSchedule`, `AttemptSweep`, `Infrastructure/Queue` |
+| 10 | **A notice handled** (rules 1, 7): it only makes us ask, and only about its own attempt | `Application/Notice/NoticeHandling` |
+| 10 | **Anonymizing** (rule 13): the customer's details leave their attempts | `Infrastructure/Listener/ClearCustomerFromAttempts` |
 
 **The bank account** is three per-store settings, `payments.bank.iban`, `payments.bank.name` and `payments.bank.holder`,
 changed only by an admin under `payments.bank_account.update`. They start empty, meaning "not set yet" (a text setting
@@ -37,7 +42,7 @@ are filled in**: until then `bankAccount()` answers null, checkout offers paying
 line says so. `StoreBankAccount` is the one reader. Not sensitive: every approved company of the store is shown them,
 and a changed IBAN must stay readable in the audit log.
 
-Still to come: the charge, the attempts and handling the notices (step 10); Sales's checkout try (step 11); payment requests, the lists and pruning the logs (step 12).
+Still to come: Sales's checkout try (step 11); payment requests, the lists and pruning the logs (step 12).
 
 ## How a change runs
 

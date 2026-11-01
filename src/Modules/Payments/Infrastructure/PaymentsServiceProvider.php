@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Modules\Payments\Infrastructure;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
+use Modules\Access\Public\Events\CustomerAnonymized;
+use Modules\Payments\Application\Attempt\PaymentJobs;
 use Modules\Payments\Application\Gateway\GatewayAddresses;
 use Modules\Payments\Application\Gateway\GatewayClient;
 use Modules\Payments\Application\Gateway\KeyTester;
@@ -16,19 +19,26 @@ use Modules\Payments\Application\PaymentsApiImpl;
 use Modules\Payments\Application\PaymentsPermissions;
 use Modules\Payments\Application\PaymentsSettings;
 use Modules\Payments\Application\Settings\BankAccountSettings;
+use Modules\Payments\Domain\Repository\Attempts;
 use Modules\Payments\Domain\Repository\GatewayCalls;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Domain\Repository\Notices;
 use Modules\Payments\Domain\Repository\Sessions;
+use Modules\Payments\Domain\Repository\Transactions;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseAttempts;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseGatewayCalls;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseGateways;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseNotices;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseSessions;
+use Modules\Payments\Infrastructure\Eloquent\DatabaseTransactions;
 use Modules\Payments\Infrastructure\External\AppOwnAddresses;
 use Modules\Payments\Infrastructure\External\MyFatoorahAddresses;
 use Modules\Payments\Infrastructure\External\MyFatoorahClient;
 use Modules\Payments\Infrastructure\External\MyFatoorahKeyTester;
 use Modules\Payments\Infrastructure\External\MyFatoorahNoticeReader;
+use Modules\Payments\Infrastructure\Listener\ClearCustomerFromAttempts;
+use Modules\Payments\Infrastructure\Queue\PaymentQueue;
+use Modules\Payments\Infrastructure\Queue\SweepAttemptsJob;
 use Modules\Payments\Infrastructure\Queue\WarnExpiringKeysJob;
 use Modules\Payments\Infrastructure\Settings\PaymentsSettingsLine;
 use Modules\Payments\Public\Contracts\PaymentsApi;
@@ -52,6 +62,9 @@ final class PaymentsServiceProvider extends ServiceProvider
         $this->app->bind(NoticeReader::class, MyFatoorahNoticeReader::class);
         $this->app->bind(OwnAddresses::class, AppOwnAddresses::class);
         $this->app->bind(Sessions::class, DatabaseSessions::class);
+        $this->app->bind(Attempts::class, DatabaseAttempts::class);
+        $this->app->bind(Transactions::class, DatabaseTransactions::class);
+        $this->app->bind(PaymentJobs::class, PaymentQueue::class);
         $this->app->bind(GatewayCalls::class, DatabaseGatewayCalls::class);
         $this->app->bind(Notices::class, DatabaseNotices::class);
         $this->app->bind(PaymentsApi::class, PaymentsApiImpl::class);
@@ -79,6 +92,9 @@ final class PaymentsServiceProvider extends ServiceProvider
             $this->app->make(SettingGuards::class)->register($timer, TimersGuard::class);
         }
 
+        // An anonymized account's contact details leave its attempts (rule 13).
+        Event::listen(CustomerAnonymized::class, [ClearCustomerFromAttempts::class, 'handle']);
+
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/notice-routes.php');
         }
@@ -86,6 +102,8 @@ final class PaymentsServiceProvider extends ServiceProvider
         // The keys' expiry warnings (§1.2): hourly, as each store's day starts at its own midnight.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->job(new WarnExpiringKeysJob)->hourly()->onOneServer();
+            // The one backstop for a lost check or notice (rule 9): with none, it ends at once.
+            $schedule->job(new SweepAttemptsJob)->hourly()->onOneServer();
         });
     }
 }

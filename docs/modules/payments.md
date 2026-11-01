@@ -1183,3 +1183,38 @@ method from the card's brand.
 13. **Not yet proven on a real server**: the notice's signature follows MyFatoorah's documentation (notes §5.4) and is
    tested against our own signing, since notices need a public address. Apple Pay's registration answer is
    documented, not observed. Both are for the staging run.
+
+### 9.12 The build's own picks (step 10, 2026-11-01 — simple, taken as recommended under the owner's rule)
+
+1. **The charge sends only `Customer.Reference`.** Name, email and phone are kept on the attempt for staff, and sent to
+   nobody: none is required (notes §0 #14), and a wrong shape would refuse a payment (the docs' 11-character phone
+   number does not fit our `+966…`). P0 never charged with them.
+2. **An attempt keeps a few columns §5 does not list**, all for this design: `buyer_id` (anonymizing), `locale` and
+   `return_url` (the charge runs after the prepare), `hold_ends_at`, `last_checked_at` (the 10 seconds),
+   `checking_until` (one status call at a time, without holding a row lock through a call), and `nothing_charged`.
+3. **`nothing_charged` is what may say "No money was taken"** (gap 10.2): true when the charge was never sent, was
+   refused at its first call, or its session says it was never used at the wait's end. `PaymentStartDto` and
+   `PaymentStateDto` carry it, and `holdEndsAt` for "you can pay again at 14:45" (gap 10.1 (a)).
+4. **A charge claimed but never answered, whose session says unused**: it goes back at the wait's end, not at once, so a
+   request still on its way can land. A later success is still found (rule 5).
+5. **A prepared attempt never claimed** ends at its first check, the end of the window, with no call: nothing was sent,
+   so there is nothing to ask (§1.4 step 4 said "finds the session unused"). And `charge` refuses to send once its
+   window has passed.
+6. **The checks**: the window's end, the wait's end, 10 minutes after the charge, the hold limit, 20 minutes after, then
+   hourly to 24 hours (rule 9, gap 10.4). After that an attempt with no final answer needs attention.
+7. **A decline after a release** is written down and tells nobody: Sales has already released. It also tells nobody
+   after a success (rule 5).
+8. **The status words**: `SUCCESS` is paid; `FAILED`, `CANCELED`, `CANCELLED` and `EXPIRED` are declined; anything else
+   is still going. An invoice saying `PAID` while the transaction asked about does not is flagged for staff, and the other
+   transaction's own notice settles it.
+9. **The currency check** compares what the customer was shown in both modes, and the account's base currency in live
+   (gaps 8.1, 9.1). An amount that cannot be read exactly is kept as text, flagged, and read back as what was asked.
+10. **A notice naming a payment already written as a success** is not asked about again, so a replayed notice with a new
+    (unsigned) `Event.Reference` makes no calls. One naming another payment on the invoice is asked about: a second
+    success (rule 3).
+11. **The limit of 60 checks a minute** is the check job's own: over it, the job comes back when the minute ends. The job
+    carries the attempt's id and nothing else.
+12. **`PaymentDto.method` is our plain name** (gap 9.2): Card, Apple Pay, STC Pay. `attempts()` for staff comes with the
+    lists (step 12).
+13. **Still unproven on a real server**: the charge's body with `Customer.Reference` and `IntegrationUrls`, and how
+    `Idempotency-Key` behaves on a retried charge in a KSA account. Both are for the staging run.

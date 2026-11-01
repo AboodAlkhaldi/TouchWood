@@ -12,6 +12,8 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as Http;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Sleep;
+use Modules\Payments\Application\Gateway\ChargeAnswer;
+use Modules\Payments\Application\Gateway\ChargeRequest;
 use Modules\Payments\Application\Gateway\GatewayAccess;
 use Modules\Payments\Application\Gateway\GatewayClient;
 use Modules\Payments\Application\Gateway\OpenedSession;
@@ -85,6 +87,28 @@ final readonly class MyFatoorahClient implements GatewayClient
         return new OpenedSession($id, self::moment(self::text($data, 'SessionExpiry')) ?? $expiresAt);
     }
 
+    public function charge(GatewayAccess $access, ChargeRequest $request): ChargeAnswer
+    {
+        $answer = self::data($this->send($access, 'POST', '/v3/payments', [
+            'SourceOfFund' => ['SessionId' => $request->sessionId],
+            'Order' => ['Amount' => (float) $request->amount, 'Currency' => $request->currencyCode, 'ExternalIdentifier' => $request->attemptId],
+            'OperationType' => 'PAY',
+            'PaymentExpiry' => $request->paymentExpiry->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z'),
+            'Customer' => ['Reference' => $request->ownerId],
+            'IntegrationUrls' => ['Redirection' => $request->returnUrl, 'Webhook' => $request->noticeUrl],
+            'Language' => strtolower($request->locale) === 'ar' ? 'AR' : 'EN',
+        ], self::STATUS_TRIES, ['Idempotency-Key' => $request->idempotencyKey], true));
+
+        [$invoiceId, $paymentId] = [self::text($answer, 'InvoiceId'), self::text($answer, 'PaymentId')];
+
+        // It said yes and we cannot read to what: the session will tell.
+        if ($invoiceId === null || $paymentId === null) {
+            throw new GatewayUnreachable;
+        }
+
+        return new ChargeAnswer($invoiceId, $paymentId, self::text($answer, 'PaymentURL'));
+    }
+
     public function paymentDetails(GatewayAccess $access, string $paymentId): PaymentAnswer
     {
         return self::payment(self::data($this->send($access, 'GET', '/v3/payments/'.rawurlencode($paymentId), null, self::STATUS_TRIES)))
@@ -121,17 +145,23 @@ final readonly class MyFatoorahClient implements GatewayClient
 
     /**
      * @param  array<string, mixed>|null  $body
+     * @param  array<string, string>  $headers
+     * @param  bool  $repeatRefusalIsUnknown  a refusal after a repeat says nothing of the first call (rule 4)
      * @return array<array-key, mixed> the whole answer
      *
      * @throws GatewayKeyRefused|KeyPermissionMissing|GatewayRefused|GatewayUnreachable
      */
-    private function send(GatewayAccess $access, string $method, string $path, ?array $body, int $tries): array
+    private function send(GatewayAccess $access, string $method, string $path, ?array $body, int $tries, array $headers = [], bool $repeatRefusalIsUnknown = false): array
     {
         for ($try = 1; ; $try++) {
-            $response = $this->try($access, $method, $path, $body);
+            $response = $this->try($access, $method, $path, $body, $headers);
 
             if ($response !== null) {
                 $status = $response->status();
+
+                if ($repeatRefusalIsUnknown && $try > 1 && $status >= 400 && $status < 500 && ! in_array($status, self::NOT_NOW, true)) {
+                    throw new GatewayUnreachable;
+                }
 
                 if ($status === 401) {
                     throw str_contains($response->body(), self::NO_PERMISSION) ? new KeyPermissionMissing($method.' '.$path) : new GatewayKeyRefused;
@@ -162,8 +192,9 @@ final readonly class MyFatoorahClient implements GatewayClient
      * One try, logged whatever came of it.
      *
      * @param  array<string, mixed>|null  $body
+     * @param  array<string, string>  $headers
      */
-    private function try(GatewayAccess $access, string $method, string $path, ?array $body): ?Response
+    private function try(GatewayAccess $access, string $method, string $path, ?array $body, array $headers): ?Response
     {
         $started = hrtime(true);
         $endpoint = $method.' '.$path;
@@ -171,7 +202,7 @@ final readonly class MyFatoorahClient implements GatewayClient
         $error = null;
 
         try {
-            $request = $this->http->withToken($access->key)->acceptJson()->timeout(self::TIMEOUT_SECONDS)->withoutRedirecting();
+            $request = $this->http->withToken($access->key)->acceptJson()->timeout(self::TIMEOUT_SECONDS)->withoutRedirecting()->withHeaders($headers);
             $response = $method === 'GET' ? $request->get($access->apiBase.$path) : $request->post($access->apiBase.$path, $body ?? []);
         } catch (ConnectionException) {
             // Its message names the address and nothing of the key; ours names no more than it must.

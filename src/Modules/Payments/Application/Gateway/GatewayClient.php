@@ -11,8 +11,7 @@ use Modules\Payments\Domain\Exception\GatewayUnreachable;
 use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 
 /**
- * The gateway, as an adapter (payments.md §1.2): every call logged (rule 13), its answers exact. The charge
- * joins it with the attempt that claims it (step 10, rule 4).
+ * The gateway, as an adapter (payments.md §1.2): every call logged (rule 13), its answers exact.
  */
 interface GatewayClient
 {
@@ -24,6 +23,15 @@ interface GatewayClient
      * @throws GatewayKeyRefused|KeyPermissionMissing|GatewayRefused|GatewayUnreachable
      */
     public function openSession(GatewayAccess $access, string $amount, string $currencyCode, string $locale, DateTimeImmutable $expiresAt): OpenedSession;
+
+    /**
+     * The charge, with its idempotency key: repeated three times on no answer, always with the same key (rule 4).
+     * Only the **first** call's refusal is a refusal; a refusal after a repeat - the session already used - is
+     * "we do not know", settled by asking about the session.
+     *
+     * @throws GatewayKeyRefused|KeyPermissionMissing|GatewayRefused|GatewayUnreachable
+     */
+    public function charge(GatewayAccess $access, ChargeRequest $request): ChargeAnswer;
 
     /**
      * What MyFatoorah says of a payment: asked three times, five seconds apart (rule 9).
