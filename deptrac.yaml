@@ -218,9 +218,10 @@ deptrac:
     ShippingPublic: [Shared, Vendor, PlatformPublic, CatalogPublic]
     Shipping: [+ShippingPublic, AccessPublic, AppHttp]
 
-    # Payments → Platform. Takes an order id and an amount, nothing more.
+    # Payments → Platform; Access only to declare its permissions (payments.md §2.3). Takes an order id
+    # and an amount, nothing more. PaymentsAccessUseTest keeps Access to the declaring.
     PaymentsPublic: [Shared, Vendor, PlatformPublic]
-    Payments: [+PaymentsPublic]
+    Payments: [+PaymentsPublic, AccessPublic]
 
     # Feedback → Platform, Access, Catalog, Sales (verified purchase)
     FeedbackPublic: [Shared, Vendor, PlatformPublic, AccessPublic, CatalogPublic, SalesPublic]

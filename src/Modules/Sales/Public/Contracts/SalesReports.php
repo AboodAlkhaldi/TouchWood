@@ -9,6 +9,7 @@ use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
+use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
@@ -98,4 +99,15 @@ interface SalesReports
      * not one starting at the top. Returns are not taken off: they come off revenue by their own day.
      */
     public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto;
+
+    /**
+     * **Each product's sales net of its refunds** (ops.md §1.10, the Excel "By category" sheet; the owner,
+     * 2026-10-30) from `from` up to `to` (not included): every product sold in the orders placed then that
+     * count, or with a piece in a return asked then — its units and goods as `productSales` counts them, and
+     * the goods refunded by those returns completed (`refunds`) and estimated for those not finished
+     * (`waitingRefunds`), exactly as `revenueByDay` counts them, so the products' figures add up to its. By
+     * product id; keyset-paged by it, `limit` 1 to 1000, a cursor that is not one starting at the top. A
+     * store that does not exist is refused (`InvalidArgumentException`).
+     */
+    public function productNetSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductNetSalesPageDto;
 }
