@@ -224,7 +224,6 @@
     <table class="keep"><tr><td class="sechead"><span class="num">4</span> · {{ $w('products.title') }}</td></tr><tr><td class="keep">
     @if ($s->topSizes === [])
         <table class="grid"><tr><td class="empty">{{ $w('products.no_sales') }}</td></tr></table>
-    </td></tr></table>
     @else
         <table class="data">
             <tr><td colspan="4" class="subhead">{{ $w('products.top_sizes') }}</td></tr>
@@ -240,7 +239,10 @@
                 </tr>
             @endforeach
         </table>
+    @endif
     </td></tr></table>
+    {{-- Net of refunds (§1.11), so a day of refunds and no sales has its rows too. --}}
+    @if ($s->categories !== [])
         <h3>{{ $w('products.by_category') }}</h3>
         <table class="data">
             <tr><th>{{ $w('products.category') }}</th><th class="n">{{ $w('products.units') }}</th><th class="n">{{ $w('products.revenue') }}</th></tr>

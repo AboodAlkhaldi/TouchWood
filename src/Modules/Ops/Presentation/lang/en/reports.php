@@ -45,7 +45,7 @@ return [
         'vat' => 'VAT is the goods\' VAT less the VAT of the refunds of the returns asked that day: "VAT if the waiting refunds go through" takes the VAT of the waiting ones off too.',
         'totals' => 'All stores: each store, then one total per currency, never converted.',
         'waiting_list' => 'Returns asked and not finished, on the day they were asked, with the refund they would make.',
-        'categories' => 'Waits for Sales: revenue by category, net of refunds so the categories add up to the revenue, needs the refunds by product from Sales.',
+        'categories' => 'Revenue of each category\'s products over the whole range, less the refunds of the returns asked in it, so the categories add up to the revenue. "Revenue if the waiting refunds go through" takes the refunds still waiting off too.',
         'money' => 'The money that moved, by the day it moved: payments in and refunds out, by way. Test payments never count.',
         'until' => 'The range includes today: it is counted until :time.',
         'product_sales' => 'Returns are not taken off here: they come off revenue on the day they were asked.',

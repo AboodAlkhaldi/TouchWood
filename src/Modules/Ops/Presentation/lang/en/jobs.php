@@ -19,6 +19,8 @@ return [
     'forget_anonymized_customer' => 'Removing a deleted customer\'s notifications, messages and newsletter subscription',
     'tell_customer_about_order' => 'Telling a customer what happened to their order',
     'tell_customer_about_return' => 'Telling a customer what happened to their return',
+    'tell_customer_about_money' => 'Telling a customer a refund was sent or a payment received',
+    'tell_customers_about_coupon' => 'Telling customers they were given a coupon',
     'tell_customer_about_points' => 'Telling a customer their points changed',
     'tell_customer_about_feedback' => 'Telling a customer what happened to their question or review',
     'alert_staff' => 'Alerting a store\'s staff',

@@ -14,6 +14,7 @@ use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
+use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Psr\Log\LoggerInterface;
@@ -28,14 +29,15 @@ use Shared\Domain\ValueObject\Money;
  * - C2: the order is still approved;
  * - C8 accepted, S9: the return was not withdrawn since;
  * - C16: the question is still answered (feedback.md §2.5: events are kept in order per order only);
- * - C17, C17b: still not published, **with a reason** - no reason, no message (feedback.md:75).
+ * - C17, C17b: still not published, **with a reason** - no reason, no message (feedback.md:75);
+ * - C9b, C10: the record is the kind's and was not voided since (owner, 2026-10-29);
+ * - C15: the coupon was not deleted since.
  *
  * **A read that names another store, or another customer, than the event did sends nothing** - it is
  * logged with its ids only, never a name or an address: a message never reaches the wrong person.
  *
- * C1 shows the delivery address once Sales gives it on `OrderMessageDto` (owner, 2026-10-31: asked of
- * Sales); until then the email has no address line at all, never a stand-in. C4 names the carrier only
- * when the order has one.
+ * C1 shows the recipient and the delivery address in the email only, never the bell (owner, 2026-10-31); an
+ * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -54,6 +56,7 @@ final readonly class MessageWriter
         private LoyaltyApi $loyalty,
         private FeedbackApi $feedback,
         private CatalogApi $catalog,
+        private PromotionsApi $promotions,
         private LoggerInterface $log,
     ) {}
 
@@ -72,6 +75,8 @@ final readonly class MessageWriter
             MessageKind::OrderApproved, MessageKind::OrderCancelled, MessageKind::OrderCameBack, MessageKind::OrderRejected,
             MessageKind::OrderShipped, MessageKind::OrderDelivered => $this->order($to, $locale, $values),
             MessageKind::ReturnAccepted, MessageKind::ReturnRefused, MessageKind::ReturnReceived, MessageKind::ReturnCompleted => $this->customerReturn($to, $locale, $values),
+            MessageKind::RefundSent, MessageKind::PaymentReceived => $this->moneyRecord($to, $locale, $values),
+            MessageKind::CouponAssigned => $this->coupon($to, $locale, $values),
             MessageKind::PointsEarned, MessageKind::PointsChangedByHand => $this->points($to, $locale, $values),
             MessageKind::PointsExpiring => $this->text($message->kind, $locale, [...$values, 'points' => (string) $message->int('points'), 'date' => $message->string('date')], self::shop($store, $locale, 'account/points')),
             MessageKind::QuestionAnswered, MessageKind::QuestionNotPublished => $this->question($to, $locale, $values),
@@ -88,7 +93,8 @@ final readonly class MessageWriter
     }
 
     /**
-     * C1, C6b: the order's own email carries its lines and totals and how it is paid (owner, 2026-10-28).
+     * C1, C6b: the order's own email carries its lines and totals and how it is paid (owner, 2026-10-28); C1
+     * where it goes too (owner, 2026-10-31).
      *
      * @param  array<string, string>  $values
      */
@@ -100,7 +106,10 @@ final readonly class MessageWriter
             return null;
         }
 
-        $text = $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number, 'amount' => self::money($order->total, $to->store, $locale)], self::shop($to->store, $locale, 'account/orders/'.$order->number));
+        $kind = $to->message->kind;
+        $values = [...$values, 'order' => $order->number, 'amount' => self::money($order->total, $to->store, $locale), 'recipient' => $order->recipientName];
+        $optional = $kind === MessageKind::OrderTaken ? ['address' => $order->deliveryAddress] : [];
+        $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional);
 
         return new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $to->store, $locale));
     }
@@ -170,6 +179,38 @@ final readonly class MessageWriter
         }
 
         return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/returns/'.$return->returnId), $optional);
+    }
+
+    /** @param  array<string, string> $values */
+    private function moneyRecord(MessageTarget $to, string $locale, array $values): ?MessageText
+    {
+        $kind = $to->message->kind;
+        $record = $this->sales->moneyRecordForMessage($to->message->string('moneyRecordId'));
+
+        if ($record === null || $record->voided || ! $this->belongs($to, $record->storeId, $record->customerId)) {
+            return null;
+        }
+
+        if ($record->kind !== ($kind === MessageKind::RefundSent ? 'REFUND' : 'PAYMENT')) {
+            return null;
+        }
+
+        $values['order'] = $record->orderNumber;
+        $values['amount'] = self::money($record->amount, $to->store, $locale);
+
+        if ($kind === MessageKind::RefundSent) {
+            $values['way'] = (string) $this->translator->get("ops::messages.refund_sent.ways.{$record->way}", [], $locale);
+        }
+
+        return $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$record->orderNumber));
+    }
+
+    /** @param  array<string, string> $values */
+    private function coupon(MessageTarget $to, string $locale, array $values): ?MessageText
+    {
+        $code = $this->promotions->couponCode($to->message->string('couponId'));
+
+        return $code === null ? null : $this->text($to->message->kind, $locale, [...$values, 'code' => $code], self::shop($to->store, $locale, 'account/coupons'));
     }
 
     /** @param  array<string, string> $values */

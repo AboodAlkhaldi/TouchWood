@@ -17,6 +17,7 @@ use Modules\Loyalty\Public\Enums\EntryKind;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\ProductNetSaleDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sync\Public\Contracts\SyncApi;
 use Shared\Domain\ValueObject\Money;
@@ -176,8 +177,10 @@ final readonly class DailyReportReader
     }
 
     /**
-     * The sizes sold most, named; and revenue per category - every size sold, grouped by its product's own
-     * category, most revenue first.
+     * The sizes sold most, as sold, named; and revenue per category, **net of refunds** so the table adds up
+     * to the report's net revenue (owner, 2026-11-01): every product sold or with a piece in a return asked over
+     * [from, to), under its own category, most revenue first. A category's units are the pieces sold (Sales
+     * gives no refunded pieces by product); one with nothing but a waiting return has nothing to show, and no row.
      *
      * @return array{list<SizeSold>, list<CategoryRevenue>}
      */
@@ -192,13 +195,25 @@ final readonly class DailyReportReader
             $after = $page->next;
         } while ($after !== null);
 
-        if ($sold === []) {
+        /** @var list<ProductNetSaleDto> $net */
+        $net = [];
+        $after = null;
+        do {
+            $page = $this->sales->productNetSales($store->storeId(), $from, $to, $after, self::PAGE);
+            array_push($net, ...$page->rows);
+            $after = $page->next;
+        } while ($after !== null);
+
+        if ($sold === [] && $net === []) {
             return [[], []];
         }
 
         $top = array_slice($sold, 0, self::TOP);
         $variants = $this->catalog->variants(array_map(static fn (ProductSaleDto $row): string => $row->variantId, $top));
-        $products = $this->catalog->products(array_values(array_unique(array_map(static fn (ProductSaleDto $row): string => $row->productId, $sold))));
+        $products = $this->catalog->products(array_values(array_unique([
+            ...array_map(static fn (ProductSaleDto $row): string => $row->productId, $top),
+            ...array_map(static fn (ProductNetSaleDto $row): string => $row->productId, $net),
+        ])));
 
         $sizes = [];
         foreach ($top as $row) {
@@ -219,13 +234,14 @@ final readonly class DailyReportReader
 
         /** @var array<string, array{?string, int, Money}> $groups */
         $groups = [];
-        foreach ($sold as $row) {
+        foreach ($net as $row) {
             $category = ($products[$row->productId] ?? null)?->categoryId;
             $key = $category ?? '';
             $groups[$key] ??= [$category, 0, Money::zero($store->currencyCode)];
             $groups[$key][1] += $row->units;
-            $groups[$key][2] = $groups[$key][2]->add($row->revenue);
+            $groups[$key][2] = $groups[$key][2]->add($row->revenue)->subtract($row->refunds);
         }
+        $groups = array_filter($groups, static fn (array $group): bool => $group[1] > 0 || ! $group[2]->isZero());
         $paths = $this->catalog->categoriesWithPaths(array_values(array_filter(array_map(static fn (array $group): ?string => $group[0], $groups))));
 
         $categories = [];

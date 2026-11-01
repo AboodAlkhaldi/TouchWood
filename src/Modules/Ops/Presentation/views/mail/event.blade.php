@@ -7,11 +7,12 @@
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
     {{-- A message about a moment (ops.md §1.5, §1.6), with the store's logo and name (round 1 #23).
          The logo is linked at its address on APP_URL: EmailSender takes the body as HTML and text only.
-         Every value is escaped: staff's words (a reason) and names come from other modules. --}}
+         Every value is escaped: staff's words (a reason), names and an address come from other modules;
+         a line of several (the address) keeps its line breaks. --}}
     <p><img src="{{ $logo }}" width="96" height="96" alt="{{ $brand }}" style="display: block; border: 0;"></p>
 
     @foreach ($lines as $line)
-        <p>{{ $line }}</p>
+        <p>{!! nl2br(e($line)) !!}</p>
     @endforeach
 
     @if ($summary !== [])

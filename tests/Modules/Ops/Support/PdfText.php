@@ -17,7 +17,8 @@ final class PdfText
 {
     public static function of(string $pdf): string
     {
-        if (preg_match_all('/<<(.*?)>>\s*stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams, PREG_SET_ORDER) === 0) {
+        // Only "\n" before "endstream", as mPDF writes it: a compressed page may itself end in the byte "\r".
+        if (preg_match_all('/<<(.*?)>>\s*stream\r?\n(.*?)\nendstream/s', $pdf, $streams, PREG_SET_ORDER) === 0) {
             throw new LogicException('No stream in the PDF.');
         }
 
