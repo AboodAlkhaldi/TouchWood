@@ -97,11 +97,51 @@ it('counts the day as the orders counted by hand: the cancelled and rejected lef
         ->and(array_map(static fn ($one): array => [$one->returnId, $one->orderNumber, $one->estimateVat->minorUnits], $report->waitingRefunds))->toBe([[$day['open'], $day['number'], 7_50]])
         ->and(array_map(static fn ($way): array => [$way->way, $way->records, $way->amount->minorUnits], $report->money->payments))->toBe([['BANK_TRANSFER', 1, $paid]])
         ->and(array_map(static fn ($size): array => [$size->variantId, $size->units, $size->revenue->minorUnits], $report->topSizes))->toBe([[$day['variants'][0], 2, 200_00], [$day['variants'][1], 1, 50_00]])
-        ->and(array_sum(array_map(static fn ($category): int => $category->revenue->minorUnits, $report->categories)))->toBe(250_00)
+        // Per category net of the refund, so it adds up to the report's own net revenue; the units as sold.
+        ->and(array_map(static fn ($category): array => [$category->units, $category->revenue->minorUnits], $report->categories))->toBe([[3, 150_00]])
+        ->and($report->categories[0]->revenue->minorUnits)->toBe($report->today->revenue->minorUnits)
         // Yesterday had nothing; the month so far is today.
         ->and([$report->yesterday->orders, $report->monthToDate->orders, $report->monthToDate->revenue->minorUnits])->toBe([0, 1, (int) $row?->goods_total_minor - 100_00])
         ->and($report->from->format('H:i'))->toBe('00:00')
         ->and($report->from->getTimezone()->getName())->toBe('Asia/Riyadh');
+});
+
+it('takes a refund off its category on the day its return was asked, the top sizes staying as sold', function () {
+    $day = Dx::aDay();
+    // The order placed a week ago: today has its return, no sale.
+    DB::table('sales.orders')->where('id', $day['delivered'])->update(['placed_at' => CarbonImmutable::now()->subDays(7)]);
+
+    $made = app(DailyReportReader::class)->report([dailyStore('sa')], CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null, 'Asia/Riyadh');
+    $report = $made->stores[0];
+
+    expect($report->topSizes)->toBe([])
+        ->and($report->today->revenue->minorUnits)->toBe(-100_00)
+        ->and(array_map(static fn ($category): array => [$category->units, $category->revenue->minorUnits], $report->categories))->toBe([[0, -100_00]])
+        ->and(dailyText($made))->toContain('Revenue per category')->toContain('-100.00 SAR');
+});
+
+it('shows no category row for a day with nothing but a waiting return, and adds several categories up to the net revenue', function () {
+    $day = Dx::aDay();
+    // The order and its completed return a week ago: today has only the waiting return.
+    DB::table('sales.orders')->where('id', $day['delivered'])->update(['placed_at' => CarbonImmutable::now()->subDays(7)]);
+    DB::table('sales.returns')->where('id', $day['done'])->update(['requested_at' => CarbonImmutable::now()->subDays(7)]);
+    $until = CarbonImmutable::now()->addSecond()->toDateTimeImmutable();
+    $waiting = app(DailyReportReader::class)->store(dailyStore('sa'), $until, null);
+
+    $ready = Cx::ready();
+    Cx::place(Cx::start($ready['address'])->id);
+    $bare = Cx::ready();
+    Cx::place(Cx::start($bare['address'])->id);
+    // Only a product not ready may have no category: taken back to a draft since.
+    DB::table('catalog.products')->where('id', $bare['product'])->update(['stage' => 'DRAFT', 'category_id' => null]);
+    $made = app(DailyReportReader::class)->report([dailyStore('sa')], CarbonImmutable::now()->addSecond()->toDateTimeImmutable(), null, 'Asia/Riyadh');
+    $report = $made->stores[0];
+
+    expect([$waiting->today->revenue->minorUnits, $waiting->waitingRefundsTotal->minorUnits, $waiting->categories])->toBe([0, 50_00, []])
+        ->and(array_sum(array_map(static fn ($category): int => $category->revenue->minorUnits, $report->categories)))->toBe($report->today->revenue->minorUnits)
+        ->and($report->today->revenue->minorUnits)->toBe(500_00)
+        ->and(array_map(static fn ($category): ?string => $category->categoryId === null ? null : 'named', $report->categories))->toEqualCanonicalizing([null, 'named'])
+        ->and(dailyText($made))->toContain('No category');
 });
 
 it('makes every store\'s report with each store in its own day, then one total per currency, never converted', function () {
