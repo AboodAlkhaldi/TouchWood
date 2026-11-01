@@ -2,19 +2,20 @@
 
 declare(strict_types=1);
 
-use Database\Seeders\PlatformSeeder;
 use Carbon\Carbon;
+use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Modules\Access\Infrastructure\Permission\PermissionSync;
-use Modules\Access\Domain\ValueObject\RoleLevel;
+use Illuminate\Support\Str;
 use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\Exception\AdminOnlyPermission;
+use Modules\Access\Domain\ValueObject\RoleLevel;
+use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Access\Public\Enums\PermissionKind;
 use Modules\Payments\Application\PaymentsPermissions;
-use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Application\Settings\BankAccountSettings;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Platform\Application\Settings\InMemorySettingsSectionLines;
@@ -211,12 +212,13 @@ describe('the bank account a store\'s companies transfer to (b2b.md amendment 13
         expect(app(PaymentsApi::class)->bankAccount(bankSettingStore('sa')))->toBeNull();
     })->with([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER]);
 
-    it('gives none for a store that has entered nothing', function () {
+    it('gives none for a store that has entered nothing, or that does not exist', function () {
         bankSettingSave(BankAccountSettings::IBAN, 'sa', 'GB82 WEST 1234 5698 7654 32');
         bankSettingSave(BankAccountSettings::BANK, 'sa', 'Al Noor Bank');
         bankSettingSave(BankAccountSettings::HOLDER, 'sa', 'TouchWood Trading');
 
-        expect(app(PaymentsApi::class)->bankAccount(bankSettingStore('eg')))->toBeNull();
+        expect(app(PaymentsApi::class)->bankAccount(bankSettingStore('eg')))->toBeNull()
+            ->and(app(PaymentsApi::class)->bankAccount(StoreId::fromString(strtolower((string) Str::ulid()))))->toBeNull();
     });
 });
 

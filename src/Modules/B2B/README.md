@@ -1,6 +1,6 @@
 # B2B module
 
-**Build stage 3. Depends on Platform and Access** (handoff §4.4). Pricing and Sales will read it.
+**Build stage 3. Depends on Platform and Access, and on Payments for a store's bank account alone** (handoff §4.4). Pricing and Sales will read it.
 
 B2B owns **the company behind a company account**: its details, its documents, and the approval
 that decides whether it may order. It owns nothing about who the person is (Access), what anything

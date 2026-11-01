@@ -1135,5 +1135,9 @@ method from the card's brand.
 5. **The line's other two states**, beside the two the owner worded in §1.2: "Online payment: on" when live, and
    "Online payment: stopped — MyFatoorah refused the key; individuals pay through staff until a new one is saved".
    A gateway in test mode but switched off says "off". The bank's half keeps B2B's words. The line moves from the
-   Companies section to the Payments section, which an admin with either the store settings or the bank account's
-   job sees.
+   Companies section to the Payments section, shown with the section as every module's is (platform.md §1.3): to
+   anyone who sees one of its settings, so also to a staff role holding the store settings job, for the transfer
+   check hours. It names no value, and the three fields stay hidden from them.
+6. **The grant reaches only the roles there when it runs** (access.md amendment 92). A production database first
+   migrated with this code has no roles yet, so nothing is copied: each role made there has its own Payments box,
+   unticked until an admin ticks it.

@@ -15,6 +15,7 @@ use Modules\Access\Application\Permission\InMemoryPermissionCatalog;
 use Modules\Access\Domain\Repository\RoleRepository;
 use Modules\Access\Infrastructure\Permission\PermissionSync;
 use Modules\Access\Public\Dto\PermissionDefinitionDto;
+use Modules\Access\Public\Enums\PermissionAudience;
 use Modules\Access\Public\Enums\PermissionGroup;
 use Modules\Platform\Public\PlatformPermissions;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -192,8 +193,37 @@ it('copies an exception with its level and its stores', function () {
     app(PermissionSync::class)->run();
 
     expect(exceptionsOf($holder['staff']))->toBe([PlatformPermissions::MEDIA_UPLOAD => [Fx::storeId('sa')], PlatformPermissions::STORE_UPDATE => [Fx::storeId('sa')]])
+        ->and(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $holder['staff'])->where('permission', PlatformPermissions::STORE_UPDATE)->value('access_level'))->toBe('SELECTED_STORES')
         ->and(Fx::audits('access.staff_user.exceptions_synced', $holder['staff']))->toBe(1)
         ->and(app(GrantsReader::class)->forStaff($holder['staff'])?->storesFor(PlatformPermissions::STORE_UPDATE)?->storeIds())->toBe([Fx::storeId('sa')]);
+});
+
+it('copies an exception on all stores as one on all stores', function () {
+    $holder = holderOfOldNames([PlatformPermissions::MEDIA_UPLOAD]);
+    DB::table('access.role_assignment_exceptions')->insert(['staff_user_id' => $holder['staff'], 'permission' => PlatformPermissions::MEDIA_UPLOAD, 'access_level' => 'ALL_STORES']);
+    app(InMemoryPermissionCatalog::class)->copied('platform', PlatformPermissions::MEDIA_UPLOAD, PlatformPermissions::STORE_UPDATE);
+
+    app(PermissionSync::class)->run();
+
+    expect(DB::table('access.role_assignment_exceptions')->where('staff_user_id', $holder['staff'])->where('permission', PlatformPermissions::STORE_UPDATE)->value('access_level'))->toBe('ALL_STORES')
+        ->and(exceptionsOf($holder['staff'])[PlatformPermissions::STORE_UPDATE])->toBe([]);
+});
+
+it('carries nothing while the table of copies is missing, so a removal cannot run before its copy', function () {
+    $holder = holderOfOldNames(['catalog.old.thing', PlatformPermissions::MEDIA_UPLOAD]);
+    $catalog = app(InMemoryPermissionCatalog::class);
+    $catalog->copied('platform', 'catalog.old.thing', PlatformPermissions::STORE_UPDATE);
+    $catalog->removed('catalog', 'catalog.old.thing');
+    DB::statement('ALTER TABLE access.permission_copies RENAME TO permission_copies_gone');
+
+    try {
+        $result = app(PermissionSync::class)->run();
+    } finally {
+        DB::statement('ALTER TABLE access.permission_copies_gone RENAME TO permission_copies');
+    }
+
+    expect($result)->toBe(['roles' => 0, 'staff' => 0, 'unknown' => []])
+        ->and(Fx::rolePermissions($holder['role']))->toBe(['catalog.old.thing', PlatformPermissions::MEDIA_UPLOAD]);
 });
 
 it('narrows a role already holding the new name by the copied exception, in the cached permissions too', function () {
@@ -284,6 +314,16 @@ it('refuses at boot a copy from a name nobody has, to one a role cannot hold, or
     'to a name nobody declares' => [function (InMemoryPermissionCatalog $catalog): void {
         $catalog->removed('catalog', 'catalog.old.thing');
         $catalog->copied('platform', 'catalog.old.thing', 'platform.never.declared');
+    }, 'not a declared permission a role can hold'],
+    'to a name reserved for Super Admins' => [function (InMemoryPermissionCatalog $catalog): void {
+        $catalog->removed('catalog', 'catalog.old.thing');
+        $catalog->declare('platform', new PermissionDefinitionDto('platform.thing.to', reserved: true));
+        $catalog->copied('platform', 'catalog.old.thing', 'platform.thing.to');
+    }, 'not a declared permission a role can hold'],
+    'to a name everyone holds' => [function (InMemoryPermissionCatalog $catalog): void {
+        $catalog->removed('catalog', 'catalog.old.thing');
+        $catalog->declare('platform', new PermissionDefinitionDto('platform.thing.to', PermissionAudience::EveryCustomer));
+        $catalog->copied('platform', 'catalog.old.thing', 'platform.thing.to');
     }, 'not a declared permission a role can hold'],
 ]);
 

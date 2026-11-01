@@ -659,6 +659,7 @@ each recorded through the outbox inside its change's transaction — a change re
 | Catalog | **the store's variants in bulk** (`storeVariant` reads one, `CatalogApi`); `variant`, `product` and the bulk reads Feedback adds (snapshots); **whether a product's category is open to an account type in a store**, in bulk; `ListingFacts::salesRanks`; the usage check (a variant on an order is never deleted, promotions.md §1.2) | `storeVariant`, `variant`, `product`, `ListingFacts` exist; **the bulk store-variant read and the category read** — Catalog additions, built in S3 (catalog.md amendment 29) |
 | Access | `customerMayOrder`, `customer`, `addresses`, `address`, `GuestBecameCustomer`, `CustomerAnonymized` | Exist |
 | B2B | `isApproved` | Exists |
+| Payments | `bankAccount` (from B2B, stage 7 step 8b; the rest in §9.5) | Exists |
 | Platform | `store` (`isActive`), `allStores`, `StoreCreated`, settings, the audit log, `uploadMediaFor` and media uses (return photos, transfer documents), staff names | Exist |
 | Shared | **`outbox_messages` and `processed_events`, in the `public` schema** (platform.md §5.6), and the outbox's relay | **Built with Sales** — the first module to publish through the outbox |
 

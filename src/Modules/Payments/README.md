@@ -22,6 +22,16 @@ and an amount, nothing more: it depends on Platform, and on Access only to decla
 | 8b | **The settings line** (§1.2, gap 8.8): how the store shown takes money, online and by transfer | `Infrastructure/Settings/PaymentsSettingsLine` |
 | 8b | **The one-time grants** (§9.10 #1): whoever views orders gets `payments.payment.view`, whoever held `b2b.settings.update` gets `payments.bank_account.update` | `Infrastructure/PaymentsServiceProvider`, Access's `copied` |
 
+**The bank account** is three per-store settings, `payments.bank.iban`, `payments.bank.name` and `payments.bank.holder`,
+changed only by an admin under `payments.bank_account.update`. They start empty, meaning "not set yet" (a text setting
+may say so, and its rules then apply only to a value that is not empty; platform.md §1.3). `IbanRule` checks an IBAN's
+shape (two letters, two digits, 11 to 30 letters and digits) and its check digits (ISO 13616, the number modulo 97),
+spaces ignored; the value is **kept as typed**, so up to 42 characters, 34 in groups of four. No country's length is
+written in, and check digits 00, 01 and 99, which no IBAN has, are refused. **Bank transfer is on only while all three
+are filled in**: until then `bankAccount()` answers null, checkout offers paying through staff alone, and the settings
+line says so. `StoreBankAccount` is the one reader. Not sensitive: every approved company of the store is shown them,
+and a changed IBAN must stay readable in the audit log.
+
 Still to come: the session, the charge, `RegisterApplePayDomain` and the notices (steps 9-10); payment requests (step 11).
 
 ## How a change runs

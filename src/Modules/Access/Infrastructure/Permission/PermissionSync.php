@@ -53,8 +53,9 @@ final readonly class PermissionSync
      */
     public function run(): array
     {
-        // A migrate that stopped before Access's tables (--path) has nothing to carry.
-        if (! $this->db->getSchemaBuilder()->hasTable('access.role_assignment_exceptions')) {
+        // A migrate that stopped before Access's tables (--path) has nothing to carry. The newest of them
+        // decides: without it a copy could not run, and the removal after it would lose the holders for good.
+        if (! $this->db->getSchemaBuilder()->hasTable('access.permission_copies')) {
             return ['roles' => 0, 'staff' => 0, 'unknown' => []];
         }
 
@@ -82,10 +83,6 @@ final readonly class PermissionSync
      */
     private function claimCopies(): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('access.permission_copies')) {
-            return [];
-        }
-
         $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:sP');
 
         return array_filter(

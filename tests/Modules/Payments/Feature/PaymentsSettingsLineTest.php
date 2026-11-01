@@ -133,7 +133,11 @@ it('says how the store takes online payment: off, test, live, or stopped by a re
     app(SwitchModeHandler::class)->handle(new SwitchMode($store, 'LIVE'));
     $online[] = $line();
 
-    DB::table('payments.gateway_keys')->where('current', true)->update(['rejected_at' => now()]);
+    DB::table('payments.gateway_keys')->where('current', true)->where('mode', 'LIVE')->update(['rejected_at' => now()]);
+    $online[] = $line();
+
+    app(SwitchModeHandler::class)->handle(new SwitchMode($store, 'TEST'));
+    DB::table('payments.gateway_keys')->where('current', true)->where('mode', 'TEST')->update(['rejected_at' => now()]);
     $online[] = $line();
 
     app(SwitchGatewayHandler::class)->handle(new SwitchGateway($store, false));
@@ -145,8 +149,24 @@ it('says how the store takes online payment: off, test, live, or stopped by a re
         'Online payment: TEST mode — no real money is taken',
         'Online payment: on',
         'Online payment: stopped — MyFatoorah refused the key; individuals pay through staff until a new one is saved',
+        'Online payment: stopped — MyFatoorah refused the key; individuals pay through staff until a new one is saved',
         PAYMENTS_LINE_OFF,
     ]));
+});
+
+it('shows an admin holding only the bank account\'s job its three fields and the line', function () {
+    $staffId = Fx::staffWith([PaymentsPermissions::BANK_ACCOUNT_UPDATE], ['sa'], RoleLevel::Admin);
+    $browser = new AdminBrowser('10.11.3.'.random_int(20, 250));
+    $browser->post('/admin/sign-in', [
+        'email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'),
+        'password' => Fx::STAFF_PASSWORD,
+    ])->assertRedirect('/admin/sign-in/code');
+    $browser->post('/admin/sign-in/code', ['code' => RecordingSecurityMessages::installed()->lastCode()])->assertRedirect('/admin');
+
+    $section = paymentsLineSections($browser)['payments'];
+
+    expect($section['keys'])->toBe([BankAccountSettings::IBAN, BankAccountSettings::BANK, BankAccountSettings::HOLDER])
+        ->and($section['line'])->toBe(PAYMENTS_LINE_OFF.' · '.PAYMENTS_LINE_NO_TRANSFER);
 });
 
 it('keeps the Companies section\'s form minimums, with no bank account and no line', function () {
