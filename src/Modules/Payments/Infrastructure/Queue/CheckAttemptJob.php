@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Infrastructure\Queue;
 
-use DateTimeInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\RateLimiter;
 use Modules\Payments\Application\Attempt\AttemptChecks;
 
@@ -27,6 +25,12 @@ final class CheckAttemptJob implements ShouldQueue
 
     private const int BUSY_SECONDS = 30;
 
+    /**
+     * No limit on tries, which waiting for the limit or a busy attempt would use up. No time limit either: it stays in
+     * the job, and a retry from the failed jobs screen would find it passed and fail at once.
+     */
+    public int $tries = 0;
+
     /** Failures, not the waits for the limit; the hourly look mends anything lost. */
     public int $maxExceptions = 3;
 
@@ -42,12 +46,6 @@ final class CheckAttemptJob implements ShouldQueue
     public function __construct(
         public readonly string $attemptId,
     ) {}
-
-    public function retryUntil(): DateTimeInterface
-    {
-        // Beyond the longest delay a check is booked with, an hour, so a late pick-up still runs.
-        return Carbon::now()->addHours(3);
-    }
 
     public function handle(AttemptChecks $checks): void
     {

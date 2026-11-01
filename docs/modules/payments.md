@@ -1411,3 +1411,7 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 20. **Still unproven on a real server**: amounts arriving as text (a number that is not whole reads as no answer, so a
     payment would stay unknown rather than be misread), `ExternalIdentifier` in status answers, the charge's body with `Customer.Reference` and `IntegrationUrls`, and how
     `Idempotency-Key` behaves on a retried charge in a KSA account. Both are for the staging run.
+21. **A check job has no limit on tries (`$tries = 0`), and no time limit**: a wait for the rate limit or a busy attempt would
+    use up tries, and a time limit stays in the job, so a retry from the failed jobs screen (which pushes it back as it was,
+    platform.md §5.6) would fail at once. Three failures end it (`$maxExceptions`), a timeout counting as one; the hourly look
+    mends anything lost.

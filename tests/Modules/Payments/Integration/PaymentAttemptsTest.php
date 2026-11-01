@@ -569,6 +569,30 @@ describe('abandoning (rule 15)', function () {
         expect($fake->count('POST', '/v3/payments'))->toBe(0);
     });
 
+    it('leaves a prepared attempt alone until its window is over, whatever a notice says, with no call', function () {
+        ['fake' => $fake, 'id' => $id] = attemptsPrepared();
+        $calls = count($fake->calls);
+        attemptsAt('+1 minute');
+        $attempt = app(Attempts::class)->find($id) ?? throw new LogicException('No attempt');
+
+        expect(app(AttemptChecks::class)->noticed($attempt, null))->toBeTrue();
+
+        expect(attemptsRow($id)->state)->toBe('CREATING')
+            ->and(attemptsEvents(PaymentNotTaken::class))->toBe(0)
+            ->and(count($fake->calls))->toBe($calls);
+    });
+
+    it('asks nothing about an abandoned attempt, whatever a notice says: nothing was ever sent', function () {
+        ['fake' => $fake, 'id' => $id] = attemptsPrepared();
+        app(PaymentsApi::class)->abandon($id);
+        $calls = count($fake->calls);
+        $attempt = app(Attempts::class)->find($id) ?? throw new LogicException('No attempt');
+
+        expect(app(AttemptChecks::class)->noticed($attempt, null))->toBeTrue()
+            ->and(count($fake->calls))->toBe($calls)
+            ->and(attemptsRow($id)->state)->toBe('ABANDONED');
+    });
+
     it('loses to the claim: nothing released once the charge is sent (§8 #43)', function () {
         ['id' => $id] = attemptsCharged();
 
@@ -682,6 +706,61 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
         expect(DB::table('payments.transactions')->count())->toBe(1)
             ->and(attemptsRow($id)->paid_twice)->toBeFalse()
             ->and(attemptsEvents(PaymentSucceeded::class))->toBe(1);
+    });
+
+    it('keeps a success when its own payment later reads as declined (rule 5)', function () {
+        ['fake' => $fake, 'id' => $id] = attemptsCharged();
+        $fake->paid();
+        attemptsAt('+1 minute');
+        app(PaymentsApi::class)->refresh(ATTEMPTS_TRY);
+        $fake->declined();
+        $answer = app(GatewayClient::class)->paymentDetails(new GatewayAccess(Fx::storeId('sa'), PaymentMode::Test, 'https://apitest.myfatoorah.com', (string) attemptsRow($id)->key_id, 'sk_key_ABC123'), FakeMyFatoorah::PAYMENT_ID);
+
+        DB::transaction(function () use ($id, $answer): void {
+            $attempt = app(Attempts::class)->lock($id) ?? throw new LogicException('No attempt');
+            app(AttemptSettlement::class)->settle($attempt, new AskResult($answer), CarbonImmutable::now()->toDateTimeImmutable());
+        });
+
+        expect(DB::table('payments.transactions')->sole()->succeeded)->toBeTrue()
+            ->and(attemptsRow($id)->state)->toBe('SUCCEEDED')
+            ->and(attemptsEvents(PaymentFailed::class))->toBe(0);
+    });
+
+    it('ends nothing when a decline comes for an attempt already refused: Sales has had its word', function () {
+        ['fake' => $fake, 'id' => $id] = attemptsPrepared();
+        $fake->charges = [fn () => Http::response(Answers::refusal('SessionId is expired!'), 400)];
+        app(PaymentsApi::class)->charge($id);
+        $fake->declined();
+        $attempt = app(Attempts::class)->find($id) ?? throw new LogicException('No attempt');
+
+        expect(app(AttemptChecks::class)->noticed($attempt, FakeMyFatoorah::PAYMENT_ID))->toBeTrue()
+            ->and(attemptsRow($id)->state)->toBe('REFUSED')
+            ->and(attemptsEvents(PaymentFailed::class))->toBe(0)
+            ->and(attemptsEvents(PaymentNotTaken::class))->toBe(1);
+    });
+
+    it('takes what came of a lost charge from the payment itself: the session only names it (rule 1)', function () {
+        ['fake' => $fake, 'id' => $id] = attemptsPrepared();
+        $fake->charges = [fn () => Http::response([], 503), fn () => Http::response(Answers::refusal('SessionId is already used!'), 400)];
+        app(PaymentsApi::class)->charge($id);
+        $sessionAsked = false;
+        $fake->statusAnswer = function () use (&$sessionAsked, $id) {
+            $data = $sessionAsked ? Answers::paymentData('INPROGRESS', 'PENDING') : Answers::paymentData('SUCCESS', 'PAID');
+            $data['Invoice']['Id'] = FakeMyFatoorah::INVOICE_ID;
+            $data['Invoice']['ExternalIdentifier'] = $id;
+            $data['Transaction']['PaymentId'] = FakeMyFatoorah::PAYMENT_ID;
+            $answer = $sessionAsked ? $data : ['IsUsed' => true, 'TransactionResult' => $data];
+            $sessionAsked = true;
+
+            return Http::response(['IsSuccess' => true, 'Data' => $answer]);
+        };
+        attemptsAt('+5 minutes');
+        attemptsCheck($id);
+
+        expect(attemptsRow($id)->state)->toBe('OPEN')
+            ->and($fake->count('GET', '/v3/payments/'))->toBe(1)
+            ->and(DB::table('payments.transactions')->count())->toBe(0)
+            ->and(attemptsEvents(PaymentSucceeded::class))->toBe(0);
     });
 
     it('says a success refused on its currency is not one, and names the transaction of one that is (rule 8)', function () {
@@ -981,6 +1060,7 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
         $fake->paid();
         attemptsAt('+1 minute');
         app(PaymentsApi::class)->refresh(ATTEMPTS_TRY);
+        $fake->paid('1200.00');
 
         attemptsHandleNotice($store, attemptsNotice('07077320290391998274', $id));
 
@@ -988,6 +1068,7 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
         expect([$row->state, $row->paid_twice, $row->needs_attention, $row->gateway_payment_id, (int) $row->paid_minor])->toBe(['SUCCEEDED', true, true, FakeMyFatoorah::PAYMENT_ID, 118050])
             ->and(DB::table('payments.transactions')->count())->toBe(2)
             ->and(DB::table('payments.transactions')->where('paid_twice', true)->value('gateway_payment_id'))->toBe('07077320290391998274')
+            ->and((int) DB::table('payments.transactions')->where('paid_twice', true)->value('amount_minor'))->toBe(120000)
             ->and(attemptsEvents(PaymentSucceeded::class))->toBe(2);
     });
 
@@ -1305,11 +1386,13 @@ describe('the timers (rule 15, §1.7, §9.8)', function () {
             ->and(RateLimiter::attempts('payments-checks'))->toBe(1);
     });
 
-    it('gives its jobs longer than three tries of the gateway, and hourly checks longer than an hour to be picked up', function () {
+    it('gives its jobs longer than three tries of the gateway, and a check no limit that a wait or a late retry could pass', function () {
         $job = new CheckAttemptJob('x');
 
         expect($job->timeout)->toBeGreaterThan(240)
-            ->and($job->retryUntil()->getTimestamp())->toBeGreaterThan(CarbonImmutable::now()->addHours(2)->getTimestamp())
+            ->and($job->tries)->toBe(0)
+            ->and($job->maxExceptions)->toBe(3)
+            ->and((new ReflectionClass($job))->hasMethod('retryUntil'))->toBeFalse()
             ->and((new HandleNoticeJob('x'))->timeout)->toBeGreaterThan(240);
     });
 

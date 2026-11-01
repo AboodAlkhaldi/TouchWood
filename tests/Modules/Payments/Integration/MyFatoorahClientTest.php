@@ -385,6 +385,13 @@ describe('charging', function () {
             ->and((string) json_encode(DB::table('payments.calls')->get()))->not->toContain('sk_test_the_secret_key');
     });
 
+    it('takes a 401 on a repeat as unknown, even with no words to read (rule 4)', function () {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::sequence()->push('', 503)->push('Unauthorized', 401)]);
+
+        expect(fn () => clientCharge())->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(2);
+    });
+
     it('never reads a yes it cannot use as a no', function (array $data) {
         Http::fake([CLIENT_MF.'/v3/payments' => Http::response(['IsSuccess' => true, 'Data' => $data], 201)]);
 
