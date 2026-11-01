@@ -575,7 +575,7 @@ describe('messages to customers (§1.5)', function () {
 
         expect($refused)->toContain('Reason: Used item')
             ->and(CapturedEmails::installed()->last()->text)->toContain('A refund of 150.00 SAR is owed to you.')
-            ->and(eventMessagesBell($sara)[1]->link)->toBe("/sa/en/account/returns/{$returnId}");
+            ->and(array_column(eventMessagesBell($sara), 'link', 'kind')['return_completed'])->toBe("/sa/en/account/returns/{$returnId}");
     });
 
     it('tells points earned, and points changed by hand signed, with the admin\'s reason', function () {
