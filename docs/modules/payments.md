@@ -715,10 +715,10 @@ SUCCEEDED ─▶ SUCCEEDED                         (a second successful transact
 | **On the order** (Sales's screen) | The attempts block; "Request payment of the rest" / "Handle by hand" (§1.5); the overdue mark (§1.9) |
 | **The bank account** | Moves from B2B's settings section to Payments' (§1.9) |
 
-### 4.2 The screens in detail — **[DRAFT: waits on the owner's answers, §9.10]**
+### 4.2 The screens in detail — **[DRAFT: waits on the owner's answers, §9.11]**
 
 Written 2026-11-01 by the screens session, before backend steps 9–12. It fills in the table above; Q1–Q22 are the
-questions in §9.10, and the text is written to their (a) answers. The reads and posts behind steps 9–12 aren't built yet, so
+questions in §9.11, and the text is written to their (a) answers. The reads and posts behind steps 9–12 aren't built yet, so
 **the shapes they send may add to this**. Sales's §4.1 rules all hold: a reader without the job sees no button, one whom
 the state stops sees it out of reach with the reason, every box checks itself as it is typed, every number in 0-9, every
 page at a phone's width.
@@ -1258,7 +1258,7 @@ method from the card's brand.
    migrated with this code has no roles yet, so nothing is copied: each role made there has its own Payments box,
    unticked until an admin ticks it.
 
-### 9.10 The Payments screens' questions (2026-11-01) — **waits on the owner**
+### 9.11 The Payments screens' questions (2026-11-01) — **waits on the owner**
 
 The screens are §4.2, written to the (a) answers. (a) is my recommendation in each.
 
