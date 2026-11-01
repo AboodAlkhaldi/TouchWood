@@ -51,6 +51,13 @@ interface MarketingQueries
     public function segments(StoreId $store, ?DateTimeImmutable $beforeAt, ?string $beforeId, int $limit): array;
 
     /**
+     * The store's segments, newest first by id, after the cursor, each with how many members it holds.
+     *
+     * @return list<SegmentRow>
+     */
+    public function segmentsById(StoreId $store, ?string $beforeId, int $limit): array;
+
+    /**
      * A segment's members by customer id, after the cursor.
      *
      * @return list<array{customerId: string, addedAt: DateTimeImmutable}>

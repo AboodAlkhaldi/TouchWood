@@ -20,6 +20,7 @@ use Modules\Promotions\Application\Coupon\CartLines;
 use Modules\Promotions\Application\Coupon\Inputs;
 use Modules\Promotions\Application\Coupon\Quotes;
 use Modules\Promotions\Application\Query\MarketingQueries;
+use Modules\Promotions\Application\Query\SegmentRow;
 use Modules\Promotions\Domain\Exception\InvalidPromotionAttribute;
 use Modules\Promotions\Domain\Exception\SegmentNotFound;
 use Modules\Promotions\Domain\Model\GiftLevel;
@@ -37,6 +38,7 @@ use Modules\Promotions\Public\Dto\EditedCouponRequest;
 use Modules\Promotions\Public\Dto\GiftOfferDto;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\ReserveCoupon;
+use Modules\Promotions\Public\Dto\SegmentChoiceDto;
 use Modules\Promotions\Public\Dto\SettleReservation;
 use Modules\Promotions\Public\Dto\UpdateCouponUse;
 use Modules\Promotions\Public\Dto\UseCoupon;
@@ -45,6 +47,7 @@ use Modules\Promotions\Public\Enums\CouponEligibility;
 use Modules\Promotions\Public\Enums\CouponRefusal;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
+use Shared\Infrastructure\Persistence\Ulids;
 
 /**
  * promotions.md §2.1. The reads: no lock, no transaction — each answers one question about one moment.
@@ -245,11 +248,35 @@ final readonly class PromotionsApiImpl implements PromotionsApi
         return $this->queries->assignedBy($assignmentId, $after === null ? null : Inputs::id($after, 'after'), $limit);
     }
 
+    public function storeSegments(StoreId $store, ?string $after, int $limit): array
+    {
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidPromotionAttribute('limit', 'from 1 to 1000');
+        }
+
+        return array_map(
+            self::segmentChoice(...),
+            $this->queries->segmentsById($store, $after === null ? null : Inputs::id($after, 'after'), $limit),
+        );
+    }
+
+    public function storeSegment(StoreId $store, string $segmentId): ?SegmentChoiceDto
+    {
+        $row = Ulids::valid($segmentId) ? $this->queries->segmentRow($store, $segmentId) : null;
+
+        return $row === null ? null : self::segmentChoice($row);
+    }
+
     public function couponCode(string $couponId): ?string
     {
         $store = $this->coupons->storeOf($couponId);
 
         return $store === null ? null : $this->coupons->byId($store, $couponId)?->code;
+    }
+
+    private static function segmentChoice(SegmentRow $row): SegmentChoiceDto
+    {
+        return new SegmentChoiceDto($row->id, $row->nameAr, $row->nameEn, $row->memberCount);
     }
 
     private function inStoreCurrency(StoreId $store, Money $goodsTotal): void
