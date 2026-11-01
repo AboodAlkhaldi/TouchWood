@@ -17,6 +17,8 @@ final readonly class GatewayView
     /**
      * @param  array{last6: string, expiresOn: string, daysLeft: int, rejected: bool, setAt: string}|null  $testKey
      * @param  array{last6: string, expiresOn: string, daysLeft: int, rejected: bool, setAt: string}|null  $liveKey
+     * @param  list<array{domain: string, mode: string}>  $applePayDomains  registered, each for its mode (§1.2)
+     * @param  array{TEST: string, LIVE: string}  $noticeAddresses  to paste into each mode's MyFatoorah portal (§1.2)
      */
     public function __construct(
         public bool $offered,
@@ -25,6 +27,8 @@ final readonly class GatewayView
         public ?string $mode,
         public ?array $testKey,
         public ?array $liveKey,
+        public array $applePayDomains,
+        public array $noticeAddresses,
     ) {}
 
     /**

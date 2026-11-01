@@ -17,6 +17,6 @@ interface GatewayAddresses
     /** The API's base address for the store's country and the mode; only for a country it is offered in. */
     public function api(string $countryCode, PaymentMode $mode): string;
 
-    /** Where the payment form's script is loaded from. */
+    /** The payment form's script, whole, as the page loads it (§1.1 rule 10). */
     public function script(string $countryCode, PaymentMode $mode): string;
 }

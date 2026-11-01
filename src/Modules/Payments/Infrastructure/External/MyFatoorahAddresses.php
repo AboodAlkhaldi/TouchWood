@@ -33,7 +33,7 @@ final class MyFatoorahAddresses implements GatewayAddresses
 
     public function script(string $countryCode, PaymentMode $mode): string
     {
-        return $this->pair($countryCode, $mode)[1];
+        return $this->pair($countryCode, $mode)[1].'/sessions/v1/session.js';
     }
 
     /**

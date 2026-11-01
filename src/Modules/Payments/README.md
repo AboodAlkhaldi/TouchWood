@@ -21,6 +21,11 @@ and an amount, nothing more: it depends on Platform, and on Access only to decla
 | 8b | **The bank account** (§1.9, moved from B2B): the IBAN, the bank and the holder per store, an admin's alone; `bankAccount()`, null until all three are filled in | `Application/Settings`, `Application/PaymentsApiImpl` |
 | 8b | **The settings line** (§1.2, gap 8.8): how the store shown takes money, online and by transfer | `Infrastructure/Settings/PaymentsSettingsLine` |
 | 8b | **The one-time grants** (§9.10 #1): whoever views orders gets `payments.payment.view`, whoever held `b2b.settings.update` gets `payments.bank_account.update` | `Infrastructure/PaymentsServiceProvider`, Access's `copied` |
+| 9 | **The MyFatoorah client** (§1.1 rules 4, 9, 13): sessions, status reads, Apple Pay; every try logged with no key, no card and no customer; a 401 is the key's, another 4xx a no, anything else "we do not know" | `Application/Gateway/GatewayClient`, `Infrastructure/External/MyFatoorahClient`, `MyFatoorahScrub` |
+| 9 | **The session** (§1.4 step 0): opened for a quote or a request, written down as ours (rule 7) | `Application/Session/OpenPaymentSession` |
+| 9 | **A refused key** (§1.2): the current key marked, online payment stopped, `GatewayKeyRejected` once | `Application/Gateway/GatewayAccesses` |
+| 9 | **The notice** (§1.2): `POST /payments/notice/{storeId}/{test,live}`; signature against every secret still kept, stored once. Only a signal: step 10 handles it | `Presentation/notice-routes.php`, `Application/Notice/NoticeReceiver`, `Infrastructure/External/MyFatoorahNoticeReader` |
+| 9 | **Apple Pay's domains** (§1.2): registered per mode | `Application/Command/RegisterApplePayDomain` |
 
 **The bank account** is three per-store settings, `payments.bank.iban`, `payments.bank.name` and `payments.bank.holder`,
 changed only by an admin under `payments.bank_account.update`. They start empty, meaning "not set yet" (a text setting
@@ -32,7 +37,7 @@ are filled in**: until then `bankAccount()` answers null, checkout offers paying
 line says so. `StoreBankAccount` is the one reader. Not sensitive: every approved company of the store is shown them,
 and a changed IBAN must stay readable in the audit log.
 
-Still to come: the session, the charge, `RegisterApplePayDomain` and the notices (steps 9-10); payment requests (step 11).
+Still to come: the charge, the attempts and handling the notices (step 10); payment requests (step 12).
 
 ## How a change runs
 

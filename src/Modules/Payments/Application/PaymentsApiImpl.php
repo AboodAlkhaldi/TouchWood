@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Application;
 
+use Modules\Payments\Application\Session\OpenPaymentSession;
 use Modules\Payments\Application\Settings\StoreBankAccount;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentSessionDto;
+use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Payments\Public\Enums\OnlinePaymentReason;
 use Modules\Payments\Public\Enums\PaymentAudience;
 use Modules\Platform\Public\Contracts\PlatformApi;
@@ -21,6 +24,7 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         private Gateways $gateways,
         private PlatformApi $platform,
         private StoreBankAccount $bankAccount,
+        private OpenPaymentSession $sessions,
     ) {}
 
     /**
@@ -53,6 +57,11 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         }
 
         return new OnlinePaymentDto(true, $gateway->mode, null);
+    }
+
+    public function openSession(SessionRequestDto $request): PaymentSessionDto
+    {
+        return $this->sessions->open($request);
     }
 
     public function bankAccount(StoreId $store): ?BankAccountDto

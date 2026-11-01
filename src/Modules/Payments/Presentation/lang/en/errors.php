@@ -37,11 +37,26 @@ return [
         'title' => 'Check the Details',
         'detail' => 'The :field isn\'t valid. Check it and try again.',
     ],
+    'no_online_payment' => [
+        'title' => 'Online Payment Is Off',
+        'detail' => 'This store does not take online payment right now. Our staff will contact you about paying.',
+    ],
+    'gateway_refused' => [
+        'title' => 'The Payment Gateway Said No',
+        'detail' => 'MyFatoorah refused this: :reason',
+    ],
+    'gateway_key_refused' => [
+        'title' => 'The Key Was Refused',
+        'detail' => 'MyFatoorah refused the store\'s key. Save a new key to take online payment again.',
+    ],
     'fields' => [
         'store' => 'store',
         'mode' => 'test or live',
         'key' => 'API key',
         'secret' => 'notice secret',
         'expires_on' => 'key\'s expiry date',
+        'amount' => 'amount',
+        'expires_at' => 'session\'s end',
+        'domain' => 'domain',
     ],
 ];

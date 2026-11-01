@@ -11,7 +11,7 @@ use Modules\Payments\Public\Enums\PaymentMode;
 
 /**
  * The stores' gateways and their keys (payments.md §1.2, §5). A key and a secret go in in clear and are
- * kept encrypted; nothing here gives either back.
+ * kept encrypted; only `readKey` and `secrets` give them back, to speak to the gateway.
  */
 interface Gateways
 {
@@ -45,4 +45,21 @@ interface Gateways
      * one or a nearer one. False when another run, or a new key, came first: then nothing is sent.
      */
     public function markWarned(string $keyId, int $days): bool;
+
+    /** The key in clear, to make a call with (§1.1 rule 14: any key still kept). */
+    public function readKey(string $keyId): string;
+
+    /**
+     * Every secret still kept for the store and mode, current first, in clear: a notice may be signed by
+     * any of them (rule 14).
+     *
+     * @return list<string>
+     */
+    public function secrets(string $storeId, PaymentMode $mode): array;
+
+    /**
+     * Marks the key refused by the gateway - only while it is current and not yet marked. False otherwise:
+     * an earlier key, or another call came first.
+     */
+    public function markRejected(string $keyId, DateTimeImmutable $now): bool;
 }

@@ -1141,3 +1141,29 @@ method from the card's brand.
 6. **The grant reaches only the roles there when it runs** (access.md amendment 92). A production database first
    migrated with this code has no roles yet, so nothing is copied: each role made there has its own Payments box,
    unticked until an admin ticks it.
+
+### 9.11 The build's own picks (step 9, 2026-11-01 — simple, taken as recommended under the owner's rule)
+
+1. **The charge call is built with step 10**, whose claim and idempotency key it needs. The client's logging,
+   retries and answers are here, proven on the status calls that share them.
+2. **A session is asked for once**, not three times: it is not idempotent, and a page with no answer offers Retry
+   (gap 9.3 (a)).
+3. **A 429 from MyFatoorah counts as no answer**, as a 5xx does: "we do not know", never "refused". So does an answer
+   we cannot read. Only a 401 is the key's, and only another 4xx, or `IsSuccess: false`, is a no.
+4. **The notice's address uses the store's id**, as Sync's does (Platform binds `{store}` to a store's code), and the
+   mode in lowercase: `/payments/notice/{storeId}/{test|live}`. Beside the 120 a minute per store, one address may
+   call 600 a minute, so made-up store ids cannot be sprayed; over 100 KB is refused with 413.
+5. **A notice of another kind** (a refund, a balance transfer) is answered 200 and dropped without a signature check:
+   it has a different signed string, we read none of them, and a 401 would only make MyFatoorah send it again. A
+   signed notice with no `Event.Reference` is thanked and dropped too; the attempt's own checks cover it.
+6. **What is kept of an answer or a notice**: nothing of the customer and of the card only its brand, also dropping
+   the session's `EncryptionKey`, the card's token and hash, and the payer's IP address. Contact details reach the
+   log only in the charge's request (step 10), so clearing them on `CustomerAnonymized` is built there.
+7. **`apple_pay_domains` holds `{domain, mode}` pairs** (gap 8.5: registered per mode); the domain the session checks
+   is the host of `APP_URL`. A domain is asked of MyFatoorah again even when listed, since Apple may need it
+   revalidated, but listed and audited once.
+8. **Moved out of this step**: the 30-sessions-an-hour limit is Sales' route's, with the checkout page (step 11);
+   our plain method names (gap 9.2) and the currency check (gap 9.1) come with recording a payment (step 10).
+9. **Not yet proven on a real server**: the notice's signature follows MyFatoorah's documentation (notes §5.4) and is
+   tested against our own signing, since notices need a public address. Apple Pay's registration answer is
+   documented, not observed. Both are for the staging run.
