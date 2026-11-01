@@ -76,9 +76,10 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
-    // The clock pinned half an hour past the next whole hour: never behind the real time, never on a
-    // midnight, so "today" is one day for the orders made and the report read (lesson 221).
-    CarbonImmutable::setTestNow(Cx::clockAhead()->addMinutes(30));
+    // The clock pinned to tomorrow's 09:30 UTC: never behind the real time (lesson 221), and never where the
+    // stores' days differ - the next hour could land past midnight in Riyadh and before it in Egypt, so "today"
+    // is one day for every store, the orders made and the report read.
+    CarbonImmutable::setTestNow(CarbonImmutable::now('UTC')->addDay()->setTime(9, 30));
 });
 
 /** The English name of the category of a product made by the fixtures (a top category: its path is itself). */
