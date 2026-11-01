@@ -98,6 +98,7 @@ final readonly class DatabaseTransactions implements Transactions
             $row->error_code === null ? null : (string) $row->error_code,
             (bool) $row->mismatch,
             (bool) $row->paid_twice,
+            ! (bool) $row->succeeded || (bool) $row->published,
         );
     }
 

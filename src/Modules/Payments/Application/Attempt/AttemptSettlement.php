@@ -41,6 +41,14 @@ final readonly class AttemptSettlement
         private PlatformApi $platform,
     ) {}
 
+    /** A transaction that will not change: it went through, or it was declined. */
+    public static function isFinal(PaymentAnswer $answer): bool
+    {
+        $status = strtoupper($answer->transactionStatus);
+
+        return $status === 'SUCCESS' || in_array($status, self::DECLINED, true);
+    }
+
     public function settle(Attempt $attempt, AskResult $result, DateTimeImmutable $now): Attempt
     {
         $attempt = $attempt->with(['lastCheckedAt' => $now]);
@@ -60,8 +68,8 @@ final readonly class AttemptSettlement
             $attempt = $this->notTaken($attempt, false, $now);
         }
 
-        // Still no word 20 minutes after the charge (§1.7).
-        if (! $hadAnswer && $attempt->chargeClaimedAt !== null && $now >= CarbonImmutable::instance($attempt->chargeClaimedAt)->addMinutes(CheckSchedule::ATTENTION_MINUTES)) {
+        // Still no word 20 minutes after the charge (§1.7), about a payment still open to question.
+        if (! $hadAnswer && ($attempt->state->isLive() || $attempt->state === AttemptState::Expired) && $attempt->chargeClaimedAt !== null && $now >= CarbonImmutable::instance($attempt->chargeClaimedAt)->addMinutes(CheckSchedule::ATTENTION_MINUTES)) {
             $attempt = $attempt->with(['needsAttention' => true]);
         }
 
@@ -100,6 +108,11 @@ final readonly class AttemptSettlement
 
     private function unused(Attempt $attempt, DateTimeImmutable $now): Attempt
     {
+        // Released at the hold limit with no word, and now the session says it was never charged: nothing to look for.
+        if ($attempt->state === AttemptState::Expired && $attempt->invoiceId === null) {
+            return $attempt->with(['nothingCharged' => true]);
+        }
+
         // A charge that crashed or lost its answer, and the session says it never arrived. A request still on
         // its way has until the wait's end to land; after that the try goes back with "no money was taken".
         if ($attempt->state !== AttemptState::Charging && $attempt->state !== AttemptState::Unknown) {
@@ -124,17 +137,24 @@ final readonly class AttemptSettlement
         ]);
         $status = strtoupper($answer->transactionStatus);
 
+        // Released as never charged, and here is its payment: the looking goes back on, and staff look (rule 15).
+        if ($attempt->nothingCharged && $status !== 'SUCCESS') {
+            $attempt = $attempt->with(['nothingCharged' => false, 'needsAttention' => true]);
+        }
+
         if ($status === 'SUCCESS') {
             return $this->succeeded($attempt, $answer, $now);
         }
 
         // Asked about one transaction while the invoice says another paid: staff look, and its notice settles it.
-        if (strtoupper($answer->invoiceStatus) === 'PAID') {
+        $otherPaid = strtoupper($answer->invoiceStatus) === 'PAID' && $attempt->succeededAt === null;
+
+        if ($otherPaid) {
             $attempt = $attempt->with(['needsAttention' => true]);
         }
 
         if (in_array($status, self::DECLINED, true)) {
-            return $this->declined($attempt, $answer, $now);
+            return $this->declined($attempt, $answer, $otherPaid, $now);
         }
 
         return $attempt->state === AttemptState::Charging || $attempt->state === AttemptState::Unknown
@@ -198,7 +218,7 @@ final readonly class AttemptSettlement
         ]);
     }
 
-    private function declined(Attempt $attempt, PaymentAnswer $answer, DateTimeImmutable $now): Attempt
+    private function declined(Attempt $attempt, PaymentAnswer $answer, bool $otherPaid, DateTimeImmutable $now): Attempt
     {
         if ($this->transactions->succeeded($attempt->mode, $answer->paymentId) !== null) {
             return $attempt;
@@ -222,6 +242,11 @@ final readonly class AttemptSettlement
             false,
             $attempt->state->isLive(),
         ));
+
+        // The attempt follows its own payment: another's decline, or a decline on an invoice someone paid, ends nothing.
+        if ($otherPaid || $answer->paymentId !== $attempt->gatewayPaymentId) {
+            return $attempt;
+        }
 
         // Released earlier: this is the final answer it was still being asked for, and Sales needs no second word.
         if ($attempt->state === AttemptState::Expired) {

@@ -32,5 +32,7 @@ final readonly class PaymentDto
         public ?string $failureCode,
         public bool $mismatch,
         public bool $paidTwice,
+        /** False for a currency refused (rule 8): this money never enters an order. */
+        public bool $accepted = true,
     ) {}
 }

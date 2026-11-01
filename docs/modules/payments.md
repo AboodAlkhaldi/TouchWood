@@ -1377,8 +1377,9 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 7. **A decline after a release** is written down, ends the looking, and tells nobody: Sales has already released. After
    a success it changes nothing (rule 5).
 8. **The status words**: `SUCCESS` is paid; `FAILED`, `CANCELED`, `CANCELLED` and `EXPIRED` are declined; anything else
-   is still going. An invoice saying `PAID` while the transaction asked about does not, declined or not, is flagged for
-   staff, and the other transaction's own notice settles it.
+   is still going. An invoice saying `PAID` while the transaction asked about does not is flagged for staff, and the other
+   transaction's own notice settles it. **An attempt follows its own payment**: another transaction's decline, or a
+   decline on an invoice someone paid, is written down and ends nothing.
 9. **The currency check** compares what the customer was shown in both modes, and the account's base currency in live
    (gaps 8.1, 9.1); §1.6's "pay currency" is this. An amount that cannot be read exactly is kept as text, flagged, and read
    back as what was asked. **A success with no amount or currency is no answer yet**, not a mismatch: once written down it
@@ -1391,15 +1392,22 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
     carries the attempt's id and nothing else.
 12. **`PaymentDto.method` is our plain name** (gap 9.2): Card, Apple Pay, STC Pay. `attempts()` for staff comes with the
     lists (step 12).
-13. **Notices stay unhandled until something is learned**: MyFatoorah has had its 200 and will not send one twice, so a
-    notice that found the gateway away or the attempt busy is tried again by the hourly look, for a day.
+13. **Notices stay unhandled until something final is learned**: MyFatoorah has had its 200 and will not send one twice,
+    so a notice that found the gateway away, the attempt busy, or a payment still reading as going is tried again by the
+    hourly look, for a day.
 14. **A repeat's refusal is never a refusal**, whatever its form: a 4xx, a 401, or an answer saying no with a 200 or a 3xx.
-15. **Whatever goes wrong in asking is "we do not know"**, so the hold limit still releases the try. A check job has 150
-    seconds, longer than three tries of the gateway; the queue connection's `retry_after` must be longer still, as for the
-    other long jobs (HANDOFF's deploy notes). A check that finds another call holding the attempt comes back in 30 seconds.
+15. **Whatever goes wrong in asking is "we do not know"**, so the hold limit still releases the try, and so is an answer
+    that cannot be written. A check job has 300 seconds, longer than an ask of several calls; the queue connection's
+    `retry_after` must be longer still, as for the other long jobs (HANDOFF's deploy notes). A check that finds another
+    call holding the attempt comes back in 30 seconds.
 16. **`charge` and `refresh` must never run inside a transaction**: no lock is held through a call, and the claim must be
     committed first. It is written on the contract for step 11; a code guard would trip on every test's own transaction.
 17. **Tables and DTOs beyond §5 and §2.1**: `transactions.amount_text` and `paid_twice`; `attempts.currency_refused` and
     `transaction_id`; `PaymentStartDto.nothingCharged` and `refusedReason`.
-18. **Still unproven on a real server**: the charge's body with `Customer.Reference` and `IntegrationUrls`, and how
+18. **A currency refused is readable, and said to be refused**: `refresh` reads `NOT_ACCEPTED` with no `paymentId`, and
+    `PaymentDto.accepted` is false, for staff's lists.
+19. **Unsigned notices count toward the store's 120 a minute** (§9.11 #12), and the sweep takes the oldest 60 an hour.
+    Known and kept: a flood or a backlog delays, and every attempt's own checks still run.
+20. **Still unproven on a real server**: amounts arriving as text (a number that is not whole reads as no answer, so a
+    payment would stay unknown rather than be misread), `ExternalIdentifier` in status answers, the charge's body with `Customer.Reference` and `IntegrationUrls`, and how
     `Idempotency-Key` behaves on a retried charge in a KSA account. Both are for the staging run.

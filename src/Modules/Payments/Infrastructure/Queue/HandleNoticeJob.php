@@ -23,7 +23,7 @@ final class HandleNoticeJob implements ShouldQueue
     public int $tries = 3;
 
     /** As long as `CheckAttemptJob`: it may ask the gateway three times. */
-    public int $timeout = 150;
+    public int $timeout = 300;
 
     public function __construct(
         public readonly string $noticeId,

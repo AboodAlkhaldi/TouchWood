@@ -37,6 +37,6 @@ final class AttemptViews
     {
         return $attempt === null
             ? new PaymentStateDto(PaymentState::None, null, null, null, false)
-            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id, $attempt->transactionId);
+            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id, $attempt->currencyRefused ? null : $attempt->transactionId);
     }
 }

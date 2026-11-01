@@ -31,10 +31,13 @@ final class CheckAttemptJob implements ShouldQueue
     public int $maxExceptions = 3;
 
     /**
-     * Three tries of 30 seconds, their waits and the settling, so a hanging gateway never kills a run before the hold
-     * limit can release its try. The queue connection's `retry_after` must be longer (HANDOFF's deploy notes).
+     * An ask can make two or three calls of up to three tries of 30 seconds, so a hanging gateway never kills a run before
+     * the hold limit can release its try. The queue connection's `retry_after` must be longer (HANDOFF's deploy notes).
      */
-    public int $timeout = 150;
+    public int $timeout = 300;
+
+    /** @var list<int> seconds before each retry: a short database blip does not use them all up at once */
+    public array $backoff = [10, 60];
 
     public function __construct(
         public readonly string $attemptId,

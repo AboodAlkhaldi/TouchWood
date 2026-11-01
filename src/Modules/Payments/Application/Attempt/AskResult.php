@@ -16,4 +16,10 @@ final readonly class AskResult
         public ?PaymentAnswer $payment = null,
         public bool $sessionUnused = false,
     ) {}
+
+    /** Something that will not change: a payment that went through or was declined, or a session never charged. */
+    public function isFinal(): bool
+    {
+        return $this->sessionUnused || ($this->payment !== null && AttemptSettlement::isFinal($this->payment));
+    }
 }

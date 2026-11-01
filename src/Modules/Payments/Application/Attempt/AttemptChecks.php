@@ -36,8 +36,8 @@ final readonly class AttemptChecks
 {
     public const int ANSWER_REUSE_SECONDS = 10;
 
-    /** Longer than three tries of 30 seconds and their waits. */
-    private const int CHECK_HOLD_SECONDS = 120;
+    /** Longer than an ask can be: two calls, each up to three tries of 30 seconds and their waits, and a third on an old key. */
+    private const int CHECK_HOLD_SECONDS = 320;
 
     public function __construct(
         private Attempts $attempts,
@@ -125,16 +125,28 @@ final readonly class AttemptChecks
         try {
             $result = $this->question($attempt, $paymentId);
 
-            $settled = $this->db->transaction(function () use ($attempt, $result): Attempt {
-                $current = $this->attempts->lock($attempt->id) ?? throw new AttemptNotFound;
+            try {
+                $settled = $this->settled($attempt, $result);
+            } catch (Throwable $failure) {
+                // An answer that cannot be written must not take the hold limit down with it (rule 15).
+                $this->logger->error('A gateway answer could not be settled.', ['attempt_id' => $attempt->id, 'error' => $failure::class]);
+                $result = new AskResult;
+                $settled = $this->settled($attempt, $result);
+            }
 
-                return $this->settlement->settle($current, $result, CarbonImmutable::now()->toDateTimeImmutable());
-            });
-
-            return new AskOutcome($settled, false, $result->payment !== null || $result->sessionUnused);
+            return new AskOutcome($settled, false, $result->isFinal());
         } finally {
             $this->attempts->releaseCheck($attempt->id);
         }
+    }
+
+    private function settled(Attempt $attempt, AskResult $result): Attempt
+    {
+        return $this->db->transaction(function () use ($attempt, $result): Attempt {
+            $current = $this->attempts->lock($attempt->id) ?? throw new AttemptNotFound;
+
+            return $this->settlement->settle($current, $result, CarbonImmutable::now()->toDateTimeImmutable());
+        });
     }
 
     /** Prepared and never claimed: nothing was sent, so once its window is over it ends with no call (§1.4 step 4). */

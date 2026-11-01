@@ -350,6 +350,9 @@ final readonly class MyFatoorahClient implements GatewayClient
             return (string) $value;
         }
 
-        return is_string($value) && $value !== '' ? $value : null;
+        // The database refuses a NUL, and one word must never stop a payment being settled.
+        $text = is_string($value) ? str_replace("\0", '', $value) : '';
+
+        return $text !== '' ? $text : null;
     }
 }
