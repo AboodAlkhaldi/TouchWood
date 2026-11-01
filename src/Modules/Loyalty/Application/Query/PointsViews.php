@@ -55,7 +55,9 @@ final readonly class PointsViews
             $rows,
             $last === false ? null : $last->occurredAt,
             $last === false ? null : $last->id,
-            // Held points are part of the balance, never on top of it (as Sales's reads cap them).
+            // Held points are part of the balance, never on top of it (as Sales's reads cap them). A held lot
+            // past its date while the hold lasts is left out of the balance but counted here - for at most the hold's
+            // life; the backend session knows (2026-11-01).
             $account === null ? 0 : min($balance, $this->holds->heldBy($account->id)),
         );
     }

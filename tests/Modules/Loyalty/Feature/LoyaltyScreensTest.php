@@ -278,7 +278,7 @@ describe('L2 a customer\'s points and L3 the change by hand', function () {
 
         $props = loyaltyScreensProps(loyaltyScreens([LoyaltyPermissions::VIEW, AccessPermissions::CUSTOMER_VIEW]), "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer');
 
-        expect([$props['points'], $props['history'], $props['lots']])->toBe([0, [], []]);
+        expect([$props['points'], $props['history'], $props['lots'], $props['held']])->toBe([0, [], [], 0]);
     });
 
     it('adds and removes points by hand in the store shown, saying so, and keeps a refused change\'s message for the dialog', function () {
@@ -311,6 +311,11 @@ describe('L2 a customer\'s points and L3 the change by hand', function () {
         $browser = loyaltyScreens([LoyaltyPermissions::VIEW, LoyaltyPermissions::ADJUST], level: RoleLevel::Admin);
 
         expect(loyaltyScreensProps($browser, "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer'))->toMatchArray(['points' => 300, 'held' => 200]);
+
+        // Never more than the balance: a hold larger than what is left reads as the balance.
+        DB::table('loyalty.redemption_holds')->where('account_id', $account)->update(['points' => 500]);
+        expect(loyaltyScreensProps($browser, "/admin/points/customers/{$customer}", 'Loyalty/Admin/Points/Customer')['held'])->toBe(300);
+        DB::table('loyalty.redemption_holds')->where('account_id', $account)->update(['points' => 200]);
 
         $mine = [];
         loyaltyScreensShopper($customer)->get('/sa/en/account/points')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$mine) {
