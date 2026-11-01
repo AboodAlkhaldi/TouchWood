@@ -14,7 +14,8 @@ use Modules\Access\Public\Enums\MarketingConsentSource;
 /**
  * A customer unsubscribed - by a marketing email's link, or in a newsletter at the provider - so Access
  * withdraws their consent, everywhere (ops.md §1.3, §1.9; access.md amendment 79). Run as the system,
- * which only a job is. Withdrawing what is already off changes nothing.
+ * which only a job is: within the request for a person's link, on the queue for the provider's webhook.
+ * Withdrawing what is already off changes nothing.
  */
 final class WithdrawMarketingConsentJob implements ShouldQueue
 {

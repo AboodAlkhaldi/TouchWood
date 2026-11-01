@@ -33,4 +33,9 @@ final readonly class QueuedNewsletter implements NewsletterQueue
     {
         $this->jobs->dispatch(new WithdrawMarketingConsentJob(strtolower($customerId), $source));
     }
+
+    public function withdrawConsentNow(string $customerId, MarketingConsentSource $source): void
+    {
+        $this->jobs->dispatchSync(new WithdrawMarketingConsentJob(strtolower($customerId), $source));
+    }
 }
