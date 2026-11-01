@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Ops\Application\Command\DeliverDailyReport\DeliverDailyReport;
 use Modules\Ops\Application\Command\DeliverDailyReport\DeliverDailyReportHandler;
 use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmail;
 use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmailHandler;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmail;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmailHandler;
-use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Ops\Application\DailyReport\DailyReport;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportMaker;
@@ -336,11 +336,16 @@ it('reads a store whose day has just started as zeros, with no read refused', fu
 });
 
 describe('a job retried from the failed jobs', function () {
-    /** The renderer fails while the box says so. */
+    /**
+     * The renderer fails while the box says so.
+     *
+     * @param  ArrayObject<string, bool>  $fails
+     */
     function dailyEmailFailingRenderer(ArrayObject $fails): void
     {
         app()->instance(DailyReportRenderer::class, new class($fails) implements DailyReportRenderer
         {
+            /** @param  ArrayObject<string, bool>  $fails */
             public function __construct(private ArrayObject $fails) {}
 
             public function render(DailyReport $report, string $locale): string

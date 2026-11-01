@@ -180,7 +180,7 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
 | S3 | Low stock | Sizes **became** low or ran out at a recount | **new** `LowStockChanged`, one per store per recount (§2.3) | `inventory.stock.manage` (Inventory has no view-only key) | — |
 | S4 | Sync problems | A read left problems | `SyncNeedsAttention` (exists) | `sync.report.view` | — (owner, 2026-10-28: an offer stopped by Odoo's price is not SMS-worthy) |
 | S5 | Payment problems (access.md amendment 78) | The gateway key expires in 30, 7, 1 days | **new** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, once per threshold, from Payments' daily job (*Stage 7's proposal*) | `payments.gateway.manage` — super admins only | **Yes, at 1 day** |
-| S5b | Payment problems | MyFatoorah refused the key | **new** `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (*Stage 7's proposal*; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
+| S5b | Payment problems | MyFatoorah refused a store's current key: once until a new key is saved; an earlier key refused sends nothing; a refusal on the mode not in use fires too | `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (#310; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
 | S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked 72 h after the upload | **new** `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, from **Sales'** scheduled job (*Stage 7's proposal*; sales.md:1583-1585) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
@@ -197,10 +197,11 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
   (Stage 5's rule for Sync).
 - **Built (steps 5 and 6, 2026-10-31):** S1, S2, S3, S4, S9 - one queued listener, once per event, recipients
   from `AccessApi::staffToAlert` with each one's bell and email switches; S3 alerts only when a size became low
-  or ran out (a recount where sizes only came back alerts no one). **S5 is built (2026-11-01)**, on Payments'
-  `GatewayKeyExpiring`, with its critical SMS at 1 day (super admins with `critical_sms` on and a phone, both
-  checked again when the SMS leaves; the provider of the phone's country). **Not built, waiting on another module:**
-  `GatewayKeyRejected` (S5b; the critical SMS path it would call is built and tested), `TransferOverdue` (S6) and
+  or ran out (a recount where sizes only came back alerts no one). **S5 and S5b are built (2026-11-01)**, on Payments'
+  `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical SMS at 1 day and on every refusal (super admins with
+  `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **S5b's
+  words say which key was refused, the test or the live one (`mode`), and never that payments stopped**: a refusal on
+  the mode not in use stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
   `PaymentNotAccepted` (S7) are not in main. S8 waits for Content.
 
 ### 1.7 Offer notices
@@ -440,7 +441,7 @@ go (§9.2).
 | **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |
 | **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | **Built (#262, sync.md amendment 1):** `readsAndProblemsPerDay(stores, fromDay, toDay, until)` → `list<SyncDayDto>` |
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
-| **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `GatewayKeyRejected`, `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
+| **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
 | **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows |
 | **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
 
@@ -454,6 +455,7 @@ default (roles nest).
 | Read and mark my inbox | none (own) | Own |
 | Send a message to one customer | `ops.message.send_one` | That store |
 | Send a message to many / a segment | `ops.message.send_many` (admins) | That store |
+| Read the staff messages back | A message to one: `ops.message.send_one` and viewing customers; to many: `ops.message.send_many` | That store |
 | Write, schedule, cancel an offer notice | `ops.notice.manage` | That store |
 | Manage newsletter subscribers (view, remove a guest) | `ops.newsletter.manage` | That store |
 | View and download reports | `ops.report.view`; the Stock report also needs `inventory.stock.manage` there | Stores they may view |
@@ -876,7 +878,7 @@ props. Every other address of that store stays a 404.
 - **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
-- **`kind` is an open list:** C11, S5b, S6–S8 will start appearing without any change here.
+- **`kind` is an open list:** C11, S6–S8 will start appearing without any change here.
 - **Ids come in small letters;** send them back as given.
 
 ### 4.13 Missing for the screens
@@ -900,6 +902,24 @@ reads the screens needed were added; what stays is what the code cannot give yet
    So `NoticeData` gives what it reached so far (`bellCount`, `emailCount`, `failedCount`), never a total to compare with.
 5. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
+
+### 4.14 The SMS countries (§3; access.md amendment 90)
+
+| Route | Method, path | Who | Answers |
+|---|---|---|---|
+| `ops.admin.sms-countries` | GET `admin/sms-countries` | `ops.sms_countries.manage`: Super Admins alone | `SmsCountriesData` |
+| `ops.admin.sms-countries.add` | POST `admin/sms-countries` | The same | 201 `SmsCountriesData` |
+| `ops.admin.sms-countries.provider` | POST `admin/sms-countries/{country}/provider` | The same | `SmsCountriesData` |
+| `ops.admin.sms-countries.calling-code` | POST `admin/sms-countries/{country}/calling-code` | The same | `SmsCountriesData` |
+| `ops.admin.sms-countries.remove` | POST `admin/sms-countries/{country}/remove` | The same | `SmsCountriesData` |
+
+Inputs: `country_code` (ISO, two letters), `calling_code` (digits, as typed), `provider` (one of `providers`); `{country}`
+is the ISO code. `SmsCountriesData` is `{countries: SmsCountryData[], providers: string[]}`, the whole list after the
+change, sorted by name as the page's language sorts; `SmsCountryData` is `{countryCode, name, callingCode, provider}`, the
+name in the page's language. Every change is audited (`ops.sms_country.*`). No screen yet.
+
+Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_country_taken` 409, `ops.calling_code_taken` 409,
+`ops.calling_code_overlaps` 409. 422 keys: `country_code`, `calling_code`, `provider`.
 
 ## 5 · Tables (`ops` schema)
 
@@ -997,9 +1017,9 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | An email's row: QUEUED, then SENT; a retry of a SENT row sends nothing; a provider's failure keeps it QUEUED, then FAILED; a listener rolled back leaves nothing | `Integration/EventMessagesTest`, "each email and SMS" |
 | C14: one message a day per customer, a week ahead, in every store's own day, whatever runs it again | `Integration/EventMessagesTest`, "the reminder before points expire" |
 | C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
-| S5 on `GatewayKeyExpiring`: to super admins alone, once per event, the email by their switch | `Integration/EventMessagesTest`, "the critical SMS" |
+| S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
 | S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
-| **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4. S5 through its event; S5b through `StaffAlerts::alert`, its event not being in main | `Integration/EventMessagesTest`, "the critical SMS" |
+| **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4 | `Integration/EventMessagesTest`, "the critical SMS" |
 | **Consent off: no marketing email, the bell entry still made**, for a notice, a segment notice and a message to many; checked again as the email leaves; a message to one ignores consent | `Integration/NoticesTest`, `Integration/NoticeSegmentTest`, `Integration/StaffMessagesTest` |
 | Notices: now and scheduled in the store's zone, changed or cancelled until they start, started within the minute, audited, a failed batch `FAILED` then carried on | `Integration/NoticesTest`; over HTTP `Feature/WrittenRoutesTest` |
 | Staff messages: who may send to one and to many, whom the composer offers, audited; **to a segment** with a notice's refusals; **to one only in their home store** | `Integration/StaffMessagesTest`; over HTTP `Feature/WrittenRoutesTest` |
@@ -1020,8 +1040,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 
 **Not tested:**
 
-- C11, S5b, S6, S7, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
-  for the rows built; S5b is driven through `StaffAlerts::alert` directly.
+- C11, S6, S7, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
+  for the rows built.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
 - No browser test: there are no screens yet (§4.13).

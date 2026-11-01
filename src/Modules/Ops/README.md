@@ -22,7 +22,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | 2 — the foundation | The `ops` schema; `inbox_entries`, `sent_messages`, `handled_events`; the permissions; the email and SMS adapters; the message kinds and their wording in both languages; the two bells; the nightly removal | below |
 | 3 — security messages | C18 in place of Access's temporary sender, sent at once, never queued; the SMS countries (access.md amendment 90) | `Infrastructure/Messages/OpsSecurityMessages`, `Application/Command/*SmsCountry*`, `Application/Query/ListSmsCountries` |
 | 4 — Access, part B | `staffToAlert`, the critical-SMS switch, the Returns and Payments to check topics, `staffStores`: access.md amendments 80, 81, 82, 84, 88 | `src/Modules/Access` |
-| 5, 6 — messages on events | C1–C8b, C9, C9b, C10, C12–C17b; S1, S2, S3, S4, S9; the critical SMS path, with no listener yet; the morning reminder C14 | `Infrastructure/Listener`, `Application/Alerts`, `Infrastructure/Delivery/ExpiringPointsReminder` |
+| 5, 6 — messages on events | C1–C8b, C9, C9b, C10, C12–C17b; S1, S2, S3, S4, S9; the critical SMS path, its listeners, S5 and S5b, in step 10; the morning reminder C14 | `Infrastructure/Listener`, `Application/Alerts`, `Infrastructure/Delivery/ExpiringPointsReminder` |
 | 7 — notices, messages, newsletter | Offer notices (every customer of a store, or one of its segments), staff messages (one customer, or every customer of a store), guests' double opt-in, Brevo's lists and webhook, the unsubscribe links | `Application/Command/*Notice*`, `SendStaffMessage`, `Application/Newsletter`, `Application/Delivery`, `Infrastructure/Delivery/BroadcastSender`, `Infrastructure/External/Brevo*` |
 | 8 — reports | Revenue, Product sales, Stock, Searches, Favourites: a JSON preview and an Excel file | `Application/Reports`, `Application/Query/{ViewReport,DownloadReport}`, `Infrastructure/Excel` |
 | 9 — the daily report | The PDF, every file kept twelve months, a past day, the email at the time the person chose | `Application/DailyReport`, `Application/Command/{MakeDailyReport,SetDailyReportEmail,DeliverDailyReport,SendDailyReportEmail}`, `Infrastructure/Pdf`, `Infrastructure/Files` |
@@ -91,7 +91,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **To staff:** one read, `AccessApi::staffToAlert`, gives every active holder of the topic's permission in the
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,
-  checked again when it leaves. `AlertStaff` calls it on `GatewayKeyExpiring`; the refused key's event is not in main.
+  checked again when it leaves. `AlertStaff` calls it on `GatewayKeyExpiring` and `GatewayKeyRejected`.
 - **Each email and SMS** has its `ops.sent_messages` row written QUEUED with the listener's work; the job calls
   the provider outside any transaction and marks it SENT, or FAILED after the last attempt. At least once: a
   provider that took a message just before its row was marked may get it again.
@@ -166,7 +166,6 @@ Each checked against the code on 2026-11-01.
 | C11 Pay the remaining amount | The kind and its words exist; `MessageWriter` has no branch for it, no listener | No `PaymentRequested` event exists: Stage 7 (Payments step 11) |
 | C1's "paid" line | The words exist (`ops::messages.order_taken.optional.paid`); nothing fills them | Online checkout: Stage 7 |
 | C10 and a checkout's one email | Ops has no check of its own (§1.5): `PaymentRecorded` must not be fired for the payment a checkout's order is created with | Stage 7, where it fires the event |
-| S5b The key refused | The words, the writer's branch and the critical SMS path exist; no listener | No `GatewayKeyRejected` event exists: Stage 7 |
 | S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
 | S7 Payments to check: a payment not accepted | The kind and its words exist; no writer's branch, no listener | No `PaymentNotAccepted` event exists: Stage 7 |
 | "Transfers overdue" in the daily report | The cell prints "Waits for Payments (stage 7)" (`views/daily-report.blade.php`); `SalesReports::transfersWaiting` gives orders and owed only | Stage 7 |

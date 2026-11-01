@@ -18,7 +18,6 @@ use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\CapturedNewsletterList;
-use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
 
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
@@ -57,7 +56,10 @@ function screensStaff(string $staffId): AdminBrowser
     return $browser;
 }
 
-/** @return array<string, string> */
+/**
+ * @param  array<string, string>  $extra
+ * @return array<string, string>
+ */
 function screensMessage(array $extra = []): array
 {
     return ['store' => 'sa', 'title_ar' => 'ع', 'title_en' => 'Hello', 'body_ar' => 'ن', 'body_en' => 'Text', 'by_bell' => '1', ...$extra];
@@ -100,12 +102,15 @@ describe('the staff messages list', function () {
 
         expect(array_column($page['messages'], 'id'))->toEqualCanonicalizing([$one, $many])
             ->and($page['next'])->toBeNull();
-        $row = collect($page['messages'])->firstWhere('id', $one);
+        /** @var list<array<string, mixed>> $messages */
+        $messages = $page['messages'];
+        /** @var array<string, mixed> $row */
+        $row = collect($messages)->firstWhere('id', $one);
         expect($row)->toMatchArray(['storeCode' => 'sa', 'audience' => 'ONE', 'customerId' => $omar, 'customerName' => 'Sara Ali', 'segmentId' => null, 'titleEn' => 'Hello', 'byBell' => true, 'byEmail' => false, 'status' => 'SENT', 'bellCount' => 1, 'emailCount' => 0, 'failedCount' => 0])
             ->and($row['sentBy'])->not->toBe('')
             ->and($row['createdAt'])->toEndWith('+00:00')
             ->and($row['finishedAt'])->toEndWith('+00:00');
-        expect(collect($page['messages'])->firstWhere('id', $many))->toMatchArray(['audience' => 'STORE', 'customerId' => null, 'customerName' => null]);
+        expect(collect($messages)->firstWhere('id', $many))->toMatchArray(['audience' => 'STORE', 'customerId' => null, 'customerName' => null]);
     });
 
     it('pages by the cursor it gave, and refuses one that is no id', function () {
@@ -168,10 +173,11 @@ describe('the choices', function () {
 
     it('offers Stock only where the reader also holds inventory.stock.manage', function () {
         $browser = screensStaff(Fx::staffWith(['ops.report.view', 'inventory.stock.manage'], ['sa'], exceptions: []));
+        /** @var list<array{kind: string, stores: list<array<string, mixed>>}> $kinds */
         $kinds = $browser->get('/admin/ops/choices', SCREENS_JSON)->assertOk()->json('reports');
 
         expect(array_column($kinds, 'kind'))->toContain('stock')
-            ->and(array_column(collect($kinds)->firstWhere('kind', 'stock')['stores'], 'code'))->toBe(['sa']);
+            ->and(array_column(collect($kinds)->firstWhere('kind', 'stock')['stores'] ?? [], 'code'))->toBe(['sa']);
 
         $elsewhere = screensStaff(Fx::staffWith(['inventory.stock.manage'], ['ae']));
         expect($elsewhere->get('/admin/ops/choices', SCREENS_JSON)->assertOk()->json('reports'))->toBe([]);

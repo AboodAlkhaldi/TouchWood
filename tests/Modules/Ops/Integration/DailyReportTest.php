@@ -422,7 +422,8 @@ it('labels transfers waiting as current on a past day\'s report, in both languag
         return view('ops::daily-report', ['report' => $daily, 'locale' => $locale, 'rtl' => $locale === 'ar', 'f' => new ReportFormat($locale), 'logo' => public_path('icons/email-logo.png')])->render();
     };
 
-    expect($html(null))->toContain($today)->not->toContain($past)
+    expect($html(null))->toContain($today)
+        ->and(str_contains($html(null), $past))->toBeFalse()
         ->and($html($yesterday))->toContain($past);
 })->with([
     'English' => ['en', 'Transfers waiting', 'Transfers waiting (as of now, not that day)'],

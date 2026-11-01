@@ -5,11 +5,12 @@ declare(strict_types=1);
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
-use Modules\Access\Public\Enums\AccountType;
 use Modules\Access\Public\Events\CustomerDeletionCancelled;
 use Modules\Access\Public\Events\CustomerDeletionScheduled;
 use Modules\Access\Public\Events\CustomerLocaleChanged;
@@ -34,14 +35,13 @@ use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Ops\Domain\Exception\SubscriberNotFound;
 use Modules\Ops\Domain\Model\Subscriber;
 use Modules\Ops\Domain\Repository\Subscribers;
+use Modules\Ops\Infrastructure\Queue\RemoveNewsletterContactJob;
 use Modules\Ops\Presentation\Http\Resource\WrittenPages;
+use Modules\Platform\Application\FailedJobs\FailedJob;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
-use Illuminate\Support\Facades\Artisan;
-use Modules\Ops\Infrastructure\Queue\RemoveNewsletterContactJob;
-use Modules\Platform\Application\FailedJobs\FailedJob;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
@@ -344,6 +344,7 @@ describe('the removal job', function () {
 
     it('is the only Ops job carrying an address', function () {
         foreach (glob(base_path('src/Modules/Ops/Infrastructure/Queue/*Job.php')) ?: [] as $file) {
+            /** @var class-string $class */
             $class = 'Modules\\Ops\\Infrastructure\\Queue\\'.basename($file, '.php');
             $constructor = (new ReflectionClass($class))->getConstructor();
             $names = array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $constructor?->getParameters() ?? []);

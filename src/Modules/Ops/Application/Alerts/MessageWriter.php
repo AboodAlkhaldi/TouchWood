@@ -38,7 +38,8 @@ use Shared\Domain\ValueObject\Money;
  *
  * C1 shows the recipient and the delivery address in the email only, never the bell (owner, 2026-10-31); an
  * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one,
- * and offers Track only when it holds a tracking link.
+ * and offers Track only when it holds a tracking link. S5b says which key was refused and never that payments
+ * stopped: a refused key of the mode not in use stops nothing.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -88,7 +89,7 @@ final readonly class MessageWriter
             MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync'),
             MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => (string) $message->int('days'), 'date' => $message->string('date')], null, sms: true),
-            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, $values, null, sms: true),
+            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => (string) $this->translator->get('ops::messages.gateway_key_rejected.modes.'.$message->string('mode'), [], $locale)], null, sms: true),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
     }

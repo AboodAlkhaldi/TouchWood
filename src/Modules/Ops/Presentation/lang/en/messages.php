@@ -304,13 +304,18 @@ return [
     ],
     'gateway_key_rejected' => [
         'title' => 'Payment key refused',
-        'line' => 'The payment gateway refused the key of :store.',
-        'subject' => 'The payment key of :store was refused',
+        'line' => 'The payment gateway refused the :mode key of :store.',
+        'subject' => 'The :mode payment key of :store was refused',
+        // Which key, never that payments stopped: a refused key of the mode not in use stops nothing (2026-11-01).
         'lines' => [
             'Hello :name,',
-            'The payment gateway refused the key of :store. Online payments do not work until it is replaced.',
+            'The payment gateway refused the :mode key of :store. Replace it with a new key.',
         ],
-        'sms' => 'TouchWood: the payment gateway refused the key of :store. Replace it now.',
+        'sms' => 'TouchWood: the payment gateway refused the :mode key of :store. Replace it now.',
+        'modes' => [
+            'TEST' => 'test',
+            'LIVE' => 'live',
+        ],
     ],
     'transfer_overdue' => [
         'title' => 'Transfer to check for order :order',

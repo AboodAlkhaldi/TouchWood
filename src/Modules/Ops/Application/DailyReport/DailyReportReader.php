@@ -182,8 +182,9 @@ final readonly class DailyReportReader
     }
 
     /**
-     * New customers over [from, to). A store whose day has only just started - an all-stores email at 23:00
-     * Riyadh is 00:00 in Dubai - has an empty range, which Access refuses to read: nobody registered in it.
+     * New customers over [from, to). A store whose day has only just started - an all-stores email at the
+     * very moment a store east of the base store reaches midnight - has an empty range, which Access refuses
+     * to read: nobody registered in it.
      * Every other read answers an empty range with zeros, or Sync with no row (store()), so the section shows
      * zeros and the email goes.
      *

@@ -245,21 +245,24 @@ it('sends one email once by its row, and counts a failure the queue gave up on, 
 it('writes each email\'s row QUEUED with its batch, and calls the provider outside any transaction', function () {
     $sara = Wx::agreeing('sara@example.test');
     Fx::actAsAdmin(['sa'], ['ops.notice.manage']);
-    Queue::fake();
+    $queue = Queue::fake();
     $queued = noticesCreate();
     Queue::assertPushed(SendBroadcastBatchJob::class, 1);
     app()->call([new SendBroadcastBatchJob(Broadcast::Notice, $queued), 'handle']);
-    $job = Queue::pushed(SendBroadcastEmailJob::class)->first();
+    /** @var SendBroadcastEmailJob $job */
+    $job = $queue->pushed(SendBroadcastEmailJob::class)->first();
 
     expect(DB::table('ops.sent_messages')->where('id', $job->sentId)->value('status'))->toBe('QUEUED')
         ->and(noticesRow($queued)->email_count)->toBe(0);
 
+    /** @var ArrayObject<int, int> $levels */
     $levels = new ArrayObject;
     app()->instance(EmailSender::class, new class($levels) implements EmailSender
     {
+        /** @param  ArrayObject<int, int>  $levels */
         public function __construct(private ArrayObject $levels) {}
 
-        public function send(OutgoingEmail $email): ?string
+        public function send(OutgoingEmail $email): string
         {
             $this->levels->append(DB::transactionLevel());
 

@@ -151,7 +151,11 @@ it('audits a message to one customer and a message to many, in the same transact
         ->and(DB::table('platform.audit_entries')->where('action', 'ops.staff_message.sent')->count())->toBe(2);
 });
 
-/** A static segment of the store, made as a manager makes one; the actor afterwards is the test's. */
+/**
+ * A static segment of the store, made as a manager makes one; the actor afterwards is the test's.
+ *
+ * @param  list<string>  $members
+ */
 function staffMessagesSegment(array $members, string $storeCode = 'sa'): string
 {
     Fx::actAsStaff(Fx::staffWith([PromotionsPermissions::SEGMENT_MANAGE], ['sa', 'ae']));
@@ -162,6 +166,18 @@ function staffMessagesSegment(array $members, string $storeCode = 'sa'): string
     }
 
     return $segment;
+}
+
+/** The field a sending is refused on; none when it is not refused so. */
+function staffMessagesRefusedOn(Closure $send): ?string
+{
+    try {
+        $send();
+    } catch (InvalidOpsInput $refused) {
+        return $refused->attribute;
+    }
+
+    return null;
 }
 
 function staffMessagesSendToSegment(?string $segment, ?string $customer = null): string
@@ -195,8 +211,8 @@ it('refuses a segment as a notice does: another store\'s, an empty one, without 
 
     Fx::actAsAdmin(['sa'], ['ops.message.send_many', 'ops.message.send_one', 'access.customer.view']);
     expect(fn () => staffMessagesSendToSegment($theirs))->toThrow(SegmentNotFound::class)
-        ->and(fn () => staffMessagesSendToSegment($empty))->toThrow(fn (InvalidOpsInput $e) => expect($e->attribute)->toBe('audience'))
-        ->and(fn () => staffMessagesSendToSegment($ours, $sara))->toThrow(fn (InvalidOpsInput $e) => expect($e->attribute)->toBe('audience'));
+        ->and(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($empty)))->toBe('audience')
+        ->and(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($ours, $sara)))->toBe('audience');
 
     Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
     expect(fn () => staffMessagesSendToSegment($ours))->toThrow(Unauthorized::class)
@@ -215,7 +231,7 @@ it('refuses a message to one customer when the chosen store is not their home st
     $sara = Fx::customer('sara@example.test', 'ae');
     Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa', 'ae']));
 
-    expect(fn () => staffMessagesSend($sara, 'sa'))->toThrow(fn (InvalidOpsInput $e) => expect($e->attribute)->toBe('customer'))
+    expect(staffMessagesRefusedOn(fn () => staffMessagesSend($sara, 'sa')))->toBe('customer')
         ->and(DB::table('ops.inbox_entries')->count())->toBe(0);
 
     staffMessagesSend($sara, 'ae');
