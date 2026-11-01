@@ -203,6 +203,24 @@ describe('the page (§4.2)', function () {
     });
 });
 
+describe('the queries (§4.2)', function () {
+    it('reads the page in a recorded number, with a key or two', function () {
+        $browser = gatewayScreenStaff();
+        gatewayScreenKey($browser);
+        gatewayScreenKey($browser, 'LIVE');
+        $browser->get('/admin/payments/gateway?store=sa')->assertOk();
+        $seen = new ArrayObject;
+        DB::listen(static function (QueryExecuted $query) use ($seen): void {
+            $seen->append($query->sql);
+        });
+
+        $browser->get('/admin/payments/gateway?store=sa')->assertOk();
+
+        // The whole request, session and panel frame included, as a Super Admin.
+        expect(count($seen))->toBe(39);
+    });
+});
+
 describe('the timers (§9.12 Q17)', function () {
     it('hands them over, saves them through the settings route, refuses a hold too short, and leaves the Settings page', function () {
         $browser = gatewayScreenStaff();
