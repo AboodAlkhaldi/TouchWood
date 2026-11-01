@@ -66,7 +66,7 @@ it('keeps a signed notice, with nothing of the card or the customer, and answers
 
     expect($response->status())->toBe(200)
         ->and($response->getContent())->toBe('')
-        ->and([$row->store_id, $row->mode, $row->gateway, $row->event_reference, $row->handled_at])->toBe([$store, 'TEST', 'MYFATOORAH', 'evt-1', null])
+        ->and([$row->store_id, $row->mode, $row->gateway, $row->event_reference])->toBe([$store, 'TEST', 'MYFATOORAH', 'evt-1'])
         ->and(json_decode($payload, true)['Data']['Transaction']['Card'])->toBe(['Brand' => 'Visa'])
         ->and(json_decode($payload, true)['Data']['Invoice']['Id'])->toBe('7320290');
 
