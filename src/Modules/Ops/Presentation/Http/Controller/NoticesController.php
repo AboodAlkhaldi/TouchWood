@@ -15,6 +15,8 @@ use Modules\Ops\Application\Command\CreateNotice\CreateNoticeHandler;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ListNotices\ListNotices;
 use Modules\Ops\Application\Query\ListNotices\ListNoticesHandler;
+use Modules\Ops\Application\Query\ListSegments\ListSegments;
+use Modules\Ops\Application\Query\ListSegments\ListSegmentsHandler;
 use Modules\Ops\Application\Query\ViewNotice\ViewNotice;
 use Modules\Ops\Application\Query\ViewNotice\ViewNoticeHandler;
 use Modules\Ops\Presentation\Http\Resource\WrittenPages;
@@ -39,6 +41,14 @@ final readonly class NoticesController
         $store = $choices->chosen(Inputs::text($request, 'store'), OpsPermissions::NOTICE_MANAGE) ?? throw new Unauthorized(OpsPermissions::NOTICE_MANAGE);
 
         return new JsonResponse($this->pages->notices($list->handle(new ListNotices($store->id, Inputs::text($request, 'after'))))->toArray());
+    }
+
+    /** The segments the form may pick from (§4.4): a store's, under `ops.notice.manage` there. */
+    public function segments(Request $request, StoreChoices $choices, ListSegmentsHandler $list): JsonResponse
+    {
+        $store = $choices->chosen(Inputs::text($request, 'store'), OpsPermissions::NOTICE_MANAGE) ?? throw new Unauthorized(OpsPermissions::NOTICE_MANAGE);
+
+        return new JsonResponse($this->pages->segments($list->handle(new ListSegments($store->id, OpsPermissions::NOTICE_MANAGE, Inputs::text($request, 'after'))))->toArray());
     }
 
     public function show(string $notice, ViewNoticeHandler $view): JsonResponse

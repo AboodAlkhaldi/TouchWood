@@ -37,6 +37,11 @@ final class NoticeData extends Data
         public string $createdAt,
         /** One of the store's Promotions segments (§1.7); null: every customer of the store. */
         public ?string $segmentId,
+        /** The segment's name now; null with a `segmentId` set means it was deleted since. */
+        public ?string $segmentNameAr,
+        public ?string $segmentNameEn,
+        /** How many it holds now, not how many the notice reached; null as the name is. */
+        public ?int $segmentMemberCount,
         public string $writtenBy,
         public ?string $startedAt,
         public ?string $finishedAt,

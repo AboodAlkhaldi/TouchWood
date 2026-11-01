@@ -138,7 +138,7 @@ must publish it (§2.3).
 | C16 | Question answered | Staff answer a waiting question (a corrected answer sends nothing) | `QuestionAnswered` (feedback.md §2.5, #252) | Read through `FeedbackApi::questionForMessage`; **sent only if the question is still answered** — events are kept in order per order only |
 | C17 | Review not published | Staff reject a review, or take an approved one down, **with a reason** | `ReviewNotPublished` (#252) | **No reason, no message** (feedback.md:75); read through `reviewForMessage`, sent only if it is still not published |
 | C17b | Question not published | Staff reject a question, or take an answered one down, **with a reason** | `QuestionNotPublished` (#252) | Added by the owner, 2026-10-28 (feedback.md §1.3). **No reason, no message**; sent only if it is still not published |
-| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again". Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
+| C18 | Security messages | Codes, links, B2B decisions | Access's `SecurityMessages` (access.md §2.3) | **Ops binds its own implementation** and the temporary one is deleted (round 1 #26). Codes by SMS; links by email. **No bell entry.** **Sent at once, never queued** — a code or link never reaches a job payload, an event or a record (access.md §2.3); a provider failure is reported to the caller, who already offers "send again"; **one that fails also tells the Super Admins (S10, S10b, §1.6)**. Branded with the store when the request has one, otherwise TouchWood's own (owner, 2026-10-28) |
 
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
 listen to `CompanyStatusChanged` for them, so nothing is sent twice.
@@ -185,6 +185,8 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | With Content | Content's event | Content's | — |
+| S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
+| S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
 
 - Every permission key above exists in code today (`payments.gateway.manage`: `PaymentsPermissions`, reserved).
 - **Critical SMS** (owner, round 3 #13; §9.3 #12): **only S5 at 1 day and S5b (the key refused)**, to **super admins only** (owner,
@@ -203,6 +205,25 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
   `PaymentNotAccepted` (S7) are not in main. S8 waits for Content.
+- **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
+  applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
+  SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
+- **Why:** Access PR #317 (open that day) stops showing the person a failed security email, so a broken setup would otherwise show only
+  in the log and a `FAILED` row.
+- **The words** fire on any failure, one customer's bad address or a template error included, so they announce no outage and name no
+  cause, no person, address, code or link: one could not be sent, and if this repeats, check the settings and the log (owner's blanket
+  approval for now). No link: the settings are the server's.
+- **At most once:** one claim per clock hour (UTC) and kind in `ops.handled_events`, in one transaction with the entries: of any number of
+  failures at once, one writes them and the rest find the hour taken, each at the cost of two statements; so a failure at 10:59 and
+  another at 11:00 can write two, in two hours. A Super Admin added mid-hour waits for the next hour's failure.
+- **Never in the person's way.** Written directly, not by a job, since the queue may be what is down, after the caller's commit when it
+  has a transaction open (none of today's callers has), so a caller that rolls back leaves neither an entry nor a claim, and the next
+  failure alerts. A request waits on another's uncommitted claim for **250 ms at most** (`SET LOCAL lock_timeout`, that transaction
+  only), then leaves it to them; if they roll back within that wait it takes the claim itself. Anything else that breaks is reported and stops
+  here: the claim goes with the failed write, and the next failure tries again.
+- **Who, through Access's contract:** `AccessApi::staffToAlert` is the one public read that names Super Admins, and it insists on a
+  topic, only to say each one's switches for it. It filters nobody by them, so the code names a topic and reads no switch.
+- Filed under the failed message's store, otherwise the first store, on or off; a Super Admin's bell shows every store.
 
 ### 1.7 Offer notices
 
@@ -440,7 +461,7 @@ go (§9.2).
 |---|---|---|
 | **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for an online payment on an order that already exists, never for the payment a checkout's order is created with: that customer gets C1 alone) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)`, with the tracking link (C4; wired 2026-11-01); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off; **wired 2026-11-01:** `moneyRecordForMessage(moneyRecordId)` (C9b, C10) and `productNetSales(store, from, to, after, limit)` (by category, the Excel sheet and the daily report). An unknown store is refused |
 | **Loyalty** (Stage 6) — **built (#256)** | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
-| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount; **wired 2026-11-01 (C15):** `assignedCustomers(assignmentId, after, limit)`, `couponCode(couponId)` |
+| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount; **wired 2026-11-01 (C15):** `assignedCustomers(assignmentId, after, limit)`, `couponCode(couponId)`; **(the forms, §4.3, §4.4):** `storeSegments(store, after, limit)`, `storeSegment(store, segmentId)` (#313) |
 | **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
 | **Catalog** (Stage 6) | — | **Built (#251, catalog.md amendment 37):** `searchSummary(?store, from, to, after, limit)` — {query, storeId, locale, searches, noResults}, most searched first; no person (catalog.md §1.11) |
 | **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |
@@ -508,7 +529,7 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 
 | Routes | `store` is | Left out |
 |---|---|---|
-| Notices list and write, composer lookup and send, subscribers list | The store's **code**, through `StoreChoices::chosen` | The first store on offer that is on; 403 when there is none |
+| Notices list and write, composer lookup and send, subscribers list, the two segment lists | The store's **code**, through `StoreChoices::chosen` | The first store on offer that is on; 403 when there is none |
 | Reports preview and download | The store's **id**, or `all` | 422, `store` |
 | Daily report make, email switch | The store's **id** | Every store's report: a super admin's alone, 403 for anyone else |
 
@@ -544,6 +565,7 @@ over 64 characters and show the first page).
 | Subscribers | 50 | By id | Carries on after that id |
 | Daily reports | 20 | Newest made first | An empty page |
 | Staff messages | 20 | Newest first | An empty page |
+| A form's segments | 20 | Newest first, by id | Carries on after that id |
 | Composer lookup | At most 20 | None promised; no paging | — |
 | A report's preview | First 50 rows of each sheet | The sheet's own; no paging, the rest is in the file | — |
 
@@ -565,7 +587,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | `kind` | `MessageKind` | §1.5, §1.6, or `offer_notice`, `staff_message` |
 | `storeCode`, `storeName` | string | The store it is about, the name in the page's language; empty if the store is not found |
 | `title`, `line` | string | In the page's language: the shop's `{locale}`, the panel's language |
-| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts) |
+| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts, S10, S10b) |
 | `read` | bool | |
 | `createdAt` | moment | |
 
@@ -582,6 +604,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | `ops.admin.messages.customers` | GET `admin/messages/customers` | `ops.message.send_one` in the store | `{customers: CustomerToMessageData[]}` |
 | `ops.admin.messages.send` | POST `admin/messages` | `audience` `ONE`: `ops.message.send_one` in the store. Otherwise: `ops.message.send_many` there, admins only | 201 `{id: string}` |
 | `ops.admin.messages` | GET `admin/messages` | `ops.message.send_one` or `ops.message.send_many` in the store | `StaffMessagesPageData` |
+| `ops.admin.messages.segments` | GET `admin/messages/segments` | `ops.message.send_many` in the store | `SegmentsPageData` |
 
 Lookup inputs: `store` (code); `search`, 3 to 100 characters after trimming, no control characters, through
 `AccessApi::customerIdsMatching`: a name in any store, an email or phone among the customers the reader may
@@ -624,7 +647,9 @@ The list takes `store` (code) and `after`. **Each reader sees what they may send
 | `audience` | string | `ONE`, `STORE` or `SEGMENT` |
 | `customerId` | string or null | Set only for `ONE` |
 | `customerName` | string or null | Null but for `ONE`; empty if Access no longer knows them |
-| `segmentId` | string or null | Set only for `SEGMENT`. The id only, no name (§4.13) |
+| `segmentId` | string or null | Set only for `SEGMENT` |
+| `segmentNameAr`, `segmentNameEn` | string or null | The segment's name now. **Null with `segmentId` set: it was deleted since** |
+| `segmentMemberCount` | int or null | How many it holds **now**, not how many the message reached. Null as the name is |
 | `titleAr`, `titleEn`, `bodyAr`, `bodyEn` | string | As written |
 | `byBell`, `byEmail` | bool | |
 | `status` | string | `SENDING`, `SENT` or `FAILED` (a batch failed its last attempt) |
@@ -635,12 +660,18 @@ The list takes `store` (code) and `after`. **Each reader sees what they may send
 
 `StaffMessagesPageData` is `{messages: StaffMessageData[], next: string|null}`.
 
+A form's segments, here and in §4.4, take `store` (code) and `after`. `SegmentsPageData` is `{segments: SegmentChoiceData[], next: string|null}`;
+`SegmentChoiceData` is `{id, nameAr, nameEn, memberCount}`, `memberCount` how many it holds now. Only the store's own appear. Refused: 403 without the
+form's permission in that store, or for another store. 422 key: `after`. **A row with `memberCount` 0 is listed but cannot be sent to:** the write refuses
+an empty segment (`Writers::audience`, 422 `audience`), so the form shows such a row disabled.
+
 ### 4.4 The notices list and form (§1.7)
 
 | Route | Method, path | Who | Answers |
 |---|---|---|---|
 | `ops.admin.notices` | GET `admin/notices` | `ops.notice.manage` in the store | `{notices: NoticeData[], next: string or null}` |
 | `ops.admin.notices.store` | POST `admin/notices` | `ops.notice.manage` in the store | 201 `NoticeData` |
+| `ops.admin.notices.segments` | GET `admin/notices/segments` | `ops.notice.manage` in the store | `SegmentsPageData` (§4.3); **disable a row with `memberCount` 0**: the write refuses it, 422 `audience` |
 | `ops.admin.notices.show` | GET `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
 | `ops.admin.notices.update` | POST `admin/notices/{notice}` | `ops.notice.manage` in the notice's store | `NoticeData` |
 | `ops.admin.notices.cancel` | POST `admin/notices/{notice}/cancel` | `ops.notice.manage` in the notice's store | `NoticeData` |
@@ -670,9 +701,13 @@ without `send_at` sends the notice at once.
 | `changeable` | bool | True only while `SCHEDULED` |
 | `bellCount`, `emailCount`, `failedCount` | int | Bell entries made, emails sent, emails failed so far |
 | `createdAt` | moment | |
-| `segmentId` | string or null | Null: every customer of the store. The id only, no name (§4.13) |
+| `segmentId` | string or null | Null: every customer of the store |
+| `segmentNameAr`, `segmentNameEn` | string or null | The segment's name now. **Null with `segmentId` set: it was deleted since**; null with `segmentId` null: every customer |
+| `segmentMemberCount` | int or null | How many it holds **now**, not how many the notice reached. Null as the name is |
 | `writtenBy` | string | As `AccessApi::staffDisplayNames` names them to this reader |
 | `startedAt`, `finishedAt` | moment or null | When it started and finished sending. `finishedAt` is set only once `SENT` |
+
+**The cost on a list:** `PromotionsApi` reads one segment at a time and none of several, so each different segment on a page is one read, and one named by many rows is read once. Measured, caches warm: the notices or the staff messages list 11 queries with no segment, 31 with 20 different ones (`SegmentReadsTest`).
 
 Refusals: `ops.notice_not_found` 404, an unknown id, **or a notice of a store the reader does not hold**, the same
 answer for both, as the sibling modules give (module pass, 2026-11-01); someone holding `ops.notice.manage` nowhere
@@ -885,6 +920,7 @@ props. Every other address of that store stays a 404.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
 - **`kind` is an open list:** C11, S6–S8 will start appearing without any change here.
+- **A segment's name can be gone:** `segmentId` set with `segmentNameAr` null means it was deleted since the notice or message was written. Its `segmentMemberCount` is today's, and never the audience it reached.
 - **Ids come in small letters;** send them back as given.
 
 ### 4.13 Missing for the screens
@@ -897,16 +933,11 @@ reads the screens needed were added; what stays is what the code cannot give yet
    store cannot use the shop's frame (§4.11). **Not now** (owner, 2026-11-01).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen.
-3. **A segment's name and the form's segment picker: needs Promotions.** `PromotionsApi` gives only `segmentMembers`:
-   no public read lists a store's segments or names one. Promotions' own `ListSegments` asks
-   `promotions.marketing.view` or a manage permission, which `ops.notice.manage` or `ops.message.send_many` alone does
-   not hold, and Ops may call only `Public`. What is needed: a read on `PromotionsApi` giving a store's segments, each
-   `{id, nameAr, nameEn, memberCount}`. With it, Ops adds a route under `ops.notice.manage` and the name on `NoticeData`
-   and `StaffMessageData`.
-4. **A notice's audience size: needs Access and Promotions.** No public read counts a store's customers
-   (`customerIdsInStore` is paged ids; `customersRegistered` a range by type) or a segment's members, and Ops stores none.
-   So `NoticeData` gives what it reached so far (`bellCount`, `emailCount`, `failedCount`), never a total to compare with.
-5. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
+3. **A whole store's audience size: needs Access.** No public read counts a store's customers (`customerIdsInStore` is
+   paged ids; `customersRegistered` a range by type), and Ops stores none. So a notice or message to every customer gives
+   what it reached so far (`bellCount`, `emailCount`, `failedCount`), never a total to compare with. A segment's is
+   `segmentMemberCount`, as it stands now.
+4. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
@@ -1004,7 +1035,8 @@ silently, and where it ends depends on the path:
 | An event's email or SMS (`SendEventEmailJob`, `SendEventSmsJob`) | Retried by the queue; the `ops.sent_messages` row stays `QUEUED`, then `FAILED` after the last attempt | `EventMessagesTest` |
 | A notice's or message's email (`SendBroadcastEmailJob`) | The provider is called outside any transaction. Retried; after the last attempt the row is `FAILED` and counted in `failed_count`, once; retried from the failed jobs and sent, no longer counted | `NoticesTest` |
 | A notice's or message's batch (`SendBroadcastBatchJob`) | After the last attempt the row shows `FAILED` and the job waits on the failed jobs screen; retrying it carries on | `NoticesTest` |
-| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again" | `SecurityMessagesTest` |
+| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again". It also alerts the Super Admins (S10, S10b) | `SecurityMessagesTest`, `SecurityFailureAlertTest` |
+| S10, S10b, the alert itself (`SecurityFailureAlert`) | Reported and swallowed, never reaching the person's request; the claim of the hour goes with the failed write, so the next failure tries again. Giving up after 250 ms on another's claim is not a failure: they are telling them | `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest` |
 | The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, the failure reported to the logs, answered as `ops.newsletter_unavailable` 503 (§4.9); the person may try again | `NewsletterTest`, `ScreensReadsTest` |
 | The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals) |
 | The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | No test of the retries by name |
@@ -1026,6 +1058,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
 | S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
 | S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
+| S10, S10b: one bell entry per active Super Admin for a burst, each channel with its own hour, the next in the next hour; a waiter gives up, or takes the claim when the holder rolls back; no email, no SMS; Admins and inactive Super Admins not reached; every switch off and still reached; the failed message's store, else the first, off or on; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityFailureAlertTest`, `Integration/SecurityFailureAlertRaceTest` |
+| A form's segments: the store's own, empty ones listed with 0, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
 | **Critical SMS only to super admins** with the switch on and a phone, only at 1 day or a refused key, **their switch read again when it leaves**; never for S4 | `Integration/EventMessagesTest`, "the critical SMS" |
 | **Consent off: no marketing email, the bell entry still made**, for a notice, a segment notice and a message to many; checked again as the email leaves; a message to one ignores consent | `Integration/NoticesTest`, `Integration/NoticeSegmentTest`, `Integration/StaffMessagesTest` |
 | Notices: now and scheduled in the store's zone, changed or cancelled until they start, started within the minute, audited, a failed batch `FAILED` then carried on | `Integration/NoticesTest`; over HTTP `Feature/WrittenRoutesTest` |

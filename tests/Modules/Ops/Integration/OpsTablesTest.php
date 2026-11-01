@@ -75,6 +75,8 @@ it('refuses in the database what the inbox may never hold', function (array $cha
     'an unknown kind' => [['kind' => 'gossip'], 'inbox_entries_kind'],
     'the security kind, which has no bell' => [['kind' => 'security'], 'inbox_entries_kind'],
     'a staff alert to a customer' => [['kind' => 'new_order'], 'inbox_entries_kind_person'],
+    'the security email alert to a customer' => [['kind' => 'security_email_failed'], 'inbox_entries_kind_person'],
+    'the security SMS alert to a customer' => [['kind' => 'security_sms_failed'], 'inbox_entries_kind_person'],
     'an empty title' => [['title_en' => ''], 'inbox_entries_title'],
     'a title too long' => [['title_ar' => str_repeat('ا', 201)], 'inbox_entries_title'],
     'a line too long' => [['line_en' => str_repeat('a', 501)], 'inbox_entries_line'],
