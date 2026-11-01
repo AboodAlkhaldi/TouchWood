@@ -256,7 +256,7 @@ it('lists a store\'s segments for Ops, newest first in pages, each with its name
     Fx::actAsStaff(Fx::staffWith(['ops.notice.manage'], ['sa']));
 
     $first = Pr::api()->storeSegments($sa, null, 2);
-    $last = Pr::api()->storeSegments($sa, $first[1]->id, 2);
+    $last = Pr::api()->storeSegments($sa, strtoupper($first[1]->id), 2);
     $rows = [...$first, ...$last];
 
     expect(array_map(fn ($row) => $row->id, $rows))->toBe($ids)
