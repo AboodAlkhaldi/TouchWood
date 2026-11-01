@@ -166,6 +166,7 @@ final readonly class CheckoutPages
             $bank === null ? null : new BankData($bank->iban, $bank->bank, $bank->holder),
             $order->transferDocuments,
             $order->mayUploadTransferDocument,
+            $order->shippingDetail->feePending ?? false,
         );
     }
 

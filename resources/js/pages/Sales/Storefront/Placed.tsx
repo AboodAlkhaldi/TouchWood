@@ -44,8 +44,14 @@ export default function Placed(page: PlacedPage) {
                                 {page.number}
                             </bdi>{' '}
                             · <Money value={page.total} />
+                            {page.shippingPending ? <span className="text-copy-14 text-ink-muted"> {t(`${W}.placed.before_shipping`)}</span> : null}
                         </p>
                         <p className="text-copy-14 text-ink-muted">{t(`${W}.placed.next`)}</p>
+                        {page.shippingPending ? (
+                            <p className="text-copy-14 text-ink-muted" data-test="placed-fee-note">
+                                {t(`${W}.placed.fee_note`)}
+                            </p>
+                        ) : null}
                         <Link href={link('storefront.sales.order', { number: page.number })} className="text-copy-14 text-ink underline underline-offset-4" data-test="view-order">
                             {t(`${W}.placed.view`)}
                         </Link>

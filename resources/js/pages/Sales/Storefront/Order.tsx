@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { Check } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
+import { Button } from '@/components/ui/button';
 import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
@@ -152,12 +153,12 @@ function Timeline({ order }: { order: OwnOrderPage }) {
 
 function Lines({ order }: { order: OwnOrderPage }) {
     const t = useTranslator();
-    const rows: [string, MoneyData | null, boolean][] = [
+    const rows: [string, MoneyData | string | null, boolean][] = [
         [t(`${O}.order.subtotal`), order.subtotal, false],
         [t(`${O}.order.savings`), order.savings, true],
         [t(`${O}.order.coupon`, { code: order.couponCode ?? '' }), order.coupon, true],
         [t(`${O}.order.points`, { points: figure('en', order.pointsUsed) }), order.points, true],
-        [t(`${O}.order.shipping`), order.shipping, false],
+        [t(`${O}.order.shipping`), order.shippingPending ? t(`${O}.order.shipping_pending`) : order.shipping, false],
         [t(`${O}.order.vat`), order.vat, false],
     ];
 
@@ -191,12 +192,12 @@ function Lines({ order }: { order: OwnOrderPage }) {
                             <dt className="text-ink-muted">{label}</dt>
                             <dd className="text-ink">
                                 {minus ? <span aria-hidden="true">− </span> : null}
-                                <Money value={value as MoneyData} />
+                                {typeof value === 'string' ? value : <Money value={value as MoneyData} />}
                             </dd>
                         </div>
                     ))}
                 <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2">
-                    <dt className="text-label-14 text-ink">{t(`${O}.order.total`)}</dt>
+                    <dt className="text-label-14 text-ink">{order.shippingPending ? t(`${O}.order.total_before`) : t(`${O}.order.total`)}</dt>
                     <dd>
                         <Money value={order.total} className="text-label-14 text-ink" />
                     </dd>
@@ -275,17 +276,25 @@ function Shipment({ order }: { order: OwnOrderPage }) {
 
     return (
         <Section title={t(`${O}.order.shipment`)} test="order-shipment">
-            {rows.length === 0 ? (
-                <p className="text-copy-14 text-ink-muted">{t(`${O}.order.not_shipped`)}</p>
-            ) : (
+            {/* A carrier ordered with stays beside "Not shipped yet" (gap 6.7). */}
+            {order.shipment === 'NOT_SHIPPED' || rows.length === 0 ? <p className="text-copy-14 text-ink-muted">{t(`${O}.order.not_shipped`)}</p> : null}
+            {rows.length === 0 ? null : (
                 <dl className="grid gap-1.5 text-copy-14">
                     {rows.map(([label, value]) => (
                         <div key={label} className="flex items-baseline justify-between gap-3">
-                            <dt className="text-ink-muted">{label}</dt>
-                            <dd className="min-w-0 text-ink">{value}</dd>
+                            <dt className="shrink-0 text-ink-muted">{label}</dt>
+                            <dd className="min-w-0 text-end text-ink [overflow-wrap:anywhere]">{value}</dd>
                         </div>
                     ))}
                 </dl>
+            )}
+            {/* Only with a link: the carrier's pattern with the number, or one staff typed (§9.5 #3). */}
+            {order.trackingLink === null ? null : (
+                <Button asChild variant="outline" className="w-fit">
+                    <a href={order.trackingLink} target="_blank" rel="noopener noreferrer" data-test="track">
+                        {t(`${O}.order.track`)}
+                    </a>
+                </Button>
             )}
         </Section>
     );

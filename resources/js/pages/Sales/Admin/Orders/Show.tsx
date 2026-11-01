@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -8,7 +8,7 @@ import { Money } from '@/components/Money';
 import { Note } from '@/components/Note';
 import { Time } from '@/components/Time';
 import { CopyButton } from '@/components/geist-only/CopyButton';
-import { CameBackDialog, MoneyDialog, ReasonDialog, ShipDialog, StateBadges, VoidDialog, W } from '@/components/sales/admin';
+import { CameBackDialog, MoneyDialog, ReasonDialog, StateBadges, VoidDialog, W } from '@/components/sales/admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,10 @@ import { usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/page';
 import { CustomerName } from './Index';
 
+// Loaded on first open: the page keeps within its budget.
+const ShipmentDialog = lazy(() => import('./ShipmentDialogs').then((module) => ({ default: module.ShipmentDialog })));
+const FeeDialog = lazy(() => import('./ShipmentDialogs').then((module) => ({ default: module.FeeDialog })));
+
 /*
 | P2 - an order in the panel (sales.md §4.1): one page - the header with its four states and the next step as
 | the main button (the owner's R2-26), the rest in a ⋯ menu; the short-of-stock banner (R2-32); the customer
@@ -32,7 +36,7 @@ import { CustomerName } from './Index';
 | and the history in plain sentences (R2-28). A button out of reach says why; a job not held shows none.
 */
 
-type Dialog = 'reject' | 'cancel' | 'ship' | 'came_back' | 'payment' | 'refund' | { void: MoneyRecordData } | null;
+type Dialog = 'reject' | 'cancel' | 'ship' | 'correct' | 'fee' | 'came_back' | 'payment' | 'refund' | { void: MoneyRecordData } | null;
 
 const CLOSED = ['REJECTED', 'CANCELLED', 'COMPLETED', 'UNDELIVERED'];
 
@@ -52,6 +56,10 @@ export default function Show(order: OrderPage) {
     const a = order.actions;
     // Covered as the server has it: nothing still owed (sales.md §1.4).
     const unpaidToShip = order.owed.minor > 0 && !order.mayShipUnpaid;
+    const feePending = order.shippingFeePending;
+    // Until it ships, for an order with no carrier's fee: one to be set, or one staff set (gap 6.2; §9.6 #4).
+    const mayFee = a.mayEdit && (waiting || approved) && notShipped && order.orderedCarrierId === null;
+    const feeIsNext = approved && notShipped && feePending && mayFee;
 
     // The next step, by the order's state (R2-26): what staff most often do here.
     const main =
@@ -59,8 +67,12 @@ export default function Show(order: OrderPage) {
             <ActionButton loading={busy} onClick={() => post('approve')} data-test="approve">
                 {t(`${W}.action.approve`)}
             </ActionButton>
+        ) : feeIsNext ? (
+            <ActionButton onClick={() => setDialog('fee')} data-test="set-fee">
+                {t(`${W}.action.set_fee`)}
+            </ActionButton>
         ) : approved && notShipped && a.mayFulfil ? (
-            <ActionButton disabledReason={unpaidToShip ? t(`${W}.why.unpaid`) : undefined} onClick={() => setDialog('ship')} data-test="ship">
+            <ActionButton disabledReason={feePending ? t(`${W}.why.fee_first`) : unpaidToShip ? t(`${W}.why.unpaid`) : undefined} onClick={() => setDialog('ship')} data-test="ship">
                 {t(`${W}.action.ship`)}
             </ActionButton>
         ) : shipped && a.mayFulfil ? (
@@ -85,6 +97,11 @@ export default function Show(order: OrderPage) {
                         test="edit"
                     />
                 ) : null}
+                {a.mayEdit && order.orderedCarrierId === null && !feeIsNext ? (
+                    <MenuAction label={feePending ? t(`${W}.action.set_fee`) : t(`${W}.action.change_fee`)} reason={mayFee ? null : CLOSED.includes(order.status) ? t(`${W}.why.closed`) : t(`${W}.why.shipped`)} onSelect={() => setDialog('fee')} test="set-fee" />
+                ) : null}
+                {feeIsNext && a.mayFulfil ? <MenuAction label={t(`${W}.action.ship`)} reason={t(`${W}.why.fee_first`)} onSelect={() => undefined} test="ship" /> : null}
+                {a.mayFulfil ? <MenuAction label={t(`${W}.action.correct_shipment`)} reason={shipped ? null : notShipped ? t(`${W}.why.not_shipped`) : t(`${W}.why.correct_only`)} onSelect={() => setDialog('correct')} test="correct-shipment" /> : null}
                 {a.mayApprove ?<MenuAction label={t(`${W}.action.reject`)} reason={waiting ? null : t(`${W}.why.not_waiting`)} onSelect={() => setDialog('reject')} test="reject" /> : null}
                 {a.mayCancel ? (
                     <MenuAction
@@ -126,7 +143,7 @@ export default function Show(order: OrderPage) {
             <div className="grid gap-4">
                 <FormError />
                 <div className="flex flex-wrap items-center gap-2">
-                    <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} />
+                    <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} fee={feePending ? t(`${W}.show.fee_pending`) : null} />
                     {order.store.isActive ? null : <Badge className={tone('gray')}>{t(`${W}.off`)}</Badge>}
                     <span className="text-copy-13 text-ink-muted">{order.store.name}</span>
                 </div>
@@ -165,9 +182,12 @@ export default function Show(order: OrderPage) {
             </div>
 
             {dialog === 'reject' || dialog === 'cancel' ? <ReasonDialog open onOpenChange={close} url={`${base}/${dialog}`} kind={dialog} /> : null}
-            {dialog === 'ship' ? <ShipDialog open onOpenChange={close} url={`${base}/ship`} carriers={order.carriers} /> : null}
+            <Suspense fallback={null}>
+                {dialog === 'ship' || dialog === 'correct' ? <ShipmentDialog open onOpenChange={close} order={order} correcting={dialog === 'correct'} /> : null}
+                {dialog === 'fee' ? <FeeDialog open onOpenChange={close} order={order} /> : null}
+            </Suspense>
             {dialog === 'came_back' ? <CameBackDialog open onOpenChange={close} url={`${base}/came-back`} lines={order.lines} /> : null}
-            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} initial={order.owedDecimal} /> : null}
+            {dialog === 'payment' ? <MoneyDialog open onOpenChange={close} url={`${base}/payment`} kind="payment" amount={order.owed} zone={order.storeTimezone} exponent={order.exponent} initial={order.owedDecimal} feePending={feePending} /> : null}
             {dialog === 'refund' ? <MoneyDialog open onOpenChange={close} url={`${base}/refund`} kind="refund" amount={order.held} zone={order.storeTimezone} exponent={order.exponent} /> : null}
             {dialog !== null && typeof dialog === 'object' ? <VoidDialog open onOpenChange={close} url={`${base}/void`} kind={dialog.void.kind} record={dialog.void.id} /> : null}
         </AdminLayout>
@@ -292,9 +312,16 @@ function Totals({ order }: { order: OrderPage }) {
                 <Row label={t(`${W}.show.savings`)} value={order.savings} minus />
                 <Row label={t(`${W}.show.coupon`, { code: order.couponCode ?? '' })} value={order.couponDiscount} minus />
                 <Row label={t(`${W}.show.points`, { points: figure('en', order.pointsUsed) })} value={order.pointsDiscount} minus />
-                <Row label={t(`${W}.show.shipping`)} value={order.shipping} always />
+                {order.shippingFeePending ? (
+                    <div className="flex items-baseline justify-between gap-3 text-copy-14 text-ink" data-test="shipping-pending">
+                        <dt className="text-ink-muted">{t(`${W}.show.shipping`)}</dt>
+                        <dd>{t(`${W}.show.shipping_pending`)}</dd>
+                    </div>
+                ) : (
+                    <Row label={t(`${W}.show.shipping`)} value={order.shipping} always />
+                )}
                 <Row label={t(`${W}.show.vat`)} value={order.vat} always />
-                <Row label={t(`${W}.show.total`)} value={order.total} strong always />
+                <Row label={order.shippingFeePending ? t(`${W}.show.total_before`) : t(`${W}.show.total`)} value={order.total} strong always />
             </dl>
             <p className="mt-3 text-copy-13 text-ink-muted">
                 {t(`${W}.show.way_to_pay`)}: {t(`${W}.way.${order.wayToPay}`)}
@@ -427,8 +454,25 @@ function Shipment({ order }: { order: OrderPage }) {
     const t = useTranslator();
     const rows: [string, React.ReactNode][] = [];
 
+    if (order.orderedCarrier !== null && order.orderedCarrier !== order.carrier) rows.push([t(`${W}.show.ordered_with`), <bdi key="ordered">{order.orderedCarrier}</bdi>]);
     if (order.carrier !== null) rows.push([t(`${W}.show.carrier`), <bdi key="carrier">{order.carrier}</bdi>]);
     if (order.trackingNumber !== null) rows.push([t(`${W}.show.tracking`), <bdi key="tracking" dir="ltr">{order.trackingNumber}</bdi>]);
+    // A live suggestion: once shipped it could name a box the order never went in (E13).
+    if (order.box !== null && order.shipment === 'NOT_SHIPPED' && !CLOSED.includes(order.status)) {
+        rows.push([
+            t(`${W}.show.box`),
+            order.box.byHand ? (
+                <span key="box" className="grid justify-items-end gap-0.5 text-end" data-test="box">
+                    {t(`${W}.show.by_hand`)}
+                    {order.box.reason === null ? null : <span className="text-copy-13 text-ink-muted">{t(`${W}.show.box_reason.${order.box.reason}`)}</span>}
+                </span>
+            ) : (
+                <bdi key="box" data-test="box">
+                    {order.box.name}
+                </bdi>
+            ),
+        ]);
+    }
     if (order.shippedAt !== null) rows.push([t(`${W}.show.shipped_at`), <Time key="shipped" value={order.shippedAt} />]);
     if (order.deliveredAt !== null) rows.push([t(`${W}.show.delivered_at`), <Time key="delivered" value={order.deliveredAt} />]);
     if (order.returnDeadline !== null) rows.push([t(`${W}.show.return_deadline`), <Time key="deadline" value={order.returnDeadline} mode="absolute" />]);
@@ -436,15 +480,20 @@ function Shipment({ order }: { order: OrderPage }) {
 
     return (
         <Section title={t(`${W}.show.shipment`)} test="shipment">
-            {rows.length === 0 ? <p className="text-copy-14 text-ink-muted">{t(`${W}.shipment.NOT_SHIPPED`)}</p> : null}
+            {order.shipment === 'NOT_SHIPPED' || rows.length === 0 ? <p className="mb-2 text-copy-14 text-ink-muted">{t(`${W}.shipment.NOT_SHIPPED`)}</p> : null}
             <dl className="grid gap-1.5 text-copy-14">
                 {rows.map(([label, value]) => (
                     <div key={label} className="flex items-baseline justify-between gap-3">
-                        <dt className="text-ink-muted">{label}</dt>
-                        <dd>{value}</dd>
+                        <dt className="shrink-0 text-ink-muted">{label}</dt>
+                        <dd className="min-w-0 text-end [overflow-wrap:anywhere]">{value}</dd>
                     </div>
                 ))}
             </dl>
+            {order.trackingLink === null ? null : (
+                <a href={order.trackingLink} target="_blank" rel="noopener noreferrer" className="mt-2 block w-fit text-copy-14 text-ink underline underline-offset-4" data-test="open-tracking">
+                    {t(`${W}.show.open_tracking`)}
+                </a>
+            )}
             {order.mayShipUnpaid ? <p className="mt-2 text-copy-13 text-ink-muted">{t(`${W}.show.unpaid_ship`)}</p> : null}
         </Section>
     );

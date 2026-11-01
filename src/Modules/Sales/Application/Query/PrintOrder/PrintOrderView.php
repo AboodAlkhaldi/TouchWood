@@ -42,5 +42,7 @@ final readonly class PrintOrderView
         public int $exponent,
         /** The box Shipping suggests, or pack by hand with why; null with no boxes (gap 5.1). */
         public ?BoxSuggestionDto $box = null,
+        /** No carrier served the place: staff set the fee before it ships (shipping.md §9.3 #8). */
+        public bool $shippingFeePending = false,
     ) {}
 }

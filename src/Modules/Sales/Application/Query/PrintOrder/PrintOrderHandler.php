@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\PackingBox;
 use Modules\Sales\Application\Query\OrderLines;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
@@ -50,6 +51,7 @@ final readonly class PrintOrderHandler
             $money($order['vat_minor']), (int) $order['vat_rate_basis_points'], $money($order['order_total_minor']), WayToPay::from((string) $order['way_to_pay']),
             $this->reader->exponent($currency),
             $this->box->of((string) $order['store_id'], $lines),
+            OrderShippingView::feeOpen($order),
         );
     }
 }

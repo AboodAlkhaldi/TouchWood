@@ -45,7 +45,7 @@ final readonly class ListCarriersHandler
             throw new Unauthorized(self::PERMISSION);
         }
 
-        $this->authorizer->authorize(self::PERMISSION, PermissionScope::store($store));
+        $this->authorizer->authorize($query->forEdit ? SalesPermissions::ORDER_EDIT : self::PERMISSION, PermissionScope::store($store));
 
         $country = $query->countryCode === null ? null : strtoupper(trim($query->countryCode));
         $carriers = $this->shipping->carriers($store);

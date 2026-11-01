@@ -95,7 +95,6 @@ it('approves an order, records its whole payment, ships it and marks it delivere
     expect(browserUntil($page, "document.body.innerText.includes('Payment recorded.')"))->toBeTrue();
 
     $page->click('[data-test="ship"]')
-        ->type('#carrier', 'SMSA')
         ->click('[data-test="confirm-ship"]');
     expect(browserUntil($page, "document.body.innerText.includes('Order shipped.')"))->toBeTrue();
 

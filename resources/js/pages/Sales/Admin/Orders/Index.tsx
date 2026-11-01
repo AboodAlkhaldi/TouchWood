@@ -115,10 +115,11 @@ export default function Index(page: OrdersPage) {
                                             </TableCell>
                                             {allStores ? <TableCell className="text-copy-13 uppercase">{order.storeCode}</TableCell> : null}
                                             <TableCell>
-                                                <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} />
+                                                <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} />
                                             </TableCell>
                                             <TableCell className="text-end">
                                                 <Money value={order.total} />
+                                                {order.shippingFeePending ? <span className="block text-copy-13 text-ink-muted">{t(`${W}.orders.before_shipping`)}</span> : null}
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -134,13 +135,16 @@ export default function Index(page: OrdersPage) {
                                             <bdi dir="ltr" className="tw-figure text-label-14 text-ink">
                                                 {order.number}
                                             </bdi>
-                                            <Money value={order.total} className="text-label-14" />
+                                            <span className="text-end">
+                                                <Money value={order.total} className="text-label-14" />
+                                                {order.shippingFeePending ? <span className="block text-copy-13 text-ink-muted">{t(`${W}.orders.before_shipping`)}</span> : null}
+                                            </span>
                                         </span>
                                         <span className="text-copy-13 text-ink-muted">
                                             <CustomerName customer={order.customer} /> · <Time value={order.placedAt} focusable={false} />
                                             {allStores ? <span className="uppercase"> · {order.storeCode}</span> : null}
                                         </span>
-                                        <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} />
+                                        <StateBadges status={order.status} payment={order.payment} shipment={order.shipment} short={order.shortOfStock} fee={order.shippingFeePending ? t(`${W}.orders.fee_pending`) : null} />
                                     </Link>
                                 </li>
                             ))}

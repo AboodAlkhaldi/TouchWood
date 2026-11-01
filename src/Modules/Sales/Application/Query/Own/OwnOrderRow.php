@@ -21,5 +21,7 @@ final readonly class OwnOrderRow
         public int $pieces,
         /** The currency's exponent, to show `total`. */
         public int $exponent,
+        /** No carrier served the place: the total is before shipping (sales.md §9.7 E7). */
+        public bool $shippingPending = false,
     ) {}
 }
