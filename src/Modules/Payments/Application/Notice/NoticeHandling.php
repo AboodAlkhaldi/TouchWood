@@ -45,8 +45,9 @@ final readonly class NoticeHandling
         if ($attempt === null || ! $this->belongs($attempt, $notice->storeId, $notice->mode, $facts->invoiceId, $facts->attemptId)) {
             // Not ours, or made outside this system: MyFatoorah's portal sends every invoice's notices here.
             $this->logger->info('A payment notice names no attempt of this store and mode.', ['notice_id' => $noticeId]);
-        } else {
-            $this->checks->noticed($attempt, $facts->paymentId);
+        } elseif (! $this->checks->noticed($attempt, $facts->paymentId)) {
+            // Nothing learned: the hourly look tries again, for a day. MyFatoorah will not send this one twice.
+            return;
         }
 
         $this->notices->markHandled($noticeId, CarbonImmutable::now()->toDateTimeImmutable());

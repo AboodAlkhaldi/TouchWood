@@ -33,7 +33,7 @@ final readonly class AttemptSweep
             $this->jobs->checkAttempt($id, CarbonImmutable::now()->toDateTimeImmutable());
         }
 
-        foreach ($this->notices->unhandled($before, self::MOST) as $id) {
+        foreach ($this->notices->unhandled(CarbonImmutable::now()->subDay()->toDateTimeImmutable(), $before, self::MOST) as $id) {
             $this->jobs->handleNotice($id);
         }
     }

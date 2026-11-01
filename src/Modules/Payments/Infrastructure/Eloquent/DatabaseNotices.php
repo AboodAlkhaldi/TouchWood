@@ -59,11 +59,11 @@ final readonly class DatabaseNotices implements Notices
         $this->db->table('payments.notices')->where('id', $id)->update(['handled_at' => $now]);
     }
 
-    public function unhandled(DateTimeImmutable $before, int $most): array
+    public function unhandled(DateTimeImmutable $since, DateTimeImmutable $before, int $most): array
     {
         $ids = [];
 
-        foreach ($this->db->table('payments.notices')->whereNull('handled_at')->where('received_at', '<', $before)->orderBy('received_at')->limit($most)->pluck('id') as $id) {
+        foreach ($this->db->table('payments.notices')->whereNull('handled_at')->where('received_at', '>=', $since)->where('received_at', '<', $before)->orderBy('received_at')->limit($most)->pluck('id') as $id) {
             $ids[] = (string) $id;
         }
 

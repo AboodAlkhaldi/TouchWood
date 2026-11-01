@@ -47,6 +47,8 @@ final readonly class Attempt
         public bool $needsAttention = false,
         public bool $nothingCharged = false,
         public ?string $refusedReason = null,
+        public bool $currencyRefused = false,
+        public ?string $transactionId = null,
     ) {}
 
     /**

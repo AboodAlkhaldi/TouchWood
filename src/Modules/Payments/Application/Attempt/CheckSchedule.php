@@ -11,8 +11,8 @@ use Modules\Payments\Domain\Model\AttemptState;
 
 /**
  * An attempt's own few checks (payments.md §1.1 rule 9; owner, 2026-10-30, gap 10.4): the end of the window, the
- * end of the wait and the hold limit, then 10 and 20 minutes after the charge, then each hour for 24 hours, so a
- * late success is always found. They stop at an answer: when nobody is paying, nothing runs.
+ * end of the wait and the hold limit, 10 and 20 minutes after the charge, then each hour for 24 hours after the hold
+ * limit, so a late success is always found. They stop at an answer: when nobody is paying, nothing runs.
  */
 final class CheckSchedule
 {
@@ -34,8 +34,10 @@ final class CheckSchedule
             $points[] = $charged->addMinutes(10)->toDateTimeImmutable();
             $points[] = $charged->addMinutes(self::ATTENTION_MINUTES)->toDateTimeImmutable();
 
+            $released = CarbonImmutable::instance($attempt->holdEndsAt);
+
             foreach (range(1, self::LAST_HOUR) as $hour) {
-                $points[] = $charged->addHours($hour)->toDateTimeImmutable();
+                $points[] = $released->addHours($hour)->toDateTimeImmutable();
             }
         }
 

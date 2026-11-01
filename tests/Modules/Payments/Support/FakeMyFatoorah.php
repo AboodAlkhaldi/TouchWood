@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
- * A faked MyFatoorah in the shapes its test server gave (payments.md §9.8): it can be told to answer, time out,
- * answer the same key the same way, or report in progress. No test calls the real one.
+ * A faked MyFatoorah in the shapes its test server gave (payments.md §9.8): it can be told to answer a charge any way
+ * or time out, and report a payment as it is told. No test calls the real one.
  */
 final class FakeMyFatoorah
 {

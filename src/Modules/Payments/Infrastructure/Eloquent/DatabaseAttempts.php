@@ -79,6 +79,8 @@ final readonly class DatabaseAttempts implements Attempts
             'needs_attention' => $attempt->needsAttention,
             'nothing_charged' => $attempt->nothingCharged,
             'refused_reason' => $attempt->refusedReason,
+            'currency_refused' => $attempt->currencyRefused,
+            'transaction_id' => $attempt->transactionId,
             'updated_at' => $now,
         ]);
     }
@@ -166,6 +168,8 @@ final readonly class DatabaseAttempts implements Attempts
             (bool) $row->needs_attention,
             (bool) $row->nothing_charged,
             $row->refused_reason === null ? null : (string) $row->refused_reason,
+            (bool) $row->currency_refused,
+            $row->transaction_id === null ? null : (string) $row->transaction_id,
         );
     }
 

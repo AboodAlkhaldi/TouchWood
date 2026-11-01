@@ -49,6 +49,8 @@ return new class extends Migration
             $table->boolean('paid_twice')->default(false);
             $table->boolean('needs_attention')->default(false);
             $table->boolean('nothing_charged')->default(false);
+            $table->boolean('currency_refused')->default(false);
+            $table->string('transaction_id', 20)->nullable();
             $table->string('refused_reason', 500)->nullable();
             $table->string('customer_name', 200)->nullable();
             $table->string('customer_email', 255)->nullable();

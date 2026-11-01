@@ -58,6 +58,10 @@ final readonly class MyFatoorahClient implements GatewayClient
 
     private const int LONGEST_ENDPOINT = 300;
 
+    private const int LONGEST_ID = 64;
+
+    private const int LONGEST_URL = 2000;
+
     public function __construct(
         private Http $http,
         private GatewayCalls $calls,
@@ -97,16 +101,18 @@ final readonly class MyFatoorahClient implements GatewayClient
             'Customer' => ['Reference' => $request->ownerId],
             'IntegrationUrls' => ['Redirection' => $request->returnUrl, 'Webhook' => $request->noticeUrl],
             'Language' => strtolower($request->locale) === 'ar' ? 'AR' : 'EN',
-        ], self::STATUS_TRIES, ['Idempotency-Key' => $request->idempotencyKey], true));
+        ], self::STATUS_TRIES, ['Idempotency-Key' => $request->idempotencyKey], true, $request->paymentExpiry));
 
         [$invoiceId, $paymentId] = [self::text($answer, 'InvoiceId'), self::text($answer, 'PaymentId')];
 
         // It said yes and we cannot read to what: the session will tell.
-        if ($invoiceId === null || $paymentId === null) {
+        if ($invoiceId === null || $paymentId === null || strlen($invoiceId) > self::LONGEST_ID || strlen($paymentId) > self::LONGEST_ID) {
             throw new GatewayUnreachable;
         }
 
-        return new ChargeAnswer($invoiceId, $paymentId, self::text($answer, 'PaymentURL'));
+        $frame = self::text($answer, 'PaymentURL');
+
+        return new ChargeAnswer($invoiceId, $paymentId, $frame !== null && strlen($frame) <= self::LONGEST_URL ? $frame : null);
     }
 
     public function paymentDetails(GatewayAccess $access, string $paymentId): PaymentAnswer
@@ -147,11 +153,12 @@ final readonly class MyFatoorahClient implements GatewayClient
      * @param  array<string, mixed>|null  $body
      * @param  array<string, string>  $headers
      * @param  bool  $repeatRefusalIsUnknown  a refusal after a repeat says nothing of the first call (rule 4)
+     * @param  DateTimeImmutable|null  $deadline  no repeat is sent from this moment on
      * @return array<array-key, mixed> the whole answer
      *
      * @throws GatewayKeyRefused|KeyPermissionMissing|GatewayRefused|GatewayUnreachable
      */
-    private function send(GatewayAccess $access, string $method, string $path, ?array $body, int $tries, array $headers = [], bool $repeatRefusalIsUnknown = false): array
+    private function send(GatewayAccess $access, string $method, string $path, ?array $body, int $tries, array $headers = [], bool $repeatRefusalIsUnknown = false, ?DateTimeImmutable $deadline = null): array
     {
         for ($try = 1; ; $try++) {
             $response = $this->try($access, $method, $path, $body, $headers);
@@ -159,15 +166,17 @@ final readonly class MyFatoorahClient implements GatewayClient
             if ($response !== null) {
                 $status = $response->status();
 
-                if ($repeatRefusalIsUnknown && $try > 1 && $status >= 400 && $status < 500 && ! in_array($status, self::NOT_NOW, true)) {
+                $answer = $status >= 500 || in_array($status, self::NOT_NOW, true) ? null : self::decoded($response);
+                $refused = $status === 401 || ($answer !== null && ($status >= 400 || self::said($answer) === false));
+
+                // The first call may have gone through: its repeat's "no" says nothing of it (rule 4).
+                if ($refused && $repeatRefusalIsUnknown && $try > 1) {
                     throw new GatewayUnreachable;
                 }
 
                 if ($status === 401) {
                     throw str_contains($response->body(), self::NO_PERMISSION) ? new KeyPermissionMissing($method.' '.$path) : new GatewayKeyRefused;
                 }
-
-                $answer = $status >= 500 || in_array($status, self::NOT_NOW, true) ? null : self::decoded($response);
 
                 if ($answer !== null) {
                     if ($status >= 400 || self::said($answer) === false) {
@@ -180,7 +189,8 @@ final readonly class MyFatoorahClient implements GatewayClient
                 }
             }
 
-            if ($try >= $tries) {
+            // A repeat is sent only within its time (rule 4): after it, the session settles what became of the charge.
+            if ($try >= $tries || ($deadline !== null && CarbonImmutable::now()->addSeconds(self::SECONDS_BETWEEN_TRIES) >= $deadline)) {
                 throw new GatewayUnreachable;
             }
 
@@ -302,7 +312,7 @@ final readonly class MyFatoorahClient implements GatewayClient
         [$paymentId, $status] = [self::text($transaction, 'PaymentId'), self::text($transaction, 'Status')];
 
         // Without these nothing can be said of the payment.
-        if ($invoiceId === null || $invoiceStatus === null || $paymentId === null || $status === null) {
+        if ($invoiceId === null || $invoiceStatus === null || $paymentId === null || $status === null || strlen($invoiceId) > self::LONGEST_ID || strlen($paymentId) > self::LONGEST_ID) {
             return null;
         }
 

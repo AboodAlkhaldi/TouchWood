@@ -39,13 +39,19 @@ interface PaymentsApi
      */
     public function prepare(PayRequestDto $request): string;
 
-    /** Charges the prepared attempt, after Sales's commit (§1.4 step 4): claimed first (rule 4). Safe to call again. */
+    /**
+     * Charges the prepared attempt, after Sales's commit (§1.4 step 4): claimed first (rule 4). Safe to call again.
+     * **Never inside a transaction**: the claim must be committed before the call.
+     */
     public function charge(string $attemptId): PaymentStartDto;
 
     /** Ends a prepared attempt that was never charged; false when the charge was already claimed (rule 15). */
     public function abandon(string $attemptId): bool;
 
-    /** Asks the gateway now about a try's or a request's attempt (§1.4 step 8, §1.7), at most each 10 seconds. */
+    /**
+     * Asks the gateway now about a try's or a request's attempt (§1.4 step 8, §1.7), at most each 10 seconds.
+     * **Never inside a transaction**: no lock is held through a call to the gateway.
+     */
     public function refresh(string $ownerId): PaymentStateDto;
 
     /**

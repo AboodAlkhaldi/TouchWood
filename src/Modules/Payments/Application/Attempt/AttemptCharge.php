@@ -112,6 +112,11 @@ final readonly class AttemptCharge
         return $this->db->transaction(function () use ($attempt, $answer): Attempt {
             $now = CarbonImmutable::now()->toDateTimeImmutable();
             $current = $this->attempts->lock($attempt->id) ?? throw new AttemptNotFound;
+            // Released as never charged, and then it landed: the checks go back on, and staff look (rule 15).
+            if ($current->state === AttemptState::Expired && $current->nothingCharged) {
+                $current = $current->with(['nothingCharged' => false, 'needsAttention' => true]);
+            }
+
             // A notice can beat the answer here: what it settled stays, and only what we did not know is added.
             $current = $current->with([
                 'invoiceId' => $current->invoiceId ?? $answer->invoiceId,
@@ -130,7 +135,8 @@ final readonly class AttemptCharge
         return $this->db->transaction(function () use ($attempt, $reason): Attempt {
             $current = $this->attempts->lock($attempt->id) ?? throw new AttemptNotFound;
 
-            return $current->state === AttemptState::Charging
+            // A page's check may have called it unknown meanwhile: the first call's "no" still settles it.
+            return $current->state === AttemptState::Charging || $current->state === AttemptState::Unknown
                 ? $this->settlement->neverCharged($current, AttemptState::Refused, CarbonImmutable::now()->toDateTimeImmutable(), $reason)
                 : $current;
         });

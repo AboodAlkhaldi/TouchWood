@@ -23,9 +23,10 @@ interface Notices
     public function markHandled(string $id, DateTimeImmutable $now): void;
 
     /**
-     * Notices whose job was lost, oldest first (§9.6 #4).
+     * Notices not yet acted on - a lost job, or a gateway that did not answer - received between these, oldest first
+     * (§9.6 #4).
      *
      * @return list<string> their ids
      */
-    public function unhandled(DateTimeImmutable $before, int $most): array;
+    public function unhandled(DateTimeImmutable $since, DateTimeImmutable $before, int $most): array;
 }

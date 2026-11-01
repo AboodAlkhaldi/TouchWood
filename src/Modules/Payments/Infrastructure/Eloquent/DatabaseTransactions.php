@@ -33,17 +33,18 @@ final readonly class DatabaseTransactions implements Transactions
     {
         $row = [
             'attempt_id' => $facts->attemptId,
-            'status' => $facts->status,
+            // The gateway's text, cut to what is kept: a word too long must never stop a payment being settled.
+            'status' => mb_substr($facts->status, 0, 32),
             'succeeded' => $facts->succeeded,
             'method' => $facts->method,
-            'card_brand' => $facts->cardBrand,
+            'card_brand' => self::cut($facts->cardBrand, 32),
             'amount_minor' => $facts->amountMinor,
-            'amount_text' => $facts->amountText,
-            'currency_code' => $facts->currencyCode,
-            'base_currency_code' => $facts->baseCurrencyCode,
+            'amount_text' => self::cut($facts->amountText, 40),
+            'currency_code' => self::cut($facts->currencyCode, 8),
+            'base_currency_code' => self::cut($facts->baseCurrencyCode, 8),
             'paid_at' => $facts->paidAt,
-            'error_code' => $facts->errorCode,
-            'error_message' => $facts->errorMessage,
+            'error_code' => self::cut($facts->errorCode, 32),
+            'error_message' => self::cut($facts->errorMessage, 500),
             'mismatch' => $facts->mismatch,
             'paid_twice' => $facts->paidTwice,
             'published' => $facts->published,
@@ -98,6 +99,11 @@ final readonly class DatabaseTransactions implements Transactions
             (bool) $row->mismatch,
             (bool) $row->paid_twice,
         );
+    }
+
+    private static function cut(?string $text, int $most): ?string
+    {
+        return $text === null ? null : mb_substr($text, 0, $most);
     }
 
     private static function moment(mixed $value): ?DateTimeImmutable

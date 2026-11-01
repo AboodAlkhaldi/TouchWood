@@ -79,6 +79,7 @@ final readonly class AttemptSettlement
     /** Writes the attempt with its next check, and books it. Nothing more to do: nothing is booked. */
     public function booked(Attempt $attempt, DateTimeImmutable $now): Attempt
     {
+        $booked = $attempt->nextCheckAt;
         $next = CheckSchedule::next($attempt, $now);
 
         // The last check passed with no final answer: staff ask MyFatoorah themselves (gap 10.4).
@@ -89,7 +90,8 @@ final readonly class AttemptSettlement
         $attempt = $attempt->with(['nextCheckAt' => $next]);
         $this->attempts->save($attempt, $now);
 
-        if ($next !== null) {
+        // Already booked for that moment: a page asking every 10 seconds adds no jobs.
+        if ($next !== null && $next != $booked) {
             $this->jobs->checkAttempt($attempt->id, $next);
         }
 
@@ -126,13 +128,13 @@ final readonly class AttemptSettlement
             return $this->succeeded($attempt, $answer, $now);
         }
 
-        if (in_array($status, self::DECLINED, true)) {
-            return $this->declined($attempt, $answer, $now);
-        }
-
         // Asked about one transaction while the invoice says another paid: staff look, and its notice settles it.
         if (strtoupper($answer->invoiceStatus) === 'PAID') {
             $attempt = $attempt->with(['needsAttention' => true]);
+        }
+
+        if (in_array($status, self::DECLINED, true)) {
+            return $this->declined($attempt, $answer, $now);
         }
 
         return $attempt->state === AttemptState::Charging || $attempt->state === AttemptState::Unknown
@@ -184,6 +186,8 @@ final readonly class AttemptSettlement
 
         return $attempt->with([
             'state' => AttemptState::Succeeded,
+            'currencyRefused' => $attempt->currencyRefused || ($first && ! $currencyOk),
+            'transactionId' => $first ? $id : $attempt->transactionId,
             'gatewayPaymentId' => $first ? $answer->paymentId : $attempt->gatewayPaymentId,
             'succeededAt' => $attempt->succeededAt ?? $paidAt ?? $now,
             'paidMinor' => $first ? $paid : $attempt->paidMinor,
@@ -219,7 +223,12 @@ final readonly class AttemptSettlement
             $attempt->state->isLive(),
         ));
 
-        // Success is final (rule 5), and a try already released needs no second word.
+        // Released earlier: this is the final answer it was still being asked for, and Sales needs no second word.
+        if ($attempt->state === AttemptState::Expired) {
+            return $attempt->with(['state' => AttemptState::Failed]);
+        }
+
+        // Success is final (rule 5).
         if (! $attempt->state->isLive()) {
             return $attempt;
         }

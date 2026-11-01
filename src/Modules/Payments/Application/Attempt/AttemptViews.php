@@ -17,7 +17,8 @@ final class AttemptViews
 {
     public static function start(Attempt $attempt): PaymentStartDto
     {
-        return new PaymentStartDto($attempt->id, $attempt->frameUrl, $attempt->windowEndsAt, self::state($attempt), $attempt->nothingCharged, $attempt->refusedReason);
+        // A bank page is offered only while its payment can still be waited for.
+        return new PaymentStartDto($attempt->id, $attempt->state === AttemptState::Open ? $attempt->frameUrl : null, $attempt->windowEndsAt, self::state($attempt), $attempt->nothingCharged, $attempt->refusedReason);
     }
 
     public static function state(Attempt $attempt): PaymentState
@@ -26,7 +27,7 @@ final class AttemptViews
             AttemptState::Creating, AttemptState::Charging => PaymentState::Open,
             AttemptState::Open => PaymentState::InProgress,
             AttemptState::Unknown => PaymentState::Unknown,
-            AttemptState::Succeeded => PaymentState::Succeeded,
+            AttemptState::Succeeded => $attempt->currencyRefused ? PaymentState::NotAccepted : PaymentState::Succeeded,
             AttemptState::Failed, AttemptState::Refused => PaymentState::Failed,
             AttemptState::Expired, AttemptState::Abandoned => PaymentState::Expired,
         };
@@ -36,6 +37,6 @@ final class AttemptViews
     {
         return $attempt === null
             ? new PaymentStateDto(PaymentState::None, null, null, null, false)
-            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id);
+            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id, $attempt->transactionId);
     }
 }
