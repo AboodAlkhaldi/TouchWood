@@ -89,7 +89,7 @@ return [
     'terms_accept' => 'I accept the terms of sale and the privacy policy.',
 
     'verify_title' => 'Confirm Your Email',
-    'verify_subtitle' => 'We sent the link to this address:',
+    'verify_subtitle' => 'The link goes to this address:',
     'verify_link_hours' => 'The link is good for :count hours.',
     'verify_what_next' => 'Until you confirm it you can look around and fill a basket, but not order.',
     'verify_resend' => 'Resend Link',
