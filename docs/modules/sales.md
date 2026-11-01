@@ -1149,6 +1149,130 @@ Built by the backend session (owner, 2026-10-26: "let the backend session build 
 
 ---
 
+### 4.3 The screens for shipping (stage 7 step 6) — **[ACCEPTED by the owner, 2026-11-01]**
+
+Written 2026-11-01 by the screens session, after step 6 merged (#304). It covers what §9.5 #2, #3, #11 and #12
+and §9.6 leave to the screens. §4.1's rules all hold: a reader without the job sees no button, one whom the
+order's state stops sees it out of reach with the reason, every box checks itself as it is typed with the
+server's rules, every number in 0-9, every page at a phone's width. E1–E14 are the questions in §9.7; the text
+below is written to their (a) answers.
+
+#### The shop
+
+**The cart.** The summary gains one row: **Shipping: Worked out at checkout** (gap 6.6). The fee can't be known
+before the address. The free-shipping bar stays, only while the store has a store-wide amount. The row's old
+branches for a fee in the cart go.
+
+**Checkout: a new Delivery card**, under the address and above the coupon and points (E1). It follows what the
+quote says about the chosen address:
+
+| The address | What the customer sees |
+|---|---|
+| Two or more carriers serve it | One radio row per carrier: logo if it has one, name, fee, cheapest first and picked first (shipping.md §9.3 #2). A fee of 0 reads **Free** (E3). Picking one works the quote out again, as every choice here does, and is kept in `?carrier=` so a reload keeps it. |
+| One carrier serves it | The same row with no radio: there is nothing to choose (E2). |
+| No carrier serves it (`shippingPending`) | No carrier rows. "No carrier delivers to this address yet. Our team will confirm the shipping fee and contact you." |
+| Another store serves it (`otherStore`) | No Delivery card and no summary, as there is no quote. Under the addresses: "This address is served by our Egypt store." with **Order from Egypt store**, opening there in the same tab, and "Your cart here stays here." The customer may pick another address (E5). |
+| No usable address | As built: no quote, no card. |
+
+- **Changing the address keeps the chosen carrier while it serves the new one.** When it doesn't, the cheapest is
+  picked and the card says: "The carrier you chose doesn't serve this address, so we picked the cheapest." The
+  same note covers a carrier gone since (`carrierChanged`; gap 6.9) (E4).
+- **The summary with a fee to be set** (shipping.md §9.3 #8): the row reads **Shipping: To be confirmed**, the
+  total's label becomes **Total before shipping**, and the button reads **Place Order** with no amount, because
+  the total isn't final (E6). The way to pay is already forced by the server: the page shows its one sentence.
+- **Placing**: a place changed since the quote, or anything else, comes back as `QuoteChanged` and shows as today.
+
+**The order placed.** With a fee to be set, its total is labelled **Total before shipping**, and the page adds
+"Our team will confirm the shipping fee."
+
+**My orders.** With a fee to be set, the row's total carries **before shipping** (E7).
+
+**The customer's order page:**
+- the totals: **Shipping: To be confirmed** and **Total before shipping** while the fee is to be set (§9.3 #8);
+- the Shipment card: **the carrier** (the one it shipped with, else the one ordered; gap 6.7) stays beside "Not
+  shipped yet", so a carrier ordered no longer hides that line;
+- **Track Shipment**: a button under the rows, only when there is a link, opening the carrier's page in a new tab
+  (E8). With a number and no link, the number shows and there is no button (§9.5 #3).
+
+#### The panel
+
+**The orders list.** A row with a fee to be set carries a **Fee to be set** badge beside its states, and its
+total carries **before shipping** (shipping.md §9.3 #8). No new filter (E9).
+
+**The order page:**
+- **The states**: a **Shipping fee to be set** badge beside the order's others.
+- **The totals**: **Shipping: To be set** and **Total before shipping**.
+- **The main button** (what staff most often do next, R2-26): for an approved order whose fee is to be set,
+  **Set Shipping Fee…** for a reader with the edit job. **Ship…** then sits in the actions menu, out of reach, with
+  "Set the shipping fee first." A reader with only the shipping job sees Ship… out of reach with the same reason.
+  While the order waits for approval the main button stays **Approve**, and Set Shipping Fee… is in the menu (E10).
+- **Change Shipping Fee…**: in the menu, for an order with no carrier's fee whose fee staff already set, until it
+  ships (gap 6.2). An order with a carrier's fee doesn't offer it: that fee changes through an address change (§9.6 #4).
+- **The Shipment card**: **Ordered with** (the carrier ordered, shown only when none shipped yet or it differs),
+  **Carrier**, **Tracking number**, **Open Tracking Link** (new tab), and the dates as built.
+- **The box** (gap 5.1), in the Shipment card **until the order ships** (E13): **Box: Medium**, or **Pack by hand**
+  with why: "A size here is always packed by hand" (`MANUAL_SIZE`), "A size here has no weight or dimensions in the
+  catalog" (`NO_SIZE_FACTS`), "No box holds these pieces" (`NOTHING_FITS`). A store with no box switched on shows no
+  line. It is a suggestion, and never stops anything.
+- **Record Payment** while the fee is to be set: allowed as built, with one line in the dialog: "The shipping fee
+  isn't set yet, so this amount leaves it out." (E14)
+
+**Set Shipping Fee… (a dialog):**
+- **The fee**, in the order's currency with its decimals; the Arabic decimal mark is accepted; 0 is a real fee; at
+  most 100,000,000 in the smallest unit. Sent in the smallest unit, as the route takes it.
+- **The reason**, 1–500, as every edit's.
+- As it is typed, **the new total** ("Total with shipping: 1,180.00 SAR"). This is shown only: the server works it
+  out again (E11).
+- One line: "No VAT and no free shipping apply to this fee." (§9.5 #1; shipping.md §9.3 #11)
+- It joins the order's edits and history, as any edit.
+
+**Ship… (the dialog replaces today's typed name):**
+- **Carrier**, a list: the order's country first and switched-on first, as the server sends them. Carriers of other
+  countries carry their country, and switched-off ones carry **Off**. **Other carrier** comes last and opens a name
+  box (1–100). The carrier ordered is picked first. If it is no longer in the list (deleted), nothing is picked,
+  and "Ordered with: X" shows under the box (E12).
+- Shipping with a carrier other than the one ordered is allowed with no extra step (S17); the fee doesn't change.
+- **Tracking number** (optional, up to 100) and **Tracking link** (optional, a full https:// address, up to 500),
+  both always shown. Under the link, by the carrier picked: with a pattern, "Made from the number unless you type
+  one."; without one, "The customer sees Track only with a link."
+- **Correct Shipment…**: the menu, while the order is shipped, for a reader with the shipping job. The same dialog,
+  filled with what's stored, adding "The customer gets no new message." (§9.6 #5). **Changing the carrier or the
+  number empties a link not typed in this dialog**, so the new carrier's pattern makes the new link. Otherwise the
+  old link would win, because a typed link always does (§1.5). The stored link can't be told apart as typed or made,
+  so this applies to every stored link.
+
+**The packing slip**: the box line, as on the order page, however the order stands; the fee to be set as **Shipping:
+To be set** and **Total before shipping**.
+
+**Editing an order** (§1.7 step 5; gap 6.1). The preview's answer leads:
+- **The address at the same place, or none picked**: nothing new, and neither a carrier nor a fee choice is sent
+  (the server refuses one with no new place, §9.6 #3).
+- **An address at another place** (`placeChanged`): the preview gains a **Shipping at the new address** block:
+  - **Today's fee** (the default): one radio row per carrier serving the place, cheapest first, as at checkout. No
+    carrier serves it: "No carrier serves this place: the fee will be to be set." For a bank-transfer order, it adds
+    "It stays a bank transfer." (§9.6 #11)
+  - **Keep the order's fee**: a list of all the store's carriers, the order's carrier picked first. Not offered while
+    the fee is to be set: there is none to keep (§9.6 #2).
+- **Changing the address, the carrier or the fee choice makes the preview stale**, as every other change does, and
+  Confirm stays out of reach until Preview runs again (R2-36). A new address clears the carrier and fee choices.
+- **A fee to be set** shows **To be set** on either side of the preview's shipping row, and on the total's label.
+
+#### What the screens need from the backend
+
+Reads only, none of them a rule:
+1. `OrderPage.orderedCarrierId`: to pick the carrier ordered first (the view has it already).
+2. `EditPage`: `shippingFeePending`, `orderedCarrierId`, and `carriers` (all the store's, for Keep the order's fee).
+3. `PrintPage.shippingFeePending`, and the order placed page's `shippingPending`.
+4. `OrderRowData.shippingFeePending` and `OwnOrderRowData.shippingPending`: both lists' rows need the column.
+
+#### Tests
+
+Feature tests for every prop and post above, and browser tests at both widths: choosing a carrier at checkout and
+placing with it; a place no carrier serves through to the fee set and shipped; another store's address; Ship… with a
+carrier, with Other carrier, with a link; Correct Shipment emptying the old link; an edit to another place with
+today's fee and with the order's own. Query counts pinned as the pages' are; the budget of 60 KB a page holds, with
+the new dialogs loaded on first open.
+
 ## 5 · Tables
 
 Schema `sales`; the outbox and `processed_events` in `public` (platform.md §5.6). ULID ids;
@@ -1746,3 +1870,45 @@ As built — **my picks**, for the owner to reject:
 11. **For the owner: an edit that makes the fee to be set keeps the order's way to pay.** At placing, such an
     order is staff contact only; a company's bank-transfer order moved by staff to a place no carrier serves
     stays a bank transfer, the fee set by staff before it ships.
+
+### 9.7 The step 6 screens' questions (2026-11-01) — **answered**
+
+The owner answered **(a) for all fourteen** (2026-11-01: "All as recommended"). The questions are kept as they were asked. The screens are §4.3.
+
+**The shop**
+
+- **E1. Where the carriers go at checkout.** (a) A Delivery card of their own, under the address **[Recommended]**;
+  (b) inside the address card.
+- **E2. One carrier serves the address.** (a) Its row with no radio: nothing to choose **[Recommended]**; (b) a radio
+  anyway.
+- **E3. A carrier whose fee came to 0 through free shipping.** (a) **Free** **[Recommended]**; (b) 0.00 SAR.
+- **E4. The customer changes the address after choosing a carrier.** (a) The choice stays while that carrier serves
+  the new address; otherwise the cheapest, with a note **[Recommended]**; (b) always back to the cheapest, no note.
+- **E5. An address another store serves.** (a) A notice and **Order from Egypt store**, same tab, saying the cart here
+  stays here **[Recommended]**; (b) the notice with no link.
+- **E6. The Place Order button with a fee to be set.** (a) **Place Order**, no amount, since the total isn't final
+  **[Recommended]**; (b) with the total before shipping in it, as other orders show their total.
+- **E7. My orders, a fee to be set.** Your §9.3 #8 named the checkout, the order page and staff's list, not this list.
+  (a) The total carries **before shipping** here too **[Recommended]**; (b) as it is today: the total alone.
+- **E8. Track on the customer's order.** (a) A **Track Shipment** button, new tab **[Recommended]**; (b) the tracking
+  number itself as the link.
+
+**The panel**
+
+- **E9. The orders list.** (a) A badge and **before shipping**, no new filter **[Recommended]**; (b) also a filter for
+  orders whose fee is to be set.
+- **E10. An approved order whose fee is to be set.** (a) The main button becomes **Set Shipping Fee…**, and Ship… moves
+  to the menu, out of reach with the reason **[Recommended]**; (b) Ship… stays the main button, out of reach, and Set
+  Shipping Fee… is in the menu.
+- **E11. The fee dialog.** (a) Shows the new total as it is typed **[Recommended]**; (b) no total: the order page shows
+  it after saving.
+- **E12. Ship…, the carrier picked first.** (a) The carrier ordered **[Recommended]**; (b) none, so staff must choose
+  each time.
+- **E13. The box on the order page.** The suggestion is worked out live from today's boxes, so after shipping it may
+  name a box the order never went in. (a) Shown until it ships **[Recommended]**; (b) always shown.
+- **E14. Record Payment while the fee is to be set.** The backend allows it. (a) Allowed, with a line saying the amount
+  leaves the fee out **[Recommended]**; (b) allowed with no line; (c) refused until the fee is set: a rule change, and
+  it needs the backend.
+
+**From the backend's list** (§9.6): pick #11 says a company's bank-transfer order moved by staff to a place no
+carrier serves stays a bank transfer. The screens say so in the preview; the owner didn't reject it.

@@ -140,7 +140,8 @@ must publish it (§2.3).
 The B2B decisions (approved, rejected, suspended) stay in `SecurityMessages`; Ops does **not** also
 listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 
-**Built (steps 5 and 6, 2026-10-31):** C1–C8b, C9, C12–C14, C16–C17b. Each listener is queued and runs once
+**Built (steps 5 and 6, 2026-10-31):** C1–C8b, C9, C12–C14, C16–C17b; **C9b, C10, C15 and C1's delivery address
+(2026-11-01)**. Each listener is queued and runs once
 per `eventId` (`ops.handled_events`); it makes the bell entry in the event's store (both languages, the link
 to the customer's page in their own) and queues one email in their language; the email job writes the words
 again from the module's read when it leaves. Each email (and SMS) has its `ops.sent_messages` row written
@@ -153,12 +154,17 @@ carrier only when the order has one. Service messages: consent is not asked; an 
 gets nothing; a switched-off store still sends. Amounts carry the currency's letters (ر.س, SAR), as the daily
 report does. C5's window is read through `PlatformApi::setting('sales.returns.window_days', store)`. C14 runs
 every morning at 10:00 Riyadh time for every store's own day a week ahead, once per store, customer and day;
-the job carries the moment it was queued, so a late worker reminds of the same day. **Not built,
-waiting on another module:** C9b and C10 (Sales has no read of a money record's amount and way by
-`moneyRecordId`); C15 (Promotions has no read of the coupon's code by `couponId`); C11 (`PaymentRequested`,
-stage 7); C1's delivery address - shown once Sales adds it to `OrderMessageDto` (owner, 2026-10-31: asked of
-Sales); until then the email has no address line, never a stand-in - and its "paid" line (online checkout is
-stage 7's).
+the job carries the moment it was queued, so a late worker reminds of the same day. C9b and C10 read
+`SalesReports::moneyRecordForMessage`: a record gone, voided (owner, 2026-10-29), of the other kind or another
+customer's sends nothing; the words of a way are `refund_sent.ways`. **C10 has no check of its own for an online
+checkout's one email:** `PaymentRecorded` is for money on an order that exists (sales.md §2.2), and today only
+`MoneyRecording` fires it - so stage 7 must not fire it for the payment a checkout's order is created with
+(sales.md:1603), or that customer gets C10 beside C1; the record does not say which it was. C15 is one
+`CouponAssigned` for a whole assignment: its customers are paged with `PromotionsApi::assignedCustomers`, each
+told once by an id made of the event and the customer, so a retry carries on where a failure stopped; the code is
+read with `couponCode`, a coupon deleted since sends nothing. C1 shows the recipient and the delivery address in
+the email only, never the bell; an order with no address has no such line, never a stand-in. **Not built, waiting
+on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online checkout is stage 7's).
 
 ### 1.6 Alerts to staff
 
@@ -301,9 +307,12 @@ arrived (§1.11, round 3 #9).
 
 **All stores together:** each store, then **one total per currency** — never converted (round 3 #4).
 
-**Built in step 8** (the owner's answers of 2026-10-30): revenue **by category** must be net of refunds, so the
-categories add up to the net total — until Sales gives refunds by product, that sheet says it waits for Sales,
-with no figures; Favourites keep archived products, marked; Searches cover at most 12 months, every other report
+**Built in step 8** (the owner's answers of 2026-10-30): revenue **by category** is net of refunds, so the
+categories add up to the net total - built 2026-11-01 from Sales' `productNetSales`, grouped by each product's
+category through Catalog (no category, or one Catalog no longer knows: "No category"), over the whole range, most
+revenue first, then one total per currency. **Beside it the same "revenue if the waiting refunds go through"
+(owner, 2026-11-01)**: net less `waitingRefunds`, blank where none wait, as on the Revenue sheet. Favourites keep archived products, marked;
+Searches cover at most 12 months, every other report
 at most 5 years, from 2020 to next year. A range that includes today is read until the moment it was asked,
 the same for every page, and says so; an all-stores report names that moment in the base store's time zone.
 **VAT is net of refunds** (owner, 2026-10-30; Sales #293): each day's VAT less the goods' VAT of the refunds asked
@@ -360,6 +369,11 @@ goods' VAT of the refunds asked that day (`refundsVat`), revenue with VAT is net
 store's Sales table and the totals per currency. Where refunds wait, "revenue with VAT if the waiting refunds go
 through" takes off their estimate and its VAT (`waitingRefundsVat`), and each waiting refund shows its VAT
 (`estimateVat`). VAT is the goods' alone (owner: no VAT on shipping); Ops takes Sales' `vat` as it is.
+**Revenue per category is net of refunds too (owner, 2026-11-01)**, from `productNetSales`, so the table adds up to
+the report's own net revenue: a day of refunds and no sales has its rows, a negative figure included; a category
+with nothing but a waiting return has no row (its figure is 0, and the waiting one comes off only in the second
+figure above). A category's units are the pieces sold - Sales gives no refunded pieces by product. The top 10 sizes
+stay as sold (`productSales`). Reports already made keep what they showed: each is its PDF file, opened as it is.
 The email runs as a delayed job queued by the person who switched it on and then by itself a day at a time, so
 it reads only what that person may see (no Access read answers that for another person; the owner accepted this
 design, 2026-10-30). The setting holds the one moment it may go next, moved on by compare-and-set with the next
@@ -395,9 +409,9 @@ go (§9.2).
 
 | Module (builder) | Events | Reads |
 |---|---|---|
-| **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for online payments) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)` (the tracking link is Stage 7's); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off. An unknown store is refused |
+| **Sales** (Stage 6 session) | **Built (#259):** `OrderApproved`, `OrderRejected`, `OrderShipped`, `OrderCameBack` `{eventId, orderId, storeId, customerId, occurredAt}`; `OrderEdited` adds `editId`; `ReturnRequested`, `ReturnAccepted`, `ReturnRefused`, `ReturnReceived` add `returnId`; `PaymentRecorded`, `RefundRecorded` add `moneyRecordId` (by hand; Stage 7 fires `PaymentRecorded` for an online payment on an order that already exists, never for the payment a checkout's order is created with: that customer gets C1 alone) — ids only, through the outbox. `TransferOverdue` is Stage 7's mark | **Built (#260)** on a new contract `Sales\Public\Contracts\SalesReports` (not `SalesApi`): `orderForMessage(orderId, locale)` (the tracking link is Stage 7's); `returnForMessage(returnId)`; `counts(store, from, to)` {placed, counted, individuals, companies, cancelled, rejected, cameBack} — `counted` leaves out cancelled, rejected and came back; `moneyOn(store, fromDay, toDay)` — payments and refunds by way, on the store's own dates, voided left out; `transfersWaiting(store)` {orders, owed} (overdue is Stage 7's); `revenueByDay(store, from, to)` — pass the store's midnights, refunds and waiting refunds per day; `productSales(store, from, to, after, limit)` — most sold first, returns not taken off; **wired 2026-11-01:** `moneyRecordForMessage(moneyRecordId)` (C9b, C10) and `productNetSales(store, from, to, after, limit)` (by category, the Excel sheet and the daily report). An unknown store is refused |
 | **Loyalty** (Stage 6) — **built (#256)** | `PointsEarned`, `PointsChangedByHand` | Lots expiring on a day; points per day per store **per ledger kind** (`EARNED`, `REDEEMED`, `REDEMPTION_RETURNED`, `EARNING_REVERSED`, `ADDED`, `DEDUCTED`, `EXPIRED`; loyalty.md:62-70) |
-| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount |
+| **Promotions** (Stage 6) — **built (#255)** | `CouponAssigned` | `segmentMembers` — store-scoped `segmentMembers(StoreId $store, string $segmentId, ?string $after, int $limit)` (PR #280; another store's segment → `SegmentNotFound`); coupons used per day and their discount; **wired 2026-11-01 (C15):** `assignedCustomers(assignmentId, after, limit)`, `couponCode(couponId)` |
 | **Feedback** (Stage 6) | **Built (#252):** `QuestionAnswered`, `QuestionNotPublished`, `ReviewNotPublished` `{eventId, <itemId>, productId, storeId, customerId, occurredAt}` — one per item, only with a reason | **Built:** `favouriteCounts(store, after, limit)` (archived products included — Ops filters through Catalog); `reviewForMessage(id)`, `questionForMessage(id)`; `counts(store, from, to)` {newReviews, newQuestions, waitingQuestions (now)} |
 | **Catalog** (Stage 6) | — | **Built (#251, catalog.md amendment 37):** `searchSummary(?store, from, to, after, limit)` — {query, storeId, locale, searches, noResults}, most searched first; no person (catalog.md §1.11) |
 | **Inventory** (Stage 5 session) | **Built (#267, inventory.md amendment 1):** `LowStockChanged(eventId, storeId, becameLow, ranOut, cameBack, occurredAt)` — after commit, once per store, only when a list is non-empty; a store's first recount sends nothing; a size going from fine straight to out is in `ranOut` only (owner, 2026-10-29) | **Built:** `lowStockChanges(StoreId, from, to)` [from, to), an unknown store refused; `stockLevels(StoreId, after, limit 1–1000)`, paged by size id; the change log kept 12 months |
