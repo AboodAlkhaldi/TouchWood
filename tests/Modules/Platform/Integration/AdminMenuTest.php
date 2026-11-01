@@ -110,6 +110,7 @@ describe('the admin menu', function () {
             // Shipping's screens (shipping.md §4.1 part 1): its own group, after Orders.
             'shipping/carriers',
             'shipping/boxes',
+            'payments/gateway',
             // B2B's staff screens (b2b.md amendment 21).
             'companies/companies',
             'companies/company_types',

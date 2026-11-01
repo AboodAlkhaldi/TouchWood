@@ -89,6 +89,21 @@ final readonly class DatabaseGateways implements Gateways
         return $id;
     }
 
+    public function switchedOn(): array
+    {
+        $gateways = [];
+
+        foreach ($this->db->table('payments.gateways')->where('active', true)->pluck('store_id') as $storeId) {
+            $gateway = $this->of((string) $storeId);
+
+            if ($gateway !== null) {
+                $gateways[] = $gateway;
+            }
+        }
+
+        return $gateways;
+    }
+
     public function currentKeys(): array
     {
         $keys = [];

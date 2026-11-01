@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Payments\Application\Gateway\GatewayAddresses;
+use Modules\Payments\Application\Gateway\GatewayBanners;
 use Modules\Payments\Application\Gateway\GatewayClient;
 use Modules\Payments\Application\Gateway\KeyTester;
 use Modules\Payments\Application\Gateway\NoticeReader;
@@ -32,14 +33,17 @@ use Modules\Payments\Infrastructure\External\MyFatoorahNoticeReader;
 use Modules\Payments\Infrastructure\Queue\WarnExpiringKeysJob;
 use Modules\Payments\Infrastructure\Settings\PaymentsSettingsLine;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Platform\Public\Contracts\AdminBanners;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\SettingGuards;
 use Modules\Platform\Public\Contracts\SettingsRegistry;
 use Modules\Platform\Public\Contracts\SettingsSectionLines;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 
 /**
  * Payments (payments.md): each store's gateway - MyFatoorah - and its keys, and the timers of a payment;
- * the session and the notices; from steps 10-12, the charge and the requests. Backend only; the screens are
- * the screens session's (§4.1).
+ * the session and the notices; from steps 10-12, the charge and the requests. The screens are the screens
+ * session's (§4.1, §4.2).
  */
 final class PaymentsServiceProvider extends ServiceProvider
 {
@@ -81,7 +85,15 @@ final class PaymentsServiceProvider extends ServiceProvider
 
         if (! $this->app->routesAreCached()) {
             $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/notice-routes.php');
+            // The panel's own file: the admin session cookie must be set before "web" opens a session.
+            $this->loadRoutesFrom(dirname(__DIR__).'/Presentation/admin-routes.php');
         }
+
+        // The Payments group in the panel (§9.12 Q14): Gateway now, the Payments list with its step.
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('payments', 'gateway', 'payments', 'payments.admin.gateway', [PaymentsPermissions::GATEWAY_MANAGE], 20, icon: 'gateway'),
+        );
+        $this->app->make(AdminBanners::class)->register(GatewayBanners::class);
 
         // The keys' expiry warnings (§1.2): hourly, as each store's day starts at its own midnight.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
