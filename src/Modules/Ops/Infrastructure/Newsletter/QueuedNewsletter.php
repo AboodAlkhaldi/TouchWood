@@ -21,17 +21,17 @@ final readonly class QueuedNewsletter implements NewsletterQueue
 
     public function sync(string $subscriberId): void
     {
-        $this->jobs->dispatch(new SyncSubscriberJob(strtolower($subscriberId)));
+        $this->jobs->dispatch((new SyncSubscriberJob(strtolower($subscriberId)))->beforeCommit());
     }
 
     public function remove(string $email, StoreId $store, string $locale, bool $forget = false): void
     {
-        $this->jobs->dispatch(new RemoveNewsletterContactJob($email, $store->value, $locale, $forget));
+        $this->jobs->dispatch((new RemoveNewsletterContactJob($email, $store->value, $locale, $forget))->beforeCommit());
     }
 
     public function withdrawConsent(string $customerId, MarketingConsentSource $source): void
     {
-        $this->jobs->dispatch(new WithdrawMarketingConsentJob(strtolower($customerId), $source));
+        $this->jobs->dispatch((new WithdrawMarketingConsentJob(strtolower($customerId), $source))->beforeCommit());
     }
 
     public function withdrawConsentNow(string $customerId, MarketingConsentSource $source): void
