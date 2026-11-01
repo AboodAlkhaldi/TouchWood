@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Command\SendDailyReportEmail;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Access\Public\Enums\StaffStatus;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
 use Modules\Ops\Application\DailyReport\DailyReportMaker;
 use Modules\Ops\Application\DailyReport\DailyReportPeople;
+use Modules\Ops\Domain\Model\DailyReportEmail;
 use Modules\Ops\Domain\Model\DailyReportFile;
 use Modules\Ops\Domain\Repository\DailyReports;
+use Modules\Platform\Public\Dto\StoreDto;
 use Shared\Application\Authorizer;
 use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
@@ -25,8 +28,13 @@ use Shared\Application\Unauthorized;
  * - **One email per moment.** The setting holds the one moment the email may go next. This job goes on
  *   only if its moment is that one, and moves it to the next in the same statement; the next job is
  *   written to the database queue inside that same transaction (`beforeCommit`), so the moment and its
- *   job commit together or not at all - a double submit, a race or a job tried again stops here, and a
- *   failed push rolls the move back, so this job fails (into the failed jobs) rather than ending quietly.
+ *   job commit together or not at all - a double submit or a race stops here, and a failed push rolls the
+ *   move back, so this job fails (into the failed jobs) rather than ending quietly.
+ * - **A retry makes the same report.** The moment moves on before the making, so tomorrow's email never
+ *   waits on today's failure. A job retried from the failed jobs, for a moment already passed in the same
+ *   version, skips the move and makes that moment's report, as at that moment, if it is not kept yet; the
+ *   report is kept once per setting and moment, with its delivery in the same transaction (DailyReportMaker),
+ *   so a retry after it was made does nothing, and nothing is ever sent twice.
  * - **Late is still that day's.** The report is made as at the moment due, and the next is the first time
  *   after both that moment and now: a worker that was down sends the missed day once, never two.
  * - A setting switched off or changed since (another version) stops here; the change queued its own.
@@ -66,16 +74,12 @@ final readonly class SendDailyReportEmailHandler
         }
 
         $store = $setting->store === null ? null : $this->people->store($setting->store->value);
-        $next = $setting->nextAfter(max($command->due, $now), new DateTimeZone($this->people->zone($store)));
-        $won = $this->db->transaction(function () use ($setting, $command, $next): bool {
-            if (! $this->reports->advanceEmail($setting->id, $setting->version, $command->due, $next)) {
-                return false;
+        // Only a win moves the moment within a version, so one already past it was won by this job's first try.
+        if ($setting->nextDueAt !== null && $setting->nextDueAt > $command->due) {
+            if ($this->reports->emailMade($setting->id, $command->due)) {
+                return null;
             }
-            $this->queue->send($setting->id, $setting->version, $next);
-
-            return true;
-        });
-        if (! $won) {
+        } elseif (! $this->won($setting, $command, $store, $now)) {
             return null;
         }
 
@@ -89,11 +93,23 @@ final readonly class SendDailyReportEmailHandler
             return null;
         }
 
-        $report = $store === null
-            ? $this->maker->make($person, null, $this->people->everyStore(), null, $this->people->allStoresZone(), $command->due)
-            : $this->maker->make($person, $store, [$store], null, $store->timezone, $command->due);
-        $this->queue->deliver($report->id);
+        return $store === null
+            ? $this->maker->makeForEmail($person, null, $this->people->everyStore(), $this->people->allStoresZone(), $command->due, $setting->id)
+            : $this->maker->makeForEmail($person, $store, [$store], $store->timezone, $command->due, $setting->id);
+    }
 
-        return $report;
+    /** Moves the moment on, with the next job in the same transaction: false when another job has it. */
+    private function won(DailyReportEmail $setting, SendDailyReportEmail $command, ?StoreDto $store, DateTimeImmutable $now): bool
+    {
+        $next = $setting->nextAfter(max($command->due, $now), new DateTimeZone($this->people->zone($store)));
+
+        return $this->db->transaction(function () use ($setting, $command, $next): bool {
+            if (! $this->reports->advanceEmail($setting->id, $setting->version, $command->due, $next)) {
+                return false;
+            }
+            $this->queue->send($setting->id, $setting->version, $next);
+
+            return true;
+        });
     }
 }

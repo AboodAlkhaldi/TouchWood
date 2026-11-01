@@ -14,5 +14,6 @@ interface DailyReportEmailQueue
 {
     public function send(string $settingId, int $version, DateTimeImmutable $at): void;
 
+    /** Written inside the caller's transaction, as `send()` is: the report and its delivery commit together. */
     public function deliver(string $reportId): void;
 }

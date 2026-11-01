@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -16,15 +17,23 @@ use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmail;
 use Modules\Ops\Application\Command\SendDailyReportEmail\SendDailyReportEmailHandler;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmail;
 use Modules\Ops\Application\Command\SetDailyReportEmail\SetDailyReportEmailHandler;
+use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Ops\Application\DailyReport\DailyReport;
 use Modules\Ops\Application\DailyReport\DailyReportEmailQueue;
+use Modules\Ops\Application\DailyReport\DailyReportMaker;
+use Modules\Ops\Application\DailyReport\DailyReportReader;
+use Modules\Ops\Application\DailyReport\DailyReportRenderer;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\ViewDailyReportEmails\ViewDailyReportEmails;
 use Modules\Ops\Application\Query\ViewDailyReportEmails\ViewDailyReportEmailsHandler;
+use Modules\Ops\Domain\Exception\DailyEmailAtMidnight;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Model\DailyReportEmail;
+use Modules\Ops\Infrastructure\Eloquent\Moment;
 use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Queue\DeliverDailyReportJob;
 use Modules\Ops\Infrastructure\Queue\SendDailyReportEmailJob;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\Actor;
 use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
@@ -264,4 +273,198 @@ it('writes the next email into the jobs table inside the transaction, not after 
     DB::rollBack();
 
     expect([$inside, DB::table('jobs')->count()])->toBe([1, 0]);
+});
+
+it('refuses 00:00 for every daily email, on or off, each store or every store\'s, in both languages', function (?string $store, bool $on) {
+    Queue::fake();
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+    expect(fn () => dailyEmailSet($store, $on, '00:00'))->toThrow(DailyEmailAtMidnight::class)
+        ->and(DB::table('ops.daily_report_settings')->count())->toBe(0);
+    Queue::assertNothingPushed();
+})->with([
+    'a store, on' => ['sa', true],
+    'a store, off' => ['sa', false],
+    'every store, on' => [null, true],
+]);
+
+it('takes the minute after midnight and the minute before, and words the refusal in both languages', function () {
+    Queue::fake();
+    Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+    expect(dailyEmailSet('sa', true, '00:01')->sendAt)->toBe('00:01')
+        ->and(dailyEmailSet('sa', true, '23:59')->sendAt)->toBe('23:59')
+        ->and(fn () => DailyReportEmail::nextAt('00:00', new DateTimeImmutable, new DateTimeZone('Asia/Riyadh')))->toThrow(DailyEmailAtMidnight::class)
+        ->and(trans('ops::errors.daily_email_at_midnight.detail', [], 'en'))->toContain('00:00')
+        ->and(trans('ops::errors.daily_email_at_midnight.detail', [], 'ar'))->toContain('00:00')
+        ->and(fn () => DB::table('ops.daily_report_settings')->update(['send_at' => '00:00']))->toThrow(QueryException::class);
+});
+
+it('sends the all-stores email at 23:00 Riyadh, where Dubai\'s day has just started: its section zeros, the email still goes', function () {
+    Queue::fake();
+    $staff = Fx::staff(superAdmin: true);
+    CarbonImmutable::setTestNow('2026-11-10 12:00:00 UTC');
+
+    try {
+        Fx::actAsStaff($staff);
+        $setting = dailyEmailSet(null, true, '23:00');
+        // 23:00 in Riyadh, 00:00 in Dubai.
+        expect(Moment::of($setting->nextDueAt ?? new DateTimeImmutable))->toStartWith('2026-11-10 20:00:00');
+        CarbonImmutable::setTestNow('2026-11-10 20:00:00 UTC');
+        Fx::actAs(Actor::system(Actor::staff($staff)));
+
+        $report = app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($setting->id, $setting->version, $setting->nextDueAt ?? new DateTimeImmutable));
+    } finally {
+        CarbonImmutable::setTestNow();
+    }
+
+    expect($report)->not->toBeNull()
+        ->and($report?->store)->toBeNull();
+    Queue::assertPushed(DeliverDailyReportJob::class, fn (DeliverDailyReportJob $job): bool => $job->reportId === $report?->id);
+});
+
+it('reads a store whose day has just started as zeros, with no read refused', function () {
+    $store = app(PlatformApi::class)->storeByCode('ae') ?? throw new LogicException('No store.');
+    $midnight = new DateTimeImmutable('2026-11-10 20:00:00 UTC');
+
+    $section = app(DailyReportReader::class)->store($store, $midnight, null);
+
+    expect($section->from->format('Y-m-d H:i'))->toBe('2026-11-11 00:00')
+        ->and($section->from == $section->to)->toBeTrue()
+        ->and([$section->today->orders, $section->today->newCustomers, $section->yesterday->orders, $section->newIndividuals, $section->newCompanies])->toBe([0, 0, 0, 0, 0])
+        ->and($section->today->revenue->isZero())->toBeTrue();
+});
+
+describe('a job retried from the failed jobs', function () {
+    /** The renderer fails while the box says so. */
+    function dailyEmailFailingRenderer(ArrayObject $fails): void
+    {
+        app()->instance(DailyReportRenderer::class, new class($fails) implements DailyReportRenderer
+        {
+            public function __construct(private ArrayObject $fails) {}
+
+            public function render(DailyReport $report, string $locale): string
+            {
+                if (($this->fails['on'] ?? false) === true) {
+                    throw new RuntimeException('The PDF could not be written.');
+                }
+
+                return '%PDF-fake';
+            }
+        });
+    }
+
+    it('makes the same report once, as at its moment, queues no second next day, and sends once', function () {
+        Queue::fake();
+        $emails = CapturedEmails::install();
+        $fails = new ArrayObject(['on' => true]);
+        dailyEmailFailingRenderer($fails);
+        $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+        Fx::actAsStaff($staff);
+        $setting = dailyEmailSet('sa', true, '07:30');
+        $due = $setting->nextDueAt ?? throw new LogicException('Switched on without a moment.');
+        Fx::actAs(Actor::system(Actor::staff($staff)));
+        $send = static fn (): mixed => app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($setting->id, $setting->version, $due));
+
+        // Its first try: the moment moves on and tomorrow's is queued before the making, which fails.
+        expect($send)->toThrow(RuntimeException::class, 'The PDF could not be written.')
+            ->and(DB::table('ops.daily_reports')->count())->toBe(0)
+            ->and(Storage::disk(LocalReportFiles::DISK)->allFiles())->toBe([]);
+        $next = DB::table('ops.daily_report_settings')->value('next_due_at');
+        Queue::assertPushed(SendDailyReportEmailJob::class, 2);
+
+        // The retry: the same moment's report, made now, tomorrow's moment left as it is.
+        $fails['on'] = false;
+        $report = $send();
+
+        expect($report?->madeAt == $due)->toBeTrue()
+            ->and(DB::table('ops.daily_reports')->count())->toBe(1)
+            ->and(DB::table('ops.daily_report_settings')->value('next_due_at'))->toBe($next)
+            ->and(DB::table('ops.daily_reports')->value('email_setting_id'))->toBe($setting->id);
+        Queue::assertPushed(SendDailyReportEmailJob::class, 2);
+        Queue::assertPushed(DeliverDailyReportJob::class, 1);
+
+        // Retried again, after it was made: nothing more.
+        expect($send())->toBeNull()
+            ->and(DB::table('ops.daily_reports')->count())->toBe(1);
+        Queue::assertPushed(DeliverDailyReportJob::class, 1);
+
+        expect(app(DeliverDailyReportHandler::class)->handle(new DeliverDailyReport((string) $report?->id)))->toBeTrue()
+            ->and(app(DeliverDailyReportHandler::class)->handle(new DeliverDailyReport((string) $report?->id)))->toBeFalse()
+            ->and($emails->sent)->toHaveCount(1);
+    });
+
+    it('makes the failed day\'s report after the next day went, each moment its own', function () {
+        Queue::fake();
+        $fails = new ArrayObject(['on' => true]);
+        dailyEmailFailingRenderer($fails);
+        $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+        Fx::actAsStaff($staff);
+        $setting = dailyEmailSet('sa', true, '07:30');
+        $first = $setting->nextDueAt ?? throw new LogicException('Switched on without a moment.');
+        Fx::actAs(Actor::system(Actor::staff($staff)));
+        $send = static fn (DateTimeImmutable $due): mixed => app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($setting->id, $setting->version, $due));
+
+        expect(fn () => $send($first))->toThrow(RuntimeException::class);
+        $fails['on'] = false;
+        $second = CarbonImmutable::parse((string) DB::table('ops.daily_report_settings')->value('next_due_at'))->toDateTimeImmutable();
+
+        expect($send($second))->not->toBeNull()
+            ->and($send($first))->not->toBeNull()
+            ->and($send($first))->toBeNull()
+            ->and(DB::table('ops.daily_reports')->count())->toBe(2);
+    });
+
+    it('keeps one report when two jobs of one moment reach the end together, its file too', function () {
+        Queue::fake();
+        $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+        Fx::actAsStaff($staff);
+        $setting = dailyEmailSet('sa', true, '07:30');
+        $due = $setting->nextDueAt ?? throw new LogicException('Switched on without a moment.');
+        $person = app(AccessApi::class)->staff($staff) ?? throw new LogicException('No staff.');
+        $store = app(PlatformApi::class)->storeByCode('sa') ?? throw new LogicException('No store.');
+        $maker = app(DailyReportMaker::class);
+
+        $won = $maker->makeForEmail($person, $store, [$store], $store->timezone, $due, $setting->id);
+        $lost = $maker->makeForEmail($person, $store, [$store], $store->timezone, $due, $setting->id);
+
+        expect($won)->not->toBeNull()
+            ->and($lost)->toBeNull()
+            ->and(DB::table('ops.daily_reports')->count())->toBe(1)
+            ->and(Storage::disk(LocalReportFiles::DISK)->allFiles())->toBe([(string) $won?->file]);
+        Queue::assertPushed(DeliverDailyReportJob::class, 1);
+    });
+
+    it('still stops one of a setting changed since: another version', function () {
+        Queue::fake();
+        $staff = Fx::staffWith([OpsPermissions::REPORT_DAILY], ['sa']);
+        Fx::actAsStaff($staff);
+        $old = dailyEmailSet('sa', true, '07:30');
+        dailyEmailSet('sa', true, '08:30');
+        Fx::actAs(Actor::system(Actor::staff($staff)));
+
+        expect(app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($old->id, $old->version, $old->nextDueAt ?? new DateTimeImmutable)))->toBeNull()
+            ->and(DB::table('ops.daily_reports')->count())->toBe(0);
+    });
+});
+
+it('carries the logo and name: the store\'s, or TouchWood\'s own on every store\'s report', function () {
+    Queue::fake();
+    $emails = CapturedEmails::install();
+    config(['mail.from.name' => 'TouchWood']);
+    $staff = Fx::staff(superAdmin: true);
+    Fx::actAsStaff($staff);
+    $store = dailyEmailSet('sa', true, '07:30');
+    $every = dailyEmailSet(null, true, '07:30');
+    Fx::actAs(Actor::system(Actor::staff($staff)));
+
+    foreach ([$store, $every] as $setting) {
+        $report = app(SendDailyReportEmailHandler::class)->handle(new SendDailyReportEmail($setting->id, $setting->version, $setting->nextDueAt ?? new DateTimeImmutable));
+        app(DeliverDailyReportHandler::class)->handle(new DeliverDailyReport((string) $report?->id));
+    }
+
+    expect($emails->sent[0]->html)->toContain('icons/email-logo.png')->toContain('alt="Saudi Arabia"')->toContain('>Saudi Arabia</p>')
+        ->and($emails->sent[0]->fromName)->toBe('Saudi Arabia')
+        ->and($emails->sent[1]->html)->toContain('icons/email-logo.png')->toContain('alt="TouchWood"')
+        ->and($emails->sent[1]->fromName)->toBe('TouchWood');
 });

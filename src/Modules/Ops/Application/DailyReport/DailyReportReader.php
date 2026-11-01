@@ -20,6 +20,7 @@ use Modules\Sales\Public\Contracts\SalesReports;
 use Modules\Sales\Public\Dto\ProductNetSaleDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sync\Public\Contracts\SyncApi;
+use Modules\Sync\Public\Dto\SyncDayDto;
 use Shared\Domain\ValueObject\Money;
 
 /**
@@ -40,6 +41,9 @@ use Shared\Domain\ValueObject\Money;
  * that day and completed (Sales' `refundsVat`); revenue with VAT is net revenue plus net VAT, and the waiting
  * refunds' VAT (`waitingRefundsVat`) comes off only in "revenue with VAT if the waiting refunds go through".
  * VAT is the goods' alone (owner: no VAT on shipping) - Sales' `vat` is taken as it is, never adjusted here.
+ *
+ * **Transfers waiting are as they stand now**, on a past day's report too: Sales keeps no history of them, so
+ * the report labels that one figure as current (owner, 2026-11-01).
  */
 final readonly class DailyReportReader
 {
@@ -107,7 +111,7 @@ final readonly class DailyReportReader
             $waitingVat = $waitingVat->add($day->waitingRefundsVat);
             array_push($waiting, ...$day->waiting);
         }
-        $registered = $this->access->customersRegistered($id, $from, $to);
+        $registered = $this->registered($store, $from, $to);
 
         // Given: earned and added by hand; spent: redeemed at checkout. The other kinds are listed as
         // they are, only those that happened (owner, 2026-10-30) - Loyalty answers only kinds it has.
@@ -147,7 +151,8 @@ final readonly class DailyReportReader
             newCompanies: $registered['companies'],
             applications: $this->b2b->applicationCounts($store->id, $from, $to),
             lowStock: $this->inventory->lowStockChanges($id, $from, $to),
-            sync: $this->sync->readsAndProblemsPerDay([$id], $day, $day, $to)[0],
+            // Sync answers no row for a day that has not begun by `$to`: one that has only just started.
+            sync: $this->sync->readsAndProblemsPerDay([$id], $day, $day, $to)[0] ?? new SyncDayDto($store->id, $day, [], [], [], 0, 0, 0, [], true),
             coupons: $this->promotions->couponsUsed($id, $from, $to),
             pointsGiven: $points['given'],
             pointsSpent: $points['spent'],
@@ -171,9 +176,22 @@ final readonly class DailyReportReader
             $orders += $day->orders;
             $revenue = $revenue->add($day->revenue)->subtract($day->refunds);
         }
-        $registered = $this->access->customersRegistered($id, $from, $to);
+        $registered = $this->registered($store, $from, $to);
 
         return new PeriodFigures($orders, $revenue, $registered['individuals'] + $registered['companies']);
+    }
+
+    /**
+     * New customers over [from, to). A store whose day has only just started - an all-stores email at 23:00
+     * Riyadh is 00:00 in Dubai - has an empty range, which Access refuses to read: nobody registered in it.
+     * Every other read answers an empty range with zeros, or Sync with no row (store()), so the section shows
+     * zeros and the email goes.
+     *
+     * @return array{individuals: int, companies: int}
+     */
+    private function registered(StoreDto $store, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        return $from < $to ? $this->access->customersRegistered($store->storeId(), $from, $to) : ['individuals' => 0, 'companies' => 0];
     }
 
     /**

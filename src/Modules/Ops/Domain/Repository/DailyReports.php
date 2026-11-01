@@ -14,6 +14,15 @@ interface DailyReports
 {
     public function add(DailyReportFile $report): void;
 
+    /**
+     * Keeps the report the email made at its moment: false, keeping nothing, when that moment's is kept
+     * already - a job run twice makes one report.
+     */
+    public function addForEmail(DailyReportFile $report, string $settingId, DateTimeImmutable $due): bool;
+
+    /** Whether the email's report of that moment is kept. */
+    public function emailMade(string $settingId, DateTimeImmutable $due): bool;
+
     public function find(string $id): ?DailyReportFile;
 
     /**
@@ -49,7 +58,7 @@ interface DailyReports
 
     /**
      * Moves the email's next moment from `$due` to `$next` - only if it is still on, still that version and
-     * still due at `$due`: the one job that wins goes on, any other (a duplicate, a retry) stops.
+     * still due at `$due`: the one job that wins goes on, any other (a duplicate) stops.
      */
     public function advanceEmail(string $id, int $version, DateTimeImmutable $due, DateTimeImmutable $next): bool;
 
