@@ -715,6 +715,122 @@ SUCCEEDED ─▶ SUCCEEDED                         (a second successful transact
 | **On the order** (Sales's screen) | The attempts block; "Request payment of the rest" / "Handle by hand" (§1.5); the overdue mark (§1.9) |
 | **The bank account** | Moves from B2B's settings section to Payments' (§1.9) |
 
+### 4.2 The screens in detail — **[ACCEPTED by the owner, 2026-11-01]**
+
+Written 2026-11-01 by the screens session, before backend steps 9–12. It fills in the table above; Q1–Q22 are the
+questions in §9.12, and the text is written to their (a) answers. The reads and posts behind steps 9–12 aren't built yet, so
+**the shapes they send may add to this**. Sales's §4.1 rules all hold: a reader without the job sees no button, one whom
+the state stops sees it out of reach with the reason, every box checks itself as it is typed, every number in 0-9, every
+page at a phone's width.
+
+#### The checkout (individuals, in a store whose gateway is on)
+
+**The way to pay.** Two choices: **Pay Online**, picked first, and **Staff Will Contact You** (sales.md §1.9) (Q1). A fee
+to be set offers only the second, as built; so does a store with no gateway, one switched off, or one whose key was refused.
+
+**Pay Online opens MyFatoorah's form** inside the Payment card. **Pay · 1,180.00 SAR** replaces Place Order in the summary,
+in the same place (Q2). Apple Pay and STC Pay use their own buttons in the form. Pressing either locks the page.
+
+**What the page shows, by moment:**
+
+| Moment | The page |
+|---|---|
+| Before Pay | The form. Nothing is held, so the customer may stay as long as they like. |
+| Something changed since the quote | The new totals and what changed, as at placing today; no money moved and the form stays (§1.4 step 3). |
+| Pay pressed | The address, carrier, coupon, points and way to pay locked while the try is live (Q3). A **time left** line, mm:ss in 0-9, above the form (Q4). |
+| The bank's code | Its page in a frame in a dialog over ours, the full screen on a phone. Closing it asks "Leave the bank's page? Your payment may still go through until 14:37." (Q5) |
+| Declined | Back to the form, unlocked: "Your card was declined: [reason in plain words]. No money was taken." Pay again starts fresh (§1.4 step 6). A reason we have no words for reads "Your bank declined this payment." (Q6) |
+| The window ends, the customer finished the bank's step | "Confirming your payment…" with no time shown. |
+| The window ends, they didn't | "Time ran out." (the reservations stay until the wait ends, §1.4 step 7) |
+| The wait ends with nothing paid | "No money was taken." Back to the form, unlocked. |
+| The gateway can't be reached | "We are still confirming with your bank. If the payment goes through, your order appears in My Orders — please do not pay again." |
+| Paid | The Order Placed page, with **Paid** (Q7). |
+
+**Coming back while a try is live** (§1.4 step 8), on the cart and on checkout alike (Q8):
+- nothing sent to the gateway: the try ends there; nothing to say;
+- the charge made: a note, "Your last payment can still go through until 14:37. You can change your cart meanwhile; Pay opens
+  again after that.", with the time left, and Pay out of reach with the same reason;
+- paid: straight to the new order's Order Placed page.
+
+**A second window** (§1.4 step 9): "A payment is already in progress in another window." with no form. It comes back by
+itself once the try is over, with no reload (Q9).
+
+**The limits** (§1.8): "Too many tries — wait a few minutes." inside the Payment card.
+
+**The store switched off while paying** (§1.10): one page, once, with its two sentences and a button to the main store.
+
+**The test notice** (§1.6): a Note at the top of the checkout, the request page and the order page, in both languages:
+"Test mode — no real money is taken." (Q10)
+
+#### The payment request
+
+**On the customer's order page**: a Note at the top while a request is open, "Pay the remaining 45.00 SAR by 15:20", with
+**Pay Now**. Nothing while no request is open (Q11).
+
+**`/{store}/{locale}/orders/{number}/pay`**: the order's number, its lines and totals in short, the amount asked, until when, and
+the same form, timers and answers as checkout, with **Pay · 45.00 SAR** under the form. Paid: back to the order, "Payment
+received." Declined or out of time: the form again while the 60 minutes last. No request open (ended, withdrawn, paid or
+never sent): "This payment link has ended." with a link to the order, not a 404, for the order's own customer. For anyone
+else, a 404 (Q12).
+
+**My orders**: the row gains **Payment requested** while a request is open (Q13).
+
+#### The panel
+
+**The menu** (Q14): a **Payments** group after Shipping: **Payments** (`payments.payment.view`) and **Gateway**
+(`payments.gateway.manage`).
+
+**Gateway** — `/admin/payments/gateway?store=` (Super Admins). One page, one store:
+- **Offered**: a store outside Saudi Arabia and Egypt shows "MyFatoorah isn't offered in this store's country." and nothing else.
+- **State**: On or Off, Test or Live, each with its switch and a dialog saying what happens: going Live "Real money will be
+  taken. Attempts already open finish as they started."; going Off "Individuals pay through staff until it is on again." No word
+  to type (Q15). A switch with no key for that mode stays out of reach with the reason.
+- **Keys**: two cards, **Live** and **Test**, always both. Each shows the last 6 characters, when it was set, its expiry and days
+  left, and **Refused** in red if MyFatoorah refused it. **Change Key…** opens a dialog: the key, the notice secret (both masked,
+  never shown again, Q16), and the expiry date chosen in MyFatoorah's portal. Saving tests it first and names what's missing.
+- **The notice address**: each mode's address with Copy, and "Paste this into that mode's MyFatoorah portal. Set the retries to 5,
+  180 seconds apart."
+- **Apple Pay**: whether this domain is registered, with **Register This Domain** (step 9).
+- **Timers** (Q17): the window, the wait and the hold limit, moved here from the Settings page, with one Save. A hold that isn't
+  longer than the other two is refused in its own words. The **bank account** stays on the Settings page (step 8b), since Admins
+  change it, not only Super Admins.
+- **The banners**: expiry at 30, 7 and 1 days, and a key refused, on this page and on the Super Admins' Home. **While a store is in
+  Test, a banner on every admin page** for staff who hold that store (Q18).
+
+**Payments** — `/admin/payments?store=&state=` (`payments.payment.view`):
+- **Needing attention** first, in its own block, each row saying why in words: a mismatch, paid twice, a success after release (a
+  refund due), a currency refused, no answer after 20 minutes, a paid try with no order.
+- **The rest**: when, the order's number or **No order** (a try not paid), the customer's name, the amount, method, state, and
+  a **Test** badge. Filters: store, state, mode (Q19). Newest first, Load More at 50, one card per row on a phone.
+- **A method** comes from MyFatoorah's answer, never guessed from the card's brand (§9.8).
+
+**An attempt** — `/admin/payments/{id}`: its state and why; owner and order (a link when there is one); customer's name, email and phone
+for staff who may read them; amount, mode, times. **Transactions**: each with the gateway's ids, status, method, brand, amount,
+the reason if it failed. **Calls**: when, endpoint, status, time taken; each opens to its request and response as sent (keys,
+card details and secrets were never stored, rule 13) (Q20). **Ask the Gateway Now**, for an open or unknown attempt, says
+the answer in a sentence. A refund due says "Refund this by hand in MyFatoorah's portal, then record it on the order." No refund button (Q21).
+
+**On the order** (Sales's screen):
+- **Online Payments** block: each attempt with its state, amount and method, linking to its page, for staff with `payments.payment.view`.
+- **When the order holds less than is due**, an individual's, in a store whose gateway is on, with no request open and no payment in
+  progress: a Note, "The customer owes 45.00 SAR." with **Request Payment** and the Record Payment already on the page. Record
+  Payment is "by hand" (§1.5): nothing extra to press (Q22). The same after Set Shipping Fee, with the whole amount due.
+- **A request open**: "Requested 45.00 SAR, open until 15:20" with **Withdraw Request**.
+- **A payment in progress**: Edit Order, Record Payment and the customer's Cancel out of reach with "A payment is being confirmed."
+- **Test orders**: a **Test** badge on the list and the order; Ship out of reach with "A test order never ships." (§1.6)
+- **A transfer overdue** (§1.9): an **Overdue** badge on the list.
+
+#### What this needs from the backend
+
+Asked of the Stage 7 session when its steps merge, with no new rules: the reads for the Payments list and an attempt (step 10 or
+11), the checkout's session and try state on `CheckoutPage` (step 11), the request's page and order props (step 12), the order's
+`is_test` and overdue on the rows, a shared "this store is in Test" read for the banner, and `onSettingsPage: false` on the three timers.
+
+#### Tests
+
+Feature tests for each page and post; browser tests against MyFatoorah's test account only where a key is set, otherwise a fake form,
+at both widths; query counts pinned; the form's script loaded only on the pages that pay, so the 60 KB budget holds.
+
 ---
 
 ## 5 · Tables
@@ -1183,3 +1299,51 @@ method from the card's brand.
 13. **Not yet proven on a real server**: the notice's signature follows MyFatoorah's documentation (notes §5.4) and is
    tested against our own signing, since notices need a public address. Apple Pay's registration answer is
    documented, not observed. Both are for the staging run.
+
+### 9.12 The Payments screens' questions (2026-11-01) — **answered**
+
+The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended"). The questions are kept as they were asked. The screens are §4.2.
+
+**Checkout**
+
+- **Q1. An individual's ways to pay.** (a) Pay Online picked first, Staff Will Contact You beside it **[Recommended]**; (b) nothing
+  picked, as a company chooses today; (c) online only, with staff contact only when online is off.
+- **Q2. Where Pay goes.** (a) In the summary, where Place Order is, with the total on it **[Recommended]**; (b) in the Payment card,
+  under the form.
+- **Q3. After Pay.** (a) Address, carrier, coupon, points and way to pay locked until the try is answered **[Recommended]**; (b) left
+  usable, and changing one ends the try where it can.
+- **Q4. The time left.** (a) Always shown, mm:ss, from Pay **[Recommended]**; (b) only in the last minute.
+- **Q5. The bank's code page.** (a) A dialog over the page, the full screen on a phone; closing it asks first **[Recommended]**;
+  (b) in the Payment card, in the page.
+- **Q6. A decline's reason.** (a) In plain words for the common reasons (wrong code, not enough funds, card declined), a general
+  sentence for the rest **[Recommended]**; (b) always the general sentence.
+- **Q7. The Order Placed page after paying.** (a) Says **Paid**, and that staff will review the order **[Recommended]**; (b) as today.
+- **Q8. A live try on coming back.** (a) The same note on the cart and on checkout **[Recommended]**; (b) on checkout only.
+- **Q9. A second window.** (a) Comes back by itself when the try ends **[Recommended]**; (b) the customer reloads.
+- **Q10. The test notice.** (a) A Note on the checkout, the request page and the order **[Recommended]**; (b) also on every page of the
+  shop.
+
+**The payment request**
+
+- **Q11. How the customer finds it on the order.** (a) A Note at the top with Pay Now **[Recommended]**; (b) inside the totals.
+- **Q12. A link that has ended.** (a) "This payment link has ended." with a link to the order **[Recommended]**; (b) straight to the
+  order; (c) a 404.
+- **Q13. My orders.** (a) **Payment requested** on the row **[Recommended]**; (b) only on the order.
+
+**The panel**
+
+- **Q14. The menu.** (a) A Payments group after Shipping, with Payments and Gateway **[Recommended]**; (b) Gateway under Settings.
+- **Q15. Going Live or Off.** (a) A plain dialog saying what happens **[Recommended]**; (b) also typing the word LIVE.
+- **Q16. Pasting a key.** (a) Masked, with a show button while typing, never shown after saving **[Recommended]**; (b) masked with no
+  show button.
+- **Q17. The three timers.** (a) Moved from the Settings page to the Gateway page, as Shipping's padding and free-shipping amount
+  were **[Recommended]**; (b) left on the Settings page.
+- **Q18. The Test banner on every admin page.** It needs one small read on each page. (a) For staff who hold that store, remembered
+  for a minute **[Recommended]**; (b) for Super Admins only; (c) only on Gateway, Payments and the order.
+- **Q19. The Payments list's filters.** (a) Store, state and mode **[Recommended]**; (b) also a date range and a search by order number.
+- **Q20. The calls on an attempt.** (a) Each opens to its request and response, for anyone with `payments.payment.view` **[Recommended]**;
+  (b) Super Admins only: the rest see when, endpoint and status.
+- **Q21. A refund due.** (a) It says to refund by hand in MyFatoorah's portal and record it on the order, with no refund button
+  **[Recommended]**; (b) adds a link to the portal.
+- **Q22. "Request payment" or "handle by hand" on the order.** (a) One Note with Request Payment beside the existing Record Payment;
+  by hand needs no press **[Recommended]**; (b) two buttons, with Handle by Hand hiding the Note.
