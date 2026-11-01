@@ -7,7 +7,9 @@ namespace Modules\Ops\Presentation\Http\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Newsletter\NewsletterSignUps;
+use Modules\Ops\Domain\Exception\NewsletterUnavailable;
 use Modules\Ops\Domain\Exception\SubscribeInYourAccount;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Application\ActorContext;
@@ -57,7 +59,15 @@ final readonly class NewsletterController
         }
 
         $store = $platform->store($stores->current()) ?? abort(404);
-        $this->signUps->subscribe($store, app()->getLocale(), $email);
+
+        try {
+            $this->signUps->subscribe($store, app()->getLocale(), $email);
+        } catch (ProviderFailed $failed) {
+            // Logged for us, its own answer for the person; it names no address.
+            report($failed);
+
+            throw new NewsletterUnavailable;
+        }
 
         return new JsonResponse(['sent' => true], 202);
     }

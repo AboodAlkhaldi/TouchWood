@@ -50,11 +50,13 @@ final readonly class StaffMessagesController
     public function send(Request $request, StoreChoices $choices, SendStaffMessageHandler $send): JsonResponse
     {
         $customer = Inputs::text($request, 'customer');
-        $permission = $customer === null ? OpsPermissions::MESSAGE_SEND_MANY : OpsPermissions::MESSAGE_SEND_ONE;
+        $audience = Inputs::text($request, 'audience') ?? '';
+        $permission = $audience === 'ONE' ? OpsPermissions::MESSAGE_SEND_ONE : OpsPermissions::MESSAGE_SEND_MANY;
         $store = $choices->chosen(Inputs::text($request, 'store'), $permission) ?? throw new Unauthorized($permission);
 
         $id = $send->handle(new SendStaffMessage(
             $store->id,
+            $audience,
             $customer,
             Inputs::string($request, 'title_ar'),
             Inputs::string($request, 'title_en'),

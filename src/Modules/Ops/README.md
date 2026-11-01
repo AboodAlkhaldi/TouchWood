@@ -92,7 +92,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,
   checked again when it leaves. `AlertStaff` calls it on `GatewayKeyExpiring` and `GatewayKeyRejected`.
-- **Each email and SMS** has its `ops.sent_messages` row written QUEUED with the listener's work; the job calls
+- **Each email and SMS** has its `ops.sent_messages` row written QUEUED, and its job, with the listener's work; the job calls
   the provider outside any transaction and marks it SENT, or FAILED after the last attempt. At least once: a
   provider that took a message just before its row was marked may get it again.
 
@@ -111,8 +111,8 @@ message always sends at once and is never recalled; to one customer, in their ho
 in a bell they see. A notice or a message to many goes to every customer of the store or the members of one of its
 segments. Both send through `BroadcastSender`, one transaction per
 batch with its cursor on the row, so a batch run twice sends nothing twice; a batch that fails its last attempt
-shows `FAILED`, and retrying it from the failed jobs carries on. Each email has its `ops.sent_messages` row written
-QUEUED with its batch and calls the provider outside any transaction, as an event's does. Bell entries reach everyone in the audience;
+shows `FAILED`, and retrying it from the failed jobs carries on. Each email has its `ops.sent_messages` row and its job
+written with its batch, in one transaction, and calls the provider outside any transaction, as an event's does. Bell entries reach everyone in the audience;
 marketing email only those `MarketingReach` allows; a message to one customer is a service message. Writing,
 changing and cancelling a notice, and sending a message, are audited in the same transaction. Sent, cancelled and
 failed ones go after twelve months (`PruneWrittenMessages`, 04:40 Riyadh).
@@ -146,7 +146,7 @@ the person chose, one setting per person per store or one for all stores: a dela
 switched it on, then by itself a day at a time, so it reads only what they may see; `version` and `next_due_at`
 stop a second email from ever starting. Any time but 00:00. A job retried from the failed jobs makes that moment's
 report, once: `email_setting_id` and `email_due_at` keep one per setting and moment, with its delivery in the same
-transaction. Files and rows go after twelve months (`PruneDailyReports`, 04:50 Riyadh).
+transaction. The delivery is at least once (owner, 2026-11-01). Files and rows go after twelve months (`PruneDailyReports`, 04:50 Riyadh).
 
 ### SMS countries
 

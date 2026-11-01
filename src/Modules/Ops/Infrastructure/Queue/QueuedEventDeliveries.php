@@ -18,7 +18,10 @@ use Shared\Domain\ValueObject\StoreId;
 
 /**
  * Each email or SMS of an event's message is its own row, written QUEUED in the listener's
- * transaction, and its own job, which names the row (ops.md §5-§7).
+ * transaction, and its own job, which names the row (ops.md §5-§7). The job is written to the database
+ * queue in that same transaction (`beforeCommit`; the connection's `after_commit` would hold it until after
+ * the commit): both commit or neither, so a crash after the commit leaves no row QUEUED with no job, and a
+ * rollback sends nothing. The job reads its row again when it runs.
  */
 final readonly class QueuedEventDeliveries implements EventDeliveries
 {
@@ -29,17 +32,17 @@ final readonly class QueuedEventDeliveries implements EventDeliveries
 
     public function emailCustomer(EventMessage $message, string $customerId): void
     {
-        $this->jobs->dispatch(new SendEventEmailJob($message, strtolower($customerId), null, $this->queued($message, MessageChannel::Email, $customerId, null)));
+        $this->jobs->dispatch((new SendEventEmailJob($message, strtolower($customerId), null, $this->queued($message, MessageChannel::Email, $customerId, null)))->beforeCommit());
     }
 
     public function emailStaff(EventMessage $message, string $staffId): void
     {
-        $this->jobs->dispatch(new SendEventEmailJob($message, null, strtolower($staffId), $this->queued($message, MessageChannel::Email, null, $staffId)));
+        $this->jobs->dispatch((new SendEventEmailJob($message, null, strtolower($staffId), $this->queued($message, MessageChannel::Email, null, $staffId)))->beforeCommit());
     }
 
     public function smsStaff(EventMessage $message, string $staffId, StaffNotificationTopic $topic, string $permission): void
     {
-        $this->jobs->dispatch(new SendEventSmsJob($message, strtolower($staffId), $topic, $permission, $this->queued($message, MessageChannel::Sms, null, $staffId)));
+        $this->jobs->dispatch((new SendEventSmsJob($message, strtolower($staffId), $topic, $permission, $this->queued($message, MessageChannel::Sms, null, $staffId)))->beforeCommit());
     }
 
     /** The message's row, QUEUED; its id. */

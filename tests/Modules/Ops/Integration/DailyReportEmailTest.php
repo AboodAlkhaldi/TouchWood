@@ -297,7 +297,7 @@ it('takes the minute after midnight and the minute before, and words the refusal
         ->and(fn () => DailyReportEmail::nextAt('00:00', new DateTimeImmutable, new DateTimeZone('Asia/Riyadh')))->toThrow(DailyEmailAtMidnight::class)
         ->and(trans('ops::errors.daily_email_at_midnight.detail', [], 'en'))->toContain('00:00')
         ->and(trans('ops::errors.daily_email_at_midnight.detail', [], 'ar'))->toContain('00:00')
-        ->and(fn () => DB::table('ops.daily_report_settings')->update(['send_at' => '00:00']))->toThrow(QueryException::class);
+        ->and(fn () => DB::table('ops.daily_report_settings')->update(['send_at' => '00:00']))->toThrow(QueryException::class, 'daily_report_settings_not_midnight');
 });
 
 it('sends the all-stores email at 23:00 Riyadh, where Dubai\'s day has just started: its section zeros, the email still goes', function () {

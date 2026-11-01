@@ -82,7 +82,7 @@ return [
         ],
         'total' => 'Total',
         'transfers_waiting' => 'Transfers waiting',
-        // A past day's report: this one figure is as it stands now, not as it stood that day (owner, 2026-11-01).
+        // A report read after its day: this one figure is as it stands now, not as it stood that day (owner, 2026-11-01).
         'transfers_waiting_now' => 'Transfers waiting (as of now, not that day)',
         'transfers_waiting_line' => 'Orders: :orders, owed :amount',
         'transfers_overdue' => 'Transfers overdue',

@@ -40,8 +40,9 @@ use stdClass;
  * customer registered in the store, individuals and then companies (AccessApi::customerIdsInStore), the
  * members of its segment (PromotionsApi::segmentMembers, store-scoped; §1.7, §1.8), or the one
  * customer a message names - get their bell entry, and one queued email each that may have it;
- * the cursor and the counts move on, and the next batch is queued - the queue holds its jobs until that
- * transaction commits (`after_commit`), so a batch rolled back queues nothing. A batch that fails rolls
+ * the cursor and the counts move on, and the next batch is queued - its jobs are written to the database
+ * queue inside that transaction (`beforeCommit`), so they commit with the rows or not at all: a batch rolled
+ * back queues nothing, and a crash after the commit leaves no row QUEUED with no job. A batch that fails rolls
  * back whole and runs again from the same cursor: nobody gets a bell entry twice. Each email is its own
  * job with its own `ops.sent_messages` row, written QUEUED in the batch's transaction, and calls the
  * provider outside any transaction (as an event's email does, EventSender): a retry finds a SENT row and
@@ -100,7 +101,7 @@ final readonly class BroadcastSender
             if ($ids === [] && $type === AccountType::Individual) {
                 // Every individual reached: the companies next, from the first.
                 $this->db->update("UPDATE {$this->table($broadcast)} SET cursor_type = ?, cursor_after = NULL WHERE id = ?", [AccountType::Company->value, $row->id]);
-                $this->jobs->dispatch(new SendBroadcastBatchJob($broadcast, (string) $row->id));
+                $this->jobs->dispatch((new SendBroadcastBatchJob($broadcast, (string) $row->id))->beforeCommit());
 
                 return true;
             }
@@ -121,7 +122,7 @@ final readonly class BroadcastSender
             );
 
             if (! $done) {
-                $this->jobs->dispatch(new SendBroadcastBatchJob($broadcast, (string) $row->id));
+                $this->jobs->dispatch((new SendBroadcastBatchJob($broadcast, (string) $row->id))->beforeCommit());
             }
 
             return ! $done;
@@ -151,7 +152,7 @@ final readonly class BroadcastSender
         );
 
         if (! $done) {
-            $this->jobs->dispatch(new SendBroadcastBatchJob($broadcast, (string) $row->id));
+            $this->jobs->dispatch((new SendBroadcastBatchJob($broadcast, (string) $row->id))->beforeCommit());
         }
 
         return ! $done;
@@ -257,7 +258,7 @@ final readonly class BroadcastSender
             if ((bool) $row->by_email && ($offers ? MarketingReach::mayEmailOffers($customer) : MarketingReach::mayEmailService($customer))) {
                 $sentId = strtolower((string) Str::ulid());
                 $this->sent->record($this->sentRow($broadcast, $customer->id, $store, null, SendStatus::Queued, $sentId));
-                $this->jobs->dispatch(new SendBroadcastEmailJob($broadcast, (string) $row->id, strtolower($customer->id), $sentId));
+                $this->jobs->dispatch((new SendBroadcastEmailJob($broadcast, (string) $row->id, strtolower($customer->id), $sentId))->beforeCommit());
             }
         }
 

@@ -57,6 +57,7 @@ final readonly class SendStaffMessageHandler
      */
     public function handle(SendStaffMessage $command): string
     {
+        self::requireAudience($command);
         $store = $this->writers->store($command->storeId);
         $permission = $command->customerId === null ? OpsPermissions::MESSAGE_SEND_MANY : OpsPermissions::MESSAGE_SEND_ONE;
         $this->authorizer->authorize($permission, PermissionScope::store($store->storeId()));
@@ -67,10 +68,6 @@ final readonly class SendStaffMessageHandler
             $segmentId = $this->writers->audience($store->storeId(), $command->segmentId);
             $customerId = null;
         } else {
-            if ($command->segmentId !== null) {
-                throw new InvalidOpsInput('audience', 'one customer, or one segment');
-            }
-
             $segmentId = null;
             $customerId = strtolower(trim($command->customerId));
             $customer = Ulids::valid($customerId) ? $this->access->customer($customerId) : null;
@@ -90,5 +87,24 @@ final readonly class SendStaffMessageHandler
         });
 
         return strtolower($message->id);
+    }
+
+    /**
+     * The audience said, and what it names: a customer for `ONE`, a segment for `SEGMENT`, neither for `STORE`.
+     *
+     * @throws InvalidOpsInput
+     */
+    private static function requireAudience(SendStaffMessage $command): void
+    {
+        $matches = match ($command->audience) {
+            'ONE' => $command->customerId !== null && $command->segmentId === null,
+            'SEGMENT' => $command->customerId === null && $command->segmentId !== null,
+            'STORE' => $command->customerId === null && $command->segmentId === null,
+            default => false,
+        };
+
+        if (! $matches) {
+            throw new InvalidOpsInput('audience', 'ONE with a customer, SEGMENT with a segment, or STORE with neither');
+        }
     }
 }

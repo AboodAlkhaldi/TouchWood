@@ -59,7 +59,7 @@ final class AlertStaff implements ShouldQueue
             $event instanceof LowStockChanged => [new EventMessage(MessageKind::LowStock, $store, ['low' => count($event->becameLow), 'out' => count($event->ranOut)]), StaffNotificationTopic::LowStock, 'inventory.stock.manage'],
             $event instanceof SyncNeedsAttention => [new EventMessage(MessageKind::SyncProblems, $store, ['readId' => $event->readId]), StaffNotificationTopic::SyncProblems, 'sync.report.view'],
             $event instanceof ReturnRequested => [new EventMessage(MessageKind::ReturnRequested, $store, ['returnId' => strtolower($event->returnId)]), StaffNotificationTopic::Returns, 'sales.return.manage'],
-            $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
+            $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn, 'mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof GatewayKeyRejected => [new EventMessage(MessageKind::GatewayKeyRejected, $store, ['mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
         };
 

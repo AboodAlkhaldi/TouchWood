@@ -429,3 +429,15 @@ it('labels transfers waiting as current on a past day\'s report, in both languag
     'English' => ['en', 'Transfers waiting', 'Transfers waiting (as of now, not that day)'],
     'Arabic' => ['ar', 'تحويلات منتظرة', 'تحويلات منتظرة (حتى الآن، لا في ذلك اليوم)'],
 ]);
+
+it('labels transfers waiting as current on a today\'s report read the next day: a late worker\'s, or a retry\'s', function () {
+    $store = dailyStore('sa');
+    $due = CarbonImmutable::now()->subDay()->toDateTimeImmutable();
+    $section = app(DailyReportReader::class)->store($store, $due, null);
+    $daily = new DailyReport($due, 'Asia/Riyadh', false, [$section], []);
+    $html = view('ops::daily-report', ['report' => $daily, 'locale' => 'en', 'rtl' => false, 'f' => new ReportFormat('en'), 'logo' => public_path('icons/email-logo.png')])->render();
+
+    expect($section->pastDay)->toBeFalse()
+        ->and($section->notReadThatDay)->toBeTrue()
+        ->and($html)->toContain('Transfers waiting (as of now, not that day)');
+});

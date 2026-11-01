@@ -38,8 +38,8 @@ use Shared\Domain\ValueObject\Money;
  *
  * C1 shows the recipient and the delivery address in the email only, never the bell (owner, 2026-10-31); an
  * order with no address has no such line, never a stand-in. C4 names the carrier only when the order has one,
- * and offers Track only when it holds a tracking link. S5b says which key was refused and never that payments
- * stopped: a refused key of the mode not in use stops nothing.
+ * and offers Track only when it holds a tracking link. S5 and S5b say which key and never that payments stop:
+ * a key of the mode not in use stops nothing.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -88,8 +88,8 @@ final readonly class MessageWriter
             MessageKind::LowStock => $this->text($message->kind, $locale, [...$values, 'low' => (string) $message->int('low'), 'out' => (string) $message->int('out')], '/admin/low-stock'),
             MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync'),
             MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
-            MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => (string) $message->int('days'), 'date' => $message->string('date')], null, sms: true),
-            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => (string) $this->translator->get('ops::messages.gateway_key_rejected.modes.'.$message->string('mode'), [], $locale)], null, sms: true),
+            MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], null, sms: true),
+            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], null, sms: true),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
     }
@@ -145,7 +145,7 @@ final readonly class MessageWriter
         }
 
         if ($kind === MessageKind::OrderDelivered) {
-            $values['days'] = (string) (int) $this->platform->setting(self::RETURN_WINDOW, $to->store->storeId())->value;
+            $values['days'] = $this->days((int) $this->platform->setting(self::RETURN_WINDOW, $to->store->storeId())->value, $locale);
         }
 
         $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional, words: $words);
@@ -401,6 +401,18 @@ final readonly class MessageWriter
         $rows[] = ['label' => $word('way_to_pay'), 'value' => (string) $this->translator->get('ops::messages.summary.ways.'.$order->wayToPay, [], $locale)];
 
         return $rows;
+    }
+
+    /** A number of days as the language counts them, in Latin digits: "1 day", "7 أيام". */
+    private function days(int $days, string $locale): string
+    {
+        return $this->translator->choice('ops::messages.day_count', $days, [], $locale);
+    }
+
+    /** Which of the store's two gateway keys: the test or the live one. */
+    private function keyMode(EventMessage $message, string $locale): string
+    {
+        return (string) $this->translator->get('ops::messages.key_modes.'.$message->string('mode'), [], $locale);
     }
 
     /** The product's name in the language, the Arabic one where it has no English; null for none. */

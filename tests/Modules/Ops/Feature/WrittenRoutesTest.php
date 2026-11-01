@@ -120,11 +120,11 @@ it('finds a customer and sends them a message from the composer', function () {
     expect(array_column($found, 'id'))->toBe([$omar]);
 
     $browser->post('/admin/messages', [
-        'store' => 'sa', 'customer' => $omar, 'title_ar' => 'ع', 'title_en' => 'Hello', 'body_ar' => 'ن', 'body_en' => 'Text', 'by_bell' => '1', 'by_email' => '1',
+        'store' => 'sa', 'audience' => 'ONE', 'customer' => $omar, 'title_ar' => 'ع', 'title_en' => 'Hello', 'body_ar' => 'ن', 'body_en' => 'Text', 'by_bell' => '1', 'by_email' => '1',
     ])->assertCreated();
     // To many is send_many's.
     $browser->post('/admin/messages', [
-        'store' => 'sa', 'title_ar' => 'ع', 'title_en' => 'Hello', 'body_ar' => 'ن', 'body_en' => 'Text', 'by_bell' => '1',
+        'store' => 'sa', 'audience' => 'STORE', 'title_ar' => 'ع', 'title_en' => 'Hello', 'body_ar' => 'ن', 'body_en' => 'Text', 'by_bell' => '1',
     ])->assertForbidden();
 
     expect(CapturedEmails::installed()->to())->toBe(['omar@example.test']);

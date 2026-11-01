@@ -74,12 +74,12 @@ return [
     ],
     'order_delivered' => [
         'title' => 'Order :order delivered',
-        'line' => 'You can ask for a return within :days days.',
+        'line' => 'You can ask for a return within :days.',
         'subject' => 'Your order :order is delivered',
         'lines' => [
             'Hello :name,',
             'Your order :order has been delivered. We hope you enjoy it.',
-            'You can ask for a return within :days days of delivery.',
+            'You can ask for a return within :days of delivery.',
         ],
     ],
     'order_cancelled' => [
@@ -292,15 +292,16 @@ return [
         ],
     ],
     'gateway_key_expiring' => [
-        'title' => 'Payment key expires in :days days',
-        'line' => 'Renew the payment key of :store before :date.',
-        'subject' => 'The payment key of :store expires on :date',
+        'title' => 'The :mode payment key expires in :days',
+        'line' => 'Renew the :mode payment key of :store before :date.',
+        'subject' => 'The :mode payment key of :store expires on :date',
+        // Which key, never that payments stop: a key of the mode not in use stops nothing (2026-11-01).
         'lines' => [
             'Hello :name,',
-            'The payment gateway key of :store expires on :date, in :days days.',
-            'Renew it before then, or online payments stop.',
+            'The :mode payment gateway key of :store expires on :date, in :days.',
+            'Renew it before then.',
         ],
-        'sms' => 'TouchWood: the payment key of :store expires on :date. Renew it today.',
+        'sms' => 'TouchWood: the :mode payment key of :store expires on :date. Renew it today.',
     ],
     'gateway_key_rejected' => [
         'title' => 'Payment key refused',
@@ -312,10 +313,6 @@ return [
             'The payment gateway refused the :mode key of :store. Replace it with a new key.',
         ],
         'sms' => 'TouchWood: the payment gateway refused the :mode key of :store. Replace it now.',
-        'modes' => [
-            'TEST' => 'test',
-            'LIVE' => 'live',
-        ],
     ],
     'transfer_overdue' => [
         'title' => 'Transfer to check for order :order',
@@ -357,6 +354,12 @@ return [
     // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
     // two emails (C1, C6b).
     'open' => 'View details',
+    // Wording approved for now (owner, 2026-11-01; full review at the end).
+    'key_modes' => [
+        'TEST' => 'test',
+        'LIVE' => 'live',
+    ],
+    'day_count' => '{0} 0 days|{1} 1 day|[2,*] :count days',
     'summary' => [
         'gift' => 'Free gift',
         'subtotal' => 'Subtotal',

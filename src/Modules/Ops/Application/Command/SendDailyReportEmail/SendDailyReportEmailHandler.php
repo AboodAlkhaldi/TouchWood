@@ -34,7 +34,7 @@ use Shared\Application\Unauthorized;
  *   waits on today's failure. A job retried from the failed jobs, for a moment already passed in the same
  *   version, skips the move and makes that moment's report, as at that moment, if it is not kept yet; the
  *   report is kept once per setting and moment, with its delivery in the same transaction (DailyReportMaker),
- *   so a retry after it was made does nothing, and nothing is ever sent twice.
+ *   so a retry after it was made does nothing. Its delivery is at least once (DeliverDailyReportHandler).
  * - **Late is still that day's.** The report is made as at the moment due, and the next is the first time
  *   after both that moment and now: a worker that was down sends the missed day once, never two.
  * - A setting switched off or changed since (another version) stops here; the change queued its own.

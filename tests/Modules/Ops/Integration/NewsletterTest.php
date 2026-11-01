@@ -257,7 +257,7 @@ describe('a customer', function () {
         $kept = Ox::customerEntry($omar);
         DB::table('ops.sent_messages')->insert(['id' => strtolower((string) Str::ulid()), 'kind' => 'order_taken', 'customer_id' => $sara, 'store_id' => null, 'channel' => 'EMAIL', 'provider_id' => null, 'status' => 'SENT', 'created_at' => now()]);
         Fx::actAsStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
-        app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), $sara, 'ع', 'T', 'ن', 'B', true, false));
+        app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), 'ONE', $sara, 'ع', 'T', 'ن', 'B', true, false));
 
         $event = new CustomerAnonymized((string) Str::uuid(), $sara, CarbonImmutable::now());
         event($event);

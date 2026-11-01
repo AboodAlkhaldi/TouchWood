@@ -48,6 +48,7 @@ function staffMessagesSend(?string $customerId, string $storeCode = 'sa', bool $
 {
     return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(
         Fx::storeId($storeCode),
+        $customerId === null ? 'STORE' : 'ONE',
         $customerId,
         'بخصوص طلبك',
         'About your order',
@@ -180,9 +181,9 @@ function staffMessagesRefusedOn(Closure $send): ?string
     return null;
 }
 
-function staffMessagesSendToSegment(?string $segment, ?string $customer = null): string
+function staffMessagesSendToSegment(?string $segment, ?string $customer = null, string $audience = 'SEGMENT'): string
 {
-    return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), $customer, 'ع', 'Hello', 'ن', 'Text', true, true, $segment));
+    return app(SendStaffMessageHandler::class)->handle(new SendStaffMessage(Fx::storeId('sa'), $audience, $customer, 'ع', 'Hello', 'ن', 'Text', true, true, $segment));
 }
 
 it('writes to a segment: its members only, the bell to each, the email only to those who agreed, audited', function () {
@@ -219,12 +220,52 @@ it('refuses a segment as a notice does: another store\'s, an empty one, without 
         ->and(DB::table('ops.staff_messages')->count())->toBe(0);
 });
 
-it('keeps a segment\'s audience and cursor consistent in the database too', function () {
-    $staff = Fx::staff();
-    $row = ['id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'sender_id' => $staff, 'title_ar' => 'ع', 'title_en' => 'T', 'body_ar' => 'ن', 'body_en' => 'B', 'by_bell' => true, 'by_email' => false, 'status' => 'SENDING', 'created_at' => now()];
+it('refuses an audience that does not match what it names: an empty segment never reaches a whole store', function (string $audience, bool $customer, bool $segment) {
+    $sara = Wx::agreeing('sara@example.test');
+    $ours = staffMessagesSegment([$sara]);
+    Fx::actAsAdmin(['sa'], ['ops.message.send_one', 'ops.message.send_many', 'access.customer.view']);
 
-    expect(fn () => DB::table('ops.staff_messages')->insert([...$row, 'audience' => 'SEGMENT']))->toThrow(QueryException::class);
-    expect(fn () => DB::table('ops.staff_messages')->insert([...$row, 'audience' => 'STORE', 'segment_id' => strtolower((string) Str::ulid())]))->toThrow(QueryException::class);
+    expect(staffMessagesRefusedOn(fn () => staffMessagesSendToSegment($segment ? $ours : null, $customer ? $sara : null, $audience)))->toBe('audience')
+        ->and(DB::table('ops.staff_messages')->count())->toBe(0);
+})->with([
+    'none said' => ['', false, false],
+    'not an audience' => ['EVERYONE', false, false],
+    'small letters' => ['store', false, false],
+    'STORE with a customer' => ['STORE', true, false],
+    'STORE with a segment' => ['STORE', false, true],
+    'ONE with no customer' => ['ONE', false, false],
+    'ONE with a segment' => ['ONE', true, true],
+    'SEGMENT with no segment' => ['SEGMENT', false, false],
+    'SEGMENT with a customer' => ['SEGMENT', true, true],
+]);
+
+describe('a segment\'s audience and cursor in the database', function () {
+    /** @param  array<string, mixed>  $values */
+    function staffMessagesRow(array $values): void
+    {
+        // Its own savepoint: a CHECK refused here does not abort the test's transaction.
+        DB::transaction(static fn () => DB::table('ops.staff_messages')->insert([
+            'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'sender_id' => Fx::staff(), 'title_ar' => 'ع', 'title_en' => 'T', 'body_ar' => 'ن', 'body_en' => 'B',
+            'by_bell' => true, 'by_email' => false, 'status' => 'SENDING', 'created_at' => now(), ...$values,
+        ]));
+    }
+
+    it('refuses each by its own CHECK', function (array $values, string $check) {
+        expect(fn () => staffMessagesRow($values))->toThrow(QueryException::class, $check);
+    })->with([
+        'SEGMENT with no segment' => [['audience' => 'SEGMENT'], 'staff_messages_segment'],
+        'STORE with a segment' => [['audience' => 'STORE', 'segment_id' => '01jbxqz2y8k4n6p9r3t5v7w1xa'], 'staff_messages_segment'],
+        'a segment cursor with no segment' => [['audience' => 'STORE', 'cursor_type' => 'SEGMENT'], 'staff_messages_segment_cursor'],
+        'not an audience' => [['audience' => 'ALL'], 'staff_messages_audience'],
+        'not a cursor' => [['audience' => 'STORE', 'cursor_type' => 'OTHER'], 'staff_messages_cursor_type'],
+    ]);
+
+    it('takes a segment with its cursor, and a store with the customers\' cursors', function () {
+        staffMessagesRow(['audience' => 'SEGMENT', 'segment_id' => '01jbxqz2y8k4n6p9r3t5v7w1xa', 'cursor_type' => 'SEGMENT']);
+        staffMessagesRow(['audience' => 'STORE', 'cursor_type' => 'COMPANY']);
+
+        expect(DB::table('ops.staff_messages')->count())->toBe(2);
+    });
 });
 
 it('refuses a message to one customer when the chosen store is not their home store, where the writer holds both', function () {

@@ -6,12 +6,14 @@ use App\Http\FormErrors;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Str;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
+use Modules\Ops\Domain\Exception\NewsletterUnavailable;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -95,8 +97,8 @@ describe('the staff messages list', function () {
         $staff = Fx::staffWith(['ops.message.send_one', 'ops.message.send_many', 'access.customer.view'], ['sa'], RoleLevel::Admin);
         $browser = screensStaff($staff);
 
-        $one = $browser->post('/admin/messages', screensMessage(['customer' => $omar]))->assertCreated()->json('id');
-        $many = $browser->post('/admin/messages', screensMessage())->assertCreated()->json('id');
+        $one = $browser->post('/admin/messages', screensMessage(['audience' => 'ONE', 'customer' => $omar]))->assertCreated()->json('id');
+        $many = $browser->post('/admin/messages', screensMessage(['audience' => 'STORE']))->assertCreated()->json('id');
 
         $page = $browser->get('/admin/messages?store=sa', SCREENS_JSON)->assertOk()->json();
 
@@ -137,8 +139,8 @@ describe('the staff messages list', function () {
         $omar = Fx::customer('omar@example.test');
         $writer = Fx::staffWith(['ops.message.send_one', 'ops.message.send_many', 'access.customer.view'], ['sa'], RoleLevel::Admin);
         $browser = screensStaff($writer);
-        $browser->post('/admin/messages', screensMessage(['customer' => $omar]))->assertCreated();
-        $browser->post('/admin/messages', screensMessage())->assertCreated();
+        $browser->post('/admin/messages', screensMessage(['audience' => 'ONE', 'customer' => $omar]))->assertCreated();
+        $browser->post('/admin/messages', screensMessage(['audience' => 'STORE']))->assertCreated();
 
         $audiences = static fn (AdminBrowser $reader): array => array_column($reader->get('/admin/messages?store=sa', SCREENS_JSON)->assertOk()->json('messages'), 'audience');
 
@@ -272,7 +274,8 @@ describe('a refused value on a form', function () {
 });
 
 describe('the newsletter box when the provider fails', function () {
-    it('answers its own error, 503, in the page\'s language, and keeps the sign-up', function () {
+    it('answers its own error, 503, in the page\'s language, reports the failure, and keeps the sign-up', function () {
+        Exceptions::fake();
         app()->instance(EmailSender::class, new class implements EmailSender
         {
             public function send(OutgoingEmail $email): ?string
@@ -284,7 +287,10 @@ describe('the newsletter box when the provider fails', function () {
         $en = postJson('/sa/en/newsletter', ['email' => 'guest@example.test'])->assertStatus(503);
         $ar = postJson('/sa/ar/newsletter', ['email' => 'other@example.test'])->assertStatus(503);
 
-        expect($en->json('type'))->toBe('ops.provider_failed')
+        Exceptions::assertReported(ProviderFailed::class);
+        Exceptions::assertNotReported(NewsletterUnavailable::class);
+
+        expect($en->json('type'))->toBe('ops.newsletter_unavailable')
             ->and($en->json('title'))->toBe('Message Not Sent')
             ->and($en->json('detail'))->toBe('We couldn\'t send the message just now. Try again in a few minutes.')
             ->and($ar->json('title'))->toBe('لم تُرسل الرسالة')
@@ -327,4 +333,21 @@ it('reads each new list in the same number of queries however many rows it shows
     // Measured 2026-11-01, with the caches warm, the session and the staff member's sign-in included: the
     // staff messages list 12, the notices 11, the choices 10. Targets, not caps (owner, 2026-10-19).
     expect($few)->toBe([12, 11, 10]);
+});
+
+it('takes the audience outright on the send route: an empty segment or none said is refused, nothing sent', function () {
+    $omar = Fx::customer('omar@example.test');
+    $browser = screensStaff(Fx::staffWith(['ops.message.send_one', 'ops.message.send_many', 'access.customer.view'], ['sa'], RoleLevel::Admin));
+
+    $browser->post('/admin/messages', screensMessage())->assertUnprocessable();
+    $browser->post('/admin/messages', screensMessage(['audience' => 'SEGMENT', 'segment' => '']))->assertUnprocessable();
+    $browser->post('/admin/messages', screensMessage(['audience' => 'STORE', 'customer' => $omar]))->assertUnprocessable();
+    $browser->post('/admin/messages', screensMessage(['audience' => 'ONE']))->assertUnprocessable();
+
+    expect(DB::table('ops.staff_messages')->count())->toBe(0);
+
+    // Sending to one under send_one alone; a store under it is refused on the permission.
+    $one = screensStaff(Fx::staffWith(['ops.message.send_one', 'access.customer.view'], ['sa']));
+    $one->post('/admin/messages', screensMessage(['audience' => 'ONE', 'customer' => $omar]))->assertCreated();
+    $one->post('/admin/messages', screensMessage(['audience' => 'STORE']))->assertForbidden();
 });

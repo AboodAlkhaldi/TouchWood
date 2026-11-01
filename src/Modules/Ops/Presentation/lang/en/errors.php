@@ -29,7 +29,7 @@ return [
         'title' => 'Choose Another Time',
         'detail' => 'The daily report email can\'t go at 00:00: the day has only just started and the report would be empty. Choose 00:01 or later.',
     ],
-    'provider_failed' => [
+    'newsletter_unavailable' => [
         'title' => 'Message Not Sent',
         'detail' => 'We couldn\'t send the message just now. Try again in a few minutes.',
     ],

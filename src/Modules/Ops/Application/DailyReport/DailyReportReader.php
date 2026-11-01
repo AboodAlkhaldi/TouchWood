@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Application\DailyReport;
 
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeZone;
 use Modules\Access\Public\Contracts\AccessApi;
@@ -42,8 +43,9 @@ use Shared\Domain\ValueObject\Money;
  * refunds' VAT (`waitingRefundsVat`) comes off only in "revenue with VAT if the waiting refunds go through".
  * VAT is the goods' alone (owner: no VAT on shipping) - Sales' `vat` is taken as it is, never adjusted here.
  *
- * **Transfers waiting are as they stand now**, on a past day's report too: Sales keeps no history of them, so
- * the report labels that one figure as current (owner, 2026-11-01).
+ * **Transfers waiting are as they stand now**, on any report read after its day too - a past day's, a late
+ * worker's, a retry's: Sales keeps no history of them, so the report labels that one figure as current
+ * (owner, 2026-11-01).
  */
 final readonly class DailyReportReader
 {
@@ -134,6 +136,7 @@ final readonly class DailyReportReader
             from: $from,
             to: $to,
             pastDay: $pastDay !== null,
+            notReadThatDay: $day !== CarbonImmutable::now()->setTimezone($zone)->format('Y-m-d'),
             today: new PeriodFigures($orders, $revenue, $registered['individuals'] + $registered['companies']),
             yesterday: $this->period($store, $yesterdayFrom, $yesterdayTo),
             counts: $counts,

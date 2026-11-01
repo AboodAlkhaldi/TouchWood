@@ -55,6 +55,8 @@ use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
+use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -946,6 +948,31 @@ describe('alerts to staff (§1.4, §1.6)', function () {
     });
 });
 
+it('writes an event\'s job into the jobs table with its row: a rollback leaves neither, and a job with no row sends nothing', function () {
+    config(['queue.default' => 'database']);
+    $sara = Fx::customer('sara@example.test');
+    $super = Fx::staff(superAdmin: true);
+    $message = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
+    $deliveries = app(EventDeliveries::class);
+    DB::table('jobs')->delete();
+    $before = DB::table('ops.sent_messages')->count();
+
+    DB::beginTransaction();
+    $deliveries->emailCustomer($message, $sara);
+    $deliveries->emailStaff($message, $super);
+    $deliveries->smsStaff($message, $super, StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
+    $inside = [DB::table('jobs')->count(), DB::table('ops.sent_messages')->count() - $before];
+    DB::rollBack();
+
+    expect($inside)->toBe([3, 3])
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('ops.sent_messages')->count())->toBe($before);
+
+    config(['queue.default' => 'sync']);
+    app(EventSender::class)->emailStaff($message, $super, strtolower((string) Str::ulid()));
+    expect(CapturedEmails::installed()->sent)->toBe([]);
+});
+
 describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', function () {
     it('alerts super admins alone on GatewayKeyExpiring, once per event, and sends the SMS only at 1 day', function () {
         $super = Fx::staff(superAdmin: true);
@@ -973,6 +1000,47 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
             ->and(array_column($sms->sent, 'phone'))->toBe([(string) DB::table('access.staff_users')->where('id', $super)->value('phone')])
             ->and($sms->sent[0]['message'])->toContain('2026-11-30');
     });
+
+    it('says which key is expiring and counts the days as each language does, never that payments stop', function (string $locale, string $mode, int $days, string $key, string $count) {
+        $super = Fx::staff(superAdmin: true);
+        DB::table('access.staff_users')->where('id', $super)->update(['locale' => $locale]);
+        cache()->flush();
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), $mode, $days, '2026-11-30', CarbonImmutable::now()));
+        $email = CapturedEmails::installed()->last();
+
+        expect($email->text)->toContain($key)->toContain($count)
+            ->and($email->subject)->toContain($key)
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value($locale === 'ar' ? 'title_ar' : 'title_en'))->toContain($count)
+            ->and(str_contains($email->text, 'payments stop') || str_contains($email->text, 'يتوقف'))->toBeFalse()
+            ->and(str_contains($email->text, '1 days') || str_contains($email->text, '1 يومًا') || str_contains($email->text, '7 يومًا'))->toBeFalse()
+            // Latin digits always.
+            ->and(preg_match('/[٠-٩]/u', $email->text))->toBe(0);
+    })->with([
+        'English, 1 day, live' => ['en', 'LIVE', 1, 'live payment', 'in 1 day'],
+        'English, 7 days, test' => ['en', 'TEST', 7, 'test payment', 'in 7 days'],
+        'Arabic, 1 day, live' => ['ar', 'LIVE', 1, 'الدفع الفعلي', 'يوم واحد'],
+        'Arabic, 7 days, test' => ['ar', 'TEST', 7, 'الدفع التجريبي', '7 أيام'],
+        'Arabic, 30 days, live' => ['ar', 'LIVE', 30, 'الدفع الفعلي', '30 يومًا'],
+    ]);
+
+    it('counts a return window of any length as the language does', function (string $locale, int $window, string $count) {
+        $sara = Fx::customer('sara@example.test');
+        Wx::set($sara, ['locale' => $locale]);
+        Fx::asSystem(fn () => app(UpdateSettingHandler::class)->handle(new UpdateSetting('sales.returns.window_days', 'sa', $window)));
+        eventMessagesSales($order = eventMessagesOrder($sara));
+
+        event(new OrderDelivered(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        expect(CapturedEmails::installed()->last()->text)->toContain($count);
+    })->with([
+        'English, 1' => ['en', 1, 'within 1 day of delivery'],
+        'English, 14' => ['en', 14, 'within 14 days of delivery'],
+        'Arabic, 2' => ['ar', 2, 'خلال يومين'],
+        'Arabic, 7' => ['ar', 7, 'خلال 7 أيام'],
+        'Arabic, 14' => ['ar', 14, 'خلال 14 يومًا'],
+    ]);
 
     it('sends an alert\'s email only by the staff member\'s switch, on the Payment problems topic', function () {
         $super = Fx::staff(superAdmin: true);
@@ -1050,7 +1118,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         $alerts = app(StaffAlerts::class);
 
         foreach ([30, 7, 1] as $days) {
-            $alerts->alert(new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => $days, 'date' => '2026-11-30']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
+            $alerts->alert(new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => $days, 'date' => '2026-11-30', 'mode' => 'LIVE']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
         }
 
         $alerts->alert(new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage');
@@ -1066,7 +1134,7 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         DB::table('ops.sms_countries')->where('country_code', 'SA')->update(['provider' => 'second']);
         $phone = (string) DB::table('access.staff_users')->where('id', $super)->value('phone');
         $refused = new EventMessage(MessageKind::GatewayKeyRejected, Fx::storeId('sa'), ['mode' => 'LIVE']);
-        $sevenDays = new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30']);
+        $sevenDays = new EventMessage(MessageKind::GatewayKeyExpiring, Fx::storeId('sa'), ['days' => 7, 'date' => '2026-11-30', 'mode' => 'LIVE']);
 
         eventMessagesSms($refused, $super);
         eventMessagesSms($sevenDays, $super);

@@ -148,7 +148,7 @@ listen to `CompanyStatusChanged` for them, so nothing is sent twice.
 per `eventId` (`ops.handled_events`); it makes the bell entry in the event's store (both languages, the link
 to the customer's page in their own) and queues one email in their language; the email job writes the words
 again from the module's read when it leaves. Each email (and SMS) has its `ops.sent_messages` row written
-QUEUED with the listener's work; the job calls the provider outside any transaction, then marks the row SENT
+QUEUED, and its job written, with the listener's work, in one transaction (`beforeCommit`, 2026-11-01); the job calls the provider outside any transaction, then marks the row SENT
 (FAILED after the queue's last attempt); a retry finds a SENT row and sends nothing - **at least once**: a
 provider that took a message just before its row could be marked may get it again (review, 2026-10-31). A
 read that names another store or customer than its event sends nothing and is logged by ids only. C2 is
@@ -199,9 +199,9 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
   from `AccessApi::staffToAlert` with each one's bell and email switches; S3 alerts only when a size became low
   or ran out (a recount where sizes only came back alerts no one). **S5 and S5b are built (2026-11-01)**, on Payments'
   `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical SMS at 1 day and on every refusal (super admins with
-  `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **S5b's
-  words say which key was refused, the test or the live one (`mode`), and never that payments stopped**: a refusal on
-  the mode not in use stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
+  `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **Their
+  words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
+  stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
   `PaymentNotAccepted` (S7) are not in main. S8 waits for Content.
 
 ### 1.7 Offer notices
@@ -218,7 +218,8 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   with steps 5 and 6)**: a notice may name one of its store's segments (`segment_id`); another store's segment is
   refused as Promotions' `SegmentNotFound`, an empty one as an empty audience (§7); the batches page
   `segmentMembers` (`cursor_type` SEGMENT) under the same rules - the bell to every member, the email only to
-  those who may receive offers (§1.3). A segment deleted while its notice sends fails the batch: the notice
+  those who may receive offers (§1.3); a member whose home store is another gets their email, and the bell entry is
+  filed under the segment's store (owner, 2026-11-01, accepted). A segment deleted while its notice sends fails the batch: the notice
   shows FAILED (as any batch that fails its last attempt). Changing a waiting notice (review, 2026-10-31): no
   `segment` (or `segment_id`) keeps its audience; an empty one makes it every customer of the store; an id makes
   it that segment.
@@ -242,7 +243,9 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
 - **To every customer of a store, or a segment:** `ops.message.send_many`, **admins only** (round 1
   #18). Every customer of a store is every customer registered in it (owner, 2026-10-30). **The segment audience
   is built (owner, 2026-11-01)** as a notice's is (§1.7): one of the store's segments; another store's refused as
-  Promotions' `SegmentNotFound`, an empty one as an empty audience (§7); the batches page `segmentMembers`.
+  Promotions' `SegmentNotFound`, an empty one as an empty audience (§7); the batches page `segmentMembers`. **A member
+  whose home store is another (owner, 2026-11-01, accepted):** their email arrives, and the bell entry is filed under the
+  segment's store, the same as a notice's.
 - **Bell and email only** (round 3 #10). Free text in both languages; the customer gets their own
   language.
 - A one-customer message is a **service** message (it ignores consent); a message to many is
@@ -398,13 +401,15 @@ worker sends the missed report as at its moment, once. **A failed making waits i
 makes that moment's report, as at that moment, once** (module pass, 2026-11-01): the moment has moved on already, in
 the same version, so the retry skips the move and queues no second next day; each report is kept once per setting
 and moment (`email_setting_id`, `email_due_at`), with its delivery in the same transaction, so a retry after it was
-made does nothing and nothing is sent twice. Retrying the job of a setting switched off or changed since does nothing:
+made does nothing: one report per moment. **Its delivery is at least once (owner, 2026-11-01):** the job sends, then
+marks the report emailed, so a crash in that gap may send the email twice; it is never lost. Retrying the job of a setting switched off or changed since does nothing:
 the person asked for something else (another version). A cancelled or missing staff account switches it off; a
 disabled one is sent nothing while disabled. Its delivery is a job of its own, tried again on a provider failure.
 Its send is recorded on the report (`emailed_at`), not as a message kind.
 
-**Transfers waiting are as they stand now** on a past day's report too: Sales keeps no history of them, so the report
-labels that one figure as current, in both languages (module pass, 2026-11-01).
+**Transfers waiting are as they stand now** on any report read after its day, a past day's, a late worker's or a
+retry's: Sales keeps no history of them, so the report labels that one figure as current, in both languages (module
+pass, 2026-11-01).
 
 **Every store's report includes the switched-off stores** (owner, 2026-10-30): each marked "switched off", its
 figures in the totals per currency (`PlatformApi::allStores()`, which returns the stores on and off).
@@ -492,8 +497,6 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
   JSON document **names no field**, and its `detail` carries the field's key unworded (left so by the owner,
   2026-11-01); each section lists the keys it can name. A form that goes back through `App\Http\FormErrors` gets it
   in words: "The Arabic title isn't valid." (`ops::errors.fields`, tested in `ScreensReadsTest`).
-- **`ops.provider_failed` 503**, its own type: a provider that did not take a message where nothing is queued (§4.9,
-  and a security message's caller); "try again later" in the page's language.
 - **Moments** are texts in UTC with their offset, in one format, `YYYY-MM-DDTHH:MM:SS.mmm+00:00`
   (`format('Y-m-d\TH:i:s.vP')`). Days are `YYYY-MM-DD`, months `YYYY-MM`. The server converts nothing for a
   screen, except a notice's `sendAtLocal` (§4.4) and a report's own texts.
@@ -577,7 +580,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | Route | Method, path | Who | Answers |
 |---|---|---|---|
 | `ops.admin.messages.customers` | GET `admin/messages/customers` | `ops.message.send_one` in the store | `{customers: CustomerToMessageData[]}` |
-| `ops.admin.messages.send` | POST `admin/messages` | With `customer`: `ops.message.send_one` in the store. Without: `ops.message.send_many` there, admins only | 201 `{id: string}` |
+| `ops.admin.messages.send` | POST `admin/messages` | `audience` `ONE`: `ops.message.send_one` in the store. Otherwise: `ops.message.send_many` there, admins only | 201 `{id: string}` |
 | `ops.admin.messages` | GET `admin/messages` | `ops.message.send_one` or `ops.message.send_many` in the store | `StaffMessagesPageData` |
 
 Lookup inputs: `store` (code); `search`, 3 to 100 characters after trimming, no control characters, through
@@ -587,16 +590,18 @@ none.
 
 - Only customers a message may reach are offered: not anonymized, registered in **the `store` asked**, where the
   reader may view customers (`Writers::mayWriteToOne`, `AccessApi::customerViewStores`, `access.customer.view`), so
-  the email and phone are theirs to read. At most 20, from the first 200 Access matches in every store, so fewer than
-  20 does not mean nobody else matches.
+  the email and phone are theirs to read.
+- **A known limit:** at most 20, from the first 200 Access matches across every store, so fewer than 20 does not mean
+  nobody else matches: a common name in other stores can hide this store's customer.
 - Refused: `access.invalid_access_attribute` 422 for a `search` too short, too long or empty. A short text is
   refused, not answered with an empty list.
 
 | Send input | Rules |
 |---|---|
 | `store` | Code |
-| `customer` | The customer's id, registered in `store`; or left out or empty for a segment, or **every customer of the store** |
-| `segment` or `segment_id` | One of the store's Promotions segments, without `customer`. Left out: every customer of the store |
+| `audience` | **Required:** `ONE`, `STORE` or `SEGMENT`, in capitals. It must match what is named, so a form that lost its segment never reaches a whole store (owner's reviewer, 2026-11-01) |
+| `customer` | The customer's id, registered in `store`. With `ONE`, and only with it |
+| `segment` or `segment_id` | One of the store's Promotions segments. With `SEGMENT`, and only with it |
 | `title_ar`, `title_en` | 1 to 200 characters after trimming; one line, no control characters |
 | `body_ar`, `body_en` | 1 to 500 characters after trimming; line breaks allowed, no other control characters |
 | `by_bell`, `by_email` | A tick: `true`, `1`, `"1"`, `"true"` or `"on"`; anything else, or left out, is no. At least one |
@@ -604,8 +609,9 @@ none.
 Sent at once on the queue; nothing can be recalled. The answer carries no counts and no status: read them from the
 list. To one customer it is a service message; to the store or a segment, its email goes only to those who agreed,
 its bell to all (§1.3). 422 keys: `title_ar`, `title_en`, `body_ar`, `body_en`, `channels`, `customer` (unknown,
-anonymized, not of this store, or not one the reader may reach), `audience` (a store with no customers, a segment with
-no member, or both a customer and a segment). `promotions.segment_not_found` 404, a segment unknown or another store's;
+anonymized, not of this store, or not one the reader may reach), `audience` (not said, not one of the three, or not
+matching what is named: `STORE` with a customer, `SEGMENT` with no segment; a store with no customers, a segment with
+no member). `promotions.segment_not_found` 404, a segment unknown or another store's;
 `promotions.invalid_promotion_attribute` 422, a `segment` that is no id.
 
 The list takes `store` (code) and `after`. **Each reader sees what they may send:** messages to one under
@@ -820,7 +826,7 @@ the box never tells who subscribed, and the person is on the list only after the
 
 Refusals: `ops.subscribe_in_your_account` 409, a signed-in customer or an email that belongs to an account. 422
 key `email`. **429 `{retryAfter: int}`**, seconds, not a problem document: more than 5 sign-ups an hour for one
-email, or 20 from one address; a refused attempt counts too. `ops.provider_failed` 503 when the provider did not
+email, or 20 from one address; a refused attempt counts too. `ops.newsletter_unavailable` 503 when the provider did not
 take the confirmation email; the sign-up stays and the person may try again. The box's words are in `ops::newsletter.box`
 (`title`, `text`, `email`, `action`, `sent`; approved for now, 2026-11-01), for the page to name that file.
 
@@ -874,7 +880,7 @@ props. Every other address of that store stays a 404.
   across currencies. A past day's figures may change on the next read; a kept PDF never does (§1.10).
 - **The daily report's figures are not in the JSON.** The list gives the file's facts only; "Transfers overdue"
   inside the PDF reads "Waits for Payments (stage 7)" for now. "Transfers waiting" is as it stands now, labelled so on
-  a past day's report.
+  a report read after its day.
 - **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
@@ -946,7 +952,8 @@ created_at, with unconfirmed guests (`PruneWrittenMessages`, 04:40); a daily rep
 (`PruneDailyReports`, 04:50). A notice still waiting, and a notice or a staff message still sending, is kept.
 
 Each email of a notice or staff message has its `ops.sent_messages` row written `QUEUED` with its batch, as an event's
-does (module pass, 2026-11-01); nothing of theirs goes in `ops.handled_events` any more.
+does, the row and its job in one transaction (`beforeCommit`), so a crash after the commit leaves no row waiting with no
+job (module pass, 2026-11-01); nothing of theirs goes in `ops.handled_events` any more.
 
 ## 6 · Events
 
@@ -979,7 +986,7 @@ both languages at `ops::errors.{snake}`. `Tests` names the file in `tests/Module
 | `ops.sms_country_taken` | 409 | A country already listed | `SmsCountriesTest` |
 | `ops.calling_code_taken` | 409 | A calling code another country has | `SmsCountriesTest` |
 | `ops.calling_code_overlaps` | 409 | A calling code that starts another listed one, or starts with one (owner, 2026-10-30) | `SmsCountriesTest` |
-| `ops.provider_failed` | 503 | A provider did not take a message where nothing is queued (table below). The person reads "try again"; the exception's own message, which names Brevo's status, is never shown | `ScreensReadsTest` |
+| `ops.newsletter_unavailable` | 503 | The newsletter box: the provider did not take the confirmation email. "Try again" for the person; the provider's failure itself is reported to the logs | `ScreensReadsTest` |
 
 Other modules' errors a request here can meet: `shared.unauthorized` 403, the permission not held, including
 **making a daily report for a store the person may not view** (`DailyReportTest`, `NoticesTest`, `ReportsTest`,
@@ -989,16 +996,16 @@ Other modules' errors a request here can meet: `shared.unauthorized` 403, the pe
 controller's own (`WrittenRoutesTest`, the limit by email), and a bad unsubscribe signature is the framework's 403
 (`WrittenRoutesTest`).
 
-**A provider failure** is `ProviderFailed`, naming no address or text; it is never lost silently, and where it ends
-depends on the path:
+**A provider failure** is `ProviderFailed`, not a `DomainError`, naming no address or text; it is never lost
+silently, and where it ends depends on the path:
 
 | Path | What happens | Tests |
 |---|---|---|
 | An event's email or SMS (`SendEventEmailJob`, `SendEventSmsJob`) | Retried by the queue; the `ops.sent_messages` row stays `QUEUED`, then `FAILED` after the last attempt | `EventMessagesTest` |
 | A notice's or message's email (`SendBroadcastEmailJob`) | The provider is called outside any transaction. Retried; after the last attempt the row is `FAILED` and counted in `failed_count`, once; retried from the failed jobs and sent, no longer counted | `NoticesTest` |
 | A notice's or message's batch (`SendBroadcastBatchJob`) | After the last attempt the row shows `FAILED` and the job waits on the failed jobs screen; retrying it carries on | `NoticesTest` |
-| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again"; uncaught, it answers `ops.provider_failed` 503 | `SecurityMessagesTest` |
-| The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, answered as `ops.provider_failed` 503 (§4.9); the person may try again | `NewsletterTest`, `ScreensReadsTest` |
+| C18, security messages (`OpsSecurityMessages`) | Never queued: the row is recorded `FAILED` and the error goes to the caller, who offers "send again" | `SecurityMessagesTest` |
+| The newsletter's confirmation (`NewsletterSignUps`) | Never queued: recorded `FAILED`, the failure reported to the logs, answered as `ops.newsletter_unavailable` 503 (§4.9); the person may try again | `NewsletterTest`, `ScreensReadsTest` |
 | The provider's lists (`SyncSubscriberJob`, `RemoveNewsletterContactJob`) | Retried; after the last attempt the job waits on the failed jobs screen | `BrevoNewsletterListTest` (the adapter's refusals) |
 | The daily report's email (`DeliverDailyReportJob`) | Tried again, then left in the failed jobs; the report itself is made once | No test of the retries by name |
 | The daily report's making (`SendDailyReportEmailJob`), any failure, not only a provider's | One try, then the failed jobs; retrying makes that moment's report once (§1.11) | `DailyReportEmailTest` |
