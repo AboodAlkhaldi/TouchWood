@@ -20,7 +20,7 @@ final readonly class DatabaseOwnReads implements OwnReads
     {
         $query = $this->db->table('sales.orders AS o')->where('o.customer_id', $customerId)
             ->orderByDesc('o.placed_at')->orderByDesc('o.id')->limit($limit)
-            ->select(['o.number', 'o.store_id', 'o.placed_at', 'o.status', 'o.shipment_status', 'o.currency_code', 'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor'])
+            ->select(['o.number', 'o.store_id', 'o.placed_at', 'o.status', 'o.shipment_status', 'o.currency_code', 'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor', 'o.shipping_fee_pending'])
             ->selectRaw('(SELECT coalesce(sum(l.quantity), 0) FROM sales.order_lines l WHERE l.order_id = o.id AND NOT l.is_gift) AS pieces');
 
         if ($afterNumber !== null) {
@@ -37,7 +37,7 @@ final readonly class DatabaseOwnReads implements OwnReads
             'number' => (string) $row->number, 'storeId' => (string) $row->store_id, 'placedAt' => CarbonImmutable::parse((string) $row->placed_at),
             'status' => (string) $row->status, 'shipment' => (string) $row->shipment_status, 'currency' => (string) $row->currency_code,
             'total' => (int) $row->order_total_minor, 'due' => (int) $row->due_minor, 'paid' => (int) $row->paid_minor, 'refunded' => (int) $row->refunded_minor,
-            'pieces' => (int) $row->pieces,
+            'pieces' => (int) $row->pieces, 'shippingPending' => (bool) $row->shipping_fee_pending,
         ], $query->get()->all()));
     }
 

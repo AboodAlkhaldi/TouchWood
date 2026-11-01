@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StaffNames;
+use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Domain\Service\OrderStatuses;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -52,7 +53,7 @@ final readonly class StaffReader
             $customer, (string) $row['status'], (string) $row['shipment_status'], $payment,
             OrderStatuses::customer((string) $row['status'], (string) $row['shipment_status'], $payment),
             Money::of((int) $row['order_total_minor'], (string) $row['currency_code']), $this->exponent((string) $row['currency_code']),
-            $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'],
+            $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'], OrderShippingView::feeOpen($row),
         );
     }
 

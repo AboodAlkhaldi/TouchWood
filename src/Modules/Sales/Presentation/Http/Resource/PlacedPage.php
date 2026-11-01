@@ -19,5 +19,7 @@ final class PlacedPage extends Data
         public ?BankData $bank,
         public int $receipts,
         public bool $mayUpload,
+        /** No carrier served the place: the total is before shipping (sales.md §4.3). */
+        public bool $shippingPending = false,
     ) {}
 }

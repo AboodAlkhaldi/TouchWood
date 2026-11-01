@@ -19,6 +19,7 @@ final class EditPage extends Data
     /**
      * @param  list<EditLineData>  $lines
      * @param  list<CheckoutAddressData>  $addresses
+     * @param  list<OrderCarrierData>  $carriers  all the store's, for Keep the order's fee (gap 6.1)
      */
     public function __construct(
         public string $id,
@@ -34,5 +35,12 @@ final class EditPage extends Data
         public MoneyData $beforeShipping,
         public MoneyData $beforeVat,
         public string $storeTimezone,
+        public array $carriers = [],
+        public ?string $orderedCarrierId = null,
+        public ?string $orderedCarrier = null,
+        /** Nothing to keep: only today's fee at a new place (§9.6 #2). */
+        public bool $shippingFeePending = false,
+        /** The way to pay stays, whatever the edit does to the fee (§9.6 #11). */
+        public string $wayToPay = '',
     ) {}
 }

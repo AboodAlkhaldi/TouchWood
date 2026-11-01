@@ -98,5 +98,7 @@ final class OrderPage extends Data
         public bool $shippingFeePending = false,
         /** The box suggested, or pack by hand with why; null while the store has no boxes (gap 5.1). */
         public ?OrderBoxData $box = null,
+        /** The carrier ordered with: picked first in Ship… (sales.md §9.7 E12); none for a fee staff set. */
+        public ?string $orderedCarrierId = null,
     ) {}
 }

@@ -199,9 +199,9 @@ final readonly class OrdersController
     }
 
     /** P4 - editing the order, on its own page (R1-49). */
-    public function edit(string $order, ViewOrderHandler $view, EditPages $pages): Response
+    public function edit(string $order, ViewOrderHandler $view, EditPages $pages, ListCarriersHandler $carriers): Response
     {
-        return $this->page->render('Sales/Admin/Orders/Edit', $pages->page($order, $view)->toArray(), self::WORDS);
+        return $this->page->render('Sales/Admin/Orders/Edit', $pages->page($order, $view, $carriers)->toArray(), self::WORDS);
     }
 
     /** Add Product's search (§4.2 B7): JSON, as it is typed. */

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Minus, Plus, X } from 'lucide-react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
@@ -7,19 +7,21 @@ import { SelectField, TextField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
 import { SearchField } from '@/components/SearchField';
-import { W } from '@/components/sales/admin';
+import { carrierLabel, W } from '@/components/sales/admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { figure, toLatinDigits } from '@/lib/digits';
 import { Input } from '@/components/ui/input';
 import { useLiveRead } from '@/lib/live-read';
 import { useTranslator } from '@/lib/t';
 import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 import type { EditPage, EditPreviewData, EditSizeData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { SharedProps } from '@/types/page';
 
 /*
 | P4 - editing an order (sales.md §4.1), its own page (R1-49): the lines with their pieces and Remove; Add
@@ -39,12 +41,20 @@ export default function Edit(page: EditPage) {
     const [address, setAddress] = useState('');
     const [gift, setGift] = useState('KEEP');
     const [reason, setReason] = useState('');
-    const [preview, setPreview] = useState<{ data: EditPreviewData; signature: string } | null>(null);
+    // At an address at another place (gap 6.1): the carrier asked for (none: the server's pick, shown by the preview) and the fee.
+    const [carrier, setCarrier] = useState('');
+    const [fee, setFee] = useState<'TODAY' | 'KEEP'>('TODAY');
+    const [preview, setPreview] = useState<{ data: EditPreviewData; signature: string; address: string } | null>(null);
     const [refused, setRefused] = useState<string | null>(null);
     const [previewing, setPreviewing] = useState(false);
     const [saving, setSaving] = useState(false);
     const sent = lines.filter((line) => line.quantity > 0).map(({ variantId, mode, quantity }) => ({ variantId, mode, quantity }));
-    const signature = JSON.stringify({ sent, address, gift });
+    const signature = JSON.stringify({ sent, address, gift, carrier, fee });
+    const chooseAddress = (next: string) => {
+        setAddress(next);
+        setCarrier('');
+        setFee('TODAY');
+    };
     const current = preview !== null && preview.signature === signature;
 
     const set = (index: number, quantity: number) => setLines((now) => now.map((line, at) => (at === index ? { ...line, quantity: Math.max(0, quantity) } : line)));
@@ -63,6 +73,9 @@ export default function Edit(page: EditPage) {
             query.set(`lines[${index}][quantity]`, String(line.quantity));
         });
         if (address !== '') query.set('address', address);
+        // Never without a new place: the server refuses a choice with none (§9.6 #3).
+        if (address !== '' && carrier !== '') query.set('carrier_id', carrier);
+        if (address !== '' && fee === 'KEEP') query.set('shipping_fee', fee);
         query.set('gift', gift);
         setPreviewing(true);
         setRefused(null);
@@ -75,7 +88,7 @@ export default function Edit(page: EditPage) {
                 setPreview(null);
                 setRefused(body.refused);
             } else {
-                setPreview({ data: body, signature });
+                setPreview({ data: body, signature, address });
             }
         } catch {
             setPreview(null);
@@ -85,6 +98,10 @@ export default function Edit(page: EditPage) {
         }
     };
 
+    // The choices belong to the address previewed: another address has its own, or none at the same place (§9.6 #3).
+    const newPlace = preview?.data.placeChanged === true && preview.address === address;
+    // What was previewed is what is confirmed: the carrier shown for today's fee; kept, the one picked, none: the order's own.
+    const shippingChoice = newPlace ? { shipping_fee: fee, carrier_id: fee === 'KEEP' ? carrier : (preview.data.carrierId ?? '') } : {};
     const confirmReason = !current ? (preview === null ? t(`${W}.edit.preview_first`) : t(`${W}.edit.stale`)) : reason.trim() === '' ? t(`${W}.edit.reason_first`) : undefined;
 
     return (
@@ -146,7 +163,7 @@ export default function Edit(page: EditPage) {
                     <Card className="material-base gap-3 border-0 py-4">
                         <CardContent className="grid gap-4 px-4">
                             <div className="grid gap-1">
-                                <SelectField id="edit-address" label={t(`${W}.edit.address`)} value={address} onChange={(event) => setAddress(event.target.value)} data-test="edit-address">
+                                <SelectField id="edit-address" label={t(`${W}.edit.address`)} value={address} onChange={(event) => chooseAddress(event.target.value)} data-test="edit-address">
                                     <NativeSelectOption value="">{t(`${W}.edit.keep_address`)}</NativeSelectOption>
                                     {page.addresses
                                         .filter((each) => each.isComplete)
@@ -190,11 +207,24 @@ export default function Edit(page: EditPage) {
                             </p>
                         )}
                         {preview === null ? null : <Preview page={page} preview={preview.data} stale={!current} />}
+                        {newPlace ? (
+                            <NewPlace
+                                page={page}
+                                preview={preview.data}
+                                fee={fee}
+                                carrier={carrier}
+                                onFee={(next) => {
+                                    setFee(next);
+                                    setCarrier('');
+                                }}
+                                onCarrier={setCarrier}
+                            />
+                        ) : null}
                         <ActionButton
                             loading={saving}
                             disabledReason={confirmReason}
                             onClick={() =>
-                                router.post(`${base}/edit`, { lines: sent, address, gift, reason } as never, { onStart: () => setSaving(true), onFinish: () => setSaving(false) })
+                                router.post(`${base}/edit`, { lines: sent, address, gift, reason, ...shippingChoice } as never, { onStart: () => setSaving(true), onFinish: () => setSaving(false) })
                             }
                             data-test="confirm-edit"
                         >
@@ -217,9 +247,8 @@ function Preview({ page, preview, stale }: { page: EditPage; preview: EditPrevie
         [t(`${W}.edit.subtotal`), page.beforeSubtotal, preview.subtotal, false],
         [t(`${W}.edit.coupon`), null, preview.coupon, true],
         [t(`${W}.edit.points`), null, preview.points, true],
-        [t(`${W}.edit.shipping`), page.beforeShipping, preview.shipping, false],
-        [t(`${W}.edit.vat`), page.beforeVat, preview.vat, false],
     ];
+    const toBeSet = t(`${W}.edit.shipping_pending`);
 
     return (
         <div className={`grid gap-2 ${stale ? 'opacity-60' : ''}`} data-test="preview-result">
@@ -243,8 +272,26 @@ function Preview({ page, preview, stale }: { page: EditPage; preview: EditPrevie
                             </dd>
                         </div>
                     ))}
+                <div className="flex items-baseline justify-between gap-3" data-test="preview-shipping">
+                    <dt className="text-ink-muted">{t(`${W}.edit.shipping`)}</dt>
+                    <dd className="text-end text-ink">
+                        <span className="text-copy-13 text-ink-muted">
+                            {page.shippingFeePending ? toBeSet : <Money value={page.beforeShipping} />} →{' '}
+                        </span>
+                        {preview.shippingPending ? toBeSet : <Money value={preview.shipping} />}
+                    </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-ink-muted">{t(`${W}.edit.vat`)}</dt>
+                    <dd className="text-end text-ink">
+                        <span className="text-copy-13 text-ink-muted">
+                            <Money value={page.beforeVat} /> →{' '}
+                        </span>
+                        <Money value={preview.vat} />
+                    </dd>
+                </div>
                 <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2">
-                    <dt className="text-label-14 text-ink">{t(`${W}.edit.total`)}</dt>
+                    <dt className="text-label-14 text-ink">{preview.shippingPending ? t(`${W}.edit.total_before`) : t(`${W}.edit.total`)}</dt>
                     <dd className="text-end">
                         <s className="me-2 text-copy-13 text-ink-muted">
                             <Money value={preview.before} />
@@ -257,6 +304,71 @@ function Preview({ page, preview, stale }: { page: EditPage; preview: EditPrevie
                 {t(`${W}.edit.${preview.money}`, { amount: preview.difference.text })}
             </p>
             {stale ? <p className="text-copy-13 text-ink-muted">{t(`${W}.edit.stale`)}</p> : null}
+        </div>
+    );
+}
+
+/**
+ * An address at another place (§1.7 step 5; gap 6.1): today's fee from the carriers serving it, or the order's own with
+ * any of the store's carriers - none to keep while the fee is to be set (§9.6 #2). Changing either makes the preview stale.
+ */
+function NewPlace({ page, preview, fee, carrier, onFee, onCarrier }: { page: EditPage; preview: EditPreviewData; fee: 'TODAY' | 'KEEP'; carrier: string; onFee: (fee: 'TODAY' | 'KEEP') => void; onCarrier: (carrier: string) => void }) {
+    const t = useTranslator();
+    const { locale } = usePage<SharedProps>().props;
+    const listed = page.carriers.some((each) => each.id === page.orderedCarrierId);
+    const today = (
+        <>
+            {preview.carriers.length === 0 ? (
+                <div className="grid gap-1 text-copy-13 text-ink" data-test="no-carrier">
+                    <p>{t(`${W}.edit.no_carrier`)}</p>
+                    {page.wayToPay === 'BANK_TRANSFER' ? <p>{t(`${W}.edit.stays_transfer`)}</p> : null}
+                </div>
+            ) : (
+                <RadioGroup value={carrier || (preview.carrierId ?? '')} onValueChange={onCarrier} className="grid gap-2" aria-label={t(`${W}.edit.new_place`)}>
+                    {preview.carriers.map((each) => (
+                        <Label key={each.id} htmlFor={`carrier-${each.id}`} className="material-small flex cursor-pointer items-center gap-3 p-2 font-normal" data-test={`carrier-${each.id}`}>
+                            <RadioGroupItem id={`carrier-${each.id}`} value={each.id} />
+                            <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2 text-copy-14">
+                                <bdi className="min-w-0 break-words text-ink">{each.name}</bdi>
+                                {each.free || each.fee.minor === 0 ? <span className="shrink-0 text-ink">{t(`${W}.edit.free`)}</span> : <Money value={each.fee} className="shrink-0 text-ink" />}
+                            </span>
+                        </Label>
+                    ))}
+                </RadioGroup>
+            )}
+        </>
+    );
+
+    return (
+        <div className="grid gap-2 border-t border-line pt-3" data-test="new-place">
+            <p className="text-label-14 text-ink">{t(`${W}.edit.new_place`)}</p>
+            {page.shippingFeePending ? (
+                today
+            ) : (
+                <>
+                    <RadioGroup value={fee} onValueChange={(next) => onFee(next as 'TODAY' | 'KEEP')} className="grid gap-2" aria-label={t(`${W}.edit.fee_choice`)}>
+                        {(['TODAY', 'KEEP'] as const).map((each) => (
+                            <Label key={each} htmlFor={`fee-${each}`} className="flex cursor-pointer items-center gap-2 font-normal" data-test={`fee-${each}`}>
+                                <RadioGroupItem id={`fee-${each}`} value={each} />
+                                <span className="text-copy-14 text-ink">{each === 'TODAY' ? t(`${W}.edit.fee_today`) : t(`${W}.edit.fee_keep`)}</span>
+                            </Label>
+                        ))}
+                    </RadioGroup>
+                    {fee === 'TODAY' ? (
+                        today
+                    ) : (
+                        <SelectField id="keep-carrier" label={t(`${W}.edit.keep_carrier`)} value={carrier || (listed ? (page.orderedCarrierId ?? '') : '')} onChange={(event) => onCarrier(event.target.value)} data-test="keep-carrier">
+                            {/* None yet, or the order's carrier since deleted: nothing picked keeps what the order has. */}
+                            {listed ? null : <NativeSelectOption value="">{page.orderedCarrier ?? t(`${W}.edit.keep_later`)}</NativeSelectOption>}
+                            {page.carriers.map((each) => (
+                                <NativeSelectOption key={each.id} value={each.id}>
+                                    {carrierLabel(each, locale, t(`${W}.dialog.carrier_off`))}
+                                </NativeSelectOption>
+                            ))}
+                        </SelectField>
+                    )}
+                </>
+            )}
         </div>
     );
 }

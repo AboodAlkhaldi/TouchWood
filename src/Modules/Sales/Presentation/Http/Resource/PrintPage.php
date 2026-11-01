@@ -39,5 +39,7 @@ final class PrintPage extends Data
         public string $storeTimezone,
         /** The box suggested, or pack by hand with why; null while the store has no boxes (gap 5.1). */
         public ?OrderBoxData $box = null,
+        /** The fee is to be set: "To be set", the total before shipping (sales.md §4.3). */
+        public bool $shippingFeePending = false,
     ) {}
 }

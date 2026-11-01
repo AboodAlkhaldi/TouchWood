@@ -39,7 +39,15 @@ export default function MyOrders(page: MyOrdersPage) {
                                         <bdi dir="ltr" className="tw-figure text-label-14 text-ink">
                                             {order.number}
                                         </bdi>
-                                        <Money value={order.total} className="text-label-14 text-ink" />
+                                        <span>
+                                            <Money value={order.total} className="text-label-14 text-ink" />
+                                            {order.shippingPending ? (
+                                                <span className="text-copy-13 text-ink-muted" data-test="before-shipping">
+                                                    {' '}
+                                                    {t(`${O}.order.before_shipping`)}
+                                                </span>
+                                            ) : null}
+                                        </span>
                                     </span>
                                     <span className="flex flex-wrap items-center justify-between gap-2 text-copy-13 text-ink-muted">
                                         <span>

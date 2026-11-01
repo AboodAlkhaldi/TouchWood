@@ -23,5 +23,7 @@ final class OrderRowData extends Data
         public string $payment,
         public MoneyData $total,
         public bool $shortOfStock,
+        /** Fee to be set, its total before shipping (shipping.md §9.3 #8). */
+        public bool $shippingFeePending = false,
     ) {}
 }

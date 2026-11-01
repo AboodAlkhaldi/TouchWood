@@ -10,5 +10,7 @@ final readonly class ListCarriers
     public function __construct(
         public string $storeId,
         public ?string $countryCode = null,
+        /** Read for an edit (gap 6.1): by staff who edit, not only those who ship. */
+        public bool $forEdit = false,
     ) {}
 }

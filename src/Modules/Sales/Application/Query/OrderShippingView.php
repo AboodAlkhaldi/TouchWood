@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query;
 
+use Modules\Sales\Domain\Model\OrderState;
+
 /**
  * An order's shipping as its pages show it (sales.md §9.5 #2, #3, #11): the carrier ordered with and the
  * carrier shipped with, each in both languages as snapshotted; the tracking link stored when it shipped
@@ -29,8 +31,18 @@ final readonly class OrderShippingView
 
         return new self(
             $text('ordered_carrier_id'), $text('ordered_carrier_ar'), $text('ordered_carrier_en'),
-            $text('carrier_id'), $text('carrier_ar'), $text('carrier_en'), $text('tracking_link'), (bool) ($order['shipping_fee_pending'] ?? false),
+            $text('carrier_id'), $text('carrier_ar'), $text('carrier_en'), $text('tracking_link'), self::feeOpen($order),
         );
+    }
+
+    /**
+     * The fee still to be set, on an order that can still get one: rejected or cancelled, no shipping is coming.
+     *
+     * @param  array<string, mixed>  $order  a `sales.orders` row
+     */
+    public static function feeOpen(array $order): bool
+    {
+        return (bool) ($order['shipping_fee_pending'] ?? false) && in_array($order['status'] ?? null, [OrderState::PENDING_APPROVAL, OrderState::APPROVED], true);
     }
 
     /** The carrier the customer sees (gap 6.7): the one it shipped with, else the one ordered — in their language. */
