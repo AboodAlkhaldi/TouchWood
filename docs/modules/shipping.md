@@ -214,8 +214,11 @@ from Platform from its most specific place, never taken from the caller.
   sets `SettingDefinitionDto::$onSettingsPage` false in the same change, so neither is ever without a screen.
 - **Hand-packed sizes** are set on the Boxes page (gap 5.3): `SetSizePacking`; `ListPackingSizes` pages
   the hand-packed ones and, for the box that adds one, the store's sizes not yet hand-packed (Catalog's
-  `searchVariants`, archived sizes left out). A size is marked by hand only while it is Catalog's and not
-  archived; any may go back.
+  `searchVariants`, archived sizes left out). A size is marked by hand only while it is Catalog's, not
+  archived and **switched on in that store** (Mine, 2026-11-01: the same meaning of "the store sells it" as
+  the adding search, which finds the sizes the store has switched on; read with Catalog's `storeVariant`,
+  refused as `InvalidShippingInput` on `variant`, in the archived refusal's words); any may go back, so a
+  size archived or switched off since is never stuck.
 - **The box part is built now** and stays unused until boxes are entered (owner, 2026-10-27, §9.3 #6).
 
 ---
@@ -574,7 +577,7 @@ A `PanelDialog`, loaded when it is first opened:
 A dialog with a search box over the store's sizes not yet packed by hand and not archived (`ListPackingSizes`,
 byHand false, Catalog's size search): each result its photo, product name, the size's code and values, and a
 tick box; several may be ticked, a page of results at a time (Catalog's 50) with **Load More**; **Pack by Hand** marks the ticked
-ones (`SetSizePacking` for each). A size archived meanwhile is refused in its own words.
+ones (`SetSizePacking` for each). A size archived or switched off in the store meanwhile is refused in its own words.
 
 ##### What these screens need from the backend
 

@@ -10,6 +10,7 @@ use Modules\Shipping\Application\ShippingAudit;
 use Modules\Shipping\Domain\Exception\InvalidShippingInput;
 use Modules\Shipping\Domain\Repository\BoxRepository;
 use Shared\Application\Unauthorized;
+use Shared\Domain\ValueObject\StoreId;
 use Shared\Infrastructure\Persistence\Ulids;
 
 final readonly class SetSizePackingHandler
@@ -23,8 +24,8 @@ final readonly class SetSizePackingHandler
     ) {}
 
     /**
-     * A size is marked by hand only while it is Catalog's and not archived; any size may go back to the
-     * suggestion, so one archived since is never stuck.
+     * A size is marked by hand only while it is Catalog's, not archived and switched on in the store; any
+     * size may go back to the suggestion, so one archived or switched off since is never stuck.
      *
      * @throws InvalidShippingInput|Unauthorized
      */
@@ -42,6 +43,11 @@ final readonly class SetSizePackingHandler
 
             if ($variant === null || $variant->isArchived) {
                 throw new InvalidShippingInput('variant', 'a product size in use');
+            }
+
+            // As the page's adding search finds them: the sizes the store has switched on.
+            if (! $this->catalog->storeVariant(StoreId::fromString($store->id), $variantId)?->isActive) {
+                throw new InvalidShippingInput('variant', 'a product size this store sells');
             }
         }
 
