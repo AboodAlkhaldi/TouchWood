@@ -92,6 +92,21 @@ function boxesSize(string $code, ?int $weight, ?int $length, ?int $width, ?int $
 }
 
 /**
+ * A size also sold - or, with $active false, kept but switched off - in another store.
+ */
+function boxesSellIn(string $variant, string $store, bool $active = true): void
+{
+    $product = (string) DB::table('catalog.variants')->where('id', $variant)->value('product_id');
+    DB::table('catalog.store_products')->insert([
+        'store_id' => boxesStore($store), 'product_id' => $product, 'not_available_now' => false, 'retail_minimum' => 1, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('catalog.store_variants')->insert([
+        'store_id' => boxesStore($store), 'product_id' => $product, 'variant_id' => $variant, 'is_active' => $active, 'not_available_now' => false,
+        'sells_retail' => true, 'sells_wholesale' => false, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+}
+
+/**
  * @param  array<string, int>  $lines  variant id => quantity
  */
 function boxesSuggest(array $lines, string $store = 'sa'): ?BoxSuggestionDto
@@ -254,6 +269,36 @@ describe('sizes packed by hand (§1.7, gap 5.3)', function () {
     it('refuses a size that is not Catalog\'s', function (string $variant) {
         expect(fn () => app(SetSizePackingHandler::class)->handle(new SetSizePacking(boxesStore(), $variant, true)))->toThrow(InvalidShippingInput::class);
     })->with(['not an id' => 'nope', 'no such size' => '01jzzzzzzzzzzzzzzzzzzzzzzz']);
+
+    it('refuses a size the store does not sell - never chosen there, or switched off - and takes the one it sells', function () {
+        $chair = boxesSize('2301', 5000, 500, 500, 500);
+        $table = boxesSize('2302', 9000, 900, 600, 700);
+        $set = static fn (string $store, string $variant, bool $byHand) => app(SetSizePackingHandler::class)->handle(new SetSizePacking(boxesStore($store), $variant, $byHand));
+        boxesSellIn($table, 'eg', active: false);
+
+        // Sold in the Saudi store only: the Egypt store has never chosen the chair and has the table switched off.
+        expect(fn () => $set('eg', $chair, true))->toThrow(InvalidShippingInput::class)
+            ->and(fn () => $set('eg', $table, true))->toThrow(InvalidShippingInput::class)
+            ->and(DB::table('shipping.variant_packing')->count())->toBe(0);
+
+        $set('sa', $chair, true);
+
+        expect(DB::table('shipping.variant_packing')->where('store_id', boxesStore())->where('variant_id', $chair)->exists())->toBeTrue();
+    });
+
+    it('lets a size the store stopped selling go back to the suggestion', function () {
+        $chair = boxesSize('2303', 5000, 500, 500, 500);
+        $set = static fn (bool $byHand) => app(SetSizePackingHandler::class)->handle(new SetSizePacking(boxesStore(), $chair, $byHand));
+        $set(true);
+        DB::table('catalog.store_variants')->where('variant_id', $chair)->update(['is_active' => false]);
+
+        expect(app(ListPackingSizesHandler::class)->handle(new ListPackingSizes(boxesStore(), true))->total)->toBe(1);
+
+        $set(false);
+
+        expect(app(ListPackingSizesHandler::class)->handle(new ListPackingSizes(boxesStore(), true))->total)->toBe(0)
+            ->and(fn () => $set(true))->toThrow(InvalidShippingInput::class);
+    });
 });
 
 describe('the suggestion (§1.7, gap 5.2)', function () {
@@ -386,6 +431,7 @@ describe('the suggestion (§1.7, gap 5.2)', function () {
     it('reads only the store\'s own boxes and hand-packed sizes', function () {
         $chair = boxesSize('2101', 5000, 500, 500, 500);
         boxesCreate('Egypt box', 900, 900, 900, store: 'eg');
+        boxesSellIn($chair, 'eg');
         app(SetSizePackingHandler::class)->handle(new SetSizePacking(boxesStore('eg'), $chair, true));
 
         expect(boxesSuggest([$chair => 1]))->toBeNull()
