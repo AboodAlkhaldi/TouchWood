@@ -6,6 +6,7 @@ namespace Modules\Payments\Application\Query\ViewGateway;
 
 use Modules\Payments\Application\Gateway\GatewayAddresses;
 use Modules\Payments\Application\Gateway\GatewayChange;
+use Modules\Payments\Application\Gateway\OwnAddresses;
 use Modules\Payments\Application\PaymentsPermissions;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Repository\Gateways;
@@ -20,6 +21,7 @@ final readonly class ViewGatewayHandler
         private GatewayChange $change,
         private Gateways $gateways,
         private GatewayAddresses $addresses,
+        private OwnAddresses $own,
     ) {}
 
     /**
@@ -37,6 +39,9 @@ final readonly class ViewGatewayHandler
             $gateway?->mode->value,
             GatewayView::key($this->gateways->currentKey($store->id, PaymentMode::Test), $store->timezone),
             GatewayView::key($this->gateways->currentKey($store->id, PaymentMode::Live), $store->timezone),
+            $gateway === null ? [] : $gateway->applePayDomains,
+            $this->own->domain(),
+            ['TEST' => $this->own->noticeUrl($store->id, PaymentMode::Test), 'LIVE' => $this->own->noticeUrl($store->id, PaymentMode::Live)],
         );
     }
 }

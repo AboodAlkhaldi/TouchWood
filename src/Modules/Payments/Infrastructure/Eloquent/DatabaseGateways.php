@@ -32,7 +32,7 @@ final readonly class DatabaseGateways implements Gateways
         $row = $this->db->table('payments.gateways')->where('store_id', strtolower($storeId))->first();
 
         return $row instanceof stdClass
-            ? new Gateway((string) $row->store_id, (bool) $row->active, PaymentMode::from((string) $row->mode))
+            ? new Gateway((string) $row->store_id, (bool) $row->active, PaymentMode::from((string) $row->mode), self::domains((string) $row->apple_pay_domains))
             : null;
     }
 
@@ -55,6 +55,7 @@ final readonly class DatabaseGateways implements Gateways
         $this->db->table('payments.gateways')->where('store_id', $gateway->storeId)->update([
             'active' => $gateway->active,
             'mode' => $gateway->mode->value,
+            'apple_pay_domains' => json_encode($gateway->applePayDomains, JSON_THROW_ON_ERROR),
             'updated_at' => $now,
         ]);
     }
@@ -106,6 +107,43 @@ final readonly class DatabaseGateways implements Gateways
             ->where('current', true)
             ->where(fn ($query) => $query->whereNull('warned_days')->orWhere('warned_days', '>', $days))
             ->update(['warned_days' => $days]) === 1;
+    }
+
+    public function readKey(string $keyId): string
+    {
+        return $this->encrypter->decryptString((string) $this->db->table('payments.gateway_keys')->where('id', $keyId)->value('key_encrypted'));
+    }
+
+    public function secrets(string $storeId, PaymentMode $mode): array
+    {
+        $secrets = [];
+
+        foreach ($this->db->table('payments.gateway_keys')->where('store_id', strtolower($storeId))->where('mode', $mode->value)->orderByDesc('current')->orderByDesc('set_at')->pluck('secret_encrypted') as $secret) {
+            $secrets[] = $this->encrypter->decryptString((string) $secret);
+        }
+
+        return $secrets;
+    }
+
+    public function markRejected(string $keyId, DateTimeImmutable $now): bool
+    {
+        return $this->db->table('payments.gateway_keys')
+            ->where('id', $keyId)
+            ->where('current', true)
+            ->whereNull('rejected_at')
+            ->update(['rejected_at' => $now]) === 1;
+    }
+
+    /**
+     * @return list<array{domain: string, mode: string}>
+     */
+    private static function domains(string $json): array
+    {
+        /** @var list<array{domain: string, mode: string}> $domains */
+        $domains = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
+
+        // jsonb keeps its own order of keys: written back as the model compares them.
+        return array_map(static fn (array $entry): array => ['domain' => $entry['domain'], 'mode' => $entry['mode']], $domains);
     }
 
     private static function key(stdClass $row): GatewayKey

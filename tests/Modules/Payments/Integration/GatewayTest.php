@@ -105,6 +105,21 @@ final readonly class StaleKeys implements Gateways
         return $this->keys;
     }
 
+    public function readKey(string $keyId): string
+    {
+        return $this->inner->readKey($keyId);
+    }
+
+    public function secrets(string $storeId, PaymentMode $mode): array
+    {
+        return $this->inner->secrets($storeId, $mode);
+    }
+
+    public function markRejected(string $keyId, DateTimeImmutable $now): bool
+    {
+        return $this->inner->markRejected($keyId, $now);
+    }
+
     public function markWarned(string $keyId, int $days): bool
     {
         return $this->inner->markWarned($keyId, $days);
