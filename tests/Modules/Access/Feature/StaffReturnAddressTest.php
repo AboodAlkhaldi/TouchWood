@@ -39,33 +39,33 @@ beforeEach(function () {
     RecordingSecurityMessages::install();
 });
 
-const RETURN_PAGE = '/admin/staff?search=sara&unknown=kept';
+const STAFF_RETURN_PAGE = '/admin/staff?search=sara&unknown=kept';
 
-/** A staff member who may open RETURN_PAGE. */
-function returnStaff(bool $superAdmin = false): string
+/** A staff member who may open STAFF_RETURN_PAGE. */
+function staffReturnPerson(bool $superAdmin = false): string
 {
     return $superAdmin ? Fx::staff(superAdmin: true) : Fx::staffWith([AccessPermissions::STAFF_VIEW], ['sa'], RoleLevel::Admin);
 }
 
 /** @return TestResponse<Response> */
-function returnPassword(AdminBrowser $browser, string $staffId): TestResponse
+function staffReturnPassword(AdminBrowser $browser, string $staffId): TestResponse
 {
     return $browser->post('/admin/sign-in', ['email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'), 'password' => Fx::STAFF_PASSWORD]);
 }
 
 /** The browser, signed out, opening the page: to the sign-in. */
-function returnVisit(AdminBrowser $browser, string $address = RETURN_PAGE): void
+function staffReturnVisit(AdminBrowser $browser, string $address = STAFF_RETURN_PAGE): void
 {
     $browser->get($address)->assertRedirect('/admin/sign-in');
 }
 
-function returnCode(): string
+function staffReturnCode(): string
 {
     return RecordingSecurityMessages::installed()->lastCode();
 }
 
 /** Arriving at the panel's home goes on to the page, once: the next visit to home stays there. */
-function returnArrives(AdminBrowser $browser, string $address = RETURN_PAGE): void
+function staffReturnArrives(AdminBrowser $browser, string $address = STAFF_RETURN_PAGE): void
 {
     $browser->get('/admin')->assertRedirect($address);
     $browser->get($address)->assertOk();
@@ -75,102 +75,102 @@ function returnArrives(AdminBrowser $browser, string $address = RETURN_PAGE): vo
 describe('every way through signing in', function () {
     it('survives the password and the SMS code, with the query string', function () {
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, returnStaff())->assertRedirect('/admin/sign-in/code');
+        staffReturnPassword($browser, staffReturnPerson())->assertRedirect('/admin/sign-in/code');
         $browser->get('/admin/sign-in/code')->assertOk();
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives a wrong password and a wrong code on the way', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
         $browser->post('/admin/sign-in', ['email' => (string) DB::table('access.staff_users')->where('id', $staffId)->value('email'), 'password' => 'not the password'])->assertRedirect();
-        returnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
         $browser->post('/admin/sign-in/code', ['code' => '000000'])->assertRedirect();
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives the app\'s code', function () {
         App::methods(sms: false, authenticator: true);
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $secret = App::giveApp($staffId)['secret'];
         cache()->flush();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
         $browser->post('/admin/sign-in/app', ['code' => App::code($secret)])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives a recovery code in place of the app\'s', function () {
         App::methods(sms: false, authenticator: true);
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $codes = App::giveApp($staffId)['codes'];
         cache()->flush();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/app');
         $browser->post('/admin/sign-in/app', ['code' => $codes[0], 'recovery' => true])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives either method when both boxes are ticked: the one the person chose', function (bool $inUse, string $step) {
         App::methods(sms: true, authenticator: true);
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $secret = App::giveApp($staffId, $inUse)['secret'];
         cache()->flush();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, $staffId)->assertRedirect("/admin/sign-in/{$step}");
-        $browser->post("/admin/sign-in/{$step}", ['code' => $step === 'app' ? App::code($secret) : returnCode()])->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId)->assertRedirect("/admin/sign-in/{$step}");
+        $browser->post("/admin/sign-in/{$step}", ['code' => $step === 'app' ? App::code($secret) : staffReturnCode()])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     })->with([
         'chose the app' => [true, 'app'],
         'chose SMS' => [false, 'code'],
     ]);
 
     it('survives a forced new phone: a Super Admin whose phone was reset', function () {
-        $superAdmin = returnStaff(superAdmin: true);
+        $superAdmin = staffReturnPerson(superAdmin: true);
         app(ResetSuperAdminPhoneHandler::class)->handle(new ResetSuperAdminPhone((string) DB::table('access.staff_users')->where('id', $superAdmin)->value('email')));
         cache()->flush();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
+        staffReturnPassword($browser, $superAdmin)->assertRedirect('/admin/sign-in/phone');
         $browser->post('/admin/sign-in/phone', ['phone' => '+966507777777'])->assertRedirect('/admin/sign-in/code');
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives a forced authenticator setup and its recovery codes', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         App::methods(sms: true, authenticator: false);
         $browser = new AdminBrowser;
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode(), 'trust_browser' => true])->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode(), 'trust_browser' => true])->assertRedirect('/admin');
         $browser->post('/admin/sign-out');
 
         App::methods(sms: false, authenticator: true);
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
         // The trusted browser skips the code, and the app is required with none set up.
-        returnPassword($browser, $staffId)->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin');
         $browser->get('/admin')->assertRedirect('/admin/authenticator/setup');
-        $browser->get(RETURN_PAGE)->assertRedirect('/admin/authenticator/setup');
+        $browser->get(STAFF_RETURN_PAGE)->assertRedirect('/admin/authenticator/setup');
         $browser->post('/admin/authenticator/setup', ['current_password' => Fx::STAFF_PASSWORD])->assertRedirect('/admin/authenticator/setup');
         $key = '';
         $browser->get('/admin/authenticator/setup')->assertOk()->assertInertia(function (AssertableInertia $page) use (&$key): void {
@@ -179,94 +179,94 @@ describe('every way through signing in', function () {
         $browser->post('/admin/authenticator/setup/code', ['code' => App::code(str_replace(' ', '', (string) $key))])->assertRedirect('/admin/authenticator/recovery-codes');
         $browser->get('/admin/authenticator/recovery-codes')->assertOk();
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('survives a trusted browser, which skips the code', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $browser = new AdminBrowser;
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode(), 'trust_browser' => true])->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode(), 'trust_browser' => true])->assertRedirect('/admin');
         $browser->post('/admin/sign-out');
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
-        returnPassword($browser, $staffId)->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin');
 
-        returnArrives($browser);
+        staffReturnArrives($browser);
     });
 
     it('sends an Inertia visit on by a full page load, so a page or a file both arrive', function () {
         $browser = new AdminBrowser;
-        returnVisit($browser);
-        returnPassword($browser, returnStaff())->assertRedirect('/admin/sign-in/code');
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnVisit($browser);
+        staffReturnPassword($browser, staffReturnPerson())->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
         $response = $browser->get('/admin', ['HTTP_X_INERTIA' => 'true', 'HTTP_X_INERTIA_VERSION' => (string) app(HandleInertiaRequests::class)->version(request())]);
 
         expect($response->getStatusCode())->toBe(409)
-            ->and($response->headers->get('X-Inertia-Location'))->toBe(RETURN_PAGE);
+            ->and($response->headers->get('X-Inertia-Location'))->toBe(STAFF_RETURN_PAGE);
         $browser->get('/admin')->assertOk();
     });
 });
 
 describe('what it remembers', function () {
     it('never remembers a request that is not a GET, or one asking for JSON', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $browser = new AdminBrowser;
 
         $browser->post('/admin/account/sign-in-method', ['method' => 'SMS'])->assertRedirect('/admin/sign-in');
         $browser->get('/admin/staff', ['HTTP_ACCEPT' => 'application/json'])->assertUnauthorized();
 
-        returnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
         $browser->get('/admin')->assertOk();
     });
 
     it('keeps the latest page, and forgets it when home itself is asked for', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $browser = new AdminBrowser;
-        returnVisit($browser, '/admin/account');
-        returnVisit($browser);
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
-        returnArrives($browser);
+        staffReturnVisit($browser, '/admin/account');
+        staffReturnVisit($browser);
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
+        staffReturnArrives($browser);
 
         $browser->post('/admin/sign-out');
-        returnVisit($browser);
-        returnVisit($browser, '/admin');
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnVisit($browser);
+        staffReturnVisit($browser, '/admin');
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
         $browser->get('/admin')->assertOk();
     });
 
     it('forgets it on signing out: it belongs to the one session', function () {
-        $staffId = returnStaff();
+        $staffId = staffReturnPerson();
         $browser = new AdminBrowser;
-        returnVisit($browser);
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnVisit($browser);
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
         $browser->post('/admin/sign-out');
 
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
         $browser->get('/admin')->assertOk();
 
         // Another browser never had it.
         $other = new AdminBrowser('10.9.8.77');
-        returnPassword($other, $staffId);
-        $other->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnPassword($other, $staffId);
+        $other->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
         $other->get('/admin')->assertOk();
     });
 
     it('takes them to a page they may not open, which refuses as it does today', function () {
         $staffId = Fx::staffWith(['ops.report.view'], ['sa']);
         $browser = new AdminBrowser;
-        returnVisit($browser);
-        returnPassword($browser, $staffId);
-        $browser->post('/admin/sign-in/code', ['code' => returnCode()])->assertRedirect('/admin');
+        staffReturnVisit($browser);
+        staffReturnPassword($browser, $staffId);
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
-        $browser->get('/admin')->assertRedirect(RETURN_PAGE);
-        $browser->get(RETURN_PAGE)->assertForbidden();
+        $browser->get('/admin')->assertRedirect(STAFF_RETURN_PAGE);
+        $browser->get(STAFF_RETURN_PAGE)->assertForbidden();
         $browser->get('/admin')->assertOk();
     });
 
@@ -311,21 +311,21 @@ describe('what it remembers', function () {
     it('never writes the customer side\'s own return, nor reads it', function () {
         $session = app('session.store');
         $session->put('url.intended', '/admin/staff');
-        $request = Request::create(RETURN_PAGE);
+        $request = Request::create(STAFF_RETURN_PAGE);
         $request->setLaravelSession($session);
 
         expect(StaffReturnAddress::take($request))->toBeNull();
         StaffReturnAddress::remember($request);
 
         expect($session->get('url.intended'))->toBe('/admin/staff')
-            ->and($session->get('access.staff_return'))->toBe(RETURN_PAGE);
+            ->and($session->get('access.staff_return'))->toBe(STAFF_RETURN_PAGE);
     });
 
     it('leaves a customer signing in on the same browser where they were going', function () {
         $customer = Fx::customer('shopper@example.test');
         cache()->flush();
         $browser = new AdminBrowser;
-        returnVisit($browser);
+        staffReturnVisit($browser);
 
         $browser->post('/sa/en/account/sign-in', ['email' => 'shopper@example.test', 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect(route('storefront.home', ['store' => 'sa', 'locale' => 'en']));
 
