@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -70,6 +71,18 @@ function staffReturnArrives(AdminBrowser $browser, string $address = STAFF_RETUR
     $browser->get('/admin')->assertRedirect($address);
     $browser->get($address)->assertOk();
     $browser->get('/admin')->assertOk();
+}
+
+/** Someone opens the page signed out and walks away; `$minutes` later a second person signs in on that browser. */
+function staffReturnSecondPerson(string $staffId, int $minutes): AdminBrowser
+{
+    $browser = new AdminBrowser;
+    staffReturnVisit($browser);
+    test()->travel($minutes)->minutes();
+    staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+    $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
+
+    return $browser;
 }
 
 describe('every way through signing in', function () {
@@ -278,6 +291,10 @@ describe('what it remembers', function () {
         'a query that holds an address' => ['/admin/staff?next=https://example.test/', true],
         'home' => ['/admin', false],
         'home with a query' => ['/admin?x=1', false],
+        'home with its slash' => ['/admin/', false],
+        'home with its slash and a query' => ['/admin/?x=1', false],
+        'a query with no path' => ['?/admin/staff', false],
+        'no leading slash' => ['admin/staff', false],
         'a full address' => ['https://example.test/admin/staff', false],
         'another host' => ['//example.test/admin/staff', false],
         'another host, inside' => ['/admin//example.test', false],
@@ -300,7 +317,7 @@ describe('what it remembers', function () {
 
     it('reads back through the same check: an unsafe address in the session is dropped', function () {
         $session = app('session.store');
-        $session->put('access.staff_return', '//example.test/admin');
+        $session->put('access.staff_return', ['address' => '//example.test/admin', 'at' => CarbonImmutable::now()->getTimestamp()]);
         $request = Request::create('/admin');
         $request->setLaravelSession($session);
 
@@ -308,27 +325,107 @@ describe('what it remembers', function () {
             ->and($session->has('access.staff_return'))->toBeFalse();
     });
 
-    it('never writes the customer side\'s own return, nor reads it', function () {
+    it('takes only its own key, leaving a customer\'s url.intended where it is', function () {
         $session = app('session.store');
         $session->put('url.intended', '/admin/staff');
-        $request = Request::create(STAFF_RETURN_PAGE);
+        $request = Request::create('/admin');
         $request->setLaravelSession($session);
 
-        expect(StaffReturnAddress::take($request))->toBeNull();
-        StaffReturnAddress::remember($request);
-
-        expect($session->get('url.intended'))->toBe('/admin/staff')
-            ->and($session->get('access.staff_return'))->toBe(STAFF_RETURN_PAGE);
+        expect(StaffReturnAddress::take($request))->toBeNull()
+            ->and($session->get('url.intended'))->toBe('/admin/staff');
     });
 
-    it('leaves a customer signing in on the same browser where they were going', function () {
-        $customer = Fx::customer('shopper@example.test');
+    it('never meets a customer\'s own return on the same browser: each signs in to where they were going', function () {
+        Fx::customer('shopper@example.test');
+        $staffId = staffReturnPerson();
         cache()->flush();
         $browser = new AdminBrowser;
         staffReturnVisit($browser);
 
-        $browser->post('/sa/en/account/sign-in', ['email' => 'shopper@example.test', 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect(route('storefront.home', ['store' => 'sa', 'locale' => 'en']));
+        // A guest's Checkout: to sign in, then back to the cart.
+        $browser->get('/sa/en/cart/sign-in')->assertRedirect(route('storefront.sign-in', ['store' => 'sa', 'locale' => 'en']));
+        $browser->post('/sa/en/account/sign-in', ['email' => 'shopper@example.test', 'password' => Fx::CUSTOMER_PASSWORD])->assertRedirect(route('storefront.sales.cart', ['store' => 'sa', 'locale' => 'en']));
 
-        expect($customer)->not->toBe('');
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
+        staffReturnArrives($browser);
     });
+
+    it('answers only for the routes that answer a page, by what their actions declare', function () {
+        $pages = $others = [];
+        foreach (app('router')->getRoutes() as $route) {
+            if (in_array('GET', $route->methods(), true) && str_starts_with($route->uri(), 'admin')) {
+                if (StaffReturnAddress::answersPage($route)) {
+                    $pages[] = $route->getName();
+                } else {
+                    $others[] = $route->getName();
+                }
+            }
+        }
+
+        expect($others)->toContain('ops.admin.reports.download', 'ops.admin.daily-reports.pdf', 'b2b.admin.companies.file', 'sales.admin.orders.file', 'catalog.admin.import-guide.example', 'ops.admin.choices')
+            ->and($pages)->toContain('access.staff.list', 'access.staff.home', 'payments.admin.gateway', 'ops.admin.sms-countries');
+    });
+
+    it('does not remember a file, or JSON, so the sign-in lands on home', function (string $address) {
+        $staffId = staffReturnPerson();
+        $browser = new AdminBrowser;
+        $browser->get($address)->assertRedirect('/admin/sign-in');
+
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
+        $browser->get('/admin')->assertOk();
+    })->with([
+        'a report' => ['/admin/reports/revenue/download?store=all&from=2026-01-01&to=2026-01-02'],
+        'a daily report' => ['/admin/daily-reports/01jbxqz2y8k4n6p9r3t5v7w1xa/pdf'],
+        'a company\'s file' => ['/admin/companies/01jbxqz2y8k4n6p9r3t5v7w1xa/files/01jbxqz2y8k4n6p9r3t5v7w1xb'],
+        'an order\'s file' => ['/admin/orders/files/01jbxqz2y8k4n6p9r3t5v7w1xa'],
+        'the import guide\'s example' => ['/admin/import-guide/products'],
+        'a form\'s choices, JSON to a plain visit' => ['/admin/ops/choices'],
+    ]);
+
+    it('treats home with its slash as home: it forgets', function () {
+        $staffId = staffReturnPerson();
+        $browser = new AdminBrowser;
+        staffReturnVisit($browser);
+        staffReturnVisit($browser, '/admin/');
+
+        staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
+        $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
+        $browser->get('/admin')->assertOk();
+    });
+});
+
+describe('how long it lasts', function () {
+    it('is not used past 30 minutes', function () {
+        $browser = staffReturnSecondPerson(staffReturnPerson(), 31);
+
+        $browser->get('/admin')->assertOk();
+    });
+
+    it('is used within them, as it cannot tell one person from another', function () {
+        $browser = staffReturnSecondPerson(staffReturnPerson(), 29);
+
+        staffReturnArrives($browser);
+    });
+
+    it('still asks the second person\'s own permission within them', function () {
+        $browser = staffReturnSecondPerson(Fx::staffWith(['ops.report.view'], ['sa']), 29);
+
+        $browser->get('/admin')->assertRedirect(STAFF_RETURN_PAGE);
+        $browser->get(STAFF_RETURN_PAGE)->assertForbidden();
+    });
+
+    it('drops what is kept with no time, or as a bare address', function (mixed $kept) {
+        $session = app('session.store');
+        $session->put('access.staff_return', $kept);
+        $request = Request::create('/admin');
+        $request->setLaravelSession($session);
+
+        expect(StaffReturnAddress::take($request))->toBeNull()
+            ->and($session->has('access.staff_return'))->toBeFalse();
+    })->with([
+        'a bare address' => ['/admin/staff'],
+        'no time' => [['address' => '/admin/staff']],
+    ]);
 });
