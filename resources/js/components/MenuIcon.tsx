@@ -23,6 +23,7 @@ import {
     ShoppingCart,
     SlidersHorizontal,
     Star,
+    Smartphone,
     Store,
     Tags,
     TicketPercent,
@@ -95,6 +96,8 @@ const ICONS = {
     // Payments' Gateway (payments.md §4.2).
     gateway: CreditCard,
     payments: CreditCard,
+    // Ops' SMS Countries (ops.md §4.15 O10).
+    sms: Smartphone,
 } as const;
 
 type Props = {

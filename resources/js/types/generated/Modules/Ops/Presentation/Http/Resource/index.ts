@@ -131,11 +131,20 @@ export type SmsCountriesData = {
 countries: SmsCountryData[],
 providers: string[],
 };
+export type SmsCountriesPageData = {
+countries: SmsCountryData[],
+providers: string[],
+options: SmsCountryOptionData[],
+};
 export type SmsCountryData = {
 countryCode: string,
 name: string,
 callingCode: string,
 provider: string,
+};
+export type SmsCountryOptionData = {
+code: string,
+name: string,
 };
 export type StaffMessageData = {
 id: string,
