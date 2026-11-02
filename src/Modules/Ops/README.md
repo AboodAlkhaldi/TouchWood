@@ -171,7 +171,7 @@ Each checked against the code on 2026-11-01.
 | C1's "paid" line | The words exist (`ops::messages.order_taken.optional.paid`); nothing fills them | Online checkout: Stage 7 |
 | C10 and a checkout's one email | Ops has no check of its own (§1.5): `PaymentRecorded` must not be fired for the payment a checkout's order is created with | Stage 7, where it fires the event |
 | S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
-| S7 Payments to check: a payment not accepted | The kind and its words exist; no writer's branch, no listener | No `PaymentNotAccepted` event exists: Stage 7 |
+| S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link | Payments' staff list of attempts: Stage 7 |
 | "Transfers overdue" in the daily report | The cell prints "Waits for Payments (stage 7)" (`views/daily-report.blade.php`); `SalesReports::transfersWaiting` gives orders and owed only | Stage 7 |
 | S8 Campaign expiry | The kind and its words exist; no writer's branch, no listener | Content: `src/Modules/Content` holds only empty folders |
 | A notice sent when a campaign goes live (§1.7) | Not built | Content |

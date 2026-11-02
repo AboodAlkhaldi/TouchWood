@@ -203,8 +203,9 @@ on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online
   `GatewayKeyExpiring` and `GatewayKeyRejected`, with the critical SMS at 1 day and on every refusal (super admins with
   `critical_sms` on and a phone, both checked again when the SMS leaves; the provider of the phone's country). **Their
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
-  stops nothing (2026-11-01). **Not built, waiting on another module:** `TransferOverdue` (S6) and
-  `PaymentNotAccepted` (S7) are not in main. S8 waits for Content.
+  stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
+  email carry no link until Payments' staff list of attempts exists. **Not built, waiting on another module:**
+  `TransferOverdue` (S6) is not in main. S8 waits for Content.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
   applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
   SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
@@ -1081,7 +1082,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 
 **Not tested:**
 
-- C11, S6, S7, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
+- C11, S6, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
   for the rows built.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
