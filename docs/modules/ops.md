@@ -499,7 +499,8 @@ fields in `Presentation/Http/Resource`. What a screen needs and the code does no
 ### 4.1 What holds for every route
 
 - **The answers are JSON, not pages.** Every GET of §4 answers JSON even to a plain visit, except the two
-  downloads; no route here renders a page (§4.13). `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
+  downloads; no route here renders a page (§4.13). **Changes when §4.15 is built (owner, 2026-11-02):** the same address
+  gives a page to a plain visit, and today's JSON to whoever asks for it with `Accept: application/json`. `ops.admin.choices` (§4.1 below) says what each form may offer. The consent switch (§4.8) is Access's and answers with a
   redirect. The panel's route list carries `ops.admin.*`, the shop's `storefront.*` (`config/ziggy.php`).
 - **Types.** Each `…Data` class below is `#[TypeScript]`: generated in
   `resources/js/types/generated/Modules/Ops/Presentation/Http/Resource/index.ts`, `MessageKind` in
@@ -931,10 +932,11 @@ reads the screens needed were added; what stays is what the code cannot give yet
 
 1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
    frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Not now** (owner, 2026-11-01).
+   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.**
+   The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
-   `marketing_consent`: the account's switch and the registration box have routes and no screen.
-3. **A whole store's audience size: needs Access.** No public read counts a store's customers (`customerIdsInStore` is
+   `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
+3. **A whole store's audience size: needs Access.** The owner wants it added (§9.4 Q14). No public read counts a store's customers (`customerIdsInStore` is
    paged ids; `customersRegistered` a range by type), and Ops stores none. So a notice or message to every customer gives
    what it reached so far (`bellCount`, `emailCount`, `failedCount`), never a total to compare with. A segment's is
    `segmentMemberCount`, as it stands now.
@@ -958,6 +960,238 @@ name in the page's language. Every change is audited (`ops.sms_country.*`). No s
 
 Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_country_taken` 409, `ops.calling_code_taken` 409,
 `ops.calling_code_overlaps` 409. 422 keys: `country_code`, `calling_code`, `provider`.
+
+### 4.15 The screens (built by the screens session; owner's answers 2026-11-02, §9.4)
+
+**[ACCEPTED by the owner, 2026-11-02.]** §4.1 to §4.14 say what the server gives; this section says what each page does
+with it. Every choice marked Qn or Rn is the owner's answer in §9.4.
+
+#### What holds for every page
+
+- **Design.** shadcn's code under Geist's rules, in TouchWood's tokens (frontend.md §1.11). No colour or background
+  outside the tokens: a campaign may change the shop's look later. **Neither system has a notification centre**
+  (checked 2026-11-02: shadcn's component list and Geist's), so the bell is put together from shadcn's Button, Badge, Popover,
+  Item and Scroll Area, with nothing hand-drawn.
+- **Parts already in the project, used as they are:** `AdminLayout`, `StoreFilter`, `LoadMoreButton` with `useLoadMore`,
+  `RowMenu`, `Note`, `Time`, `FormError`, `PanelDialog`, `useLeaveGuard`, `DateRangeField`, `DateTimeField`, the
+  `use-checks` field checks.
+- **Both languages, right to left in Arabic, Latin digits only** (typed digits go through `toLatinDigits`).
+- **Phones.** Every page fits 375 × 812 with no sideways page scroll. Wide tables scroll inside their own card, as every list
+  does. Every browser test checks this.
+- **Who sees what.** A menu entry, button or store is offered only to someone who may use it; every handler still checks.
+  Someone who loses a right while a page is open gets the refusal in words.
+- **Addresses (Q1).** The same address gives the page to a plain visit and today's JSON to `Accept: application/json`. A form
+  sent by the page goes back with its errors in words through `App\Http\FormErrors`; a screen's own read asking for JSON gets
+  today's answer unchanged. This changes Ops' Presentation only: controllers, routes, words, and the tests asserting JSON on a
+  plain GET. New addresses, all pages: `admin/reports`, `admin/notices/new`, `admin/notices/{notice}/edit`, `admin/messages/new`.
+- **A store's page** says the store in its address (`?store=sa`) through `StoreFilter`, drawn only with two or more stores to choose
+  from. It opens on the first store on offer that is on, as §4.1 says.
+- **Status words,** never colour alone (Geist's Badge): Scheduled (blue), Sending (amber), Sent (green), Cancelled (grey),
+  Failed (red).
+- **No timers anywhere (Q7, Q15).** Nothing on these pages reads the server by itself on a clock. One read of the bell's number
+  is 8 queries with a write (measured 2026-11-02), and any request resets the idle clock, so a timer would stop the 30-minute
+  sign-out.
+- **Words.** Written by the screens session in both languages and approved for now; the owner checks the whole site's wording
+  later.
+
+#### The menu (Q2, Q3, Q4, Q5)
+
+| Section | Entry | Address | Offered with |
+|---|---|---|---|
+| **Reports**, new, after Customers | Reports | `/admin/reports` | `ops.report.view` |
+| | Daily Reports | `/admin/daily-reports` | `ops.report.daily` |
+| **Marketing**, after Gift Levels | Offer Notices | `/admin/notices` | `ops.notice.manage` |
+| | Customer Messages | `/admin/messages` | `ops.message.send_one` or `ops.message.send_many` |
+| | Subscribers | `/admin/newsletter/subscribers` | `ops.newsletter.manage` |
+| **Store Settings**, after Places | SMS Countries | `/admin/sms-countries` | `ops.sms_countries.manage` |
+
+No Home card now (Q5): it goes with the Home dashboard job. The sections' order lives in Platform's menu list, which gains `reports`,
+named in Access's `permission_groups` words.
+
+#### O1 · The panel's bell (Q6, Q7, Q9)
+
+- **Where.** In `AdminLayout`'s top bar, before View Store: shadcn's ghost icon Button, with the unread number in a Badge, `99+` above
+  99, no Badge at 0. Its name says the count: "Notifications, 3 unread".
+- **The number comes with each page (Q7):** one query in the page's own request, carried by a new small Platform list of the panel
+  frame's parts, as `ShopFrameParts` is for the shop. A partial reload does not ask for it. Every panel page gains that one query,
+  recorded in `AdminFrameQueryBudgetTest` and the PR.
+- **Coming back to the tab (Q7, staff only).** When the tab comes back into view after at least a minute away, the bell asks for the number
+  once (`ops.admin.bell.unread`). A failed or signed-out answer changes nothing on screen.
+- **Pressing it** opens shadcn's Popover, as wide as a phone allows: "Notifications", Mark All as Read while anything is unread,
+  the newest 20 entries (one read of `ops.admin.bell`, which also corrects the number), and View All. Skeleton rows while it reads;
+  "Couldn't load your notifications." with Try Again if it fails; "No notifications yet." when empty.
+- **A row** is shadcn's Item: the title, the line cut at three lines, and the time (`Time`, relative). The store's name shows only for someone with two or more stores (Q9). An unread row has a
+  sunken background, a heavier title and "Unread" for a screen reader.
+- **Pressing a row** marks it read (the POST's answer gives the new number). With a `link` it goes there; a failed mark still goes.
+  With no link it stays, and the row opens to show its whole text.
+- **Mark All as Read** marks every entry, not only the ones shown. It asks nothing, since it loses nothing.
+- **`/admin/notifications`,** the full page behind View All: the same rows, whole text, Show More, Mark All as Read at the top. No store filter (§4.13 #4).
+  It has no menu entry. The trail is Home › Notifications.
+- **Unknown kinds** need nothing: rows draw from `title` and `line`, so new kinds (§4.12) simply appear.
+
+#### O2 · The shop's bell (Q6, Q7, Q8)
+
+- **Where.** In the shop's header, before the cart, for a signed-in customer only: no bell for a guest or a staff view.
+- **The number comes with each page (Q7),** through Ops' part of the shop's frame (`ShopFrameParts`): one query for a signed-in customer, none for a guest. No re-check on
+  coming back to the tab. Signed-in shop pages go up by one, recorded in `ShopPagesTest` and the PR (the owner's rule on query
+  targets).
+- **Pressing it** works as O1, against `storefront.ops.bell`, with no store names: a customer's bell is the store being shopped.
+- **`/{store}/{locale}/account/notifications`,** the full page in the account's frame, listed as **Notifications** in the account's menu
+  beside the other modules' pages (Q8). Same rows, Show More, Mark All as Read. Reading it marks nothing.
+
+#### O3 · Customer Messages: the list (Q13, Q15, Q16)
+
+`/admin/messages`. The title, "What staff sent to customers. A message can't be recalled.", **New Message** at the top end,
+`StoreFilter`, then the table, newest first, Show More.
+
+| Column | What |
+|---|---|
+| To | The customer's name ("Unknown customer" when empty); "Every customer"; the segment's name in the page's language, "Deleted segment" when gone |
+| Title | In the page's language |
+| By | "Bell", "Email" or both |
+| Status | The badge |
+| Reached | Bell entries, emails sent, and emails failed when above 0, each labelled |
+| Sent by | `sentBy` |
+| Sent | `Time` |
+
+- **Pressing a row (Q13)** opens a dialog, with no new read: both titles and bodies as written, the audience, the channels, the status, the counts,
+  who and when. For a segment: "It holds :count members now" and never "reached".
+- **Refresh (Q15).** While any row says Sending, a **Refresh** button shows above the table and re-reads the list. Nothing happens by itself.
+- **Failed (Q16).** The red badge, and in the dialog "Part of it didn't send; retrying it on Failed Jobs carries on", with the link only when
+  the person's menu holds Failed Jobs.
+- **Empty.** "No messages yet." with New Message when the person may write. Someone holding `send_one` without viewing customers gets an
+  empty list from the server (§4.3) and sees the same words.
+
+#### O4 · New Message (Q10, Q11, Q12, Q14)
+
+`/admin/messages/new`, its own page (Q10), reached from O3. There is no draft and nothing is kept: leaving with something typed asks first (`useLeaveGuard`).
+
+1. **Store**, shown with two or more on offer (`messagesToOne` and `messagesToMany` together). Changing it clears the customer and the segment.
+2. **Who gets it**, radios, only those allowed in that store: **One Customer** (`send_one`), **Every Customer of the Store**, **A Segment** (`send_many`). With one allowed it's written as a line, not a choice.
+   - **One Customer:** a search box (shadcn Combobox pattern; `useLiveRead`) asking from 3 characters. Each row shows the name, email and phone. Under 3 characters it asks for more; nothing found says "No customers found. Only customers of this
+     store you may view are here." Under the box always: "Not here? Type more of the name, or their email or phone." (the 200-match limit, §4.3). The chosen customer shows with Change.
+   - **A Segment:** a picker of the store's segments (`ops.admin.messages.segments`), read when opened, newest first, Show More inside. Each shows its name and member count. **A segment with 0 members is listed, disabled, "No members".**
+3. **The message (Q11):** Arabic and English side by side, stacked on a phone, in the language's own direction. Title 200 characters on one line, text 500, line breaks allowed, each with its rule under the box and checked as typed.
+4. **How it goes:** Bell and Email, both ticked, at least one. Under Email, for one customer: "It goes to their email whatever they chose about offers." For many: "Email goes only to those who agreed to offers. The bell reaches everyone."
+5. **Send Message.**
+   - To one customer it sends at once (Q12).
+   - To many it asks first (Q12): "Send to :count customers of :store?" or "Send to :segment (:count members)?", then "It can't be recalled.", Cancel and Send Message. The count is `§9.4 Q14`'s read for a whole store, taken when the dialog opens. A count of 0 says so and offers no Send.
+   - The email count is never shown: it depends on consent.
+
+After sending: back to O3 with the toast "Message on its way." Refusals land on their box in words; `audience` on Who Gets It; a segment gone (404) as the form's error, with the picker emptied.
+
+#### O5 · Offer Notices: the list (Q13, Q15, Q16)
+
+`/admin/notices`. "Offers told to a store's customers, now or at a set time.", **New Notice**, `StoreFilter`, the table, newest written first, Show More.
+
+Columns: Title · Audience ("Every customer", the segment, "Deleted segment") · By · Status · Sends (`sendAt` in the store's zone: "Sent" once sent) · Reached · Written by.
+
+- **Pressing a row** opens the same read-back dialog as O3, with the link and `sendAtLocal` and the zone.
+- **Row menu** only while `changeable`: **Edit** (O6) and **Cancel Notice…**, which asks "Cancel this notice? It won't be sent." with Keep Notice and Cancel Notice. The row stays, Cancelled.
+- **A notice that started meanwhile** answers 409: its words in a toast, and the list re-reads. A Refresh button shows while any row says Sending (Q15). Failed as O3 (Q16).
+- **Empty.** "No notices yet." with New Notice.
+
+#### O6 · New and Edit Notice (Q10, Q11, Q12, Q17)
+
+`/admin/notices/new` and `/admin/notices/{notice}/edit`. Parts 3 and 4 of O4 as they are, plus:
+
+- **Store:** chosen on New, written on Edit: a change never moves a notice.
+- **Audience:** radios, **Every Customer of the Store** or **A Segment**, picker as O4. The form always sends the audience, so nothing is left to "keeps". A notice whose segment was deleted shows "This notice's segment was deleted. Choose another." and the send waits for a choice.
+- **Link (optional, Q17):** "A page of the shop." A whole pasted shop address is cut down to the page part, and that part shows under the box. An address of another store, or another site, says so under the box. Either language's address works, because the shop redirects the other language's to the reader's (§9.4 Q17). The rules of §4.4 are checked as typed.
+- **When:** `DateTimeField` with **Now**, in the store's clock with the zone named, `send_at` sent as `YYYY-MM-DD HH:MM`. New opens on Now. Edit opens on its `sendAtLocal`. A past time is said under the box.
+- **The button:** **Send Notice** with Now, **Schedule Notice** with a time; on Edit **Save Changes** with a time, **Send Now** with Now.
+- **Now asks first (Q12):** as O4's dialog, naming the store or segment and the count. A scheduled save doesn't ask, and tells in the toast when it goes.
+- **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, and the page offers the way back to the list.
+
+#### O7 · Subscribers
+
+`/admin/newsletter/subscribers`. "Who gets the newsletter. Newsletters are written and sent in Brevo.", `StoreFilter`, the table, Show More at 50.
+
+Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waiting for Confirmation) · Joined · Confirmed.
+
+- **A customer's hidden email** (null) reads "Hidden" with a tooltip: "You may not view this store's customers."
+- **Row menu, guests only:** **Remove…**, "Remove :email from the newsletter?", Keep and Remove. A customer's row has no menu: the customer's own switch decides (§1.3).
+- **Empty.** "No subscribers yet."
+
+#### O8 · Reports (Q4, Q18, Q19, Q20, Q21)
+
+`/admin/reports` goes to the first kind the person may open; `/admin/reports/{kind}` is the page. No kind offered: 403.
+
+- **Tabs along the top:** the kinds in `ops.admin.choices`, each a link, its store list its own (Stock's may be shorter).
+- **The choices:** Store (a select, All Stores first for a Super Admin, opening on the first store that is on, off stores marked Off); Days (`DateRangeField`, except Stock and Favourites, which stand as they are now and say so); By Day or By Month (Revenue only). Days open from the 1st of this month to today in that store's time (Q19). For this page `DateRangeField` says the days are read in each store's time, not UTC.
+- **Show Report (Q18)** reads the preview and puts the choices in the address, so a reload or a shared link shows it again. **Download Excel** then appears beside it, a plain link to `downloadUrl`. Changing a choice leaves the shown report in place and marks it "Choices changed. Show Report again." and hides Download until shown again, so a file never differs from what's on screen.
+- **The report:** its title, subtitle and `notes` as a plain `Note`. Its direction and language follow the reader's account, as the server sends them; when that differs from the page's, one line says so. Sheets as tabs (Q20), in order, kept apart by order not name.
+- **The table:** `count` figures with Latin digits, `money` as it stands, right-aligned at the end with its currency in its own column, negative and non-decimal values untouched, null as "—". Nothing is added up on the screen. `phrase` shows as plain text.
+- **Totals (Q21)** always show, bold, at the foot of the sheet, from the marked rows the preview will carry (§9.4 Q21). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
+- **Before Show:** "Choose the store and the days, then Show Report." **An empty sheet:** "Nothing for these days."
+- **Refusals** (`ops.report_range_refused` and the 422 keys) show in place, with the choices kept.
+
+#### O9 · Daily Reports (Q22, Q23)
+
+`/admin/daily-reports`, three parts:
+
+- **Make a Report.** Store (select, All Stores for a Super Admin); Day: **Today So Far** or **A Past Day**, a calendar stopping at yesterday. **Make Report** shows it's working: the PDF is made during the request. Then the new row appears at the top with its Download, and the toast "Report ready." (Q22). No automatic download.
+- **Daily Email.** One row per store offered, plus All Stores for a Super Admin. Each: the name (off stores marked), a Switch that saves as it's flipped, a 24-hour time box, the zone's name, and "Next: :time" while on. A row never set shows off at **21:00** (Q23). The time saves when the box is left, with the box's own "Saved" state. Under the box its rule; 00:00 is refused as typed, in the words of `ops.daily_email_at_midnight`. A failed save puts the switch back and says why. A time that isn't complete keeps the switch from turning on.
+- **The list.** Columns: Store · Day (with "Past day") · Made by · Made · Language · Size · Emailed (`Time`, or "—") · **Download PDF**, a plain link to `downloadUrl`. Newest first, Show More. "No reports yet." A report's figures aren't on the page: they're in the file (§4.12).
+
+#### O10 · SMS Countries (Q24)
+
+`/admin/sms-countries`, Super Admins only. A plain `Note`: "Log writes codes to the server's log and sends nothing. A live system refuses it." **Add Country…** at the top end.
+
+Columns: Country · Code · Calling Code (`+966`, left to right) · Provider · row menu.
+
+- **Add Country…** a dialog: Country (`CountryCombobox`), Calling Code (digits only, `+` shown before the box), Provider (a select; one provider is chosen for you). Taken and overlapping calling codes show under their box in their own words.
+- **Change Provider…** and **Change Calling Code…:** a dialog each, one field.
+- **Remove…** asks: "Remove :country?" "Phones from this country can't get codes. Staff with one need an admin to change it. A Super Admin with one enters a new number at sign-in. Customers with one can't order until they change it." Keep and Remove.
+- **Empty.** "No countries yet. Without one, no phone number can be entered." with Add Country.
+
+#### O11 · The newsletter box (Q26)
+
+In the shop's footer, on every page under a store, for guests only: no box for a signed-in customer or a staff view. It reads nothing: its words travel in Ops' part of the frame (`ops::newsletter.box`). Content may move it later.
+
+Title, text, an email box and **Subscribe**, in a row, stacked on a phone. Sent as JSON:
+
+| Answer | What the box does |
+|---|---|
+| 202 | Replaces the form with the `sent` line. It says the same whether or not the email was on the list |
+| 409 `ops.subscribe_in_your_account` | The problem's words under the box, with a link to sign in |
+| 422 `email` | The rule under the box; also checked as typed |
+| 429 `{retryAfter}` | "Too many tries. Try again in :minutes minutes." |
+| 503 `ops.newsletter_unavailable` | The problem's words; the email stays in the box |
+
+#### O12 · The consent switch and box (Q25)
+
+- **Account, Profile tab:** a card under the details, **Offers and News**, with a Switch labelled "Send me offers and news" and "By email. Messages about your orders and account still come." It saves as flipped through `storefront.account.marketing` and keeps the "Changes saved" toast; a failure flips it back with the words. With the email not confirmed: "These can only reach you once your email is confirmed."
+- **Registration:** an unticked Checkbox with the same label, after the terms box, sending `marketing_consent`. It blocks nothing.
+
+Both are Access's page and words (§4.8).
+
+#### O13 · The confirm, leave and unsubscribe pages (Q27)
+
+`…/newsletter/confirm/{token}`, `…/newsletter/leave/{subscriber}`, `…/unsubscribe/{customer}`. All three share one small frame, a new layout from shadcn's Card and our logo: centred, no menus, no cart, no switches, the page's language and direction from the address, and kept out of search engines. It reads no store, because an off store must work (§4.11).
+
+- **The page:** the logo, `title`, `text`, the one button with `action`. Opening it changes nothing.
+- **The button** posts to the same address with the query string it was opened with (§4.11), then the button gives way to the `done` line.
+- **Confirm's refusal** (`ops.confirmation_link_invalid`, 404, on the button) shows its words in place of the button. Confirm alone adds **Go to the Shop** after `done`, its store being on; the other two offer no way on, because the store may be off.
+- **A bad signature** stays the 403 page of §4.11 and says nothing about the store.
+- **No JavaScript** isn't provided for: a mail client's one-click POST goes to the address directly and needs no page.
+
+#### Shared files this touches
+
+**Two additions to Platform, which every module's menu and panel page go through; accepting this spec accepts them:**
+
+1. `InMemoryAdminMenu` gains a `reports` section, after `customers`, named in Access's `permission_groups` words. Nothing else moves. It only shows to someone holding a report permission. `AdminMenuTest`, which lists every entry a Super Admin is offered, changes with it.
+2. A new small Platform list of the panel frame's parts, the panel's twin of `ShopFrameParts`, read in Access's `ShareAdminPage`. Ops' part is the bell's number, and Platform and Access never name Ops. Nothing else registers in it today. It adds one query to every panel page.
+
+Also touched: `AdminLayout` (the bell), `StorefrontLayout` (the bell, the footer box), `AppSidebar`/`MenuIcon` (new icons). All of these are checked with the sessions "Stage 7 screens" and "Screens" before each is touched.
+
+#### What this doesn't do
+
+No search, filter or total on any list (§4.13 #4). No template editor, no newsletter editor (Brevo's). Nothing about a message can be recalled. No live push: a number or a count moves on the next page, on coming back to the tab (staff), on opening the bell, or on Refresh. Payment messages' links and S6, S8 and the rest come from the other sessions and need no screen change (§4.12).
+
+#### Tests
+
+Each job adds feature tests for the page answers, the JSON still answering beside them, and each permission's menu entry and refusal; and browser tests for the flows above, in both languages, with phone width checked after the page has settled. Recorded query counts go up by one on signed-in pages (Q7): `AdminFrameQueryBudgetTest`, `ShopPagesTest`, and any other test recording a frame's count.
 
 ## 5 · Tables (`ops` schema)
 
@@ -1147,3 +1381,46 @@ publishes none; the four moments handed to stage 8.
     country stays allowed even under a Super Admin's phone, whose account is emailed "your phone number was
     changed" when a new number is set at sign-in; a calling code overlapping another listed one (96 beside
     966, 2 beside 20) is refused.
+
+### 9.4 The screens' questions (2026-11-02)
+
+Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-11-02: (a) in all 27.** Q7 and Q15 were first offered with timers; the owner objected: "we might face db with frequently reads for nothing ( each 15s , or 60s) ... rare for customer to get a notification, we can make it lower cost for db rather than to fill it with unnecessary requests". New options were measured and offered, and (a) below is what the owner took.
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | The screens' addresses | The same address: a visit gets the page, a screen's read still gets the data |
+| 2 | Where the entries go | The agreed tree: a Reports section after Customers; Marketing gains Offer Notices, Customer Messages, Subscribers |
+| 3 | SMS Countries | Store Settings, beside Places |
+| 4 | The five reports | One menu entry, the kinds as tabs |
+| 5 | A Home card | Not now: with the Home dashboard job |
+| 6 | The bell's shape | An icon with the number, a small list on press, View All to a full page |
+| 7 | The unread number | No timer: it comes with each page, one query in the page's request, none for guests; staff re-check once on coming back to the tab; opening the bell shows the current list. Signed-in shop pages rise by one query, recorded |
+| 8 | The customer's account menu | A Notifications link too |
+| 9 | A staff entry's store name | Only for someone with two or more stores |
+| 10 | The forms | Their own pages, asking before leaving with changes |
+| 11 | The two languages | Side by side, stacked on a phone |
+| 12 | Confirming a send | A message to many and a notice sent now, naming the audience |
+| 13 | Reading a sent message back | A dialog with both languages and the counts |
+| 14 | A whole store's audience | Add the number to the confirmation; a new read through Access |
+| 15 | Counts while sending | A Refresh button only while a row says Sending; nothing in the background |
+| 16 | A failure | The badge and a line, the link to Failed Jobs only for those who can open it |
+| 17 | A notice's link across languages | The shop redirects the other language's address to the right one. **Measured 2026-11-02, 12 real requests:** a product, category or brand's slug answers 200 under its own language and 404 under the other, both ways |
+| 18 | The preview | On pressing Show Report, the choices kept in the address |
+| 19 | The opening dates | The 1st of this month to today |
+| 20 | Revenue's four sheets | Tabs |
+| 21 | Totals | Always in the preview, marked, bold; a small backend change |
+| 22 | After Make Report | The new row with its Download; no automatic download |
+| 23 | The daily email's first time | 21:00 in the store's time |
+| 24 | Changing a country | Row menu and dialogs; Remove says who is affected |
+| 25 | The consent switch | The Profile tab, saving as flipped; an unticked box at registration |
+| 26 | The newsletter box | The shop's footer, guests only |
+| 27 | The confirm, leave and unsubscribe pages | One small frame for all three |
+
+**Round 2, answered by the owner, 2026-11-02.** No questions are left.
+
+| # | Question | Answer |
+|---|---|---|
+| R1 | The gateway key alerts (S5, S5b) have no link (§4.2), written before the Payments Gateway page existed (#315). Should pressing one open it? | **(a) Yes:** `/admin/payments/gateway?store={code}`, the alert's own store. A small change by Stage 8 specs planning in `MessageWriter`, its test and §4.2. Those two emails gain the Open button other staff alerts have. Entries already written stay without a link |
+| R2 | Should a customer's page in the panel have a Send Message button, opening O4 with that customer chosen? | **Answered by the owner, 2026-11-02: (a) not now.** O4's search finds them, and this job stays inside §4 |
+
+**The screens session's own choices in §4.15, accepted by the owner, 2026-11-02:** a new notice opens on Now, the confirmation guarding it; a bell row is cut at three lines, and pressing one with no link opens its whole text; changing a report's choices hides Download Excel until it is shown again; the reports page opens on the first store that is on, a Super Admin's too; the leave and unsubscribe pages offer no way on to the shop.
