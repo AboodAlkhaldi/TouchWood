@@ -27,6 +27,8 @@ use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
@@ -247,6 +249,31 @@ function triesChargeCrashes(): void
         public function transferCheckHours(StoreId $store): int
         {
             return $this->real->transferCheckHours($store);
+        }
+
+        public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
+        {
+            return $this->real->requestPayment($request, $staffId);
+        }
+
+        public function withdraw(string $orderId): bool
+        {
+            return $this->real->withdraw($orderId);
+        }
+
+        public function openRequest(string $orderId): ?PaymentRequestStateDto
+        {
+            return $this->real->openRequest($orderId);
+        }
+
+        public function paymentOpen(string $orderId): bool
+        {
+            return $this->real->paymentOpen($orderId);
+        }
+
+        public function attempts(string $orderId): array
+        {
+            return $this->real->attempts($orderId);
         }
 
         public function payment(string $paymentId): ?PaymentDto

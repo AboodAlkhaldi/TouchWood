@@ -6,7 +6,10 @@ namespace Modules\Payments\Public\Contracts;
 
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
@@ -73,6 +76,28 @@ interface PaymentsApi
 
     /** The hours staff have to check a transfer (§1.9). */
     public function transferCheckHours(StoreId $store): int;
+
+    /**
+     * A staff request for the rest of an order (§1.5), open 60 minutes. The same amount while one is open answers
+     * it as it is; another amount is `AmountChanged`; a payment open on the order, `PaymentInProgress`.
+     */
+    public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto;
+
+    /** Withdraws an order's open request (§1.5): true when none is left open; false while a payment on it is open. */
+    public function withdraw(string $orderId): bool;
+
+    /** The order's open request, for its page (§1.5); null when none. One past its time with no payment open is ended here. */
+    public function openRequest(string $orderId): ?PaymentRequestStateDto;
+
+    /** Whether any payment on this order is open (§1.5): staff's edits, hand recording and the customer's cancel wait. */
+    public function paymentOpen(string $orderId): bool;
+
+    /**
+     * The attempts on an order, oldest first, for staff's Online Payments block (§4.2).
+     *
+     * @return list<PaymentAttemptDto>
+     */
+    public function attempts(string $orderId): array;
 
     /** One successful (or refused) transaction as Payments recorded it, read when an event arrives with ids only. */
     public function payment(string $paymentId): ?PaymentDto;

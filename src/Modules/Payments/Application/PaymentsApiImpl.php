@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Application;
 
+use LogicException;
 use Modules\Payments\Application\Attempt\AttemptCharge;
 use Modules\Payments\Application\Attempt\AttemptChecks;
 use Modules\Payments\Application\Attempt\AttemptPreparation;
@@ -15,6 +16,8 @@ use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
@@ -126,6 +129,31 @@ final readonly class PaymentsApiImpl implements PaymentsApi
     public function needsAttention(string $attemptId): void
     {
         $this->preparation->markForAttention($attemptId);
+    }
+
+    public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
+    {
+        throw new LogicException('Built in step 12.');
+    }
+
+    public function withdraw(string $orderId): bool
+    {
+        throw new LogicException('Built in step 12.');
+    }
+
+    public function openRequest(string $orderId): ?PaymentRequestStateDto
+    {
+        throw new LogicException('Built in step 12.');
+    }
+
+    public function paymentOpen(string $orderId): bool
+    {
+        throw new LogicException('Built in step 12.');
+    }
+
+    public function attempts(string $orderId): array
+    {
+        throw new LogicException('Built in step 12.');
     }
 
     public function payment(string $paymentId): ?PaymentDto
