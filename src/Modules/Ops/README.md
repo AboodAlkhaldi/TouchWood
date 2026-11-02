@@ -168,7 +168,6 @@ Each checked against the code on 2026-11-01.
 | What | State here | On whom |
 |---|---|---|
 | C11 Pay the remaining amount | The kind and its words exist; `MessageWriter` has no branch for it, no listener | No `PaymentRequested` event exists: Stage 7 (Payments step 11) |
-| C1's "paid" line | The words exist (`ops::messages.order_taken.optional.paid`); nothing fills them | Online checkout: Stage 7 |
 | C10 and a checkout's one email | Ops has no check of its own (§1.5): `PaymentRecorded` must not be fired for the payment a checkout's order is created with | Stage 7, where it fires the event |
 | S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
 | S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link | Payments' staff list of attempts: Stage 7 |

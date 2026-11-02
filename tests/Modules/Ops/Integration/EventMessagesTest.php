@@ -138,10 +138,10 @@ function eventMessagesSales(?OrderMessageDto $order, ?ReturnMessageDto $return =
     app()->instance(SalesReports::class, $sales);
 }
 
-function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh', ?string $trackingLink = null): OrderMessageDto
+function eventMessagesOrder(string $customerId, string $storeCode = 'sa', ?string $rejection = null, ?string $carrier = null, ?string $tracking = null, int $coupon = 0, string $status = 'APPROVED', string $address = 'King Fahd Road 12, Riyadh', ?string $trackingLink = null, string $way = 'BANK_TRANSFER'): OrderMessageDto
 {
     return new OrderMessageDto(
-        strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', 'BANK_TRANSFER',
+        strtolower((string) Str::ulid()), 'SA-0007', Fx::storeId($storeCode), $customerId, 'en', $status, 'NOT_SHIPPED', $way,
         [new OrderMessageLineDto('Chair', [['attribute' => 'Colour', 'value' => 'Brown']], 2, Money::of(20000, 'SAR'), false)],
         Money::of(20000, 'SAR'), Money::of($coupon, 'SAR'), Money::of(0, 'SAR'), Money::of(2500, 'SAR'), Money::of(3375, 'SAR'), Money::of(25875 - $coupon, 'SAR'),
         $carrier, $tracking, $rejection, null, 'Sara Ali', $address, $trackingLink,
@@ -354,6 +354,24 @@ describe('messages to customers (§1.5)', function () {
 
         expect(eventMessagesBell($sara))->toBe([])->and(CapturedEmails::installed()->sent)->toBe([]);
     });
+
+    it('says on C1 that an online order is paid, in the email only, and never on one paid another way', function (string $way, bool $paid) {
+        $sara = Fx::customer('sara@example.test');
+        eventMessagesSales($order = eventMessagesOrder($sara, way: $way));
+
+        event(new OrderPlaced(eventMessagesId(), $order->orderId, Fx::storeId('sa'), $sara, CarbonImmutable::now()));
+
+        $email = CapturedEmails::installed()->for('sara@example.test');
+        $bell = eventMessagesBell($sara)[0];
+
+        expect(str_contains($email->text, 'Your payment of 258.75'))->toBe($paid)
+            ->and(str_contains($email->text, 'is received.'))->toBe($paid)
+            ->and(str_contains($bell->line_en, 'payment'))->toBeFalse();
+    })->with([
+        'online' => ['ONLINE', true],
+        'bank transfer' => ['BANK_TRANSFER', false],
+        'staff will contact' => ['STAFF_CONTACT', false],
+    ]);
 
     it('shows where the order goes in the order-taken email only, in both languages: escaped, its line breaks kept, nothing in the bell', function () {
         $sara = Fx::customer('sara@example.test');

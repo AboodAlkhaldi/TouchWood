@@ -111,7 +111,8 @@ final readonly class MessageWriter
 
         $kind = $to->message->kind;
         $values = [...$values, 'order' => $order->number, 'amount' => self::money($order->total, $to->store, $locale), 'recipient' => $order->recipientName];
-        $optional = $kind === MessageKind::OrderTaken ? ['address' => $order->deliveryAddress] : [];
+        // An online order exists only once its money came (sales.md §9.5 #4): C1 is its one email (§1.5).
+        $optional = $kind === MessageKind::OrderTaken ? ['paid' => $order->wayToPay === 'ONLINE' ? $values['amount'] : null, 'address' => $order->deliveryAddress] : [];
         $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$order->number), $optional);
 
         return new MessageText($text->title, $text->line, $text->subject, $text->lines, $text->link, $text->action, $this->summary($order, $to->store, $locale));
