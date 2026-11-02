@@ -65,5 +65,9 @@ final readonly class OwnOrderView
         /** The carriers ordered and shipped with, the tracking link, the fee still to be set (§9.5 #11; gap 6.7). */
         public ?OrderShippingView $shippingDetail = null,
         public bool $isTest = false,
+        /** The request open on it, shown as "Pay the remaining ..."; null with none: the request's page says the link has ended. */
+        public ?OwnPaymentRequest $paymentRequest = null,
+        /** A payment on it is open: the page says so, and `mayCancel` is false until it is answered. */
+        public bool $paymentBeingConfirmed = false,
     ) {}
 }

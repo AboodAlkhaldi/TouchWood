@@ -55,6 +55,7 @@ use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
+use Modules\Sales\Infrastructure\Listener\RecordRequestPayment;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotAccepted;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotPaid;
 use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
@@ -62,6 +63,7 @@ use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
 use Modules\Sales\Infrastructure\Queue\ReviewCheckoutTriesJob;
+use Modules\Sales\Infrastructure\Queue\TellOverdueTransfersJob;
 use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Modules\Sales\Presentation\Storefront\CartSection;
 use Modules\Sales\Presentation\Storefront\SalesFramePart;
@@ -121,6 +123,7 @@ final class SalesServiceProvider extends ServiceProvider
         Event::listen(HoldsShort::class, [FlagShortOrders::class, 'handle']);
         // What came of a checkout's online payment (§9.5 #4): the order, or everything given back.
         Event::listen(PaymentSucceeded::class, [CompleteTryWhenPaid::class, 'handle']);
+        Event::listen(PaymentSucceeded::class, [RecordRequestPayment::class, 'handle']);
         Event::listen(PaymentFailed::class, [ReleaseTryWhenNotPaid::class, 'handle']);
         Event::listen(PaymentNotTaken::class, [ReleaseTryWhenNotPaid::class, 'handle']);
         Event::listen(PaymentNotAccepted::class, [ReleaseTryWhenNotAccepted::class, 'handle']);
@@ -135,6 +138,8 @@ final class SalesServiceProvider extends ServiceProvider
             $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
             // The tries past their window that the events did not settle (§9.5 #4).
             $schedule->job(ReviewCheckoutTriesJob::class)->hourly()->onOneServer();
+            // Transfers past their check time, each told once (§9.5 #16).
+            $schedule->job(TellOverdueTransfersJob::class)->hourly()->onOneServer();
         });
 
         // The screens (§4.1): the Sales group's Orders and Returns, for staff who view the store's orders. What is offered

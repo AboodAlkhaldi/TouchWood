@@ -1976,3 +1976,35 @@ payment does; that is step 12.
 12. **An order's `wired` and "counts on stock" are read when it is made**, up to 15 minutes after its hold fixed them. A
     store rewired during those minutes could disagree with its hold. Left as it is: very rare, and staff see it on the order.
 
+
+### 9.9 Stage 7 step 12 — #7 (for a request), #8, #9, #16 built (2026-11-03)
+
+**What the screens call** (no routes here: they are the screens session's):
+
+| Who | Command or query | Answers |
+|---|---|---|
+| Staff, `sales.order.edit` | `RequestOrderPayment(orderId)` | `PaymentRequestStateDto` (the same one while one of that amount is open) |
+| Staff, `sales.order.edit` | `WithdrawOrderRequest(orderId)` | nothing; `PaymentBeingConfirmed` while a payment on it is open |
+| The order's customer | `ViewOwnOrder(number)` | `paymentRequest` (`requestId`, `amount`, `expiresAt`) or null, which on the request's page is "This payment link has ended."; `paymentBeingConfirmed`; `mayCancel` false while it is |
+| The order's customer | `OpenRequestPayment(storeId, number, locale)` | `PaymentSessionDto`; `PaymentLinkEnded`; `PaymentInProgress` while one is open |
+| The order's customer | `PayOrderRequest(storeId, number, sessionId, locale, returnUrl)` | `RequestStart(requestId, start)` |
+| The order's customer | `FollowRequestPayment(storeId, number, requestId)` | `RequestPaymentView(requestId, payment, windowEndsAt, waitEndsAt, holdEndsAt, nothingCharged, declineCode)` |
+| The customer's list | `ListOwnOrders` | each row's `paymentRequested` |
+| Staff | `ViewOrder(orderId)` | `attempts` (null without `payments.payment.view`), `paymentRequest`, `paymentInProgress`, `mayRequestPayment`, `isOverdue` |
+| Staff | `ListOrders` | each row's `isOverdue` |
+
+Anyone but the order's customer gets `OrderNotFound` from the customer's four, and the page answers a 404. "No money was taken" as at checkout: on a decline, or when `nothingCharged`.
+
+**Events**: a request's online payment sends `PaymentRecorded` (ops.md C10), from the page or the event, whichever comes first, once per transaction. `TransferOverdue(eventId, orderId, storeId, occurredAt)` once per order, from the hourly `TellOverdueTransfersJob`.
+
+**The build's own picks (simple, taken as recommended under the owner's rule):**
+
+1. **A request's page reads `ViewOwnOrder`**, not a view of its own: the number, lines, totals and the request are all in it.
+2. **A request that no longer asks what the order is missing is an ended link**, wherever the amount moved: a refund, a voided record, a rejection. It is left open in Payments and withdrawn when staff next ask. An edit or a set fee withdraws at once (§1.5).
+3. **A refund, a void and staff's own Cancel do not wait for a payment in progress**: the spec names edits, hand recording and the customer's cancel. Staff's cancel while paying leaves the money to be recorded, a refund due (payments.md §6).
+4. **Overdue counts from the first receipt** (position 1): a second one uploaded later does not restart the 72 hours. `isOverdue` is worked out when read, so it shows as soon as it is true; `overdue_told_at` only stops the event repeating. A receipt paid and then owing again is not told twice.
+5. **Asking is allowed for any status but cancelled, rejected or undelivered**: waiting, approved or shipped unpaid, as long as money is missing.
+6. **A double click on a request's Pay is `PaymentInProgress`**, not the same attempt answered again as checkout does, because the request has no session of its own to compare: the page keeps its button off while it waits. No second charge either way.
+7. **`mayRequestPayment` says only what the order allows**: whether this staff member holds `sales.order.edit` is the page's own permission check, as with every action.
+8. **Asking and withdrawing are in the order's history** (`PAYMENT_REQUESTED`, `PAYMENT_REQUEST_WITHDRAWN`) and audited. A withdrawal made by an edit or a hand recording has no row of its own: the edit or the payment is the row.
+9. **`PaymentsApi::openRequests(orderIds)`** is new beside §2.1's list: one read for a page of My Orders.

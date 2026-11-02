@@ -12,6 +12,8 @@ use DateTimeImmutable;
  */
 final readonly class OrderState
 {
+    public const string AUDIENCE_PUBLIC = 'PUBLIC';
+
     public const string PENDING_APPROVAL = 'PENDING_APPROVAL';
 
     public const string APPROVED = 'APPROVED';
@@ -62,6 +64,7 @@ final readonly class OrderState
         /** A place no carrier served: staff set the fee before it ships (§9.5 #11; gap 6.2). */
         public bool $shippingFeePending = false,
         public bool $isTest = false,
+        public string $audience = self::AUDIENCE_PUBLIC,
     ) {}
 
     public function isWaiting(): bool

@@ -23,6 +23,7 @@ use Modules\Sales\Application\Order\EditPlan;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderEditing;
 use Modules\Sales\Application\Order\OrderInputs;
+use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Order\SizeRecords;
 use Modules\Sales\Application\Quote\ShippingQuotes;
 use Modules\Sales\Application\SalesPermissions;
@@ -66,6 +67,7 @@ final readonly class EditOrderHandler
         private PlatformApi $platform,
         private ConnectionInterface $db,
         private Outbox $outbox,
+        private OrderRequests $requests,
     ) {}
 
     /**
@@ -82,8 +84,14 @@ final readonly class EditOrderHandler
         return $this->db->transaction(function () use ($orderId, $staffId, $reason, $wanted, $command): string {
             $state = $this->orders->lock($orderId) ?? throw new OrderNotFound;
             self::editable($state, $this->orders->ticked($state->id));
+            $this->requests->free($state->id);
             $order = $this->orders->forEdit($state->id) ?? throw new OrderNotFound;
             $plan = $this->editing->plan($order, $wanted, $command->addressId, $command->gift, $command->carrierId, $command->shippingFee);
+
+            // An open request no longer matches a changed amount (payments.md §1.5): staff send a new one.
+            if ($plan->totals->orderTotal->minorUnits !== $order->orderTotal) {
+                $this->requests->withdrawn($order->id);
+            }
 
             $editId = strtolower((string) Str::ulid());
             $now = CarbonImmutable::now();

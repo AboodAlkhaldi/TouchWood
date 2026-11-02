@@ -146,6 +146,11 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         throw new LogicException('Built in step 12.');
     }
 
+    public function openRequests(array $orderIds): array
+    {
+        throw new LogicException('Built in step 12.');
+    }
+
     public function paymentOpen(string $orderId): bool
     {
         throw new LogicException('Built in step 12.');

@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\ViewOrder;
 
 use Carbon\CarbonImmutable;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Enums\PaymentAudience;
+use Modules\Payments\Public\Enums\PaymentMode;
 use Modules\Sales\Application\Order\OrderAccess;
+use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Order\PackingBox;
 use Modules\Sales\Application\Query\OrderLines;
 use Modules\Sales\Application\Query\OrderShippingView;
@@ -19,11 +23,14 @@ use Modules\Sales\Application\Query\Staff\StaffReader;
 use Modules\Sales\Application\Query\Staff\StaffReads;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Model\ReturnState;
 use Modules\Sales\Domain\Service\OrderStatuses;
 use Modules\Sales\Public\Enums\WayToPay;
+use Shared\Application\Authorizer;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
+use Shared\Domain\ValueObject\StoreId;
 
 /**
  * **An order as staff see it** (sales.md §3 ViewOrder): its four machines, its customer by name and the contact
@@ -35,6 +42,9 @@ final readonly class ViewOrderHandler
 {
     public const string PERMISSION = SalesPermissions::ORDER_VIEW;
 
+    /** Payments' own, for the Online Payments block (payments.md §3, §4.2). */
+    public const string ATTEMPTS_PERMISSION = 'payments.payment.view';
+
     public function __construct(
         private OrderAccess $access,
         private StaffReads $reads,
@@ -42,6 +52,9 @@ final readonly class ViewOrderHandler
         private OrderLines $lines,
         private StaffReader $reader,
         private PackingBox $box,
+        private OrderRequests $requests,
+        private PaymentsApi $payments,
+        private Authorizer $authorizer,
     ) {}
 
     /**
@@ -73,6 +86,12 @@ final readonly class ViewOrderHandler
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
         [$customer, $mayView] = $this->reader->customer((string) $order['customer_id']);
+        $store = StoreId::fromString((string) $order['store_id']);
+        $missing = (int) $order['due_minor'] - (int) $order['paid_minor'] + (int) $order['refunded_minor'];
+        $request = $this->requests->live($orderId, $missing);
+        $inProgress = $missing > 0 && $this->payments->paymentOpen($orderId);
+        $documents = $this->reads->transferDocuments($orderId);
+        $firstUpload = $documents === [] ? null : CarbonImmutable::parse((string) $documents[0]['uploaded_at']);
 
         return new StaffOrderView(
             $orderId, (string) $order['number'], (string) $order['store_id'], CarbonImmutable::parse((string) $order['placed_at']),
@@ -111,13 +130,41 @@ final readonly class ViewOrderHandler
                 $return['refund_due_minor'] === null ? null : $money($return['refund_due_minor']),
                 $return['status'] === ReturnState::REFUSED && $return['staff_reason'] !== null ? (string) $return['staff_reason'] : null,
             ), $this->own->returns($orderId)),
-            array_map(static fn (array $row): array => ['mediaId' => (string) $row['media_id'], 'position' => (int) $row['position'], 'uploadedAt' => CarbonImmutable::parse((string) $row['uploaded_at'])], $this->reads->transferDocuments($orderId)),
+            array_map(static fn (array $row): array => ['mediaId' => (string) $row['media_id'], 'position' => (int) $row['position'], 'uploadedAt' => CarbonImmutable::parse((string) $row['uploaded_at'])], $documents),
             $this->reader->exponent($currency),
             $wired,
             $wired ? $counting : [],
             OrderShippingView::of($order),
             $this->box->of((string) $order['store_id'], $lines),
             (bool) $order['is_test'],
+            $firstUpload !== null && OrderStatuses::transferOverdue((string) $order['way_to_pay'], (bool) $order['is_test'], (int) $order['due_minor'], (int) $order['paid_minor'] - (int) $order['refunded_minor'], $firstUpload, $this->payments->transferCheckHours($store), CarbonImmutable::now()),
+            $this->mayReadAttempts($store) ? $this->payments->attempts($orderId) : null,
+            $request,
+            $inProgress,
+            $missing > 0 && $request === null && ! $inProgress && $this->requestable($order, $store),
         );
+    }
+
+    private function mayReadAttempts(StoreId $store): bool
+    {
+        $covered = $this->authorizer->storesWith(self::ATTEMPTS_PERMISSION);
+
+        return $covered === null || in_array($store->value, array_map(static fn (StoreId $one): string => $one->value, $covered), true);
+    }
+
+    /**
+     * What `RequestOrderPayment` asks of the order itself: an individual's, its fee set, in the gateway's mode.
+     *
+     * @param  array<string, mixed>  $order
+     */
+    private function requestable(array $order, StoreId $store): bool
+    {
+        if ($order['audience'] !== OrderState::AUDIENCE_PUBLIC || (bool) $order['shipping_fee_pending'] || in_array($order['status'], [OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED], true)) {
+            return false;
+        }
+
+        $gateway = $this->payments->availability($store, PaymentAudience::Individual);
+
+        return $gateway->available && $gateway->mode === ((bool) $order['is_test'] ? PaymentMode::Test : PaymentMode::Live);
     }
 }

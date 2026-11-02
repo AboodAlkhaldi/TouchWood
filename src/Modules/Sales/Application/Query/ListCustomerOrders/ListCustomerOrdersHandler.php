@@ -58,6 +58,8 @@ final readonly class ListCustomerOrdersHandler
         $rows = $this->reads->orders($this->stores->ids($covered), StaffReads::ALL, null, self::LATEST, null, $customerId);
         $customer = $this->reader->customers([$customerId])[$customerId];
 
-        return array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customer), $rows);
+        $hours = $this->reader->transferHours($rows);
+
+        return array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customer, $hours), $rows);
     }
 }

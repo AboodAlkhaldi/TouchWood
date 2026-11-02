@@ -189,6 +189,12 @@ final class CheckoutFixtures
         $payments = Mockery::mock(PaymentsApi::class);
         $payments->shouldReceive('availability')->andReturn(new OnlinePaymentDto(false, null, OnlinePaymentReason::NoGateway))->byDefault();
         $payments->shouldReceive('inTestMode')->andReturn(false)->byDefault();
+        $payments->shouldReceive('paymentOpen')->andReturn(false)->byDefault();
+        $payments->shouldReceive('withdraw')->andReturn(true)->byDefault();
+        $payments->shouldReceive('openRequest')->andReturn(null)->byDefault();
+        $payments->shouldReceive('openRequests')->andReturn([])->byDefault();
+        $payments->shouldReceive('attempts')->andReturn([])->byDefault();
+        $payments->shouldReceive('transferCheckHours')->andReturn(72)->byDefault();
 
         return $payments;
     }

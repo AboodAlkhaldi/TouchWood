@@ -6,6 +6,7 @@ namespace Modules\Sales\Application\Query\Staff;
 
 use Carbon\CarbonImmutable;
 use Modules\Access\Public\Contracts\AccessApi;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\StaffNames;
 use Modules\Sales\Application\Query\OrderShippingView;
@@ -20,6 +21,7 @@ final readonly class StaffReader
         private AccessApi $access,
         private StaffNames $staffNames,
         private PlatformApi $platform,
+        private PaymentsApi $payments,
     ) {}
 
     /**
@@ -43,8 +45,9 @@ final readonly class StaffReader
      * A row of `StaffReads::orders` as staff's lists show it — ListOrders and the customer page's orders.
      *
      * @param  array<string, mixed>  $row
+     * @param  array<string, int>  $hours  each store's hours for checking a transfer (`transferHours`)
      */
-    public function orderRow(array $row, CustomerName $customer): StaffOrderRow
+    public function orderRow(array $row, CustomerName $customer, array $hours = []): StaffOrderRow
     {
         $payment = OrderStatuses::payment((int) $row['due_minor'], (int) $row['paid_minor'], (int) $row['refunded_minor']);
 
@@ -54,7 +57,30 @@ final readonly class StaffReader
             OrderStatuses::customer((string) $row['status'], (string) $row['shipment_status'], $payment),
             Money::of((int) $row['order_total_minor'], (string) $row['currency_code']), $this->exponent((string) $row['currency_code']),
             $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'], OrderShippingView::feeOpen($row), (bool) $row['is_test'],
+            isset($hours[(string) $row['store_id']]) && OrderStatuses::transferOverdue(
+                (string) $row['way_to_pay'], (bool) $row['is_test'], (int) $row['due_minor'], (int) $row['paid_minor'] - (int) $row['refunded_minor'],
+                $row['first_transfer_at'] === null ? null : CarbonImmutable::parse((string) $row['first_transfer_at']), $hours[(string) $row['store_id']], CarbonImmutable::now(),
+            ),
         );
+    }
+
+    /**
+     * Each store's hours for checking a transfer, for the rows that hold a receipt: one read per store, not per row.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, int>
+     */
+    public function transferHours(array $rows): array
+    {
+        $hours = [];
+
+        foreach ($rows as $row) {
+            if ($row['first_transfer_at'] !== null && ! isset($hours[(string) $row['store_id']])) {
+                $hours[(string) $row['store_id']] = $this->payments->transferCheckHours(StoreId::fromString((string) $row['store_id']));
+            }
+        }
+
+        return $hours;
     }
 
     /**

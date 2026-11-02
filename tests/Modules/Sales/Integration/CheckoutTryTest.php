@@ -266,6 +266,11 @@ function triesChargeCrashes(): void
             return $this->real->openRequest($orderId);
         }
 
+        public function openRequests(array $orderIds): array
+        {
+            return $this->real->openRequests($orderIds);
+        }
+
         public function paymentOpen(string $orderId): bool
         {
             return $this->real->paymentOpen($orderId);

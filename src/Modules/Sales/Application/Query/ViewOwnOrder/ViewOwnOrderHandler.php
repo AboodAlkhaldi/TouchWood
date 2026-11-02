@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\ViewOwnOrder;
 
 use Carbon\CarbonImmutable;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocumentHandler;
+use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Query\OrderLines;
 use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnOrderView;
+use Modules\Sales\Application\Query\Own\OwnPaymentRequest;
 use Modules\Sales\Application\Query\Own\OwnReader;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
@@ -34,6 +37,8 @@ final readonly class ViewOwnOrderHandler
         private OwnReader $reader,
         private OwnReads $reads,
         private OrderLines $lines,
+        private OrderRequests $requests,
+        private PaymentsApi $payments,
     ) {}
 
     /**
@@ -55,6 +60,10 @@ final readonly class ViewOwnOrderHandler
 
         $payment = OrderStatuses::payment((int) $order['due_minor'], (int) $order['paid_minor'], (int) $order['refunded_minor']);
         $documents = $this->reads->transferDocuments($id);
+        // Only an order still missing money can have a payment to wait for.
+        $missing = (int) $order['due_minor'] - (int) $order['paid_minor'] + (int) $order['refunded_minor'];
+        $request = $this->requests->live($id, $missing);
+        $confirming = $missing > 0 && $this->payments->paymentOpen($id);
         /** @var array<string, mixed> $address */
         $address = json_decode((string) $order['address'], true, 512, JSON_THROW_ON_ERROR);
 
@@ -76,13 +85,15 @@ final readonly class ViewOwnOrderHandler
                 $return['status'] === ReturnState::REFUSED && $return['staff_reason'] !== null ? (string) $return['staff_reason'] : null,
             ), $this->reads->returns($id)),
             $documents,
-            in_array($order['status'], [OrderState::PENDING_APPROVAL, OrderState::APPROVED], true) && $order['shipment_status'] === OrderState::NOT_SHIPPED,
+            ! $confirming && in_array($order['status'], [OrderState::PENDING_APPROVAL, OrderState::APPROVED], true) && $order['shipment_status'] === OrderState::NOT_SHIPPED,
             $inWindow && array_filter($lines, static fn (OrderLineView $line): bool => $line->returnable > 0) !== [],
             $order['way_to_pay'] === WayToPay::BankTransfer->value && (int) $order['paid_minor'] - (int) $order['refunded_minor'] < (int) $order['due_minor']
                 && $documents < UploadTransferDocumentHandler::MOST,
             $this->reader->exponent($currency),
             OrderShippingView::of($order),
             (bool) $order['is_test'],
+            $request === null ? null : new OwnPaymentRequest($request->requestId, $request->amount, $request->expiresAt),
+            $confirming,
         );
     }
 }

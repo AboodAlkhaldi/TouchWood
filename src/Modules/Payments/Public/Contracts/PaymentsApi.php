@@ -89,6 +89,15 @@ interface PaymentsApi
     /** The order's open request, for its page (§1.5); null when none. One past its time with no payment open is ended here. */
     public function openRequest(string $orderId): ?PaymentRequestStateDto;
 
+    /**
+     * The requests open on these orders, for one page of My Orders in one read (§4.2). Writes nothing: one past its
+     * time with no payment open is simply left out.
+     *
+     * @param  list<string>  $orderIds
+     * @return array<string, PaymentRequestStateDto> by order id
+     */
+    public function openRequests(array $orderIds): array;
+
     /** Whether any payment on this order is open (§1.5): staff's edits, hand recording and the customer's cancel wait. */
     public function paymentOpen(string $orderId): bool;
 
