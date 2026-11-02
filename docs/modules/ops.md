@@ -963,8 +963,8 @@ Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_countr
 
 ### 4.15 The screens (built by the screens session; owner's answers 2026-11-02, §9.4)
 
-**Draft, for the owner's acceptance.** §4.1 to §4.14 say what the server gives; this section says what each page does
-with it. Every choice marked Qn is the owner's answer in §9.4. Rn is a question still open in §9.4.
+**[ACCEPTED by the owner, 2026-11-02.]** §4.1 to §4.14 say what the server gives; this section says what each page does
+with it. Every choice marked Qn or Rn is the owner's answer in §9.4.
 
 #### What holds for every page
 
