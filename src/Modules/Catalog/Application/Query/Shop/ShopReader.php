@@ -42,6 +42,17 @@ interface ShopReader
     public function slugOwner(string $kind, string $locale, string $slug): ?array;
 
     /**
+     * Who holds a slug of this kind in the language other than this one — now or before — and their
+     * slug now in this one (amendment 38): nothing when they have none here. A slug is unique per
+     * language, so one holder at most. Read only once no one holds the slug in this language.
+     *
+     * @param  'product'|'category'|'brand'  $kind
+     * @param  'ar'|'en'  $locale  the page's language
+     * @return array{id: string, slug: string}|null
+     */
+    public function slugOwnerInOtherLanguage(string $kind, string $locale, string $slug): ?array;
+
+    /**
      * A category's page head and its filters, in one read (P14, P21): who holds the slug — now or
      * before — their slug now in this language and in the other, the name, whether its pages list
      * anything in this store for this viewer (a category that is off lists nothing), and the brands,
