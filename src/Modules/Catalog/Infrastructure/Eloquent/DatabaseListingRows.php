@@ -22,14 +22,18 @@ use stdClass;
  *   card photo changes, asks for that lock; a row that is no longer wanted is deleted.
  * - **The card photo** is the first photo of the gallery whose sizes are ready, its addresses asked
  *   of Platform as the row is written (§2.4, §9.3 #17), so a grid reads no media.
- * - **Until stage 5 every row is orderable** (§1.3, §2.2: Inventory pushes it from then), and the
- *   sales rank, pushed by Sales, is empty.
+ * - **Out of stock is never shown** (§1.3, §2.2; amendment 39): a size Inventory says cannot be ordered
+ *   (`orderable` false; never told, §1.3's rule: it can) counts for nothing here — not the filters, not
+ *   a side, not a card, not a price. **`orderable` is true while a size can be ordered, and a product
+ *   with none keeps its row, false**, which every read leaves out: a stock flip changes the row in
+ *   place, so Inventory's push never asks for the card photo's lock. Its card variant, which a row
+ *   must have, is then its first size's; nothing draws it.
  * - **The facts pushed in** (`store_variant_facts`, P22): each side's card price — the price and the
  *   price before of the variant its card shows — and its "Last pieces" (amendment 16(h)): some size
  *   that side can buy and order now is ending soon — any size for companies and guests, a size sold
- *   retail for individuals; a size not orderable (`orderable` false) lights neither. And the cards'
- *   "From" and "Wholesale from" (amendment 35): the lowest price now among the retail sizes, only
- *   when they differ, and the least a piece costs on a wholesale line among the wholesale sizes.
+ *   retail for individuals. And the cards' "From" and "Wholesale from" (amendment 35): the lowest
+ *   price now among the retail sizes, only when they differ, and the least a piece costs on a
+ *   wholesale line among the wholesale sizes.
  * - **The search reads** the names (A), the search words (B) and the names of its category and of
  *   every category above it (C), **in both languages on every page** (amendment 5(f), (g)), each as
  *   search compares words (handoff §5.2) — never the brand, the code or the description (5(c), (d)).
@@ -206,7 +210,9 @@ final readonly class DatabaseListingRows implements ListingRows
             $categoryId = (string) $product->category_id;
             $searched = ['ar' => SearchTerms::canonical((string) $product->name_ar), 'en' => SearchTerms::canonical((string) $product->name_en)];
 
-            foreach ($sellable[$id] as $storeId => $variants) {
+            foreach ($sellable[$id] as $storeId => $sizes) {
+                // Only what can be ordered now counts (amendment 39).
+                $variants = array_values(array_filter($sizes, static fn (array $variant): bool => $variant['orderable']));
                 $values = $filterValues[$id] ?? [];
 
                 foreach ($variants as $variant) {
@@ -229,13 +235,13 @@ final readonly class DatabaseListingRows implements ListingRows
                     'for_companies' => $switches['companies'],
                     'sells_retail' => $retail !== [],
                     'sells_wholesale' => array_filter($variants, static fn (array $variant): bool => $variant['wholesale']) !== [],
-                    'card_variant_id' => $variants[0]['id'],
+                    'card_variant_id' => ($variants[0] ?? $sizes[0])['id'],
                     'retail_card_variant_id' => $retail[0]['id'] ?? null,
                     // The pushed facts, each side's (P22, amendment 16(h)).
                     'ending_soon_companies' => array_filter($variants, static fn (array $variant): bool => $variant['ending']) !== [],
                     'ending_soon_individuals' => array_filter($retail, static fn (array $variant): bool => $variant['ending']) !== [],
-                    'price_minor' => $variants[0]['price'],
-                    'price_before_minor' => $variants[0]['before'],
+                    'price_minor' => $variants[0]['price'] ?? null,
+                    'price_before_minor' => $variants[0]['before'] ?? null,
                     'retail_price_minor' => $retail[0]['price'] ?? null,
                     'retail_price_before_minor' => $retail[0]['before'] ?? null,
                     // "From" — only when the retail sizes' prices differ — and "Wholesale from" (amendment 35).
@@ -262,7 +268,7 @@ final readonly class DatabaseListingRows implements ListingRows
                         'label_ids' => $labels[$storeId][$id] ?? [],
                         'card_media_id' => $card[0] ?? null,
                         'card_photo' => $card[1] ?? null,
-                        'orderable' => true,
+                        'orderable' => $variants !== [],
                         'search_text' => $searched[$locale]."\n".$searched[$locale === 'ar' ? 'en' : 'ar'],
                         'words_a' => implode(' ', $searched),
                         'words_b' => implode(' ', $words[$id] ?? []),
@@ -277,14 +283,14 @@ final readonly class DatabaseListingRows implements ListingRows
     }
 
     /**
-     * The variants a shopper can order in each store, in the product's order: switched on there,
-     * not archived, and neither they nor their product "Not available now" there.
+     * The variants on sale in each store, in the product's order: switched on there, not archived,
+     * and neither they nor their product "Not available now" there.
      *
-     * Each with how it is sold there (§1.3): retail, wholesale or both; whether it is ending soon and
-     * may be ordered now, and its price there, as pushed (P22, amendment 16(h)).
+     * Each with how it is sold there (§1.3): retail, wholesale or both; whether stock lets it be ordered
+     * now (amendment 39); whether it is ending soon, and its price there, as pushed (P22, amendment 16(h)).
      *
      * @param  list<string>  $productIds
-     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null}>>> product => store => variants
+     * @return array<string, array<string, non-empty-list<array{id: string, retail: bool, wholesale: bool, orderable: bool, ending: bool, price: int|null, before: int|null, wholesaleFrom: int|null}>>> product => store => variants
      */
     private function sellableVariants(array $productIds): array
     {
@@ -312,7 +318,8 @@ final readonly class DatabaseListingRows implements ListingRows
                 'retail' => (bool) $row->sells_retail,
                 'wholesale' => (bool) $row->sells_wholesale,
                 // No facts yet: orderable as §1.3 says, not ending soon, no price.
-                'ending' => (bool) $row->ending_soon && $row->orderable !== false,
+                'orderable' => $row->orderable !== false,
+                'ending' => (bool) $row->ending_soon,
                 'price' => $row->price_minor === null ? null : (int) $row->price_minor,
                 'before' => $row->price_before_minor === null ? null : (int) $row->price_before_minor,
                 'wholesaleFrom' => $row->wholesale_from_minor === null ? null : (int) $row->wholesale_from_minor,

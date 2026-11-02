@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Catalog\Support;
 
+use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
@@ -27,6 +28,8 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
 use Modules\Catalog\Domain\Repository\ProductRepository;
+use Modules\Inventory\Application\Command\SetStock\SetStock;
+use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 /**
@@ -107,6 +110,17 @@ final class CatalogProducts
     public static function variant(string $productId, string $code, array $values = []): string
     {
         return Fx::asSystem(fn (): string => app(AddVariantHandler::class)->handle(new AddVariant($productId, $code, $values)));
+    }
+
+    /**
+     * Every size of the product in stock in a store, through Inventory: a size it told 0 — a size switched
+     * on with no stock, too — is off the shop's lists (catalog.md amendment 39).
+     */
+    public static function inStock(string $storeCode, string $productId, int $pieces = 5): void
+    {
+        $sizes = DB::table('catalog.variants')->where('product_id', $productId)->where('is_archived', false)->pluck('id')->map(strval(...))->all();
+
+        Fx::asSystem(fn () => app(SetStockHandler::class)->handle(new SetStock((string) DB::table('platform.stores')->where('code', $storeCode)->value('id'), array_fill_keys($sizes, $pieces))));
     }
 
     /**

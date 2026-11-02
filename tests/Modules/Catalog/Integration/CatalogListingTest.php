@@ -136,6 +136,7 @@ function catalogRowsArray(mixed $value): array
 function catalogRowsChoose(string $store, string $productId, bool $active = true, ?array $variantIds = null): void
 {
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $productId, $active, $variantIds)));
+    Px::inStock($store, $productId);
 }
 
 /**

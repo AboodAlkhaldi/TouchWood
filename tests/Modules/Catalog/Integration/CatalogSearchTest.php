@@ -76,6 +76,7 @@ function catalogSearchProduct(string $nameEn, string $nameAr, ?string $categoryI
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $id, true)));
+        Px::inStock($store, $id);
     }
 
     return $id;

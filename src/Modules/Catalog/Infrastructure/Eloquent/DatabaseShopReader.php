@@ -466,6 +466,8 @@ final readonly class DatabaseShopReader implements ShopReader
             // only has none here: its wholesale price is Pricing's section's (`pricing.wholesale`).
             $row->price_minor === null || ! $row->sells_retail ? null : (int) $row->price_minor,
             $row->price_before_minor === null || ! $row->sells_retail ? null : (int) $row->price_before_minor,
+            // Sold out, as Inventory told it (amendment 39); no facts yet: §1.3's rule, it can be ordered.
+            $row->orderable !== false,
         ), $variants));
     }
 

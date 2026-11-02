@@ -493,6 +493,7 @@ widthMm: number | null,
 heightMm: number | null,
 price: MoneyData | null,
 priceBefore: MoneyData | null,
+orderable: boolean,
 };
 export type ShopWarrantyData = {
 name: string,

@@ -151,10 +151,11 @@ interface ShopReader
     public function sellingTerms(string $storeId, string $productId): ?SellingTerms;
 
     /**
-     * The variants this viewer can order in this store, in the product's order — for an individual,
+     * The variants on sale to this viewer in this store, in the product's order — for an individual,
      * those sold retail only (amendment 14(e)); a company and a guest see both sides (§4.5, §8 #33) —
-     * each with how it is sold, its details, weight and size, and whether it is ending soon and can be
-     * ordered now (amendment 16(h)). Their photos are read apart (`variantPhotos`).
+     * each with how it is sold, its details, weight and size, whether it is ending soon and can be
+     * ordered now (amendment 16(h)), and whether stock lets it be ordered now: a sold-out one is here
+     * marked, to be drawn greyed (amendment 39). Their photos are read apart (`variantPhotos`).
      *
      * @return list<ShopVariant>
      */

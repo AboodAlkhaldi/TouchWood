@@ -92,6 +92,7 @@ function shopPagesProduct(string $categoryId, array $sizes = ['60 cm'], array $s
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $p['product'], true)));
+        Px::inStock($store, $p['product']);
     }
 
     return $p;
@@ -461,8 +462,9 @@ describe('the budget (P21)', function () {
         // Catalog's sizes in the store 1, Inventory's stock 4 (the wiring, the counts, ending soon, the
         // low-stock setting) and, for a guest, whether companies may buy the product 1; the owner chose the
         // exact check over the cheaper one regardless of the count. The limits are a target, not a cap
-        // (owner, 2026-10-19).
-        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 13, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
+        // (owner, 2026-10-19). A product in stock, as a listed one now always is (amendment 39), one more than
+        // the 13 measured with no stock rows: Inventory's ending-soon switches, read only once a size has a row.
+        expect($counts)->toBe(['category' => 6, 'brand' => 6, 'product' => 14, 'search' => 7, 'suggest' => 4, 'sign-in' => 6]);
     });
 
     it('records each page as production serves it - the session in the database - for a guest, an individual and a company', function () {
@@ -521,11 +523,12 @@ describe('the budget (P21)', function () {
             // reads it shares with the page (the cart's lines one of them). Signed in, every page one more
             // since 2026-10-27 (sales.md §4.1 S3, §4.2 B13): the header's count of the pieces in the cart -
             // none for a guest, whose count is read from the cart's cookie only when there is one. Signed in,
-            // every page one more since 2026-11-02 (ops.md §4.15 O2, Q7): the bell's number; none for a guest.
+            // every page one more since 2026-11-02 (ops.md §4.15 O2, Q7): the bell's number; none for a guest. A
+            // product in stock, as a listed one now always is (amendment 39), one more: Inventory's ending-soon switches.
         ])->toBe([
-            'guest' => ['category' => 8, 'brand' => 8, 'product' => 15, 'search' => 9],
-            'individual' => ['category' => 17, 'brand' => 17, 'product' => 22, 'search' => 18],
-            'company' => ['category' => 17, 'brand' => 17, 'product' => 22, 'search' => 18],
+            'guest' => ['category' => 8, 'brand' => 8, 'product' => 16, 'search' => 9],
+            'individual' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
+            'company' => ['category' => 17, 'brand' => 17, 'product' => 23, 'search' => 18],
         ]);
     });
 });

@@ -47,6 +47,7 @@ final class FeedbackFixtures
 
         foreach ($storeCodes as $code) {
             Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($code), $ready['product'], true)));
+            Px::inStock($code, $ready['product']);
         }
 
         return ['product' => $ready['product'], 'variants' => $ready['variants']];

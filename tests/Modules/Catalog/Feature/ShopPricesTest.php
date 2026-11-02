@@ -78,6 +78,7 @@ function shopPricesProduct(): array
             $hundred => ['retail' => false, 'wholesale' => true],
         ], wholesaleMinimum: 5));
     });
+    Px::inStock('sa', $p['product']);
     Rx::set('sa', [$sixty => '30.00', $eighty => '25.00', $hundred => '40.00']);
     Fx::asSystem(function () use ($store, $eighty, $hundred): void {
         app(SetWholesalePricesHandler::class)->handle(new SetWholesalePrices($store, $eighty, [5 => '20.00']));
@@ -174,6 +175,7 @@ describe('a card', function () {
                 $retail => ['retail' => true, 'wholesale' => false],
             ], wholesaleMinimum: 5));
         });
+        Px::inStock('sa', $p['product']);
         Rx::set('sa', [$wholesale => '40.00', $retail => '30.00']);
 
         // 100 cm's own price, 40.00, is not retail: the card shows 60 cm's, and "Wholesale from" 40.00 (no bands).
@@ -208,6 +210,7 @@ describe('a card', function () {
         $category = Px::category('Kitchens');
         $p = Px::ready(['60 cm', '80 cm'], $category);
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        Px::inStock('sa', $p['product']);
         $url = '/sa/en/categories/'.shopPricesSlug('category', $category);
 
         get($url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('products.0.price', null));
@@ -284,10 +287,10 @@ describe('a product page', function () {
         $guest = $warm();
         shopPricesViewer(ShopperKind::Individual);
 
-        // A guest's product page is 13 sold retail only (ShopPagesTest's budget, with Sales's Add to Cart
+        // A guest's product page is 14 sold retail only (ShopPagesTest's budget, with Sales's Add to Cart
         // since amendment 36); the bands add their one read of the sizes' prices; an individual's has no
         // bands and no question of whether companies may buy it. The limits are a target, not a cap
         // (owner, 2026-10-19).
-        expect([$guest, $warm()])->toBe([14, 12]);
+        expect([$guest, $warm()])->toBe([15, 13]);
     });
 });

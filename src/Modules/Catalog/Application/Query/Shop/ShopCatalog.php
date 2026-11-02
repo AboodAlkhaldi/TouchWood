@@ -236,7 +236,8 @@ final readonly class ShopCatalog
 
         $available = $this->reader->isListed($store->value, $locale, $viewer, $productId);
         $variants = $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $productId) : [];
-        $variantIds = array_map(static fn (ShopVariant $variant): string => $variant->variantId, $variants);
+        // What can be ordered now (amendment 39): a sold-out size is drawn greyed, its value not on sale, its photos never shown.
+        $variantIds = array_values(array_map(static fn (ShopVariant $variant): string => $variant->variantId, array_filter($variants, static fn (ShopVariant $variant): bool => $variant->orderable)));
         $gallery = $this->reader->gallery($productId);
         $own = $variantIds === [] ? [] : $this->reader->variantPhotos($variantIds);
         $urls = $this->photos([...$gallery, ...array_merge(...array_values($own))]);
@@ -265,6 +266,7 @@ final readonly class ShopCatalog
                 $variant->heightMm,
                 $variant->priceMinor,
                 $variant->priceBeforeMinor,
+                $variant->orderable,
             ), $variants),
             $product['other_slug'],
             $product['brand'],

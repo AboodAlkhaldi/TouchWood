@@ -14,8 +14,9 @@ use Shared\Domain\ValueObject\StoreId;
  * the sales rank (Sales, stage 6). **Bound with amendment 16(i)**: each fact is kept in Catalog's own
  * table (`store_variant_facts`), and the listing rows of the products it touched are written again at
  * once (P22): the cards' "Last pieces" read them, and each side's card price is kept beside them.
- * Every listed product stays orderable as §1.3 says until Inventory's stage reads that fact; Sales'
- * ranks are received from stage 6.
+ * **A size told not orderable counts for nothing on the shop's lists** (amendment 39), and a product
+ * with none left leaves them; a size never told is orderable as §1.3 says. Sales' ranks are received
+ * from stage 6.
  *
  * **For stage 5:** every change rewrites a product's listing rows from Catalog's own tables
  * (`ListingRows`), the price and the rank with them. A fact pushed here must therefore be kept where

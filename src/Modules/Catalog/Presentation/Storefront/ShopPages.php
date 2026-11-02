@@ -208,12 +208,14 @@ final readonly class ShopPages
             ShopperKind::Company => true,
             ShopperKind::Guest => $kept['companies'] ?? $this->openToCompanies($store, $owner['id']),
         };
+        // A sold-out size is drawn, but asked of no module: it is never offered (amendment 39).
+        $offered = array_values(array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['orderable'] ?? true) === true));
         $wholesaleSizes = ! $wholesaleViewer ? [] : array_values(array_map(
             static fn (array $variant): string => (string) $variant['id'],
-            array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['sellsWholesale'] ?? false) === true),
+            array_filter($offered, static fn (array $variant): bool => ($variant['sellsWholesale'] ?? false) === true),
         ));
-        // Every size the page shows, in its order (amendment 36).
-        $sizes = array_map(static fn (array $variant): string => (string) $variant['id'], self::listOf($kept['page']['variants'] ?? []));
+        // Every size the page offers, in its order (amendment 36).
+        $sizes = array_map(static fn (array $variant): string => (string) $variant['id'], $offered);
         $sections = $this->sections->read($store, $locale === 'ar' ? 'ar' : 'en', $owner['id'], $customerId, $after, $filters, $kept['page']['available'] === true, $viewer, $wholesaleSizes, $sizes);
         // The relations' cards are kept with the page; what the modules add to them is this viewer's (amendment 32).
         $related = array_column([...self::listOf($kept['page']['goesWith'] ?? []), ...self::listOf($kept['page']['mayAlsoLike'] ?? [])], 'productId');
@@ -331,6 +333,7 @@ final readonly class ShopPages
             $variant->heightMm,
             $price($variant->priceMinor),
             $price($variant->priceBeforeMinor),
+            $variant->orderable,
         );
     }
 
