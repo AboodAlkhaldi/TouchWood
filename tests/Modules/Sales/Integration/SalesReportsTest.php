@@ -382,7 +382,7 @@ it('adds productSales up in one query, to the unit, never an order that does not
         ->and($totals->units)->toBe(array_sum(array_map(static fn (ProductSaleDto $one): int => $one->units, $rows)))
         ->and($totals->revenue->minorUnits)->toBe(250_00)
         ->and($totals->revenue->minorUnits)->toBe(array_sum(array_map(static fn (ProductSaleDto $one): int => $one->revenue->minorUnits, $rows)))
-        ->and($totals->revenue->currency)->toBe('SAR')
+        ->and($totals->revenue->currencyCode)->toBe('SAR')
         ->and(salesReports()->productSalesTotals($sa, $to, $from)->units)->toBe(0)
         ->and(salesReports()->productSalesTotals(StoreId::fromString(Fx::storeId('ae')), $from, $to)->units)->toBe(0)
         ->and(fn () => salesReports()->productSalesTotals(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class);
