@@ -83,7 +83,7 @@ final readonly class AttemptChecks
             $attempt = $this->ask($attempt)->attempt;
         }
 
-        return AttemptViews::page($attempt);
+        return AttemptViews::page($attempt, $attempt?->state === AttemptState::Failed ? $this->transactions->declineCode($attempt->id) : null);
     }
 
     /**

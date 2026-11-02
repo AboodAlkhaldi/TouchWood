@@ -237,7 +237,7 @@ it('offers cancelling while approved and unshipped, carrying the order id to act
 it('offers a transfer document only while a bank-transfer order holds less than is due, under three', function () {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
-    $bankAccount = Mockery::mock(PaymentsApi::class);
+    $bankAccount = Cx::paymentsStandIn();
     $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
     app()->instance(PaymentsApi::class, $bankAccount);
     app()->instance(B2BApi::class, $b2b);

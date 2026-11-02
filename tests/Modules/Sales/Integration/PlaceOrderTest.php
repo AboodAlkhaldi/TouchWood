@@ -279,7 +279,7 @@ describe('what changed since the quote', function () {
         $b2b->shouldReceive('isApproved')->andReturnUsing(function () use (&$approved) {
             return $approved;
         });
-        $bankAccount = Mockery::mock(PaymentsApi::class);
+        $bankAccount = Cx::paymentsStandIn();
         $bankAccount->shouldReceive('bankAccount')->andReturn(null);
         app()->instance(PaymentsApi::class, $bankAccount);
         app()->instance(B2BApi::class, $b2b);
@@ -387,7 +387,7 @@ describe('what changed since the quote', function () {
         $b2b = Mockery::mock(B2BApi::class);
         $b2b->shouldReceive('isApproved')->andReturn(true);
         app()->instance(B2BApi::class, $b2b);
-        $payments = Mockery::mock(PaymentsApi::class);
+        $payments = Cx::paymentsStandIn();
         $payments->shouldReceive('bankAccount')->andReturnUsing(function () use (&$account) {
             return $account;
         });

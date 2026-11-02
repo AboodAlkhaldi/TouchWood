@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Sales\Domain\Repository\CheckoutTries;
 use Modules\Sales\Domain\Repository\Orders;
 use Shared\Infrastructure\Outbox\ProcessedEvents;
 
@@ -27,6 +28,7 @@ final class FlagShortOrders implements ShouldQueue
 
     public function __construct(
         private readonly Orders $orders,
+        private readonly CheckoutTries $checkoutTries,
         private readonly ConnectionInterface $db,
         private readonly ProcessedEvents $processed,
     ) {}
@@ -37,6 +39,8 @@ final class FlagShortOrders implements ShouldQueue
         // not even an order whose flag staff cleared meanwhile.
         $this->db->transaction(fn () => $this->processed->once($event->eventId, self::class, function () use ($event): void {
             $now = CarbonImmutable::now();
+            // A live try holds under its order's future id; its order carries the flag when it is made (§9.5 #11).
+            $this->checkoutTries->flagShort(strtolower($event->storeId), $event->orderIds, $now);
 
             foreach ($this->orders->flagShort(strtolower($event->storeId), $event->orderIds, $now) as $orderId) {
                 $this->orders->recordHistory($orderId, strtolower($event->storeId), 'SHORT_FLAGGED', null, null, $now, ['variantId' => strtolower($event->variantId)]);

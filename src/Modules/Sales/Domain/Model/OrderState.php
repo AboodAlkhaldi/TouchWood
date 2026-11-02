@@ -61,6 +61,7 @@ final readonly class OrderState
         public bool $wired,
         /** A place no carrier served: staff set the fee before it ships (§9.5 #11; gap 6.2). */
         public bool $shippingFeePending = false,
+        public bool $isTest = false,
     ) {}
 
     public function isWaiting(): bool

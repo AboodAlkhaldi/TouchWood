@@ -187,7 +187,7 @@ it('answers a return of a store the reader does not cover as none, and a custome
 it('opens a transfer document through an expiring link, and no file that is not an order\'s', function () {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
-    $bankAccount = Mockery::mock(PaymentsApi::class);
+    $bankAccount = Cx::paymentsStandIn();
     $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
     app()->instance(PaymentsApi::class, $bankAccount);
     app()->instance(B2BApi::class, $b2b);

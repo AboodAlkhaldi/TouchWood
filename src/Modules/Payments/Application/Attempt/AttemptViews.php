@@ -33,10 +33,10 @@ final class AttemptViews
         };
     }
 
-    public static function page(?Attempt $attempt): PaymentStateDto
+    public static function page(?Attempt $attempt, ?string $declineCode = null): PaymentStateDto
     {
         return $attempt === null
             ? new PaymentStateDto(PaymentState::None, null, null, null, false)
-            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id, $attempt->currencyRefused ? null : $attempt->transactionId);
+            : new PaymentStateDto(self::state($attempt), $attempt->windowEndsAt, $attempt->waitEndsAt, $attempt->holdEndsAt, $attempt->nothingCharged, $attempt->id, $attempt->currencyRefused ? null : $attempt->transactionId, $declineCode);
     }
 }

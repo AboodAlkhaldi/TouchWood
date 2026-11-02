@@ -7,7 +7,6 @@ namespace Modules\Sales\Application\Order;
 use DateTimeImmutable;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Dto\AddressDto;
-use Modules\Access\Public\Dto\CustomerDto;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Contracts\StoreWiring;
@@ -40,7 +39,7 @@ final readonly class OrderSnapshot
     ) {}
 
     /** @throws QuoteChanged when a size of the quote no longer exists */
-    public function of(QuoteView $quote, string $orderId, string $number, CustomerDto $customer, AddressDto $address, DateTimeImmutable $placedAt): NewOrder
+    public function of(QuoteView $quote, string $orderId, string $number, OrderContact $contact, AddressDto $address, DateTimeImmutable $placedAt, bool $isTest = false): NewOrder
     {
         $prices = $quote->prices;
         $totals = $quote->totals;
@@ -87,11 +86,11 @@ final readonly class OrderSnapshot
             $quote->id,
             $quote->customerId,
             $quote->audience->value,
-            $customer->locale,
+            $contact->locale,
             $currency,
-            trim($customer->firstName.' '.$customer->lastName),
-            $customer->email,
-            $customer->phone ?? throw new QuoteChanged('phone'),
+            $contact->name,
+            $contact->email,
+            $contact->phone,
             [
                 'label' => $address->label, 'recipientName' => $address->recipientName, 'fields' => $address->fields,
                 'latitude' => $address->latitude, 'longitude' => $address->longitude, 'formatted' => $address->formatted,
@@ -118,6 +117,7 @@ final readonly class OrderSnapshot
             $wired,
             $placedAt,
             $lines,
+            $isTest,
         );
     }
 }

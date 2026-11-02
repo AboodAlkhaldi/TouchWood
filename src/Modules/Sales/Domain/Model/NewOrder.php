@@ -49,5 +49,7 @@ final readonly class NewOrder
         public bool $wired,
         public DateTimeImmutable $placedAt,
         public array $lines,
+        /** Placed or paid in test mode: numbered apart, left out of every figure, never shipped (§9.5 #14). */
+        public bool $isTest = false,
     ) {}
 }

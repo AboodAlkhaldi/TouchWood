@@ -79,6 +79,7 @@ final readonly class DatabaseSalesReports implements SalesReports
             (string) ($address['recipientName'] ?? ''), (string) ($address['formatted'] ?? ''),
             $order->tracking_link === null ? null : (string) $order->tracking_link,
             (bool) $order->shipping_fee_pending,
+            (bool) $order->is_test,
         );
     }
 
@@ -133,7 +134,7 @@ final readonly class DatabaseSalesReports implements SalesReports
             ." count(*) FILTER (WHERE status = 'CANCELLED' AND ".$in('cancelled_at').') AS cancelled,'
             ." count(*) FILTER (WHERE status = 'REJECTED' AND ".$in('decided_at').') AS rejected,'
             .' count(*) FILTER (WHERE '.$in('came_back_at').') AS came_back'
-            .' FROM sales.orders WHERE store_id = ? AND ('.$in('placed_at').' OR '.$in('cancelled_at').' OR '.$in('decided_at').' OR '.$in('came_back_at').')',
+            .' FROM sales.orders WHERE store_id = ? AND NOT is_test AND ('.$in('placed_at').' OR '.$in('cancelled_at').' OR '.$in('decided_at').' OR '.$in('came_back_at').')',
             [$f, $t, $f, $t, $f, $t, $f, $t, $f, $t, $f, $t, $f, $t, $store->value, $f, $t, $f, $t, $f, $t, $f, $t],
         );
 
@@ -148,6 +149,7 @@ final readonly class DatabaseSalesReports implements SalesReports
             static fn (stdClass $row): MoneyByWayDto => new MoneyByWayDto((string) $row->way, (int) $row->records, Money::of((int) $row->amount, (string) $row->currency_code)),
             $this->db->table($table)
                 ->where('store_id', $store->value)->whereNull('voided_at')
+                ->whereRaw('order_id NOT IN (SELECT id FROM sales.orders WHERE store_id = ? AND is_test)', [$store->value])
                 ->where('happened_on', '>=', $fromDay->format('Y-m-d'))->where('happened_on', '<=', $toDay->format('Y-m-d'))
                 ->groupBy('way', 'currency_code')->orderBy('way')
                 ->get(['way', 'currency_code', $this->db->raw('count(*) AS records'), $this->db->raw('sum(amount_minor) AS amount')])->all(),
@@ -166,10 +168,12 @@ final readonly class DatabaseSalesReports implements SalesReports
         foreach ($this->db->select(<<<'SQL'
             SELECT 'payments' AS kind, happened_on::text AS day, way, currency_code, count(*) AS records, sum(amount_minor) AS amount
             FROM sales.payments WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+                AND order_id NOT IN (SELECT id FROM sales.orders WHERE store_id = sales.payments.store_id AND is_test)
             GROUP BY 2, 3, 4
             UNION ALL
             SELECT 'refunds', happened_on::text, way, currency_code, count(*), sum(amount_minor)
             FROM sales.refunds WHERE store_id = ? AND voided_at IS NULL AND happened_on BETWEEN ?::date AND ?::date
+                AND order_id NOT IN (SELECT id FROM sales.orders WHERE store_id = sales.refunds.store_id AND is_test)
             GROUP BY 2, 3, 4
             ORDER BY 2, 1, 3
             SQL, [$store->value, $from, $to, $store->value, $from, $to]) as $row) {
@@ -189,7 +193,7 @@ final readonly class DatabaseSalesReports implements SalesReports
     public function transfersWaiting(StoreId $store): TransfersWaitingDto
     {
         $row = $this->db->table('sales.orders')
-            ->where('store_id', $store->value)->where('way_to_pay', 'BANK_TRANSFER')
+            ->where('store_id', $store->value)->where('is_test', false)->where('way_to_pay', 'BANK_TRANSFER')
             ->whereIn('status', ['PENDING_APPROVAL', 'APPROVED', 'COMPLETED'])
             ->whereRaw('due_minor > paid_minor - refunded_minor')
             ->first([$this->db->raw('count(*) AS orders'), $this->db->raw('coalesce(sum(due_minor - (paid_minor - refunded_minor)), 0) AS owed')]);
@@ -230,7 +234,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         // The orders placed in the range that count, by the store's own day.
         foreach ($this->db->table('sales.orders')
-            ->where('store_id', $store->value)->where('placed_at', '>=', $f)->where('placed_at', '<', $t)
+            ->where('store_id', $store->value)->where('is_test', false)->where('placed_at', '>=', $f)->where('placed_at', '<', $t)
             ->whereNotIn('status', self::NOT_SALES)
             ->groupByRaw('1')
             ->selectRaw("to_char(placed_at AT TIME ZONE ?, 'YYYY-MM-DD') AS day, count(*) AS orders, sum(goods_total_minor) AS revenue, sum(vat_minor) AS vat, sum(shipping_fee_minor) AS shipping", [$zone])
@@ -240,7 +244,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         // The returns asked in the range that refund, or will: each by the day it was asked.
         $returns = $this->db->table('sales.returns as r')->join('sales.orders as o', 'o.id', '=', 'r.order_id')
-            ->where('r.store_id', $store->value)->where('r.requested_at', '>=', $f)->where('r.requested_at', '<', $t)
+            ->where('r.store_id', $store->value)->where('o.is_test', false)->where('r.requested_at', '>=', $f)->where('r.requested_at', '<', $t)
             ->whereIn('r.status', self::REFUNDING)
             ->orderBy('r.requested_at')->orderBy('r.id')
             ->selectRaw("r.id, r.order_id, r.status, o.number, to_char(r.requested_at AT TIME ZONE ?, 'YYYY-MM-DD') AS day", [$zone])
@@ -300,7 +304,7 @@ final readonly class DatabaseSalesReports implements SalesReports
                 SELECT l.variant_id, min(l.product_id) AS product_id, sum(l.quantity) AS units,
                        sum(l.total_minor - l.coupon_share_minor - l.points_share_minor) AS revenue
                 FROM sales.order_lines AS l JOIN sales.orders AS o ON o.id = l.order_id
-                WHERE o.store_id = ? AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
+                WHERE o.store_id = ? AND NOT o.is_test AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
                 GROUP BY l.variant_id
             )
             SELECT variant_id, product_id, units, revenue FROM sold {$past}
@@ -345,14 +349,15 @@ final readonly class DatabaseSalesReports implements SalesReports
             WITH sold AS (
                 SELECT l.product_id, sum(l.quantity) AS units, sum(l.total_minor - l.coupon_share_minor - l.points_share_minor) AS revenue
                 FROM sales.order_lines AS l JOIN sales.orders AS o ON o.id = l.order_id
-                WHERE o.store_id = ? AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
+                WHERE o.store_id = ? AND NOT o.is_test AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
                 GROUP BY l.product_id
             ), returned AS (
                 SELECT DISTINCT l.product_id
                 FROM sales.returns AS r
                 JOIN sales.return_lines AS rl ON rl.return_id = r.id
                 JOIN sales.order_lines AS l ON l.id = rl.order_line_id
-                WHERE r.store_id = ? AND r.requested_at >= ? AND r.requested_at < ? AND r.status IN (?, ?, ?, ?) AND NOT l.is_gift
+                JOIN sales.orders AS o ON o.id = r.order_id
+                WHERE r.store_id = ? AND NOT o.is_test AND r.requested_at >= ? AND r.requested_at < ? AND r.status IN (?, ?, ?, ?) AND NOT l.is_gift
             ), products AS (
                 SELECT product_id FROM sold UNION SELECT product_id FROM returned
             )
@@ -370,8 +375,8 @@ final readonly class DatabaseSalesReports implements SalesReports
         // The page's products' refunds: the returns asked in the range holding a piece of one, each counted as
         // `revenueByDay` counts it, its goods kept by line.
         if ($page !== []) {
-            $returns = $this->db->table('sales.returns as r')
-                ->where('r.store_id', $store->value)->where('r.requested_at', '>=', $f)->where('r.requested_at', '<', $t)
+            $returns = $this->db->table('sales.returns as r')->join('sales.orders as o', 'o.id', '=', 'r.order_id')
+                ->where('r.store_id', $store->value)->where('o.is_test', false)->where('r.requested_at', '>=', $f)->where('r.requested_at', '<', $t)
                 ->whereIn('r.status', self::REFUNDING)
                 ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('sales.return_lines as rl')
                     ->join('sales.order_lines as l', 'l.id', '=', 'rl.order_line_id')

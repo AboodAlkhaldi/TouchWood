@@ -25,5 +25,9 @@ final readonly class MoneyRow
         public ?string $voidedBy,
         public ?DateTimeImmutable $voidedAt,
         public ?string $voidReason,
+        /** Test money, never real (payments.md §1.6). */
+        public bool $isTest = false,
+        /** What the gateway took differed from what was asked (rule 8). */
+        public bool $mismatch = false,
     ) {}
 }

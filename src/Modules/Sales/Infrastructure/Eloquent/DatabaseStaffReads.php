@@ -20,7 +20,7 @@ final readonly class DatabaseStaffReads implements StaffReads
     {
         $query = $this->db->table('sales.orders AS o')
             ->orderByDesc('o.placed_at')->orderByDesc('o.id')->limit($limit)
-            ->select(['o.id', 'o.number', 'o.store_id', 'o.customer_id', 'o.placed_at', 'o.status', 'o.shipment_status', 'o.currency_code',
+            ->select(['o.id', 'o.number', 'o.is_test', 'o.store_id', 'o.customer_id', 'o.placed_at', 'o.status', 'o.shipment_status', 'o.currency_code',
                 'o.order_total_minor', 'o.due_minor', 'o.paid_minor', 'o.refunded_minor', 'o.short_of_stock_at', 'o.may_ship_unpaid', 'o.shipping_fee_pending']);
 
         if ($storeIds !== null) {
@@ -76,8 +76,8 @@ final readonly class DatabaseStaffReads implements StaffReads
     public function money(string $orderId): array
     {
         $columns = ['id', 'amount_minor', 'way', 'reference', 'note', 'happened_on', 'recorded_by', 'recorded_at', 'voided_by', 'voided_at', 'void_reason'];
-        $payments = $this->db->table('sales.payments')->where('order_id', $orderId)->selectRaw("'PAYMENT' AS kind")->addSelect($columns);
-        $refunds = $this->db->table('sales.refunds')->where('order_id', $orderId)->selectRaw("'REFUND' AS kind")->addSelect($columns);
+        $payments = $this->db->table('sales.payments')->where('order_id', $orderId)->selectRaw("'PAYMENT' AS kind")->addSelect($columns)->addSelect(['is_test', 'mismatch']);
+        $refunds = $this->db->table('sales.refunds')->where('order_id', $orderId)->selectRaw("'REFUND' AS kind")->addSelect($columns)->selectRaw('false AS is_test, false AS mismatch');
 
         return array_values(array_map(static fn (stdClass $row): array => (array) $row, $payments->unionAll($refunds)->orderBy('recorded_at')->orderBy('id')->get()->all()));
     }

@@ -37,9 +37,21 @@ final readonly class OrderNumberSequences implements OrderNumbers
         return (int) $row->number;
     }
 
+    public function nextTest(StoreId $store): int
+    {
+        $name = 'sales.test_order_number_'.self::id($store->value);
+
+        if ($this->db->selectOne('SELECT to_regclass(?) IS NULL AS missing', [$name])->missing) {
+            $this->db->statement(sprintf('CREATE SEQUENCE IF NOT EXISTS %s START WITH %d', $name, self::FIRST));
+        }
+
+        return (int) $this->db->selectOne('SELECT nextval(?::regclass) AS number', [$name])->number;
+    }
+
     public function create(StoreId $store): void
     {
         $this->db->statement(sprintf('CREATE SEQUENCE IF NOT EXISTS %s START WITH %d', self::name($store->value), self::FIRST));
+        $this->db->statement(sprintf('CREATE SEQUENCE IF NOT EXISTS sales.test_order_number_%s START WITH %d', self::id($store->value), self::FIRST));
     }
 
     /** Every store's numbers made — the migration's, for the stores there are when it runs. */
@@ -55,8 +67,14 @@ final readonly class OrderNumberSequences implements OrderNumbers
     /** The sequence's qualified name — the store's id checked first, as it is written into SQL. */
     public static function name(string $storeId): string
     {
+        return 'sales.order_number_'.self::id($storeId);
+    }
+
+    /** Checked first, as it is written into SQL. */
+    private static function id(string $storeId): string
+    {
         $id = strtolower($storeId);
 
-        return Ulids::valid($id) ? 'sales.order_number_'.$id : throw new InvalidArgumentException('Not a store id.');
+        return Ulids::valid($id) ? $id : throw new InvalidArgumentException('Not a store id.');
     }
 }

@@ -52,6 +52,7 @@ final readonly class PrintOrderHandler
             $this->reader->exponent($currency),
             $this->box->of((string) $order['store_id'], $lines),
             OrderShippingView::feeOpen($order),
+            (bool) $order['is_test'],
         );
     }
 }

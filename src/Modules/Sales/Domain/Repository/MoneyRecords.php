@@ -15,6 +15,9 @@ interface MoneyRecords
 
     public function add(MoneyRecord $record): void;
 
+    /** Whether this Payments' transaction is recorded already: twice is once (§9.5 #7). */
+    public function hasOnline(string $reference): bool;
+
     /** The order a record belongs to; null when there is no such record. */
     public function orderOf(string $kind, string $recordId): ?string;
 

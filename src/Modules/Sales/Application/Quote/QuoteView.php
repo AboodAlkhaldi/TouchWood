@@ -63,6 +63,8 @@ final readonly class QuoteView
         public int $earningPreview,
         public DateTimeImmutable $expiresAt,
         public DateTimeImmutable $createdAt,
+        /** The cart's version it was built from (§9.5 #11). */
+        public int $cartVersion = 0,
     ) {}
 
     /**
@@ -100,6 +102,7 @@ final readonly class QuoteView
             ],
             'waysToPay' => array_map(static fn (WayToPay $way): string => $way->value, $this->waysToPay),
             'earningPreview' => $this->earningPreview,
+            'cartVersion' => $this->cartVersion,
         ];
     }
 
@@ -108,7 +111,7 @@ final readonly class QuoteView
      */
     public static function fromArray(string $id, string $storeId, string $customerId, string $addressId, WayToPay $wayToPay, DateTimeImmutable $expiresAt, DateTimeImmutable $createdAt, array $result): self
     {
-        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, nameAr: ?string, nameEn: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, mode: ?string, mostUsable: int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{coverage: string, carrierId: ?string, carrierAr: ?string, carrierEn: ?string, fee: int, price: int, freeAbove: ?int, freeKind: ?string, carrierChanged: bool, options: list<array{carrierId: string, nameAr: string, nameEn: string, logoUrl: ?string, fee: int, freeBecause: ?string}>, destination: array{countryCode: string, regionId: ?string, cityId: ?string, districtId: ?string}}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int} $result */
+        /** @var array{audience: string, prices: array{currency: string, taxRate: int, lines: list<array{variantId: string, mode: string, quantity: int, listUnit: int, unit: int, kind: string, listTotal: int, total: int, endsAt: ?string}>, gross: int, net: int, pricedAt: string, validUntil: ?string}, coupon: array{code: ?string, id: ?string, nameAr: ?string, nameEn: ?string, discount: int, shares: list<int>, allowWithPoints: bool, refusal: ?string}, points: array{use: bool, asked: ?int, mode: ?string, mostUsable: int, used: int, discount: int, refusal: ?string}, gift: array{levelId: ?string, variantId: ?string}, shipping: array{coverage: string, carrierId: ?string, carrierAr: ?string, carrierEn: ?string, fee: int, price: int, freeAbove: ?int, freeKind: ?string, carrierChanged: bool, options: list<array{carrierId: string, nameAr: string, nameEn: string, logoUrl: ?string, fee: int, freeBecause: ?string}>, destination: array{countryCode: string, regionId: ?string, cityId: ?string, districtId: ?string}}, totals: array{gross: int, net: int, coupon: int, points: int, goods: int, shipping: int, taxable: int, vat: int, order: int, taxRate: int}, waysToPay: list<string>, earningPreview: int, cartVersion?: int} $result */
         $currency = $result['prices']['currency'];
         $money = static fn (int $minor): Money => Money::of($minor, $currency);
         $moment = static fn (?string $at): ?DateTimeImmutable => $at === null ? null : CarbonImmutable::parse($at);
@@ -162,6 +165,8 @@ final readonly class QuoteView
             $result['earningPreview'],
             $expiresAt,
             $createdAt,
+            // A quote from before versions: none.
+            $result['cartVersion'] ?? 0,
         );
     }
 }

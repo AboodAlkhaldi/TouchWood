@@ -32,6 +32,7 @@ final readonly class DatabaseQuotes implements Quotes
             'result' => json_encode($quote->result, JSON_THROW_ON_ERROR),
             'expires_at' => Moment::of($quote->expiresAt),
             'created_at' => Moment::of($quote->createdAt),
+            'cart_version' => $quote->cartVersion,
         ]);
     }
 
@@ -69,6 +70,7 @@ final readonly class DatabaseQuotes implements Quotes
             $result,
             CarbonImmutable::parse((string) $row->expires_at),
             CarbonImmutable::parse((string) $row->created_at),
+            (int) $row->cart_version,
         );
     }
 
@@ -81,6 +83,7 @@ final readonly class DatabaseQuotes implements Quotes
                 SELECT q.id FROM sales.quotes q
                 WHERE q.expires_at < ?
                     AND NOT EXISTS (SELECT 1 FROM sales.orders o WHERE o.quote_id = q.id)
+                    AND NOT EXISTS (SELECT 1 FROM sales.checkout_tries t WHERE t.quote_id = q.id AND t.state <> 'RELEASED')
                 FOR UPDATE SKIP LOCKED
             )
             SQL, [Moment::of($at)]);

@@ -7,6 +7,11 @@ namespace Tests\Modules\Sales\Support;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Mockery;
+use Mockery\MockInterface;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Dto\OnlinePaymentDto;
+use Modules\Payments\Public\Enums\OnlinePaymentReason;
 use Modules\Platform\Application\Command\AddPlace\AddPlace;
 use Modules\Platform\Application\Command\AddPlace\AddPlaceHandler;
 use Modules\Platform\Application\Command\RestorePlace\RestorePlace;
@@ -176,6 +181,16 @@ final class CheckoutFixtures
             app()->scoped(ActorContext::class, $previous);
             app()->forgetScopedInstances();
         }
+    }
+
+    /** Payments stood in for: no gateway and not in test, the test saying the rest (bank account and so on). */
+    public static function paymentsStandIn(): MockInterface
+    {
+        $payments = Mockery::mock(PaymentsApi::class);
+        $payments->shouldReceive('availability')->andReturn(new OnlinePaymentDto(false, null, OnlinePaymentReason::NoGateway))->byDefault();
+        $payments->shouldReceive('inTestMode')->andReturn(false)->byDefault();
+
+        return $payments;
     }
 
     public static function add(string $variantId, int $quantity = 1, string $mode = 'RETAIL', string $storeCode = 'sa'): void

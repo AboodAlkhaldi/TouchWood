@@ -22,6 +22,9 @@ interface Transactions
      */
     public function record(Attempt $attempt, TransactionFacts $facts): string;
 
+    /** The gateway's code on this attempt's latest declined transaction. */
+    public function declineCode(string $attemptId): ?string;
+
     /** One transaction as other modules read it; null when there is no such thing. */
     public function dto(string $id): ?PaymentDto;
 }

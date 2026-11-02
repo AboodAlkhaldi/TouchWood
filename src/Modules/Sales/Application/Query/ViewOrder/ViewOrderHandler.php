@@ -96,6 +96,7 @@ final readonly class ViewOrderHandler
                 $row['reference'] === null ? null : (string) $row['reference'], $row['note'] === null ? null : (string) $row['note'],
                 (string) $row['happened_on'], $name($row['recorded_by']), CarbonImmutable::parse((string) $row['recorded_at']),
                 $name($row['voided_by']), $at($row['voided_at']), $row['void_reason'] === null ? null : (string) $row['void_reason'],
+                (bool) $row['is_test'], (bool) $row['mismatch'],
             ), $records),
             array_map(static function (array $row) use ($name): HistoryRow {
                 /** @var array<string, mixed> $detail */
@@ -116,6 +117,7 @@ final readonly class ViewOrderHandler
             $wired ? $counting : [],
             OrderShippingView::of($order),
             $this->box->of((string) $order['store_id'], $lines),
+            (bool) $order['is_test'],
         );
     }
 }

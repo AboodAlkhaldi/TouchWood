@@ -37,6 +37,10 @@ return [
         'title' => 'Check the Details',
         'detail' => 'The :field isn\'t valid. Check it and try again.',
     ],
+    'too_many_payment_sessions' => [
+        'title' => 'Too Many Tries',
+        'detail' => 'Too many tries. Try again in :minutes minutes.',
+    ],
     'no_online_payment' => [
         'title' => 'Online Payment Is Off',
         'detail' => 'This store does not take online payment right now. Our staff will contact you about paying.',

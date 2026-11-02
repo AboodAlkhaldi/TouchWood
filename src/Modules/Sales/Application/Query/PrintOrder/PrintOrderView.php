@@ -44,5 +44,6 @@ final readonly class PrintOrderView
         public ?BoxSuggestionDto $box = null,
         /** No carrier served the place: staff set the fee before it ships (shipping.md §9.3 #8). */
         public bool $shippingFeePending = false,
+        public bool $isTest = false,
     ) {}
 }

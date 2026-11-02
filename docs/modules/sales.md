@@ -1869,7 +1869,7 @@ As built — **my picks**, for the owner to reject:
     `shippingFee` null and `shippingPending`; the pages built today hide the shipping row until then.
 11. **For the owner: an edit that makes the fee to be set keeps the order's way to pay.** At placing, such an
     order is staff contact only; a company's bank-transfer order moved by staff to a place no carrier serves
-    stays a bank transfer, the fee set by staff before it ships.
+    stays a bank transfer, the fee set by staff before it ships. **The owner, 2026-11-02: kept as it is.**
 
 ### 9.7 The step 6 screens' questions (2026-11-01) — **answered**
 
@@ -1928,3 +1928,51 @@ carrier serves stays a bank transfer. The screens say so in the preview; the own
 
 **Still open for the owner**: a fee staff set, kept through a move to another place with a carrier picked, can no longer
 be changed by Change Shipping Fee… (the order then has a carrier, §9.6 #4), only by another address change.
+
+### 9.8 Stage 7 step 11 — #4–#7, #11, #13–#15 built (2026-11-02)
+
+**What the screens call** (all customers', `sales.order.place`; the pages and routes are the screens session's):
+
+- `OpenCheckoutPayment(storeId, quoteId, locale)` → `PaymentSessionDto`: the form, for a quote made with the way `ONLINE`.
+- `PayOnline(storeId, quoteId, sessionId, locale, returnUrl)` → `OnlineStart(tryId, start)`: Pay; `start` is Payments'
+  `PaymentStartDto`.
+- `FollowCheckoutPayment(tryId)` → `CheckoutTryView`: the page's answer. Asks Payments, then makes the order or
+  releases at once.
+- `ReturnToCheckout(storeId)` → `CheckoutTryView` or null: call it when checkout or the cart opens. Null: no payment in
+  the way. `LIVE`: "Your last payment can still go through until …", no form. `PAID`: their new order, shown once, even
+  when the event made it while they were away.
+
+`CheckoutTryView`: `tryId`, `state` (`LIVE`, `PAID`, `RELEASED`), `payment` (Payments' `PaymentState`), `orderNumber`,
+`windowEndsAt`, `waitEndsAt`, `holdEndsAt`, `nothingCharged`, `refundDue`, `declineCode` (the gateway's `MF0xx`, for the
+plain words), `firstSeen` (the first time its ending is shown: the closed store's one page, payments.md §1.10). "No money
+was taken" on a decline (payments.md §4.2) or when `nothingCharged` is true (§9.8). Own and staff order rows and views,
+the print, the money rows and Ops' `OrderMessageDto` carry `isTest`; money rows `mismatch`.
+
+**An online checkout's order sends no `PaymentRecorded`** (Ops, ops.md:129: one email, C1). A payment request's online
+payment does; that is step 12.
+
+**The build's own picks, simple, taken as recommended under the owner's rule:**
+
+1. **A try is a customer's only**: §9.5 #11's "customer or guest, as the cart" cannot arise, as only a customer checks out.
+2. **The try's copies of the address and contact are deleted as soon as it ends**: a paid try's order holds them, and a
+   released try needs them no more. An account anonymized during the minutes of a payment keeps no email on the order.
+3. **A currency refused is a refund due of the amount asked**: that money never enters Sales (payments.md rule 8), so
+   Payments' list says what really came. A success after release is a refund due of what was paid, added once per event.
+4. **"The store is in TEST" means its gateway is on and in test**, as the admin banner does (payments.md §9.12): a
+   gateway switched off says nothing about money.
+5. **A test order still uses a coupon and points for real** (§1.6 leaves it out of figures, and its fact is not recorded):
+   they are reservations like any other, on a staging site.
+6. **The Pay limits count every press**, a double click too, before the try is read, keyed by customer and store, which is
+   one cart. Over them: `TooManyPaymentTries` (429), nothing changed. Under them, ten presses are still one try. The limit
+   on opening sessions is Payments' own and counts only a new one, so refreshing checkout never uses it up (§1.8).
+7. **The quotes compare by what the customer pays and gets**: lines, coupon, points, gift, carrier and fee, totals. The
+   moments prices were read at and the points it would earn are no change.
+8. **An online order waits for approval like any other**: paid is not approved, and §1.3 is unchanged.
+9. **Payments gains three reads and marks** for this: `inTestMode`, `timers`, `needsAttention` (payments.md §2.1).
+10. **`sales.payments` gains `is_test` and `mismatch`**, kept by a trigger of their own. Figures leave test money out
+    through its order, as every test payment so far is on a test order. Step 12 decides a request's.
+11. **A `TEST-0001` is unique per store only**, as the owner fixed the format. A tester with test orders in two stores
+    may see the other's in My Orders under the same number. Staging only; left for the owner.
+12. **An order's `wired` and "counts on stock" are read when it is made**, up to 15 minutes after its hold fixed them. A
+    store rewired during those minutes could disagree with its hold. Left as it is: very rare, and staff see it on the order.
+
