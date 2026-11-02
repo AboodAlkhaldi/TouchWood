@@ -32,9 +32,10 @@ uses(RefreshDatabase::class);
 // Measured on 2026-10-30, warm, as a Super Admin: 43 for a carrier's page with prices (its own reads: the
 // carrier, its prices with their places and those places' regions or cities once, the store-wide amount, the
 // country's name) and 43 for the carriers page (adding the places no carrier serves and the store-wide amount).
-// The panel's frame is most of it (CarriersScreensTest says what); neither grows with the number of prices.
-const PRICES_SCREEN_PAGE_QUERIES = 43;
-const PRICES_SCREEN_LIST_QUERIES = 43;
+// The panel's frame is most of it (CarriersScreensTest says what); neither grows with the number of prices. Plus
+// one each from 2026-11-02: the bell's number (ops.md §4.15 O1).
+const PRICES_SCREEN_PAGE_QUERIES = 44;
+const PRICES_SCREEN_LIST_QUERIES = 44;
 
 beforeEach(function () {
     // The session sweep's random DELETE stays out of the counts (the backend session's finding, 2026-10-30).

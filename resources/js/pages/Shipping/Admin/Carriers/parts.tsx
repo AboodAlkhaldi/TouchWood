@@ -1,7 +1,6 @@
-import { useState, type RefObject } from 'react';
+import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
-import { DestructiveActionDialog } from '@/components/DestructiveActionDialog';
 import { PanelDialog } from '@/components/PanelDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
@@ -13,7 +12,7 @@ import type { SharedProps } from '@/types/page';
 /*
 | What the carriers list (C1) and a carrier's page (C3) share (shipping.md §4.1 part 1): the carrier's
 | name in the page's language, its logo or its initials (Q15), the on/off switch that asks before
-| switching off (Q5), Delete's dialog (Q6), and what a tracking link pattern opens (Q8).
+| switching off (Q5), and what a tracking link pattern opens (Q8).
 */
 
 export const C = 'shipping::admin_carriers';
@@ -109,65 +108,5 @@ export function CarrierSwitch({ carrier, name, storeCode, test }: { carrier: Car
                 {null}
             </PanelDialog>
         </>
-    );
-}
-
-/**
- * Delete, while the carrier is off (Q6): Geist's Destructive Action Modal - the carrier's name typed to
- * confirm, the red band for what cannot be undone - saying its prices go with it and placed orders keep
- * its name and links. A refusal (switched on meanwhile) is said inside, and the dialog stays.
- */
-export function DeleteCarrierDialog({
-    carrier,
-    name,
-    storeCode,
-    fromPage = false,
-    open,
-    onOpenChange,
-    returnFocusTo,
-}: {
-    carrier: CarrierData;
-    name: string;
-    storeCode: string;
-    fromPage?: boolean;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    returnFocusTo?: RefObject<HTMLElement | null>;
-}) {
-    const t = useTranslator();
-    const { errors } = usePage<SharedProps>().props;
-    const [busy, setBusy] = useState(false);
-    const [refused, setRefused] = useState(false);
-
-    return (
-        <DestructiveActionDialog
-            open={open}
-            onOpenChange={onOpenChange}
-            title={t(`${C}.delete_title`)}
-            confirmLabel={t(`${C}.delete_title`)}
-            description={t(`${C}.delete_body`, { name })}
-            irreversibleDescription={t(`${C}.delete_irreversible`, { name })}
-            verificationPhrase={name}
-            verificationLabel={t(`${C}.verification_label`)}
-            loading={busy}
-            error={refused ? errors.form : undefined}
-            returnFocusTo={returnFocusTo}
-            onConfirm={() =>
-                router.post(
-                    `${LIST}/${carrier.id}/delete`,
-                    { store: storeCode, from_page: fromPage },
-                    {
-                        preserveScroll: true,
-                        onStart: () => {
-                            setBusy(true);
-                            setRefused(false);
-                        },
-                        onFinish: () => setBusy(false),
-                        onError: () => setRefused(true),
-                        onSuccess: () => onOpenChange(false),
-                    },
-                )
-            }
-        />
     );
 }

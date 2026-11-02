@@ -39,6 +39,7 @@ use Modules\Platform\Application\Query\PlaceReader;
 use Modules\Platform\Application\Query\PlacesPanelReader;
 use Modules\Platform\Application\Query\StoreDirectory;
 use Modules\Platform\Application\Routing\GuestShoppers;
+use Modules\Platform\Application\Routing\InMemoryAdminFrameParts;
 use Modules\Platform\Application\Routing\InMemoryOffStoreViewers;
 use Modules\Platform\Application\Routing\InMemoryReservedPaths;
 use Modules\Platform\Application\Routing\InMemoryShopFrameParts;
@@ -84,6 +85,7 @@ use Modules\Platform\Presentation\Http\Middleware\ShareStorefront;
 use Modules\Platform\Presentation\Http\Middleware\TrackHttpRequest;
 use Modules\Platform\Presentation\Http\StorefrontLanguage;
 use Modules\Platform\Public\Contracts\AdminBanners;
+use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\HomeCards;
 use Modules\Platform\Public\Contracts\MediaUsages;
@@ -178,6 +180,9 @@ final class PlatformServiceProvider extends ServiceProvider
         // The shop frame's parts - Catalog's menu and search box (catalog.md §4.5, owner's #9).
         $this->app->singleton(InMemoryShopFrameParts::class);
         $this->app->alias(InMemoryShopFrameParts::class, ShopFrameParts::class);
+        // And the panel's - Ops' bell (ops.md §4.15 O1).
+        $this->app->singleton(InMemoryAdminFrameParts::class);
+        $this->app->alias(InMemoryAdminFrameParts::class, AdminFrameParts::class);
 
         // One pattern for {store} on every route, built from every module's reserved paths, so no
         // module imports Platform's interior to register storefront routes. Built after every

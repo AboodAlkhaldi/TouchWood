@@ -32,8 +32,9 @@ uses(RefreshDatabase::class);
 
 // Measured on 2026-10-31, warm, as a Super Admin: 41 with boxes and sizes packed by hand. Its own reads are the
 // boxes and the padding, the hand-packed sizes (Catalog's search and its count) and their photos in one read; the
-// panel's frame is most of it (CarriersScreensTest says what). It grows with neither boxes nor sizes.
-const BOXES_SCREEN_QUERIES = 41;
+// panel's frame is most of it (CarriersScreensTest says what). It grows with neither boxes nor sizes. Plus one
+// from 2026-11-02: the bell's number (ops.md §4.15 O1).
+const BOXES_SCREEN_QUERIES = 42;
 
 beforeEach(function () {
     config(['session.driver' => 'database', 'session.lottery' => [0, 100]]);

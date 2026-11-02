@@ -39,9 +39,10 @@ uses(RefreshDatabase::class);
 // Plus one from stage 7 step 4 (2026-10-30): the Carriers entry's count of places no carrier serves reads its
 // kept count, one query (shipping.md §1.6). Then part 2 of the screens (2026-10-30): the list reads the places
 // no carrier serves and the store-wide free-shipping amount (43); a carrier's page its prices and that amount
-// (41 with no price; PricesScreensTest pins it with prices).
-const CARRIERS_SCREEN_LIST_QUERIES = 43;
-const CARRIERS_SCREEN_PAGE_QUERIES = 41;
+// (41 with no price; PricesScreensTest pins it with prices). Plus one each from 2026-11-02: the bell's number
+// (ops.md §4.15 O1).
+const CARRIERS_SCREEN_LIST_QUERIES = 44;
+const CARRIERS_SCREEN_PAGE_QUERIES = 42;
 
 beforeEach(function () {
     // The sweep of old sessions runs on 2 requests in 100 (config/session.php) and adds a DELETE: off, so

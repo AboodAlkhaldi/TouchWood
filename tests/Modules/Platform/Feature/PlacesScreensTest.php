@@ -198,7 +198,8 @@ describe('the pages', function () {
         // Measured 15 on 2026-10-29: the countries with their counts, the stores, the session.
         // Plus one from 2026-10-30 (stage 7 step 4): the Carriers entry's kept count of places no carrier
         // serves, read on every admin page (shipping.md §1.6).
-        expect($queries)->toBeLessThanOrEqual(16);
+        // Plus one from 2026-11-02: the bell's number (ops.md §4.15 O1).
+        expect($queries)->toBeLessThanOrEqual(17);
     });
 
     it('opens a level per page with its trail, and says what retired above it hides', function () {
@@ -231,9 +232,10 @@ describe('the pages', function () {
 
         // Measured 16, 17 and 17 on 2026-10-29: the trail is one more read.
         // Plus one each from 2026-10-30 (stage 7 step 4): the Carriers entry's kept count (shipping.md §1.6).
-        expect($counts['regions'])->toBeLessThanOrEqual(17)
-            ->and($counts['cities'])->toBeLessThanOrEqual(18)
-            ->and($counts['districts'])->toBeLessThanOrEqual(18);
+        // Plus one each from 2026-11-02: the bell's number (ops.md §4.15 O1).
+        expect($counts['regions'])->toBeLessThanOrEqual(18)
+            ->and($counts['cities'])->toBeLessThanOrEqual(19)
+            ->and($counts['districts'])->toBeLessThanOrEqual(19);
     });
 
     it('answers a trail that does not hold together, or an unknown country, with the not-found page', function () {
@@ -263,7 +265,8 @@ describe('the pages', function () {
 
         // Measured 16 on 2026-10-29, with the ship-to lists and Add Country's choices.
         // Plus one from 2026-10-30 (stage 7 step 4): the Carriers entry's kept count (shipping.md §1.6).
-        expect($queries)->toBeLessThanOrEqual(17);
+        // Plus one from 2026-11-02: the bell's number (ops.md §4.15 O1).
+        expect($queries)->toBeLessThanOrEqual(18);
 
         placesScreenSignIn(Fx::staffWith([PlatformPermissions::STORE_UPDATE, PlatformPermissions::STORE_VIEW], ['sa'], RoleLevel::Admin))
             ->get('/admin/stores')->assertOk()->assertInertia(fn (AssertableInertia $inertia) => $inertia->where('shipToChoices', null)->has('stores.0.shipsTo', 1));

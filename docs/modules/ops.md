@@ -932,7 +932,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 
 1. **No pages.** No Inertia page, `AdminMenu` entry, Home card or account tab exists for Ops, and the bell is in no
    frame. The three links emails carry (§4.10, §4.11) open JSON until those pages exist. A stop-email page for an off
-   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.**
+   store cannot use the shop's frame (§4.11). **Specified in §4.15 (owner, 2026-11-02); leaves this list as each is built.** Built: SMS Countries (#322), the two bells and their full pages.
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
