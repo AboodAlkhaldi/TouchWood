@@ -90,6 +90,7 @@ final readonly class MessageWriter
             MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], null, sms: true),
             MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], null, sms: true),
+            MessageKind::PaymentNotAccepted => $this->text($message->kind, $locale, $values, null),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
     }

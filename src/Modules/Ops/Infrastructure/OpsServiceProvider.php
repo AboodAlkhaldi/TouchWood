@@ -97,6 +97,7 @@ use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
+use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
 use Modules\Promotions\Public\Events\CouponAssigned;
@@ -237,7 +238,7 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
         }
 
-        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class] as $event) {
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class] as $event) {
             Event::listen($event, [AlertStaff::class, 'handle']);
         }
 
