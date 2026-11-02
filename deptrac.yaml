@@ -270,4 +270,5 @@ deptrac:
       - FeedbackPublic
       - SyncPublic
       - ContentPublic
-    Ops: [+OpsPublic]
+    # Its screens use the framework glue, as the others' (ops.md §4.15).
+    Ops: [+OpsPublic, AppHttp]

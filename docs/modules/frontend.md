@@ -680,7 +680,8 @@ From the design, with the decided rules applied:
   stores that are on, and for a Super Admin every store, an off one marked Off (access.md amendment
   64). **[DECIDED 2026-09-19] The search box (⌘K) and the notifications bell are hidden** until a
   module gives them content: search with Sales — one search for products and orders; Catalog's
-  products list has its own until then (catalog.md §4.4, owner 2026-10-07) — the bell with Ops.
+  products list has its own until then (catalog.md §4.4, owner 2026-10-07) — the bell with Ops
+  (ops.md §4.15 O1, owner 2026-11-02: in this top bar, before View Store).
 - **[REPLACED by the owner, 2026-10-06] No store "worked in":** ~~the store picker remembered on the
   staff account~~. **Every screen that shows one store's data has its own store filter**, as the
   Companies list has had: the address says which store (`?store=<code>`, Companies `?store=<id>`).

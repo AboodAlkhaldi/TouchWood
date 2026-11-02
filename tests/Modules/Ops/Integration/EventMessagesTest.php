@@ -989,8 +989,8 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         expect(eventMessagesBell(staffId: $super))->toHaveCount(2)
             ->and(eventMessagesBell(staffId: $admin))->toBe([])
             ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('kind')->unique()->all())->toBe(['gateway_key_expiring'])
-            // Nowhere to go: the alert names the key and its date, no page.
-            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('link')->unique()->all())->toBe([null])
+            // The Gateway page of the alert's own store (§4.2; owner, 2026-11-02).
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->pluck('link')->unique()->all())->toBe(['/admin/payments/gateway?store=sa'])
             ->and($sms->sent)->toBe([]);
 
         $oneDay = $key(1);
@@ -999,7 +999,9 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
 
         expect(eventMessagesBell(staffId: $super))->toHaveCount(3)
             ->and(array_column($sms->sent, 'phone'))->toBe([(string) DB::table('access.staff_users')->where('id', $super)->value('phone')])
-            ->and($sms->sent[0]['message'])->toContain('2026-11-30');
+            ->and($sms->sent[0]['message'])->toContain('2026-11-30')
+            // An SMS carries no link (§1.6): the bell and the email do.
+            ->and($sms->sent[0]['message'])->not->toContain('/admin/');
     });
 
     it('says which key is expiring and counts the days as each language does, never that payments stop', function (string $locale, string $mode, int $days, string $key, string $count) {
@@ -1042,6 +1044,23 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         'Arabic, 7' => ['ar', 7, 'خلال 7 أيام'],
         'Arabic, 14' => ['ar', 14, 'خلال 14 يومًا'],
     ]);
+
+    it('links both key alerts to the Gateway page of their own store, in the bell and the email', function (string $code) {
+        $super = Fx::staff(superAdmin: true);
+        cache()->flush();
+        eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
+        $page = '/admin/payments/gateway?store='.$code;
+
+        event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId($code), 'LIVE', 7, '2026-11-30', CarbonImmutable::now()));
+        $expiring = CapturedEmails::installed()->last();
+        event(new GatewayKeyRejected(eventMessagesId(), Fx::storeId($code), 'LIVE', CarbonImmutable::now()));
+        $refused = CapturedEmails::installed()->last();
+
+        expect(DB::table('ops.inbox_entries')->where('staff_id', $super)->orderBy('kind')->pluck('link', 'kind')->all())->toBe(['gateway_key_expiring' => $page, 'gateway_key_rejected' => $page])
+            ->and($expiring->subject)->not->toBe($refused->subject)
+            ->and($expiring->html)->toContain(e(config('app.url').$page))
+            ->and($refused->html)->toContain(e(config('app.url').$page));
+    })->with(['sa', 'ae']);
 
     it('sends an alert\'s email only by the staff member\'s switch, on the Payment problems topic', function () {
         $super = Fx::staff(superAdmin: true);
@@ -1094,11 +1113,15 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         expect(eventMessagesBell(staffId: $super))->toHaveCount(1)
             ->and(eventMessagesBell(staffId: $admin))->toBe([])
             ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('kind'))->toBe('gateway_key_rejected')
-            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('link'))->toBeNull()
+            ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('link'))->toBe('/admin/payments/gateway?store=sa')
             ->and(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)])
             ->and($sms->sent)->toHaveCount(1)
             ->and($sms->sent[0]['message'])->toContain($words)
+            ->and($sms->sent[0]['message'])->not->toContain('/admin/')
             ->and($email->text)->toContain($words)
+            // The Open button other staff alerts have, in the reader's language, to the alert's own store.
+            ->and($email->html)->toContain('<a href="'.e(config('app.url').'/admin/payments/gateway?store=sa').'">'.($locale === 'ar' ? 'عرض التفاصيل' : 'View details').'</a>')
+            ->and($email->text)->toContain(config('app.url').'/admin/payments/gateway?store=sa')
             ->and($email->subject)->toContain($locale === 'ar' ? 'رُفض' : 'refused')
             // A key of the mode not in use stops nothing: no word says payments stopped.
             ->and(str_contains($email->text, 'do not work') || str_contains($email->text, 'لا يعمل'))->toBeFalse();

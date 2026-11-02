@@ -42,6 +42,8 @@ use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentNotTaken;
 use Modules\Payments\Public\Events\PaymentSucceeded;
 use Modules\Sales\Application\Checkout\QuoteComparison;
+use Modules\Sales\Application\Checkout\TryCompletion;
+use Modules\Sales\Application\Checkout\TryRelease;
 use Modules\Sales\Application\Checkout\TryReview;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLine;
 use Modules\Sales\Application\Command\AddCartLine\AddCartLineHandler;
@@ -74,10 +76,12 @@ use Modules\Sales\Domain\Exception\CheckoutTryNotFound;
 use Modules\Sales\Domain\Exception\OnlinePaymentNotVoidable;
 use Modules\Sales\Domain\Exception\PaymentInProgress;
 use Modules\Sales\Domain\Exception\QuoteChanged;
+use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
 use Modules\Sales\Domain\Exception\TestOrderNotShippable;
 use Modules\Sales\Domain\Exception\TooManyPaymentTries;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
+use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Infrastructure\Listener\CompleteTryWhenPaid;
@@ -481,6 +485,9 @@ describe('Pay', function () {
         'the points it would earn' => [function (array &$r): void {
             $r['earningPreview'] = 99;
         }, null],
+        'when a sale ends' => [function (array &$r): void {
+            $r['prices']['lines'][0]['endsAt'] = '2027-02-01T00:00:00.000000+00:00';
+        }, null],
         'a line' => [function (array &$r): void {
             $r['prices']['lines'][0]['quantity'] = 9;
         }, 'prices'],
@@ -509,6 +516,52 @@ describe('Pay', function () {
             $r['totals']['order'] = 1;
         }, 'totals'],
     ]);
+
+    it('refuses a quote past its time, and one not for paying online: nothing reserved', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $quote = triesQuote($address);
+        $session = triesSession($quote);
+        $late = CarbonImmutable::instance($quote->expiresAt)->addSecond();
+        CarbonImmutable::setTestNow($late);
+        Carbon::setTestNow($late);
+
+        expect(fn () => triesPay($quote, $session))->toThrow(QuoteExpired::class)
+            ->and(fn () => triesPay(Cx::start($address), $session))->toThrow(WayToPayNotOffered::class)
+            ->and(DB::table('sales.checkout_tries')->count())->toBe(0)
+            ->and($fake->count('POST', '/v3/payments'))->toBe(0);
+        triesNothingHeld();
+    });
+
+    it('never pays a second time on a quote already paid, even with the same cart again', function () {
+        ['address' => $address, 'fake' => $fake, 'variants' => $variants] = triesReady();
+        $quote = triesQuote($address);
+        $session = triesSession($quote);
+        $paid = triesPay($quote, $session);
+        $fake->paid(triesAmount($quote));
+        triesFollow($paid->tryId);
+        Cx::add($variants[0], 2);
+        Cx::add($variants[1], 1);
+        DB::table('sales.quotes')->where('id', $quote->id)->update(['cart_version' => DB::table('sales.carts')->value('version')]);
+
+        expect(fn () => triesPay($quote, $session))->toThrow(QuoteChanged::class)
+            ->and($fake->count('POST', '/v3/payments'))->toBe(1)
+            ->and(DB::table('sales.checkout_tries')->count())->toBe(1);
+    });
+
+    it('holds the gift\'s piece too', function () {
+        ['address' => $address] = triesReady();
+        ['variants' => [$gift]] = Px::ready(['90 cm']);
+        Rx::switchOn('sa', [$gift]);
+        Rx::set('sa', [$gift => '10.00']);
+        Ix::count('sa', [$gift => 5]);
+        Pr::giftLevel($gift, 1_00);
+        $quote = triesQuote($address);
+
+        $paid = triesPay($quote);
+
+        expect($quote->giftVariantId)->toBe($gift)
+            ->and(DB::table('inventory.hold_lines')->join('inventory.holds', 'holds.id', '=', 'hold_lines.hold_id')->where('holds.order_id', triesRow($paid->tryId)->order_id)->where('hold_lines.variant_id', $gift)->count())->toBe(1);
+    });
 
     it('turns a reservation refused at the last moment into what changed, with everything rolled back', function () {
         ['address' => $address, 'variants' => $variants] = triesReady();
@@ -638,6 +691,28 @@ describe('paid', function () {
             ->and(triesRow($paid->tryId)->state)->toBe('PAID');
     });
 
+    it('records a second success on a paid try as a second payment, from the event and never from the page', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $quote = triesQuote($address);
+        $paid = triesPay($quote);
+        $fake->paid(triesAmount($quote));
+        triesFollow($paid->tryId);
+        $first = (array) DB::table('payments.transactions')->sole();
+        unset($first['id']);
+        DB::table('payments.transactions')->insert([...$first, 'gateway_payment_id' => 'second-payment']);
+        $second = (string) DB::table('payments.transactions')->where('gateway_payment_id', 'second-payment')->value('id');
+        $orderId = (string) triesRow($paid->tryId)->order_id;
+
+        app(TryCompletion::class)->complete($paid->tryId, $second);
+        expect(DB::table('sales.payments')->where('order_id', $orderId)->count())->toBe(1);
+
+        app(CompleteTryWhenPaid::class)->handle(new PaymentSucceeded((string) Str::uuid(), $second, $orderId, Fx::storeId('sa'), CarbonImmutable::now()));
+
+        expect(DB::table('sales.payments')->where('order_id', $orderId)->count())->toBe(2)
+            ->and(DB::table('sales.orders')->count())->toBe(1)
+            ->and(triesRow($paid->tryId)->refund_due_minor)->toBeNull();
+    });
+
     it('confirms the coupon and the points with the number taken now', function () {
         ['address' => $address, 'customer' => $customer, 'fake' => $fake] = triesReady();
         Pr::ceiling(100);
@@ -745,6 +820,17 @@ describe('paid', function () {
             ->and(DB::table('sales.order_history')->where('kind', 'SHORT_FLAGGED')->count())->toBe(1);
     });
 
+    it('flags no try already over', function () {
+        ['address' => $address, 'variants' => $variants] = triesReady();
+        $paid = triesPay(triesQuote($address));
+        $orderId = (string) triesRow($paid->tryId)->order_id;
+        app(TryRelease::class)->release($paid->tryId);
+
+        app(FlagShortOrders::class)->handle(new HoldsShort((string) Str::uuid(), Fx::storeId('sa'), $variants[0], [$orderId], CarbonImmutable::now()));
+
+        expect(triesRow($paid->tryId)->short_of_stock_at)->toBeNull();
+    });
+
     it('never voids a real online payment', function () {
         ['address' => $address, 'fake' => $fake] = triesReady();
         $quote = triesQuote($address);
@@ -817,8 +903,10 @@ describe('not paid', function () {
 
         app(ReleaseTryWhenNotPaid::class)->handle(new PaymentFailed((string) Str::uuid(), '1', $orderId, CarbonImmutable::now()));
 
+        app(TryRelease::class)->release($paid->tryId);
+
         expect(triesRow($paid->tryId)->state)->toBe('PAID')
-            ->and(DB::table('inventory.holds')->where('order_id', $orderId)->count())->toBeGreaterThan(0);
+            ->and(DB::table('inventory.holds')->where('order_id', $orderId)->whereNull('ended_at')->count())->toBeGreaterThan(0);
     });
 
     it('makes no order for a success after release: a refund due, once per event', function () {
@@ -842,6 +930,46 @@ describe('not paid', function () {
             ->and($try->needs_attention)->toBeTrue()
             ->and(DB::table('sales.orders')->count())->toBe(0);
         triesNothingHeld();
+    });
+
+    it('leaves the refund to the event when the page\'s answer comes for a try already released', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $quote = triesQuote($address);
+        $paid = triesPay($quote);
+        app(TryRelease::class)->release($paid->tryId);
+        $fake->paid(triesAmount($quote));
+        app(PaymentsApi::class)->refresh($paid->tryId);
+
+        app(TryCompletion::class)->complete($paid->tryId, triesPaymentId());
+
+        expect(triesRow($paid->tryId)->refund_due_minor)->toBeNull()
+            ->and(triesRow($paid->tryId)->state)->toBe('RELEASED');
+    });
+
+    it('releases a currency refused as soon as the page learns of it, before any event', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $quote = triesQuote($address);
+        $paid = triesPay($quote);
+        $fake->paid(triesAmount($quote));
+        $fake->displayCurrency = 'USD';
+
+        triesFollow($paid->tryId);
+
+        expect(triesRow($paid->tryId)->state)->toBe('RELEASED')
+            ->and((int) triesRow($paid->tryId)->refund_due_minor)->toBe($quote->totals->orderTotal->minorUnits)
+            ->and(DB::table('sales.orders')->count())->toBe(0);
+        triesNothingHeld();
+    });
+
+    it('never doubles the refund due of a currency refused, however often it is told', function () {
+        ['address' => $address] = triesReady();
+        $quote = triesQuote($address);
+        $paid = triesPay($quote);
+
+        app(TryRelease::class)->notAccepted($paid->tryId);
+        app(TryRelease::class)->notAccepted($paid->tryId);
+
+        expect((int) triesRow($paid->tryId)->refund_due_minor)->toBe($quote->totals->orderTotal->minorUnits);
     });
 
     it('releases a currency refused with a refund due of what was asked, once', function () {
@@ -886,6 +1014,18 @@ describe('checkout opened again', function () {
             ->and($view?->holdEndsAt)->not->toBeNull()
             ->and(triesRow($paid->tryId)->state)->toBe('LIVE')
             ->and($fake->count('POST', '/v3/payments'))->toBe(1);
+    });
+
+    it('answers nothing when the charge made turns out declined: the customer simply stays on checkout', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $paid = triesPay(triesQuote($address));
+        $fake->declined();
+
+        $view = app(ReturnToCheckoutHandler::class)->handle(new ReturnToCheckout(Fx::storeId('sa')));
+
+        expect($view)->toBeNull()
+            ->and(triesRow($paid->tryId)->state)->toBe('RELEASED');
+        triesNothingHeld();
     });
 
     it('releases there and then a try whose charge was never sent: as if Pay had never been pressed', function () {
@@ -1007,6 +1147,37 @@ describe('the hourly look', function () {
             ->and(triesRow($secondId)->needs_attention)->toBeTrue();
     });
 
+    it('releases a try at its hold limit with the gateway still away', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $paid = triesPay(triesQuote($address));
+        $fake->statusAnswer = fn () => throw new ConnectionException('away');
+        $hold = app(PaymentsApi::class)->timers(StoreId::fromString(Fx::storeId('sa')))->hold;
+        triesAt('+'.($hold + 1).' minutes');
+
+        app(TryReview::class)->run();
+
+        expect(triesRow($paid->tryId)->state)->toBe('RELEASED');
+        triesNothingHeld();
+    });
+
+    it('marks a try still live past its hold limit, here and in Payments', function () {
+        ['address' => $address] = triesReady();
+        $paid = triesPay(triesQuote($address));
+        $attemptId = (string) triesRow($paid->tryId)->attempt_id;
+        triesAt('+20 minutes');
+        $past = CarbonImmutable::now()->subMinute();
+        $payments = Cx::paymentsStandIn();
+        $payments->shouldReceive('abandon')->andReturn(false);
+        $payments->shouldReceive('refresh')->andReturn(new PaymentStateDto(PaymentState::InProgress, $past, $past, $past, false, $attemptId));
+        $payments->shouldReceive('needsAttention')->once()->with($attemptId);
+        app()->instance(PaymentsApi::class, $payments);
+
+        app(TryReview::class)->run();
+
+        expect(triesRow($paid->tryId)->state)->toBe('LIVE')
+            ->and(triesRow($paid->tryId)->needs_attention)->toBeTrue();
+    });
+
     it('leaves unmarked a try within its hold limit while the gateway is away', function () {
         ['address' => $address, 'fake' => $fake] = triesReady();
         $paid = triesPay(triesQuote($address));
@@ -1081,14 +1252,19 @@ describe('test mode', function () {
         $reports = app(SalesReports::class);
         $store = StoreId::fromString(Fx::storeId('sa'));
         [$from, $to] = [CarbonImmutable::now()->subDay(), CarbonImmutable::now()->addDay()];
+        $moneyDay = CarbonImmutable::parse((string) DB::table('sales.payments')->sole()->happened_on);
 
         expect($reports->counts($store, $from, $to)->placed)->toBe(0)
-            ->and($reports->moneyOn($store, $from, $to)->payments)->toBe([])
-            ->and($reports->moneyByDay($store, $from, $to))->toBe([])
+            ->and($reports->moneyOn($store, $moneyDay, $moneyDay)->payments)->toBe([])
+            ->and($reports->moneyByDay($store, $moneyDay, $moneyDay))->toBe([])
             ->and(array_sum(array_map(static fn ($day): int => $day->orders, $reports->revenueByDay($store, $from, $to))))->toBe(0)
             ->and($reports->productSales($store, $from, $to)->rows)->toBe([])
             ->and($reports->productNetSales($store, $from, $to)->rows)->toBe([])
             ->and(app(Orders::class)->piecesSold($store->value, $from))->toBe([]);
+
+        // Pieces sold leaves out an order still waiting for approval: an approved one is what proves this.
+        DB::table('sales.orders')->update(['status' => OrderState::APPROVED, 'decided_at' => CarbonImmutable::now(), 'decided_by' => Fx::staff()]);
+        expect(app(Orders::class)->piecesSold($store->value, $from))->toBe([]);
     });
 
     it('leaves a test transfer out of the transfers waiting, and marks the order and print', function () {

@@ -35,11 +35,13 @@ final class AdminBrowser
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  array<string, string>  $headers  more of what this one request sends, as the server reads it
+     *                                          (HTTP_X_INERTIA, for a form a page sends)
      * @return TestResponse<Response>
      */
-    public function post(string $uri, array $data = []): TestResponse
+    public function post(string $uri, array $data = [], array $headers = []): TestResponse
     {
-        return $this->send('POST', $uri, $data);
+        return $this->send('POST', $uri, $data, $headers);
     }
 
     /**
