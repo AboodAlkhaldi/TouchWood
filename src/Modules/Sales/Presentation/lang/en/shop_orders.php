@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 // Sales in the shop: the customer's orders and returns (sales.md §4.1 S7–S10).
 return [
+    'test_note' => 'Test mode — no real money is taken.',
     'my' => [
         'title' => 'My Orders',
         'subtitle' => 'Every order you placed, newest first',

@@ -9,6 +9,7 @@ use Modules\Access\Public\Contracts\AccessApi;
 use Modules\Access\Public\Dto\AddressDto;
 use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Enums\PaymentAudience;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\MoneyData;
 use Modules\Platform\Public\Dto\StoreDto;
@@ -19,6 +20,7 @@ use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
 use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Public\Enums\OrderAudience;
+use Modules\Sales\Public\Enums\PaymentStatus;
 use Modules\Sales\Public\Enums\WayToPay;
 use Shared\Application\ActorContext;
 use Shared\Application\Unauthorized;
@@ -73,6 +75,9 @@ final readonly class CheckoutPages
         // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
         // staff's contact, which changes no amount.
         $asked = WayToPay::tryFrom((string) $way);
+        // An individual's first choice is Pay Online while the store takes it (payments.md §4.2, Q1). Where it isn't
+        // offered (a company, a fee to be set, a place outside) it falls back below, nothing chosen.
+        $asked ??= $this->payments->availability(StoreId::fromString($storeId), PaymentAudience::Individual)->available ? WayToPay::Online : null;
         // A way the account is not offered (an old address, the bank account since emptied) is no choice made.
         // An address another store serves gets no quote: the customer picks another, or orders from there (§9.5 #2).
         try {
@@ -134,6 +139,7 @@ final readonly class CheckoutPages
             ), $quote->shipping->options),
             $quote->shipping->carrierId,
             $quote->shipping->carrierChanged,
+            testMode: $this->payments->inTestMode(StoreId::fromString($storeId)),
         );
     }
 
@@ -167,6 +173,7 @@ final readonly class CheckoutPages
             $order->transferDocuments,
             $order->mayUploadTransferDocument,
             $order->shippingDetail->feePending ?? false,
+            $order->wayToPay === WayToPay::Online && $order->payment === PaymentStatus::Paid,
         );
     }
 

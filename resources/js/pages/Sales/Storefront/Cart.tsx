@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Minus, Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -34,6 +34,8 @@ import type { SharedProps } from '@/types/page';
 | link (R1-17) - each from §4.2 B12, B14.
 */
 
+const PaymentInTheWay = lazy(() => import('@/components/sales/payment/PaymentInTheWay'));
+
 export default function Cart(cart: CartPage) {
     const t = useTranslator();
     const locale = useLocale();
@@ -46,6 +48,11 @@ export default function Cart(cart: CartPage) {
             <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
                 <h1 className="text-heading-24 text-ink">{t(`${C}.title`)}</h1>
                 <FormError />
+                {cart.payment === null ? null : (
+                    <Suspense fallback={null}>
+                        <PaymentInTheWay payment={cart.payment} />
+                    </Suspense>
+                )}
                 {cart.notice.length > 0 ? <Notice cart={cart} /> : null}
                 {cart.skipped.length > 0 ? <Skipped lines={cart.skipped as unknown as BuyAgainSkippedData[]} /> : null}
 

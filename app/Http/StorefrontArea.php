@@ -73,6 +73,14 @@ final class StorefrontArea
     public const array MIDDLEWARE = [self::SESSION, 'web', self::STORE, self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
 
     /**
+     * The same, for an address that finishes a payment already under way: it still answers when the store has been
+     * switched off, for what is the visitor's own (payments.md §1.10). Nothing else may use it.
+     *
+     * @var list<string>
+     */
+    public const array MIDDLEWARE_FINISHING = [self::SESSION, 'web', self::STORE.':finishing', self::SHOP, self::IDENTIFY, KeepNoCopy::ALIAS, self::PAGE];
+
+    /**
      * And the same without a store, for the country page.
      *
      * That page is the one part of the shop that belongs to no store - it exists because the

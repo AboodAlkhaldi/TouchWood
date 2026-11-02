@@ -23,6 +23,7 @@ use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Query\ViewCart\ViewCartHandler;
 use Modules\Sales\Presentation\Http\Resource\CartPages;
+use Modules\Sales\Presentation\Http\Resource\ReturnedPayment;
 use Shared\Application\StoreContext;
 use Shared\Domain\Error\DomainError;
 
@@ -35,7 +36,7 @@ use Shared\Domain\Error\DomainError;
 final readonly class ShopCartController
 {
     /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_cart', 'sales::errors'];
+    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_cart', 'sales::shop_payment', 'sales::errors'];
 
     public function __construct(
         private Page $page,
@@ -43,11 +44,19 @@ final readonly class ShopCartController
         private StoreContext $stores,
     ) {}
 
-    public function cart(Request $request, ViewCartHandler $view): Response
+    public function cart(Request $request, ViewCartHandler $view, ReturnedPayment $returned): Response|RedirectResponse
     {
         $skipped = $request->session()->get(ShopOrdersController::SKIPPED);
+        $payment = $returned->read($this->stores->current()->value);
 
-        return $this->page->render('Sales/Storefront/Cart', $this->pages->cart($this->stores->current()->value, app()->getLocale(), $view, is_array($skipped) ? array_values($skipped) : [])->toArray(), self::WORDS);
+        if ($payment?->orderNumber !== null) {
+            return redirect()->route('storefront.sales.placed', ['number' => $payment->orderNumber]);
+        }
+
+        $page = $this->pages->cart($this->stores->current()->value, app()->getLocale(), $view, is_array($skipped) ? array_values($skipped) : []);
+        $page->payment = $payment;
+
+        return $this->page->render('Sales/Storefront/Cart', $page->toArray(), self::WORDS);
     }
 
     public function add(Request $request, AddCartLineHandler $handler): RedirectResponse
