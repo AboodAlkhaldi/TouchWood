@@ -247,6 +247,11 @@ describe('asking', function () {
                 return $this->real->openOf($orderId);
             }
 
+            public function stillOpenOf(array $orderIds, DateTimeImmutable $now): array
+            {
+                return $this->real->stillOpenOf($orderIds, $now);
+            }
+
             public function lockOpenOf(string $orderId): ?PaymentRequest
             {
                 return null;
@@ -297,6 +302,45 @@ describe('the open request', function () {
 
         expect(app(PaymentsApi::class)->openRequest(REQUESTS_ORDER)?->requestId)->toBe($request->requestId)
             ->and(requestsState($request->requestId))->toBe('OPEN');
+    });
+
+    it('reads a page of orders at once, by order, writing nothing', function () {
+        $store = requestsGateway();
+        $other = strtolower((string) Str::ulid());
+        $first = requestsAsk($store);
+        $second = requestsAsk($store, 9900, order: $other);
+        $none = strtolower((string) Str::ulid());
+
+        $found = app(PaymentsApi::class)->openRequests([REQUESTS_ORDER, $other, $none]);
+
+        expect(array_keys($found))->toEqualCanonicalizing([REQUESTS_ORDER, $other])
+            ->and($found[REQUESTS_ORDER]->requestId)->toBe($first->requestId)
+            ->and($found[$other]->requestId)->toBe($second->requestId)
+            ->and($found[$other]->amount->minorUnits)->toBe(9900)
+            ->and(app(PaymentsApi::class)->openRequests([]))->toBe([])
+            ->and(array_keys(app(PaymentsApi::class)->openRequests([$other])))->toBe([$other]);
+
+        app(PaymentsApi::class)->withdraw($other);
+        expect(array_keys(app(PaymentsApi::class)->openRequests([REQUESTS_ORDER, $other])))->toBe([REQUESTS_ORDER]);
+    });
+
+    it('leaves out of a page one past its time, and marks nothing', function () {
+        $store = requestsGateway();
+        $request = requestsAsk($store);
+        requestsAt('+59 minutes');
+        expect(app(PaymentsApi::class)->openRequests([REQUESTS_ORDER]))->toHaveKey(REQUESTS_ORDER);
+
+        requestsAt('+60 minutes');
+
+        expect(app(PaymentsApi::class)->openRequests([REQUESTS_ORDER]))->toBe([])
+            ->and(requestsState($request->requestId))->toBe('OPEN');
+    });
+
+    it('keeps on a page one past its time while a payment on it is open', function () {
+        ['request' => $request] = requestsCharged();
+        requestsAt('+61 minutes');
+
+        expect(app(PaymentsApi::class)->openRequests([REQUESTS_ORDER])[REQUESTS_ORDER]->requestId)->toBe($request->requestId);
     });
 
     it('says whether a payment is open on the order, a try\'s or a request\'s', function () {

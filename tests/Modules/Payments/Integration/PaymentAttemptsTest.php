@@ -49,6 +49,7 @@ use Modules\Payments\Infrastructure\Queue\CheckAttemptJob;
 use Modules\Payments\Infrastructure\Queue\HandleNoticeJob;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
 use Modules\Payments\Public\Dto\PayRequestDto;
 use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Payments\Public\Enums\PaymentMode;
@@ -228,11 +229,13 @@ describe('preparing (§1.4 step 3, rule 7)', function () {
     it('takes a request\'s session under the request\'s own id', function () {
         FakeMyFatoorah::install();
         $store = attemptsGateway();
-        $session = attemptsSession($store, 'request-1');
+        $request = app(PaymentsApi::class)->requestPayment(new PaymentRequestDto(ATTEMPTS_ORDER, 'SA-0001', StoreId::fromString($store), Money::of(118050, 'SAR'), ATTEMPTS_BUYER, PaymentMode::Test), 'staff-1');
+        $session = attemptsSession($store, $request->requestId);
 
-        $id = app(PaymentsApi::class)->prepare(attemptsRequest($store, $session, ['ownerId' => 'request-1', 'ownerKind' => PaymentOwnerKind::Request, 'quoteId' => null]));
+        $id = app(PaymentsApi::class)->prepare(attemptsRequest($store, $session, ['ownerId' => $request->requestId, 'ownerKind' => PaymentOwnerKind::Request, 'quoteId' => null]));
 
-        expect(attemptsRow($id)->owner_kind)->toBe('REQUEST');
+        expect(attemptsRow($id)->owner_kind)->toBe('REQUEST')
+            ->and(attemptsRow($id)->owner_id)->toBe($request->requestId);
     });
 
     it('refuses a session that is not this page\'s', function (Closure $request) {

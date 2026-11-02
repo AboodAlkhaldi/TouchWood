@@ -596,6 +596,9 @@ interface PaymentsApi
     /** The order's open request, for its page (§1.5); null when none. */
     public function openRequest(string $orderId): ?PaymentRequestStateDto;
 
+    /** The open requests of these orders, for one page of My Orders (§4.2, §9.14 #14): one read, writing nothing. */
+    public function openRequests(array $orderIds): array; // array<string, PaymentRequestStateDto>, by order id
+
     /** Whether any payment on this order is open (§1.5, §9.14 #1): staff's edits, hand recording and the customer's cancel wait. */
     public function paymentOpen(string $orderId): bool;
 
@@ -1475,3 +1478,5 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 12. **`PrunePaymentLog` runs daily at 03:45**, after Sales's 03:30 clean-up: notices past 90 days, calls past a year.
 13. **Retired keys are not deleted yet** (§5, rule 14): `attempts.key_id` is required and points at the key with `RESTRICT`, and
     attempts are kept for good, so the key could never go unless that key is changed. Left for the owner's decision.
+14. **`openRequests(orderIds)`, asked by Sales for My Orders' "Payment requested"** (§4.2): one read for a page, by order id, writing
+    nothing. One past its time with no payment open is left out, though its row still says `OPEN` until it is next looked at (#8).

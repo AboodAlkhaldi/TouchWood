@@ -48,6 +48,32 @@ final readonly class DatabasePaymentRequests implements PaymentRequests
         return self::request($this->db->table('payments.requests')->where('order_id', $orderId)->where('state', PaymentRequestState::Open->value)->first());
     }
 
+    public function stillOpenOf(array $orderIds, DateTimeImmutable $now): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table('payments.requests as r')
+            ->whereIn('r.order_id', $orderIds)
+            ->where('r.state', PaymentRequestState::Open->value)
+            ->where(fn ($query) => $query->where('r.expires_at', '>', $now)->orWhereExists(fn ($open) => $open
+                ->from('payments.attempts as a')->whereColumn('a.owner_id', 'r.id')->whereIn('a.state', ['CREATING', 'CHARGING', 'OPEN', 'UNKNOWN'])))
+            ->select('r.*')
+            ->get()
+            ->all() as $row) {
+            $request = self::request($row);
+
+            if ($request !== null) {
+                $found[] = $request;
+            }
+        }
+
+        return $found;
+    }
+
     public function lockOpenOf(string $orderId): ?PaymentRequest
     {
         return self::request($this->db->table('payments.requests')->where('order_id', $orderId)->where('state', PaymentRequestState::Open->value)->lockForUpdate()->first());

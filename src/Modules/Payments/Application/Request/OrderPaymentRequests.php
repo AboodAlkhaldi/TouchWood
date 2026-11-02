@@ -172,6 +172,23 @@ final readonly class OrderPaymentRequests
     }
 
     /**
+     * One read for a page of orders: nothing is marked here, so a list never writes.
+     *
+     * @param  list<string>  $orderIds
+     * @return array<string, PaymentRequestStateDto>
+     */
+    public function openOfOrders(array $orderIds): array
+    {
+        $found = [];
+
+        foreach ($this->requests->stillOpenOf($orderIds, CarbonImmutable::now()->toDateTimeImmutable()) as $request) {
+            $found[$request->orderId] = self::state($request);
+        }
+
+        return $found;
+    }
+
+    /**
      * `prepare` for a request (§1.5): its row locked, open, and the amount, the buyer and the mode its own (rule 12).
      * An open attempt on it is left for `prepare` to answer: the same session again is a double click.
      *

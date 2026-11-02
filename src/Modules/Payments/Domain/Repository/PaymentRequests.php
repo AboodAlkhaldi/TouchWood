@@ -18,6 +18,14 @@ interface PaymentRequests
 
     public function openOf(string $orderId): ?PaymentRequest;
 
+    /**
+     * These orders' open requests, in one read: one past its time with no payment open is left out.
+     *
+     * @param  list<string>  $orderIds
+     * @return list<PaymentRequest>
+     */
+    public function stillOpenOf(array $orderIds, DateTimeImmutable $now): array;
+
     /** The order's open request, its row locked to the end of the transaction. */
     public function lockOpenOf(string $orderId): ?PaymentRequest;
 
