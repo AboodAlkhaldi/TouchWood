@@ -12,8 +12,11 @@ use Modules\Payments\Domain\Model\Attempt;
 use Modules\Payments\Domain\Model\AttemptState;
 use Modules\Payments\Domain\Model\TransactionFacts;
 use Modules\Payments\Domain\Repository\Attempts;
+use Modules\Payments\Domain\Repository\PaymentRequests;
 use Modules\Payments\Domain\Repository\Transactions;
 use Modules\Payments\Public\Enums\PaymentMode;
+use Modules\Payments\Public\Enums\PaymentOwnerKind;
+use Modules\Payments\Public\Enums\PaymentRequestState;
 use Modules\Payments\Public\Events\PaymentFailed;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentNotTaken;
@@ -39,6 +42,7 @@ final readonly class AttemptSettlement
         private Outbox $outbox,
         private PaymentJobs $jobs,
         private PlatformApi $platform,
+        private PaymentRequests $requests,
     ) {}
 
     /** A transaction that will not change: it went through, or it was declined. */
@@ -202,6 +206,11 @@ final readonly class AttemptSettlement
             $this->outbox->record(new PaymentSucceeded((string) Str::uuid(), $id, $attempt->orderId, $attempt->storeId, $now));
         } elseif ($first) {
             $this->outbox->record(new PaymentNotAccepted((string) Str::uuid(), $attempt->id, $attempt->ownerId, $attempt->orderId, $attempt->storeId, $now));
+        }
+
+        // Its request is answered (§1.5); one already withdrawn or expired stays so, and the money is still Sales's to record.
+        if ($first && $attempt->ownerKind === PaymentOwnerKind::Request) {
+            $this->requests->end($attempt->ownerId, $currencyOk ? PaymentRequestState::Paid : PaymentRequestState::NotAccepted, $now);
         }
 
         return $attempt->with([

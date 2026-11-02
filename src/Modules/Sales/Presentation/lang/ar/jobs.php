@@ -6,6 +6,7 @@ declare(strict_types=1);
 return [
     'complete_try_when_paid' => 'إنشاء طلب الدفع الإلكتروني المدفوع',
     'release_try_when_not_paid' => 'إعادة ما حجزته عملية دفع إلكتروني فاشلة',
+    'withdraw_request_when_cancelled' => 'سحب طلب الدفع لطلب ملغى',
     'release_try_when_not_accepted' => 'إعادة ما حجزته عملية دفع بعملة أخرى',
     'review_checkout_tries' => 'مراجعة عمليات الدفع الإلكتروني التي تجاوزت وقتها',
     'delete_expired_quotes' => 'حذف عمليات الدفع المنتهية',

@@ -22,6 +22,8 @@ interface Notices
 
     public function markHandled(string $id, DateTimeImmutable $now): void;
 
+    public function deleteBefore(DateTimeImmutable $before): void;
+
     /**
      * Notices not yet acted on - a lost job, or a gateway that did not answer - received between these, oldest first
      * (§9.6 #4).

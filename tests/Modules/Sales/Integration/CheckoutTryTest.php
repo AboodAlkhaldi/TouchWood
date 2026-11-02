@@ -261,6 +261,11 @@ function triesChargeCrashes(): void
             return $this->real->withdraw($orderId);
         }
 
+        public function withdrawForCancelled(string $orderId): void
+        {
+            $this->real->withdrawForCancelled($orderId);
+        }
+
         public function openRequest(string $orderId): ?PaymentRequestStateDto
         {
             return $this->real->openRequest($orderId);

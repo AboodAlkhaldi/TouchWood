@@ -19,17 +19,21 @@ use Modules\Payments\Application\Gateway\OwnAddresses;
 use Modules\Payments\Application\PaymentsApiImpl;
 use Modules\Payments\Application\PaymentsPermissions;
 use Modules\Payments\Application\PaymentsSettings;
+use Modules\Payments\Application\Query\PaymentReads;
 use Modules\Payments\Application\Settings\BankAccountSettings;
 use Modules\Payments\Domain\Repository\Attempts;
 use Modules\Payments\Domain\Repository\GatewayCalls;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Domain\Repository\Notices;
+use Modules\Payments\Domain\Repository\PaymentRequests;
 use Modules\Payments\Domain\Repository\Sessions;
 use Modules\Payments\Domain\Repository\Transactions;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseAttempts;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseGatewayCalls;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseGateways;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseNotices;
+use Modules\Payments\Infrastructure\Eloquent\DatabasePaymentReads;
+use Modules\Payments\Infrastructure\Eloquent\DatabasePaymentRequests;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseSessions;
 use Modules\Payments\Infrastructure\Eloquent\DatabaseTransactions;
 use Modules\Payments\Infrastructure\External\AppOwnAddresses;
@@ -39,6 +43,7 @@ use Modules\Payments\Infrastructure\External\MyFatoorahKeyTester;
 use Modules\Payments\Infrastructure\External\MyFatoorahNoticeReader;
 use Modules\Payments\Infrastructure\Listener\ClearCustomerFromAttempts;
 use Modules\Payments\Infrastructure\Queue\PaymentQueue;
+use Modules\Payments\Infrastructure\Queue\PrunePaymentLogJob;
 use Modules\Payments\Infrastructure\Queue\SweepAttemptsJob;
 use Modules\Payments\Infrastructure\Queue\WarnExpiringKeysJob;
 use Modules\Payments\Infrastructure\Settings\PaymentsSettingsLine;
@@ -68,6 +73,8 @@ final class PaymentsServiceProvider extends ServiceProvider
         $this->app->bind(Sessions::class, DatabaseSessions::class);
         $this->app->bind(Attempts::class, DatabaseAttempts::class);
         $this->app->bind(Transactions::class, DatabaseTransactions::class);
+        $this->app->bind(PaymentRequests::class, DatabasePaymentRequests::class);
+        $this->app->bind(PaymentReads::class, DatabasePaymentReads::class);
         $this->app->bind(PaymentJobs::class, PaymentQueue::class);
         $this->app->bind(GatewayCalls::class, DatabaseGatewayCalls::class);
         $this->app->bind(Notices::class, DatabaseNotices::class);
@@ -116,6 +123,7 @@ final class PaymentsServiceProvider extends ServiceProvider
             $schedule->job(new WarnExpiringKeysJob)->hourly()->onOneServer();
             // The one backstop for a lost check or notice (rule 9): with none, it ends at once.
             $schedule->job(new SweepAttemptsJob)->hourly()->onOneServer();
+            $schedule->job(new PrunePaymentLogJob)->dailyAt('03:45')->onOneServer();
         });
     }
 }
