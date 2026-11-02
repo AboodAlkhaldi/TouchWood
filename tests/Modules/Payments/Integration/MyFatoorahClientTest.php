@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
+use Modules\Payments\Application\Gateway\ChargeAnswer;
+use Modules\Payments\Application\Gateway\ChargeRequest;
 use Modules\Payments\Application\Gateway\GatewayAccess;
 use Modules\Payments\Application\Gateway\GatewayClient;
 use Modules\Payments\Domain\Exception\GatewayKeyRefused;
@@ -344,4 +346,66 @@ it('registers a domain for Apple Pay', function () {
 
     $request = Http::recorded()->map(fn (array $pair): Request => $pair[0])->sole();
     expect($request->data())->toBe(['DomainName' => 'shop.example.com']);
+});
+
+describe('charging', function () {
+    function clientCharge(?DateTimeImmutable $expiry = null): ChargeAnswer
+    {
+        return app(GatewayClient::class)->charge(clientAccess(), new ChargeRequest('KWT-1', '1180.50', 'SAR', 'the-key', 'attempt-1', 'try-1', $expiry ?? new CarbonImmutable('+5 minutes'), 'ar', 'https://shop.example.test/return', 'https://shop.example.test/notice'));
+    }
+
+    it('sends the session, the amount, our id, the addresses and the idempotency key', function () {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::response(['IsSuccess' => true, 'Data' => ['InvoiceId' => '7', 'PaymentId' => '9', 'PaymentURL' => 'https://demo.example.test/pay']], 201)]);
+
+        $answer = clientCharge(new CarbonImmutable('2027-01-01T13:05:00+03:00'));
+
+        $request = Http::recorded()->map(fn (array $pair): Request => $pair[0])->sole();
+        expect([$answer->invoiceId, $answer->paymentId, $answer->frameUrl])->toBe(['7', '9', 'https://demo.example.test/pay'])
+            ->and($request->header('Idempotency-Key'))->toBe(['the-key'])
+            ->and($request->data())->toBe([
+                'SourceOfFund' => ['SessionId' => 'KWT-1'],
+                'Order' => ['Amount' => 1180.5, 'Currency' => 'SAR', 'ExternalIdentifier' => 'attempt-1'],
+                'OperationType' => 'PAY',
+                'PaymentExpiry' => '2027-01-01T10:05:00Z',
+                'Customer' => ['Reference' => 'try-1'],
+                'IntegrationUrls' => ['Redirection' => 'https://shop.example.test/return', 'Webhook' => 'https://shop.example.test/notice'],
+                'Language' => 'AR',
+            ]);
+    });
+
+    it('takes the first call\'s no for a no, a key\'s refusal for that, and logs the key in neither', function () {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::sequence()
+            ->push(Answers::refusal('SessionId is expired!'), 400)
+            ->push(['IsSuccess' => false, 'Message' => 'Unauthorized'], 401)
+            ->push(['IsSuccess' => false, 'Message' => 'The token does not have the required permissions!'], 401)]);
+
+        expect(fn () => clientCharge())->toThrow(GatewayRefused::class)
+            ->and(fn () => clientCharge())->toThrow(GatewayKeyRefused::class)
+            ->and(fn () => clientCharge())->toThrow(KeyPermissionMissing::class)
+            ->and((string) json_encode(DB::table('payments.calls')->get()))->not->toContain('sk_test_the_secret_key');
+    });
+
+    it('takes a 401 on a repeat as unknown, even with no words to read (rule 4)', function () {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::sequence()->push('', 503)->push('Unauthorized', 401)]);
+
+        expect(fn () => clientCharge())->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(2);
+    });
+
+    it('never reads a yes it cannot use as a no', function (array $data) {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::response(['IsSuccess' => true, 'Data' => $data], 201)]);
+
+        expect(fn () => clientCharge())->toThrow(GatewayUnreachable::class)
+            ->and(clientCalls())->toBe(1);
+    })->with([
+        'no invoice' => [['PaymentId' => '9']],
+        'no payment' => [['InvoiceId' => '7']],
+        'an id too long to keep' => [['InvoiceId' => str_repeat('7', 65), 'PaymentId' => '9']],
+    ]);
+
+    it('offers no bank page it could not keep', function () {
+        Http::fake([CLIENT_MF.'/v3/payments' => Http::response(['IsSuccess' => true, 'Data' => ['InvoiceId' => '7', 'PaymentId' => '9', 'PaymentURL' => 'https://x/'.str_repeat('y', 2000)]], 201)]);
+
+        expect(clientCharge()->frameUrl)->toBeNull();
+    });
 });

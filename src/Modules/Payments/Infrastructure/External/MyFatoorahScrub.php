@@ -34,7 +34,8 @@ final class MyFatoorahScrub
                 continue;
             }
 
-            $kept[$name] = is_array($value) ? self::clean($value) : $value;
+            // The database refuses a NUL: the call would go unlogged.
+            $kept[$name] = is_array($value) ? self::clean($value) : (is_string($value) ? str_replace("\0", '', $value) : $value);
         }
 
         return $kept;

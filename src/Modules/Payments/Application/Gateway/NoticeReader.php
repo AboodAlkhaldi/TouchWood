@@ -13,4 +13,11 @@ interface NoticeReader
      * @param  list<string>  $secrets  every secret that may have signed it (rule 14)
      */
     public function read(string $body, ?string $signature, #[\SensitiveParameter] array $secrets): NoticeReading;
+
+    /**
+     * What a kept notice names.
+     *
+     * @param  array<array-key, mixed>  $payload
+     */
+    public function facts(array $payload): NoticeFacts;
 }

@@ -8,10 +8,10 @@ use DateTimeImmutable;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
- * An online payment went through (sales.md §2.4) — one of handoff §4.5's critical events, published by Payments
- * through the outbox from stage 7; Sales records it. Provisional: declared by Sales for stage 7.
+ * The gateway confirmed a successful **transaction** (payments.md §2.2, §1.4 step 6): once per transaction, and
+ * not for a currency mismatch (rule 8). `orderId` is the order's id, the future one for a try.
  *
- * Ids only, after commit.
+ * Ids only, through the outbox.
  */
 final readonly class PaymentSucceeded implements ShouldDispatchAfterCommit
 {
@@ -19,6 +19,7 @@ final readonly class PaymentSucceeded implements ShouldDispatchAfterCommit
         public string $eventId,
         public string $paymentId,
         public string $orderId,
+        public string $storeId,
         public DateTimeImmutable $occurredAt,
     ) {}
 }
