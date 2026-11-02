@@ -1116,7 +1116,8 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
             ->and(DB::table('ops.inbox_entries')->where('staff_id', $super)->value('link'))->toBe('/admin/payments/gateway?store=sa')
             ->and(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)])
             ->and($sms->sent)->toHaveCount(1)
-            ->and($sms->sent[0]['message'])->toContain($words)->not->toContain('/admin/')
+            ->and($sms->sent[0]['message'])->toContain($words)
+            ->and($sms->sent[0]['message'])->not->toContain('/admin/')
             ->and($email->text)->toContain($words)
             // The Open button other staff alerts have, in the reader's language, to the alert's own store.
             ->and($email->html)->toContain('<a href="'.e(config('app.url').'/admin/payments/gateway?store=sa').'">'.($locale === 'ar' ? 'عرض التفاصيل' : 'View details').'</a>')
