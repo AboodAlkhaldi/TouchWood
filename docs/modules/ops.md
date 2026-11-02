@@ -469,7 +469,7 @@ go (§9.2).
 | **Sync** (Stage 5) | `SyncNeedsAttention` (exists; ids only — the alert links to the Sync Report) | **Built (#262, sync.md amendment 1):** `readsAndProblemsPerDay(stores, fromDay, toDay, until)` → `list<SyncDayDto>` |
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
 | **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
-| **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows |
+| **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows. **Added 2026-11-02:** `customerCountInStore(store)`, amendment 94 |
 | **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
 
 ## 3 · Use cases and permissions
@@ -482,6 +482,7 @@ default (roles nest).
 | Read and mark my inbox | none (own) | Own |
 | Send a message to one customer | `ops.message.send_one` | That store |
 | Send a message to many / a segment | `ops.message.send_many` (admins) | That store |
+| See how many a whole store's notice or message would reach | `ops.notice.manage` or `ops.message.send_many` | That store |
 | Read the staff messages back | A message to one: `ops.message.send_one` and viewing customers; to many: `ops.message.send_many` | That store |
 | Write, schedule, cancel an offer notice | `ops.notice.manage` | That store |
 | Manage newsletter subscribers (view, remove a guest) | `ops.newsletter.manage` | That store |
@@ -544,12 +545,20 @@ store id is 422 `store`; an unknown or unoffered code is 403.
 | Route | Method, path | Who | Answers |
 |---|---|---|---|
 | `ops.admin.choices` | GET `admin/ops/choices` | Any active staff; an empty list means that form is not theirs | `OpsChoicesData` |
+| `ops.admin.audience` | GET `admin/ops/audience?store={code}` | `ops.notice.manage` or `ops.message.send_many` in the store | `StoreAudienceData`: `{count: int}` |
 
 | `OpsChoicesData` | Type | What |
 |---|---|---|
 | `notices`, `messagesToOne`, `messagesToMany`, `subscribers`, `dailyReports` | `StoreChoiceData[]` | `StoreChoices::forJobs` for that form's permission: `ops.notice.manage`, `ops.message.send_one`, `ops.message.send_many`, `ops.newsletter.manage`, `ops.report.daily` |
 | `dailyReportsAllStores` | bool | Whether every store's report and email may be asked: a super admin alone |
 | `reports` | `ReportChoiceData[]` | Only the kinds this reader may open, in `ReportKind`'s order |
+
+`count` is how many customers a notice or a message to **every customer of the store** would reach, for the confirmation
+(owner, 2026-11-02, §9.4 Q14): those registered in it, of either account type, not anonymized, exactly whom the sender's
+bell reaches. Those blocked, with a deletion pending or who never agreed to offers are counted. **Email goes to fewer**
+(§1.3), and no route gives that number. So a send by email alone reaches fewer than `count`. As of the moment asked; a
+segment's is `memberCount`. `store` is named as on the notices' routes; a refusal is `shared.unauthorized` 403. One
+count query, `AccessApi::customerCountInStore` (access.md amendment 94).
 
 `StoreChoiceData` is `{id, code, name, isOn}`, the name in the page's language, so a form takes whichever of id or code
 it needs (table above). `ReportChoiceData` is `{kind: ReportKind, stores: StoreChoiceData[], allStores: bool}`: Stock's
@@ -936,11 +945,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
    The Home card goes with the Home dashboard job (§9.4 Q5).
 2. **The consent box is on no page.** Outside the generated types, `resources/js` holds neither `marketingConsent` nor
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
-3. **A whole store's audience size: needs Access.** The owner wants it added (§9.4 Q14). No public read counts a store's customers (`customerIdsInStore` is
-   paged ids; `customersRegistered` a range by type), and Ops stores none. So a notice or message to every customer gives
-   what it reached so far (`bellCount`, `emailCount`, `failedCount`), never a total to compare with. A segment's is
-   `segmentMemberCount`, as it stands now.
-4. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
+3. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
@@ -1075,7 +1080,7 @@ named in Access's `permission_groups` words.
 4. **How it goes:** Bell and Email, both ticked, at least one. Under Email, for one customer: "It goes to their email whatever they chose about offers." For many: "Email goes only to those who agreed to offers. The bell reaches everyone."
 5. **Send Message.**
    - To one customer it sends at once (Q12).
-   - To many it asks first (Q12): "Send to :count customers of :store?" or "Send to :segment (:count members)?", then "It can't be recalled.", Cancel and Send Message. The count is `§9.4 Q14`'s read for a whole store, taken when the dialog opens. A count of 0 says so and offers no Send.
+   - To many it asks first (Q12): "Send to :count customers of :store?" or "Send to :segment (:count members)?", then "It can't be recalled.", Cancel and Send Message. The count is `§9.4 Q14`'s read for a whole store (`ops.admin.audience`, §4.1), taken when the dialog opens. A count of 0 says so and offers no Send.
    - The email count is never shown: it depends on consent.
 
 After sending: back to O3 with the toast "Message on its way." Refusals land on their box in words; `audience` on Who Gets It; a segment gone (404) as the form's error, with the picker emptied.

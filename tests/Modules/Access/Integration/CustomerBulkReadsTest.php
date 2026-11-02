@@ -70,6 +70,42 @@ it('pages the customers registered in a store by type, leaving out other stores,
         ->and(fn () => bulkAccess()->customerIdsInStore($sa, AccountType::Individual, null, 1001))->toThrow(InvalidArgumentException::class);
 });
 
+it('counts the customers registered in a store, of either type, not anonymized: those the pages give', function () {
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+
+    expect(bulkAccess()->customerCountInStore($sa))->toBe(0);
+
+    $people = [Fx::customer('a@example.test'), Fx::customer('b@example.test'), Fx::customer('c@example.test')];
+    Fx::customer('firm@example.test', 'sa', 'company');
+    Fx::customer('elsewhere@example.test', 'eg');
+    DB::table('access.customers')->where('id', $people[2])->update(['anonymized_at' => now()]);
+
+    $walked = [...bulkAccess()->customerIdsInStore($sa, AccountType::Individual, null, 100), ...bulkAccess()->customerIdsInStore($sa, AccountType::Company, null, 100)];
+
+    expect(bulkAccess()->customerCountInStore($sa))->toBe(3)
+        ->and(bulkAccess()->customerCountInStore($sa))->toBe(count($walked))
+        ->and(bulkAccess()->customerCountInStore(StoreId::fromString(Fx::storeId('eg'))))->toBe(1);
+});
+
+it('counts in one query, which the customers\' index by store can serve', function () {
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    Fx::customer('a@example.test');
+    cache()->flush();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    bulkAccess()->customerCountInStore($sa);
+    DB::disableQueryLog();
+
+    expect(DB::getQueryLog())->toHaveCount(1);
+
+    // With no other way in than this index, the planner goes through it for the store.
+    DB::statement('SET LOCAL enable_seqscan = off');
+    $plan = implode("\n", array_column(array_map(static fn (object $row): array => (array) $row, DB::select('EXPLAIN SELECT count(*) FROM access.customers WHERE home_store_id = ? AND anonymized_at IS NULL', [$sa->value])), 'QUERY PLAN'));
+
+    expect($plan)->toContain('customers_by_store_type');
+});
+
 it('answers in the same number of queries however many customers', function () {
     $few = [Fx::customer('a@example.test')];
     $many = [...$few, Fx::customer('b@example.test'), Fx::customer('c@example.test'), Fx::customer('d@example.test')];
