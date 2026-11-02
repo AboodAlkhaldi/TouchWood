@@ -140,7 +140,7 @@ final readonly class ShopPages
         $owner = $this->catalog->productOwner($locale, $slug);
 
         if ($owner === null) {
-            return $this->catalog->productInOtherLanguage($store, $locale, $this->visit->viewer(), $slug);
+            return $this->catalog->productInOtherLanguage($locale, $slug);
         }
 
         $viewer = $this->visit->viewer();
