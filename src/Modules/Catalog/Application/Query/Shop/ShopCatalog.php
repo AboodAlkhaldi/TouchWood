@@ -87,7 +87,15 @@ final readonly class ShopCatalog
         $filters = ($filters ?? ShopFilters::none())->forViewer($viewer);
         $head = $this->reader->categoryHead($store->value, $locale, $viewer, self::slug($locale, $slug), $filters);
 
-        if ($head === null || ! $head['lists']) {
+        if ($head === null) {
+            // The other language's slug (amendment 38): only where its own address answers this viewer.
+            $owner = $this->ownerInOtherLanguage('category', $locale, $slug);
+            $there = $owner === null ? null : $this->reader->categoryHead($store->value, $locale, $viewer, $owner['slug'], $filters);
+
+            return $owner !== null && $there !== null && $there['lists'] ? new Moved($owner['slug'], true) : null;
+        }
+
+        if (! $head['lists']) {
             return null;
         }
 
@@ -128,7 +136,15 @@ final readonly class ShopCatalog
         $cursor = Cursor::parse($after);
         $head = $this->reader->brandHead($locale, self::slug($locale, $slug));
 
-        if ($head === null || ! $head['is_active']) {
+        if ($head === null) {
+            // The other language's slug (amendment 38): only where its own address answers.
+            $owner = $this->ownerInOtherLanguage('brand', $locale, $slug);
+            $there = $owner === null ? null : $this->reader->brandHead($locale, $owner['slug']);
+
+            return $owner !== null && $there !== null && $there['is_active'] ? new Moved($owner['slug'], true) : null;
+        }
+
+        if (! $head['is_active']) {
             return null;
         }
 
@@ -164,6 +180,22 @@ final readonly class ShopCatalog
     }
 
     /**
+     * A slug no product holds in this language, held in the other one (amendment 38): a move to its
+     * slug here whenever its own address opens - for any store and viewer, on sale or on the one "Not
+     * available now" page (§1.4). A product never shown answers as a slug that never existed.
+     *
+     * @throws InvalidCatalogAttribute
+     */
+    public function productInOtherLanguage(string $locale, string $slug): ?Moved
+    {
+        $locale = ShopLocale::of($locale);
+        $owner = $this->ownerInOtherLanguage('product', $locale, $slug);
+        $product = $owner === null ? null : $this->reader->product($owner['id'], $locale);
+
+        return $owner !== null && $product !== null && ! self::neverShown($product) ? new Moved($owner['slug'], true) : null;
+    }
+
+    /**
      * A product's page (§1.4, §4.5): available while a shopper can find it here; otherwise the one
      * "Not available now" page, for anything that exists and was ever shown. A slug that never
      * existed — or a product never made ready, which was never shown and is Catalog's alone (§6.1) —
@@ -176,7 +208,7 @@ final readonly class ShopCatalog
         $owner = $this->productOwner($locale, $slug);
 
         if ($owner === null) {
-            return null;
+            return $this->productInOtherLanguage($locale, $slug);
         }
 
         $page = $this->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
@@ -198,7 +230,7 @@ final readonly class ShopCatalog
         $locale = ShopLocale::of($locale);
         $product = $this->reader->product($productId, $locale);
 
-        if ($product === null || $product['stage'] === 'DRAFT' || $product['archived_from'] === 'DRAFT') {
+        if ($product === null || self::neverShown($product)) {
             return null;
         }
 
@@ -321,6 +353,29 @@ final readonly class ShopCatalog
             static fn (array $row): MenuCategory => new MenuCategory($row['id'], $row['name'], $row['slug'], $row['image_media_id'], self::branch($byParent, $row['id'])),
             $byParent[$parentId] ?? [],
         );
+    }
+
+    /**
+     * Who holds the slug in the language other than the page's, and their slug in the page's: asked
+     * only once no one holds it in the page's (amendment 38), so a page shown asks nothing more.
+     *
+     * @param  'product'|'category'|'brand'  $kind
+     * @param  'ar'|'en'  $locale
+     * @return array{id: string, slug: string}|null
+     */
+    private function ownerInOtherLanguage(string $kind, string $locale, string $slug): ?array
+    {
+        return $this->reader->slugOwnerInOtherLanguage($kind, $locale, self::slug($locale === 'ar' ? 'en' : 'ar', $slug));
+    }
+
+    /**
+     * A product never made ready, archived or not: it was never shown and has no page (§6.1).
+     *
+     * @param  array{stage: string, archived_from: string|null}  $product
+     */
+    private static function neverShown(array $product): bool
+    {
+        return $product['stage'] === 'DRAFT' || $product['archived_from'] === 'DRAFT';
     }
 
     /** An English slug is kept in small letters (§5.1); an Arabic one as it is. */

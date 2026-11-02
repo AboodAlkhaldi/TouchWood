@@ -9,14 +9,24 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProduct;
+use Modules\Catalog\Application\Command\CreateProduct\CreateProductHandler;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrand;
 use Modules\Catalog\Application\Command\DeactivateBrand\DeactivateBrandHandler;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategory;
+use Modules\Catalog\Application\Command\DeactivateCategory\DeactivateCategoryHandler;
+use Modules\Catalog\Application\Command\EditBrand\EditBrand;
+use Modules\Catalog\Application\Command\EditBrand\EditBrandHandler;
 use Modules\Catalog\Application\Command\EditCategory\EditCategory;
 use Modules\Catalog\Application\Command\EditCategory\EditCategoryHandler;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetails;
 use Modules\Catalog\Application\Command\EditProductDetails\EditProductDetailsHandler;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
 use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
 use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
@@ -27,6 +37,7 @@ use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Platform\Public\Contracts\ShopperType;
 use Modules\Platform\Public\Enums\ShopperKind;
 use Shared\Domain\ValueObject\StoreId;
+use Symfony\Component\HttpFoundation\Cookie;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -515,5 +526,432 @@ describe('the budget (P21)', function () {
             'individual' => ['category' => 16, 'brand' => 16, 'product' => 21, 'search' => 17],
             'company' => ['category' => 16, 'brand' => 16, 'product' => 21, 'search' => 17],
         ]);
+    });
+});
+
+/**
+ * Give an item these slugs through its own form, as staff would; the one left out stays. The slug it
+ * replaces stays held, as an old one (§1.1).
+ */
+function shopPagesRename(string $kind, string $id, ?string $ar = null, ?string $en = null): void
+{
+    $ar ??= shopPagesSlug($kind, $id, 'ar');
+    $en ??= shopPagesSlug($kind, $id);
+    $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'Text']]]]];
+
+    Fx::asSystem(function () use ($kind, $id, $ar, $en, $text): void {
+        if ($kind === 'product') {
+            $product = app(ProductRepository::class)->find($id) ?? throw new LogicException('No product.');
+            app(EditProductDetailsHandler::class)->handle(new EditProductDetails($id, $product->name()->ar, $product->name()->en, $product->brandId(), slugAr: $ar, slugEn: $en, descriptionAr: $text, descriptionEn: $text, categoryId: $product->categoryId()));
+
+            return;
+        }
+
+        $table = $kind === 'category' ? 'catalog.categories' : 'catalog.brands';
+        $row = DB::table($table)->where('id', $id)->first() ?? throw new LogicException('No row.');
+
+        if ($kind === 'category') {
+            app(EditCategoryHandler::class)->handle(new EditCategory($id, (string) $row->name_ar, (string) $row->name_en, slugAr: $ar, slugEn: $en));
+
+            return;
+        }
+
+        app(EditBrandHandler::class)->handle(new EditBrand($id, (string) $row->name_ar, (string) $row->name_en, (string) $row->agency_type, (bool) $row->show_in_default_listings, slugAr: $ar, slugEn: $en));
+    });
+}
+
+/**
+ * All a not-found answer tells a visitor, but what changes with every request whatever is asked: the
+ * date, the correlation id, the cookies' values and the CSRF token.
+ *
+ * @return array{status: int, component: mixed, props: mixed, headers: array<string, mixed>, cookies: list<string>}
+ */
+function shopPagesAnswer(string $url): array
+{
+    app()->forgetScopedInstances();
+    $response = get($url);
+    /** @var array{component: mixed, props: array<string, mixed>} $page */
+    $page = $response->viewData('page');
+    unset($page['props']['csrfToken']);
+    $headers = $response->headers->all();
+    unset($headers['date'], $headers['set-cookie'], $headers['x-correlation-id']);
+    $cookies = array_map(static fn (Cookie $cookie): string => $cookie->getName(), $response->headers->getCookies());
+    sort($cookies);
+
+    return ['status' => $response->getStatusCode(), 'component' => $page['component'], 'props' => $page['props'], 'headers' => $headers, 'cookies' => $cookies];
+}
+
+/** A product, a category and a brand, each with a page in Saudi Arabia. */
+dataset('the three kinds', [
+    'a product' => ['products', 'product', fn (): string => shopPagesProduct(Px::category('Kitchens'))['product']],
+    'a category' => ['categories', 'category', function (): string {
+        $category = Px::category('Kitchens');
+        shopPagesProduct($category);
+
+        return $category;
+    }],
+    'a brand' => ['brands', 'brand', fn (): string => shopPagesBrandOf(shopPagesProduct(Px::category('Kitchens'))['product'])],
+]);
+
+describe('the other language\'s slug (amendment 38: a notice carries one link)', function () {
+    it('answers 301 to the slug in the page\'s language, both ways', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $en = shopPagesSlug($kind, $id);
+        $ar = shopPagesSlug($kind, $id, 'ar');
+
+        get("/sa/ar/{$path}/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/{$path}/".rawurlencode($ar)));
+        get("/sa/en/{$path}/".rawurlencode($ar))->assertStatus(301)->assertRedirect(url("/sa/en/{$path}/{$en}"));
+        // In capitals too, as an English slug is read under its own language.
+        get("/sa/ar/{$path}/".strtoupper($en))->assertStatus(301)->assertRedirect(url("/sa/ar/{$path}/".rawurlencode($ar)));
+    })->with('the three kinds');
+
+    it('answers an old slug of the other language with one hop to the current one', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $oldEn = shopPagesSlug($kind, $id);
+        $oldAr = shopPagesSlug($kind, $id, 'ar');
+        shopPagesRename($kind, $id, 'اسم-جديد', 'new-name');
+
+        $toArabic = get("/sa/ar/{$path}/{$oldEn}")->assertStatus(301)->assertRedirect(url("/sa/ar/{$path}/".rawurlencode('اسم-جديد')));
+        $toEnglish = get("/sa/en/{$path}/".rawurlencode($oldAr))->assertStatus(301)->assertRedirect(url("/sa/en/{$path}/new-name"));
+
+        // The address it sends to is the page: no second redirect.
+        get((string) $toArabic->headers->get('Location'))->assertOk();
+        get((string) $toEnglish->headers->get('Location'))->assertOk();
+    })->with('the three kinds');
+
+    it('keeps the query, and never lets it set the store or the language', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $ar = rawurlencode(shopPagesSlug($kind, $id, 'ar'));
+        $en = shopPagesSlug($kind, $id);
+
+        get("/sa/ar/{$path}/{$en}?utm_source=notice&locale=en&store=eg")->assertStatus(301)->assertRedirect(url("/sa/ar/{$path}/{$ar}?utm_source=notice"));
+    })->with('the three kinds');
+
+    it('keeps a shopper\'s filters on a category', function () {
+        $category = Px::category('Kitchens');
+        shopPagesProduct($category);
+        $ar = rawurlencode(shopPagesSlug('category', $category, 'ar'));
+
+        get('/sa/ar/categories/'.shopPagesSlug('category', $category).'?sort=newest')->assertStatus(301)->assertRedirect(url("/sa/ar/categories/{$ar}?sort=newest"));
+    });
+
+    it('still answers 404 for a slug no one ever held', function (string $url) {
+        get($url)->assertNotFound()->assertInertia(fn (AssertableInertia $page) => $page->component('Catalog/Storefront/NotFound'));
+    })->with([
+        'a product, under Arabic' => ['/sa/ar/products/no-such-product'],
+        'a product, under English' => ['/sa/en/products/%D9%84%D8%A7-%D9%8A%D9%88%D8%AC%D8%AF'],
+        'a category, under Arabic' => ['/sa/ar/categories/no-such-category'],
+        'a category, under English' => ['/sa/en/categories/%D9%84%D8%A7-%D9%8A%D9%88%D8%AC%D8%AF'],
+        'a brand, under Arabic' => ['/sa/ar/brands/no-such-brand'],
+        'a brand, under English' => ['/sa/en/brands/%D9%84%D8%A7-%D9%8A%D9%88%D8%AC%D8%AF'],
+    ]);
+
+    it('forwards exactly when the own address opens: a product not on sale', function (Closure $off) {
+        $category = Px::category('Kitchens');
+        $p = shopPagesProduct($category);
+        $en = shopPagesSlug('product', $p['product']);
+        $ar = rawurlencode(shopPagesSlug('product', $p['product'], 'ar'));
+        $off($p, $category);
+
+        get("/sa/en/products/{$en}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+        get("/sa/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+        $toArabic = get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+        get("/sa/en/products/{$ar}")->assertStatus(301)->assertRedirect(url("/sa/en/products/{$en}"));
+        // To the same page its own slug shows, in one hop.
+        get((string) $toArabic->headers->get('Location'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Catalog/Storefront/Product')
+            ->where('available', false));
+    })->with([
+        '"Not available now" here' => [function (array $p): void {
+            Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $p['product'])));
+        }],
+        'not chosen in this store' => [function (array $p): void {
+            Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], false)));
+        }],
+        'archived after being ready' => [function (array $p): void {
+            Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($p['product'])));
+        }],
+        'hidden with its category' => [function (array $p, string $category): void {
+            Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'HIDE')));
+        }],
+    ]);
+
+    it('forwards a sold-out product to the page its own slug shows', function () {
+        $p = shopPagesProduct(Px::category('Kitchens'), ['60 cm', '80 cm']);
+        $en = shopPagesSlug('product', $p['product']);
+        $ar = rawurlencode(shopPagesSlug('product', $p['product'], 'ar'));
+        app(ListingFacts::class)->orderable(StoreId::fromString(Fx::storeId('sa')), $p['variants'], false);
+        $own = fn (AssertableInertia $page) => $page->component('Catalog/Storefront/Product')->where('productId', $p['product']);
+
+        get("/sa/en/products/{$en}")->assertOk()->assertInertia($own);
+        get("/sa/ar/products/{$ar}")->assertOk()->assertInertia($own);
+        $toArabic = get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+        $toEnglish = get("/sa/en/products/{$ar}")->assertStatus(301)->assertRedirect(url("/sa/en/products/{$en}"));
+        get((string) $toArabic->headers->get('Location'))->assertOk()->assertInertia($own);
+        get((string) $toEnglish->headers->get('Location'))->assertOk()->assertInertia($own);
+    });
+
+    it('forwards an old slug of a product not on sale in one hop', function () {
+        $category = Px::category('Kitchens');
+        $id = shopPagesProduct($category)['product'];
+        $old = shopPagesSlug('product', $id);
+        shopPagesRename('product', $id, 'اسم-جديد', 'new-name');
+        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'HIDE')));
+
+        $moved = get("/sa/ar/products/{$old}")->assertStatus(301)->assertRedirect(url('/sa/ar/products/'.rawurlencode('اسم-جديد')));
+
+        get((string) $moved->headers->get('Location'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+    });
+
+    it('answers what has no page of its own exactly as a slug never held: status, page, props and headers', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $en = shopPagesSlug($kind, $id);
+        $ar = shopPagesSlug($kind, $id, 'ar');
+
+        // Its own address has no page either.
+        get("/sa/en/{$path}/{$en}")->assertNotFound();
+        get("/sa/ar/{$path}/".rawurlencode($ar))->assertNotFound();
+
+        $unknownEn = str_repeat('x', strlen($en));
+        $unknownAr = str_repeat('ي', mb_strlen($ar));
+
+        expect(shopPagesAnswer("/sa/ar/{$path}/{$en}"))->toEqual(shopPagesAnswer("/sa/ar/{$path}/{$unknownEn}"))
+            ->and(shopPagesAnswer("/sa/en/{$path}/".rawurlencode($ar)))->toEqual(shopPagesAnswer("/sa/en/{$path}/".rawurlencode($unknownAr)))
+            ->and(shopPagesAnswer("/sa/ar/{$path}/{$en}")['status'])->toBe(404)
+            ->and(shopPagesAnswer("/sa/ar/{$path}/{$en}")['component'])->toBe('Catalog/Storefront/NotFound');
+    })->with([
+        'a draft product' => ['products', 'product', fn (): string => Px::product('Draft')],
+        'a product archived from a draft, never shown' => ['products', 'product', function (): string {
+            $id = Px::product('Abandoned');
+            Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($id)));
+
+            return $id;
+        }],
+        'a category listing nothing here' => ['categories', 'category', fn (): string => Px::category('Empty')],
+        'a category switched off' => ['categories', 'category', function (): string {
+            $category = Px::category('Kitchens');
+            shopPagesProduct($category);
+            Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'HIDE')));
+
+            return $category;
+        }],
+        'an inactive brand' => ['brands', 'brand', function (): string {
+            $brand = shopPagesBrandOf(shopPagesProduct(Px::category('Kitchens'))['product']);
+            Fx::asSystem(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($brand, 'HIDE')));
+
+            return $brand;
+        }],
+    ]);
+
+    it('answers 404 for an old slug of what has no page', function () {
+        $category = Px::category('Kitchens');
+        shopPagesProduct($category);
+        $old = shopPagesSlug('category', $category);
+        shopPagesRename('category', $category, en: 'new-name');
+        Fx::asSystem(fn () => app(DeactivateCategoryHandler::class)->handle(new DeactivateCategory($category, 'HIDE')));
+
+        get("/sa/ar/categories/{$old}")->assertNotFound();
+    });
+
+    it('forwards a company-only product for each viewer, and its category only for those it lists for', function () {
+        $category = Px::category('Kitchens');
+        $id = shopPagesProduct($category)['product'];
+        $en = shopPagesSlug('product', $id);
+        $ar = rawurlencode(shopPagesSlug('product', $id, 'ar'));
+        $categoryEn = shopPagesSlug('category', $category);
+        $categoryAr = rawurlencode(shopPagesSlug('category', $category, 'ar'));
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $category, false)));
+
+        foreach ([ShopperKind::Guest, ShopperKind::Company] as $viewer) {
+            shopPagesViewer($viewer);
+            get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+            get("/sa/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', true));
+            get("/sa/ar/categories/{$categoryEn}")->assertStatus(301)->assertRedirect(url("/sa/ar/categories/{$categoryAr}"));
+            get("/sa/ar/categories/{$categoryAr}")->assertOk();
+        }
+
+        shopPagesViewer(ShopperKind::Individual);
+        // The product's own address opens for an individual, on "Not available now"; its category's does not.
+        get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+        get("/sa/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+        get("/sa/ar/categories/{$categoryAr}")->assertNotFound();
+        get("/sa/ar/categories/{$categoryEn}")->assertNotFound();
+    });
+
+    it('forwards a wholesale-only product for each viewer, and its category only for those it lists for', function () {
+        $category = Px::category('Kitchens');
+        $p = shopPagesProduct($category);
+        $id = $p['product'];
+        $en = shopPagesSlug('product', $id);
+        $ar = rawurlencode(shopPagesSlug('product', $id, 'ar'));
+        $categoryEn = shopPagesSlug('category', $category);
+        $categoryAr = rawurlencode(shopPagesSlug('category', $category, 'ar'));
+        Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $id, [$p['variants'][0] => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 10)));
+
+        shopPagesViewer(ShopperKind::Company);
+        get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+        get("/sa/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', true)->where('variants.0.sellsWholesale', true));
+        get("/sa/ar/categories/{$categoryEn}")->assertStatus(301)->assertRedirect(url("/sa/ar/categories/{$categoryAr}"));
+
+        shopPagesViewer(ShopperKind::Individual);
+        get("/sa/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/sa/ar/products/{$ar}"));
+        get("/sa/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+        get("/sa/ar/categories/{$categoryAr}")->assertNotFound();
+        get("/sa/ar/categories/{$categoryEn}")->assertNotFound();
+    });
+
+    it('forwards in a store that has not chosen the product, and a category only where it lists something', function () {
+        $category = Px::category('Kitchens');
+        $id = shopPagesProduct($category)['product'];
+        $en = shopPagesSlug('product', $id);
+        $ar = rawurlencode(shopPagesSlug('product', $id, 'ar'));
+        $categoryEn = shopPagesSlug('category', $category);
+
+        // Chosen in Saudi Arabia only.
+        get("/eg/ar/products/{$ar}")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('available', false));
+        get("/eg/ar/products/{$en}")->assertStatus(301)->assertRedirect(url("/eg/ar/products/{$ar}"));
+        get("/eg/ar/categories/{$categoryEn}")->assertNotFound();
+    });
+
+    it('tells a browser not to keep these moves, and only these', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $oldEn = shopPagesSlug($kind, $id);
+
+        expect(get("/sa/ar/{$path}/{$oldEn}")->assertStatus(301)->headers->get('Cache-Control'))->toBe('no-cache, private');
+
+        shopPagesRename($kind, $id, en: 'new-name');
+
+        // The other language's old slug is still across the languages; the page's own old slug stays true for good.
+        expect(get("/sa/ar/{$path}/{$oldEn}")->assertStatus(301)->headers->get('Cache-Control'))->toBe('no-cache, private')
+            ->and(get("/sa/en/{$path}/{$oldEn}")->assertStatus(301)->headers->get('Cache-Control'))->toBeNull();
+    })->with('the three kinds');
+
+    it('lets such a move stop being true: a new item takes the slug in the page\'s language', function (string $path, string $kind, Closure $make) {
+        $arabic = $make();
+        shopPagesRename($kind, $arabic, ar: '60-80');
+        $en = shopPagesSlug($kind, $arabic);
+
+        get("/sa/en/{$path}/60-80")->assertStatus(301)->assertRedirect(url("/sa/en/{$path}/{$en}"));
+
+        $english = $make();
+        shopPagesRename($kind, $english, en: '60-80');
+
+        get("/sa/en/{$path}/60-80")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('slug', '60-80'));
+    })->with('the three kinds');
+
+    it('lets the page\'s language win when two items share a slug across the languages', function (string $path, string $kind, Closure $make) {
+        // Only digits, with or without hyphens, can be both: an Arabic slug takes Arabic letters, an English one Latin (§5.3).
+        $english = $make();
+        $arabic = $make();
+        shopPagesRename($kind, $english, en: '60-80');
+        shopPagesRename($kind, $arabic, ar: '60-80');
+
+        get("/sa/en/{$path}/60-80")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('slug', '60-80')
+            ->where('address.alternate', url("/sa/ar/{$path}/".rawurlencode(shopPagesSlug($kind, $english, 'ar')))));
+        get("/sa/ar/{$path}/60-80")->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('slug', '60-80')
+            ->where('address.alternate', url("/sa/en/{$path}/".shopPagesSlug($kind, $arabic))));
+    })->with('the three kinds');
+
+    it('lets the page\'s language win when its holder has no page: 404, never the other language\'s item', function () {
+        $shown = shopPagesProduct(Px::category('Kitchens'))['product'];
+        shopPagesRename('product', $shown, ar: '2026');
+        Fx::asSystem(fn () => app(CreateProductHandler::class)->handle(new CreateProduct('درج مسودة', 'Draft drawer', slugEn: '2026')));
+
+        get('/sa/en/products/2026')->assertNotFound();
+        get('/sa/ar/products/2026')->assertOk();
+    });
+
+    it('lets the page\'s language win when its holder held it before: to its own current slug', function () {
+        $held = shopPagesProduct(Px::category('Kitchens'))['product'];
+        $shown = shopPagesProduct(Px::category('Kitchens'))['product'];
+        shopPagesRename('product', $held, en: '2026');
+        shopPagesRename('product', $held, en: 'new-name');
+        shopPagesRename('product', $shown, ar: '2026');
+
+        get('/sa/en/products/2026')->assertStatus(301)->assertRedirect(url('/sa/en/products/new-name'));
+        get('/sa/ar/products/2026')->assertOk();
+    });
+
+    it('answers 404 for an item with no slug in the page\'s language', function (string $path, string $kind, Closure $make) {
+        $id = $make();
+        $ar = rawurlencode(shopPagesSlug($kind, $id, 'ar'));
+        // No form leaves a shown item so - only a draft, below - hence by hand.
+        DB::table("catalog.{$kind}_slugs")->where("{$kind}_id", $id)->where('locale', 'en')->delete();
+
+        get("/sa/en/{$path}/{$ar}")->assertNotFound();
+    })->with('the three kinds');
+
+    it('answers 404 for a draft with its Arabic name only, under English', function () {
+        $draft = Px::product(null);
+
+        get('/sa/en/products/'.rawurlencode(shopPagesSlug('product', $draft, 'ar')))->assertNotFound();
+    });
+
+    it('asks a page shown nothing more, and a slug no one holds here one read', function () {
+        config(['session.lottery' => [0, 100]]);
+        $category = Px::category('Kitchens');
+        $p = shopPagesProduct($category, ['60 cm', '80 cm']);
+        shopPagesProduct($category, ['60 cm']);
+        $brand = shopPagesBrandOf($p['product']);
+        $pages = [
+            'category en' => '/sa/en/categories/'.shopPagesSlug('category', $category),
+            'category ar' => '/sa/ar/categories/'.rawurlencode(shopPagesSlug('category', $category, 'ar')),
+            'brand en' => '/sa/en/brands/'.shopPagesSlug('brand', $brand),
+            'brand ar' => '/sa/ar/brands/'.rawurlencode(shopPagesSlug('brand', $brand, 'ar')),
+            'product en' => '/sa/en/products/'.shopPagesSlug('product', $p['product']),
+            'product ar' => '/sa/ar/products/'.rawurlencode(shopPagesSlug('product', $p['product'], 'ar')),
+        ];
+        // The read amendment 38 adds: the only one comparing the current slug's language to a value.
+        $reads = static fn (): int => count(array_filter(DB::getQueryLog(), static fn (array $query): bool => str_contains((string) $query['query'], '"now"."locale" = ?')));
+
+        foreach ($pages as $url) {
+            app()->forgetScopedInstances();
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            get($url)->assertOk();
+            DB::disableQueryLog();
+            expect($reads())->toBe(0);
+        }
+
+        // The English pages' counts are the budget's above, held since before amendment 38.
+        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 13, 'product ar' => 13]);
+
+        foreach (['products', 'categories', 'brands'] as $path) {
+            app()->forgetScopedInstances();
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            get("/sa/en/{$path}/no-such-page")->assertNotFound();
+            DB::disableQueryLog();
+            expect($reads())->toBe(1);
+        }
+
+        // A slug no one holds: this language's read and the other's, 2. One the other language holds: a
+        // third, checking its address, whichever way it then answers.
+        $queries = static function (string $url): int {
+            app()->forgetScopedInstances();
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            get($url)->assertNotFound();
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        $inactive = Px::brand('Inactive');
+        Fx::asSystem(fn () => app(DeactivateBrandHandler::class)->handle(new DeactivateBrand($inactive, 'HIDE')));
+        $noPage = [
+            'products' => shopPagesSlug('product', Px::product('Draft'), 'ar'),
+            'categories' => shopPagesSlug('category', Px::category('Empty'), 'ar'),
+            'brands' => shopPagesSlug('brand', $inactive, 'ar'),
+        ];
+
+        foreach ($noPage as $path => $slug) {
+            // Warm first, as the rest of the budget is measured.
+            $queries("/sa/en/{$path}/no-such-page");
+            $unknown = $queries("/sa/en/{$path}/no-such-page");
+
+            expect($queries("/sa/en/{$path}/".rawurlencode($slug)))->toBe($unknown + 1);
+        }
     });
 });
