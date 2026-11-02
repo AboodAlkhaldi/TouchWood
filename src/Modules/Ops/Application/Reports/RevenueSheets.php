@@ -75,6 +75,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.revenue'), $words->get('notes.waiting'), $words->get('notes.vat'), ...$totals],
                 $this->revenueRows($stores, $days, $byMonth, $words),
+                hasTotals: true,
             ),
             new ReportSheet(
                 $words->get('sheets.money'),
@@ -90,6 +91,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.money'), ...$totals],
                 $this->moneyRows($stores, $period, $byMonth, $words),
+                hasTotals: true,
             ),
             new ReportSheet(
                 $words->get('sheets.waiting_refunds'),
@@ -116,6 +118,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.categories'), ...$totals],
                 $this->categoryRows($stores, $period, $words),
+                hasTotals: true,
             ),
         ];
     }
@@ -123,7 +126,7 @@ final readonly class RevenueSheets
     /**
      * @param  non-empty-list<StoreDto>  $stores
      * @param  array<string, list<RevenueDayDto>>  $days
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function revenueRows(array $stores, array $days, bool $byMonth, ReportWords $words): Generator
     {
@@ -142,7 +145,7 @@ final readonly class RevenueSheets
         }
 
         foreach ($totals as $currency => $figures) {
-            yield self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures);
+            yield new ReportTotal(self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures));
         }
     }
 
@@ -228,7 +231,7 @@ final readonly class RevenueSheets
      * `moneyByDay` read per store, over its own days in the range.
      *
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function moneyRows(array $stores, ReportPeriod $period, bool $byMonth, ReportWords $words): Generator
     {
@@ -264,7 +267,7 @@ final readonly class RevenueSheets
 
         foreach ($totals as $currency => $ways) {
             foreach ($ways as $way => $figures) {
-                yield self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words);
+                yield new ReportTotal(self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words));
             }
         }
     }
@@ -329,7 +332,7 @@ final readonly class RevenueSheets
      * Each store's categories over the whole range, most revenue first, then one total per currency.
      *
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function categoryRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
     {
@@ -355,7 +358,7 @@ final readonly class RevenueSheets
         }
 
         foreach ($net as $currency => $revenue) {
-            yield self::categoryRow($words->get('total'), null, $currency, $exponents[$currency], $revenue, $waiting[$currency]);
+            yield new ReportTotal(self::categoryRow($words->get('total'), null, $currency, $exponents[$currency], $revenue, $waiting[$currency]));
         }
     }
 

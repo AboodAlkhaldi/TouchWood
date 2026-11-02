@@ -11,6 +11,7 @@ use Modules\Ops\Application\Reports\Report;
 use Modules\Ops\Application\Reports\ReportColumn;
 use Modules\Ops\Application\Reports\ReportMoney;
 use Modules\Ops\Application\Reports\ReportSheet;
+use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Ops\Application\Reports\ReportWriter;
 use OpenSpout\Common\Entity\Cell;
 use OpenSpout\Common\Entity\Cell\DateTimeCell;
@@ -31,6 +32,7 @@ use OpenSpout\Writer\XLSX\Writer;
  * headers - frozen, so they stay in sight - and the rows. Right to left in Arabic. A count is a number, an
  * amount a number with its currency's decimals (the currency in a column of its own), a day a date shown
  * `yyyy-mm-dd`. Every text is written as text, never read as a formula: a search phrase may begin with "=".
+ * A total row is written as any other row, in its place.
  */
 final class OpenSpoutReportWriter implements ReportWriter
 {
@@ -76,7 +78,8 @@ final class OpenSpoutReportWriter implements ReportWriter
         $header = new Style(fontBold: true, backgroundColor: 'E8DCCF', shouldWrapText: true);
         $writer->addRow(new Row(array_map(static fn (ReportColumn $column): Cell => new StringCell($column->label, $header), $sheet->columns)));
 
-        foreach ($sheet->rows as $values) {
+        foreach ($sheet->rows as $row) {
+            $values = $row instanceof ReportTotal ? $row->values : $row;
             $cells = [];
             foreach ($sheet->columns as $index => $column) {
                 $cells[] = $this->cell($column->type, $values[$index] ?? null);

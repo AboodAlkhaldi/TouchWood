@@ -579,7 +579,7 @@ over 64 characters and show the first page).
 | Staff messages | 20 | Newest first | An empty page |
 | A form's segments | 20 | Newest first, by id | Carries on after that id |
 | Composer lookup | At most 20 | None promised; no paging | — |
-| A report's preview | First 50 rows of each sheet | The sheet's own; no paging, the rest is in the file | — |
+| A report's preview | First 50 rows of each sheet, and all its totals apart | The sheet's own; no paging, the rest is in the file | — |
 
 ### 4.2 The two bells (§1.2)
 
@@ -775,11 +775,14 @@ same answer for all; someone holding `ops.newsletter.manage` nowhere is 403 firs
 | `filename` | string | The file's name, Latin letters |
 | `downloadUrl` | string | A path from the site's root, the same choices, to `…/download` |
 
-`ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, more: bool}`. `columns`
+`ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, totals, more: bool}`. `columns`
 are `{key: string, label: string, type: string}`, type `text`, `count`, `money`, `day` or `month`. `rows` is a list
-of lists, **one value per column, in the columns' order**. `notes` says what the figures are (the first says
-"until" when the range includes today). `more` is true when the file holds rows past the
-preview's 50.
+of lists, **one value per column, in the columns' order**, the sheet's first 50 and never a total. `totals` has the same
+shape and holds **every total row, however long the sheet** (owner, 2026-11-02, §9.4 Q21), empty on a sheet that has none; the
+file writes them after the rows. `notes` says what the figures are (the first says "until" when the range includes
+today). `more` is true when the file holds rows past the preview's 50; totals never count towards it. To find the totals,
+a sheet that has them is read to its end, a thousand rows a page, holding only the rows shown; past those it names
+nothing. So Product sales asks Sales once per thousand sizes sold; a sheet with no totals stops at the 51st row.
 
 | Sheet, in order | Columns: key (type) |
 |---|---|
@@ -914,10 +917,11 @@ props. Every other address of that store stays a 404.
   today. Show a value that is not a decimal as it stands; never add up what comes back.
 - **Null is not 0.** `revenue_if_waiting` and `vat_if_waiting` are null where nothing waits: one figure, not two
   (§1.10). A `day`, `month`, `category` or `product` cell is null on a total row.
-- **A total row has no mark.** It holds the word for "Total" in `store` and null where it has no period or name.
-  Revenue, Product sales and By category always end with one total per currency, even over no rows, at zero; Money
+- **A total row is in `totals`, never in `rows`,** in the sheet's own order. It holds the word for "Total" in `store` and
+  null where it has no period or name: tell one by where it is, never by that word.
+  Revenue, Product sales and By category always have one total per currency, even over no rows, at zero; Money
   received has one per currency and way that moved. Waiting refunds, Stock, Searches and Favourites have none.
-- **The totals may not be in the preview:** with `more` true they sit past the 50 rows, in the file.
+- **The totals are always in the preview,** whatever `more` says; only the rows past the 50 wait in the file.
 - **Read a row by column position**; a sheet has no key, only its name in the reader's language, so tell sheets
   apart by order. Column keys are stable; labels are not.
 - **Words are words:** `limited_by_stock`, `low`, `out`, `archived` hold the reader's "Yes" or "No", never a boolean;

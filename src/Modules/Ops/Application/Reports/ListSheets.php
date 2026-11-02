@@ -37,7 +37,7 @@ final readonly class ListSheets
     /**
      * @param  non-empty-list<StoreDto>  $stores
      */
-    public function productSales(array $stores, ReportPeriod $period, ReportWords $words): ReportSheet
+    public function productSales(array $stores, ReportPeriod $period, ReportWords $words, ?int $shownRows = null): ReportSheet
     {
         return new ReportSheet(
             $words->get('sheets.product_sales'),
@@ -51,7 +51,8 @@ final readonly class ListSheets
                 $words->column('sold', ColumnType::Money),
             ],
             [$words->get('notes.product_sales'), ...(count($stores) > 1 ? [$words->get('notes.totals')] : [])],
-            $this->productSalesRows($stores, $period, $words),
+            $this->productSalesRows($stores, $period, $words, $shownRows),
+            hasTotals: true,
         );
     }
 
@@ -121,9 +122,9 @@ final readonly class ListSheets
 
     /**
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
-    private function productSalesRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
+    private function productSalesRows(array $stores, ReportPeriod $period, ReportWords $words, ?int $shownRows): Generator
     {
         // The totals by currency: its decimals, the units and the revenue.
         $exponents = $units = $revenue = [];
@@ -133,11 +134,14 @@ final readonly class ListSheets
             $revenue[$store->currencyCode] = Money::zero($store->currencyCode);
         }
 
+        $read = 0;
         foreach ($stores as $store) {
             $after = null;
             do {
                 $page = $this->sales->productSales($store->storeId(), $period->start($store), $period->end($store), $after, self::PAGE);
-                $names = $this->names->sizes(array_map(static fn ($row): string => $row->variantId, $page->rows), $words->locale);
+                // A preview shows its first rows and the totals: a page past those rows is read for the totals alone.
+                $names = $shownRows !== null && $read >= $shownRows ? [] : $this->names->sizes(array_map(static fn ($row): string => $row->variantId, $page->rows), $words->locale);
+                $read += count($page->rows);
                 foreach ($page->rows as $row) {
                     $name = $names[$row->variantId] ?? null;
                     yield [$words->store($store), $name['product'] ?? '', $name['size'] ?? '', $name['code'] ?? '', $store->currencyCode, $row->units, new ReportMoney($row->revenue, $store->currencyExponent)];
@@ -149,7 +153,7 @@ final readonly class ListSheets
         }
 
         foreach ($exponents as $currency => $exponent) {
-            yield [$words->get('total'), null, null, null, $currency, $units[$currency], new ReportMoney($revenue[$currency], $exponent)];
+            yield new ReportTotal([$words->get('total'), null, null, null, $currency, $units[$currency], new ReportMoney($revenue[$currency], $exponent)]);
         }
     }
 

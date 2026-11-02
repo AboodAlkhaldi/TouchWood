@@ -26,12 +26,14 @@ use Modules\Ops\Application\Query\DownloadReport\DownloadReport;
 use Modules\Ops\Application\Query\DownloadReport\DownloadReportHandler;
 use Modules\Ops\Application\Reports\ReportMoney;
 use Modules\Ops\Application\Reports\ReportPeriod;
+use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Ops\Application\Reports\ReportWords;
 use Modules\Ops\Application\Reports\RevenueSheets;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\ReportRangeRefused;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStore;
 use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
+use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -44,15 +46,20 @@ use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\MoneyByWayDto;
+use Modules\Sales\Public\Dto\MoneyDayDto;
 use Modules\Sales\Public\Dto\MoneyDaysDto;
 use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
+use Modules\Sales\Public\Dto\ProductNetSaleDto;
 use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
+use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
 use Modules\Sales\Public\Dto\SalesCountsDto;
 use Modules\Sales\Public\Dto\TransfersWaitingDto;
+use Modules\Sales\Public\Dto\WaitingRefundDto;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
@@ -492,7 +499,7 @@ it('reads the rows as the file is written: the preview asks one page, and 30,000
     reportsReader();
 
     $preview = Rx::preview('favourites', Fx::storeId('sa'));
-    expect([count(Rx::rows($preview)), $preview->more, $asked->pages])->toBe([50, [true], 1]);
+    expect([count(Rx::rows($preview)), $preview->more, $preview->totals, $asked->pages])->toBe([50, [true], [[]], 1]);
 
     $asked->pages = 0;
     gc_collect_cycles();
@@ -631,6 +638,7 @@ it('sums two stores of one currency into one total, never converted', function (
     $sheets = app(RevenueSheets::class)->sheets([$store('01jbxqz2y8k4n6p9r3t5v7w1xa', 'one', 'One'), $store('01jbxqz2y8k4n6p9r3t5v7w1xb', 'two', 'Two')], $period, false, new ReportWords(app('translator'), 'en'));
     $rows = [];
     foreach ($sheets[0]->rows as $row) {
+        $row = $row instanceof ReportTotal ? $row->values : $row;
         $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, [$row[0], $row[2], $row[3], $row[4], $row[6], $row[7], $row[9]]);
     }
 
@@ -712,4 +720,165 @@ it('reads money received day by day over any range in one read, and sums a month
             [null, 'Bank transfer', 3, $amount(3)],
         ])
         ->and((int) $payment['amount_minor'])->toBe(287_50);
+});
+
+/**
+ * Sales holding `$rows` days, ways, waiting refunds, products and sizes - each day 100.00 of revenue and 10.00
+ * refunded; each size one piece at 10.00 - and Catalog knowing a category for each product and no name. How often
+ * each read was asked is counted.
+ */
+function reportsManySales(int $rows): stdClass
+{
+    $asked = new stdClass;
+    $asked->productSales = 0;
+    $asked->names = 0;
+    $id = static fn (int $index): string => sprintf('01jbxqz2y8k4n6p9r3%08d', $index);
+    $currency = static fn (StoreId $store): string => (string) app(PlatformApi::class)->store($store)?->currencyCode;
+    $day = static fn (int $index): string => CarbonImmutable::parse('2026-01-01')->addDays($index)->format('Y-m-d');
+    $sales = Mockery::mock(SalesReports::class);
+    $sales->shouldReceive('revenueByDay')->andReturnUsing(static function (StoreId $store) use ($rows, $currency, $day): array {
+        $money = static fn (int $minor): Money => Money::of($minor, $currency($store));
+        $days = [];
+        for ($index = 0; $index < $rows; $index++) {
+            $days[] = new RevenueDayDto($day($index), 2, $money(100_00), $money(15_00), $money(5_00), $money(10_00), $money(1_00), [new WaitingRefundDto('return-'.$index, 'SA-'.$index, $money(1_00), $money(15))], $money(1_50), $money(15));
+        }
+
+        return $days;
+    });
+    $sales->shouldReceive('moneyByDay')->andReturnUsing(static function (StoreId $store) use ($rows, $currency, $day): array {
+        $days = [];
+        for ($index = 0; $index < $rows; $index++) {
+            $days[] = new MoneyDayDto($day($index), [new MoneyByWayDto('ONLINE', 1, Money::of(20_00, $currency($store)))], [new MoneyByWayDto('OTHER', 1, Money::of(5_00, $currency($store)))]);
+        }
+
+        return $days;
+    });
+    $sales->shouldReceive('productSales')->andReturnUsing(static function (StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after, int $limit) use ($rows, $id, $currency, $asked): ProductSalesPageDto {
+        $asked->productSales++;
+        $start = (int) $after;
+        $page = [];
+        for ($index = $start; $index < min($start + $limit, $rows); $index++) {
+            $page[] = new ProductSaleDto($id($index), $id($index), 1, Money::of(10_00, $currency($store)));
+        }
+
+        return new ProductSalesPageDto($page, $start + $limit < $rows ? (string) ($start + $limit) : null);
+    });
+    $sales->shouldReceive('productNetSales')->andReturnUsing(static function (StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after, int $limit) use ($rows, $id, $currency): ProductNetSalesPageDto {
+        $start = (int) $after;
+        $page = [];
+        for ($index = $start; $index < min($start + $limit, $rows); $index++) {
+            $page[] = new ProductNetSaleDto($id($index), 1, Money::of(10_00, $currency($store)), Money::of(1_00, $currency($store)), Money::zero($currency($store)));
+        }
+
+        return new ProductNetSalesPageDto($page, $start + $limit < $rows ? (string) ($start + $limit) : null);
+    });
+    app()->instance(SalesReports::class, $sales);
+
+    $catalog = Mockery::mock(CatalogApi::class);
+    $catalog->shouldReceive('products')->andReturnUsing(static function (array $ids): array {
+        return array_combine($ids, array_map(static fn (string $product): object => (object) ['categoryId' => 'c'.$product, 'nameAr' => 'منتج', 'nameEn' => 'Product'], $ids));
+    });
+    $catalog->shouldReceive('variants')->andReturnUsing(static function () use ($asked): array {
+        $asked->names++;
+
+        return [];
+    });
+    $catalog->shouldReceive('categoriesWithPaths')->andReturn([]);
+    app()->instance(CatalogApi::class, $catalog);
+
+    return $asked;
+}
+
+describe('totals in the preview (ops.md §4.6; owner, 2026-11-02)', function () {
+    it('keeps every total of every sheet that writes one past the 50 rows, apart from the rows, and the Excel file as it was', function () {
+        reportsManySales(60);
+        reportsReader();
+        $sa = Fx::storeId('sa');
+
+        $revenue = Rx::preview('revenue', $sa, '2026-01-01', '2026-03-01');
+        $sales = Rx::preview('product-sales', $sa, '2026-01-01', '2026-03-01');
+
+        foreach ([[$revenue, 0], [$revenue, 1], [$revenue, 2], [$revenue, 3], [$sales, 0]] as [$preview, $sheet]) {
+            expect(Rx::shown($preview, $sheet))->toHaveCount(50)
+                ->and(array_column(Rx::shown($preview, $sheet), 0))->not->toContain('Total')
+                ->and($preview->more[$sheet])->toBeTrue();
+        }
+
+        expect(Rx::totals($revenue, 0))->toBe([['Total', null, 'SAR', 120, '5400.00', '5340.00', '810.00', '801.00', '300.00', '600.00', '60.00']])
+            ->and(Rx::totals($revenue, 1))->toBe([['Total', null, 'SAR', 'Online', 60, '1200.00', 0, '0.00'], ['Total', null, 'SAR', 'Other', 0, '0.00', 60, '300.00']])
+            // Waiting refunds writes no total.
+            ->and(Rx::totals($revenue, 2))->toBe([])
+            ->and(Rx::totals($revenue, 3))->toBe([['Total', null, 'SAR', '540.00', null]])
+            ->and(Rx::totals($sales))->toBe([['Total', null, null, null, 'SAR', 60, '600.00']]);
+
+        // The file: every row in its place, the totals last. Title, store and days, notes, a blank row, the headers.
+        $file = Rx::download('revenue', $sa, '2026-01-01', '2026-03-01');
+        $rows = $file['sheets']['Revenue'];
+        $notes = count($revenue->report->sheets[0]->notes);
+        expect($rows)->toHaveCount(4 + $notes + 60 + 1)
+            ->and(array_slice($rows, -1)[0])->toBe(['Total', '', 'SAR', 120, 5400, 5340, 810, 801, 300, 600, 60])
+            ->and(array_slice($rows, -2)[0][0])->toBe('Saudi Arabia');
+
+        $rows = Rx::download('product-sales', $sa, '2026-01-01', '2026-03-01')['sheets']['Product sales'];
+        expect(array_slice($rows, -1)[0])->toBe(['Total', '', '', '', 'SAR', 60, 600])
+            ->and(array_slice($rows, -61, 1)[0])->not->toContain('Total');
+    });
+
+    it('says more only for rows past the 50, never for its totals', function (int $rows, bool $more) {
+        reportsManySales($rows);
+        reportsReader();
+
+        $preview = Rx::preview('product-sales', Fx::storeId('sa'), '2026-01-01', '2026-03-01');
+
+        expect(Rx::shown($preview))->toHaveCount(min($rows, 50))
+            ->and($preview->more)->toBe([$more])
+            ->and(Rx::totals($preview))->toBe([['Total', null, null, null, 'SAR', $rows, number_format($rows * 10, 2, '.', '')]]);
+    })->with([
+        'no row' => [0, false],
+        '50 rows' => [50, false],
+        '51 rows' => [51, true],
+    ]);
+
+    it('gives one total per currency past the 50 rows of every store\'s report', function () {
+        reportsManySales(60);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        reportsAMinuteLater();
+
+        $preview = Rx::preview('product-sales', 'all', '2026-01-01', '2026-03-01');
+
+        expect(Rx::shown($preview))->toHaveCount(50)
+            ->and($preview->more)->toBe([true])
+            ->and(array_column(Rx::totals($preview), 4))->toBe(['SAR', 'EGP', 'AED'])
+            ->and(array_column(Rx::totals($preview), 5))->toBe([60, 60, 60]);
+    });
+
+    it('walks the pages for the totals alone: past the rows shown it names nothing, and never holds the rows', function () {
+        $asked = reportsManySales(30_000);
+        reportsReader();
+
+        gc_collect_cycles();
+        $before = memory_get_usage();
+        memory_reset_peak_usage();
+        $preview = Rx::preview('product-sales', Fx::storeId('sa'), '2026-01-01', '2026-03-01');
+        // A page of a thousand rows at a time: the 30,000 held as PHP arrays and Money objects would be many times this.
+        $peak = memory_get_peak_usage() - $before;
+
+        expect(Rx::shown($preview))->toHaveCount(50)
+            ->and(Rx::totals($preview))->toBe([['Total', null, null, null, 'SAR', 30_000, '300000.00']])
+            ->and($asked->productSales)->toBe(30)
+            ->and($asked->names)->toBe(1)
+            ->and($peak)->toBeLessThan(6 * 1024 * 1024);
+    });
+
+    it('names the page holding the rows shown, however far into the stores they run', function () {
+        $asked = reportsManySales(30);
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        reportsAMinuteLater();
+
+        // Three stores of 30: the first and second stores' pages hold rows shown, the third's none.
+        Rx::preview('product-sales', 'all', '2026-01-01', '2026-03-01');
+
+        expect($asked->productSales)->toBe(3)
+            ->and($asked->names)->toBe(2);
+    });
 });

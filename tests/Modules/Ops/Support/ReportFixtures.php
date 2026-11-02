@@ -14,6 +14,7 @@ use Modules\Ops\Application\Query\ViewReport\ReportPreview;
 use Modules\Ops\Application\Query\ViewReport\ViewReport;
 use Modules\Ops\Application\Query\ViewReport\ViewReportHandler;
 use Modules\Ops\Application\Reports\ReportMoney;
+use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -100,18 +101,48 @@ final class ReportFixtures
     }
 
     /**
-     * A preview's sheet as plain values: an amount as its decimal string.
+     * A preview's sheet as plain values, its rows and then its totals as the file writes them: an amount as its
+     * decimal string.
      *
      * @return list<list<string|int|null>>
      */
     public static function rows(ReportPreview $preview, int $sheet = 0): array
     {
+        return [...self::shown($preview, $sheet), ...self::totals($preview, $sheet)];
+    }
+
+    /**
+     * A preview's sheet's rows alone, as plain values.
+     *
+     * @return list<list<string|int|null>>
+     */
+    public static function shown(ReportPreview $preview, int $sheet = 0): array
+    {
         $rows = [];
         foreach ($preview->report->sheets[$sheet]->rows as $row) {
-            $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, $row);
+            $rows[] = self::plain($row instanceof ReportTotal ? $row->values : $row);
         }
 
         return $rows;
+    }
+
+    /**
+     * A preview's sheet's totals alone, as plain values.
+     *
+     * @return list<list<string|int|null>>
+     */
+    public static function totals(ReportPreview $preview, int $sheet = 0): array
+    {
+        return array_map(self::plain(...), $preview->totals[$sheet]);
+    }
+
+    /**
+     * @param  list<string|int|ReportMoney|null>  $row
+     * @return list<string|int|null>
+     */
+    private static function plain(array $row): array
+    {
+        return array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, $row);
     }
 
     /**
