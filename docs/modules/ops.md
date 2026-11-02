@@ -579,7 +579,7 @@ over 64 characters and show the first page).
 | Staff messages | 20 | Newest first | An empty page |
 | A form's segments | 20 | Newest first, by id | Carries on after that id |
 | Composer lookup | At most 20 | None promised; no paging | — |
-| A report's preview | First 50 rows of each sheet, and all its totals apart | The sheet's own; no paging, the rest is in the file | — |
+| A report's preview | First 50 rows of each sheet, and its totals apart | The sheet's own; no paging, the rest is in the file | — |
 
 ### 4.2 The two bells (§1.2)
 
@@ -778,11 +778,16 @@ same answer for all; someone holding `ops.newsletter.manage` nowhere is 403 firs
 `ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, totals, more: bool}`. `columns`
 are `{key: string, label: string, type: string}`, type `text`, `count`, `money`, `day` or `month`. `rows` is a list
 of lists, **one value per column, in the columns' order**, the sheet's first 50 and never a total. `totals` has the same
-shape and holds **every total row, however long the sheet** (owner, 2026-11-02, §9.4 Q21), empty on a sheet that has none; the
-file writes them after the rows. `notes` says what the figures are (the first says "until" when the range includes
-today). `more` is true when the file holds rows past the preview's 50; totals never count towards it. To find the totals,
-a sheet that has them is read to its end, a thousand rows a page, holding only the rows shown; past those it names
-nothing. So Product sales asks Sales once per thousand sizes sold; a sheet with no totals stops at the 51st row.
+shape and holds **every total row, however long the sheet** (owner, 2026-11-02, §9.4 Q21); it is empty on a sheet with no
+total **and on a sheet with no rows, which shows no zero total** (owner, 2026-11-02), though the file writes one. `notes` says
+what the figures are (the first says "until" when the range includes today). `more` is true when the file holds rows
+past the preview's 50; totals never count towards it.
+
+**No sheet is read past the 51st row.** A sheet that ends within its rows gives the totals it summed. One that goes on
+reads them apart, to the unit what the file writes: Revenue and By category from the `revenueByDay` already read, no
+query; Money received from `moneyOn`, 2 queries a store; Product sales from `productSalesTotals`, 1 a store. So the
+queries do not grow with the report's length, with one exception that is not new: By category groups a store's products
+under their categories before its first row, so it walks that store's products a thousand a page.
 
 | Sheet, in order | Columns: key (type) |
 |---|---|
@@ -917,11 +922,14 @@ props. Every other address of that store stays a 404.
   today. Show a value that is not a decimal as it stands; never add up what comes back.
 - **Null is not 0.** `revenue_if_waiting` and `vat_if_waiting` are null where nothing waits: one figure, not two
   (§1.10). A `day`, `month`, `category` or `product` cell is null on a total row.
-- **A total row is in `totals`, never in `rows`,** in the sheet's own order. It holds the word for "Total" in `store` and
-  null where it has no period or name: tell one by where it is, never by that word.
-  Revenue, Product sales and By category always have one total per currency, even over no rows, at zero; Money
+- **A total row is in `totals`, never in `rows`.** It holds the word for "Total" in `store` and null where it has no
+  period or name: tell one by where it is, never by that word, which a store or a category may be called too.
+  Revenue, Product sales and By category have one total per currency, a currency that sold nothing at zero; Money
   received has one per currency and way that moved. Waiting refunds, Stock, Searches and Favourites have none.
-- **The totals are always in the preview,** whatever `more` says; only the rows past the 50 wait in the file.
+- **A sheet with no rows has no `totals` at all** (owner, 2026-11-02): it shows only "Nothing for these days." The file
+  still writes its zero totals.
+- **The totals are in the preview whatever `more` says;** only the rows past the 50 wait in the file. Their figures are
+  the file's to the unit. With `more` true, Money received's may come in another order of ways than the file's.
 - **Read a row by column position**; a sheet has no key, only its name in the reader's language, so tell sheets
   apart by order. Column keys are stable; labels are not.
 - **Words are words:** `limited_by_stock`, `low`, `out`, `archived` hold the reader's "Yes" or "No", never a boolean;
@@ -1133,7 +1141,7 @@ Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waitin
 - **Show Report (Q18)** reads the preview and puts the choices in the address, so a reload or a shared link shows it again. **Download Excel** then appears beside it, a plain link to `downloadUrl`. Changing a choice leaves the shown report in place and marks it "Choices changed. Show Report again." and hides Download until shown again, so a file never differs from what's on screen.
 - **The report:** its title, subtitle and `notes` as a plain `Note`. Its direction and language follow the reader's account, as the server sends them; when that differs from the page's, one line says so. Sheets as tabs (Q20), in order, kept apart by order not name.
 - **The table:** `count` figures with Latin digits, `money` as it stands, right-aligned at the end with its currency in its own column, negative and non-decimal values untouched, null as "—". Nothing is added up on the screen. `phrase` shows as plain text.
-- **Totals (Q21)** always show, bold, at the foot of the sheet, from the sheet's `totals` (§4.6, §9.4 Q21). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
+- **Totals (Q21)** always show, bold, at the foot of the sheet, from the sheet's `totals` (§4.6, §9.4 Q21), which are empty on a sheet with no rows: it shows only "Nothing for these days.", no zero total (owner, 2026-11-02). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
 - **Before Show:** "Choose the store and the days, then Show Report." **An empty sheet:** "Nothing for these days."
 - **Refusals** (`ops.report_range_refused` and the 422 keys) show in place, with the choices kept.
 

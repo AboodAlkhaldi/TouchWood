@@ -58,7 +58,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
   (customers on the lists, from Access's events; a contact deleted when a deletion is pending, with or without a
   row), `NewsletterSync` (the provider kept as the rows say).
 - **`Application/Reports`** — `ReportReaders` (who reads which store), `ReportBuilder`, `ReportPeriod` (the days,
-  and the moment asked), `RevenueSheets` and `ListSheets` (each walking its module's paged read; a total row a `ReportTotal`, which the preview answers apart from the rows),
+  and the moment asked), `RevenueSheets` and `ListSheets` (each walking its module's paged read; a total row a `ReportTotal`; each sheet with totals also says how to read them without its rows, for the preview),
   `ColumnType`, `ReportMoney`, `ReportWords`.
 - **`Application/DailyReport`** — `DailyReportReader` (every figure from its owning module's read),
   `DailyReportMaker`, `DailyReportPeople` (who it is for, in a request and in the queued email).

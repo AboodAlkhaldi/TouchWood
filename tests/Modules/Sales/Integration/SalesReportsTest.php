@@ -362,6 +362,32 @@ it('gives each size\'s units and revenue, most sold first, a page at a time, nev
         ->and(fn () => salesReports()->transfersWaiting(StoreId::fromString(strtolower((string) Str::ulid()))))->toThrow(InvalidArgumentException::class);
 });
 
+it('adds productSales up in one query, to the unit, never an order that does not count or a gift', function () {
+    salesReportsDelivered();
+    ['order' => $rejected] = salesReportsOrder();
+    app(RejectOrderHandler::class)->handle(new RejectOrder($rejected, 'Out of the delivery area'));
+
+    $sa = StoreId::fromString(Fx::storeId('sa'));
+    [$from, $to] = [CarbonImmutable::now()->subHour(), CarbonImmutable::now()->addMinute()];
+    $rows = salesReports()->productSales($sa, $from, $to, null, 1000)->rows;
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $totals = salesReports()->productSalesTotals($sa, $from, $to);
+    DB::disableQueryLog();
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(2)
+        ->and(array_filter(array_column(DB::getQueryLog(), 'query'), static fn (string $query): bool => str_contains($query, 'sales.order_lines')))->toHaveCount(1)
+        ->and($totals->units)->toBe(3)
+        ->and($totals->units)->toBe(array_sum(array_map(static fn (ProductSaleDto $one): int => $one->units, $rows)))
+        ->and($totals->revenue->minorUnits)->toBe(250_00)
+        ->and($totals->revenue->minorUnits)->toBe(array_sum(array_map(static fn (ProductSaleDto $one): int => $one->revenue->minorUnits, $rows)))
+        ->and($totals->revenue->currency)->toBe('SAR')
+        ->and(salesReports()->productSalesTotals($sa, $to, $from)->units)->toBe(0)
+        ->and(salesReports()->productSalesTotals(StoreId::fromString(Fx::storeId('ae')), $from, $to)->units)->toBe(0)
+        ->and(fn () => salesReports()->productSalesTotals(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class);
+});
+
 it('estimates two returns not finished on one line one after the other, each piece once', function () {
     ['order' => $order, 'customer' => $customer, 'first' => $first] = salesReportsDelivered();
     $ask = static function () use ($order, $customer, $first): string {

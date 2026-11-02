@@ -11,6 +11,7 @@ use Modules\Sales\Public\Dto\MoneyRecordMessageDto;
 use Modules\Sales\Public\Dto\OrderMessageDto;
 use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
+use Modules\Sales\Public\Dto\ProductSalesTotalsDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
 use Modules\Sales\Public\Dto\SalesCountsDto;
@@ -99,6 +100,13 @@ interface SalesReports
      * not one starting at the top. Returns are not taken off: they come off revenue by their own day.
      */
     public function productSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductSalesPageDto;
+
+    /**
+     * **What `productSales` adds up to over the range**, to the unit, however many sizes (ops.md §4.6; the
+     * owner, 2026-11-02): the same lines, summed. One query. A store that does not exist is refused
+     * (`InvalidArgumentException`).
+     */
+    public function productSalesTotals(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): ProductSalesTotalsDto;
 
     /**
      * **Each product's sales net of its refunds** (ops.md §1.10, the Excel "By category" sheet; the owner,

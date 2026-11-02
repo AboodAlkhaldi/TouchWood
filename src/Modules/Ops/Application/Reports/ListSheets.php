@@ -37,7 +37,7 @@ final readonly class ListSheets
     /**
      * @param  non-empty-list<StoreDto>  $stores
      */
-    public function productSales(array $stores, ReportPeriod $period, ReportWords $words, ?int $shownRows = null): ReportSheet
+    public function productSales(array $stores, ReportPeriod $period, ReportWords $words): ReportSheet
     {
         return new ReportSheet(
             $words->get('sheets.product_sales'),
@@ -51,8 +51,8 @@ final readonly class ListSheets
                 $words->column('sold', ColumnType::Money),
             ],
             [$words->get('notes.product_sales'), ...(count($stores) > 1 ? [$words->get('notes.totals')] : [])],
-            $this->productSalesRows($stores, $period, $words, $shownRows),
-            hasTotals: true,
+            $this->productSalesRows($stores, $period, $words),
+            fn (): array => $this->productSalesTotals($stores, $period, $words),
         );
     }
 
@@ -124,7 +124,7 @@ final readonly class ListSheets
      * @param  non-empty-list<StoreDto>  $stores
      * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
-    private function productSalesRows(array $stores, ReportPeriod $period, ReportWords $words, ?int $shownRows): Generator
+    private function productSalesRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
     {
         // The totals by currency: its decimals, the units and the revenue.
         $exponents = $units = $revenue = [];
@@ -134,14 +134,11 @@ final readonly class ListSheets
             $revenue[$store->currencyCode] = Money::zero($store->currencyCode);
         }
 
-        $read = 0;
         foreach ($stores as $store) {
             $after = null;
             do {
                 $page = $this->sales->productSales($store->storeId(), $period->start($store), $period->end($store), $after, self::PAGE);
-                // A preview shows its first rows and the totals: a page past those rows is read for the totals alone.
-                $names = $shownRows !== null && $read >= $shownRows ? [] : $this->names->sizes(array_map(static fn ($row): string => $row->variantId, $page->rows), $words->locale);
-                $read += count($page->rows);
+                $names = $this->names->sizes(array_map(static fn ($row): string => $row->variantId, $page->rows), $words->locale);
                 foreach ($page->rows as $row) {
                     $name = $names[$row->variantId] ?? null;
                     yield [$words->store($store), $name['product'] ?? '', $name['size'] ?? '', $name['code'] ?? '', $store->currencyCode, $row->units, new ReportMoney($row->revenue, $store->currencyExponent)];
@@ -153,8 +150,39 @@ final readonly class ListSheets
         }
 
         foreach ($exponents as $currency => $exponent) {
-            yield new ReportTotal([$words->get('total'), null, null, null, $currency, $units[$currency], new ReportMoney($revenue[$currency], $exponent)]);
+            yield new ReportTotal(self::productSalesTotal($words, $currency, $units[$currency], $revenue[$currency], $exponent));
         }
+    }
+
+    /**
+     * One total per currency, without the rows: one Sales read per store.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @return list<list<string|int|ReportMoney|null>>
+     */
+    private function productSalesTotals(array $stores, ReportPeriod $period, ReportWords $words): array
+    {
+        $exponents = $units = $revenue = [];
+        foreach ($stores as $store) {
+            $totals = $this->sales->productSalesTotals($store->storeId(), $period->start($store), $period->end($store));
+            $currency = $store->currencyCode;
+            $exponents[$currency] = $store->currencyExponent;
+            $units[$currency] = ($units[$currency] ?? 0) + $totals->units;
+            $revenue[$currency] = ($revenue[$currency] ?? Money::zero($currency))->add($totals->revenue);
+        }
+
+        $rows = [];
+        foreach ($exponents as $currency => $exponent) {
+            $rows[] = self::productSalesTotal($words, $currency, $units[$currency], $revenue[$currency], $exponent);
+        }
+
+        return $rows;
+    }
+
+    /** @return list<string|int|ReportMoney|null> */
+    private static function productSalesTotal(ReportWords $words, string $currency, int $units, Money $revenue, int $exponent): array
+    {
+        return [$words->get('total'), null, null, null, $currency, $units, new ReportMoney($revenue, $exponent)];
     }
 
     /**

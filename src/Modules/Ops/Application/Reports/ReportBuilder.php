@@ -30,12 +30,11 @@ final readonly class ReportBuilder
     ) {}
 
     /**
-     * The report of an ask whose permissions its handler has checked. A preview says how many rows it shows
-     * (`$shownRows`): past them a sheet reads only what its totals need, and names no more rows.
+     * The report of an ask whose permissions its handler has checked.
      *
      * @throws Unauthorized|InvalidOpsInput|ReportRangeRefused
      */
-    public function build(ReportAsk $ask, ?string $from, ?string $to, ?string $by, ?int $shownRows = null): Report
+    public function build(ReportAsk $ask, ?string $from, ?string $to, ?string $by): Report
     {
         $kind = $ask->kind;
         $person = $ask->person;
@@ -60,13 +59,13 @@ final readonly class ReportBuilder
         $period = ReportPeriod::of($from, $to, $now, $kind === ReportKind::Searches);
         $sheets = match ($kind) {
             ReportKind::Revenue => $this->revenue->sheets($stores, $period, self::byMonth($by), $words),
-            ReportKind::ProductSales => [$this->lists->productSales($stores, $period, $words, $shownRows)],
+            ReportKind::ProductSales => [$this->lists->productSales($stores, $period, $words)],
             ReportKind::Searches => [$this->lists->searches($stores, $period, $words)],
             ReportKind::Stock, ReportKind::Favourites => throw new LogicException('A report of now has no days.'),
         };
         if ($period->cutAtNow(...$stores)) {
             $until = $words->get('notes.until', ['time' => $time]);
-            $sheets = array_map(static fn (ReportSheet $sheet): ReportSheet => new ReportSheet($sheet->name, $sheet->columns, [$until, ...$sheet->notes], $sheet->rows, $sheet->hasTotals), $sheets);
+            $sheets = array_map(static fn (ReportSheet $sheet): ReportSheet => new ReportSheet($sheet->name, $sheet->columns, [$until, ...$sheet->notes], $sheet->rows, $sheet->totals), $sheets);
         }
 
         return new Report(

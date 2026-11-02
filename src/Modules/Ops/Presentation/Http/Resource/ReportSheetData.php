@@ -10,7 +10,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 /**
  * One sheet of a report's preview (ops.md §4.6): its name, columns and notes, its first rows - one value per
  * column, an amount as a decimal string with Latin digits - every total row, shaped as the rows and never among
- * them, and whether the file holds more rows than these.
+ * them, none on a sheet with no rows - and whether the file holds more rows than these.
  */
 #[TypeScript]
 final class ReportSheetData extends Data

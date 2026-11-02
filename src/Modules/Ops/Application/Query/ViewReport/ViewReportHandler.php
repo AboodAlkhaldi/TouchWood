@@ -18,9 +18,9 @@ use Shared\Application\Unauthorized;
  * The reports page's preview (ops.md §1.10, §4), under `ops.report.view` in the store - Stock also
  * `inventory.stock.manage` - every store's a super admin's alone: each sheet's first rows, and its totals.
  *
- * A sheet's totals come last and add up every row, so a sheet that has them is walked to its end, one page at a
- * time, keeping only the rows shown and the totals: its length never sits in memory. A sheet without them is
- * read no further than the rows shown.
+ * No sheet is read past the rows shown. Its totals come after its rows: a sheet that ends within them has summed
+ * them already, and one that goes on says how to read them apart (ReportSheet::$totals). A sheet with no rows shows
+ * no total, not even at zero (owner, 2026-11-02), though the file writes one.
  */
 final readonly class ViewReportHandler
 {
@@ -39,7 +39,7 @@ final readonly class ViewReportHandler
         foreach ($ask->permissions as $permission) {
             $this->authorizer->authorize($permission, $ask->scope());
         }
-        $report = $this->reports->build($ask, $query->from, $query->to, $query->by, self::ROWS);
+        $report = $this->reports->build($ask, $query->from, $query->to, $query->by);
         $sheets = [];
         $more = [];
         $totals = [];
@@ -55,14 +55,15 @@ final readonly class ViewReportHandler
                     $rows[] = $row;
                 } else {
                     $itsMore = true;
-                    if (! $sheet->hasTotals) {
-                        break;
-                    }
+                    break;
                 }
             }
-            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, $rows, $sheet->hasTotals);
+            if ($itsMore && $sheet->totals !== null) {
+                $itsTotals = ($sheet->totals)();
+            }
+            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, $rows);
             $more[] = $itsMore;
-            $totals[] = $itsTotals;
+            $totals[] = $rows === [] ? [] : $itsTotals;
         }
 
         return new ReportPreview(new Report($report->kind, $report->locale, $report->title, $report->subtitle, $sheets, $report->filename), $more, $totals);
