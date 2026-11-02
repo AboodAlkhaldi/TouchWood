@@ -1421,4 +1421,6 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 | # | Question | Options and their effect |
 |---|---|---|
 | R1 | The gateway key alerts (S5, S5b) have no link (§4.2), written before the Payments Gateway page existed (#315). Should pressing one open it? | **(a)** Yes: `/admin/payments/gateway`. A small backend change by Stage 8 specs planning; entries already written stay without a link. (b) Leave it: the Super Admin finds the page in the menu |
-| R2 | Should a customer's page in the panel have a Send Message button, opening O4 with that customer chosen? | **(a)** Not now: O4's search finds them, and this job stays inside §4. (b) Add it: quicker for support, but it touches Access's customer page and needs O4 to take a customer from its address |
+| R2 | Should a customer's page in the panel have a Send Message button, opening O4 with that customer chosen? | **Answered by the owner, 2026-11-02: (a) not now.** O4's search finds them, and this job stays inside §4 |
+
+**The screens session's own choices in §4.15, accepted by the owner, 2026-11-02:** a new notice opens on Now, the confirmation guarding it; a bell row is cut at three lines, and pressing one with no link opens its whole text; changing a report's choices hides Download Excel until it is shown again; the reports page opens on the first store that is on, a Super Admin's too; the leave and unsubscribe pages offer no way on to the shop.
