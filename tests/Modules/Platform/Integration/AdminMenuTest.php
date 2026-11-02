@@ -135,6 +135,8 @@ describe('the admin menu', function () {
             'store_settings/currencies',
             // The address countries and their places (platform.md §4.3).
             'store_settings/places',
+            // The SMS countries, Super Admins alone (ops.md §4.15 O10).
+            'store_settings/sms_countries',
             'store_settings/settings',
             'store_settings/address-formats',
             'media/media',
