@@ -589,7 +589,7 @@ Input: `after` on the list. `InboxPageData` is `{entries: InboxEntryData[], next
 | `kind` | `MessageKind` | §1.5, §1.6, or `offer_notice`, `staff_message` |
 | `storeCode`, `storeName` | string | The store it is about, the name in the page's language; empty if the store is not found |
 | `title`, `line` | string | In the page's language: the shop's `{locale}`, the panel's language |
-| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, the gateway key alerts, S10, S10b) |
+| `link` | string or null | A path from the site's root, never a full address: a customer's in the language they read when it was written, a staff member's under `/admin`. Null when there is nowhere to go (a staff message, S10, S10b). The gateway key alerts (S5, S5b) open `/admin/payments/gateway?store={code}`, the alert's own store (owner, 2026-11-02); their emails carry the same link, their SMS none, and entries written before that stay without one |
 | `read` | bool | |
 | `createdAt` | moment | |
 
