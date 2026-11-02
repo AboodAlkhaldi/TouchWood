@@ -29,17 +29,15 @@ type Props = {
     /** The bell's address: the list's, and the marks' under it. */
     base: string;
     unread: number;
-    /** Where the page keeps the number (useBellNumber). */
-    numberProp: string;
     words: BellWords;
     manyStores?: boolean;
     /** Staff only (Q7): the number asked once on coming back to the tab after at least a minute. */
     recheck?: boolean;
 };
 
-export function Bell({ base, unread: fromServer, numberProp, words, manyStores = false, recheck = false }: Props) {
+export function Bell({ base, unread: fromServer, words, manyStores = false, recheck = false }: Props) {
     const { locale } = usePage<SharedProps>().props;
-    const unread = useBellNumber(fromServer, numberProp);
+    const unread = useBellNumber(fromServer);
     const [open, setOpen] = useState(false);
     const [Menu, setMenu] = useState<typeof BellMenu | null>(null);
     const button = useRef<HTMLButtonElement>(null);

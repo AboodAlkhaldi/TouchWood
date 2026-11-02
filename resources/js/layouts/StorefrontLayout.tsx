@@ -104,7 +104,7 @@ export function StorefrontLayout({ title, children, address }: Props) {
                                 the shop is written inside one. */}
                             {/* Ops' part of the frame (ops.md §4.15 O2): the bell, before the cart, for a signed-in customer only. */}
                             {shop === null || shop === undefined || staffView || bell === undefined || bell.unread === null || bell.words === null ? null : (
-                                <Bell base={`/${shop.code}/${locale}/account/notifications`} unread={bell.unread} numberProp="frame.ops.unread" words={bell.words} />
+                                <Bell base={`/${shop.code}/${locale}/account/notifications`} unread={bell.unread} words={bell.words} />
                             )}
                             {/* Sales's part of the frame (sales.md §4.1 S3): the cart, beside the account's. */}
                             {shop === null || shop === undefined || staffView || !frame?.sales ? null : (

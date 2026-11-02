@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { router } from '@inertiajs/react';
 
 /*
 | What a bell and its full page share on first paint (ops.md §4.15 O1, O2): the number, and telling whoever
@@ -45,19 +44,17 @@ export function useBellChanges(listener: (change: BellChange) => void): void {
 /**
  * The number on a bell: the server's with each full answer, then whatever a mark answered.
  *
- * @param prop  where the page keeps it: written back, so going Back shows the number as it is now, with no read
+ * Never written back into the page (router.replaceProp) so that going Back would show it: that stores the page's
+ * props in its history entry, and after Show More those hold the last page alone, so Back brought back only that
+ * page, on every list (found 2026-11-03). Back shows the number it left until the next page or the bell's opening.
  */
-export function useBellNumber(fromServer: number, prop?: string): number {
+export function useBellNumber(fromServer: number): number {
     const [unread, setUnread] = useState(fromServer);
 
     useEffect(() => setUnread(fromServer), [fromServer]);
     useBellChanges((change) => {
         if (change.unread !== undefined) {
             setUnread(change.unread);
-
-            if (prop !== undefined) {
-                router.replaceProp(prop, change.unread);
-            }
         }
     });
 

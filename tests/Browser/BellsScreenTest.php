@@ -157,7 +157,7 @@ it('shows staff their number, marks a row and all of them, opens the full page i
         ->and($page->script($reads))->toBe(1);
 });
 
-it('goes to a staff row\'s link, going Back shows the number as it is now, and a tab loaded later opens by its address', function () {
+it('goes to a staff row\'s link, opening the bell after going Back corrects the number, and a tab loaded later opens by its address', function () {
     $staffId = Fx::staffWith([Platform::AUDIT_VIEW], ['sa']);
     Ox::staffEntry($staffId);
     Ox::staffEntry($staffId);
@@ -174,13 +174,46 @@ it('goes to a staff row\'s link, going Back shows the number as it is now, and a
     expect(browserSoon($page, "location.pathname === '/admin/account'"))->toBeTrue()
         ->and(browserSoon($page, "document.querySelector('[data-test=\"bell-number\"]')?.textContent.trim() === '1'"))->toBeTrue();
 
-    $page->script('history.back()');
-    expect(browserSoon($page, "location.pathname === '/admin/notifications' && document.querySelector('[data-test=\"bell-page\"]') !== null"))->toBeTrue()
-        ->and(browserSoon($page, "document.querySelector('[data-test=\"bell-number\"]')?.textContent.trim() === '1'"))->toBeTrue();
+    $page->script('(() => { history.back(); })()');
+    expect(browserSoon($page, "location.pathname === '/admin/notifications' && document.querySelector('[data-test=\"bell-page\"]') !== null"))->toBeTrue();
+
+    // Back shows the number it left (useBellNumber says why); opening the bell reads it again.
+    $page->click('[data-test="bell"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"bell-number\"]')?.textContent.trim() === '1'"))->toBeTrue();
+    $page->click('[data-test="bell"]');
+    expect(browserSoon($page, "document.querySelector('[data-test=\"bell-menu\"]') === null"))->toBeTrue();
 
     // Sessions loads when wanted (the 60 KB limit): opened by its address, it still draws, with no error.
     $page->navigate('/admin/account?tab=sessions');
     expect(browserSoon($page, "document.querySelector('[role=\"tabpanel\"][data-state=\"active\"]')?.textContent.trim().length > 0"))->toBeTrue();
+    $page->assertNoJavaScriptErrors();
+});
+
+it('brings back the first page, never the last alone, when a row is marked after Show More and the list is gone back to', function () {
+    $staffId = Fx::staffWith([Platform::AUDIT_VIEW], ['sa']);
+
+    foreach (range(1, 22) as $ignored) {
+        Ox::staffEntry($staffId);
+    }
+
+    DB::table('ops.inbox_entries')->where('staff_id', $staffId)->update(['link' => '/admin/account']);
+
+    $page = bellsScreenStaffIn($staffId);
+    $page->navigate('/admin/notifications');
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length === 20"))->toBeTrue();
+    $newest = (string) DB::table('ops.inbox_entries')->where('staff_id', $staffId)->orderByDesc('id')->value('id');
+
+    $page->click('[data-test="more"]');
+    expect(browserSoon($page, "document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length === 22"))->toBeTrue();
+
+    // A row is marked, then Back: never the last page alone.
+    $page->click('[data-test="bell-page"] [data-test="bell-row"]:first-child a');
+    expect(browserSoon($page, "location.pathname === '/admin/account'"))->toBeTrue()
+        ->and(DB::table('ops.inbox_entries')->where('id', $newest)->whereNotNull('read_at')->count())->toBe(1);
+
+    $page->script('(() => { history.back(); })()');
+    expect(browserSoon($page, "location.pathname === '/admin/notifications' && document.querySelector('[data-test=\"bell-page\"] [data-test=\"bell-row\"]') !== null"))->toBeTrue();
+    expect($page->script("document.querySelectorAll('[data-test=\"bell-page\"] [data-test=\"bell-row\"]').length"))->toBe(20);
     $page->assertNoJavaScriptErrors();
 });
 
