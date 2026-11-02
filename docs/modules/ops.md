@@ -1133,7 +1133,7 @@ Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waitin
 - **Show Report (Q18)** reads the preview and puts the choices in the address, so a reload or a shared link shows it again. **Download Excel** then appears beside it, a plain link to `downloadUrl`. Changing a choice leaves the shown report in place and marks it "Choices changed. Show Report again." and hides Download until shown again, so a file never differs from what's on screen.
 - **The report:** its title, subtitle and `notes` as a plain `Note`. Its direction and language follow the reader's account, as the server sends them; when that differs from the page's, one line says so. Sheets as tabs (Q20), in order, kept apart by order not name.
 - **The table:** `count` figures with Latin digits, `money` as it stands, right-aligned at the end with its currency in its own column, negative and non-decimal values untouched, null as "—". Nothing is added up on the screen. `phrase` shows as plain text.
-- **Totals (Q21)** always show, bold, at the foot of the sheet, from the marked rows the preview will carry (§9.4 Q21). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
+- **Totals (Q21)** always show, bold, at the foot of the sheet, from the sheet's `totals` (§4.6, §9.4 Q21). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
 - **Before Show:** "Choose the store and the days, then Show Report." **An empty sheet:** "Nothing for these days."
 - **Refusals** (`ops.report_range_refused` and the 422 keys) show in place, with the choices kept.
 
