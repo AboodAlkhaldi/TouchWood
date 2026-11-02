@@ -1178,7 +1178,12 @@ Both are Access's page and words (§4.8).
 
 #### Shared files this touches
 
-`AdminLayout` (the bell), `StorefrontLayout` (the bell, the footer box), `AppSidebar`/`MenuIcon` (new icons), Platform's `InMemoryAdminMenu` (the section), a new Platform list of the panel frame's parts, `ShareAdminPage`. Checked with the sessions "Stage 7 screens" and "Screens" before each is touched.
+**Two additions to Platform, which every module's menu and panel page go through; accepting this spec accepts them:**
+
+1. `InMemoryAdminMenu` gains a `reports` section, after `customers`, named in Access's `permission_groups` words. Nothing else moves. It only shows to someone holding a report permission. `AdminMenuTest`, which lists every entry a Super Admin is offered, changes with it.
+2. A new small Platform list of the panel frame's parts, the panel's twin of `ShopFrameParts`, read in Access's `ShareAdminPage`. Ops' part is the bell's number, and Platform and Access never name Ops. Nothing else registers in it today. It adds one query to every panel page.
+
+Also touched: `AdminLayout` (the bell), `StorefrontLayout` (the bell, the footer box), `AppSidebar`/`MenuIcon` (new icons). All of these are checked with the sessions "Stage 7 screens" and "Screens" before each is touched.
 
 #### What this doesn't do
 
