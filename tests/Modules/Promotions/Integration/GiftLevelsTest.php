@@ -158,6 +158,9 @@ describe('creating a level', function () {
 });
 
 describe('one amount, one gift', function () {
+    // A level already ended never clashes, so these fixed dates must stay ahead of the clock.
+    beforeEach(fn () => CarbonImmutable::setTestNow('2026-10-15 12:00:00'));
+
     it('refuses a second active level with the same amount for the same buyers and dates', function (array $first, array $second) {
         giftManager();
         [$pen, $mug] = gifts();
