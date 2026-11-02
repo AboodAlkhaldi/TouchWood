@@ -95,6 +95,21 @@ final readonly class DatabaseShopReader implements ShopReader
         return $row instanceof stdClass ? ['id' => (string) $row->id, 'slug' => (string) $row->slug] : null;
     }
 
+    public function slugOwnerInOtherLanguage(string $kind, string $locale, string $slug): ?array
+    {
+        [$table, $owner] = self::SLUGS[$kind];
+
+        $row = $this->db->table("{$table} as t")
+            ->join("{$table} as now", static function ($join) use ($owner, $locale): void {
+                $join->on("now.{$owner}", '=', "t.{$owner}")->where('now.locale', '=', $locale)->where('now.is_current', true);
+            })
+            ->where('t.locale', self::other($locale))
+            ->where('t.slug', $slug)
+            ->first(["t.{$owner} as id", 'now.slug']);
+
+        return $row instanceof stdClass ? ['id' => (string) $row->id, 'slug' => (string) $row->slug] : null;
+    }
+
     public function categoryHead(string $storeId, string $locale, ShopperKind $viewer, string $slug, ShopFilters $filters): ?array
     {
         $name = self::column('name', $locale);

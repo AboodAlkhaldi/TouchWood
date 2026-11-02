@@ -20,11 +20,12 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * The shop's pages (catalog.md §4.5), under the store and the language: a category's, a brand's, a
  * product's, the search results, and the suggestions while a shopper types — JSON, never logged
- * (amendment 5(e)). An old slug answers 301 to the current one, the shopper's choices kept; a slug
- * that never existed, a draft, a category listing nothing here, an inactive brand — or an address
- * that is not one: a sort or a side that is not one, more brands or values than a page offers, a page
- * cursor made up — 404 in the shop's frame (amendment 5(m)). An id in `brands` or `values` that names
- * nothing the page offers is left out, as a choice not made.
+ * (amendment 5(e)). An old slug answers 301 to the current one, the shopper's choices kept; so does
+ * the other language's slug of a page shown here (amendment 38); a slug that never existed, a draft,
+ * a category listing nothing here, an inactive brand — or an address that is not one: a sort or a
+ * side that is not one, more brands or values than a page offers, a page cursor made up — 404 in the
+ * shop's frame (amendment 5(m)). An id in `brands` or `values` that names nothing the page offers is
+ * left out, as a choice not made.
  */
 final readonly class ShopPagesController
 {
