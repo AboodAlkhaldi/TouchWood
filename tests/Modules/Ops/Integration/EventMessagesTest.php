@@ -55,6 +55,7 @@ use Modules\Ops\Public\Enums\MessageChannel;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
+use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSetting;
 use Modules\Platform\Application\Command\UpdateSetting\UpdateSettingHandler;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
@@ -1050,6 +1051,30 @@ describe('the critical SMS (§1.6: the gateway key at 1 day, or refused)', funct
         eventMessagesSwitch($super, StaffNotificationTopic::PaymentProblems, true, true);
         event(new GatewayKeyExpiring(eventMessagesId(), Fx::storeId('sa'), 'LIVE', 7, '2026-11-30', CarbonImmutable::now()));
         expect(CapturedEmails::installed()->to())->toBe([eventMessagesEmailOf($super)]);
+    });
+
+    it('alerts the holders of sales.payment.record on PaymentNotAccepted, once per event, by their switches, with no link', function () {
+        $byDefault = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $byEmail = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $elsewhere = Fx::staffWith(['sales.payment.record'], ['eg']);
+        $noPermission = Fx::staffWith(['sales.order.view'], ['sa']);
+        eventMessagesSwitch($byEmail, StaffNotificationTopic::PaymentsToCheck, panel: false, email: true);
+
+        $notAccepted = new PaymentNotAccepted(eventMessagesId(), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), strtolower((string) Str::ulid()), Fx::storeId('sa'), CarbonImmutable::now());
+        event($notAccepted);
+        event($notAccepted);
+
+        $bell = eventMessagesBell(staffId: $byDefault);
+
+        expect($bell)->toHaveCount(1)
+            ->and([$bell[0]->kind, $bell[0]->title_en, $bell[0]->line_en, $bell[0]->link])->toBe(['payment_not_accepted', 'Payment not accepted in Saudi Arabia', 'A payment was not accepted. A refund is owed.', null])
+            ->and(eventMessagesBell(staffId: $byEmail))->toBe([])
+            ->and(eventMessagesBell(staffId: $elsewhere))->toBe([])
+            ->and(eventMessagesBell(staffId: $noPermission))->toBe([])
+            ->and(eventMessagesSent(staffId: $byEmail))->toBe(['payment_not_accepted EMAIL SENT'])
+            ->and(eventMessagesSent(staffId: $byDefault))->toBe([])
+            ->and(CapturedEmails::installed()->sent)->toHaveCount(1)
+            ->and(CapturedEmails::installed()->sent[0]->subject)->toBe('A payment was not accepted in Saudi Arabia');
     });
 
     it('alerts super admins alone on GatewayKeyRejected, once per event, always with the SMS, saying which key', function (string $mode, string $locale, string $words) {
