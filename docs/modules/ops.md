@@ -1427,7 +1427,7 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 | 18 | The preview | On pressing Show Report, the choices kept in the address |
 | 19 | The opening dates | The 1st of this month to today |
 | 20 | Revenue's four sheets | Tabs |
-| 21 | Totals | Always in the preview, marked, bold; a small backend change |
+| 21 | Totals | In the preview, marked, bold, on every sheet that has rows and however long it is (§4.6); a sheet with no rows shows none (owner, 2026-11-02). A small backend change |
 | 22 | After Make Report | The new row with its Download; no automatic download |
 | 23 | The daily email's first time | 21:00 in the store's time |
 | 24 | Changing a country | Row menu and dialogs; Remove says who is affected |

@@ -38,12 +38,24 @@ use Modules\Platform\Application\Command\DeactivateStore\DeactivateStoreHandler;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Dto\StoreDto;
 use Modules\Platform\Public\Dto\TranslatedTextDto;
+use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
+use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrderHandler;
+use Modules\Sales\Application\Command\CompleteReturn\CompleteReturn;
+use Modules\Sales\Application\Command\CompleteReturn\CompleteReturnHandler;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBack;
 use Modules\Sales\Application\Command\MarkCameBack\MarkCameBackHandler;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDelivered;
+use Modules\Sales\Application\Command\MarkDelivered\MarkDeliveredHandler;
+use Modules\Sales\Application\Command\ReceiveReturn\ReceiveReturn;
+use Modules\Sales\Application\Command\ReceiveReturn\ReceiveReturnHandler;
 use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
 use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturn;
+use Modules\Sales\Application\Command\RequestReturn\RequestReturnHandler;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
+use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
 use Modules\Sales\Application\SalesPermissions;
@@ -67,7 +79,9 @@ use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\Money;
 use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
+use Tests\Modules\Loyalty\Support\LoyaltyFixtures as Lx;
 use Tests\Modules\Ops\Support\ReportFixtures as Rx;
+use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
 use function Pest\Laravel\seed;
@@ -813,11 +827,11 @@ function reportsManySales(int $rows): stdClass
 
 /**
  * A report's sheets built as the handler builds them: each sheet's totals as its rows' walk sums them - what the file
- * writes - and as its own read gives them, both plain, sorted so the ways' order does not matter.
+ * writes - and as its own read gives them, both plain, sorted so the ways' order does not matter. By the sheet's place.
  *
- * @return list<array{list<list<string|int|null>>, list<list<string|int|null>>}>
+ * @return array<int, array{list<list<string|int|null>>, list<list<string|int|null>>}>
  */
-function reportsTotalsBothWays(string $report, string $store, string $from, string $to): array
+function reportsTotalsBothWays(string $report, string $store, string $from, string $to, ?string $by = null): array
 {
     $plain = static fn (array $row): array => array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, $row);
     $sorted = static function (array $rows): array {
@@ -825,9 +839,9 @@ function reportsTotalsBothWays(string $report, string $store, string $from, stri
 
         return $rows;
     };
-    $built = app(ReportBuilder::class)->build(app(ReportReaders::class)->ask($report, $store), $from, $to, null);
+    $built = app(ReportBuilder::class)->build(app(ReportReaders::class)->ask($report, $store), $from, $to, $by);
     $both = [];
-    foreach ($built->sheets as $sheet) {
+    foreach ($built->sheets as $index => $sheet) {
         if ($sheet->totals === null) {
             continue;
         }
@@ -837,10 +851,73 @@ function reportsTotalsBothWays(string $report, string $store, string $from, stri
                 $walked[] = $plain($row->values);
             }
         }
-        $both[] = [$sorted($walked), $sorted(array_map($plain, ($sheet->totals)()))];
+        $both[$index] = [$sorted($walked), $sorted(array_map($plain, ($sheet->totals)()))];
     }
 
     return $both;
+}
+
+/**
+ * Each sheet's total rows as the Excel file holds them, in minor units or as words, sorted as above. The file drops empty
+ * cells at a row's end, so a row is cut there; a read's row goes through the same.
+ *
+ * @param  list<string|int|float|null>  $row
+ * @return list<string|int>
+ */
+function reportsFileRow(array $row): array
+{
+    $cells = array_map(static fn (string|int|float|null $value): string|int => match (true) {
+        $value === null, $value === '' => '',
+        is_float($value), is_int($value), is_numeric($value) => (int) round((float) $value * 100),
+        default => $value,
+    }, $row);
+    while ($cells !== [] && end($cells) === '') {
+        array_pop($cells);
+    }
+
+    return $cells;
+}
+
+/**
+ * An order with a 15% coupon, points and a gift, delivered, placed `$daysAgo` before today; one return completed and one
+ * waiting, each over pieces whose shares do not divide evenly.
+ */
+function reportsOrderWithCouponAndPoints(int $daysAgo): string
+{
+    $ready = Cx::ready();
+    Cx::serve('sa', 25_00);
+    Pr::ceiling(100);
+    Pr::coupon('SUMMER-15');
+    app(SetCartCouponHandler::class)->handle(new SetCartCoupon(Fx::storeId('sa'), 'SUMMER-15'));
+    Lx::programme();
+    Lx::deliver($ready['customer'], 1_000_00);
+    Pr::giftLevel($ready['variants'][1], 100_00);
+    $order = Cx::place(Cx::start($ready['address'], usePoints: true)->id)->id;
+    Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_APPROVE, SalesPermissions::ORDER_FULFIL], ['sa']));
+    app(ApproveOrderHandler::class)->handle(new ApproveOrder($order));
+    DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
+    app(ShipOrderHandler::class)->handle(new ShipOrder($order, otherCarrier: 'SMSA', trackingNumber: null));
+    app(MarkDeliveredHandler::class)->handle(new MarkDelivered($order));
+    $line = static fn (int $quantity): string => (string) DB::table('sales.order_lines')->where('order_id', $order)->where('is_gift', false)->where('quantity', $quantity)->value('id');
+    $staff = Fx::staffWith([SalesPermissions::RETURN_MANAGE], ['sa']);
+    $ask = static function (string $orderLine) use ($order, $ready, $staff): string {
+        Fx::actAsCustomer($ready['customer']);
+        $return = app(RequestReturnHandler::class)->handle(new RequestReturn($order, 'DAMAGED', null, [['orderLineId' => $orderLine, 'quantity' => 1]]));
+        Fx::actAsStaff($staff);
+
+        return $return;
+    };
+    $done = $ask($line(2));
+    app(AcceptReturnHandler::class)->handle(new AcceptReturn($done));
+    app(ReceiveReturnHandler::class)->handle(new ReceiveReturn($done, [['orderLineId' => $line(2), 'received' => 1, 'restocked' => 1]]));
+    app(CompleteReturnHandler::class)->handle(new CompleteReturn($done));
+    $ask($line(1));
+
+    if ($daysAgo > 0) {
+        DB::table('sales.orders')->where('id', $order)->update(['placed_at' => CarbonImmutable::now()->subDays($daysAgo)]);
+    }
+
+    return $order;
 }
 
 /** A size's line sold over and over: `$many` more sizes in the order, written straight in the tables. */
@@ -963,6 +1040,44 @@ describe('totals in the preview (ops.md §4.6; owner, 2026-11-02)', function () 
         $number = static fn (mixed $value): mixed => is_string($value) && is_numeric($value) ? (float) $value : ($value ?? '');
         expect($both[2][1][0][3])->toBe(Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), $today, $today))[1][4])
             ->and(array_map('floatval', array_slice(array_slice($file['By category'], -1)[0], 3)))->toBe(array_map('floatval', array_map($number, array_slice($both[2][1][0], 3))));
+    });
+
+    it('agrees with the file to the unit by day and by month, with a coupon, points and a gift, by category too', function () {
+        // One placed 40 days ago, its returns asked today, and one placed today: two months, and a refund on an order
+        // placed outside the shortest range.
+        $earlier = reportsOrderWithCouponAndPoints(40);
+        $order = DB::table('sales.orders')->where('id', $earlier)->first();
+        expect((int) $order?->coupon_discount_minor)->toBeGreaterThan(0)
+            ->and((int) $order?->points_used)->toBeGreaterThan(0);
+        Rx::aDay();
+        $today = reportsToday();
+        reportsAMinuteLater();
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+        $long = CarbonImmutable::now('Asia/Riyadh')->subDays(60)->format('Y-m-d');
+        $sorted = static function (array $rows): array {
+            usort($rows, static fn (array $a, array $b): int => json_encode($a) <=> json_encode($b));
+
+            return $rows;
+        };
+
+        foreach ([Fx::storeId('sa'), 'all'] as $store) {
+            foreach ([$today, $long] as $from) {
+                foreach ([['revenue', 'day'], ['revenue', 'month'], ['product-sales', null]] as [$report, $by]) {
+                    $file = array_values(Rx::download($report, $store, $from, $today, $by)['sheets']);
+                    foreach (reportsTotalsBothWays($report, $store, $from, $today, $by) as $sheet => [$walked, $read]) {
+                        $inFile = array_slice($file[$sheet], -count($walked));
+
+                        expect($read)->toBe($walked, "{$report} by {$by}, sheet {$sheet}, from {$from}")
+                            ->and($sorted(array_map(reportsFileRow(...), $read)))->toBe($sorted(array_map(reportsFileRow(...), $inFile)), "{$report} by {$by}, sheet {$sheet}, from {$from}, against the file");
+                    }
+                }
+            }
+        }
+
+        // The sum of the file's own rows, by category and by size, is its total, to the unit.
+        $file = Rx::download('revenue', Fx::storeId('sa'), $long, $today, 'month')['sheets']['By category'];
+        $rows = array_values(array_filter($file, static fn (array $row): bool => ($row[0] ?? null) === 'Saudi Arabia'));
+        expect((int) round(array_sum(array_map(static fn (array $row): float => (float) $row[3], $rows)) * 100))->toBe((int) round((float) array_slice($file, -1)[0][3] * 100));
     });
 
     it('shows no total on a sheet with no rows, though the file writes one at zero', function () {

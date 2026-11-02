@@ -41,6 +41,7 @@ final readonly class ViewReportHandler
         }
         $report = $this->reports->build($ask, $query->from, $query->to, $query->by);
         $sheets = [];
+        $shown = [];
         $more = [];
         $totals = [];
 
@@ -61,11 +62,12 @@ final readonly class ViewReportHandler
             if ($itsMore && $sheet->totals !== null) {
                 $itsTotals = ($sheet->totals)();
             }
-            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, $rows);
+            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, []);
+            $shown[] = $rows;
             $more[] = $itsMore;
             $totals[] = $rows === [] ? [] : $itsTotals;
         }
 
-        return new ReportPreview(new Report($report->kind, $report->locale, $report->title, $report->subtitle, $sheets, $report->filename), $more, $totals);
+        return new ReportPreview(new Report($report->kind, $report->locale, $report->title, $report->subtitle, $sheets, $report->filename), $shown, $more, $totals);
     }
 }

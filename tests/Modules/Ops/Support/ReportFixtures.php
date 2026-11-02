@@ -14,7 +14,6 @@ use Modules\Ops\Application\Query\ViewReport\ReportPreview;
 use Modules\Ops\Application\Query\ViewReport\ViewReport;
 use Modules\Ops\Application\Query\ViewReport\ViewReportHandler;
 use Modules\Ops\Application\Reports\ReportMoney;
-use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturn;
 use Modules\Sales\Application\Command\AcceptReturn\AcceptReturnHandler;
 use Modules\Sales\Application\Command\ApproveOrder\ApproveOrder;
@@ -118,12 +117,7 @@ final class ReportFixtures
      */
     public static function shown(ReportPreview $preview, int $sheet = 0): array
     {
-        $rows = [];
-        foreach ($preview->report->sheets[$sheet]->rows as $row) {
-            $rows[] = self::plain($row instanceof ReportTotal ? $row->values : $row);
-        }
-
-        return $rows;
+        return array_map(self::plain(...), $preview->rows[$sheet]);
     }
 
     /**

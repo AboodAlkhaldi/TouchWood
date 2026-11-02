@@ -12,7 +12,6 @@ use Modules\Ops\Application\Query\ViewReport\ViewReport;
 use Modules\Ops\Application\Query\ViewReport\ViewReportHandler;
 use Modules\Ops\Application\Reports\ReportColumn;
 use Modules\Ops\Application\Reports\ReportMoney;
-use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Ops\Presentation\Http\Resource\ReportColumnData;
 use Modules\Ops\Presentation\Http\Resource\ReportPreviewData;
 use Modules\Ops\Presentation\Http\Resource\ReportSheetData;
@@ -34,15 +33,11 @@ final readonly class ReportsController
         $preview = $view->handle(new ViewReport($report, $choices['store'] ?? '', $choices['from'] ?? null, $choices['to'] ?? null, $choices['by'] ?? null));
         $sheets = [];
         foreach ($preview->report->sheets as $index => $sheet) {
-            $rows = [];
-            foreach ($sheet->rows as $row) {
-                $rows[] = self::plain($row instanceof ReportTotal ? $row->values : $row);
-            }
             $sheets[] = new ReportSheetData(
                 $sheet->name,
                 array_map(static fn (ReportColumn $column): ReportColumnData => new ReportColumnData($column->key, $column->label, $column->type->value), $sheet->columns),
                 $sheet->notes,
-                $rows,
+                array_map(self::plain(...), $preview->rows[$index] ?? []),
                 array_map(self::plain(...), $preview->totals[$index] ?? []),
                 $preview->more[$index] ?? false,
             );
