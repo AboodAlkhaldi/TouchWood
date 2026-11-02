@@ -19,8 +19,8 @@ export default function Search({ query, total, products, next, address, cardFact
     const t = useTranslator();
     const link = useLink();
     const { frame } = usePage<SharedProps>().props;
-    const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
-    const facts = useCardFacts(cardFacts);
+    const facts = useCardFacts(cardFacts, products[0]?.productId);
+    const list = useLoadMore<ShopCardData>(products, (card) => card.productId, facts);
     const short = [...query.trim()].length < 2;
     const heading = short ? t('catalog::shop.search.title') : total === 1 ? t('catalog::shop.search.one', { query }) : t('catalog::shop.search.many', { count: total, query });
 

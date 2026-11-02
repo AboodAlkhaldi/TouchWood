@@ -558,7 +558,10 @@ and examples. Only when neither has it, show the owner what was searched and ask
     setting that takes effect at once); the staff phone dialog's first step keeps **"Send Code"**;
   - a number or text setting is **always open, its Save Setting always there and out of reach until
     the value changes**, Cancel then beside it (Geist's Fieldset); a switch saves the moment it flips;
-  - **Show More appends** the next page under the rows already shown;
+  - **Show More appends** the next page under the rows already shown. **Going Back to such a list brings back
+    every row shown and the place on the page, kept in the browser with no request** (owner, 2026-11-03: someone at
+    row 80 of 105 opens it, goes Back, is at row 80, and Show More goes on from there). The rows are as they were
+    when left; a refresh starts the list again at its first page;
   - B2B status badges, one map on both sides: **Approved green, Under Review amber, Rejected red,
     Suspended red**; the staff Companies list's **whole row opens the company**; a saved-address
     picker shows **up to six tiles, then a searchable list**; an approved company's change warning

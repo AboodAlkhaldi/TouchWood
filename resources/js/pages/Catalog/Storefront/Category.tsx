@@ -43,8 +43,8 @@ export default function Category({ name, slug, path, children, products, next, f
     const t = useTranslator();
     const link = useLink();
     const here = link('storefront.catalog.category', { slug });
-    const list = useLoadMore<ShopCardData>(products, (card) => card.productId);
-    const facts = useCardFacts(cardFacts);
+    const facts = useCardFacts(cardFacts, products[0]?.productId);
+    const list = useLoadMore<ShopCardData>(products, (card) => card.productId, facts);
     const picked = (choices: ShopFilterChoiceData[]) => choices.filter((choice) => choice.chosen).map((choice) => choice.id);
     const chosen: Chosen = {
         brands: picked(filters.brands),
