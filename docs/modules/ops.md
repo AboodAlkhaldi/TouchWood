@@ -1081,7 +1081,7 @@ named in Access's `permission_groups` words.
 4. **How it goes:** Bell and Email, both ticked, at least one. Under Email, for one customer: "It goes to their email whatever they chose about offers." For many: "Email goes only to those who agreed to offers. The bell reaches everyone."
 5. **Send Message.**
    - To one customer it sends at once (Q12).
-   - To many it asks first (Q12), then "It can't be recalled.", Cancel and Send Message. **A whole store (owner, 2026-11-02), with Bell ticked:** "Send to :count customers of :store?" **Email alone:** "Send by email to those of the :count customers of :store who agreed to receive it?" A segment: "Send to :segment (:count members)?" The count is `§9.4 Q14`'s read for a whole store (`ops.admin.audience`, §4.1), taken when the dialog opens. A count of 0 says so and offers no Send.
+   - To many it asks first (Q12), then "It can't be recalled.", Cancel and Send Message. **A whole store (owner, 2026-11-02), with Bell ticked:** "Send to :count customers of :store?" **Email alone:** "Send by email to those of the :count customers of :store who agreed to receive it?" A segment: "Send to :segment (:count members)?" With Bell off: "Send by email to those of the :count members of :segment who agreed to receive it?" The count is `§9.4 Q14`'s read for a whole store (`ops.admin.audience`, §4.1), taken when the dialog opens. A count of 0 says so and offers no Send.
    - The email count is never shown: it depends on consent.
 
 After sending: back to O3 with the toast "Message on its way." Refusals land on their box in words; `audience` on Who Gets It; a segment gone (404) as the form's error, with the picker emptied.
