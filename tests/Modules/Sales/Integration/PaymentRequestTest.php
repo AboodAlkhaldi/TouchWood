@@ -92,7 +92,7 @@ use function Pest\Laravel\seed;
 
 uses(RefreshDatabase::class);
 
-const REQUESTS_NOW = '2027-01-01T12:00:00Z';
+const ORDER_PAY_NOW = '2027-01-01T12:00:00Z';
 
 beforeEach(function () {
     seed(PlatformSeeder::class);
@@ -102,7 +102,7 @@ beforeEach(function () {
         public function test(string $apiBase, #[SensitiveParameter] string $key, string $currencyCode): void {}
     });
     Sleep::fake();
-    requestsAt('+0 minutes');
+    orderPayAt('+0 minutes');
     RateLimiter::clear('payments-checks');
 });
 
@@ -112,9 +112,9 @@ afterEach(function () {
     File::deleteDirectory(Bx::uploads());
 });
 
-function requestsAt(string $when): void
+function orderPayAt(string $when): void
 {
-    $moment = CarbonImmutable::parse(REQUESTS_NOW)->modify($when);
+    $moment = CarbonImmutable::parse(ORDER_PAY_NOW)->modify($when);
     CarbonImmutable::setTestNow($moment);
     Carbon::setTestNow($moment);
 }
@@ -124,7 +124,7 @@ function requestsAt(string $when): void
  *
  * @return array{fake: FakeMyFatoorah, order: string, number: string, total: int, customer: string, variants: list<string>, address: string}
  */
-function requestsReady(string $mode = 'LIVE'): array
+function orderPayReady(string $mode = 'LIVE'): array
 {
     $fake = FakeMyFatoorah::install();
     Cx::asSuperAdmin(function () use ($mode): void {
@@ -140,49 +140,49 @@ function requestsReady(string $mode = 'LIVE'): array
     ];
 }
 
-function requestsAsk(string $order): PaymentRequestStateDto
+function orderPayAsk(string $order): PaymentRequestStateDto
 {
     return Cx::asSuperAdmin(static fn (): PaymentRequestStateDto => app(RequestOrderPaymentHandler::class)->handle(new RequestOrderPayment($order)));
 }
 
-function requestsSession(string $number): string
+function orderPaySession(string $number): string
 {
     return app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment(Fx::storeId('sa'), $number, 'en'))->sessionId;
 }
 
-function requestsPay(string $number, ?string $session = null): RequestStart
+function orderPayPay(string $number, ?string $session = null): RequestStart
 {
-    return app(PayOrderRequestHandler::class)->handle(new PayOrderRequest(Fx::storeId('sa'), $number, $session ?? requestsSession($number), 'en', 'https://shop.example.test/return'));
+    return app(PayOrderRequestHandler::class)->handle(new PayOrderRequest(Fx::storeId('sa'), $number, $session ?? orderPaySession($number), 'en', 'https://shop.example.test/return'));
 }
 
-function requestsFollow(string $number, string $requestId): RequestPaymentView
+function orderPayFollow(string $number, string $requestId): RequestPaymentView
 {
     return app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment(Fx::storeId('sa'), $number, $requestId));
 }
 
-function requestsAmount(int $minor): string
+function orderPayAmount(int $minor): string
 {
     return number_format($minor / 100, 2, '.', '');
 }
 
-function requestsOutbox(string $type): int
+function orderPayOutbox(string $type): int
 {
     return DB::table('public.outbox_messages')->where('type', $type)->count();
 }
 
-function requestsState(string $requestId): string
+function orderPayState(string $requestId): string
 {
     return (string) DB::table('payments.requests')->where('id', $requestId)->value('state');
 }
 
 /** The money recorded online on the order. */
-function requestsOnline(string $order): int
+function orderPayOnline(string $order): int
 {
     return DB::table('sales.payments')->where('order_id', $order)->where('way', 'ONLINE')->count();
 }
 
 /** The latest `PaymentSucceeded` as it went through the outbox. */
-function requestsSucceeded(): PaymentSucceeded
+function orderPaySucceeded(): PaymentSucceeded
 {
     $row = DB::table('public.outbox_messages')->where('type', PaymentSucceeded::class)->orderByDesc('id')->first() ?? throw new LogicException('No such event.');
     /** @var array{eventId: string, paymentId: string, orderId: string, storeId: string, occurredAt: string} $payload */
@@ -192,7 +192,7 @@ function requestsSucceeded(): PaymentSucceeded
 }
 
 /** @param  list<string>  $variants */
-function requestsEdit(string $order, array $variants, int $firstQuantity): string
+function orderPayEdit(string $order, array $variants, int $firstQuantity): string
 {
     return Cx::asSuperAdmin(static fn (): string => app(EditOrderHandler::class)->handle(new EditOrder($order, 'Called the customer', [
         ['variantId' => $variants[0], 'mode' => 'RETAIL', 'quantity' => $firstQuantity],
@@ -200,66 +200,66 @@ function requestsEdit(string $order, array $variants, int $firstQuantity): strin
     ], null, 'KEEP')));
 }
 
-function requestsRecordByHand(string $order): string
+function orderPayRecordByHand(string $order): string
 {
     return Cx::asSuperAdmin(static fn (): string => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'OTHER', null, 'Cash', '2027-01-01', (string) Str::uuid())));
 }
 
-function requestsStaffView(string $order): StaffOrderView
+function orderPayStaffView(string $order): StaffOrderView
 {
     return Cx::asSuperAdmin(static fn (): StaffOrderView => app(ViewOrderHandler::class)->handle(new ViewOrder($order)));
 }
 
 describe('asking', function () {
     it('asks exactly what is missing, for 60 minutes, told once, in the history', function () {
-        ['order' => $order, 'total' => $total] = requestsReady();
+        ['order' => $order, 'total' => $total] = orderPayReady();
 
-        $request = requestsAsk($order);
+        $request = orderPayAsk($order);
 
         expect($request->amount->minorUnits)->toBe($total)
             ->and($request->orderId)->toBe($order)
             ->and($request->state)->toBe(PaymentRequestState::Open)
             ->and(CarbonImmutable::instance($request->expiresAt)->equalTo(CarbonImmutable::now()->addMinutes(60)))->toBeTrue()
-            ->and(requestsOutbox(PaymentRequested::class))->toBe(1)
+            ->and(orderPayOutbox(PaymentRequested::class))->toBe(1)
             ->and(DB::table('sales.order_history')->where('order_id', $order)->where('kind', 'PAYMENT_REQUESTED')->count())->toBe(1)
-            ->and(DB::table('platform.audit_log')->where('action', 'sales.order.payment_requested')->count())->toBe(1);
+            ->and(DB::table('platform.audit_entries')->where('action', 'sales.order.payment_requested')->count())->toBe(1);
     });
 
     it('asks only the rest of an order partly paid', function () {
-        ['order' => $order, 'total' => $total] = requestsReady();
+        ['order' => $order, 'total' => $total] = orderPayReady();
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
 
-        expect(requestsAsk($order)->amount->minorUnits)->toBe($total - 40_00);
+        expect(orderPayAsk($order)->amount->minorUnits)->toBe($total - 40_00);
     });
 
     it('answers the same request while it is open, with nothing told twice', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
 
-        $first = requestsAsk($order);
-        $second = requestsAsk($order);
+        $first = orderPayAsk($order);
+        $second = orderPayAsk($order);
 
         expect($second->requestId)->toBe($first->requestId)
-            ->and(requestsOutbox(PaymentRequested::class))->toBe(1)
+            ->and(orderPayOutbox(PaymentRequested::class))->toBe(1)
             ->and(DB::table('sales.order_history')->where('kind', 'PAYMENT_REQUESTED')->count())->toBe(1);
     });
 
     it('withdraws one of another amount first, and asks what is missing now', function () {
-        ['order' => $order, 'total' => $total] = requestsReady();
-        $first = requestsAsk($order);
+        ['order' => $order, 'total' => $total] = orderPayReady();
+        $first = orderPayAsk($order);
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
 
-        $second = requestsAsk($order);
+        $second = orderPayAsk($order);
 
         expect($second->requestId)->not->toBe($first->requestId)
             ->and($second->amount->minorUnits)->toBe($total - 40_00)
-            ->and(requestsState($first->requestId))->toBe('WITHDRAWN');
+            ->and(orderPayState($first->requestId))->toBe('WITHDRAWN');
     });
 
     it('refuses what cannot be asked', function (Closure $change, string $refusal) {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
         $change($order);
 
-        expect(fn () => requestsAsk($order))->toThrow($refusal);
+        expect(fn () => orderPayAsk($order))->toThrow($refusal);
     })->with([
         'a company\'s order' => [function (string $order): void {
             DB::table('sales.orders')->where('id', $order)->update(['audience' => 'COMPANY']);
@@ -283,14 +283,14 @@ describe('asking', function () {
     ]);
 
     it('asks a test order\'s request in test mode, and a real order never gets one there', function () {
-        ['order' => $order] = requestsReady('TEST');
+        ['order' => $order] = orderPayReady('TEST');
 
-        expect(requestsAsk($order)->mode->value)->toBe('TEST')
+        expect(orderPayAsk($order)->mode->value)->toBe('TEST')
             ->and(DB::table('sales.orders')->where('id', $order)->value('is_test'))->toBeTrue();
     });
 
     it('is for staff who edit orders, in their stores', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
 
         Fx::actAsStaff(Fx::staffWith([SalesPermissions::ORDER_VIEW], ['sa']));
         expect(fn () => app(RequestOrderPaymentHandler::class)->handle(new RequestOrderPayment($order)))->toThrow(Unauthorized::class)
@@ -301,43 +301,43 @@ describe('asking', function () {
     });
 
     it('withdraws by hand, in the history, and with none open does nothing', function () {
-        ['order' => $order] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order] = orderPayReady();
+        $request = orderPayAsk($order);
 
         Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order)));
         Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order)));
 
-        expect(requestsState($request->requestId))->toBe('WITHDRAWN')
+        expect(orderPayState($request->requestId))->toBe('WITHDRAWN')
             ->and(DB::table('sales.order_history')->where('kind', 'PAYMENT_REQUEST_WITHDRAWN')->count())->toBe(1)
-            ->and(DB::table('platform.audit_log')->where('action', 'sales.order.payment_request_withdrawn')->count())->toBe(1);
+            ->and(DB::table('platform.audit_entries')->where('action', 'sales.order.payment_request_withdrawn')->count())->toBe(1);
     });
 });
 
 describe('the page', function () {
     it('answers only the order\'s own customer: anyone else gets no order', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        $request = orderPayAsk($order);
 
         Fx::actAsCustomer(Cx::customer());
 
         expect(fn () => app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number)))->toThrow(OrderNotFound::class)
-            ->and(fn () => requestsSession($number))->toThrow(OrderNotFound::class)
-            ->and(fn () => requestsPay($number, 'KWT-a-session'))->toThrow(OrderNotFound::class)
-            ->and(fn () => requestsFollow($number, $request->requestId))->toThrow(OrderNotFound::class);
+            ->and(fn () => orderPaySession($number))->toThrow(OrderNotFound::class)
+            ->and(fn () => orderPayPay($number, 'KWT-a-session'))->toThrow(OrderNotFound::class)
+            ->and(fn () => orderPayFollow($number, $request->requestId))->toThrow(OrderNotFound::class);
     });
 
     it('takes the order only in its own store', function () {
-        ['number' => $number, 'order' => $order] = requestsReady();
-        requestsAsk($order);
-        $other = Fx::storeId('uae');
+        ['number' => $number, 'order' => $order] = orderPayReady();
+        orderPayAsk($order);
+        $other = Fx::storeId('eg');
 
         expect(fn () => app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment($other, $number, 'en')))->toThrow(OrderNotFound::class)
             ->and(fn () => app(PayOrderRequestHandler::class)->handle(new PayOrderRequest($other, $number, 'KWT-a-session', 'en', 'https://shop.example.test/return')))->toThrow(OrderNotFound::class);
     });
 
     it('opens a form for the amount asked, lasting the request plus the window and the wait', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order, 'number' => $number, 'fake' => $fake] = orderPayReady();
+        $request = orderPayAsk($order);
 
         $session = app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment(Fx::storeId('sa'), $number, 'en'));
 
@@ -347,47 +347,47 @@ describe('the page', function () {
     });
 
     it('says the link has ended with no request open, for the own customer', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake] = requestsReady();
+        ['order' => $order, 'number' => $number, 'fake' => $fake] = orderPayReady();
 
-        expect(fn () => requestsSession($number))->toThrow(PaymentLinkEnded::class)
-            ->and(fn () => requestsPay($number, 'KWT-a-session'))->toThrow(PaymentLinkEnded::class);
+        expect(fn () => orderPaySession($number))->toThrow(PaymentLinkEnded::class)
+            ->and(fn () => orderPayPay($number, 'KWT-a-session'))->toThrow(PaymentLinkEnded::class);
 
-        requestsAsk($order);
-        requestsAt('+61 minutes');
+        orderPayAsk($order);
+        orderPayAt('+61 minutes');
 
-        expect(fn () => requestsSession($number))->toThrow(PaymentLinkEnded::class)
+        expect(fn () => orderPaySession($number))->toThrow(PaymentLinkEnded::class)
             ->and(app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number))->paymentRequest)->toBeNull()
             ->and($fake->count('POST', '/v3/payments'))->toBe(0);
     });
 
     it('ends the link when the order no longer misses what was asked', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        requestsAsk($order);
-        $session = requestsSession($number);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        orderPayAsk($order);
+        $session = orderPaySession($number);
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
 
-        expect(fn () => requestsPay($number, $session))->toThrow(PaymentLinkEnded::class)
+        expect(fn () => orderPayPay($number, $session))->toThrow(PaymentLinkEnded::class)
             ->and(app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number))->paymentRequest)->toBeNull();
     });
 
     it('takes the session it is given, and refuses none', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        requestsAsk($order);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        orderPayAsk($order);
 
-        expect(fn () => requestsPay($number, '  '))->toThrow(InvalidSalesAttribute::class)
-            ->and(fn () => requestsPay($number, str_repeat('x', 101)))->toThrow(InvalidSalesAttribute::class);
+        expect(fn () => orderPayPay($number, '  '))->toThrow(InvalidSalesAttribute::class)
+            ->and(fn () => orderPayPay($number, str_repeat('x', 101)))->toThrow(InvalidSalesAttribute::class);
     });
 
     it('stops abuse at the limits, per order and per customer, changing nothing', function () {
-        ['order' => $order, 'number' => $number, 'customer' => $customer] = requestsReady();
-        requestsAsk($order);
-        $session = requestsSession($number);
+        ['order' => $order, 'number' => $number, 'customer' => $customer] = orderPayReady();
+        orderPayAsk($order);
+        $session = orderPaySession($number);
 
         foreach (range(1, PayOrderRequestHandler::MOST_PER_ORDER) as $hit) {
             RateLimiter::hit("sales:pay:order:{$order}", 600);
         }
 
-        expect(fn () => requestsPay($number, $session))->toThrow(TooManyPaymentTries::class);
+        expect(fn () => orderPayPay($number, $session))->toThrow(TooManyPaymentTries::class);
 
         RateLimiter::clear("sales:pay:order:{$order}");
 
@@ -395,19 +395,19 @@ describe('the page', function () {
             RateLimiter::hit("sales:pay:customer:{$customer}", 3600);
         }
 
-        expect(fn () => requestsPay($number, $session))->toThrow(TooManyPaymentTries::class)
+        expect(fn () => orderPayPay($number, $session))->toThrow(TooManyPaymentTries::class)
             ->and(DB::table('payments.attempts')->count())->toBe(0);
     });
 });
 
 describe('paying', function () {
     it('charges with no cart and nothing reserved, then records an online payment and tells of it, once', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
         $holds = DB::table('inventory.holds')->count();
         $cartLines = DB::table('sales.cart_lines')->count();
 
-        $started = requestsPay($number);
+        $started = orderPayPay($number);
 
         expect($started->requestId)->toBe($request->requestId)
             ->and($started->start->state)->toBe(PaymentState::InProgress)
@@ -418,108 +418,113 @@ describe('paying', function () {
             ->and((int) DB::table('payments.attempts')->where('owner_id', $request->requestId)->value('amount_minor'))->toBe($total)
             ->and(DB::table('payments.attempts')->where('owner_id', $request->requestId)->value('order_id'))->toBe($order);
 
-        $fake->paid(requestsAmount($total));
-        $view = requestsFollow($number, $request->requestId);
+        $fake->paid(orderPayAmount($total));
+        $view = orderPayFollow($number, $request->requestId);
 
         expect($view->payment)->toBe(PaymentState::Succeeded)
             ->and($view->requestId)->toBe($request->requestId)
-            ->and(requestsOnline($order))->toBe(1)
+            ->and(orderPayOnline($order))->toBe(1)
             ->and((int) DB::table('sales.orders')->where('id', $order)->value('paid_minor'))->toBe($total)
-            ->and(requestsOutbox(PaymentRecorded::class))->toBe(1)
-            ->and(requestsState($request->requestId))->toBe('PAID');
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(1)
+            ->and(orderPayState($request->requestId))->toBe('PAID');
 
         // The event after the page, and the page again: the same payment.
-        app(RecordRequestPayment::class)->handle(requestsSucceeded());
-        requestsFollow($number, $request->requestId);
+        app(RecordRequestPayment::class)->handle(orderPaySucceeded());
+        orderPayFollow($number, $request->requestId);
 
-        expect(requestsOnline($order))->toBe(1)
-            ->and(requestsOutbox(PaymentRecorded::class))->toBe(1)
+        expect(orderPayOnline($order))->toBe(1)
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(1)
             ->and(app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number))->paymentRequest)->toBeNull();
     });
 
     it('records from the event when the page never comes back, once per event', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
-        $fake->paid(requestsAmount($total));
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
         app(PaymentsApi::class)->refresh($request->requestId);
-        $event = requestsSucceeded();
+        $event = orderPaySucceeded();
 
         app(RecordRequestPayment::class)->handle($event);
         app(RecordRequestPayment::class)->handle($event);
 
-        expect(requestsOnline($order))->toBe(1)
-            ->and(requestsOutbox(PaymentRecorded::class))->toBe(1);
+        expect(orderPayOnline($order))->toBe(1)
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(1);
     });
 
     it('stays open after a decline, and the customer may try again while its time lasts', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
         $fake->declined();
 
-        $view = requestsFollow($number, $request->requestId);
+        $view = orderPayFollow($number, $request->requestId);
 
         expect($view->payment)->toBe(PaymentState::Failed)
             ->and($view->declineCode)->toBe('MF003')
-            ->and(requestsOnline($order))->toBe(0)
-            ->and(requestsState($request->requestId))->toBe('OPEN')
+            ->and(orderPayOnline($order))->toBe(0)
+            ->and(orderPayState($request->requestId))->toBe('OPEN')
             ->and(app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number))->paymentRequest?->requestId)->toBe($request->requestId);
 
         [$fake->status, $fake->invoiceStatus, $fake->errorCode, $fake->invoiceId] = ['INPROGRESS', 'PENDING', '', '7320291'];
-        requestsPay($number);
-        $fake->paid(requestsAmount($total));
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
 
-        expect(requestsFollow($number, $request->requestId)->payment)->toBe(PaymentState::Succeeded)
-            ->and(requestsOnline($order))->toBe(1);
+        expect(orderPayFollow($number, $request->requestId)->payment)->toBe(PaymentState::Succeeded)
+            ->and(orderPayOnline($order))->toBe(1);
     });
 
-    it('shows a second window that a payment is in progress, with no second charge', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake] = requestsReady();
-        requestsAsk($order);
-        $session = requestsSession($number);
-        requestsPay($number, $session);
+    it('answers a double click with the same attempt, and shows a second window that a payment is in progress', function () {
+        ['order' => $order, 'number' => $number, 'fake' => $fake] = orderPayReady();
+        $request = orderPayAsk($order);
+        $session = orderPaySession($number);
+        $first = orderPayPay($number, $session);
 
-        expect(fn () => requestsSession($number))->toThrow(PaymentInProgress::class)
-            ->and(fn () => requestsPay($number, $session))->toThrow(DomainError::class)
+        $again = orderPayPay($number, $session);
+
+        expect($again->requestId)->toBe($request->requestId)
+            ->and($again->start->attemptId)->toBe($first->start->attemptId)
+            ->and(fn () => orderPaySession($number))->toThrow(PaymentInProgress::class)
+            ->and(fn () => orderPayPay($number, 'KWT-another-window'))->toThrow(DomainError::class)
+            ->and(DB::table('payments.attempts')->count())->toBe(1)
             ->and($fake->count('POST', '/v3/payments'))->toBe(1);
     });
 
     it('does not expire while a payment on it is open', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        $request = requestsAsk($order);
-        requestsAt('+58 minutes');
-        requestsPay($number);
-        requestsAt('+61 minutes');
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayAt('+58 minutes');
+        orderPayPay($number);
+        orderPayAt('+61 minutes');
 
-        expect(requestsState($request->requestId))->toBe('OPEN')
+        expect(orderPayState($request->requestId))->toBe('OPEN')
             ->and(app(PaymentsApi::class)->openRequest($order)?->requestId)->toBe($request->requestId);
     });
 
     it('follows only a request of this order', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        orderPayAsk($order);
+        orderPayPay($number);
 
-        expect(fn () => requestsFollow($number, strtolower((string) Str::ulid())))->toThrow(OrderNotFound::class);
+        expect(fn () => orderPayFollow($number, strtolower((string) Str::ulid())))->toThrow(OrderNotFound::class);
     });
 
     it('marks test money by the payment', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady('TEST');
-        $request = requestsAsk($order);
-        requestsPay($number);
-        $fake->paid(requestsAmount($total));
-        requestsFollow($number, $request->requestId);
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady('TEST');
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        orderPayFollow($number, $request->requestId);
 
         expect(DB::table('sales.payments')->where('order_id', $order)->value('is_test'))->toBeTrue();
     });
 
     it('records a second success as a second payment, and never refuses one on a cancelled order', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
-        $fake->paid(requestsAmount($total));
-        requestsFollow($number, $request->requestId);
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        orderPayFollow($number, $request->requestId);
         $first = (array) DB::table('payments.transactions')->sole();
         unset($first['id']);
         DB::table('payments.transactions')->insert([...$first, 'gateway_payment_id' => 'second-payment']);
@@ -528,18 +533,18 @@ describe('paying', function () {
 
         app(RecordRequestPayment::class)->handle(new PaymentSucceeded((string) Str::uuid(), $second, $order, Fx::storeId('sa'), CarbonImmutable::now()));
 
-        expect(requestsOnline($order))->toBe(2)
-            ->and(requestsOutbox(PaymentRecorded::class))->toBe(2)
+        expect(orderPayOnline($order))->toBe(2)
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(2)
             ->and((int) DB::table('sales.orders')->where('id', $order)->value('paid_minor'))->toBe($total * 2);
     });
 
     it('leaves a try\'s order to the try', function () {
-        requestsReady();
+        orderPayReady();
         $tried = strtolower((string) Str::ulid());
         DB::table('sales.checkout_tries')->insert([
             'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'customer_id' => Cx::customer(), 'cart_id' => strtolower((string) Str::ulid()), 'cart_version' => 0,
             'quote_id' => strtolower((string) Str::ulid()), 'order_id' => $tried, 'attempt_id' => strtolower((string) Str::ulid()), 'session_id' => 'KWT-x', 'state' => 'LIVE',
-            'amount_minor' => 1, 'currency_code' => 'SAR', 'window_ends_at' => CarbonImmutable::now(), 'created_at' => CarbonImmutable::now(),
+            'amount_minor' => 1, 'currency_code' => 'SAR', 'window_ends_at' => CarbonImmutable::now(), 'created_at' => CarbonImmutable::now(), 'address' => '{}', 'contact' => '{}',
         ]);
 
         app(RecordRequestPayment::class)->handle(new PaymentSucceeded((string) Str::uuid(), 'not-looked-at', $tried, Fx::storeId('sa'), CarbonImmutable::now()));
@@ -551,39 +556,39 @@ describe('paying', function () {
 
 describe('waiting for a payment in progress', function () {
     it('makes staff edits, setting the fee and hand recording wait, and the customer\'s cancel, but not staff\'s', function () {
-        ['order' => $order, 'number' => $number, 'variants' => $variants] = requestsReady();
-        requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number, 'variants' => $variants] = orderPayReady();
+        orderPayAsk($order);
+        orderPayPay($number);
 
-        expect(fn () => requestsEdit($order, $variants, 3))->toThrow(PaymentBeingConfirmed::class)
+        expect(fn () => orderPayEdit($order, $variants, 3))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => Cx::asSuperAdmin(static fn () => app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 5_00, 'Agreed'))))->toThrow(PaymentBeingConfirmed::class)
-            ->and(fn () => requestsRecordByHand($order))->toThrow(PaymentBeingConfirmed::class)
+            ->and(fn () => orderPayRecordByHand($order))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order))))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND')))->toThrow(PaymentBeingConfirmed::class);
 
         $own = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
         expect($own->paymentBeingConfirmed)->toBeTrue()
             ->and($own->mayCancel)->toBeFalse()
-            ->and(requestsStaffView($order)->paymentInProgress)->toBeTrue()
-            ->and(requestsStaffView($order)->mayRequestPayment)->toBeFalse();
+            ->and(orderPayStaffView($order)->paymentInProgress)->toBeTrue()
+            ->and(orderPayStaffView($order)->mayRequestPayment)->toBeFalse();
 
         Cx::asSuperAdmin(static fn () => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Out of stock')));
         expect(DB::table('sales.orders')->where('id', $order)->value('status'))->toBe('CANCELLED');
     });
 
     it('refuses a new request while a payment on the order is open', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        orderPayAsk($order);
+        orderPayPay($number);
 
-        expect(fn () => requestsAsk($order))->toThrow(PaymentBeingConfirmed::class);
+        expect(fn () => orderPayAsk($order))->toThrow(PaymentBeingConfirmed::class);
     });
 
     it('lets a refund through: only payments wait', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
+        ['order' => $order, 'number' => $number] = orderPayReady();
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
-        requestsAsk($order);
-        requestsPay($number);
+        orderPayAsk($order);
+        orderPayPay($number);
 
         Cx::asSuperAdmin(static fn () => app(RecordRefundHandler::class)->handle(new RecordRefund($order, '10.00', 'OTHER', null, 'Cash', '2027-01-01', (string) Str::uuid())));
 
@@ -591,11 +596,11 @@ describe('waiting for a payment in progress', function () {
     });
 
     it('frees the customer\'s cancel once the payment is answered', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number, 'fake' => $fake] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
         $fake->declined();
-        requestsFollow($number, $request->requestId);
+        orderPayFollow($number, $request->requestId);
 
         app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND'));
 
@@ -605,53 +610,53 @@ describe('waiting for a payment in progress', function () {
 
 describe('ending a request', function () {
     it('withdraws the open request when a payment is recorded by hand', function () {
-        ['order' => $order] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order] = orderPayReady();
+        $request = orderPayAsk($order);
 
-        requestsRecordByHand($order);
+        orderPayRecordByHand($order);
 
-        expect(requestsState($request->requestId))->toBe('WITHDRAWN')
+        expect(orderPayState($request->requestId))->toBe('WITHDRAWN')
             ->and(DB::table('sales.payments')->where('order_id', $order)->count())->toBe(1);
     });
 
     it('leaves it open when the same form of an earlier payment is sent again', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
         $form = (string) Str::uuid();
         Cx::asSuperAdmin(static fn () => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'OTHER', null, 'Cash', '2027-01-01', $form)));
-        DB::table('sales.orders')->where('id', $order)->update(['due_minor' => DB::raw('due_minor + 100')]);
-        $request = requestsAsk($order);
+        DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
+        $request = orderPayAsk($order);
 
         Cx::asSuperAdmin(static fn () => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'OTHER', null, 'Cash', '2027-01-01', $form)));
 
-        expect(requestsState($request->requestId))->toBe('OPEN');
+        expect(orderPayState($request->requestId))->toBe('OPEN');
     });
 
     it('withdraws it when an edit changes the amount, and keeps it when it does not', function () {
-        ['order' => $order, 'variants' => $variants] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order, 'variants' => $variants] = orderPayReady();
+        $request = orderPayAsk($order);
 
-        requestsEdit($order, $variants, 2);
-        expect(requestsState($request->requestId))->toBe('OPEN');
+        orderPayEdit($order, $variants, 2);
+        expect(orderPayState($request->requestId))->toBe('OPEN');
 
-        requestsEdit($order, $variants, 3);
-        expect(requestsState($request->requestId))->toBe('WITHDRAWN');
+        orderPayEdit($order, $variants, 3);
+        expect(orderPayState($request->requestId))->toBe('WITHDRAWN');
     });
 
     it('withdraws it when setting the fee changes the amount, and keeps it when it does not', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
         DB::table('sales.orders')->where('id', $order)->update(['ordered_carrier_id' => null, 'ordered_carrier_ar' => null, 'ordered_carrier_en' => null, 'shipping_fee_minor' => 0, 'shipping_fee_pending' => false]);
-        $request = requestsAsk($order);
+        $request = orderPayAsk($order);
 
         Cx::asSuperAdmin(static fn () => app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 0, 'The same')));
-        expect(requestsState($request->requestId))->toBe('OPEN');
+        expect(orderPayState($request->requestId))->toBe('OPEN');
 
         Cx::asSuperAdmin(static fn () => app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 5_00, 'Agreed')));
-        expect(requestsState($request->requestId))->toBe('WITHDRAWN');
+        expect(orderPayState($request->requestId))->toBe('WITHDRAWN');
     });
 
     it('tells Payments when the order is cancelled, whose listener withdraws it', function () {
-        ['order' => $order] = requestsReady();
-        requestsAsk($order);
+        ['order' => $order] = orderPayReady();
+        orderPayAsk($order);
 
         app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND'));
 
@@ -661,8 +666,8 @@ describe('ending a request', function () {
 
 describe('what the screens read', function () {
     it('shows the customer the request on their order, and on their list in one read', function () {
-        ['order' => $order, 'number' => $number, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
+        ['order' => $order, 'number' => $number, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
 
         $view = app(ViewOwnOrderHandler::class)->handle(new ViewOwnOrder($number));
 
@@ -681,18 +686,18 @@ describe('what the screens read', function () {
     });
 
     it('shows no request on a list row whose amount no longer matches, and none when there is none', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
 
         expect(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders)->orders[0]->paymentRequested)->toBeFalse();
 
-        requestsAsk($order);
+        orderPayAsk($order);
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => 40_00]);
 
         expect(app(ListOwnOrdersHandler::class)->handle(new ListOwnOrders)->orders[0]->paymentRequested)->toBeFalse();
     });
 
     it('asks Payments nothing for a page with nothing missing', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
         DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
 
         DB::enableQueryLog();
@@ -704,13 +709,13 @@ describe('what the screens read', function () {
     });
 
     it('offers staff Request Payment while the order owes and nothing is in the way', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
 
-        expect(requestsStaffView($order)->mayRequestPayment)->toBeTrue()
-            ->and(requestsStaffView($order)->paymentRequest)->toBeNull();
+        expect(orderPayStaffView($order)->mayRequestPayment)->toBeTrue()
+            ->and(orderPayStaffView($order)->paymentRequest)->toBeNull();
 
-        $request = requestsAsk($order);
-        $view = requestsStaffView($order);
+        $request = orderPayAsk($order);
+        $view = orderPayStaffView($order);
 
         expect($view->mayRequestPayment)->toBeFalse()
             ->and($view->paymentRequest?->requestId)->toBe($request->requestId)
@@ -718,10 +723,10 @@ describe('what the screens read', function () {
     });
 
     it('does not offer it for what the command would refuse', function (Closure $change) {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
         $change($order);
 
-        expect(requestsStaffView($order)->mayRequestPayment)->toBeFalse();
+        expect(orderPayStaffView($order)->mayRequestPayment)->toBeFalse();
     })->with([
         'a company\'s order' => [function (string $order): void {
             DB::table('sales.orders')->where('id', $order)->update(['audience' => 'COMPANY']);
@@ -742,11 +747,11 @@ describe('what the screens read', function () {
     ]);
 
     it('lists the attempts only for staff who may read payments', function () {
-        ['order' => $order, 'number' => $number] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
 
-        $attempts = requestsStaffView($order)->attempts ?? [];
+        $attempts = orderPayStaffView($order)->attempts ?? [];
         expect($attempts)->toHaveCount(1)
             ->and($attempts[0]->ownerId ?? null)->toBe($request->requestId);
 
@@ -758,13 +763,13 @@ describe('what the screens read', function () {
     });
 
     it('keeps staff\'s online payment rows and offers nothing once it is paid', function () {
-        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = requestsReady();
-        $request = requestsAsk($order);
-        requestsPay($number);
-        $fake->paid(requestsAmount($total));
-        requestsFollow($number, $request->requestId);
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        orderPayFollow($number, $request->requestId);
 
-        $view = requestsStaffView($order);
+        $view = orderPayStaffView($order);
 
         expect($view->paymentRequest)->toBeNull()
             ->and($view->paymentInProgress)->toBeFalse()
@@ -774,64 +779,64 @@ describe('what the screens read', function () {
 });
 
 /** The order turned into a bank transfer's, its receipt uploaded now by its customer: only the columns matter here. */
-function requestsTransfer(string $order): void
+function orderPayTransfer(string $order): void
 {
     DB::table('sales.orders')->where('id', $order)->update(['way_to_pay' => 'BANK_TRANSFER']);
     app(UploadTransferDocumentHandler::class)->handle(new UploadTransferDocument($order, Bx::pdf(), 'transfer.pdf'));
 }
 
 /** @return list<StaffOrderRow> */
-function requestsOverdueRows(): array
+function orderPayOverdueRows(): array
 {
     return Cx::asSuperAdmin(static fn (): array => app(ListOrdersHandler::class)->handle(new ListOrders)->orders);
 }
 
 describe('a transfer past its check time', function () {
     it('is told once per order after the store\'s hours, and marked for staff', function () {
-        ['order' => $order] = requestsReady();
-        requestsTransfer($order);
+        ['order' => $order] = orderPayReady();
+        orderPayTransfer($order);
 
-        requestsAt('+71 hours');
+        orderPayAt('+71 hours');
         app(TransferOverdueCheck::class)->run();
-        expect(requestsOutbox(TransferOverdue::class))->toBe(0)
-            ->and(requestsOverdueRows()[0]->isOverdue)->toBeFalse()
-            ->and(requestsStaffView($order)->isOverdue)->toBeFalse();
+        expect(orderPayOutbox(TransferOverdue::class))->toBe(0)
+            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeFalse()
+            ->and(orderPayStaffView($order)->isOverdue)->toBeFalse();
 
-        requestsAt('+72 hours');
+        orderPayAt('+72 hours');
         app(TransferOverdueCheck::class)->run();
         app(TransferOverdueCheck::class)->run();
 
         $payload = json_decode((string) DB::table('public.outbox_messages')->where('type', TransferOverdue::class)->value('payload'), true);
-        expect(requestsOutbox(TransferOverdue::class))->toBe(1)
+        expect(orderPayOutbox(TransferOverdue::class))->toBe(1)
             ->and($payload)->toMatchArray(['orderId' => $order, 'storeId' => Fx::storeId('sa')])
             ->and(DB::table('sales.orders')->where('id', $order)->value('overdue_told_at'))->not->toBeNull()
-            ->and(requestsOverdueRows()[0]->isOverdue)->toBeTrue()
-            ->and(requestsStaffView($order)->isOverdue)->toBeTrue();
+            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeTrue()
+            ->and(orderPayStaffView($order)->isOverdue)->toBeTrue();
     });
 
     it('counts from the first receipt, by the store\'s own setting', function () {
-        ['order' => $order] = requestsReady();
-        requestsTransfer($order);
-        requestsAt('+12 hours');
+        ['order' => $order] = orderPayReady();
+        orderPayTransfer($order);
+        orderPayAt('+12 hours');
         app(UploadTransferDocumentHandler::class)->handle(new UploadTransferDocument($order, Bx::pdf(), 'second.pdf'));
         Cx::setting('payments.transfer.check_hours', 10);
 
         app(TransferOverdueCheck::class)->run();
 
-        expect(requestsOutbox(TransferOverdue::class))->toBe(1);
+        expect(orderPayOutbox(TransferOverdue::class))->toBe(1);
     });
 
     it('leaves out what is paid, a test order, another way to pay and an order with no receipt', function (Closure $change) {
-        ['order' => $order] = requestsReady();
-        requestsTransfer($order);
+        ['order' => $order] = orderPayReady();
+        orderPayTransfer($order);
         $change($order);
-        requestsAt('+73 hours');
+        orderPayAt('+73 hours');
 
         app(TransferOverdueCheck::class)->run();
 
-        expect(requestsOutbox(TransferOverdue::class))->toBe(0)
-            ->and(requestsOverdueRows()[0]->isOverdue)->toBeFalse()
-            ->and(requestsStaffView($order)->isOverdue)->toBeFalse();
+        expect(orderPayOutbox(TransferOverdue::class))->toBe(0)
+            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeFalse()
+            ->and(orderPayStaffView($order)->isOverdue)->toBeFalse();
     })->with([
         'paid' => [function (string $order): void {
             DB::table('sales.orders')->where('id', $order)->update(['paid_minor' => DB::raw('due_minor')]);
@@ -848,18 +853,18 @@ describe('a transfer past its check time', function () {
     ]);
 
     it('looks only in the stores holding one', function () {
-        ['order' => $order] = requestsReady();
+        ['order' => $order] = orderPayReady();
 
         expect(app(Orders::class)->storesWithUncheckedTransfers())->toBe([]);
 
-        requestsTransfer($order);
+        orderPayTransfer($order);
 
         expect(app(Orders::class)->storesWithUncheckedTransfers())->toBe([Fx::storeId('sa')]);
     });
 });
 
 it('wakes nothing on an order with no request, for the helper the screens lean on', function () {
-    ['order' => $order] = requestsReady();
+    ['order' => $order] = orderPayReady();
 
     expect(app(OrderRequests::class)->live($order, 0))->toBeNull()
         ->and(app(OrderRequests::class)->live($order, 1))->toBeNull();

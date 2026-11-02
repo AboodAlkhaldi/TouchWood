@@ -47,20 +47,20 @@ use function Pest\Laravel\seed;
 | after itself; skipped under --parallel.
 */
 
-function requestRaceInParallel(): bool
+function orderPayRaceInParallel(): bool
 {
     return ParallelTesting::token() !== false;
 }
 
 beforeEach(function () {
-    if (requestRaceInParallel()) {
+    if (orderPayRaceInParallel()) {
         return;
     }
 
     Artisan::call('migrate:fresh');
     seed(PlatformSeeder::class);
     seed(CatalogSeeder::class);
-    config(['database.connections.request_race' => config('database.connections.'.config('database.default'))]);
+    config(['database.connections.order_pay_race' => config('database.connections.'.config('database.default'))]);
     app()->instance(KeyTester::class, new class implements KeyTester
     {
         public function test(string $apiBase, #[SensitiveParameter] string $key, string $currencyCode): void {}
@@ -75,11 +75,11 @@ afterEach(function () {
     CarbonImmutable::setTestNow();
     Carbon::setTestNow();
 
-    if (requestRaceInParallel()) {
+    if (orderPayRaceInParallel()) {
         return;
     }
 
-    DB::connection('request_race')->disconnect();
+    DB::connection('order_pay_race')->disconnect();
     DB::statement('SET lock_timeout = 0');
     Cache::flush();
     app()->forgetScopedInstances();
@@ -89,7 +89,7 @@ afterEach(function () {
 /**
  * @return array{fake: FakeMyFatoorah, order: string, number: string, request: PaymentRequestStateDto, session: string}
  */
-function requestRaceReady(): array
+function orderPayRaceReady(): array
 {
     $fake = FakeMyFatoorah::install();
     Cx::asSuperAdmin(function (): void {
@@ -104,12 +104,12 @@ function requestRaceReady(): array
     return ['fake' => $fake, 'order' => $placed->id, 'number' => $placed->number, 'request' => $request, 'session' => $session];
 }
 
-function requestRacePay(string $number, string $session): mixed
+function orderPayRacePay(string $number, string $session): mixed
 {
     return app(PayOrderRequestHandler::class)->handle(new PayOrderRequest(Fx::storeId('sa'), $number, $session, 'en', 'https://shop.example.test/return'));
 }
 
-function requestRaceByHand(string $order): mixed
+function orderPayRaceByHand(string $order): mixed
 {
     return Cx::asSuperAdmin(static fn () => app(RecordPaymentHandler::class)->handle(new RecordPayment($order, 'OTHER', null, 'Cash', '2027-01-01', (string) Str::uuid())));
 }
@@ -119,9 +119,9 @@ function requestRaceByHand(string $order): mixed
  *
  * @param  Closure(): mixed  $work
  */
-function requestRaceWaitsOn(string $table, string $id, Closure $work): QueryException
+function orderPayRaceWaitsOn(string $table, string $id, Closure $work): QueryException
 {
-    $other = DB::connection('request_race');
+    $other = DB::connection('order_pay_race');
     $other->beginTransaction();
     $other->table($table)->where('id', $id)->lockForUpdate()->first();
     DB::statement("SET lock_timeout = '500ms'");
@@ -138,7 +138,7 @@ function requestRaceWaitsOn(string $table, string $id, Closure $work): QueryExce
     throw new LogicException("It did not wait on {$table}.");
 }
 
-function requestRaceExpectWait(QueryException $waited, string $table): void
+function orderPayRaceExpectWait(QueryException $waited, string $table): void
 {
     expect($waited->getCode())->toBe('55P03')
         ->and(strtolower($waited->getSql()))->toContain($table)
@@ -147,54 +147,54 @@ function requestRaceExpectWait(QueryException $waited, string $table): void
 
 describe('at the same moment', function () {
     it('makes Pay wait on the order first, so a hand recording and a Pay can never pass each other', function () {
-        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = requestRaceReady();
+        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = orderPayRaceReady();
 
-        requestRaceExpectWait(requestRaceWaitsOn('sales.orders', $order, fn () => requestRacePay($number, $session)), '"sales"."orders"');
+        orderPayRaceExpectWait(orderPayRaceWaitsOn('sales.orders', $order, fn () => orderPayRacePay($number, $session)), '"sales"."orders"');
 
         expect(DB::table('payments.attempts')->count())->toBe(0)
             ->and($fake->count('POST', '/v3/payments'))->toBe(0);
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 
     it('makes a hand recording wait on the order first, and then on the request', function () {
-        ['order' => $order, 'request' => $request] = requestRaceReady();
+        ['order' => $order, 'request' => $request] = orderPayRaceReady();
 
-        requestRaceExpectWait(requestRaceWaitsOn('sales.orders', $order, fn () => requestRaceByHand($order)), '"sales"."orders"');
-        requestRaceExpectWait(requestRaceWaitsOn('payments.requests', $request->requestId, fn () => requestRaceByHand($order)), '"payments"."requests"');
+        orderPayRaceExpectWait(orderPayRaceWaitsOn('sales.orders', $order, fn () => orderPayRaceByHand($order)), '"sales"."orders"');
+        orderPayRaceExpectWait(orderPayRaceWaitsOn('payments.requests', $request->requestId, fn () => orderPayRaceByHand($order)), '"payments"."requests"');
 
         expect(DB::table('sales.payments')->count())->toBe(0);
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 
     it('makes Pay wait on the request after the order', function () {
-        ['number' => $number, 'request' => $request, 'session' => $session] = requestRaceReady();
+        ['number' => $number, 'request' => $request, 'session' => $session] = orderPayRaceReady();
 
-        requestRaceExpectWait(requestRaceWaitsOn('payments.requests', $request->requestId, fn () => requestRacePay($number, $session)), '"payments"."requests"');
+        orderPayRaceExpectWait(orderPayRaceWaitsOn('payments.requests', $request->requestId, fn () => orderPayRacePay($number, $session)), '"payments"."requests"');
 
         expect(DB::table('payments.attempts')->count())->toBe(0);
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 
     it('makes staff\'s withdrawal wait on the order first', function () {
-        ['order' => $order] = requestRaceReady();
+        ['order' => $order] = orderPayRaceReady();
 
-        requestRaceExpectWait(requestRaceWaitsOn('sales.orders', $order, fn () => Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order)))), '"sales"."orders"');
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+        orderPayRaceExpectWait(orderPayRaceWaitsOn('sales.orders', $order, fn () => Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order)))), '"sales"."orders"');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 
     it('settles a Pay then a hand recording with one money record: the second waits for the answer', function () {
-        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = requestRaceReady();
+        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = orderPayRaceReady();
 
-        requestRacePay($number, $session);
+        orderPayRacePay($number, $session);
 
-        expect(fn () => requestRaceByHand($order))->toThrow(PaymentBeingConfirmed::class)
+        expect(fn () => orderPayRaceByHand($order))->toThrow(PaymentBeingConfirmed::class)
             ->and(DB::table('sales.payments')->count())->toBe(0)
             ->and($fake->count('POST', '/v3/payments'))->toBe(1);
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 
     it('settles a hand recording then a Pay with no charge: the request was withdrawn', function () {
-        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = requestRaceReady();
+        ['order' => $order, 'number' => $number, 'session' => $session, 'fake' => $fake] = orderPayRaceReady();
 
-        requestRaceByHand($order);
+        orderPayRaceByHand($order);
 
-        expect(fn () => requestRacePay($number, $session))->toThrow(PaymentLinkEnded::class)
+        expect(fn () => orderPayRacePay($number, $session))->toThrow(PaymentLinkEnded::class)
             ->and($fake->count('POST', '/v3/payments'))->toBe(0)
             ->and(DB::table('sales.payments')->count())->toBe(1);
-    })->skip(fn (): bool => requestRaceInParallel(), 'Empties its database: run serially.');
+    })->skip(fn (): bool => orderPayRaceInParallel(), 'Empties its database: run serially.');
 });

@@ -2004,7 +2004,7 @@ Anyone but the order's customer gets `OrderNotFound` from the customer's four, a
 3. **A refund, a void and staff's own Cancel do not wait for a payment in progress**: the spec names edits, hand recording and the customer's cancel. Staff's cancel while paying leaves the money to be recorded, a refund due (payments.md §6).
 4. **Overdue counts from the first receipt** (position 1): a second one uploaded later does not restart the 72 hours. `isOverdue` is worked out when read, so it shows as soon as it is true; `overdue_told_at` only stops the event repeating. A receipt paid and then owing again is not told twice.
 5. **Asking is allowed for any status but cancelled, rejected or undelivered**: waiting, approved or shipped unpaid, as long as money is missing.
-6. **A double click on a request's Pay is `PaymentInProgress`**, not the same attempt answered again as checkout does, because the request has no session of its own to compare: the page keeps its button off while it waits. No second charge either way.
+6. **A double click on a request's Pay gets the same attempt** (Payments' `prepare`: the same session is the same payment, payments.md §1.1 rule 3): no second charge. Another session while one is open is `PaymentInProgress`.
 7. **`mayRequestPayment` says only what the order allows**: whether this staff member holds `sales.order.edit` is the page's own permission check, as with every action.
 8. **Asking and withdrawing are in the order's history** (`PAYMENT_REQUESTED`, `PAYMENT_REQUEST_WITHDRAWN`) and audited. A withdrawal made by an edit or a hand recording has no row of its own: the edit or the payment is the row.
 9. **`PaymentsApi::openRequests(orderIds)`** is new beside §2.1's list: one read for a page of My Orders.
