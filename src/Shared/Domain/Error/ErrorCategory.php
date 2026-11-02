@@ -17,6 +17,9 @@ enum ErrorCategory: string
     case Unsupported = 'UNSUPPORTED';
     case TooLarge = 'TOO_LARGE';
 
+    /** Over a limit that only stops abuse: try again later. */
+    case TooMany = 'TOO_MANY';
+
     /** An outside service did not answer in time; trying again later may work (platform.md, stage 7). */
     case Unavailable = 'UNAVAILABLE';
 }

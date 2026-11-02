@@ -64,5 +64,6 @@ final readonly class OwnOrderView
         public int $exponent,
         /** The carriers ordered and shipped with, the tracking link, the fee still to be set (§9.5 #11; gap 6.7). */
         public ?OrderShippingView $shippingDetail = null,
+        public bool $isTest = false,
     ) {}
 }

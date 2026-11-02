@@ -19,6 +19,7 @@ use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotShippable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
+use Modules\Sales\Domain\Exception\TestOrderNotShippable;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Public\Events\OrderShipped;
@@ -61,6 +62,10 @@ final readonly class ShipOrderHandler
 
         $this->db->transaction(function () use ($orderId, $staffId, $shipment): void {
             $order = $this->orders->lock($orderId) ?? throw new OrderNotFound;
+
+            if ($order->isTest) {
+                throw new TestOrderNotShippable;
+            }
 
             if ($order->shipmentStatus !== OrderState::NOT_SHIPPED) {
                 throw new InvalidOrderChange;

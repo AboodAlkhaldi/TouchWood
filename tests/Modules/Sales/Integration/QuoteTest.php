@@ -130,7 +130,7 @@ function quoteWith(array $answers): void
 
     $b2bStandIn = Mockery::mock(B2BApi::class);
     $b2bStandIn->shouldReceive('isApproved')->andReturnUsing($pass($b2b, 'isApproved'));
-    $paymentsStandIn = Mockery::mock(PaymentsApi::class);
+    $paymentsStandIn = Cx::paymentsStandIn();
     $paymentsStandIn->shouldReceive('bankAccount')->andReturnUsing($pass($payments, 'bankAccount'));
     $catalogStandIn = Mockery::mock(CatalogApi::class);
     $catalogStandIn->shouldReceive('storeVariants')->andReturnUsing($pass($catalog, 'storeVariants'));

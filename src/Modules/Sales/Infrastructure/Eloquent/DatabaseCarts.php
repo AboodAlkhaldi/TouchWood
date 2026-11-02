@@ -120,7 +120,7 @@ final readonly class DatabaseCarts implements Carts
     public function setCoupon(string $cartId, ?string $code, DateTimeImmutable $at): void
     {
         // A change ends the notice of what left at sign-in, as every change of the cart does.
-        $this->db->table('sales.carts')->where('id', $cartId)->update(['coupon_code' => $code, 'updated_at' => Moment::of($at), 'notice' => null]);
+        $this->db->update('UPDATE sales.carts SET coupon_code = ?, updated_at = ?, notice = NULL, version = version + 1 WHERE id = ?', [$code, Moment::of($at), $cartId]);
     }
 
     public function setNotice(string $cartId, array $notice, DateTimeImmutable $at): void
@@ -175,7 +175,7 @@ final readonly class DatabaseCarts implements Carts
     private function touch(string $cartId, DateTimeImmutable $at): void
     {
         // A change ends the notice of what left at sign-in (my assumption: it was seen).
-        $this->db->table('sales.carts')->where('id', $cartId)->update(['updated_at' => Moment::of($at), 'notice' => null]);
+        $this->db->update('UPDATE sales.carts SET updated_at = ?, notice = NULL, version = version + 1 WHERE id = ?', [Moment::of($at), $cartId]);
     }
 
     private function toCart(stdClass $row): Cart
@@ -199,6 +199,7 @@ final readonly class DatabaseCarts implements Carts
             $lines,
             array_map(static fn (array $line): RemovedLine => new RemovedLine($line['variantId'], SaleMode::from($line['mode']), (int) $line['quantity'], $line['reason']), $notice),
             CarbonImmutable::parse((string) $row->updated_at),
+            (int) $row->version,
         );
     }
 }

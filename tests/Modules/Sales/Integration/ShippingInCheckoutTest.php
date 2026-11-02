@@ -196,7 +196,7 @@ describe('the quote (§1.2 step 9)', function () {
         // An approved company of a store with a bank account (b2b.md): a bank transfer offered where shipping is known.
         $b2b = Mockery::mock(B2BApi::class);
         $b2b->shouldReceive('isApproved')->andReturn(true);
-        $bankAccount = Mockery::mock(PaymentsApi::class);
+        $bankAccount = Cx::paymentsStandIn();
         $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
         app()->instance(PaymentsApi::class, $bankAccount);
         app()->instance(B2BApi::class, $b2b);
@@ -266,11 +266,11 @@ describe('the quote (§1.2 step 9)', function () {
         shipCheckoutCarrier('Slow', 40_00, [Cx::serve('sa', 30_00)['region']]);
         $count();
 
-        // Measured 2026-10-30 (stage 7 step 6): the whole quote, Shipping's part included — the country's store,
+        // Measured 2026-11-02 (stage 7 step 11: one more, whether the store takes online payment): the whole quote, Shipping's part included — the country's store,
         // the place, the prices on it, the carriers, the store-wide free-above amount. A target, not a cap
         // (owner, 2026-10-19).
         expect($count())->toBe($one)
-            ->and($one)->toBe(22);
+            ->and($one)->toBe(23);
     });
 
     it('refuses to place a quote whose address moved to another place since (gap 6.8)', function () {

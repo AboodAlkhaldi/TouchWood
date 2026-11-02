@@ -63,6 +63,13 @@ final readonly class DatabaseTransactions implements Transactions
         return (string) $this->db->table('payments.transactions')->insertGetId([...$keys, ...$row]);
     }
 
+    public function declineCode(string $attemptId): ?string
+    {
+        $code = $this->db->table('payments.transactions')->where('attempt_id', $attemptId)->where('succeeded', false)->orderByDesc('id')->value('error_code');
+
+        return $code === null ? null : (string) $code;
+    }
+
     public function dto(string $id): ?PaymentDto
     {
         if (preg_match('/\\A[1-9][0-9]{0,18}\\z/', $id) !== 1) {

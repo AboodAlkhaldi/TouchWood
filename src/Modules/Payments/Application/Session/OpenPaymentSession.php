@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Application\Session;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiter;
 use Modules\Payments\Application\Gateway\GatewayAccesses;
 use Modules\Payments\Application\Gateway\GatewayAddresses;
 use Modules\Payments\Application\Gateway\GatewayClient;
@@ -15,6 +16,7 @@ use Modules\Payments\Domain\Exception\GatewayUnreachable;
 use Modules\Payments\Domain\Exception\InvalidPaymentsInput;
 use Modules\Payments\Domain\Exception\KeyPermissionMissing;
 use Modules\Payments\Domain\Exception\NoOnlinePayment;
+use Modules\Payments\Domain\Exception\TooManyPaymentSessions;
 use Modules\Payments\Domain\Model\Gateway;
 use Modules\Payments\Domain\Model\GatewaySession;
 use Modules\Payments\Domain\Repository\Gateways;
@@ -30,6 +32,9 @@ use Modules\Platform\Public\Dto\StoreDto;
  */
 final readonly class OpenPaymentSession
 {
+    /** New sessions: 30 per buyer per hour (§1.8). Refreshing checkout reuses one and is not counted. */
+    public const int MOST_PER_HOUR = 30;
+
     public function __construct(
         private PlatformApi $platform,
         private Gateways $gateways,
@@ -38,6 +43,7 @@ final readonly class OpenPaymentSession
         private OwnAddresses $own,
         private GatewayClient $client,
         private Sessions $sessions,
+        private RateLimiter $limiter,
     ) {}
 
     /**
@@ -71,6 +77,13 @@ final readonly class OpenPaymentSession
             return $this->shown($kept, $store, $gateway);
         }
 
+        $limit = "payments:open-session:{$request->buyerId}";
+
+        if ($this->limiter->tooManyAttempts($limit, self::MOST_PER_HOUR)) {
+            throw new TooManyPaymentSessions($this->limiter->availableIn($limit));
+        }
+
+        $this->limiter->hit($limit, 3600);
         $access = $this->accesses->current($store, $gateway->mode) ?? throw new NoOnlinePayment;
 
         try {

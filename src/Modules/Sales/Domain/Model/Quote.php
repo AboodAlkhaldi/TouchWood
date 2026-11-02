@@ -27,5 +27,6 @@ final readonly class Quote
         public array $result,
         public DateTimeImmutable $expiresAt,
         public DateTimeImmutable $createdAt,
+        public int $cartVersion = 0,
     ) {}
 }

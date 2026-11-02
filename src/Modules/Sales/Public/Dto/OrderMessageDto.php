@@ -52,5 +52,7 @@ final readonly class OrderMessageDto
         public ?string $trackingLink = null,
         /** No carrier served the place: the shipping fee is still to be set by staff (§9.5 #2). */
         public bool $shippingFeePending = false,
+        /** A test order: Ops may say so (payments.md §1.6). */
+        public bool $isTest = false,
     ) {}
 }

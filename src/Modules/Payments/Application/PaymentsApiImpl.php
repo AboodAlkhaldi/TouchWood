@@ -18,10 +18,12 @@ use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
+use Modules\Payments\Public\Dto\PaymentTimersDto;
 use Modules\Payments\Public\Dto\PayRequestDto;
 use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Payments\Public\Enums\OnlinePaymentReason;
 use Modules\Payments\Public\Enums\PaymentAudience;
+use Modules\Payments\Public\Enums\PaymentMode;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -103,6 +105,27 @@ final readonly class PaymentsApiImpl implements PaymentsApi
     public function transferCheckHours(StoreId $store): int
     {
         return $this->platform->setting(PaymentsSettings::TRANSFER_CHECK_HOURS, $store)->int();
+    }
+
+    public function inTestMode(StoreId $store): bool
+    {
+        $gateway = $this->gateways->of($store->value);
+
+        return $gateway !== null && $gateway->active && $gateway->mode === PaymentMode::Test;
+    }
+
+    public function timers(StoreId $store): PaymentTimersDto
+    {
+        return new PaymentTimersDto(
+            $this->platform->setting(PaymentsSettings::WINDOW_MINUTES, $store)->int(),
+            $this->platform->setting(PaymentsSettings::WAIT_MINUTES, $store)->int(),
+            $this->platform->setting(PaymentsSettings::HOLD_MINUTES, $store)->int(),
+        );
+    }
+
+    public function needsAttention(string $attemptId): void
+    {
+        $this->preparation->markForAttention($attemptId);
     }
 
     public function payment(string $paymentId): ?PaymentDto

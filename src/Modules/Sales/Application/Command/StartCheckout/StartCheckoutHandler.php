@@ -84,6 +84,7 @@ final readonly class StartCheckoutHandler
             $view->toArray(),
             $view->expiresAt,
             $view->createdAt,
+            $view->cartVersion,
         ));
 
         return $view;

@@ -26,5 +26,7 @@ final readonly class Cart
         public array $lines,
         public array $notice,
         public DateTimeImmutable $updatedAt,
+        /** Raised by every change of its lines or coupon: a quote made before it is not of this cart (§9.5 #11). */
+        public int $version = 0,
     ) {}
 }

@@ -37,6 +37,26 @@ return [
         'title' => 'Sign In to Use a Coupon',
         'detail' => 'Sign in or create an account to use a coupon.',
     ],
+    'payment_in_progress' => [
+        'title' => 'Payment In Progress',
+        'detail' => 'A payment is already in progress in another window.',
+    ],
+    'checkout_try_not_found' => [
+        'title' => 'Payment Not Found',
+        'detail' => 'Couldn\'t find this payment.',
+    ],
+    'test_order_not_shippable' => [
+        'title' => 'Test Order',
+        'detail' => 'This is a test order. It can\'t be marked shipped.',
+    ],
+    'online_payment_not_voidable' => [
+        'title' => 'Online Payment',
+        'detail' => 'A real online payment can\'t be voided. Record a refund instead.',
+    ],
+    'too_many_payment_tries' => [
+        'title' => 'Too Many Tries',
+        'detail' => 'Too many tries. Try again in :minutes minutes.',
+    ],
     'too_many_coupon_tries' => [
         'title' => 'Too Many Wrong Codes',
         'detail' => 'Couldn\'t try the code: too many codes that match no coupon. Try again in :minutes minutes.',
@@ -115,6 +135,7 @@ return [
         'note' => 'note',
         'date' => 'date',
         'request' => 'form',
+        'session' => 'payment session',
         'file' => 'file',
         'carrier' => 'carrier',
         'tracking_number' => 'tracking number',

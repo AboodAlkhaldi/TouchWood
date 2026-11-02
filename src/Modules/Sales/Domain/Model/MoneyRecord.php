@@ -32,5 +32,7 @@ final readonly class MoneyRecord
         public ?string $recordedBy,
         public DateTimeImmutable $recordedAt,
         public bool $voided = false,
+        public bool $isTest = false,
+        public bool $mismatch = false,
     ) {}
 }

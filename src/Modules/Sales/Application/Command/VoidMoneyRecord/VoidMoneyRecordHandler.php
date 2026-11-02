@@ -14,6 +14,7 @@ use Modules\Sales\Application\Order\OrderInputs;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
+use Modules\Sales\Domain\Exception\OnlinePaymentNotVoidable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Model\MoneyRecord;
 use Modules\Sales\Domain\Repository\MoneyRecords;
@@ -56,6 +57,11 @@ final readonly class VoidMoneyRecordHandler
         $this->db->transaction(function () use ($kind, $recordId, $orderId, $staffId, $reason): void {
             $order = $this->orders->lock($orderId) ?? throw new OrderNotFound;
             $record = $this->records->lock($kind, $recordId) ?? throw new OrderNotFound;
+
+            // A mistake on a real online payment is fixed by a refund; a test one may be voided (§9.5 #13).
+            if ($kind === MoneyRecord::PAYMENT && $record->way === 'ONLINE' && ! $record->isTest) {
+                throw new OnlinePaymentNotVoidable;
+            }
 
             if ($record->voided || ($kind === MoneyRecord::PAYMENT && $order->paid - $record->amount < $order->refunded)) {
                 throw new InvalidOrderChange;
