@@ -88,8 +88,8 @@ final readonly class MessageWriter
             MessageKind::LowStock => $this->text($message->kind, $locale, [...$values, 'low' => (string) $message->int('low'), 'out' => (string) $message->int('out')], '/admin/low-stock'),
             MessageKind::SyncProblems => $this->text($message->kind, $locale, $values, '/admin/sync'),
             MessageKind::ReturnRequested => $this->returnRequested($to, $locale, $values),
-            MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], null, sms: true),
-            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], null, sms: true),
+            MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
+            MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::PaymentNotAccepted => $this->text($message->kind, $locale, $values, null),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
@@ -433,6 +433,12 @@ final readonly class MessageWriter
     private static function shop(StoreDto $store, string $locale, string $page): string
     {
         return '/'.$store->code.'/'.$locale.'/'.$page;
+    }
+
+    /** The Payments Gateway page of the alert's own store (§4.2; owner, 2026-11-02): S5, S5b. Their SMS stays without it. */
+    private static function gatewayPage(StoreDto $store): string
+    {
+        return '/admin/payments/gateway?store='.$store->code;
     }
 
     private static function blank(?string $value): bool
