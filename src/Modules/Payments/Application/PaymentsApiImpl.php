@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Application;
 
-use LogicException;
 use Modules\Payments\Application\Attempt\AttemptCharge;
 use Modules\Payments\Application\Attempt\AttemptChecks;
 use Modules\Payments\Application\Attempt\AttemptPreparation;
+use Modules\Payments\Application\Request\OrderPaymentRequests;
 use Modules\Payments\Application\Session\OpenPaymentSession;
 use Modules\Payments\Application\Settings\StoreBankAccount;
+use Modules\Payments\Domain\Repository\Attempts;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Domain\Repository\Transactions;
 use Modules\Payments\Public\Contracts\PaymentsApi;
@@ -41,6 +42,8 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         private AttemptCharge $charges,
         private AttemptChecks $checks,
         private Transactions $transactions,
+        private OrderPaymentRequests $requests,
+        private Attempts $attempts,
     ) {}
 
     /**
@@ -133,32 +136,37 @@ final readonly class PaymentsApiImpl implements PaymentsApi
 
     public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
     {
-        throw new LogicException('Built in step 12.');
+        return $this->requests->request($request, $staffId);
     }
 
     public function withdraw(string $orderId): bool
     {
-        throw new LogicException('Built in step 12.');
+        return $this->requests->withdraw($orderId);
+    }
+
+    public function withdrawForCancelled(string $orderId): void
+    {
+        $this->requests->orderCancelled($orderId);
     }
 
     public function openRequest(string $orderId): ?PaymentRequestStateDto
     {
-        throw new LogicException('Built in step 12.');
+        return $this->requests->open($orderId);
     }
 
     public function openRequests(array $orderIds): array
     {
-        throw new LogicException('Built in step 12.');
+        return $this->requests->openOfOrders($orderIds);
     }
 
     public function paymentOpen(string $orderId): bool
     {
-        throw new LogicException('Built in step 12.');
+        return $this->attempts->openOfOrder($orderId) !== null;
     }
 
     public function attempts(string $orderId): array
     {
-        throw new LogicException('Built in step 12.');
+        return $this->attempts->ofOrder($orderId);
     }
 
     public function payment(string $paymentId): ?PaymentDto

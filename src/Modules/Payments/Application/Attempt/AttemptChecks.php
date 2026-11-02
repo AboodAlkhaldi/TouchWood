@@ -87,6 +87,22 @@ final readonly class AttemptChecks
     }
 
     /**
+     * Staff's "Ask the gateway now" (§4.2): for one still waiting, and no more than each 10 seconds (§1.8).
+     *
+     * @throws AttemptNotFound
+     */
+    public function staffAsked(string $attemptId): PaymentStateDto
+    {
+        $attempt = $this->attempts->find($attemptId) ?? throw new AttemptNotFound;
+
+        if ($attempt->state->isLive() && ! $this->answeredLately($attempt)) {
+            $attempt = $this->ask($attempt)->attempt;
+        }
+
+        return AttemptViews::page($attempt, $attempt->state === AttemptState::Failed ? $this->transactions->declineCode($attempt->id) : null);
+    }
+
+    /**
      * A signed notice names this payment: asks about it, unless it is already written down as it can end. False when
      * nothing was learned, so it is tried again: MyFatoorah has had its 200, and will not send it twice.
      *

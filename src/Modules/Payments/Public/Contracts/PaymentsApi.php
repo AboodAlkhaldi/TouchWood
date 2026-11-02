@@ -86,15 +86,21 @@ interface PaymentsApi
     /** Withdraws an order's open request (§1.5): true when none is left open; false while a payment on it is open. */
     public function withdraw(string $orderId): bool;
 
+    /**
+     * The order was cancelled (§6): its open request goes whatever is open on it. A payment in progress is still
+     * answered and recorded.
+     */
+    public function withdrawForCancelled(string $orderId): void;
+
     /** The order's open request, for its page (§1.5); null when none. One past its time with no payment open is ended here. */
     public function openRequest(string $orderId): ?PaymentRequestStateDto;
 
     /**
-     * The requests open on these orders, for one page of My Orders in one read (§4.2). Writes nothing: one past its
-     * time with no payment open is simply left out.
+     * The open requests of these orders, for one page of My Orders (§4.2): one read, writing nothing, and one past its
+     * time with no payment open is left out.
      *
      * @param  list<string>  $orderIds
-     * @return array<string, PaymentRequestStateDto> by order id
+     * @return array<string, PaymentRequestStateDto> order id => its request
      */
     public function openRequests(array $orderIds): array;
 

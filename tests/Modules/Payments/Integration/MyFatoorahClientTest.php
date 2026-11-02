@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
+use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -202,6 +203,8 @@ describe('asking about a payment', function () {
         Http::fake([CLIENT_PAYMENT => Http::response(Answers::payment())]);
         app()->instance(GatewayCalls::class, new class implements GatewayCalls
         {
+            public function deleteBefore(DateTimeImmutable $before): void {}
+
             public function record(GatewayCall $call): void
             {
                 throw new RuntimeException('The log is down');

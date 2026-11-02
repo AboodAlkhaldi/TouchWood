@@ -10,8 +10,10 @@ use Illuminate\Database\ConnectionInterface;
 use Modules\Payments\Domain\Model\Attempt;
 use Modules\Payments\Domain\Model\AttemptState;
 use Modules\Payments\Domain\Repository\Attempts;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Payments\Public\Enums\PaymentMode;
 use Modules\Payments\Public\Enums\PaymentOwnerKind;
+use Shared\Domain\ValueObject\Money;
 use stdClass;
 
 final readonly class DatabaseAttempts implements Attempts
@@ -88,6 +90,36 @@ final readonly class DatabaseAttempts implements Attempts
     public function openOf(string $ownerId): ?Attempt
     {
         return self::attempt($this->db->table('payments.attempts')->where('owner_id', $ownerId)->whereIn('state', self::OPEN)->first());
+    }
+
+    public function openOfOrder(string $orderId): ?Attempt
+    {
+        return self::attempt($this->db->table('payments.attempts')->where('order_id', $orderId)->whereIn('state', self::OPEN)->first());
+    }
+
+    public function ofOrder(string $orderId): array
+    {
+        return array_values(array_map(
+            static fn (stdClass $row): PaymentAttemptDto => new PaymentAttemptDto(
+                (string) $row->id,
+                (string) $row->owner_id,
+                PaymentOwnerKind::from((string) $row->owner_kind),
+                (string) $row->order_id,
+                (string) $row->state,
+                Money::of((int) $row->amount_minor, (string) $row->currency_code),
+                PaymentMode::from((string) $row->mode),
+                $row->method === null ? null : (string) $row->method,
+                (bool) $row->needs_attention,
+                self::moment($row->created_at) ?? new CarbonImmutable,
+            ),
+            $this->db->table('payments.attempts as a')
+                ->where('a.order_id', $orderId)
+                ->orderBy('a.id')
+                ->select(['a.id', 'a.owner_id', 'a.owner_kind', 'a.order_id', 'a.state', 'a.amount_minor', 'a.currency_code', 'a.mode', 'a.needs_attention', 'a.created_at'])
+                ->selectRaw('(SELECT t.method FROM payments.transactions t WHERE t.attempt_id = a.id AND t.succeeded ORDER BY t.id LIMIT 1) AS method')
+                ->get()
+                ->all(),
+        ));
     }
 
     public function latestOf(string $ownerId): ?Attempt

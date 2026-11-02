@@ -65,6 +65,14 @@ return [
         'title' => 'Payment Not Found',
         'detail' => 'We could not find this payment.',
     ],
+    'request_not_open' => [
+        'title' => 'This Payment Link Has Ended',
+        'detail' => 'This payment link has ended. Open your order to see what is still due.',
+    ],
+    'amount_changed' => [
+        'title' => 'Another Amount Is Requested',
+        'detail' => 'An open payment request asks for another amount. Withdraw it first, then send a new one.',
+    ],
     'fields' => [
         'store' => 'store',
         'mode' => 'test or live',
@@ -75,5 +83,7 @@ return [
         'expires_at' => 'session\'s end',
         'domain' => 'domain',
         'return_url' => 'return address',
+        'state' => 'state',
+        'cursor' => 'place in the list',
     ],
 ];
