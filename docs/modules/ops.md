@@ -553,11 +553,11 @@ store id is 422 `store`; an unknown or unoffered code is 403.
 | `dailyReportsAllStores` | bool | Whether every store's report and email may be asked: a super admin alone |
 | `reports` | `ReportChoiceData[]` | Only the kinds this reader may open, in `ReportKind`'s order |
 
-`count` is how many customers a notice or a message to **every customer of the store** would reach, for the confirmation
-(owner, 2026-11-02, §9.4 Q14): those registered in it, of either account type, not anonymized, exactly whom the sender's
-bell reaches. Those blocked, with a deletion pending or who never agreed to offers are counted. **Email goes to fewer**
-(§1.3), and no route gives that number. So a send by email alone reaches fewer than `count`. As of the moment asked; a
-segment's is `memberCount`. `store` is named as on the notices' routes; a refusal is `shared.unauthorized` 403. One
+`count` is **the bell's reach** for a notice or a message to every customer of the store, for the confirmation (owner,
+2026-11-02, §9.4 Q14): those registered in it, of either account type, not anonymized, exactly whom the sender's bell
+reaches. Those blocked, with a deletion pending or who never agreed to offers are counted. **Email goes to fewer** (§1.3),
+and no route gives that number, so a send by email alone is worded apart (§4.15, O4). As of the moment asked; a segment's is
+`memberCount`. `store` is named as on the notices' routes; a refusal is `shared.unauthorized` 403. One
 count query, `AccessApi::customerCountInStore` (access.md amendment 94).
 
 `StoreChoiceData` is `{id, code, name, isOn}`, the name in the page's language, so a form takes whichever of id or code
@@ -931,6 +931,7 @@ props. Every other address of that store stays a 404.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
 - **`kind` is an open list:** C11, S6–S8 will start appearing without any change here.
+- **`count` on `ops.admin.audience` is the bell's reach, never the email's** (§4.1): a send by email alone reaches fewer, and its confirmation says so in its own words (O4).
 - **A segment's name can be gone:** `segmentId` set with `segmentNameAr` null means it was deleted since the notice or message was written. Its `segmentMemberCount` is today's, and never the audience it reached.
 - **Ids come in small letters;** send them back as given.
 
@@ -1030,7 +1031,7 @@ named in Access's `permission_groups` words.
 - **Pressing a row** marks it read (the POST's answer gives the new number). With a `link` it goes there; a failed mark still goes.
   With no link it stays, and the row opens to show its whole text.
 - **Mark All as Read** marks every entry, not only the ones shown. It asks nothing, since it loses nothing.
-- **`/admin/notifications`,** the full page behind View All: the same rows, whole text, Show More, Mark All as Read at the top. No store filter (§4.13 #4).
+- **`/admin/notifications`,** the full page behind View All: the same rows, whole text, Show More, Mark All as Read at the top. No store filter (§4.13 #3).
   It has no menu entry. The trail is Home › Notifications.
 - **Unknown kinds** need nothing: rows draw from `title` and `line`, so new kinds (§4.12) simply appear.
 
@@ -1080,7 +1081,7 @@ named in Access's `permission_groups` words.
 4. **How it goes:** Bell and Email, both ticked, at least one. Under Email, for one customer: "It goes to their email whatever they chose about offers." For many: "Email goes only to those who agreed to offers. The bell reaches everyone."
 5. **Send Message.**
    - To one customer it sends at once (Q12).
-   - To many it asks first (Q12): "Send to :count customers of :store?" or "Send to :segment (:count members)?", then "It can't be recalled.", Cancel and Send Message. The count is `§9.4 Q14`'s read for a whole store (`ops.admin.audience`, §4.1), taken when the dialog opens. A count of 0 says so and offers no Send.
+   - To many it asks first (Q12), then "It can't be recalled.", Cancel and Send Message. **A whole store (owner, 2026-11-02), with Bell ticked:** "Send to :count customers of :store?" **Email alone:** "Send by email to those of the :count customers of :store who agreed to receive it?" A segment: "Send to :segment (:count members)?" The count is `§9.4 Q14`'s read for a whole store (`ops.admin.audience`, §4.1), taken when the dialog opens. A count of 0 says so and offers no Send.
    - The email count is never shown: it depends on consent.
 
 After sending: back to O3 with the toast "Message on its way." Refusals land on their box in words; `audience` on Who Gets It; a segment gone (404) as the form's error, with the picker emptied.
@@ -1105,7 +1106,7 @@ Columns: Title · Audience ("Every customer", the segment, "Deleted segment") ·
 - **Link (optional, Q17):** "A page of the shop." A whole pasted shop address is cut down to the page part, and that part shows under the box. An address of another store, or another site, says so under the box. Either language's address works, because the shop redirects the other language's to the reader's (§9.4 Q17). The rules of §4.4 are checked as typed.
 - **When:** `DateTimeField` with **Now**, in the store's clock with the zone named, `send_at` sent as `YYYY-MM-DD HH:MM`. New opens on Now. Edit opens on its `sendAtLocal`. A past time is said under the box.
 - **The button:** **Send Notice** with Now, **Schedule Notice** with a time; on Edit **Save Changes** with a time, **Send Now** with Now.
-- **Now asks first (Q12):** as O4's dialog, naming the store or segment and the count. A scheduled save doesn't ask, and tells in the toast when it goes.
+- **Now asks first (Q12):** as O4's dialog, naming the store or segment and the count, a whole store in the same two wordings: "Send to :count customers of :store?" with Bell ticked, "Send by email to those of the :count customers of :store who agreed to receive it?" by email alone (owner, 2026-11-02). A scheduled save doesn't ask, and tells in the toast when it goes.
 - **Edit replaces the whole notice** (§4.4): the form always sends every field, `send_at` included, so nothing starts sending by accident. A notice that started while the form was open answers 409: the words show, and the page offers the way back to the list.
 
 #### O7 · Subscribers
@@ -1192,7 +1193,7 @@ Also touched: `AdminLayout` (the bell), `StorefrontLayout` (the bell, the footer
 
 #### What this doesn't do
 
-No search, filter or total on any list (§4.13 #4). No template editor, no newsletter editor (Brevo's). Nothing about a message can be recalled. No live push: a number or a count moves on the next page, on coming back to the tab (staff), on opening the bell, or on Refresh. Payment messages' links and S6, S8 and the rest come from the other sessions and need no screen change (§4.12).
+No search, filter or total on any list (§4.13 #3). No template editor, no newsletter editor (Brevo's). Nothing about a message can be recalled. No live push: a number or a count moves on the next page, on coming back to the tab (staff), on opening the bell, or on Refresh. Payment messages' links and S6, S8 and the rest come from the other sessions and need no screen change (§4.12).
 
 #### Tests
 
