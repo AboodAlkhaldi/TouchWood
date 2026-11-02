@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttribute;
 use Modules\Catalog\Application\Command\AddAttribute\AddAttributeHandler;
 use Modules\Catalog\Application\Command\AddAttributeValue\AddAttributeValue;
@@ -26,16 +27,21 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Inventory\Public\Contracts\InventoryApi;
+use Modules\Inventory\Public\Dto\HoldLineDto;
+use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
+use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\Modules\Pricing\Support\PricingFixtures as Rx;
 
 use function Pest\Laravel\seed;
 
 /*
 | The shop's pages in a real browser (catalog.md §4.5): the menu in the header leading to a category
 | and its product, a choice picked, the search box suggesting while typing and Enter opening the
-| results, and the pages right to left in Arabic at a phone's width - the menu in its Sheet - with
-| nothing wider than the screen. The feature tests prove what each page is handed.
+| results, a sold-out size greyed and out of reach (amendment 39), and the pages right to left in Arabic
+| at a phone's width - the menu in its Sheet - with nothing wider than the screen. The feature tests prove what each page is handed.
 |
 | No RefreshDatabase, as in every browser test here: the rows stay, so every name is made new.
 */
@@ -75,6 +81,7 @@ function shopBrowserProduct(): array
         app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [Cx::media()]));
         app(MarkProductReadyHandler::class)->handle(new MarkProductReady($product));
         app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true));
+        Px::inStock('sa', $product);
 
         return ['n' => $n, 'top' => $top, 'category' => $category, 'product' => $product];
     });
@@ -133,6 +140,104 @@ it('suggests while typing, and Enter opens the results', function () {
         ->and(DB::table('catalog.search_log')->where('query', $n)->count())->toBe(1);
 
     expect(shopBrowserSlug('product', $product))->not->toBe('');
+    $page->assertNoJavaScriptErrors();
+});
+
+it('greys a sold-out size and never lets it be chosen, on a desktop and at a phone\'s width, in both languages', function (int $width, int $height) {
+    ['n' => $n, 'product' => $product] = shopBrowserProduct();
+    [$sixty, $eighty] = array_map('strval', DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->pluck('id')->all());
+    Rx::set('sa', [$sixty => '30.00', $eighty => '25.00']);
+    app(InventoryApi::class)->hold(StoreId::fromString(Fx::storeId('sa')), strtolower((string) Str::ulid()), [new HoldLineDto($sixty, 5)], null);
+
+    $page = visit('/sa/en/products/'.shopBrowserSlug('product', $product));
+    $page->resize($width, $height);
+    $button = "[...document.querySelectorAll('[data-test=\"choice-value\"]')]";
+
+    expect(browserUntil($page, "{$button}.length === 2"))->toBeTrue()
+        // Shown, greyed, read aloud as not available, and out of reach.
+        ->and($page->script("{$button}[0].disabled"))->toBeTrue()
+        ->and($page->script("{$button}[0].getAttribute('aria-label')"))->toBe("60 cm {$n}, not available")
+        ->and($page->script("getComputedStyle({$button}[0]).textDecorationLine"))->toBe('line-through')
+        // The page opens on the size left, at its price.
+        ->and($page->script("{$button}[1].getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script("{$button}[0].getAttribute('aria-pressed')"))->toBe('false')
+        ->and($page->script("document.body.innerText.includes('25.00')"))->toBeTrue()
+        ->and($page->script("document.body.innerText.includes('30.00')"))->toBeFalse();
+
+    $page->script("{$button}[0].click()");
+
+    expect($page->script("{$button}[1].getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script("{$button}[0].getAttribute('aria-pressed')"))->toBe('false')
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    $page->navigate('/sa/ar/products/'.rawurlencode(shopBrowserSlug('product', $product, 'ar')), BROWSER_PAGE_LOAD);
+
+    expect(browserUntil($page, "{$button}.length === 2 && document.documentElement.dir === 'rtl'"))->toBeTrue()
+        ->and($page->script("{$button}[0].disabled"))->toBeTrue()
+        ->and($page->script("{$button}[0].getAttribute('aria-label')"))->toBe("ستون {$n}، غير متاح")
+        ->and($page->script("{$button}[1].getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
+})->with([
+    'a desktop' => [1280, 900],
+    'a phone' => [375, 812],
+]);
+
+it('greys a value that names a sold-out size with the other choices as they are, and picking it moves to a size left', function () {
+    $n = substr((string) hrtime(true), -12);
+    $product = Fx::asSystem(function () use ($n): string {
+        $brand = app(AddBrandHandler::class)->handle(new AddBrand("ماركة {$n}", "Brand {$n}", 'DISTRIBUTOR'));
+        $category = app(AddCategoryHandler::class)->handle(new AddCategory("مطابخ {$n}", "Kitchens {$n}"));
+        $width = app(AddAttributeHandler::class)->handle(new AddAttribute("عرض {$n}", "Width {$n}", 'VARIANT'));
+        $finish = app(AddAttributeHandler::class)->handle(new AddAttribute("لمسة {$n}", "Finish {$n}", 'VARIANT'));
+        $sixty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ستون {$n}", "60 cm {$n}"));
+        $eighty = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($width, "ثمانون {$n}", "80 cm {$n}"));
+        $matte = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($finish, "مطفي {$n}", "Matte {$n}"));
+        $gloss = app(AddAttributeValueHandler::class)->handle(new AddAttributeValue($finish, "لامع {$n}", "Gloss {$n}"));
+        $product = app(CreateProductHandler::class)->handle(new CreateProduct("درج {$n}", "Drawer {$n}", $brand));
+        app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $width, []));
+        app(AddVariantAttributeHandler::class)->handle(new AddVariantAttribute($product, $finish, []));
+        $text = ['blocks' => [['type' => 'paragraph', 'runs' => [['text' => 'A drawer.']]]]];
+        app(EditProductDetailsHandler::class)->handle(new EditProductDetails($product, "درج {$n}", "Drawer {$n}", $brand, descriptionAr: $text, descriptionEn: $text, categoryId: $category));
+
+        foreach ([[$sixty, $matte], [$eighty, $matte], [$sixty, $gloss]] as $at => [$w, $f]) {
+            app(AddVariantHandler::class)->handle(new AddVariant($product, substr($n, -8).$at, [$width => $w, $finish => $f]));
+        }
+
+        app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [Cx::media()]));
+        app(MarkProductReadyHandler::class)->handle(new MarkProductReady($product));
+        app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true));
+
+        return $product;
+    });
+    // 60 cm Matte sold out; 80 cm Matte and 60 cm Gloss left.
+    $sizes = array_map('strval', DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->pluck('id')->all());
+    Px::inStock('sa', $product);
+    app(InventoryApi::class)->hold(StoreId::fromString(Fx::storeId('sa')), strtolower((string) Str::ulid()), [new HoldLineDto($sizes[0], 5)], null);
+
+    $page = visit('/sa/en/products/'.shopBrowserSlug('product', $product));
+    $page->resize(1280, 900);
+    $named = static fn (string $name): string => "[...document.querySelectorAll('[data-test=\"choice-value\"]')].find((b) => b.textContent.includes('{$name} {$n}'))";
+
+    // It opens on the first size left, 80 cm Matte: with Matte chosen, 60 cm names the sold-out size.
+    expect(browserUntil($page, $named('60 cm').' !== undefined'))->toBeTrue()
+        ->and($page->script($named('80 cm').".getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script($named('Matte').".getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script($named('60 cm').'.disabled'))->toBeFalse()
+        ->and($page->script('getComputedStyle('.$named('60 cm').').textDecorationLine'))->toBe('line-through')
+        ->and($page->script($named('60 cm').".getAttribute('aria-label')"))->toBe("60 cm {$n}, not available")
+        ->and($page->script('getComputedStyle('.$named('Gloss').').textDecorationLine'))->toBe('none');
+
+    // Picked, it moves to the size left that holds it, never to the sold-out one.
+    $page->script($named('60 cm').'.click()');
+
+    expect(browserUntil($page, $named('60 cm').".getAttribute('aria-pressed') === 'true'"))->toBeTrue()
+        ->and($page->script($named('Gloss').".getAttribute('aria-pressed')"))->toBe('true')
+        ->and($page->script($named('Matte').".getAttribute('aria-pressed')"))->toBe('false')
+        ->and($page->script('getComputedStyle('.$named('Matte').').textDecorationLine'))->toBe('line-through')
+        ->and($page->script('getComputedStyle('.$named('60 cm').').textDecorationLine'))->toBe('none');
+
     $page->assertNoJavaScriptErrors();
 });
 

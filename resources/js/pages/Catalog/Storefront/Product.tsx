@@ -23,7 +23,7 @@ import type { ShopCartData } from '@/types/generated/Modules/Sales/Presentation/
 | A product's page in the shop (catalog.md §4.5): the path to its category, the brand, the labels, the
 | name; the gallery - the chosen variant's own photos, else the product's; the choices, a row per
 | variant attribute in the product's order, its values as buttons in the attribute's order, a colour's
-| with its swatch, a value no variant on sale holds disabled; the chosen variant's details, weight and
+| with its swatch, a value no size left holds disabled, a sold-out size greyed (amendment 39); the chosen variant's details, weight and
 | size; "Last pieces" on the ending-soon option only (amendment 16(h)); the description; the warranty;
 | how it is sold to this viewer (P17); Goes With and You May Also Like. No code. The chosen size's price
 | under the name - the page opens on its first size - a size sold wholesale only priced by Pricing's section (amendment 35; sales.md §4.1 S1); Sales's Add to Cart in its slot (S2), the
@@ -53,7 +53,9 @@ type SalesSections = { 'sales.cart'?: ShopCartData | null; 'pricing.wholesale'?:
 export default function Product(page: ShopProductPage & { sections: FeedbackSections & SalesSections; cardFacts?: CardFacts | unknown[] }) {
     const t = useTranslator();
     const link = useLink();
-    const { name, available, variants, choices, selling, warranty, address } = page;
+    const { name, available, choices, selling, warranty, address } = page;
+    // A sold-out size is never chosen, opened on or priced: only the sizes that can be ordered are offered (amendment 39).
+    const variants = page.variants.filter((each) => each.orderable);
     const [chosen, setChosen] = useState<Record<string, string>>(() => variants[0]?.values ?? {});
     const variant = variantOf(variants, choices, chosen);
     const photos: PhotoSizes[] = variant !== null && variant.photos.length > 0 ? variant.photos : page.photos;
@@ -103,6 +105,8 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                     {choice.values.map((value) => {
                                         const becomes = value.onSale ? pick(variants, choices, chosen, choice.id, value.id) : null;
                                         const isChosen = chosen[choice.id] === value.id;
+                                        // With the other choices as they are, this value names a sold-out size: greyed. A size left that holds it can still be picked.
+                                        const soldOutHere = becomes !== null && variantOf(page.variants, choices, { ...chosen, [choice.id]: value.id })?.orderable === false;
 
                                         return (
                                             <button
@@ -110,10 +114,11 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                                 type="button"
                                                 disabled={becomes === null}
                                                 aria-pressed={isChosen}
-                                                aria-label={becomes === null ? t('catalog::shop.product.unavailable_value', { name: value.name }) : undefined}
+                                                aria-label={becomes === null || soldOutHere ? t('catalog::shop.product.unavailable_value', { name: value.name }) : undefined}
                                                 onClick={() => becomes !== null && setChosen(becomes.values)}
                                                 className={cn(
                                                     'material-small flex items-center gap-2 bg-surface px-3 py-2 text-label-14 text-ink disabled:cursor-not-allowed disabled:text-ink-muted disabled:line-through',
+                                                    soldOutHere && 'text-ink-muted line-through',
                                                     isChosen && 'shadow-[0_0_0_2px_var(--tw-ink)]',
                                                 )}
                                                 data-test="choice-value"
