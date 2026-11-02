@@ -78,7 +78,7 @@ function staffReturnSecondPerson(string $staffId, int $minutes): AdminBrowser
 {
     $browser = new AdminBrowser;
     staffReturnVisit($browser);
-    test()->travel($minutes)->minutes();
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes($minutes));
     staffReturnPassword($browser, $staffId)->assertRedirect('/admin/sign-in/code');
     $browser->post('/admin/sign-in/code', ['code' => staffReturnCode()])->assertRedirect('/admin');
 
@@ -353,7 +353,7 @@ describe('what it remembers', function () {
 
     it('answers only for the routes that answer a page, by what their actions declare', function () {
         $pages = $others = [];
-        foreach (app('router')->getRoutes() as $route) {
+        foreach (app('router')->getRoutes()->getRoutes() as $route) {
             if (in_array('GET', $route->methods(), true) && str_starts_with($route->uri(), 'admin')) {
                 if (StaffReturnAddress::answersPage($route)) {
                     $pages[] = $route->getName();
