@@ -1762,7 +1762,8 @@ Decide these when the owning module is reached; do not design them now.
 - **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a
-  queue connection of its own whose `retry_after` is longer than its timeout.
+  queue connection of its own whose `retry_after` is longer than its timeout. **Payments' `CheckAttemptJob` and
+  `HandleNoticeJob` run up to 300 s** (a hanging gateway, asked several times), so they need the same.
 - **The import's zip disk** (`CATALOG_IMPORTS_DISK` in `config/catalog.php`, `local` by default): a
   zip waits there from its upload until its products are brought in or its import discarded. With
   more than one server it must be storage they share.

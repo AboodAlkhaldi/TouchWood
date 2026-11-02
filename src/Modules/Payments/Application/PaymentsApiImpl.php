@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Application;
 
+use Modules\Payments\Application\Attempt\AttemptCharge;
+use Modules\Payments\Application\Attempt\AttemptChecks;
+use Modules\Payments\Application\Attempt\AttemptPreparation;
 use Modules\Payments\Application\Session\OpenPaymentSession;
 use Modules\Payments\Application\Settings\StoreBankAccount;
 use Modules\Payments\Domain\Repository\Gateways;
+use Modules\Payments\Domain\Repository\Transactions;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
+use Modules\Payments\Public\Dto\PaymentStartDto;
+use Modules\Payments\Public\Dto\PaymentStateDto;
+use Modules\Payments\Public\Dto\PayRequestDto;
 use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Payments\Public\Enums\OnlinePaymentReason;
 use Modules\Payments\Public\Enums\PaymentAudience;
@@ -25,6 +32,10 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         private PlatformApi $platform,
         private StoreBankAccount $bankAccount,
         private OpenPaymentSession $sessions,
+        private AttemptPreparation $preparation,
+        private AttemptCharge $charges,
+        private AttemptChecks $checks,
+        private Transactions $transactions,
     ) {}
 
     /**
@@ -64,6 +75,26 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         return $this->sessions->open($request);
     }
 
+    public function prepare(PayRequestDto $request): string
+    {
+        return $this->preparation->prepare($request);
+    }
+
+    public function charge(string $attemptId): PaymentStartDto
+    {
+        return $this->charges->charge($attemptId);
+    }
+
+    public function abandon(string $attemptId): bool
+    {
+        return $this->preparation->abandon($attemptId);
+    }
+
+    public function refresh(string $ownerId): PaymentStateDto
+    {
+        return $this->checks->refresh($ownerId);
+    }
+
     public function bankAccount(StoreId $store): ?BankAccountDto
     {
         return $this->bankAccount->for($store);
@@ -76,6 +107,6 @@ final readonly class PaymentsApiImpl implements PaymentsApi
 
     public function payment(string $paymentId): ?PaymentDto
     {
-        return null;
+        return $this->transactions->dto($paymentId);
     }
 }

@@ -8,10 +8,9 @@ use DateTimeImmutable;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
- * An online payment failed or was abandoned (sales.md §2.4) — one of handoff §4.5's critical events, published by Payments
- * through the outbox from stage 7; Sales records it. Provisional: declared by Sales for stage 7.
+ * A transaction was declined (payments.md §2.2, §1.4 step 6): Sales ends the try and releases everything.
  *
- * Ids only, after commit.
+ * Ids only, through the outbox.
  */
 final readonly class PaymentFailed implements ShouldDispatchAfterCommit
 {

@@ -34,9 +34,19 @@ final readonly class DatabaseSessions implements Sessions
         ]);
     }
 
+    public function lock(PaymentMode $mode, string $id): ?GatewaySession
+    {
+        return self::session($this->db->table('payments.sessions')->where('gateway', 'MYFATOORAH')->where('mode', $mode->value)->where('id', $id)->lockForUpdate()->first());
+    }
+
+    public function markUsed(PaymentMode $mode, string $id, string $attemptId): void
+    {
+        $this->db->table('payments.sessions')->where('gateway', 'MYFATOORAH')->where('mode', $mode->value)->where('id', $id)->update(['used_by' => $attemptId]);
+    }
+
     public function reusable(string $storeId, PaymentMode $mode, string $ownerId, string $buyerId, int $amountMinor, string $currencyCode, DateTimeImmutable $now): ?GatewaySession
     {
-        $row = $this->db->table('payments.sessions')
+        return self::session($this->db->table('payments.sessions')
             ->where('store_id', $storeId)
             ->where('mode', $mode->value)
             ->where('owner_id', $ownerId)
@@ -46,8 +56,11 @@ final readonly class DatabaseSessions implements Sessions
             ->whereNull('used_by')
             ->where('expires_at', '>', $now)
             ->orderByDesc('expires_at')
-            ->first();
+            ->first());
+    }
 
+    private static function session(mixed $row): ?GatewaySession
+    {
         return $row instanceof stdClass ? new GatewaySession(
             (string) $row->id,
             (string) $row->store_id,
@@ -56,7 +69,8 @@ final readonly class DatabaseSessions implements Sessions
             (string) $row->buyer_id,
             (int) $row->amount_minor,
             (string) $row->currency_code,
-            new CarbonImmutable((string) $row->expires_at),
+            (new CarbonImmutable((string) $row->expires_at))->toDateTimeImmutable(),
+            $row->used_by === null ? null : (string) $row->used_by,
         ) : null;
     }
 }

@@ -472,6 +472,7 @@ request is successful")
   the page counts it down. MyFatoorah's own `PaymentExpiry` is still set to its end (it accepts one
   minute), but **it does not stop the payment** (§9.8): our page ends the window at 5 minutes, and the
   hold limit below is what ends the try.
+- *(The release at the wait's end in §1.4 step 7 and in §1.4 step 8's "at most the window and the wait" is superseded by the hold limit below: §9.8, gap 10.1. The wait now changes only what the page says.)*
 - **The wait — 2 minutes** (`payments.timers.wait_minutes`, Super Admins; owner, 2026-10-28, §9.6 #1). At the end of
   the window our server asks MyFatoorah; **anything but paid or declined is waited for** — because
   MyFatoorah's `InProgress` is the same for the customer who pressed the bank's "confirm" at 4:59 and
@@ -629,8 +630,9 @@ interface PaymentsApi
   (as the gateway names it — Mada, Visa, Apple Pay, STC Pay…), `reference` (the gateway's payment id),
   `mode` (`LIVE`, `TEST`), `succeeded`, `paidAt` (the gateway's `TransactionDate`), `failureCode` (the
   gateway's `MF0xx`, null when succeeded), `mismatch` (bool, rule 8), `paidTwice` (bool, rule 3).
-- **`PaymentStateDto`**: `state` (`NONE`, `OPEN`, `IN_PROGRESS`, `UNKNOWN`, `SUCCEEDED`, `FAILED`,
-  `EXPIRED`), `windowEndsAt`, `waitEndsAt` — what the page shows, and whether Sales may release.
+- **`PaymentStateDto`**: `state` (`NONE`, `OPEN`, `IN_PROGRESS`, `UNKNOWN`, `SUCCEEDED`, `NOT_ACCEPTED`, `FAILED`,
+  `EXPIRED`), `windowEndsAt`, `waitEndsAt`, `holdEndsAt`, `nothingCharged`, `attemptId`, `paymentId` — what the page shows,
+  and whether Sales may release (§9.13).
 - **`OnlinePaymentDto`**: `available` (bool), `mode` (`LIVE`, `TEST`, null), `reason` when not available
   (`NO_GATEWAY`, `GATEWAY_OFF`, `KEY_REJECTED` — §1.2, `COMPANY`).
 - **`PaymentAudience`** stays (`INDIVIDUAL`, `COMPANY`). `PaymentMethodDto` and `methods()` go: the
@@ -644,7 +646,7 @@ interface PaymentsApi
 |---|---|
 | `PaymentSucceeded` (`eventId`, `paymentId`, `orderId`, `storeId`, `occurredAt`) — exists; `storeId` added (§9.7 #1) | The gateway confirmed a successful **transaction** (§1.4 step 6) — once per transaction; `paymentId` names it; `orderId` is the order's id, the future one for a try. **Not** published for a currency mismatch (rule 8) |
 | `PaymentFailed` (`eventId`, `paymentId`, `orderId`, `occurredAt`) — exists | A transaction was declined |
-| **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new (`orderId` so the outbox keeps it in order with the order's other payment events) | An attempt ended with nothing paid: the window and the wait passed, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
+| **`PaymentNotTaken`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `occurredAt`) — new (`orderId` so the outbox keeps it in order with the order's other payment events) | An attempt ended with nothing paid: the hold limit passed (§9.8), the charge never reached the gateway, or the gateway refused the first call (§1.4 steps 4, 7) — Sales releases the try |
 | **`PaymentNotAccepted`** (`eventId`, `attemptId`, `ownerId`, `orderId`, `storeId`, `occurredAt`) — new; `storeId` for Ops (§9.7 #1) | Money was taken but cannot enter an order — a currency mismatch (rule 8) — Sales releases the try and records a refund due on it (the review, 2026-10-28: otherwise the try would stay live) |
 | **`GatewayKeyExpiring`** (`eventId`, `storeId`, `mode`, `daysLeft` — 30, 7 or 1 — `expiresOn`, `occurredAt`) — new (§9.7 #2) | The daily job finds the current key that many days from its expiry date (§1.2); **once per key and threshold** |
 | **`GatewayKeyRejected`** (`eventId`, `storeId`, `mode`, `occurredAt`) — new (§9.7 #3) | MyFatoorah refused the **current** key (§1.2: a 401) and online payment stopped by itself; once until a new key is set |
@@ -688,10 +690,13 @@ CREATING ─▶ ABANDONED                          (prepared, never charged: aba
 CREATING ─▶ CHARGING ─▶ OPEN ─▶ SUCCEEDED      (claimed, charged, paid — final)
 CHARGING ─▶ REFUSED                            (the gateway refused the first call — §1.4 step 4)
 CHARGING ─▶ UNKNOWN ─▶ OPEN                    (the charge's answer was lost; settled through the session)
+CHARGING | UNKNOWN ─▶ REFUSED                  (the first call's refusal, even if a page's check got there first — §9.13)
+CHARGING | UNKNOWN ─▶ EXPIRED                  (the session says it was never used, at the wait's end — §9.13 #4)
 OPEN ─▶ FAILED                                 (declined — §1.4 step 6)
 OPEN ─▶ UNKNOWN ─▶ OPEN | SUCCEEDED | FAILED | EXPIRED   (a status call failed; asked again)
 OPEN | UNKNOWN ─▶ EXPIRED                      (the hold limit, 15 minutes after Pay, passed with nothing paid — rule 15, §9.8)
-FAILED | EXPIRED ─▶ SUCCEEDED                  (a success reported later: recorded — a refund due, rule 15)
+EXPIRED ─▶ FAILED                              (released, then finally declined: the looking stops, no second word — §9.13 #7)
+FAILED | EXPIRED | REFUSED ─▶ SUCCEEDED        (a success reported later: recorded — a refund due, rule 15)
 SUCCEEDED ─▶ SUCCEEDED                         (a second successful transaction: recorded, "paid twice" — rule 3)
 ```
 
@@ -882,7 +887,7 @@ Every error extends `PaymentsError` → `DomainError` ("payments.*"), with both 
 | `GatewayRefused` | INVALID | The gateway refused the charge (its message logged, a short one shown to staff) |
 | `KeyTestFailed` | INVALID | Saving a key whose test call failed — the reason named |
 | `KeyPermissionMissing` | INVALID | MyFatoorah's 401 "The token does not have the required permissions!" — names what to switch on |
-| `AttemptNotFound` | NOT_FOUND | An attempt that is not there, or not this buyer's |
+| `AttemptNotFound` | NOT_FOUND | An attempt that is not there (which buyer may ask about it is Sales's to check: `charge`, `abandon` and `refresh` take no buyer) |
 | `RequestNotOpen` | CONFLICT | Paying a request that expired, was paid or was withdrawn (§1.5) |
 | `AmountChanged` | CONFLICT | A request for an amount different from the open request's — Sales must withdraw first |
 | `InvalidPaymentsInput` | INVALID | A field out of range, named |
@@ -1360,3 +1365,65 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 4. **Registering Apple Pay stays offered once registered**, as Register Again: Apple may ask for it yearly (§1.2).
 5. **A refused domain says MyFatoorah's own words** here: this page is Super Admins' alone (§7).
 
+### 9.13 The build's own picks (step 10, 2026-11-01 — simple, taken as recommended under the owner's rule)
+
+1. **The charge sends only `Customer.Reference`.** Name, email and phone are kept on the attempt for staff, and sent to
+   nobody: none is required (notes §0 #14), and a wrong shape would refuse a payment (the docs' 11-character phone
+   number does not fit our `+966…`). P0 never charged with them.
+2. **An attempt keeps a few columns §5 does not list**, all for this design: `buyer_id` (anonymizing), `locale` and
+   `return_url` (the charge runs after the prepare), `hold_ends_at`, `last_checked_at` (the 10 seconds),
+   `checking_until` (one status call at a time, without holding a row lock through a call), and `nothing_charged`.
+3. **`nothing_charged` is what may say "No money was taken"** (gap 10.2): true when the charge was never sent, was
+   refused at its first call, or its session says it was never used at the wait's end. `PaymentStartDto` and
+   `PaymentStateDto` carry it, and `holdEndsAt` for "you can pay again at 14:45" (gap 10.1 (a)).
+4. **A charge claimed but never answered, whose session says unused**: it goes back at the wait's end, not at once, so a
+   request still on its way can land. No repeat is sent once the window is over (rule 4), so with the 30-second timeout
+   nothing can still be on its way by then. If one lands all the same, its answer puts the checks back on and flags it
+   for staff. Only then may the page have said "No money was taken" wrongly.
+5. **A prepared attempt never claimed** ends at its first check, the end of the window, with no call: nothing was sent,
+   so there is nothing to ask (§1.4 step 4 said "finds the session unused"). And `charge` refuses to send once its
+   window has passed.
+6. **The checks**: the window's end, the wait's end, 10 minutes after the charge, the hold limit, 20 minutes after, then
+   hourly for 24 hours after the hold limit (rule 9, gap 10.4). After that an attempt with no final answer needs
+   attention. A job is booked only when the next check's time changes.
+7. **A decline after a release** is written down, ends the looking, and tells nobody: Sales has already released. After
+   a success it changes nothing (rule 5).
+8. **The status words**: `SUCCESS` is paid; `FAILED`, `CANCELED`, `CANCELLED` and `EXPIRED` are declined; anything else
+   is still going. An invoice saying `PAID` while the transaction asked about does not is flagged for staff, and the other
+   transaction's own notice settles it. **An attempt follows its own payment**: another transaction's decline, or a
+   decline on an invoice someone paid, is written down and ends nothing.
+9. **The currency check** compares what the customer was shown in both modes, and the account's base currency in live
+   (gaps 8.1, 9.1); §1.6's "pay currency" is this. An amount that cannot be read exactly is kept as text, flagged, and read
+   back as what was asked. **A success with no amount or currency is no answer yet**, not a mismatch: once written down it
+   could never be read again. A currency refused reads `NOT_ACCEPTED` on the page, so it can never make an order. A
+   session's answer only names the payment; what it came to is always the payment's own answer.
+10. **A notice naming a payment already written as a success** is not asked about again, so a replayed notice with a new
+    (unsigned) `Event.Reference` makes no calls. One naming another payment on the invoice is asked about: a second
+    success (rule 3).
+11. **The limit of 60 checks a minute** is the check job's own: over it, the job comes back when the minute ends. The job
+    carries the attempt's id and nothing else.
+12. **`PaymentDto.method` is our plain name** (gap 9.2): Card, Apple Pay, STC Pay. `attempts()` for staff comes with the
+    lists (step 12).
+13. **Notices stay unhandled until something final is learned**: MyFatoorah has had its 200 and will not send one twice,
+    so a notice that found the gateway away, the attempt busy, or a payment still reading as going is tried again by the
+    hourly look, for a day.
+14. **A repeat's refusal is never a refusal**, whatever its form: a 4xx, a 401, or an answer saying no with a 200 or a 3xx.
+15. **Whatever goes wrong in asking is "we do not know"**, so the hold limit still releases the try, and so is an answer
+    that cannot be written. A check job has 300 seconds, longer than an ask of several calls; the queue connection's
+    `retry_after` must be longer still, as for the other long jobs (HANDOFF's deploy notes). A check that finds another
+    call holding the attempt comes back in 30 seconds.
+16. **`charge` and `refresh` must never run inside a transaction**: no lock is held through a call, and the claim must be
+    committed first. It is written on the contract for step 11; a code guard would trip on every test's own transaction.
+17. **Tables and DTOs beyond §5 and §2.1**: `transactions.amount_text` and `paid_twice`; `attempts.currency_refused` and
+    `transaction_id`; `PaymentStartDto.nothingCharged` and `refusedReason`.
+18. **A currency refused is readable, and said to be refused**: `refresh` reads `NOT_ACCEPTED` with no `paymentId`, and
+    `PaymentDto.accepted` is false, for staff's lists.
+19. **Unsigned notices count toward the store's 120 a minute** (§9.11 #12), and the sweep takes the oldest 60 an hour.
+    Known and kept: a flood or a backlog delays, and every attempt's own checks still run.
+20. **Still unproven on a real server**: amounts arriving as text (a number that is not whole reads as no answer, so a
+    payment would stay unknown rather than be misread), `ExternalIdentifier` in status answers, the charge's body with `Customer.Reference` and `IntegrationUrls`, and how
+    `Idempotency-Key` behaves on a retried charge in a KSA account. Both are for the staging run.
+21. **A check job has no limit on tries (`$tries = 0`), and no time limit**: a wait for the rate limit or a busy attempt would
+    use up tries, and a time limit stays in the job, so a retry from the failed jobs screen (which pushes it back as it was,
+    platform.md §5.6) would fail at once. Three failures end it (`$maxExceptions`), a timeout counting as one; the hourly look
+    mends anything lost.

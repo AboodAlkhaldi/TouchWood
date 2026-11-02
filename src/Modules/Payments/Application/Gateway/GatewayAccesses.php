@@ -7,6 +7,7 @@ namespace Modules\Payments\Application\Gateway;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
+use Modules\Payments\Domain\Model\Attempt;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Public\Enums\PaymentMode;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
@@ -36,6 +37,23 @@ final readonly class GatewayAccesses
             $this->addresses->api($store->countryCode, $mode),
             $key->id,
             $this->gateways->readKey($key->id),
+        );
+    }
+
+    /** The key the attempt was made with (rule 14), for a call of that attempt. */
+    public function of(StoreDto $store, Attempt $attempt): ?GatewayAccess
+    {
+        if (! $this->addresses->offered($store->countryCode) && $attempt->mode === PaymentMode::Live) {
+            return null;
+        }
+
+        return new GatewayAccess(
+            $store->id,
+            $attempt->mode,
+            $this->addresses->api($store->countryCode, $attempt->mode),
+            $attempt->keyId,
+            $this->gateways->readKey($attempt->keyId),
+            $attempt->id,
         );
     }
 

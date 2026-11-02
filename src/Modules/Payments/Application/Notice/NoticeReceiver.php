@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Application\Notice;
 
 use Carbon\CarbonImmutable;
+use Modules\Payments\Application\Attempt\PaymentJobs;
 use Modules\Payments\Application\Gateway\NoticeReader;
 use Modules\Payments\Domain\Repository\Gateways;
 use Modules\Payments\Domain\Repository\Notices;
@@ -14,8 +15,8 @@ use Psr\Log\LoggerInterface;
 /**
  * MyFatoorah's notice at a store's and mode's own address (payments.md §1.2, §5): machine to machine, the
  * signature its authority. Only a signed notice is kept, and a bad one only logged. Kept once however often
- * it is sent. What it sets off is the attempt's, which asks the gateway (rule 1, step 10): a notice never
- * changes anything by itself.
+ * it is sent. What it sets off is `NoticeHandling`'s, from the queue, which asks the gateway (rule 1): a notice
+ * never changes anything by itself.
  */
 final readonly class NoticeReceiver
 {
@@ -24,6 +25,7 @@ final readonly class NoticeReceiver
         private NoticeReader $reader,
         private Notices $notices,
         private LoggerInterface $logger,
+        private PaymentJobs $jobs,
     ) {}
 
     public function receive(string $storeId, string $mode, ?string $signature, string $body): NoticeOutcome
@@ -40,7 +42,11 @@ final readonly class NoticeReceiver
         }
 
         if ($reading->reference !== null) {
-            $this->notices->add($store, $paymentMode, $reading->reference, $reading->payload, CarbonImmutable::now()->toDateTimeImmutable());
+            $kept = $this->notices->add($store, $paymentMode, $reading->reference, $reading->payload, CarbonImmutable::now()->toDateTimeImmutable());
+
+            if ($kept !== null) {
+                $this->jobs->handleNotice($kept);
+            }
         }
 
         return NoticeOutcome::Accepted;

@@ -23,6 +23,11 @@ final readonly class GatewayAccess
         public ?string $attemptId = null,
     ) {}
 
+    public function forAttempt(string $attemptId): self
+    {
+        return new self($this->storeId, $this->mode, $this->apiBase, $this->keyId, $this->key, $attemptId);
+    }
+
     /**
      * @return array<string, string>
      */

@@ -49,6 +49,18 @@ return [
         'title' => 'The Key Was Refused',
         'detail' => 'MyFatoorah refused the store\'s key. Save a new key to take online payment again.',
     ],
+    'payment_in_progress' => [
+        'title' => 'A Payment Is in Progress',
+        'detail' => 'A payment is already in progress in another window.',
+    ],
+    'session_not_usable' => [
+        'title' => 'This Payment Form Has Expired',
+        'detail' => 'Open the page again to get a new payment form.',
+    ],
+    'attempt_not_found' => [
+        'title' => 'Payment Not Found',
+        'detail' => 'We could not find this payment.',
+    ],
     'fields' => [
         'store' => 'store',
         'mode' => 'test or live',
@@ -58,5 +70,6 @@ return [
         'amount' => 'amount',
         'expires_at' => 'session\'s end',
         'domain' => 'domain',
+        'return_url' => 'return address',
     ],
 ];

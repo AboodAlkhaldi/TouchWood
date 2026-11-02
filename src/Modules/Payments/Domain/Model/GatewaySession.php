@@ -22,5 +22,6 @@ final readonly class GatewaySession
         public int $amountMinor,
         public string $currencyCode,
         public DateTimeImmutable $expiresAt,
+        public ?string $usedBy = null,
     ) {}
 }

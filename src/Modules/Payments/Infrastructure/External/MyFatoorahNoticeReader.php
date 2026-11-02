@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Infrastructure\External;
 
 use JsonException;
+use Modules\Payments\Application\Gateway\NoticeFacts;
 use Modules\Payments\Application\Gateway\NoticeReader;
 use Modules\Payments\Application\Gateway\NoticeReading;
 
@@ -56,6 +57,15 @@ final class MyFatoorahNoticeReader implements NoticeReader
         }
 
         return new NoticeReading(false);
+    }
+
+    public function facts(array $payload): NoticeFacts
+    {
+        return new NoticeFacts(
+            self::path($payload, 'Data', 'Invoice', 'ExternalIdentifier') ?: null,
+            self::path($payload, 'Data', 'Invoice', 'Id') ?: null,
+            self::path($payload, 'Data', 'Transaction', 'PaymentId') ?: null,
+        );
     }
 
     /**
