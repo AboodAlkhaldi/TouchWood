@@ -350,6 +350,16 @@ return [
             'A customer asked for a return of order :order in :store. It waits under Returns.',
         ],
     ],
+    // S10, S10b, the bell alone (ops.md §1.6): no subject or lines, for they have no email. One failure may be one bad address or
+    // number, so they announce no outage and name no cause, no one and nothing of the message.
+    'security_email_failed' => [
+        'title' => 'A security email could not be sent',
+        'line' => 'If this repeats, check the email settings and the log.',
+    ],
+    'security_sms_failed' => [
+        'title' => 'A security SMS could not be sent',
+        'line' => 'If this repeats, check the SMS settings and the log.',
+    ],
 
     // Steps 5 and 6: the button that opens a message's page, and the order's items and totals in its
     // two emails (C1, C6b).

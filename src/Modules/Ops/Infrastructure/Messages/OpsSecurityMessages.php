@@ -42,7 +42,8 @@ use Throwable;
  * No bell entry. Each send leaves one `ops.sent_messages` row - the kind, the person when the call
  * names one, the store, the channel, the provider's id, sent or failed - and never the code, the link,
  * the text or the address. A provider's failure is recorded, then thrown to the caller, which sends
- * after its commit and offers "send again".
+ * after its commit and offers "send again". It also tells the Super Admins (S10, S10b:
+ * SecurityFailureAlert), naming nothing of the message.
  *
  * Branded with the store the message is about, or the store of the request, when there is one;
  * otherwise TouchWood's own sender (owner, 2026-10-28).
@@ -66,6 +67,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         private PlatformApi $platform,
         private StoreContext $stores,
         private Config $config,
+        private SecurityFailureAlert $alert,
     ) {}
 
     public function emailVerification(CustomerDto $customer, #[\SensitiveParameter] string $link): void
@@ -249,6 +251,8 @@ final readonly class OpsSecurityMessages implements SecurityMessages
             // Any failure, not only a provider's refusal: a send that broke on the way - a template, a
             // connection - is never lost silently either.
             $this->sent->record($this->row($channel, $customerId, $staffId, $store, null, SendStatus::Failed));
+
+            $this->alert->failed($channel, $store);
 
             throw $failed;
         }

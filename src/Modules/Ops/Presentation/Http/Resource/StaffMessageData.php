@@ -24,6 +24,11 @@ final class StaffMessageData extends Data
         /** The customer's name, for a message to one; empty if Access no longer knows them. */
         public ?string $customerName,
         public ?string $segmentId,
+        /** The segment's name now; null with a `segmentId` set means it was deleted since. */
+        public ?string $segmentNameAr,
+        public ?string $segmentNameEn,
+        /** How many it holds now, not how many the message reached; null as the name is. */
+        public ?int $segmentMemberCount,
         public string $titleAr,
         public string $titleEn,
         public string $bodyAr,

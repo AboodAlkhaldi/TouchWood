@@ -11,6 +11,8 @@ use Modules\Ops\Application\Command\SendStaffMessage\SendStaffMessageHandler;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessage;
 use Modules\Ops\Application\Query\FindCustomersToMessage\FindCustomersToMessageHandler;
+use Modules\Ops\Application\Query\ListSegments\ListSegments;
+use Modules\Ops\Application\Query\ListSegments\ListSegmentsHandler;
 use Modules\Ops\Application\Query\ListStaffMessages\ListStaffMessages;
 use Modules\Ops\Application\Query\ListStaffMessages\ListStaffMessagesHandler;
 use Modules\Ops\Presentation\Http\Resource\WrittenPages;
@@ -45,6 +47,14 @@ final readonly class StaffMessagesController
         $store = $choices->chosen(Inputs::text($request, 'store'), OpsPermissions::MESSAGE_SEND_ONE, OpsPermissions::MESSAGE_SEND_MANY) ?? throw new Unauthorized(OpsPermissions::MESSAGE_SEND_ONE);
 
         return new JsonResponse($this->pages->staffMessages($list->handle(new ListStaffMessages($store->id, Inputs::text($request, 'after'))))->toArray());
+    }
+
+    /** The segments the composer may pick from (§4.3): a store's, under `ops.message.send_many` there. */
+    public function segments(Request $request, StoreChoices $choices, ListSegmentsHandler $list): JsonResponse
+    {
+        $store = $choices->chosen(Inputs::text($request, 'store'), OpsPermissions::MESSAGE_SEND_MANY) ?? throw new Unauthorized(OpsPermissions::MESSAGE_SEND_MANY);
+
+        return new JsonResponse($this->pages->segments($list->handle(new ListSegments($store->id, OpsPermissions::MESSAGE_SEND_MANY, Inputs::text($request, 'after'))))->toArray());
     }
 
     public function send(Request $request, StoreChoices $choices, SendStaffMessageHandler $send): JsonResponse

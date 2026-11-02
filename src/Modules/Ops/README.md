@@ -27,6 +27,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | 8 — reports | Revenue, Product sales, Stock, Searches, Favourites: a JSON preview and an Excel file | `Application/Reports`, `Application/Query/{ViewReport,DownloadReport}`, `Infrastructure/Excel` |
 | 9 — the daily report | The PDF, every file kept twelve months, a past day, the email at the time the person chose | `Application/DailyReport`, `Application/Command/{MakeDailyReport,SetDailyReportEmail,DeliverDailyReport,SendDailyReportEmail}`, `Infrastructure/Pdf`, `Infrastructure/Files` |
 | 10 — the module pass | This file, ops.md §4's data shapes, §5, §7 and §8 brought in line with the code; then the whole-module review's fixes and the reads the screens need (owner, 2026-11-01): the stop-email pages of an off store, 00:00 refused, the SMS countries' routes, a staff message to a segment, S5, C4's Track, a retried daily email, the staff messages list and each form's choices | here |
+| After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
 
 ## What is here
 
@@ -87,11 +88,14 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 
 - **To customers:** bell and email, in their language, on the queue, consent not asked; an anonymized account
   gets nothing, a switched-off store still sends. C18 is the exception: no bell, codes by SMS and links by email,
-  sent at once.
+  sent at once. One that fails tells the Super Admins, below.
 - **To staff:** one read, `AccessApi::staffToAlert`, gives every active holder of the topic's permission in the
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,
   checked again when it leaves. `AlertStaff` calls it on `GatewayKeyExpiring` and `GatewayKeyRejected`.
+- **S10, S10b:** a security email or SMS that fails puts one bell entry in each active Super Admin's inbox, at most once a clock
+  hour per channel, and no switch can stop it (`SecurityFailureAlert`). The bell alone. Written directly, after any transaction the
+  caller has open; it waits 250 ms at most on another's claim; a failure here is reported and goes no further.
 - **Each email and SMS** has its `ops.sent_messages` row written QUEUED, and its job, with the listener's work; the job calls
   the provider outside any transaction and marks it SENT, or FAILED after the last attempt. At least once: a
   provider that took a message just before its row was marked may get it again.
@@ -109,7 +113,7 @@ A notice waits (`SCHEDULED`) or sends at once; `StartDueNoticesJob` starts the d
 changed or cancelled only while it waits, the row locked, so a change and the minute never both win. A staff
 message always sends at once and is never recalled; to one customer, in their home store alone, so the entry lands
 in a bell they see. A notice or a message to many goes to every customer of the store or the members of one of its
-segments. Both send through `BroadcastSender`, one transaction per
+segments, which each form lists under its own permission (`ListSegments`); what was written shows the segment's name now, null once deleted. Both send through `BroadcastSender`, one transaction per
 batch with its cursor on the row, so a batch run twice sends nothing twice; a batch that fails its last attempt
 shows `FAILED`, and retrying it from the failed jobs carries on. Each email has its `ops.sent_messages` row and its job
 written with its batch, in one transaction, and calls the provider outside any transaction, as an event's does. Bell entries reach everyone in the audience;
@@ -171,8 +175,7 @@ Each checked against the code on 2026-11-01.
 | "Transfers overdue" in the daily report | The cell prints "Waits for Payments (stage 7)" (`views/daily-report.blade.php`); `SalesReports::transfersWaiting` gives orders and owed only | Stage 7 |
 | S8 Campaign expiry | The kind and its words exist; no writer's branch, no listener | Content: `src/Modules/Content` holds only empty folders |
 | A notice sent when a campaign goes live (§1.7) | Not built | Content |
-| A segment's name, and the list a form picks one from | `PromotionsApi` gives only `segmentMembers`, and Ops may call only `Public` | Promotions: a read of a store's segments (ops.md §4.13) |
-| A notice's audience size | No public read counts a store's customers or a segment's members | Access, Promotions (ops.md §4.13) |
+| A whole store's audience size | No public read counts a store's customers; a segment's is `segmentMemberCount` | Access (ops.md §4.13) |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, and production refuses to boot on either `log` driver; `OPS_EMAIL_DRIVER`, `OPS_NEWSLETTER_DRIVER`, `BREVO_API_KEY`, `BREVO_NEWSLETTER_FOLDER_ID`, `BREVO_WEBHOOK_SECRET` are the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header | The owner, at hosting |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
@@ -181,10 +184,10 @@ Each checked against the code on 2026-11-01.
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `MessageKindsTest`, `SecurityMessagesTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
-`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `ScreensReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
+`DailyReportRoutesTest`, `StopEmailPagesTest`, `SmsCountryRoutesTest`, `ScreensReadsTest`, `SegmentReadsTest`. The consent itself is Access's: `tests/Modules/Access/Integration/MarketingConsentTest`,
 `tests/Modules/Access/Feature/CustomerAccountPageTest`. ops.md §8 maps each scenario to its test and says what no
 test covers.
