@@ -956,7 +956,7 @@ reads the screens needed were added; what stays is what the code cannot give yet
 Inputs: `country_code` (ISO, two letters), `calling_code` (digits, as typed), `provider` (one of `providers`); `{country}`
 is the ISO code. `SmsCountriesData` is `{countries: SmsCountryData[], providers: string[]}`, the whole list after the
 change, sorted by name as the page's language sorts; `SmsCountryData` is `{countryCode, name, callingCode, provider}`, the
-name in the page's language. Every change is audited (`ops.sms_country.*`). No screen yet.
+name in the page's language. Every change is audited (`ops.sms_country.*`). The page is §4.15 O10: a plain visit gets it, and the JSON stays for whoever asks; a form the page sends (`X-Inertia`) goes back with its words, any other POST answers as above.
 
 Refusals: `ops.sms_country_not_found` 404, a country not listed. `ops.sms_country_taken` 409, `ops.calling_code_taken` 409,
 `ops.calling_code_overlaps` 409. 422 keys: `country_code`, `calling_code`, `provider`.

@@ -6,7 +6,6 @@ declare(strict_types=1);
 return [
     'title' => 'SMS Countries',
     'subtitle' => 'Which countries\' phones can get SMS codes, and who sends them.',
-    'log_label' => 'Log Provider',
     'log_note' => 'Log writes codes to the server\'s log and sends nothing. A live system refuses it.',
     'log' => 'Log',
     'add' => 'Add Country',

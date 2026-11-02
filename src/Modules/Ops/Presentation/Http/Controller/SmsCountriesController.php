@@ -64,26 +64,30 @@ final readonly class SmsCountriesController
 
     public function store(Request $request, AddSmsCountryHandler $add, ListSmsCountriesHandler $list): JsonResponse|RedirectResponse
     {
-        return self::answer($request, $list, static fn () => $add->handle(new AddSmsCountry(Inputs::string($request, 'country_code'), Inputs::string($request, 'calling_code'), Inputs::string($request, 'provider'))), 'added', 201);
+        return self::answer($request, $list, static fn () => $add->handle(new AddSmsCountry(Inputs::string($request, 'country_code'), Inputs::string($request, 'calling_code'), Inputs::string($request, 'provider'))), 'added', ['country_code', 'calling_code', 'provider'], 201);
     }
 
     public function provider(Request $request, string $country, ChangeSmsCountryProviderHandler $change, ListSmsCountriesHandler $list): JsonResponse|RedirectResponse
     {
-        return self::answer($request, $list, static fn () => $change->handle(new ChangeSmsCountryProvider($country, Inputs::string($request, 'provider'))), 'provider_changed');
+        return self::answer($request, $list, static fn () => $change->handle(new ChangeSmsCountryProvider($country, Inputs::string($request, 'provider'))), 'provider_changed', ['provider']);
     }
 
     public function callingCode(Request $request, string $country, ChangeSmsCountryCallingCodeHandler $change, ListSmsCountriesHandler $list): JsonResponse|RedirectResponse
     {
-        return self::answer($request, $list, static fn () => $change->handle(new ChangeSmsCountryCallingCode($country, Inputs::string($request, 'calling_code'))), 'calling_code_changed');
+        return self::answer($request, $list, static fn () => $change->handle(new ChangeSmsCountryCallingCode($country, Inputs::string($request, 'calling_code'))), 'calling_code_changed', ['calling_code']);
     }
 
     public function remove(Request $request, string $country, RemoveSmsCountryHandler $remove, ListSmsCountriesHandler $list): JsonResponse|RedirectResponse
     {
-        return self::answer($request, $list, static fn () => $remove->handle(new RemoveSmsCountry($country)), 'removed');
+        return self::answer($request, $list, static fn () => $remove->handle(new RemoveSmsCountry($country)), 'removed', []);
     }
 
-    /** A change: back to the page with its words when the page sent it, otherwise the whole list. */
-    private static function answer(Request $request, ListSmsCountriesHandler $list, Closure $change, string $toast, int $status = 200): JsonResponse|RedirectResponse
+    /**
+     * A change: back to the page with its words when the page sent it, otherwise the whole list.
+     *
+     * @param  list<string>  $boxes  what this dialog can show a refusal under; any other goes in the form's error
+     */
+    private static function answer(Request $request, ListSmsCountriesHandler $list, Closure $change, string $toast, array $boxes, int $status = 200): JsonResponse|RedirectResponse
     {
         if (! Answers::fromPage($request)) {
             $change();
@@ -101,9 +105,9 @@ final readonly class SmsCountriesController
                 default => null,
             };
 
-            return $field === null
-                ? FormErrors::back($request, $error)
-                : back()->withErrors([$field => FormErrors::message($error)]);
+            return in_array($field, $boxes, true)
+                ? back()->withErrors([$field => FormErrors::message($error)])
+                : FormErrors::back($request, $error);
         }
 
         return back()->with('status', __("ops::admin_sms.toast.{$toast}"));

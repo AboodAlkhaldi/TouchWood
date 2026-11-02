@@ -42,16 +42,24 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
         expect(signedInToPanel($page))->toBeTrue();
         $page->navigate('/admin/sms-countries');
         $page->assertVisible('[data-test="log-note"]')->assertVisible('[data-test="country-SA"]')->assertSee('SMS Countries')->assertNoJavaScriptErrors();
+        $page->assertSeeIn('[data-test="log-note"]', 'Log writes codes to the server');
 
-        // Add Country: a calling code that isn't one is said as it is typed.
+        // Add Country: a listed country is out of reach; a calling code that isn't one holds the button back, and
+        // Arabic digits become Latin as they are typed.
         $page->click('[data-test="add-country"]');
         expect(browserSoon($page, "document.querySelector('#calling-code') !== null"))->toBeTrue();
+        $page->assertSeeIn('[data-test="calling-code-plus"]', '+');
         $page->click('#country');
         expect(browserSoon($page, "document.querySelector('[cmdk-input]') !== null"))->toBeTrue();
-        $page->type('[cmdk-input]', 'United Arab');
-        expect(browserSoon($page, "document.querySelector('[cmdk-item]') !== null"))->toBeTrue();
+        $page->type('[cmdk-input]', 'Saudi');
+        expect(browserSoon($page, "document.querySelector('[cmdk-item]')?.getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+        $page->clear('[cmdk-input]')->type('[cmdk-input]', 'United Arab');
+        expect(browserSoon($page, "document.querySelector('[cmdk-item]') !== null && document.querySelector('[cmdk-item]').getAttribute('aria-disabled') !== 'true'"))->toBeTrue();
         $page->click('[cmdk-item]');
-        $page->type('#calling-code', '971');
+        $page->type('#calling-code', '0');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-add-country\"]').getAttribute('aria-disabled') === 'true'"))->toBeTrue();
+        $page->clear('#calling-code')->type('#calling-code', '٩٧١');
+        expect(browserSoon($page, "document.querySelector('#calling-code').value === '971'"))->toBeTrue();
         $page->click('[data-test="confirm-add-country"]');
 
         expect(browserSoon($page, "document.querySelector('[data-test=\"country-AE\"]') !== null"))->toBeTrue()
@@ -78,7 +86,24 @@ it('adds a country, changes its calling code, removes it, and fits a phone', fun
         expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
         $page->resize(1280, 800);
 
-        // Remove says who it affects, then removes.
+        // Change Provider saves through its dialog.
+        $page->click('[data-test="more-AE"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"change-provider\"]') !== null"))->toBeTrue();
+        $page->click('[data-test="change-provider"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-provider\"]') !== null"))->toBeTrue();
+        $page->click('[data-test="confirm-provider"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-provider\"]') === null"))->toBeTrue();
+
+        // Remove says who it affects, and Keep keeps it.
+        $page->click('[data-test="more-AE"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"remove-country\"]') !== null"))->toBeTrue();
+        $page->click('[data-test="remove-country"]');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove-country\"]') !== null"))->toBeTrue();
+        $page->assertSee('Customers with one can\'t order until they change it.');
+        $page->click('Keep');
+        expect(browserSoon($page, "document.querySelector('[data-test=\"confirm-remove-country\"]') === null"))->toBeTrue()
+            ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->exists())->toBeTrue();
+
         $page->click('[data-test="more-AE"]');
         expect(browserSoon($page, "document.querySelector('[data-test=\"remove-country\"]') !== null"))->toBeTrue();
         $page->click('[data-test="remove-country"]');

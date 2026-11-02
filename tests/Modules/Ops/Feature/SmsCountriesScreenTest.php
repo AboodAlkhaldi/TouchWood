@@ -95,16 +95,22 @@ it('offers the same countries as Platform, in the page language', function () {
 it('adds, changes and removes from the page, going back with its words', function () {
     $browser = smsScreenStaff(Fx::staff(superAdmin: true));
 
-    $browser->post('/admin/sms-countries', ['country_code' => 'AE', 'calling_code' => '971', 'provider' => 'log'], smsScreenInertia())->assertRedirect('/admin/sms-countries');
-    expect(DB::table('ops.sms_countries')->where('country_code', 'AE')->value('calling_code'))->toBe('971');
+    $toast = static fn (TestResponse $response): mixed => AdminBrowser::flashed($response->assertRedirect('/admin/sms-countries'), 'status');
 
-    $browser->post('/admin/sms-countries/AE/calling-code', ['calling_code' => '972'], smsScreenInertia())->assertRedirect('/admin/sms-countries');
-    expect(DB::table('ops.sms_countries')->where('country_code', 'AE')->value('calling_code'))->toBe('972');
+    expect($toast($browser->post('/admin/sms-countries', ['country_code' => 'AE', 'calling_code' => '971', 'provider' => 'log'], smsScreenInertia())))->toBe('Country added')
+        ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->value('calling_code'))->toBe('971')
+        ->and($toast($browser->post('/admin/sms-countries/AE/calling-code', ['calling_code' => '972'], smsScreenInertia())))->toBe('Calling code changed')
+        ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->value('calling_code'))->toBe('972')
+        ->and($toast($browser->post('/admin/sms-countries/AE/provider', ['provider' => 'log'], smsScreenInertia())))->toBe('Provider changed')
+        ->and($toast($browser->post('/admin/sms-countries/AE/remove', [], smsScreenInertia())))->toBe('Country removed')
+        ->and(DB::table('ops.sms_countries')->where('country_code', 'AE')->exists())->toBeFalse();
+});
 
-    $browser->post('/admin/sms-countries/AE/provider', ['provider' => 'log'], smsScreenInertia())->assertRedirect('/admin/sms-countries');
+it('puts a value no box of that dialog shows in the form, so it is never lost', function () {
+    $browser = smsScreenStaff(Fx::staff(superAdmin: true));
 
-    $browser->post('/admin/sms-countries/AE/remove', [], smsScreenInertia())->assertRedirect('/admin/sms-countries');
-    expect(DB::table('ops.sms_countries')->where('country_code', 'AE')->exists())->toBeFalse();
+    expect(smsScreenErrors($browser->post('/admin/sms-countries/X1/remove', [], smsScreenInertia())))->toHaveKey('form')
+        ->and(smsScreenErrors($browser->post('/admin/sms-countries/SA/provider', ['provider' => 'none'], smsScreenInertia())))->toHaveKey('provider');
 });
 
 it('puts each refusal on its box, in words, and changes nothing', function () {

@@ -3,7 +3,7 @@ import { router, useForm } from '@inertiajs/react';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ActionButton } from '@/components/ActionButton';
 import { CountryCombobox } from '@/components/CountryCombobox';
-import { SelectField, TextField } from '@/components/Fields';
+import { checked, describedBy, Messages, SelectField } from '@/components/Fields';
 import { FormError } from '@/components/FormError';
 import { Note } from '@/components/Note';
 import { PanelDialog } from '@/components/PanelDialog';
@@ -11,6 +11,8 @@ import { MoreButton } from '@/components/RowMenu';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { NativeSelectOption } from '@/components/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toLatinDigits } from '@/lib/digits';
@@ -25,7 +27,6 @@ import type { SmsCountriesPageData, SmsCountryData } from '@/types/generated/Mod
 */
 
 const LIST = '/admin/sms-countries';
-const W = 'ops::admin_sms';
 /** The server's rule (SmsCountry::callingCodeOf), said as it is typed. */
 const CALLING_CODE = /^[1-9][0-9]{0,2}$/;
 
@@ -38,37 +39,37 @@ export default function SmsCountries({ countries, providers, options }: SmsCount
     const close = (open: boolean) => (open ? undefined : setDialog(null));
     const addButton = (test: string) => (
         <Button type="button" onClick={() => setDialog({ action: 'add' })} data-test={test}>
-            {`${t(`${W}.add`)}…`}
+            {`${t('ops::admin_sms.add')}…`}
         </Button>
     );
-    const providerName = (provider: string) => (provider === 'log' ? t(`${W}.log`) : provider);
+    const providerName = (provider: string) => (provider === 'log' ? t('ops::admin_sms.log') : provider);
 
     return (
-        <AdminLayout title={t(`${W}.title`)} subtitle={t(`${W}.subtitle`)} action={addButton('add-country')}>
+        <AdminLayout title={t('ops::admin_sms.title')} subtitle={t('ops::admin_sms.subtitle')} action={addButton('add-country')}>
             <div className="grid gap-4">
                 <FormError />
-                <Note variant="secondary" label={t(`${W}.log_label`)} data-test="log-note">
-                    {t(`${W}.log_note`)}
+                <Note variant="secondary" data-test="log-note">
+                    {t('ops::admin_sms.log_note')}
                 </Note>
 
                 {countries.length === 0 ? (
                     <Empty className="material-base" data-test="countries-empty">
                         <EmptyHeader>
-                            <EmptyTitle className="text-heading-16 text-ink">{t(`${W}.empty_title`)}</EmptyTitle>
-                            <EmptyDescription className="text-copy-14 text-ink-muted">{t(`${W}.empty_body`)}</EmptyDescription>
+                            <EmptyTitle className="text-heading-16 text-ink">{t('ops::admin_sms.empty_title')}</EmptyTitle>
+                            <EmptyDescription className="text-copy-14 text-ink-muted">{t('ops::admin_sms.empty_body')}</EmptyDescription>
                         </EmptyHeader>
                         <EmptyContent>{addButton('empty-add-country')}</EmptyContent>
                     </Empty>
                 ) : (
                     <div className="material-base max-w-full overflow-x-auto">
                         <Table>
-                            <TableCaption className="sr-only">{t(`${W}.title`)}</TableCaption>
+                            <TableCaption className="sr-only">{t('ops::admin_sms.title')}</TableCaption>
                             <TableHeader className="bg-surface-sunken">
                                 <TableRow>
-                                    <TableHead>{t(`${W}.columns.country`)}</TableHead>
-                                    <TableHead>{t(`${W}.columns.code`)}</TableHead>
-                                    <TableHead>{t(`${W}.columns.calling_code`)}</TableHead>
-                                    <TableHead>{t(`${W}.columns.provider`)}</TableHead>
+                                    <TableHead>{t('ops::admin_sms.columns.country')}</TableHead>
+                                    <TableHead>{t('ops::admin_sms.columns.code')}</TableHead>
+                                    <TableHead>{t('ops::admin_sms.columns.calling_code')}</TableHead>
+                                    <TableHead>{t('ops::admin_sms.columns.provider')}</TableHead>
                                     <TableHead className="w-10" />
                                 </TableRow>
                             </TableHeader>
@@ -118,10 +119,10 @@ function RowActions({ country, onChoose }: { country: SmsCountryData; onChoose: 
                 <MoreButton ref={more} name={country.name} data-test={`more-${country.countryCode}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-52">
-                <DropdownMenuItem onSelect={() => onChoose('provider', more.current)} data-test="change-provider">{`${t(`${W}.menu.provider`)}…`}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onChoose('calling_code', more.current)} data-test="change-calling-code">{`${t(`${W}.menu.calling_code`)}…`}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onChoose('provider', more.current)} data-test="change-provider">{`${t('ops::admin_sms.menu.provider')}…`}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onChoose('calling_code', more.current)} data-test="change-calling-code">{`${t('ops::admin_sms.menu.calling_code')}…`}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={() => onChoose('remove', more.current)} data-test="remove-country">{`${t(`${W}.menu.remove`)}…`}</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onSelect={() => onChoose('remove', more.current)} data-test="remove-country">{`${t('ops::admin_sms.menu.remove')}…`}</DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     );
@@ -130,19 +131,36 @@ function RowActions({ country, onChoose }: { country: SmsCountryData; onChoose: 
 function CallingCodeBox({ value, onChange, check }: { value: string; onChange: (value: string) => void; check: ReturnType<ReturnType<typeof useChecks>['box']> }) {
     const t = useTranslator();
 
+    const helper = t('ops::admin_sms.fields.calling_code_rule');
+
     return (
-        <TextField
-            id="calling-code"
-            dir="ltr"
-            inputMode="numeric"
-            inputClassName="tw-figure"
-            label={`${t(`${W}.fields.calling_code`)} (+)`}
-            helper={t(`${W}.fields.calling_code_rule`)}
-            value={value}
-            check={check}
-            onChange={(event) => onChange(toLatinDigits(event.target.value))}
-            data-test="calling-code-box"
-        />
+        <Field>
+            <FieldLabel htmlFor="calling-code">{t('ops::admin_sms.fields.calling_code')}</FieldLabel>
+            {/* Left to right on an Arabic page too: a phone number's + comes first. */}
+            <InputGroup dir="ltr">
+                <InputGroupAddon>
+                    <span className="tw-figure" data-test="calling-code-plus">
+                        +
+                    </span>
+                </InputGroupAddon>
+                <InputGroupInput
+                    {...checked<HTMLInputElement>(check, {})}
+                    id="calling-code"
+                    dir="ltr"
+                    inputMode="numeric"
+                    className="tw-figure"
+                    aria-invalid={check.message ? true : undefined}
+                    aria-describedby={describedBy('calling-code', helper, check.message)}
+                    value={value}
+                    onChange={(event) => {
+                        onChange(toLatinDigits(event.target.value));
+                        check.onType();
+                    }}
+                    data-test="calling-code-box"
+                />
+            </InputGroup>
+            <Messages id="calling-code" helper={helper} error={check.message} check={check} />
+        </Field>
     );
 }
 
@@ -159,9 +177,9 @@ function AddDialog({
     const checks = useChecks([
         {
             id: 'calling-code',
-            label: t(`${W}.fields.calling_code`),
+            label: t('ops::admin_sms.fields.calling_code'),
             value: form.data.calling_code,
-            rules: { required: true, own: (text) => (CALLING_CODE.test(text) ? null : t(`${W}.fields.calling_code_rule`)) },
+            rules: { required: true, own: (text) => (CALLING_CODE.test(text) ? null : 'ops::admin_sms.fields.calling_code_rule') },
         },
     ]);
     const countryMissing = form.data.country_code === '';
@@ -170,32 +188,32 @@ function AddDialog({
         <PanelDialog
             open
             onOpenChange={onOpenChange}
-            title={t(`${W}.add`)}
-            description={t(`${W}.add_body`)}
+            title={t('ops::admin_sms.add')}
+            description={t('ops::admin_sms.add_body')}
             busy={form.processing}
             confirm={
                 <ActionButton
                     loading={form.processing}
-                    disabledReason={checks.reason ?? (countryMissing ? t(`${W}.fields.country_rule`) : undefined)}
+                    disabledReason={checks.reason ?? (countryMissing ? t('ops::admin_sms.fields.country_rule') : undefined)}
                     onClick={() => checks.submit(() => form.post(LIST, { preserveScroll: true, onSuccess: () => onOpenChange(false) }))}
                     data-test="confirm-add-country"
                 >
-                    {t(`${W}.add`)}
+                    {t('ops::admin_sms.add')}
                 </ActionButton>
             }
         >
             <div className="grid gap-4">
                 <CountryCombobox
                     id="country"
-                    label={t(`${W}.fields.country`)}
-                    countries={options.map((option) => ({ code: option.code, name: option.name, ours: false, reason: listed.has(option.code) ? t(`${W}.fields.listed`) : undefined }))}
+                    label={t('ops::admin_sms.fields.country')}
+                    countries={options.map((option) => ({ code: option.code, name: option.name, ours: false, reason: listed.has(option.code) ? t('ops::admin_sms.fields.listed') : undefined }))}
                     value={form.data.country_code}
                     onChange={(code) => form.setData('country_code', code)}
                     error={form.errors.country_code}
-                    words={{ search: t(`${W}.fields.search`), none: (query) => t(`${W}.fields.none`, { query }) }}
+                    words={{ search: t('ops::admin_sms.fields.search'), none: (query) => t('ops::admin_sms.fields.none', { query }) }}
                 />
                 <CallingCodeBox value={form.data.calling_code} onChange={(value) => form.setData('calling_code', value)} check={checks.box('calling-code', form.errors.calling_code)} />
-                <SelectField id="provider" label={t(`${W}.fields.provider`)} error={form.errors.provider} value={form.data.provider} onChange={(event) => form.setData('provider', event.target.value)} data-test="provider-box">
+                <SelectField id="provider" label={t('ops::admin_sms.fields.provider')} error={form.errors.provider} value={form.data.provider} onChange={(event) => form.setData('provider', event.target.value)} data-test="provider-box">
                     {providers.map((provider) => (
                         <NativeSelectOption key={provider} value={provider}>
                             {providerName(provider)}
@@ -228,16 +246,16 @@ function ProviderDialog({
             open
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
-            title={t(`${W}.provider_title`, { country: country.name })}
-            description={t(`${W}.provider_body`)}
+            title={t('ops::admin_sms.provider_title', { country: country.name })}
+            description={t('ops::admin_sms.provider_body')}
             busy={form.processing}
             confirm={
                 <ActionButton loading={form.processing} onClick={() => form.post(`${LIST}/${country.countryCode}/provider`, { preserveScroll: true, onSuccess: () => onOpenChange(false) })} data-test="confirm-provider">
-                    {t(`${W}.save`)}
+                    {t('ops::admin_sms.save')}
                 </ActionButton>
             }
         >
-            <SelectField id="provider" label={t(`${W}.fields.provider`)} error={form.errors.provider} value={form.data.provider} onChange={(event) => form.setData('provider', event.target.value)} data-test="provider-box">
+            <SelectField id="provider" label={t('ops::admin_sms.fields.provider')} error={form.errors.provider} value={form.data.provider} onChange={(event) => form.setData('provider', event.target.value)} data-test="provider-box">
                 {providers.map((provider) => (
                     <NativeSelectOption key={provider} value={provider}>
                         {providerName(provider)}
@@ -254,9 +272,9 @@ function CallingCodeDialog({ country, onOpenChange, returnFocusTo }: { country: 
     const checks = useChecks([
         {
             id: 'calling-code',
-            label: t(`${W}.fields.calling_code`),
+            label: t('ops::admin_sms.fields.calling_code'),
             value: form.data.calling_code,
-            rules: { required: true, own: (text) => (CALLING_CODE.test(text) ? null : t(`${W}.fields.calling_code_rule`)) },
+            rules: { required: true, own: (text) => (CALLING_CODE.test(text) ? null : 'ops::admin_sms.fields.calling_code_rule') },
         },
     ]);
 
@@ -265,8 +283,8 @@ function CallingCodeDialog({ country, onOpenChange, returnFocusTo }: { country: 
             open
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
-            title={t(`${W}.calling_code_title`, { country: country.name })}
-            description={t(`${W}.calling_code_body`)}
+            title={t('ops::admin_sms.calling_code_title', { country: country.name })}
+            description={t('ops::admin_sms.calling_code_body')}
             busy={form.processing}
             confirm={
                 <ActionButton
@@ -275,7 +293,7 @@ function CallingCodeDialog({ country, onOpenChange, returnFocusTo }: { country: 
                     onClick={() => checks.submit(() => form.post(`${LIST}/${country.countryCode}/calling-code`, { preserveScroll: true, onSuccess: () => onOpenChange(false) }))}
                     data-test="confirm-calling-code"
                 >
-                    {t(`${W}.save`)}
+                    {t('ops::admin_sms.save')}
                 </ActionButton>
             }
         >
@@ -294,10 +312,10 @@ function RemoveDialog({ country, onOpenChange, returnFocusTo }: { country: SmsCo
             open
             onOpenChange={onOpenChange}
             returnFocusTo={returnFocusTo}
-            title={t(`${W}.remove.title`, { country: country.name })}
-            description={t(`${W}.remove.body`)}
+            title={t('ops::admin_sms.remove.title', { country: country.name })}
+            description={t('ops::admin_sms.remove.body')}
             busy={busy}
-            cancelLabel={t(`${W}.remove.keep`)}
+            cancelLabel={t('ops::admin_sms.remove.keep')}
             confirm={
                 <ActionButton
                     variant="destructive"
@@ -305,7 +323,7 @@ function RemoveDialog({ country, onOpenChange, returnFocusTo }: { country: SmsCo
                     onClick={() => router.post(`${LIST}/${country.countryCode}/remove`, {}, { preserveScroll: true, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: () => onOpenChange(false) })}
                     data-test="confirm-remove-country"
                 >
-                    {t(`${W}.remove.confirm`)}
+                    {t('ops::admin_sms.remove.confirm')}
                 </ActionButton>
             }
         >
