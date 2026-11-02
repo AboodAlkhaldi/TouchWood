@@ -98,8 +98,10 @@ use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
+use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Public\Events\OrderApproved;
 use Modules\Sales\Public\Events\OrderCameBack;
@@ -202,6 +204,11 @@ final class OpsServiceProvider extends ServiceProvider
         $this->loadViewsFrom(dirname(__DIR__).'/Presentation/views', 'ops');
 
         $this->app->make(PermissionCatalog::class)->declare('ops', ...OpsPermissions::definitions());
+
+        // Each entry lands with its page (ops.md §4.15, the menu).
+        $this->app->make(AdminMenu::class)->register(
+            new MenuEntryDto('ops', 'sms_countries', 'store_settings', 'ops.admin.sms-countries', OpsPermissions::SMS_COUNTRIES_MANAGE, 26, icon: 'sms'),
+        );
 
         // The unsubscribe links' POST is also a mail client's one-click unsubscribe (RFC 8058), which
         // carries no CSRF token: the URL's signature is its authority (`signed:relative` on the route).

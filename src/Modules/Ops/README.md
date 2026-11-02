@@ -159,7 +159,7 @@ starting with Saudi Arabia 966 and Egypt 20 on `log`. `ListedPhoneCountries` rea
 calling code, for Access and for Ops' own SMS; a phone of an unlisted country is refused and no code goes to it.
 A calling code overlapping another listed one is refused. Reserved to Super Admins (`ops.sms_countries.manage`),
 audited (`ops.sms_country.*`). `log` is the only provider built, and it is refused on a live system when an SMS
-would go through it. Its routes are `ops.admin.sms-countries*` (ops.md §4.1); no screen yet.
+would go through it. Its routes are `ops.admin.sms-countries*` (ops.md §4.1), its page `Ops/Admin/SmsCountries` (§4.15 O10).
 
 ## Waiting
 
@@ -179,7 +179,7 @@ Each checked against the code on 2026-11-01.
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, and production refuses to boot on either `log` driver; `OPS_EMAIL_DRIVER`, `OPS_NEWSLETTER_DRIVER`, `BREVO_API_KEY`, `BREVO_NEWSLETTER_FOLDER_ID`, `BREVO_WEBHOOK_SECRET` are the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header | The owner, at hosting |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| Every screen | No page, menu entry or Home card exists (ops.md §4.13) | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries is in; the rest have no page or menu entry yet | The screens agent |
 
 ## Tests
 
