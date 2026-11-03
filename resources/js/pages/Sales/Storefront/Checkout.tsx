@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Suspense, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, router } from '@inertiajs/react';
 import { ActionButton } from '@/components/ActionButton';
 import { TextField } from '@/components/Fields';
@@ -6,6 +6,7 @@ import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
 import { Note } from '@/components/Note';
 import { CopyButton } from '@/components/geist-only/CopyButton';
+import { ClosedStore, PaymentBlock, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { plural, useLocale } from '@/components/sales/shop';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,9 +36,6 @@ import type { MoneyData } from '@/types/generated/Modules/Platform/Public/Dto';
 
 const W = 'sales::shop_checkout';
 const P = 'sales::shop_payment';
-const PaymentBlock = lazy(() => import('@/components/sales/payment/PaymentBlock'));
-const PaymentInTheWay = lazy(() => import('@/components/sales/payment/PaymentInTheWay'));
-const ClosedStore = lazy(() => import('@/components/sales/payment/ClosedStore'));
 
 type Online = { ready: boolean; locked: boolean; failed: boolean };
 

@@ -335,6 +335,28 @@ it('says when the form can\'t load, and Try Again brings it', function () {
     expect(browserUntil($page, "!!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue();
 });
 
+it('keeps checkout working when the payment code can\'t load, saying so in the card', function () {
+    [, $page] = salesPaymentReady();
+    // The real thing: a version published while the page was open leaves the old file gone.
+    $file = glob(public_path('build/assets/PaymentBlock-*.js'))[0] ?? null;
+    expect($file)->not->toBeNull();
+    rename((string) $file, $file.'.away');
+
+    try {
+        $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
+
+        expect(salesPaymentSoon($page, "!!document.querySelector('[data-test=\"payment-unavailable\"]')"))->toBeTrue()
+            ->and((bool) $page->script("!!document.querySelector('[data-test=\"checkout-summary\"]') && !!document.querySelector('[data-test=\"checkout-address\"]')"))->toBeTrue()
+            ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true');
+    } finally {
+        rename($file.'.away', (string) $file);
+    }
+
+    // Staff contact still works from the same page.
+    $page->click('[data-test="way-STAFF_CONTACT"]');
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"place-order\"]')"))->toBeTrue();
+});
+
 it('shows a store closed behind the cart\'s note its one page too', function () {
     [$fake, $page] = salesPaymentReady();
     salesPaymentPay($page);

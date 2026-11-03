@@ -1387,7 +1387,8 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 9. **Words the spec doesn't give**: not completed ("The payment was not completed. If your bank took the money, our team will contact you to return it."), a currency refused or a refund due ("We couldn't accept this payment. Our team will contact you to return the money."), and the same "not completed" on the closed page rather than "No money was taken" unless that is known.
 10. **Two of the spec's sentences lose "please"**, which our writing rules ban on every screen: "…your order appears in My Orders. Don't pay again." and "The payment could not start. Try again."
 11. **Plain reasons for a decline**: MF001, MF004, MF007 and MF010 have their own words; every other code reads "Your bank declined this payment." (Q6).
-12. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.
+12. **If the payment code can't load, the page says so where it belongs** (owner, 2026-11-03: add it). The card shows the form's own failure with Try Again, which reloads the page, and Pay stays out of reach. The note and the closed page have plain versions too. Staff contact still works.
+13. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.
 
 ### 9.13 The build's own picks (step 10, 2026-11-01 — simple, taken as recommended under the owner's rule)
 

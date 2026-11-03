@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Minus, Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/ActionButton';
@@ -7,6 +7,7 @@ import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
 import { type CardFacts, ProductCards, useCardFacts } from '@/components/shop/ProductCards';
 import { ShopPhoto, type PhotoSizes } from '@/components/shop/ShopPhoto';
+import { ClosedStore, PaymentInTheWay } from '@/components/sales/payment/lazy';
 import { C, plural, Price, useLocale } from '@/components/sales/shop';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -33,9 +34,6 @@ import type { SharedProps } from '@/types/page';
 | and the points to earn (R1-14); the shipping in the summary (R2-12); what the account still needs, with its
 | link (R1-17) - each from §4.2 B12, B14.
 */
-
-const PaymentInTheWay = lazy(() => import('@/components/sales/payment/PaymentInTheWay'));
-const ClosedStore = lazy(() => import('@/components/sales/payment/ClosedStore'));
 
 export default function Cart(cart: CartPage) {
     const t = useTranslator();
