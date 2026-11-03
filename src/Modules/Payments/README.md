@@ -137,3 +137,5 @@ No test calls MyFatoorah: `Support/FakeMyFatoorah` stands in.
    code can show which keys exist). The live addresses are `api-sa.myfatoorah.com` and `sa.myfatoorah.com`.
 4. Trusted proxies, so a recorded IP is the visitor's, not the proxy's (HANDOFF §15.4, "Decided when hosting is chosen").
    No trusted-proxy setting is in `bootstrap`, `app`, `config` or `src` today.
+5. MyFatoorah's Apple Pay file in `public/.well-known/`, committed when they send it (payments.md §9.9 #6). It isn't there
+   yet, and Apple Pay stays off until it is and the domain is registered.
