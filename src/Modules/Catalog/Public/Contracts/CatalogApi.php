@@ -171,6 +171,17 @@ interface CatalogApi
     public function productsSoldIn(StoreId $store, array $productIds): array;
 
     /**
+     * **Which of these products this viewer can order in the store right now** (amendment 39), as the shop's
+     * lists have it: on sale, with a size in stock and priced, shown to them. For a wishlist's "Not available
+     * now"; `productsSoldIn`, which ignores stock and price, still decides saving, asking and reviewing. In
+     * one query; lower-case ids in no particular order.
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public function productsOrderableNow(StoreId $store, ShopperKind $viewer, array $productIds): array;
+
+    /**
      * For Feedback's pages — a wishlist, "My reviews", the staff queues (amendment 26(a)): **these
      * products as cards, whatever became of them**, in two reads however many: each one's name in the
      * language (the other one where it has none in it), its current address in it where it has one,

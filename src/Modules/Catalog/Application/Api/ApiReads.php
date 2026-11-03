@@ -79,6 +79,12 @@ interface ApiReads
     public function productsSoldIn(string $storeId, array $productIds): array;
 
     /**
+     * @param  list<string>  $productIds
+     * @return list<string> those this viewer can order there now (amendment 39)
+     */
+    public function productsOrderableNow(string $storeId, ShopperKind $viewer, array $productIds): array;
+
+    /**
      * @param  'ar'|'en'  $locale
      * @param  list<string>  $productIds
      * @return array<string, ProductCardDto> keyed by id (amendment 26(a))
