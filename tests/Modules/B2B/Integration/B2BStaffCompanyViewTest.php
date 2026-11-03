@@ -316,7 +316,7 @@ describe('a company\'s papers (§1.4, §3.2, amendment 10(f))', function () {
         ksort($changes);
 
         expect($link->url)->not->toBe('')
-            ->and($link->expiresAt->getTimestamp() - time())->toBeGreaterThan(29 * 60)->toBeLessThanOrEqual(30 * 60)
+            ->and($link->expiresAt->getTimestamp() - CarbonImmutable::now()->getTimestamp())->toBeGreaterThan(29 * 60)->toBeLessThanOrEqual(30 * 60)
             ->and($levels->getArrayCopy())->toBe([['b2b.company.document_opened', 2]])
             ->and($entry?->subject_id)->toBe($company->id())
             // Who opened it, in the company's home store (scenario 24).

@@ -398,6 +398,8 @@ describe('lowStockChanges', function () {
     });
 
     it('stamps each change as it is written, after the recount started, so a report read meanwhile cannot miss it', function () {
+        // The two stamps differ only on a clock that runs.
+        CarbonImmutable::setTestNow();
         [$a] = lowChangesSizes();
         $heard = lowChangesHeard();
 

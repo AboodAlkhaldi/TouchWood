@@ -506,7 +506,7 @@ describe('trusted browsers', function () {
 
         expect($cookie?->getPath())->toBe('/admin')
             ->and($cookie?->isHttpOnly())->toBeTrue()
-            ->and($cookie?->getMaxAge())->toBeGreaterThan(11 * 3600)->toBeLessThanOrEqual(12 * 3600);
+            ->and(($cookie?->getExpiresTime() ?? 0) - CarbonImmutable::now()->getTimestamp())->toBeGreaterThan(11 * 3600)->toBeLessThanOrEqual(12 * 3600);
     });
 
     it('trusts only the browser the cookie came from, for its own staff member', function () {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -355,7 +356,7 @@ describe('the account\'s own files (§1.4, amendments 5 and 9(c))', function () 
             $link = app(OpenMyApplicationFileHandler::class)->handle(new OpenMyApplicationFile($mediaId));
 
             expect($link->url)->not->toBe('')
-                ->and($link->expiresAt->getTimestamp() - time())->toBeGreaterThan(29 * 60)->toBeLessThanOrEqual(30 * 60);
+                ->and($link->expiresAt->getTimestamp() - CarbonImmutable::now()->getTimestamp())->toBeGreaterThan(29 * 60)->toBeLessThanOrEqual(30 * 60);
         }
     });
 
