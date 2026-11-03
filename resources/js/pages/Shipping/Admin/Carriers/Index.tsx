@@ -13,12 +13,14 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import { DragHandle, MoveItems, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '@/pages/Catalog/Admin/SortableList';
 import type { CarrierCountryData, CarrierData, CarriersPage } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
-import { C, CarrierLogo, CarrierSwitch, DeleteCarrierDialog, LIST, useCarrierName, useOtherName } from './parts';
+import { C, CarrierLogo, CarrierSwitch, LIST, useCarrierName, useOtherName } from './parts';
 import { P, StoreFreeCard, UncoveredPanel } from './prices';
 
 // The add and edit dialog - its form, its checks as typed, the logo box - loads when it is first opened,
 // not with the page, which the drag handles' code shares (frontend.md §5, the page budget).
 const CarrierDialog = lazy(() => import('./CarrierDialog').then((module) => ({ default: module.CarrierDialog })));
+// Delete's dialog too (frontend.md §5, the page budget).
+const DeleteCarrierDialog = lazy(() => import('./DeleteCarrierDialog').then((module) => ({ default: module.DeleteCarrierDialog })));
 
 /*
 | C1 · Shipping › Carriers (shipping.md §4.1 part 1; the owner, 2026-10-29, (a) in all sixteen): a section
@@ -79,7 +81,11 @@ export default function Index(page: CarriersPage) {
 function DeleteFor({ carrier, storeCode, onOpenChange, returnFocusTo }: { carrier: CarrierData; storeCode: string; onOpenChange: (open: boolean) => void; returnFocusTo: React.RefObject<HTMLElement | null> }) {
     const nameOf = useCarrierName();
 
-    return <DeleteCarrierDialog carrier={carrier} name={nameOf(carrier)} storeCode={storeCode} open onOpenChange={onOpenChange} returnFocusTo={returnFocusTo} />;
+    return (
+        <Suspense fallback={null}>
+            <DeleteCarrierDialog carrier={carrier} name={nameOf(carrier)} storeCode={storeCode} open onOpenChange={onOpenChange} returnFocusTo={returnFocusTo} />
+        </Suspense>
+    );
 }
 
 /** One ship-to country: its heading, Add Carrier, and its carriers - or what having none means (Q11). */

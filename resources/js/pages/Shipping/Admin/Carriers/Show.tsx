@@ -14,12 +14,14 @@ import { useTranslator } from '@/lib/t';
 import { tone } from '@/lib/tones';
 import type { CarrierPage, PriceGroupData } from '@/types/generated/Modules/Shipping/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
-import { C, CarrierLogo, CarrierSwitch, DeleteCarrierDialog, LIST, trackingExample, useCarrierName, useOtherName } from './parts';
+import { C, CarrierLogo, CarrierSwitch, LIST, trackingExample, useCarrierName, useOtherName } from './parts';
 import { FreeShippingCard } from './amount';
 import { AmountText, P, PlaceChips } from './prices';
 import { StaleNote } from './StaleNote';
 
 const CarrierDialog = lazy(() => import('./CarrierDialog').then((module) => ({ default: module.CarrierDialog })));
+// Delete's dialog too (frontend.md §5, the page budget).
+const DeleteCarrierDialog = lazy(() => import('./DeleteCarrierDialog').then((module) => ({ default: module.DeleteCarrierDialog })));
 // The price dialog - its place picker, its levels read as they open - loads when it is first opened (§5).
 const PriceDialog = lazy(() => import('./PriceDialog').then((module) => ({ default: module.PriceDialog })));
 
@@ -151,7 +153,11 @@ export default function Show(page: CarrierPage) {
                     <CarrierDialog carrier={carrier} countryCode={carrier.countryCode} countryName={countryName} storeCode={storeCode} open onOpenChange={close} returnFocusTo={opener} />
                 </Suspense>
             ) : null}
-            {dialog === 'delete' ? <DeleteCarrierDialog carrier={carrier} name={name} storeCode={storeCode} fromPage open onOpenChange={close} returnFocusTo={opener} /> : null}
+            {dialog === 'delete' ? (
+                <Suspense fallback={null}>
+                    <DeleteCarrierDialog carrier={carrier} name={name} storeCode={storeCode} fromPage open onOpenChange={close} returnFocusTo={opener} />
+                </Suspense>
+            ) : null}
         </AdminLayout>
     );
 }

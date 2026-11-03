@@ -279,10 +279,11 @@ describe('the lists, read as the customer picks (Q7)', function () {
         // Recorded for the PR (owner, 2026-10-19: budgets are targets): the tab 21 - nothing of the
         // places read for an empty book; the form's read 12 when Add or Edit is pressed - the
         // session's 7, the countries, each store's ship-to list and the own regions; a list read 8 -
-        // the session's 7 and its own one, as the same read with nothing to find.
+        // the session's 7 and its own one, as the same read with nothing to find. The tab one more from
+        // 2026-11-02: the bell's number (ops.md §4.15 O2).
         expect($read)->toBe($none)
             ->and($read)->toBeLessThanOrEqual(8)
-            ->and($page)->toBeLessThanOrEqual(21)
+            ->and($page)->toBeLessThanOrEqual(22)
             ->and($form)->toBeLessThanOrEqual(12);
     });
 });

@@ -27,7 +27,7 @@ use Modules\Ops\Presentation\Http\Controller\SubscribersController;
 Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
-        Route::get('notifications', [BellController::class, 'index'])->name('ops.admin.bell');
+        Route::get('notifications', [BellController::class, 'panel'])->name('ops.admin.bell');
         Route::get('notifications/unread', [BellController::class, 'unread'])->name('ops.admin.bell.unread');
         // Every entry, named before one entry's own route takes the word.
         Route::post('notifications/read-all', [BellController::class, 'readAll'])->name('ops.admin.bell.read-all');
