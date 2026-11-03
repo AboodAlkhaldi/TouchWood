@@ -62,6 +62,8 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
     const saved = useRef<T[] | undefined>(kept?.rows);
     const savedAs = useRef(lastPage);
     const savedBeside = useRef(kept?.beside);
+    // The place as this entry holds it on opening: on a short first page the browser cuts it down, and that is saved.
+    const openedAt = useRef(typeof window === 'undefined' ? undefined : (window.history.state as { documentScrollPosition?: { top: number; left: number } } | null)?.documentScrollPosition);
 
     useEffect(() => {
         // A first page is written only to take deeper rows kept before it away.
@@ -77,6 +79,16 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
         // Rows and pages move together with the last page; only a list at rest is written.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rows, pages, loading, beside]);
+
+    const goBackTo = useRef<typeof openedAt.current>(undefined);
+
+    // Once the rows brought back are drawn, the page is long enough to reach the place.
+    useEffect(() => {
+        if (goBackTo.current !== undefined) {
+            window.scrollTo(goBackTo.current.left, goBackTo.current.top);
+            goBackTo.current = undefined;
+        }
+    }, [rows]);
 
     useEffect(() => {
         // The first answer is what the list opened with, which may be rows brought back.
@@ -95,8 +107,7 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
                 saved.current = found.rows;
                 savedAs.current = lastPage;
                 savedBeside.current = found.beside;
-                const place = (window.history.state as { documentScrollPosition?: { top: number; left: number } } | null)?.documentScrollPosition;
-                requestAnimationFrame(() => (place === undefined ? undefined : window.scrollTo(place.left, place.top)));
+                goBackTo.current = openedAt.current;
             }
 
             setRows(found?.rows ?? items);

@@ -6,11 +6,12 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
+use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Catalog\Support\CatalogProducts as Cx;
-use Tests\Modules\Feedback\Support\FeedbackFixtures as Fb;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Px;
 
 use function Pest\Laravel\seed;
@@ -169,15 +170,13 @@ it('brings every row back when coming back from a whole page load, as from anoth
 it('keeps a customer\'s hearts through Show More and Back, on every page of the list', function () {
     seed(CatalogSeeder::class);
     Cx::numberFrom((int) substr((string) hrtime(true), -8));
-    $brand = Cx::brand('Hearts '.substr((string) hrtime(true), -9));
-    $products = [];
+    $category = Cx::category('Hearts '.substr((string) hrtime(true), -9));
 
     foreach (range(1, 26) as $ignored) {
-        $products[] = Fb::sold(['sa'], ['60 cm'])['product'];
+        $product = Cx::ready(['60 cm'], $category)['product'];
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true)));
     }
 
-    DB::table('catalog.products')->whereIn('id', $products)->update(['brand_id' => $brand]);
-    app('cache')->flush();
     $email = strtolower((string) Str::ulid()).'@example.test';
     Fx::customer($email);
     $page = visit('/sa/en/sign-in')->type('#email', $email)->type('#password', Fx::CUSTOMER_PASSWORD)->click('button[type="submit"]');
@@ -185,9 +184,10 @@ it('keeps a customer\'s hearts through Show More and Back, on every page of the 
 
     $cards = "document.querySelectorAll('[data-test=\"card\"]')";
     $hearts = "document.querySelectorAll('[data-test=\"card-heart\"]')";
-    $slug = (string) DB::table('catalog.brand_slugs')->where('brand_id', $brand)->where('locale', 'en')->where('is_current', true)->value('slug');
-    $page->navigate("/sa/en/brands/{$slug}", BROWSER_PAGE_LOAD);
-    expect(browserSoon($page, "{$cards}.length === 24"))->toBeTrue();
+    $slug = (string) DB::table('catalog.category_slugs')->where('category_id', $category)->where('locale', 'en')->where('is_current', true)->value('slug');
+    $page->navigate("/sa/en/categories/{$slug}", BROWSER_PAGE_LOAD);
+    $opened = browserSoon($page, "{$cards}.length === 24");
+    expect($opened)->toBeTrue("the category's list shows {$page->script("{$cards}.length")} cards at {$page->script('location.pathname')}");
 
     // A card on the first page saved, then the rest shown.
     $page->script("(() => { {$hearts}[0].click(); })()");
@@ -205,8 +205,8 @@ it('keeps a customer\'s hearts through Show More and Back, on every page of the 
     $page->script("(() => { {$cards}[3].click(); })()");
     expect(browserSoon($page, "location.pathname.includes('/products/')"))->toBeTrue();
     $page->script('(() => { history.back(); })()');
-    expect(browserSoon($page, "location.pathname.includes('/brands/') && {$cards}.length > 0"))->toBeTrue()
-        ->and((int) $page->script("{$cards}.length"))->toBe(26)
+    // Counted once the card's page is gone: its own related cards carry the same mark.
+    expect(browserSoon($page, "location.pathname.includes('/categories/') && {$cards}.length === 26"))->toBeTrue("Back shows {$page->script("{$cards}.length")} cards")
         ->and($page->script("{$hearts}[0].getAttribute('aria-pressed')"))->toBe('true')
         ->and($page->script("{$hearts}[25].getAttribute('aria-pressed')"))->toBe('true')
         ->and($page->script("{$hearts}[1].getAttribute('aria-pressed')"))->toBe('false');
