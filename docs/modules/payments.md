@@ -615,6 +615,9 @@ interface PaymentsApi
     /** The attempts on an order, oldest first, for staff's Online Payments block (§4.2, §9.14 #2). */
     public function attempts(string $orderId): array; // list<PaymentAttemptDto>
 
+    /** The order's successful transactions that may enter it: Sales waits until it has recorded them (§1.5). */
+    public function successes(string $orderId): array; // list<string>
+
     /** The store's bank account, null while bank transfer is off (§1.9 — from B2B). */
     public function bankAccount(StoreId $store): ?BankAccountDto;
 

@@ -23,7 +23,7 @@ return new class extends Migration
     public function up(): void
     {
         DB::statement('ALTER TABLE sales.orders ADD COLUMN overdue_told_at timestamptz NULL');
-        DB::statement("CREATE INDEX orders_transfer_unchecked ON sales.orders (store_id) WHERE way_to_pay = 'BANK_TRANSFER' AND overdue_told_at IS NULL AND NOT is_test");
+        DB::statement("CREATE INDEX orders_transfer_unchecked ON sales.orders (store_id) WHERE way_to_pay = 'BANK_TRANSFER' AND overdue_told_at IS NULL AND NOT is_test AND paid_minor - refunded_minor < due_minor");
         self::historyKinds([...self::HISTORY_KINDS, 'PAYMENT_REQUESTED', 'PAYMENT_REQUEST_WITHDRAWN']);
     }
 

@@ -111,6 +111,14 @@ interface PaymentsApi
     public function paymentOpen(string $orderId): bool;
 
     /**
+     * The order's successful transactions that may enter it (a currency refused never does), by `PaymentDto::$paymentId`:
+     * Sales compares them with what it has recorded (§1.5).
+     *
+     * @return list<string>
+     */
+    public function successes(string $orderId): array;
+
+    /**
      * The attempts on an order, oldest first, for staff's Online Payments block (§4.2).
      *
      * @return list<PaymentAttemptDto>

@@ -21,6 +21,7 @@ use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Enums\PaymentRequestState;
 use Modules\Payments\Public\Enums\PaymentState;
+use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentRequested;
 use Modules\Payments\Public\Events\PaymentSucceeded;
 use Modules\Sales\Application\Command\CancelOrder\CancelOrder;
@@ -72,7 +73,9 @@ use Modules\Sales\Domain\Exception\PaymentRequestNotAllowed;
 use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
 use Modules\Sales\Domain\Exception\TooManyPaymentTries;
 use Modules\Sales\Domain\Repository\Orders;
+use Modules\Sales\Infrastructure\Listener\CompleteTryWhenPaid;
 use Modules\Sales\Infrastructure\Listener\RecordRequestPayment;
+use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotAccepted;
 use Modules\Sales\Infrastructure\Listener\WithdrawRequestWhenCancelled;
 use Modules\Sales\Public\Events\OrderCancelled;
 use Modules\Sales\Public\Events\PaymentRecorded;
@@ -140,6 +143,19 @@ function orderPayReady(string $mode = 'LIVE'): array
         'fake' => $fake, 'order' => $placed->id, 'number' => $placed->number, 'customer' => $customer, 'variants' => $variants, 'address' => $address,
         'total' => (int) DB::table('sales.orders')->where('id', $placed->id)->value('order_total_minor'),
     ];
+}
+
+/** The try that made this order, paid and over: the order was paid online at checkout. */
+function orderPayPaidTry(string $order): string
+{
+    $id = strtolower((string) Str::ulid());
+    DB::table('sales.checkout_tries')->insert([
+        'id' => $id, 'store_id' => Fx::storeId('sa'), 'customer_id' => (string) DB::table('sales.orders')->where('id', $order)->value('customer_id'), 'cart_id' => strtolower((string) Str::ulid()), 'cart_version' => 0,
+        'quote_id' => strtolower((string) Str::ulid()), 'order_id' => $order, 'attempt_id' => strtolower((string) Str::ulid()), 'session_id' => 'KWT-x', 'state' => 'PAID',
+        'amount_minor' => 1, 'currency_code' => 'SAR', 'window_ends_at' => CarbonImmutable::now(), 'created_at' => CarbonImmutable::now(), 'ended_at' => CarbonImmutable::now(),
+    ]);
+
+    return $id;
 }
 
 function orderPayAsk(string $order): PaymentRequestStateDto
@@ -554,19 +570,61 @@ describe('paying', function () {
             ->and((int) DB::table('sales.orders')->where('id', $order)->value('paid_minor'))->toBe($total * 2);
     });
 
-    it('leaves a try\'s order to the try', function () {
-        orderPayReady();
-        $tried = strtolower((string) Str::ulid());
-        DB::table('sales.checkout_tries')->insert([
-            'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'customer_id' => Cx::customer(), 'cart_id' => strtolower((string) Str::ulid()), 'cart_version' => 0,
-            'quote_id' => strtolower((string) Str::ulid()), 'order_id' => $tried, 'attempt_id' => strtolower((string) Str::ulid()), 'session_id' => 'KWT-x', 'state' => 'LIVE',
-            'amount_minor' => 1, 'currency_code' => 'SAR', 'window_ends_at' => CarbonImmutable::now(), 'created_at' => CarbonImmutable::now(), 'address' => '{}', 'contact' => '{}',
-        ]);
+    it('treats a request on an order a try made as the request\'s: told once, no refund due on the try', function () {
+        ['order' => $order, 'number' => $number, 'total' => $total, 'fake' => $fake] = orderPayReady();
+        $try = orderPayPaidTry($order);
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        app(PaymentsApi::class)->refresh($request->requestId);
+        $event = orderPaySucceeded();
 
-        app(RecordRequestPayment::class)->handle(new PaymentSucceeded((string) Str::uuid(), 'not-looked-at', $tried, Fx::storeId('sa'), CarbonImmutable::now()));
+        // Either may hear first.
+        app(CompleteTryWhenPaid::class)->handle($event);
+        app(RecordRequestPayment::class)->handle($event);
 
-        expect(DB::table('sales.payments')->count())->toBe(0)
-            ->and(DB::table('public.processed_events')->count())->toBe(0);
+        expect(orderPayOnline($order))->toBe(1)
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(1)
+            ->and(DB::table('sales.checkout_tries')->where('id', $try)->value('refund_due_minor'))->toBeNull();
+    });
+
+    it('writes nothing for a currency refused on a request, on an order a try made either', function () {
+        ['order' => $order, 'number' => $number, 'total' => $total, 'fake' => $fake] = orderPayReady();
+        $try = orderPayPaidTry($order);
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        $fake->displayCurrency = 'USD';
+        app(PaymentsApi::class)->refresh($request->requestId);
+        $row = DB::table('payments.attempts')->where('owner_id', $request->requestId)->sole();
+
+        app(ReleaseTryWhenNotAccepted::class)->handle(new PaymentNotAccepted((string) Str::uuid(), (string) $row->id, $request->requestId, $order, Fx::storeId('sa'), CarbonImmutable::now()));
+
+        $tried = DB::table('sales.checkout_tries')->where('id', $try)->sole();
+        expect($tried->refund_due_minor)->toBeNull()
+            ->and($tried->needs_attention)->toBeFalse()
+            ->and(orderPayOnline($order))->toBe(0)
+            // It never entered the order, so it stands in nobody's way.
+            ->and(orderPayAsk($order)->requestId)->not->toBe($request->requestId);
+    });
+
+    it('waits for money taken and not yet recorded: the same balance is never asked or recorded twice', function () {
+        ['order' => $order, 'number' => $number, 'total' => $total, 'fake' => $fake] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        $fake->paid(orderPayAmount($total));
+        // Payments knows, and the page has closed: Sales hears only when the event arrives.
+        app(PaymentsApi::class)->refresh($request->requestId);
+
+        expect(fn () => orderPayAsk($order))->toThrow(PaymentBeingConfirmed::class)
+            ->and(fn () => orderPayRecordByHand($order))->toThrow(PaymentBeingConfirmed::class)
+            ->and(orderPayOnline($order))->toBe(0);
+
+        app(RecordRequestPayment::class)->handle(orderPaySucceeded());
+
+        expect(orderPayOnline($order))->toBe(1)
+            ->and(DB::table('sales.payments')->where('order_id', $order)->count())->toBe(1)
+            ->and(fn () => orderPayRecordByHand($order))->toThrow(InvalidOrderChange::class);
     });
 });
 

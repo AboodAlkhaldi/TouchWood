@@ -190,6 +190,7 @@ final class CheckoutFixtures
         $payments->shouldReceive('availability')->andReturn(new OnlinePaymentDto(false, null, OnlinePaymentReason::NoGateway))->byDefault();
         $payments->shouldReceive('inTestMode')->andReturn(false)->byDefault();
         $payments->shouldReceive('paymentOpen')->andReturn(false)->byDefault();
+        $payments->shouldReceive('successes')->andReturn([])->byDefault();
         $payments->shouldReceive('withdraw')->andReturn(true)->byDefault();
         $payments->shouldReceive('openRequest')->andReturn(null)->byDefault();
         $payments->shouldReceive('openRequests')->andReturn([])->byDefault();

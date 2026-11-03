@@ -874,6 +874,11 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
                 return $this->real->declineCode($attemptId);
             }
 
+            public function acceptedOfOrder(string $orderId): array
+            {
+                return $this->real->acceptedOfOrder($orderId);
+            }
+
             public function dto(string $id): ?PaymentDto
             {
                 return $this->real->dto($id);

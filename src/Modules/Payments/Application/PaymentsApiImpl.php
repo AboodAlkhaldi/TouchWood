@@ -169,6 +169,11 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         return $this->attempts->openOfOrder($orderId) !== null;
     }
 
+    public function successes(string $orderId): array
+    {
+        return $this->transactions->acceptedOfOrder($orderId);
+    }
+
     public function attempts(string $orderId): array
     {
         return $this->attempts->ofOrder($orderId);
