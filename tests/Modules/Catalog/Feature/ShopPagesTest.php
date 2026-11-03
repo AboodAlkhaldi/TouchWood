@@ -919,8 +919,8 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
             expect($reads())->toBe(0);
         }
 
-        // The English pages' counts are the budget's above, held since before amendment 38.
-        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 13, 'product ar' => 13]);
+        // The English pages' counts are the budget's above, held since before amendment 38 (a product in stock, amendment 39).
+        expect(array_map(shopPagesQueries(...), $pages))->toBe(['category en' => 6, 'category ar' => 6, 'brand en' => 6, 'brand ar' => 6, 'product en' => 14, 'product ar' => 14]);
 
         foreach (['products', 'categories', 'brands'] as $path) {
             app()->forgetScopedInstances();
