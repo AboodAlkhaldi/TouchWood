@@ -359,7 +359,8 @@ it('gives each size\'s units and revenue, most sold first, a page at a time, nev
         ->and($rows(salesReports()->productSales($sa, $from, $to, 'not-a-cursor', 5)->rows))->toBe([[$variants[0], 2, 200_00], [$variants[1], 1, 50_00]])
         ->and(salesReports()->productSales(StoreId::fromString(Fx::storeId('ae')), $from, $to)->rows)->toBe([])
         ->and(fn () => salesReports()->productSales(StoreId::fromString(strtolower((string) Str::ulid())), $from, $to))->toThrow(InvalidArgumentException::class)
-        ->and(fn () => salesReports()->transfersWaiting(StoreId::fromString(strtolower((string) Str::ulid()))))->toThrow(InvalidArgumentException::class);
+        ->and(fn () => salesReports()->transfersWaiting(StoreId::fromString(strtolower((string) Str::ulid()))))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => salesReports()->transfersOverdue(StoreId::fromString(strtolower((string) Str::ulid()))))->toThrow(InvalidArgumentException::class);
 });
 
 it('adds productSales up in one query, to the unit, never an order that does not count or a gift', function () {

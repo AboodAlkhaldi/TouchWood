@@ -627,6 +627,11 @@ function reportsOneDayEach(string $day): void
             throw new LogicException('Not read by the reports.');
         }
 
+        public function transfersOverdue(StoreId $store): TransfersWaitingDto
+        {
+            throw new LogicException('Not read by the reports.');
+        }
+
         public function revenueByDay(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): array
         {
             $sar = static fn (int $minor): Money => Money::of($minor, 'SAR');

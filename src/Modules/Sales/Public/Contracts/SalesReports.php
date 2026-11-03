@@ -69,10 +69,17 @@ interface SalesReports
 
     /**
      * **The bank transfers still awaited** (ops.md §1.11 item 3): open orders to be paid by transfer that
-     * hold less than they owe, and how much. Overdue ones are stage 7's mark (sales.md §9.5 #9). A store
-     * that does not exist is refused (`InvalidArgumentException`), as by the two reads below.
+     * hold less than they owe, and how much. A store that does not exist is refused
+     * (`InvalidArgumentException`), as by the two reads below.
      */
     public function transfersWaiting(StoreId $store): TransfersWaitingDto;
+
+    /**
+     * **Those of them overdue, now** (ops.md §1.11 item 3; sales.md §9.5 #9): the first receipt uploaded at least
+     * the store's `transferCheckHours` ago, as staff's Overdue badge says, whether or not `TransferOverdue` has been
+     * fired yet. A test order never. A store that does not exist is refused (`InvalidArgumentException`).
+     */
+    public function transfersOverdue(StoreId $store): TransfersWaitingDto;
 
     /**
      * **Revenue by the store's own day** (ops.md §1.10; the owner, 2026-10-28) from `from` up to `to` (not
