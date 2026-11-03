@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTranslator } from '@/lib/t';
 import { NotificationsTab } from '@/pages/Access/Admin/Account/NotificationsTab';
 import { ProfileTab } from '@/pages/Access/Admin/Account/ProfileTab';
-import { SessionsTab } from '@/pages/Access/Admin/Account/SessionsTab';
 import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/Http/Resource';
 
 /*
@@ -30,6 +29,9 @@ import type { AccountPage } from '@/types/generated/Modules/Access/Presentation/
 // 60 KB, and the authenticator app's block (access.md amendment 91) took it over. Radix draws only the
 // open tab, so nothing else waits for it.
 const SecurityTab = lazy(() => import('@/pages/Access/Admin/Account/SecurityTab').then((loaded) => ({ default: loaded.SecurityTab })));
+// The same for Sessions, which the panel's bell took over the same line (ops.md §4.15 O1). Never on the server's
+// render, which cannot wait for it: a page opened at this tab draws it once it is awake.
+const SessionsTab = lazy(() => import('@/pages/Access/Admin/Account/SessionsTab').then((loaded) => ({ default: loaded.SessionsTab })));
 
 type Props = AccountPage;
 
@@ -44,6 +46,8 @@ function asTab(value: string): Tab {
 export default function Account(account: Props) {
     const t = useTranslator();
     const [open, setOpen] = useState<Tab>(() => asTab(account.tab));
+    const [awake, setAwake] = useState(false);
+    useEffect(() => setAwake(true), []);
 
     // Keyed on the string, not on the props object, so an unrelated re-render does not drag the
     // person back to a tab they have since left.
@@ -81,7 +85,11 @@ export default function Account(account: Props) {
                     </Suspense>
                 </TabsContent>
                 <TabsContent value="sessions">
-                    <SessionsTab account={account} />
+                    {awake ? (
+                        <Suspense fallback={null}>
+                            <SessionsTab account={account} />
+                        </Suspense>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="notifications">
                     <NotificationsTab account={account} />

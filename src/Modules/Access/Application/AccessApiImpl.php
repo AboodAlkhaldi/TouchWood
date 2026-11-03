@@ -97,6 +97,11 @@ final readonly class AccessApiImpl implements AccessApi
         return $this->customers->idsRegisteredIn($store->value, $accountType, $after, $limit);
     }
 
+    public function customerCountInStore(StoreId $store): int
+    {
+        return $this->customers->countRegisteredIn($store->value);
+    }
+
     public function customerIdsMatching(string $text, int $limit): array
     {
         if ($limit < 1 || $limit > 1000) {

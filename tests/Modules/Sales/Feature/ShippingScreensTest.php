@@ -467,9 +467,10 @@ describe('what the review found (§4.3)', function () {
         shippingScreensCarrier('Second', 100, [$region]);
         shippingScreensCarrier('Third', 200, [$region]);
 
-        // The whole request, session and panel frame included; the carriers add none per carrier.
+        // The whole request, session and panel frame included; the carriers add none per carrier. Plus one from
+        // 2026-11-02: the bell's number (ops.md §4.15 O1).
         expect($count())->toBe($one)
-            ->and($one)->toBe(25);
+            ->and($one)->toBe(26);
     });
 });
 

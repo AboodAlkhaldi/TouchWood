@@ -13,6 +13,7 @@ use Inertia\Inertia;
 use Modules\Access\Application\Query\AdminShell\AdminShellForStaff;
 use Modules\Access\Application\Query\StoresForStaff\StoresForStaff;
 use Modules\Platform\Public\Contracts\AdminBanners;
+use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\StoreChoices;
 use Modules\Platform\Public\Dto\AdminBannerDto;
@@ -47,6 +48,7 @@ final readonly class ShareAdminPage
         private StoreChoices $choices,
         private AdminMenu $menu,
         private AdminBanners $banners,
+        private AdminFrameParts $frameParts,
         private ActorContext $actors,
     ) {}
 
@@ -64,6 +66,9 @@ final readonly class ShareAdminPage
             'banners' => fn (): array => $this->actors->current()->type === ActorType::Staff ? array_map(static fn (AdminBannerDto $banner): array => [
                 'label' => $banner->label, 'text' => $banner->text, 'everywhere' => $banner->everywhere, 'linkText' => $banner->linkText, 'href' => $banner->href,
             ], $this->banners->forCurrentActor($locale, fn (): array => $this->stores->forCurrentStaff())) : [],
+            // What modules put in the frame (ops.md §4.15 O1), by module: only for staff, as the banners.
+            // "panelFrame", not "frame": the shop's has another shape.
+            'panelFrame' => fn (): array => $this->actors->current()->type === ActorType::Staff ? $this->frameParts->for($locale) : [],
             // Whether the sidebar is open or shut down to its rail. Remembered per browser by the
             // sidebar component itself, and read back here so the server's first paint already has
             // it right - worked out in the browser instead, the page would flicker on every load.

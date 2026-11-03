@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Note } from '@/components/Note';
+import { Bell } from '@/components/ops/Bell';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ViewStoreButton } from '@/components/ViewStoreButton';
@@ -67,7 +68,8 @@ type Props = {
 
 export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail = 'page', children }: Props) {
     const page = usePage<SharedProps>();
-    const { menu, sidebarOpen, banners } = page.props;
+    const { menu, sidebarOpen, banners, panelFrame } = page.props;
+    const bell = panelFrame?.ops;
     const here = pathOf(page.url);
     const shownBanners = (banners ?? []).filter((banner) => banner.everywhere || here === '/admin');
     const t = useTranslator();
@@ -155,8 +157,9 @@ export function AdminLayout({ title, subtitle, action, breadcrumbs, phoneTrail =
                             </Breadcrumb>
                         </div>
 
-                        {/* View Store (frontend.md §2.2; access.md §1.11, amendment 64). */}
-                        <div className="ms-auto px-4">
+                        {/* The bell (ops.md §4.15 O1), and View Store (frontend.md §2.2; access.md §1.11, amendment 64). */}
+                        <div className="ms-auto flex items-center gap-2 px-4">
+                            {bell ? <Bell base="/admin/notifications" unread={bell.unread} words={bell.words} manyStores={bell.manyStores} recheck /> : null}
                             <ViewStoreButton />
                         </div>
                     </header>

@@ -28,6 +28,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 | 9 — the daily report | The PDF, every file kept twelve months, a past day, the email at the time the person chose | `Application/DailyReport`, `Application/Command/{MakeDailyReport,SetDailyReportEmail,DeliverDailyReport,SendDailyReportEmail}`, `Infrastructure/Pdf`, `Infrastructure/Files` |
 | 10 — the module pass | This file, ops.md §4's data shapes, §5, §7 and §8 brought in line with the code; then the whole-module review's fixes and the reads the screens need (owner, 2026-11-01): the stop-email pages of an off store, 00:00 refused, the SMS countries' routes, a staff message to a segment, S5, C4's Track, a retried daily email, the staff messages list and each form's choices | here |
 | After the pass | S10, S10b, the bell alerts that a security email or SMS could not be sent; a form's segments, and the segment's name on what was written (owner, 2026-11-01) | `Infrastructure/Messages/SecurityFailureAlert`, `Application/Query/ListSegments` |
+| After the screens' spec | A whole store's audience, `ops.admin.audience` (ops.md §9.4 Q14), on Access's `customerCountInStore` (access.md amendment 94) | `Application/Query/CountStoreAudience`, `Presentation/Http/Controller/AudienceController` |
 
 ## What is here
 
@@ -168,7 +169,6 @@ Each checked against the code on 2026-11-01.
 | What | State here | On whom |
 |---|---|---|
 | C11 Pay the remaining amount | The kind and its words exist; `MessageWriter` has no branch for it, no listener | No `PaymentRequested` event exists: Stage 7 (Payments step 11) |
-| C1's "paid" line | The words exist (`ops::messages.order_taken.optional.paid`); nothing fills them | Online checkout: Stage 7 |
 | C10 and a checkout's one email | Ops has no check of its own (§1.5): `PaymentRecorded` must not be fired for the payment a checkout's order is created with | Stage 7, where it fires the event |
 | S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
 | S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link | Payments' staff list of attempts: Stage 7 |
@@ -179,7 +179,7 @@ Each checked against the code on 2026-11-01.
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, and production refuses to boot on either `log` driver; `OPS_EMAIL_DRIVER`, `OPS_NEWSLETTER_DRIVER`, `BREVO_API_KEY`, `BREVO_NEWSLETTER_FOLDER_ID`, `BREVO_WEBHOOK_SECRET` are the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header | The owner, at hosting |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries is in; the rest have no page or menu entry yet | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries and the two bells with their full pages are in; the rest have no page or menu entry yet | The screens agent |
 
 ## Tests
 

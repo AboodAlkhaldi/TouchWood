@@ -12,9 +12,11 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use Modules\Access\Public\Contracts\CustomerAccountPages;
 use Modules\Access\Public\Contracts\PermissionCatalog;
 use Modules\Access\Public\Contracts\PhoneCountries;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Dto\CustomerAccountPageDto;
 use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\CustomerBlocked;
 use Modules\Access\Public\Events\CustomerDeletionCancelled;
@@ -95,12 +97,16 @@ use Modules\Ops\Infrastructure\Queue\QueuedDailyReportEmails;
 use Modules\Ops\Infrastructure\Queue\QueuedEventDeliveries;
 use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
+use Modules\Ops\Presentation\Bell\PanelBellPart;
+use Modules\Ops\Presentation\Bell\ShopBellPart;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
+use Modules\Platform\Public\Contracts\AdminFrameParts;
 use Modules\Platform\Public\Contracts\AdminMenu;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Contracts\ReservedPaths;
+use Modules\Platform\Public\Contracts\ShopFrameParts;
 use Modules\Platform\Public\Dto\MenuEntryDto;
 use Modules\Promotions\Public\Events\CouponAssigned;
 use Modules\Sales\Public\Events\OrderApproved;
@@ -209,6 +215,11 @@ final class OpsServiceProvider extends ServiceProvider
         $this->app->make(AdminMenu::class)->register(
             new MenuEntryDto('ops', 'sms_countries', 'store_settings', 'ops.admin.sms-countries', OpsPermissions::SMS_COUNTRIES_MANAGE, 26, icon: 'sms'),
         );
+
+        // The two bells, with each page's frame (§4.15 O1, O2), and the shop's full page in the account's menu.
+        $this->app->make(AdminFrameParts::class)->register('ops', PanelBellPart::class);
+        $this->app->make(ShopFrameParts::class)->register('ops', ShopBellPart::class);
+        $this->app->make(CustomerAccountPages::class)->register(new CustomerAccountPageDto('ops', 'notifications', 'storefront.ops.bell', position: 6));
 
         // The unsubscribe links' POST is also a mail client's one-click unsubscribe (RFC 8058), which
         // carries no CSRF token: the URL's signature is its authority (`signed:relative` on the route).
