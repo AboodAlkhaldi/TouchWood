@@ -621,6 +621,53 @@ and examples. Only when neither has it, show the owner what was searched and ask
       at its address on APP_URL** (access.md amendment 90, Ops step 3): Ops sends through Brevo's API,
       which takes the body as HTML and text only, so the image is no longer embedded in the email.
 
+### 1.12 The browser's history keeps no readable copy (owner, 2026-11-03)
+
+`Cache-Control: no-store` stops the browser keeping the page; it does not reach Inertia, which writes each
+page's props into its history entry, and Back draws those with no request. So signing out left the rows one
+Back away, on a shared computer (measured 2026-11-03 in a real browser; `tests/Browser/BackAfterSignOutTest.php`).
+
+**The rule, all of it in `KeepNoCopy` (app/Http/Middleware), right after the area's "who is here":**
+
+- **A page for someone signed in** - a staff member, a customer, a staff view of the shop - **is kept in the
+  history encrypted** (`Inertia::encryptHistory`), under a key in that tab's sessionStorage. While the key is
+  there Back works as ever, with no request: rows, place and remembered state.
+- **A page for nobody throws the key away** (`Inertia::clearHistory`, on every GET): the panel's sign-in screens
+  and a guest's shop pages. The entries left can no longer be read, so Inertia asks the server for the address,
+  and the server answers as it would anyone: the sign-in screen, or a guest's page.
+- **Being a rule about the next page, not about signing out, it covers every way a session ends**: Sign Out,
+  Sign Out Everywhere, the idle limit, a password change or forced sign-out from elsewhere, from that tab's next
+  request. No controller says it (the panel's Sign Out used to, and only that).
+- **A guest's own pages are never encrypted**, so they keep the instant Back (owner, 2026-10-29).
+
+**HTTPS is what it runs on.** Only a secure context has `crypto.subtle`: https, or localhost, 127.0.0.1, [::1]
+and `*.localhost`. Elsewhere on plain http Inertia throws "Unable to encrypt history" while writing the entry and
+the page never draws: measured 2026-11-03 at a network address, signing in never landed and a link did nothing.
+So `KeepNoCopy` asks for encryption only where the request is secure or on those names; on plain http everything
+works and Back shows what it always showed. **So staging and production need HTTPS and the proxy trusted**
+(handoff §15.4): behind an untrusted proxy `secure()` is false and the encryption is silently off, with nothing
+broken to give it away. To check a host: a signed-in page's `data-page` JSON says `"encryptHistory":true`.
+
+**What it costs**, measured in Chromium on a coupons list of 50 rows whose entry is 137 KB, the median of 12 Backs:
+62 ms before; 68 ms and 99 ms in two runs after, with no request either way, so about what one run differs from
+another. The cipher alone is under 1 ms at that size and 2 ms at 510 KB.
+
+**What it does not cover, and cannot from here:**
+
+- **A second tab.** The key is per tab: signing out in one leaves the other's key and history until that tab
+  next asks the server. What it has on screen is on screen anyway.
+- **A session that ends while the tab asks nothing.** Back reads the history with no request, so until the next
+  request nothing tells the tab, and Back there still shows the entries.
+- **The last whole page load's JSON** stays in the document's `<script data-page>` until the next whole load:
+  nothing draws it, but the browser's developer tools show it.
+- **Inertia uses one nonce per tab for every entry** (`getIv`, its own code), so someone with the developer tools
+  and a page's known text could in principle work at the ciphertext. It stops Back; it is not a vault.
+
+**Two small effects to know.** A person with the panel and the shop as a guest in one tab loses the panel's key
+on the shop's page, so Back to the panel asks the server: the same page, fresh, without its Show More rows. And
+when the server's answer to such a Back is the very page on the screen (a session that ended, then the sign-in
+screen twice), Inertia writes nothing to the history, so the address stays at the old one over the sign-in form.
+
 ---
 
 ## 2 · Layouts

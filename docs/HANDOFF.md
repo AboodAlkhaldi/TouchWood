@@ -1744,6 +1744,13 @@ Decide these when the owning module is reached; do not design them now.
   staff member views from the panel (it may be a store that is off), so a shared computer
   keeps no copy of somebody's data — guests' shop pages keep the browser's instant Back (owner's
   choice). HSTS waits for the hosting, like the proxies.
+- **The browser's history is a copy too** (owner, 2026-11-03; frontend.md §1.12; access.md amendment 96):
+  Inertia keeps each page's props in its history entry, where `no-store` does not reach. A page for someone
+  signed in is kept there encrypted, and a page for nobody throws the key away, so Back after any end of a
+  session asks the server. **It needs HTTPS and the trusted proxies above on staging and production:** on
+  plain http, or behind an untrusted proxy, it is off (the browser has no crypto there, and a page asked to
+  encrypt would never draw), and Back still shows the rows. Check on a host: a signed-in page's `data-page`
+  JSON says `"encryptHistory":true`.
 - Both of the above are **hardening today and a broken flow tomorrow**: Laravel checks a signed URL
   against the scheme and host of the request, while Access signs its links on `APP_URL`. Behind a
   TLS-terminating proxy that is not trusted, every request looks like `http`, so every customer

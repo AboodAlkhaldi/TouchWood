@@ -99,6 +99,8 @@ final readonly class CustomerSessionController
     {
         $handler->handle(new SignOutCustomer);
 
+        // The home page, drawn for a guest, makes the pages this browser kept in its history unreadable
+        // (KeepNoCopy; frontend.md §1.12).
         return redirect()->route('storefront.home')->with('status', __('access::auth.signed_out'));
     }
 
