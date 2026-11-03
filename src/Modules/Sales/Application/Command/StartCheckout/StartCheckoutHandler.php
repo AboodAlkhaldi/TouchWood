@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Command\StartCheckout;
 
+use Carbon\CarbonImmutable;
 use InvalidArgumentException;
+use Modules\Sales\Application\Checkout\QuoteComparison;
 use Modules\Sales\Application\Quote\QuoteBuilder;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Application\SalesPermissions;
@@ -37,6 +39,9 @@ final readonly class StartCheckoutHandler
 
     /** The most points one may name: what the quote's column holds. */
     public const int MOST_POINTS = 2_147_483_647;
+
+    /** A quote with less than this left is not kept: the customer needs the time to fill the form. */
+    public const int KEEP_ABOVE_MINUTES = 5;
 
     public function __construct(
         private Authorizer $authorizer,
@@ -71,6 +76,19 @@ final readonly class StartCheckoutHandler
         }
 
         $view = $this->builder->build($store, $customerId, trim($command->addressId), $command->usePoints, $command->pointsAsked, $wayToPay, $command->carrierId === null || trim($command->carrierId) === '' ? null : trim($command->carrierId));
+        $kept = $this->quotes->latestFor($store->value, $customerId, $view->addressId, $wayToPay->value, $view->usePoints, $view->pointsAsked, $view->cartVersion, CarbonImmutable::now()->addMinutes(self::KEEP_ABOVE_MINUTES));
+
+        // Checkout opened again with nothing changed: the same quote, so its session is reused (payments.md §1.4 step 0).
+        if ($kept !== null) {
+            $same = QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, $wayToPay, $kept->expiresAt, $kept->createdAt, $kept->result);
+
+            // The ways offered too: a gateway switched on since must show at once, though nothing to pay has moved. And
+            // never past the prices' own end: a sale cut short since ends the quote with it (§1.2).
+            if ($same->waysToPay === $view->waysToPay && $kept->expiresAt <= $view->expiresAt && QuoteComparison::moved($same, $view) === null) {
+                // What is shown is today's (the carriers on offer, a refusal's reason); what is paid is the same.
+                return QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, $wayToPay, $kept->expiresAt, $kept->createdAt, $view->toArray());
+            }
+        }
 
         $this->quotes->add(new Quote(
             $view->id,

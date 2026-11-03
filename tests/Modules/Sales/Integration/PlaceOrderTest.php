@@ -529,6 +529,8 @@ describe('orders waiting for approval', function () {
         Cx::place(Cx::start($ready['address'])->id);
         Cx::place(placeQuoteAgain($ready));
         $third = placeQuoteAgain($ready);
+        // Nearly out of time, so checkout opened again writes a quote of its own rather than keeping the third.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(11));
         $fourth = Cx::start($ready['address'])->id;
         Cx::place($third);
         $orders = DB::table('sales.orders')->count();

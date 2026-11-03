@@ -32,6 +32,18 @@ final readonly class TrySettling
         return $state;
     }
 
+    /** As `settle` on what is already known, the gateway not asked: a page load must not wait on it (payments.md §1.7). */
+    public function settleKnown(CheckoutTry $try): PaymentStateDto
+    {
+        $state = $this->payments->lastKnown($try->id);
+
+        if ($try->isLive()) {
+            $this->act($try, $state);
+        }
+
+        return $state;
+    }
+
     /** What an answer already in hand means for a live try: `PayOnline`'s charge, refused at once. */
     public function act(CheckoutTry $try, PaymentStateDto $state): void
     {

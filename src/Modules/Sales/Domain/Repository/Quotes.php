@@ -20,4 +20,7 @@ interface Quotes
 
     /** Those expired and never placed. @return int how many were deleted */
     public function deleteExpiredBefore(DateTimeImmutable $at): int;
+
+    /** The customer's newest quote for this same request, still good after `$after`: checkout opened again (§1.2). */
+    public function latestFor(string $storeId, string $customerId, string $addressId, string $wayToPay, bool $usePoints, ?int $pointsAsked, int $cartVersion, DateTimeImmutable $after): ?Quote;
 }
