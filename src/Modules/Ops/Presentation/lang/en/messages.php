@@ -334,11 +334,11 @@ return [
     ],
     'campaign_expiring' => [
         'title' => 'Campaign ending soon',
-        'line' => 'A campaign in :store ends on :date.',
-        'subject' => 'A campaign in :store ends on :date',
+        'line' => 'The :campaign campaign in :store ends on :date.',
+        'subject' => 'The :campaign campaign in :store ends on :date',
         'lines' => [
             'Hello :name,',
-            'A campaign in :store ends on :date.',
+            'The :campaign campaign in :store ends on :date.',
         ],
     ],
     'return_requested' => [

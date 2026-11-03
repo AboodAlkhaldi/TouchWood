@@ -62,6 +62,8 @@ use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
 use Modules\Sales\Application\Query\PrintOrder\PrintOrder;
@@ -228,6 +230,11 @@ function triesChargeCrashes(): void
             return $this->real->refresh($ownerId);
         }
 
+        public function lastKnown(string $ownerId): PaymentStateDto
+        {
+            return $this->real->lastKnown($ownerId);
+        }
+
         public function bankAccount(StoreId $store): ?BankAccountDto
         {
             return $this->real->bankAccount($store);
@@ -313,6 +320,81 @@ describe('the ways to pay', function () {
         expect(CarbonImmutable::instance($session->expiresAt)->equalTo(CarbonImmutable::instance($quote->expiresAt)->addMinutes(5 + 2)))->toBeTrue()
             ->and($fake->count('POST', '/v3/sessions'))->toBe(1)
             ->and(fn () => app(OpenCheckoutPaymentHandler::class)->handle(new OpenCheckoutPayment(Fx::storeId('sa'), Cx::start($address)->id, 'en')))->toThrow(WayToPayNotOffered::class);
+    });
+});
+
+describe('the same quote', function () {
+    it('keeps one quote and one session while nothing changed, however often the page is opened', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $first = triesQuote($address);
+        $session = triesSession($first);
+        triesAt('+9 minutes');
+
+        foreach (range(1, 40) as $ignored) {
+            $again = triesQuote($address);
+            expect($again->id)->toBe($first->id)
+                ->and(triesSession($again))->toBe($session);
+        }
+
+        expect(DB::table('sales.quotes')->count())->toBe(1)
+            ->and($fake->count('POST', '/v3/sessions'))->toBe(1);
+    });
+
+    it('writes a new quote once what it asks or what it shows has changed', function (Closure $change) {
+        ['address' => $address, 'variants' => $variants] = triesReady();
+        $first = triesQuote($address);
+
+        $second = $change($address, $variants);
+
+        expect($second->id)->not->toBe($first->id);
+    })->with([
+        'the cart' => [function (string $address, array $variants): QuoteView {
+            Cx::add($variants[0], 1);
+
+            return triesQuote($address);
+        }],
+        'the way to pay' => [fn (string $address): QuoteView => Cx::start($address)],
+        'the price' => [function (string $address, array $variants): QuoteView {
+            Rx::set('sa', [$variants[0] => '90.00']);
+
+            return triesQuote($address);
+        }],
+        'prices that now end before it does' => [function (string $address): QuoteView {
+            DB::table('sales.quotes')->update(['expires_at' => CarbonImmutable::now()->addMinutes(30)]);
+
+            return triesQuote($address);
+        }],
+        'under five minutes left' => [function (string $address): QuoteView {
+            triesAt('+10 minutes 1 second');
+
+            return triesQuote($address);
+        }],
+    ]);
+});
+
+describe('a kept quote', function () {
+    it('takes a cart changed and changed back as a new quote, which Pay accepts', function () {
+        ['address' => $address, 'variants' => $variants] = triesReady();
+        $first = triesQuote($address);
+        app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $variants[0], 'RETAIL', 3));
+        app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $variants[0], 'RETAIL', 2));
+
+        $second = triesQuote($address);
+
+        expect($second->id)->not->toBe($first->id)
+            ->and(triesRow(triesPay($second)->tryId)->state)->toBe('LIVE');
+    });
+
+    it('shows today\'s answers on the same quote: a carrier picked that no longer serves says so', function () {
+        ['address' => $address] = triesReady();
+        $first = triesQuote($address);
+
+        $again = app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId('sa'), $address, false, null, 'ONLINE', strtolower((string) Str::ulid())));
+
+        expect($again->id)->toBe($first->id)
+            ->and($again->expiresAt->format('c'))->toBe($first->expiresAt->format('c'))
+            ->and($first->shipping->carrierChanged)->toBeFalse()
+            ->and($again->shipping->carrierChanged)->toBeTrue();
     });
 });
 
@@ -983,12 +1065,30 @@ describe('checkout opened again', function () {
         ['address' => $address, 'fake' => $fake] = triesReady();
         $paid = triesPay(triesQuote($address));
         $fake->declined();
+        app(PaymentsApi::class)->refresh($paid->tryId);
 
         $view = app(ReturnToCheckoutHandler::class)->handle(new ReturnToCheckout(Fx::storeId('sa')));
 
         expect($view)->toBeNull()
             ->and(triesRow($paid->tryId)->state)->toBe('RELEASED');
         triesNothingHeld();
+    });
+
+    it('never asks the gateway on the way back: the page stays quick while it is away, and its own follow asks', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $paid = triesPay(triesQuote($address));
+        $fake->declined();
+        $before = count($fake->calls);
+
+        $view = app(ReturnToCheckoutHandler::class)->handle(new ReturnToCheckout(Fx::storeId('sa')));
+
+        expect(count($fake->calls))->toBe($before)
+            ->and($view?->state)->toBe('LIVE');
+
+        triesFollow($paid->tryId);
+
+        expect(count($fake->calls))->toBeGreaterThan($before)
+            ->and(triesRow($paid->tryId)->state)->toBe('RELEASED');
     });
 
     it('releases there and then a try whose charge was never sent: as if Pay had never been pressed', function () {
@@ -1034,6 +1134,8 @@ describe('checkout opened again', function () {
         $quote = triesQuote($address);
         $paid = triesPay($quote);
         $fake->paid(triesAmount($quote));
+        // The gateway has told of it, by a notice or a check.
+        app(PaymentsApi::class)->refresh($paid->tryId);
 
         $view = app(ReturnToCheckoutHandler::class)->handle(new ReturnToCheckout(Fx::storeId('sa')));
 
