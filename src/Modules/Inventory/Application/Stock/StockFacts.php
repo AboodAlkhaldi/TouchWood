@@ -20,6 +20,12 @@ use Shared\Domain\ValueObject\StoreId;
  * the size's row. The rows are read locked, in size-id order, so a hold committing meanwhile is never
  * overwritten with older figures. With `all` (the repair, a size just switched on) every size is
  * told, a size with no row too: it counts as 0. 500 sizes a push, under PostgreSQL's parameter limit.
+ *
+ * **A size told 0 for having no row is read again once Catalog is told** (catalog.md amendment 39): no row
+ * was there to lock, so a count may have made one and told Catalog meanwhile, and a wrong "cannot be
+ * ordered" hides a size in stock, and stays, since the row says Catalog knows. Catalog's lock, held from the
+ * push on, orders the two: what committed before it is told again here, read without a lock (a row's lock
+ * after Catalog's would be the wrong order), as that row last told it; what commits after it pushes after.
  */
 final readonly class StockFacts
 {
@@ -69,7 +75,7 @@ final readonly class StockFacts
     {
         $rows = $this->stock->lockExisting($store, $variantIds);
         $switchedOn = $wired ? [] : array_flip($this->products->endingSoonOf($store, array_values(array_unique(array_map(static fn (StockRow $row): string => $row->productId, $rows)))));
-        $orderable = $notOrderable = $endingSoon = $notEndingSoon = $told = [];
+        $orderable = $notOrderable = $endingSoon = $notEndingSoon = $told = $noRow = [];
 
         foreach ($variantIds as $variantId) {
             $row = $rows[$variantId] ?? null;
@@ -77,6 +83,10 @@ final readonly class StockFacts
             // A size with no row was never told, and is told only when every size is.
             if ($row === null && ! $all) {
                 continue;
+            }
+
+            if ($row === null) {
+                $noRow[] = $variantId;
             }
 
             $canOrder = StockFigures::orderable($row, $wired);
@@ -107,6 +117,14 @@ final readonly class StockFacts
             if ($ids !== []) {
                 $this->listing->endingSoon($store, $ids, $value);
             }
+        }
+
+        foreach ($noRow === [] ? [] : $this->stock->read($store, $noRow) as $variantId => $made) {
+            if ($made->orderablePushed !== null) {
+                $this->listing->orderable($store, [$variantId], $made->orderablePushed);
+            }
+
+            $this->listing->endingSoon($store, [$variantId], $made->endingSoonPushed);
         }
 
         return count($told);
