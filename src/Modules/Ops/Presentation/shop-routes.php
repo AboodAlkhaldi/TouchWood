@@ -17,7 +17,7 @@ use Modules\Ops\Presentation\Http\Middleware\StopEmailStore;
 Route::prefix('{store}/{locale}')
     ->middleware([...StorefrontArea::MIDDLEWARE, StorefrontArea::SIGNED_IN])
     ->group(function (): void {
-        Route::get('account/notifications', [BellController::class, 'index'])->name('storefront.ops.bell');
+        Route::get('account/notifications', [BellController::class, 'shop'])->name('storefront.ops.bell');
         Route::get('account/notifications/unread', [BellController::class, 'unread'])->name('storefront.ops.bell.unread');
         // Every entry, named before one entry's own route takes the word.
         Route::post('account/notifications/read-all', [BellController::class, 'readAll'])->name('storefront.ops.bell.read-all');

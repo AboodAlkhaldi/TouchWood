@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Ops\Presentation\Http\Controller\AudienceController;
 use Modules\Ops\Presentation\Http\Controller\BellController;
 use Modules\Ops\Presentation\Http\Controller\ChoicesController;
 use Modules\Ops\Presentation\Http\Controller\DailyReportController;
@@ -26,7 +27,7 @@ use Modules\Ops\Presentation\Http\Controller\SubscribersController;
 Route::prefix(AdminArea::PREFIX)
     ->middleware([...AdminArea::MIDDLEWARE, AdminArea::SIGNED_IN])
     ->group(function (): void {
-        Route::get('notifications', [BellController::class, 'index'])->name('ops.admin.bell');
+        Route::get('notifications', [BellController::class, 'panel'])->name('ops.admin.bell');
         Route::get('notifications/unread', [BellController::class, 'unread'])->name('ops.admin.bell.unread');
         // Every entry, named before one entry's own route takes the word.
         Route::post('notifications/read-all', [BellController::class, 'readAll'])->name('ops.admin.bell.read-all');
@@ -61,6 +62,8 @@ Route::prefix(AdminArea::PREFIX)
 
         // What each of Ops' forms may offer this reader (§4): the stores, and the report kinds.
         Route::get('ops/choices', ChoicesController::class)->name('ops.admin.choices');
+        // How many customers a notice or a message to a whole store would reach (§9.4 Q14).
+        Route::get('ops/audience', AudienceController::class)->name('ops.admin.audience');
 
         // The SMS countries (§3; access.md amendment 90), Super Admins alone.
         Route::get('sms-countries', [SmsCountriesController::class, 'index'])->name('ops.admin.sms-countries');

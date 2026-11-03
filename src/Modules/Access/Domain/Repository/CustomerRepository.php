@@ -43,6 +43,9 @@ interface CustomerRepository
      */
     public function idsRegisteredIn(string $storeId, AccountType $type, ?string $after, int $limit): array;
 
+    /** How many customers are registered in the store, of either account type, not anonymized (amendment 94). */
+    public function countRegisteredIn(string $storeId): int;
+
     /**
      * How many accounts of each type registered in the store from `$from` (included) to `$to`
      * (excluded), anonymized ones too — they were new then (amendment 83).

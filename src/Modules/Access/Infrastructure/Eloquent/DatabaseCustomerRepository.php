@@ -95,6 +95,14 @@ final readonly class DatabaseCustomerRepository implements CustomerRepository
             ->all()));
     }
 
+    public function countRegisteredIn(string $storeId): int
+    {
+        return $this->db->table(self::TABLE)
+            ->where('home_store_id', strtolower($storeId))
+            ->whereNull('anonymized_at')
+            ->count();
+    }
+
     public function countRegistered(string $storeId, DateTimeImmutable $from, DateTimeImmutable $to): array
     {
         $counts = $this->db->table(self::TABLE)

@@ -217,7 +217,7 @@ describe('the queries (§4.2)', function () {
         $browser->get('/admin/payments/gateway?store=sa')->assertOk();
 
         // The whole request, session and panel frame included, as a Super Admin.
-        expect(count($seen))->toBe(39);
+        expect(count($seen))->toBe(40);
     });
 });
 

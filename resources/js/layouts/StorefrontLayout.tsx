@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ChevronDown, LayoutDashboard, LogOut, ShoppingCart, UserRound } from 'lucide-react';
+import { Bell } from '@/components/ops/Bell';
 import { Toasts } from '@/components/Toasts';
 import { SyncDocument } from '@/components/SyncDocument';
 import { ThemeToggle } from '@/components/Preferences';
@@ -56,6 +57,7 @@ export function StorefrontLayout({ title, children, address }: Props) {
     const page = usePage<SharedProps>();
     const { shop, shopper, shopperLines, staffView, locale, frame } = page.props;
     const catalog = frame?.catalog;
+    const bell = frame?.ops;
 
     return (
         <>
@@ -100,6 +102,10 @@ export function StorefrontLayout({ title, children, address }: Props) {
 
                             {/* Only under a store: the country page has none, and every address in
                                 the shop is written inside one. */}
+                            {/* Ops' part of the frame (ops.md §4.15 O2): the bell, before the cart, for a signed-in customer only. */}
+                            {shop === null || shop === undefined || staffView || bell === undefined || bell.unread === null || bell.words === null ? null : (
+                                <Bell base={`/${shop.code}/${locale}/account/notifications`} unread={bell.unread} words={bell.words} />
+                            )}
                             {/* Sales's part of the frame (sales.md §4.1 S3): the cart, beside the account's. */}
                             {shop === null || shop === undefined || staffView || !frame?.sales ? null : (
                                 <Button asChild variant="ghost" size="icon">
