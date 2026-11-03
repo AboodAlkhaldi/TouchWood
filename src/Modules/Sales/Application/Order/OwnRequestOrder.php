@@ -9,6 +9,8 @@ use Modules\Sales\Application\Query\Own\OwnReader;
 use Modules\Sales\Application\Query\Own\OwnReads;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Shared\Application\Authorizer;
+use Shared\Application\PermissionScope;
 use Shared\Application\Unauthorized;
 use Shared\Domain\ValueObject\StoreId;
 
@@ -18,6 +20,7 @@ final readonly class OwnRequestOrder
     public function __construct(
         private OwnReader $reader,
         private OwnReads $reads,
+        private Authorizer $authorizer,
     ) {}
 
     /**
@@ -25,7 +28,7 @@ final readonly class OwnRequestOrder
      *
      * @throws Unauthorized|InvalidSalesAttribute|OrderNotFound
      */
-    public function of(string $storeId, string $number): array
+    public function authorize(string $permission, string $storeId, string $number): array
     {
         try {
             $store = StoreId::fromString($storeId);
@@ -40,6 +43,8 @@ final readonly class OwnRequestOrder
         if ($order === null || $order['store_id'] !== $store->value) {
             throw new OrderNotFound;
         }
+
+        $this->authorizer->authorize($permission, PermissionScope::store($store));
 
         return [(string) $order['id'], $store, $customerId, (int) $order['due_minor'] - (int) $order['paid_minor'] + (int) $order['refunded_minor']];
     }

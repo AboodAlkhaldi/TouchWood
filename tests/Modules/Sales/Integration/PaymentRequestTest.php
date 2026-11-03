@@ -73,6 +73,8 @@ use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
 use Modules\Sales\Domain\Exception\TooManyPaymentTries;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Infrastructure\Listener\RecordRequestPayment;
+use Modules\Sales\Infrastructure\Listener\WithdrawRequestWhenCancelled;
+use Modules\Sales\Public\Events\OrderCancelled;
 use Modules\Sales\Public\Events\PaymentRecorded;
 use Modules\Sales\Public\Events\TransferOverdue;
 use Shared\Application\Unauthorized;
@@ -324,6 +326,17 @@ describe('the page', function () {
             ->and(fn () => orderPaySession($number))->toThrow(OrderNotFound::class)
             ->and(fn () => orderPayPay($number, 'KWT-a-session'))->toThrow(OrderNotFound::class)
             ->and(fn () => orderPayFollow($number, $request->requestId))->toThrow(OrderNotFound::class);
+    });
+
+    it('is for a signed-in customer, never staff', function () {
+        ['order' => $order, 'number' => $number] = orderPayReady();
+        $request = orderPayAsk($order);
+
+        Fx::actAsStaff(Fx::staff(superAdmin: true));
+
+        expect(fn () => orderPaySession($number))->toThrow(Unauthorized::class)
+            ->and(fn () => orderPayPay($number, 'KWT-a-session'))->toThrow(Unauthorized::class)
+            ->and(fn () => orderPayFollow($number, $request->requestId))->toThrow(Unauthorized::class);
     });
 
     it('takes the order only in its own store', function () {
@@ -654,13 +667,23 @@ describe('ending a request', function () {
         expect(orderPayState($request->requestId))->toBe('WITHDRAWN');
     });
 
-    it('tells Payments when the order is cancelled, whose listener withdraws it', function () {
-        ['order' => $order] = orderPayReady();
-        orderPayAsk($order);
+    it('withdraws it when the order is cancelled, and with a payment open too, whose answer is still recorded', function () {
+        ['order' => $order, 'number' => $number, 'fake' => $fake, 'total' => $total, 'customer' => $customer] = orderPayReady();
+        $request = orderPayAsk($order);
+        orderPayPay($number);
+        Cx::asSuperAdmin(static fn () => app(CancelOrderHandler::class)->handle(new CancelOrder($order, 'Out of stock')));
+        expect(DB::table('public.outbox_messages')->where('type', OrderCancelled::class)->count())->toBe(1);
 
-        app(CancelOwnOrderHandler::class)->handle(new CancelOwnOrder($order, 'CHANGED_MIND'));
+        app(WithdrawRequestWhenCancelled::class)->handle(new OrderCancelled((string) Str::uuid(), $order, Fx::storeId('sa'), $customer, CarbonImmutable::now()));
 
-        expect(DB::table('public.outbox_messages')->where('type', 'like', '%OrderCancelled')->count())->toBe(1);
+        expect(orderPayState($request->requestId))->toBe('WITHDRAWN');
+
+        $fake->paid(orderPayAmount($total));
+        app(PaymentsApi::class)->refresh($request->requestId);
+        app(RecordRequestPayment::class)->handle(orderPaySucceeded());
+
+        expect(orderPayOnline($order))->toBe(1)
+            ->and(orderPayOutbox(PaymentRecorded::class))->toBe(1);
     });
 });
 

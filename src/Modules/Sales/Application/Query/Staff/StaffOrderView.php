@@ -99,7 +99,7 @@ final readonly class StaffOrderView
         public bool $isOverdue = false,
         /** @var list<PaymentAttemptDto>|null the Online Payments block; null without `payments.payment.view` */
         public ?array $attempts = null,
-        /** "Requested 45.00 SAR, open until 15:20", with Withdraw Request. */
+        /** "Requested 45.00, open until 15:20", with Withdraw Request. */
         public ?PaymentRequestStateDto $paymentRequest = null,
         /** Edit Order, Record Payment and Withdraw Request out of reach, with "A payment is being confirmed." */
         public bool $paymentInProgress = false,

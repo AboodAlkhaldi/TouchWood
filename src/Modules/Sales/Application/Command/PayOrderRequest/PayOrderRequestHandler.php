@@ -14,6 +14,7 @@ use Modules\Sales\Application\Command\PayOnline\PayOnlineHandler;
 use Modules\Sales\Application\Order\OrderContact;
 use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Order\OwnRequestOrder;
+use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Exception\PaymentLinkEnded;
@@ -31,6 +32,8 @@ use Shared\Domain\ValueObject\StoreId;
  */
 final readonly class PayOrderRequestHandler
 {
+    public const string PERMISSION = SalesPermissions::ORDER_MANAGE_OWN;
+
     /** 10 per order per 10 minutes, and PayOnline's 30 per customer per hour, shared with it (payments.md §1.8). */
     public const int MOST_PER_ORDER = 10;
 
@@ -47,7 +50,7 @@ final readonly class PayOrderRequestHandler
     /** @throws Unauthorized|InvalidSalesAttribute|OrderNotFound|PaymentLinkEnded|TooManyPaymentTries|DomainError */
     public function handle(PayOrderRequest $command): RequestStart
     {
-        [$orderId, $store, $customerId] = $this->own->of($command->storeId, $command->number);
+        [$orderId, $store, $customerId] = $this->own->authorize(self::PERMISSION, $command->storeId, $command->number);
         $sessionId = trim($command->sessionId);
 
         if ($sessionId === '' || strlen($sessionId) > 100) {

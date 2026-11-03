@@ -10,6 +10,7 @@ use Modules\Payments\Public\Dto\PaymentAttemptDto;
 use Modules\Payments\Public\Enums\PaymentState;
 use Modules\Sales\Application\Order\OnlineMoney;
 use Modules\Sales\Application\Order\OwnRequestOrder;
+use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Shared\Application\Unauthorized;
@@ -21,6 +22,8 @@ use Shared\Application\Unauthorized;
  */
 final readonly class FollowRequestPaymentHandler
 {
+    public const string PERMISSION = SalesPermissions::ORDER_MANAGE_OWN;
+
     public function __construct(
         private OwnRequestOrder $own,
         private PaymentsApi $payments,
@@ -30,7 +33,7 @@ final readonly class FollowRequestPaymentHandler
     /** @throws Unauthorized|InvalidSalesAttribute|OrderNotFound */
     public function handle(FollowRequestPayment $command): RequestPaymentView
     {
-        [$orderId] = $this->own->of($command->storeId, $command->number);
+        [$orderId] = $this->own->authorize(self::PERMISSION, $command->storeId, $command->number);
         $requestId = strtolower(trim($command->requestId));
         $paid = array_filter($this->payments->attempts($orderId), static fn (PaymentAttemptDto $attempt): bool => $attempt->ownerId === $requestId);
 

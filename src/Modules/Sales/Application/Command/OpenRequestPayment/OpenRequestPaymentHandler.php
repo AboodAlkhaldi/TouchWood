@@ -10,6 +10,7 @@ use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Order\OwnRequestOrder;
+use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\OrderNotFound;
 use Modules\Sales\Domain\Exception\PaymentInProgress;
@@ -23,6 +24,8 @@ use Shared\Domain\Error\DomainError;
  */
 final readonly class OpenRequestPaymentHandler
 {
+    public const string PERMISSION = SalesPermissions::ORDER_MANAGE_OWN;
+
     public function __construct(
         private OwnRequestOrder $own,
         private OrderRequests $requests,
@@ -32,7 +35,7 @@ final readonly class OpenRequestPaymentHandler
     /** @throws Unauthorized|InvalidSalesAttribute|OrderNotFound|PaymentLinkEnded|PaymentInProgress|DomainError */
     public function handle(OpenRequestPayment $command): PaymentSessionDto
     {
-        [$orderId, $store, $customerId, $missing] = $this->own->of($command->storeId, $command->number);
+        [$orderId, $store, $customerId, $missing] = $this->own->authorize(self::PERMISSION, $command->storeId, $command->number);
         $request = $this->requests->live($orderId, $missing) ?? throw new PaymentLinkEnded;
 
         if ($this->payments->paymentOpen($orderId)) {

@@ -470,7 +470,8 @@ describe('what the review found (§4.3)', function () {
         // The whole request, session and panel frame included; the carriers add none per carrier. Plus one from
         // 2026-11-02: the bell's number (ops.md §4.15 O1).
         expect($count())->toBe($one)
-            ->and($one)->toBe(26);
+            // Three more from stage 7 step 12, for an order still missing money: the open request, whether a payment is open, and the attempts (payments.md §4.2).
+            ->and($one)->toBe(29);
     });
 });
 
