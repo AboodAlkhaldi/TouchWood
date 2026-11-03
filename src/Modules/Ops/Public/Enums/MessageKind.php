@@ -10,7 +10,7 @@ namespace Modules\Ops\Public\Enums;
  * (Access) still choose bell and email per topic; that is decided when an alert is sent, not here.
  *
  * Its wording, in Arabic and English, is at `ops::messages.{value}` (§1.1). C8 is two kinds, one for
- * each decision; S8 (campaign expiry) waits for Content.
+ * each decision; S8 (campaign expiry) is built, and waits for Content to fire its event.
  *
  * Three more are not rows of §1.5 or §1.6 (step 7): an offer notice (§1.7) and a staff member's
  * message (§1.8), whose title and text are the staff's own in both languages, and the email that asks

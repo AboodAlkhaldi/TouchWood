@@ -28,6 +28,8 @@ use Modules\Access\Public\Events\CustomerUnblocked;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\B2B\Public\Events\CompanyApplicationSubmitted;
+use Modules\Content\Public\Events\CampaignExpiring;
+use Modules\Content\Public\Events\CampaignWentLive;
 use Modules\Feedback\Public\Events\QuestionAnswered;
 use Modules\Feedback\Public\Events\QuestionNotPublished;
 use Modules\Feedback\Public\Events\ReviewNotPublished;
@@ -81,6 +83,7 @@ use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Listener\AlertStaff;
 use Modules\Ops\Infrastructure\Listener\ForgetAnonymizedCustomer;
 use Modules\Ops\Infrastructure\Listener\RefreshNewsletterSubscription;
+use Modules\Ops\Infrastructure\Listener\StartCampaignNotice;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutFeedback;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutMoney;
 use Modules\Ops\Infrastructure\Listener\TellCustomerAboutOrder;
@@ -256,9 +259,12 @@ final class OpsServiceProvider extends ServiceProvider
             Event::listen($event, [TellCustomerAboutFeedback::class, 'handle']);
         }
 
-        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class] as $event) {
+        foreach ([OrderPlaced::class, CompanyApplicationSubmitted::class, LowStockChanged::class, SyncNeedsAttention::class, ReturnRequested::class, GatewayKeyExpiring::class, GatewayKeyRejected::class, PaymentNotAccepted::class, CampaignExpiring::class] as $event) {
             Event::listen($event, [AlertStaff::class, 'handle']);
         }
+
+        // Content's moment for a notice (§1.7): nothing fires it until Content is built.
+        Event::listen(CampaignWentLive::class, [StartCampaignNotice::class, 'handle']);
 
         // Inbox entries, sent messages and handled events keep twelve months (§5). Scheduled work is
         // queued as a job, never run in the scheduler's own process.

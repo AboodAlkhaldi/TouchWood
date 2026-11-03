@@ -1594,6 +1594,10 @@ Twelve theme presets exist in the design: Ramadan, Eid, Eid Al-Fitr, Saudi Natio
 Founding Day, New Year, Summer, Flash Sale, Limited-time offers, 15 SAR offers, Wholesale
 offers, Jeddah branch opening.
 
+**Content's spec starts from what Ops is already built against (2026-11-03; ops.md §1.6 S8, §1.7, §9.5):**
+`Content\Public\Events\CampaignExpiring`, `CampaignWentLive` (fired by nothing yet) and
+`Content\Public\Contracts\ContentApi::campaignForMessage`, answered by the placeholder `NoCampaignsYet`.
+
 ### 13.3 Ops
 
 Notifications, newsletters, subscribers, reports, exports.
