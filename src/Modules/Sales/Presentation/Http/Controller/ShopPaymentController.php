@@ -19,7 +19,6 @@ use Modules\Sales\Presentation\Http\Resource\CheckoutTryData;
 use Modules\Sales\Presentation\Http\Resource\PaymentFormData;
 use Modules\Sales\Presentation\Http\Resource\PayStartData;
 use Shared\Application\StoreContext;
-use Shared\Domain\Error\DomainError;
 use Shared\Domain\ValueObject\StoreId;
 
 /*
