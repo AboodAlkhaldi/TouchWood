@@ -17,7 +17,7 @@ return [
     'time_left' => 'Time left',
     'confirming' => 'Confirming your payment…',
     'ran_out' => 'Time ran out.',
-    'still_confirming' => 'We are still confirming with your bank. If the payment goes through, your order appears in My Orders — please do not pay again.',
+    'still_confirming' => 'We are still confirming with your bank. If the payment goes through, your order appears in My Orders. Don\'t pay again.',
     'frame' => [
         'title' => 'Your Bank\'s Confirmation',
         'body' => 'Follow your bank\'s steps to confirm this payment.',
@@ -38,7 +38,7 @@ return [
             'MF007' => 'the card has expired',
             'MF010' => 'the security code is wrong',
         ],
-        'could_not_start' => 'The payment could not start — please try again.',
+        'could_not_start' => 'The payment could not start. Try again.',
         'nothing_taken' => 'No money was taken.',
         'not_completed' => 'The payment was not completed. If your bank took the money, our team will contact you to return it.',
         'not_accepted' => 'We couldn\'t accept this payment. Our team will contact you to return the money.',

@@ -20,6 +20,7 @@ use Modules\Payments\Application\Gateway\KeyTester;
 use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrier;
 use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrierHandler;
 use Shared\Application\ActorContext;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
@@ -109,6 +110,7 @@ function shopPaymentProps(AdminBrowser $browser, string $uri, string $component)
 
 /**
  * @param  array<string, string>  $data
+ * @return TestResponse<Response>
  */
 function shopPaymentPost(AdminBrowser $browser, string $uri, array $data = []): TestResponse
 {

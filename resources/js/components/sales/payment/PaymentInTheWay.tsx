@@ -52,9 +52,10 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
 
             if (answer.ok && answer.data.state === 'LIVE') {
                 timer = setTimeout(() => void ask(), EVERY);
-            } else if (answer.ok && answer.data.mainStoreUrl !== null && answer.data.firstSeen) {
+            } else if (answer.ok && answer.data.mainStoreUrl !== null) {
+                // Any reload of a closed store is a 404, so an open page is the only place left to say it.
                 onClosed(answer.data);
-            } else if (answer.ok && answer.data.orderNumber !== null && answer.data.mainStoreUrl === null) {
+            } else if (answer.ok && answer.data.orderNumber !== null) {
                 router.visit(link('storefront.sales.placed', { number: answer.data.orderNumber }));
             } else if (answer.ok || answer.status === 404 || answer.status === 401 || answer.status === 419) {
                 // Over, or no longer this page's to ask. Asking again covers a reload that never landed; one that does ends this note.

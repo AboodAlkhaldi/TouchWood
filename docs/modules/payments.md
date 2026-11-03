@@ -831,7 +831,7 @@ the answer in a sentence. A refund due says "Refund this by hand in MyFatoorah's
   Payment is "by hand" (§1.5): nothing extra to press (Q22). The same after Set Shipping Fee, with the whole amount due.
 - **A request open**: "Requested 45.00 SAR, open until 15:20" with **Withdraw Request**.
 - **A payment in progress**: Edit Order, Record Payment and the customer's Cancel out of reach with "A payment is being confirmed."
-- **Test orders**: a **Test** badge on the list and the order; Ship out of reach with "A test order never ships." (§1.6)
+- **Test orders**: *(Owner, 2026-11-03: no **Test** badge: the `TEST-0001` number already marks one.)* Ship is refused by the server in its own words, "This is a test order. It can't be marked shipped." (§1.6)
 - **A transfer overdue** (§1.9): an **Overdue** badge on the list.
 
 #### What this needs from the backend
@@ -1383,10 +1383,11 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 5. **The frame has no `sandbox`**: MyFatoorah's page says only to open the address in a frame, and a sandbox could break a bank's page where no test can see it. Worth trying on staging.
 6. **A closed frame doesn't reopen**: the page says the time left until the try ends. The spec offers no way back into the bank's page.
 7. **A second window is told apart from coming back by asking**: a window that is paying answers on the browser's own channel (`BroadcastChannel`), so one answering means "in another window" and none means "Your last payment can still go through".
-8. **The closed store's one page shows only on a page still open**, checkout or cart (§1.10). Anyone coming back later, or reloading, gets the store's 404 like any other page of it.
+8. **The closed store's one page shows only on a page still open**, checkout or cart (§1.10). Anyone coming back later, or reloading, gets the store's 404 like any other page of it. A page still open always shows it, whether or not `firstSeen` says another page already did: a try read twice, or a second window, would otherwise reload into that 404 and never see the order's number. Any reload ends it, so "once" holds per page.
 9. **Words the spec doesn't give**: not completed ("The payment was not completed. If your bank took the money, our team will contact you to return it."), a currency refused or a refund due ("We couldn't accept this payment. Our team will contact you to return the money."), and the same "not completed" on the closed page rather than "No money was taken" unless that is known.
-10. **Plain reasons for a decline**: MF001, MF004, MF007 and MF010 have their own words; every other code reads "Your bank declined this payment." (Q6).
-11. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.
+10. **Two of the spec's sentences lose "please"**, which our writing rules ban on every screen: "…your order appears in My Orders. Don't pay again." and "The payment could not start. Try again."
+11. **Plain reasons for a decline**: MF001, MF004, MF007 and MF010 have their own words; every other code reads "Your bank declined this payment." (Q6).
+12. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.
 
 ### 9.13 The build's own picks (step 10, 2026-11-01 — simple, taken as recommended under the owner's rule)
 

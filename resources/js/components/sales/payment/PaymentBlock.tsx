@@ -237,10 +237,9 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
                     live={phase.live}
                     change={(next) => setPhase((now) => (now.kind === 'live' ? { kind: 'live', live: { ...now.live, ...next } } : now))}
                     onOver={(view) => {
-                        if (view.mainStoreUrl !== null && view.firstSeen) {
+                        // Any reload of a closed store is a 404, so an open page is the only place left to say it.
+                        if (view.mainStoreUrl !== null) {
                             onClosed(view);
-                        } else if (view.mainStoreUrl !== null) {
-                            window.location.reload();
                         } else if (view.orderNumber !== null) {
                             router.visit(link('storefront.sales.placed', { number: view.orderNumber }));
                         } else {

@@ -33,6 +33,7 @@ use Tests\Modules\Catalog\Support\CatalogProducts;
 use Tests\Modules\Payments\Support\FakeMyFatoorah;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
+use function Pest\Laravel\get;
 use function Pest\Laravel\seed;
 
 /*
@@ -67,8 +68,8 @@ beforeEach(function () {
         public function test(string $apiBase, #[SensitiveParameter] string $key, string $currencyCode): void {}
     });
 
-    $GLOBALS['salesPaymentScriptDown'] = false;
-    Route::get('__fake-mf/session.js', static fn () => $GLOBALS['salesPaymentScriptDown'] ? response('', 503) : response(<<<'JS'
+    config(['testing.payment_script_down' => false]);
+    Route::get('__fake-mf/session.js', static fn () => config('testing.payment_script_down') === true ? response('', 503) : response(<<<'JS'
         window.myfatoorah = {
             init(config) {
                 window.fakeForm = config;
@@ -174,11 +175,27 @@ function salesPaymentReady(int $width = 375, int $height = 812): array
     }
 
     $email = (string) DB::table('access.customers')->where('id', $customer)->value('email');
-    $page = visit('/sa/en/sign-in')->type('#email', $email)->type('#password', Fx::CUSTOMER_PASSWORD)->click('button[type="submit"]');
+    // The framework loaded in this process first: a cold first page on a busy machine outlasts a browser's patience.
+    get('/sa/en/sign-in');
+    $page = visit('/sa/en/sign-in', ['timeout' => 20_000]);
+    salesPaymentSoon($page, "!!document.querySelector('#email')");
+    $page->type('#email', $email)->type('#password', Fx::CUSTOMER_PASSWORD)->click('button[type="submit"]');
     expect(browserUntil($page, "location.pathname === '/sa/en'"))->toBeTrue();
     $page->resize($width, $height);
 
     return [$fake, $page];
+}
+
+/** browserUntil for what a slower answer decides: a poll making an order, on a busy machine. */
+function salesPaymentSoon(mixed $page, string $expression): bool
+{
+    foreach (range(1, 4) as $round) {
+        if (browserUntil($page, $expression)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** Checkout open, the form drawn, Pay pressed, the bank's page in its frame. */
@@ -284,7 +301,7 @@ it('comes back by itself when a try ends behind the note, with no reload (Q9)', 
 
     sleep(16);
 
-    expect(browserUntil($page, "!document.querySelector('[data-test=\"payment-in-the-way\"]') && !!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue()
+    expect(salesPaymentSoon($page, "!document.querySelector('[data-test=\"payment-in-the-way\"]') && !!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue()
         ->and((bool) $page->script('window.notReloaded === true'))->toBeTrue();
 });
 
@@ -306,13 +323,13 @@ it('says a window that is paying is there, when another asks', function () {
 
 it('says when the form can\'t load, and Try Again brings it', function () {
     [, $page] = salesPaymentReady();
-    $GLOBALS['salesPaymentScriptDown'] = true;
+    config(['testing.payment_script_down' => true]);
     $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
 
     expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-failed\"]')"))->toBeTrue()
         ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true');
 
-    $GLOBALS['salesPaymentScriptDown'] = false;
+    config(['testing.payment_script_down' => false]);
     $page->click('[data-test="payment-try-again"]');
 
     expect(browserUntil($page, "!!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue();
@@ -332,7 +349,7 @@ it('shows a store closed behind the cart\'s note its one page too', function () 
 
     sleep(16);
 
-    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-store-closed\"]')"))->toBeTrue();
+    expect(salesPaymentSoon($page, "!!document.querySelector('[data-test=\"payment-store-closed\"]')"))->toBeTrue();
 });
 
 it('shows a store closed while paying its one page, with the order and a way to the main store', function () {
