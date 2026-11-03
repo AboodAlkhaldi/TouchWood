@@ -174,6 +174,9 @@ export type StaffMessagesPageData = {
 messages: StaffMessageData[],
 next: string | null,
 };
+export type StoreAudienceData = {
+count: number,
+};
 export type StoreChoiceData = {
 id: string,
 code: string,

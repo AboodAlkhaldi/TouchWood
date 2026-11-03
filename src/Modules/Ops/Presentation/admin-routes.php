@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\AdminArea;
 use Illuminate\Support\Facades\Route;
+use Modules\Ops\Presentation\Http\Controller\AudienceController;
 use Modules\Ops\Presentation\Http\Controller\BellController;
 use Modules\Ops\Presentation\Http\Controller\ChoicesController;
 use Modules\Ops\Presentation\Http\Controller\DailyReportController;
@@ -61,6 +62,8 @@ Route::prefix(AdminArea::PREFIX)
 
         // What each of Ops' forms may offer this reader (§4): the stores, and the report kinds.
         Route::get('ops/choices', ChoicesController::class)->name('ops.admin.choices');
+        // How many customers a notice or a message to a whole store would reach (§9.4 Q14).
+        Route::get('ops/audience', AudienceController::class)->name('ops.admin.audience');
 
         // The SMS countries (§3; access.md amendment 90), Super Admins alone.
         Route::get('sms-countries', [SmsCountriesController::class, 'index'])->name('ops.admin.sms-countries');
