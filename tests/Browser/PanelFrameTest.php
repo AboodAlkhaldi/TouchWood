@@ -215,7 +215,7 @@ it('turns the sidebar into the slide-in menu on a phone, opens a screen from it,
     $menu = "document.querySelector('[data-sidebar=\"sidebar\"][data-mobile=\"true\"]')";
     expect(browserUntil($page, "document.querySelector('[data-sidebar=\"trigger\"]') !== null && document.querySelector('h1') !== null"))->toBeTrue()
         ->and($page->script("{$menu} === null"))->toBeTrue()
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the page scrolls sideways');
 
     $page->click('[data-sidebar="trigger"]');
     expect(browserUntil($page, "{$menu}?.getBoundingClientRect().right <= window.innerWidth && {$menu}.getBoundingClientRect().left >= 0"))->toBeTrue('the menu does not open within the screen');
@@ -225,7 +225,7 @@ it('turns the sidebar into the slide-in menu on a phone, opens a screen from it,
         ->click('[data-sidebar="sidebar"][data-mobile="true"] a[href="/admin/stores"]');
     expect(browserUntil($page, "window.location.pathname === '/admin/stores'"))->toBeTrue()
         ->and(browserUntil($page, "{$menu} === null"))->toBeTrue()
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the stores scroll sideways');
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the stores scroll sideways');
 
     // View Store's menu of stores fits the screen too.
     $page->click('[data-test="view-store"]')->assertVisible('[data-test="view-store-ae"]');

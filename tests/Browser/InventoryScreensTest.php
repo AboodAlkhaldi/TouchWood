@@ -301,7 +301,7 @@ it('opens a size\'s side panel from its row, with its History, and closes it wit
 
     // A phone (frontend.md §2.1): the open panel fits the screen, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Stock scrolls sideways')
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('Stock scrolls sideways')
         ->and($page->script("document.querySelector('[data-test=\"drawer-body\"]').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue('the side panel is wider than the screen');
 
     $page->keys('[data-test="drawer-adjust"]', 'Escape');
@@ -334,7 +334,7 @@ it('lists a low size on Low Stock, which opens it on Stock', function () {
     $page->resize(375, 812);
     $page->navigate('/admin/low-stock', BROWSER_SLOW_PAGE_LOAD);
     expect(browserSoon($page, "document.querySelector('[data-test^=\"low-row-\"]') !== null"))->toBeTrue()
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('draws the product page\'s Inventory section in two store cards, each with boxes of its own', function () {
@@ -371,5 +371,5 @@ it('draws Stock right to left in Arabic', function () {
 
     // A phone, right to left (frontend.md §2.1): nothing scrolls sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });

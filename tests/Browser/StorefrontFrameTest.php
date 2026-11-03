@@ -70,11 +70,11 @@ it('fits the country page and the shop\'s header on a phone, both ways round', f
     $page = visit('/');
     $page->resize(375, 812);
     $page->assertSee('اختر دولتك');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the country page scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the country page scrolls sideways');
 
     foreach (['/sa/en', '/sa/ar', '/eg/en'] as $address) {
         $page->navigate($address, BROWSER_PAGE_LOAD)->assertPresent('[data-test="country-switch"]');
-        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$address} scrolls sideways")
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue("{$address} scrolls sideways")
             ->and($page->script("document.querySelector('header').getBoundingClientRect().right <= window.innerWidth"))->toBeTrue("{$address}'s header is wider than the screen");
     }
 

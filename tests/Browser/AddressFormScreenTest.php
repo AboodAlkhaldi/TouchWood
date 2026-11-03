@@ -112,7 +112,7 @@ it('picks the region, city and district, clears what a change leaves behind, and
         ->type('#sa-building', '7');
 
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->resize(1280, 800);
 
     $page->click('[data-test="save-address-sa"]');
