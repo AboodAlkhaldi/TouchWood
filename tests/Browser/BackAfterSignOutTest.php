@@ -35,10 +35,10 @@ dataset('back after sign-out widths', [
     'phone' => [375, 812],
 ]);
 
-/** Once the first page has loaded: the first of a run is slow, and a resize during it timed out (seen twice). */
+/** Once the first page has loaded: the first of a run can take a minute on a cold machine, and a resize during it timed out. */
 function backResize(mixed $page, int $width, int $height): void
 {
-    expect(browserSoon($page, "document.readyState === 'complete'"))->toBeTrue();
+    expect(browserSoon($page, "document.readyState === 'complete'", 90))->toBeTrue();
     $page->resize($width, $height);
 }
 
