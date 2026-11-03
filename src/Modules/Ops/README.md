@@ -68,8 +68,11 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **`Infrastructure/Listener`** — `TellCustomerAboutOrder`, `…Return`, `…Money`, `…Points`, `…Feedback`,
   `TellCustomersAboutCoupon`, `AlertStaff`, `StartCampaignNotice`, `RefreshNewsletterSubscription`, `ForgetAnonymizedCustomer`: each on
   the queue, once per event through `Infrastructure/Eloquent/HandledEvents`.
-- **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, the `Log*` adapters for development
-  and tests (refused in production), `BuiltSmsSenders`, `DailyReportEmailMailer`. **`Infrastructure/Delivery`** —
+- **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, `BrevoAnswers` (the key as pasted, how
+  long a call waits, what each refusal means: ops.md §7), the `Log*` adapters for development
+  and tests (refused in production), `BuiltSmsSenders`, `DailyReportEmailMailer`. **`Infrastructure/Queue/ProviderFailureRules`** —
+  a job's answer to a provider's failure: the failed jobs at once when only a person can mend it, Brevo's own wait on a 429.
+  **`Presentation/Console/BrevoCheckCommand`** — `ops:brevo:check`, the real token's read-only check. **`Infrastructure/Delivery`** —
   `BroadcastSender`, batches of 500, safe to run again; `ExpiringPointsReminder`. **`Infrastructure/Queue`** — the
   jobs. **`Infrastructure/Excel`** — `OpenSpoutReportWriter`. **`Infrastructure/Pdf`** —
   `MpdfDailyReportRenderer`. **`Infrastructure/Files`** — `LocalReportFiles`, the app's private files.
@@ -177,14 +180,15 @@ Each checked against the code on 2026-11-01.
 | A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | A whole store's audience size | No public read counts a store's customers; a segment's is `segmentMemberCount` | Access (ops.md §4.13) |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
-| Brevo on the live system | The adapters are built, and production refuses to boot on either `log` driver; `OPS_EMAIL_DRIVER`, `OPS_NEWSLETTER_DRIVER`, `BREVO_API_KEY`, `BREVO_NEWSLETTER_FOLDER_ID`, `BREVO_WEBHOOK_SECRET` are the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header | The owner, at hosting |
+| Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and production refuses to boot on either `log` driver, or without a usable key, `MAIL_FROM_ADDRESS`, `BREVO_NEWSLETTER_FOLDER_ID` and `BREVO_WEBHOOK_SECRET`, all the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in. Not yet proven against the real Brevo | The owner, at hosting |
+| What to do about a lost unsubscribe, a long outage, a refused key on queued mail | ops.md §9.6: left as they are | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
 | The screens | Being built, one job at a time (ops.md §4.15): SMS Countries and the two bells with their full pages are in; the rest have no page or menu entry yet | The screens agent |
 
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `BrevoFailuresTest` (every way Brevo can fail, on every path, on the real database queue), `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,
