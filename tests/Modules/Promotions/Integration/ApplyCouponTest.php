@@ -147,8 +147,8 @@ describe('refused whole', function () {
             ->and($result->discount)->toBeNull();
     })->with([
         'inactive' => [['active' => false], CouponRefusal::Inactive],
-        'not started' => [['starts_at' => now()->addDay()], CouponRefusal::NotStarted],
-        'ended' => [['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()], CouponRefusal::Ended],
+        'not started' => [fn (): array => ['starts_at' => now()->addDay()], CouponRefusal::NotStarted],
+        'ended' => [fn (): array => ['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()], CouponRefusal::Ended],
         'under the minimum' => [['minimum_minor' => 100_01], CouponRefusal::BelowMinimum],
         'nothing eligible' => [['for_retail' => false], CouponRefusal::NothingEligible],
     ]);
@@ -199,8 +199,8 @@ describe('refused whole', function () {
     })->with([
         'usable' => [[]],
         'inactive' => [['active' => false]],
-        'ended' => [['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]],
-        'not started' => [['starts_at' => now()->addDay()]],
+        'ended' => [fn (): array => ['starts_at' => now()->subDays(3), 'ends_at' => now()->subDay()]],
+        'not started' => [fn (): array => ['starts_at' => now()->addDay()]],
     ]);
 
     it('tells the customer it was given to its own reason, as before', function () {

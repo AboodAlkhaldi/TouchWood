@@ -23,6 +23,7 @@ use Modules\Platform\Public\Contracts\PlatformApi;
 use Symfony\Component\Process\Process;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Ops\Support\CapturedEmails;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -68,7 +69,7 @@ afterEach(function () {
         return;
     }
 
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
     DB::connection('security_alert_race')->disconnect();
     // The store directory read during the test is cached: the wipe must not meet the stores it removes.
     Cache::flush();

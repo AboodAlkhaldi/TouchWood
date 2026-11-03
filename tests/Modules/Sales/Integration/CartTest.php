@@ -47,6 +47,7 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 use function Pest\Laravel\travel;
@@ -473,7 +474,7 @@ describe('what the review asked for', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->subDay());
         cartAdd($sixty, quantity: 600_000);
         cartAdd($sixty, storeCode: 'eg');
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
         $guest = (string) app(GuestIdentity::class)->current();
         Fx::asSystem(fn () => app(DeactivateStoreHandler::class)->handle(new DeactivateStore('eg')));
 

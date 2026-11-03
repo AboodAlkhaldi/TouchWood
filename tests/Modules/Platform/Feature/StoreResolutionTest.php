@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +70,7 @@ describe('a store and its language', function () {
     });
 
     it('keeps both cookies for one year (owner\'s decision)', function (string $name) {
-        $expiresIn = (get('/ae/en')->getCookie($name, false)?->getExpiresTime() ?? 0) - time();
+        $expiresIn = (get('/ae/en')->getCookie($name, false)?->getExpiresTime() ?? 0) - CarbonImmutable::now()->getTimestamp();
 
         expect($expiresIn)->toBeGreaterThan(365 * 24 * 3600 - 60)
             ->and($expiresIn)->toBeLessThanOrEqual(365 * 24 * 3600);
