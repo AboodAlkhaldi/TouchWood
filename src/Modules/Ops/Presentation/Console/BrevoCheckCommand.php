@@ -13,15 +13,17 @@ use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Infrastructure\External\BrevoAnswers;
 
 /**
- * The real token's check (ops.md §7), run by hand at staging and at any new key: three reads and no write, so
- * nothing reaches a customer. Exits non-zero when the key or the sender would fail. Never prints the key.
+ * The real token's check (ops.md §7), run by hand at staging and at any new key: four reads and no write, so
+ * nothing reaches a customer. Exits non-zero when the key, the sender or the lists' folder would fail. Never prints
+ * the key. The boot guard leaves console commands alone, so it can report a blank key.
  *
  * What Brevo's reference offers, read 2026-11-03: GET /v3/account, whose 200 "confirms your key is valid"
  * (https://developers.brevo.com/docs/quickstart); GET /v3/senders, each with `email` and `active`
  * (https://developers.brevo.com/reference/get-senders); GET /v3/senders/domains, each with `domain_name`,
- * `authenticated` and `verified` (https://developers.brevo.com/reference/get-domains). The reference notes an
- * active sender "must still be verified by email" and offers no read of that, so the address's own emailed code
- * cannot be checked from here: the first real email is what proves it.
+ * `authenticated` and `verified` (https://developers.brevo.com/reference/get-domains); GET
+ * /v3/contacts/folders/{folderId}, a 404 "Folder ID not found" (https://developers.brevo.com/reference/get-folder).
+ * The reference notes an active sender "must still be verified by email" and offers no read of that, so the
+ * address's own emailed code cannot be checked from here: the first real email is what proves it.
  */
 final class BrevoCheckCommand extends Command
 {
@@ -31,9 +33,17 @@ final class BrevoCheckCommand extends Command
 
     protected $signature = self::NAME;
 
-    protected $description = 'Read Brevo\'s account and senders with the key set (BREVO_API_KEY); sends nothing';
+    protected $description = 'Read Brevo\'s account, senders and folder with the key set (BREVO_API_KEY); sends nothing';
 
     public function handle(Factory $http, Config $config): int
+    {
+        $result = $this->checkAll($http, $config);
+        $this->line('After changing the key, run `php artisan queue:restart`: running workers hold the old configuration.');
+
+        return $result;
+    }
+
+    private function checkAll(Factory $http, Config $config): int
     {
         try {
             $key = BrevoAnswers::key((string) $config->get('services.brevo.key'));
@@ -47,7 +57,7 @@ final class BrevoCheckCommand extends Command
             ->connectTimeout(BrevoAnswers::CONNECT_SECONDS)->timeout(BrevoAnswers::SECONDS)->get(self::BASE.$path);
 
         try {
-            return $this->check($get, (string) $config->get('mail.from.address'));
+            return $this->check($get, (string) $config->get('mail.from.address'), trim((string) $config->get('services.brevo.newsletter_folder')));
         } catch (ConnectionException) {
             $this->error('Brevo: the API could not be reached.');
 
@@ -60,7 +70,7 @@ final class BrevoCheckCommand extends Command
      *
      * @throws ConnectionException
      */
-    private function check(callable $get, string $from): int
+    private function check(callable $get, string $from, string $folder): int
     {
         $account = $get('/account');
 
@@ -78,12 +88,31 @@ final class BrevoCheckCommand extends Command
         $this->plans($account);
 
         $from = strtolower(trim($from));
+        $senderWorks = $this->sender($get, $from);
+        $folderWorks = $this->folder($get, $folder);
+
+        if ($senderWorks) {
+            $this->domain($get('/senders/domains'), substr((string) strrchr($from, '@'), 1));
+        }
+
+        $this->line('Nothing was sent. Brevo offers no read of whether the address itself passed its emailed code: the first real email proves that.');
+
+        return $senderWorks && $folderWorks ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @param  callable(string): Response  $get
+     *
+     * @throws ConnectionException
+     */
+    private function sender(callable $get, string $from): bool
+    {
         $senders = $get('/senders');
 
         if (! $senders->ok() || ! is_array($senders->json('senders'))) {
             $this->error(BrevoAnswers::refused('the list of senders', $senders)->getMessage());
 
-            return self::FAILURE;
+            return false;
         }
 
         $sender = collect($senders->json('senders'))->first(static fn (mixed $one): bool => is_array($one) && is_string($one['email'] ?? null) && strtolower($one['email']) === $from);
@@ -91,20 +120,42 @@ final class BrevoCheckCommand extends Command
         if (! is_array($sender)) {
             $this->error("The sender {$from} (MAIL_FROM_ADDRESS) is not among Brevo's senders: every email would be refused.");
 
-            return self::FAILURE;
+            return false;
         }
 
         if (($sender['active'] ?? false) !== true) {
             $this->error("The sender {$from} (MAIL_FROM_ADDRESS) is at Brevo but not active: every email would be refused.");
 
-            return self::FAILURE;
+            return false;
         }
 
         $this->info("The sender {$from} is active at Brevo.");
-        $this->domain($get('/senders/domains'), substr((string) strrchr($from, '@'), 1));
-        $this->line('Nothing was sent. Brevo offers no read of whether the address itself passed its emailed code: the first real email proves that.');
 
-        return self::SUCCESS;
+        return true;
+    }
+
+    /**
+     * @param  callable(string): Response  $get
+     *
+     * @throws ConnectionException
+     */
+    private function folder(callable $get, string $folder): bool
+    {
+        if (preg_match('/^[1-9]\d*$/', $folder) !== 1) {
+            $this->error('No folder is set for the newsletter\'s lists (BREVO_NEWSLETTER_FOLDER_ID): no list could be made.');
+
+            return false;
+        }
+
+        if (! $get("/contacts/folders/{$folder}")->ok()) {
+            $this->error("Brevo has no folder {$folder} this key can read (BREVO_NEWSLETTER_FOLDER_ID): no list could be made.");
+
+            return false;
+        }
+
+        $this->info("The lists' folder {$folder} is at Brevo.");
+
+        return true;
     }
 
     private function plans(Response $account): void
