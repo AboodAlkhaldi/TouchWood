@@ -52,7 +52,7 @@ function ratedProduct(string $categoryId, array $stores = ['sa']): string
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $id, true)));
-        Px::inStock($store, $id);
+        Px::onSale($store, $id);
     }
 
     return $id;

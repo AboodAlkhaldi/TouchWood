@@ -96,6 +96,7 @@ final readonly class ShopPages
             self::filters($page->filters ?? new CategoryFilters([], [], []), $filters, $page->ratingSort),
             self::address('storefront.catalog.category', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
             $this->facts($store, $page->products->cards),
+            $page->soldOut,
         );
     }
 
@@ -121,6 +122,7 @@ final readonly class ShopPages
             $page->products->next,
             self::address('storefront.catalog.brand', $locale, ['slug' => $page->slug], $page->otherSlug === null ? null : ['slug' => $page->otherSlug], false),
             $this->facts($store, $page->products->cards),
+            $page->soldOut,
         );
     }
 
@@ -144,7 +146,7 @@ final readonly class ShopPages
         }
 
         $viewer = $this->visit->viewer();
-        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null} $kept */
+        /** @var array{page: array<string, mixed>|null, other: string|null, category: string|null, companies?: bool|null, noindex?: bool} $kept */
         $kept = $this->cache->remember("product:{$store->value}:{$locale}:{$viewer->value}:{$owner['id']}", function () use ($store, $locale, $viewer, $owner): array {
             $page = $this->catalog->productPage($store, $locale, $viewer, $owner['id'], $owner['slug']);
 
@@ -181,7 +183,8 @@ final readonly class ShopPages
             ))->toArray(), 'other' => $page->otherSlug, 'category' => $page->categoryId,
                 // A guest's: whether companies may buy it here, so whether its wholesale is shown (amendment 35).
                 // Kept with the page: a change of who sees its category is a Catalog change, a new version.
-                'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null];
+                'companies' => $viewer === ShopperKind::Guest ? $this->openToCompanies($store, $owner['id']) : null,
+                'noindex' => $page->noindex()];
         });
 
         if ($kept['page'] === null) {
@@ -192,8 +195,8 @@ final readonly class ShopPages
             return new Moved($owner['slug']);
         }
 
-        // Not available now: kept out of search engines (§1.4, P18).
-        $address = self::address('storefront.catalog.product', $locale, ['slug' => $owner['slug']], $kept['other'] === null ? null : ['slug' => $kept['other']], $kept['page']['available'] !== true);
+        // Not available now: kept out of search engines (§1.4, P18), unless only stock or a price is missing (amendment 39).
+        $address = self::address('storefront.catalog.product', $locale, ['slug' => $owner['slug']], $kept['other'] === null ? null : ['slug' => $kept['other']], $kept['noindex'] ?? $kept['page']['available'] !== true);
 
         // The path to its category as this viewer's menu has it: no step a page they cannot open.
         $around = $kept['category'] === null ? null : $this->visit->around($store, $locale, $kept['category']);
@@ -208,7 +211,7 @@ final readonly class ShopPages
             ShopperKind::Company => true,
             ShopperKind::Guest => $kept['companies'] ?? $this->openToCompanies($store, $owner['id']),
         };
-        // A sold-out size is drawn, but asked of no module: it is never offered (amendment 39).
+        // A sold-out or unpriced size is drawn, but asked of no module: it is never offered (amendment 39).
         $offered = array_values(array_filter(self::listOf($kept['page']['variants'] ?? []), static fn (array $variant): bool => ($variant['orderable'] ?? true) === true));
         $wholesaleSizes = ! $wholesaleViewer ? [] : array_values(array_map(
             static fn (array $variant): string => (string) $variant['id'],

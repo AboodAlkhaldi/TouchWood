@@ -92,10 +92,11 @@ final readonly class ShopCatalog
             $owner = $this->ownerInOtherLanguage('category', $locale, $slug);
             $there = $owner === null ? null : $this->reader->categoryHead($store->value, $locale, $viewer, $owner['slug'], $filters);
 
-            return $owner !== null && $there !== null && $there['lists'] ? new Moved($owner['slug'], true) : null;
+            return $owner !== null && $there !== null && ($there['lists'] || $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $there['id'])) ? new Moved($owner['slug'], true) : null;
         }
 
-        if (! $head['lists']) {
+        // Emptied only by stock or prices, it keeps its page with a sentence, out of the menu (amendment 39).
+        if (! $head['lists'] && ! $this->reader->onlySoldOut($store->value, $locale, $viewer, 'category', $head['id'])) {
             return null;
         }
 
@@ -121,6 +122,7 @@ final readonly class ShopCatalog
             $head['filters'],
             $chosen,
             $ratingSort,
+            ! $head['lists'],
         );
     }
 
@@ -152,14 +154,17 @@ final readonly class ShopCatalog
             return new Moved($head['slug']);
         }
 
+        $cards = $this->reader->brandCards($store->value, $locale, $viewer, $head['id'], $cursor, self::limit($limit, self::PAGE_MAX));
+
         return new BrandPage(
             $head['id'],
             $head['name'],
             $head['slug'],
             $head['logo_media_id'],
-            $this->reader->brandCards($store->value, $locale, $viewer, $head['id'], $cursor, self::limit($limit, self::PAGE_MAX)),
+            $cards,
             $head['other_slug'],
             $head['description'] ?? [],
+            $cards->cards === [] && $cursor === null && $this->reader->onlySoldOut($store->value, $locale, $viewer, 'brand', $head['id']),
         );
     }
 
@@ -236,7 +241,7 @@ final readonly class ShopCatalog
 
         $available = $this->reader->isListed($store->value, $locale, $viewer, $productId);
         $variants = $available ? $this->reader->variantsOnSale($store->value, $locale, $viewer, $productId) : [];
-        // What can be ordered now (amendment 39): a sold-out size is drawn greyed, its value not on sale, its photos never shown.
+        // What can be ordered now (amendment 39): a sold-out or unpriced size is drawn greyed, its value not on sale, its photos never shown.
         $variantIds = array_values(array_map(static fn (ShopVariant $variant): string => $variant->variantId, array_filter($variants, static fn (ShopVariant $variant): bool => $variant->orderable)));
         $gallery = $this->reader->gallery($productId);
         $own = $variantIds === [] ? [] : $this->reader->variantPhotos($variantIds);
@@ -275,6 +280,7 @@ final readonly class ShopCatalog
             $available ? $product['warranty'] : null,
             // An individual is told the retail side only (amendment 14(e), P17).
             $terms !== null && $viewer === ShopperKind::Individual ? new SellingTerms($terms->retailMinimum, $terms->retailMaximum, null, null) : $terms,
+            ! $available && $this->reader->onlySoldOut($store->value, $locale, $viewer, 'product', $productId),
         );
     }
 

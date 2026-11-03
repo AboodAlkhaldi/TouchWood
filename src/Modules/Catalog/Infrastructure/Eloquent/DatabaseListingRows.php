@@ -22,12 +22,13 @@ use stdClass;
  *   card photo changes, asks for that lock; a row that is no longer wanted is deleted.
  * - **The card photo** is the first photo of the gallery whose sizes are ready, its addresses asked
  *   of Platform as the row is written (§2.4, §9.3 #17), so a grid reads no media.
- * - **Out of stock is never shown** (§1.3, §2.2; amendment 39): a size Inventory says cannot be ordered
- *   (`orderable` false; never told, §1.3's rule: it can) counts for nothing here — not the filters, not
- *   a side, not a card, not a price. **`orderable` is true while a size can be ordered, and a product
- *   with none keeps its row, false**, which every read leaves out: a stock flip changes the row in
- *   place, so Inventory's push never asks for the card photo's lock. Its card variant, which a row
- *   must have, is then its first size's; nothing draws it.
+ * - **Out of stock and unpriced are never shown** (§1.3, §2.2; amendment 39): a size Inventory says
+ *   cannot be ordered (`orderable` false; never told, §1.3's rule: it can), or with no price there, counts
+ *   for nothing here — not the filters, not a side, not a card, not a price. **`orderable` is true while
+ *   a size can be ordered and is priced, and a product with none keeps its row, false**, which every read
+ *   leaves out: such a flip only changes a row that stays, as above, and asks no new lock on its photo
+ *   (a product's first row, or a card photo that changes, still does). Its card variant, which a row must
+ *   have, is then its first size's; nothing draws it.
  * - **The facts pushed in** (`store_variant_facts`, P22): each side's card price — the price and the
  *   price before of the variant its card shows — and its "Last pieces" (amendment 16(h)): some size
  *   that side can buy and order now is ending soon — any size for companies and guests, a size sold
@@ -211,8 +212,8 @@ final readonly class DatabaseListingRows implements ListingRows
             $searched = ['ar' => SearchTerms::canonical((string) $product->name_ar), 'en' => SearchTerms::canonical((string) $product->name_en)];
 
             foreach ($sellable[$id] as $storeId => $sizes) {
-                // Only what can be ordered now counts (amendment 39).
-                $variants = array_values(array_filter($sizes, static fn (array $variant): bool => $variant['orderable']));
+                // Only what can be ordered now, at a price, counts (amendment 39).
+                $variants = array_values(array_filter($sizes, static fn (array $variant): bool => $variant['orderable'] && $variant['price'] !== null));
                 $values = $filterValues[$id] ?? [];
 
                 foreach ($variants as $variant) {

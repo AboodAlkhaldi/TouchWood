@@ -35,7 +35,7 @@ function bestSeller(string $price): string
 {
     ['product' => $product, 'variants' => $variants] = Px::ready();
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true)));
-    Px::inStock('sa', $product);
+    Px::onSale('sa', $product);
     Rx::switchOn('sa', $variants);
     Rx::set('sa', [$variants[0] => $price]);
 

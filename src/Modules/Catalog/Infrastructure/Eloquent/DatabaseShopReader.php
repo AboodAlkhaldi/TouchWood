@@ -342,6 +342,37 @@ final readonly class DatabaseShopReader implements ShopReader
         return $this->listed($storeId, $locale, $viewer)->where('product_id', $productId)->exists();
     }
 
+    public function onlySoldOut(string $storeId, string $locale, ShopperKind $viewer, string $kind, string $id): bool
+    {
+        if (! Ulids::valid($id)) {
+            return false;
+        }
+
+        $what = match ($kind) {
+            'category' => 'l.in_category_pages AND l.category_path @> ARRAY[?]::text[]',
+            'brand' => 'l.brand_id = ?',
+            default => 'l.product_id = ?',
+        };
+        // A row counts only if this viewer would see it were it in stock and priced: its category open to
+        // them and, for individuals, a size on sale here sold retail. A row's own `for_individuals` and
+        // `sells_retail` cannot say, as they follow what can be ordered now.
+        $retail = 'COALESCE(a.for_individuals, true) AND EXISTS (SELECT 1 FROM catalog.store_variants sv JOIN catalog.variants v ON v.id = sv.variant_id'
+            .' WHERE sv.store_id = l.store_id AND sv.product_id = l.product_id AND sv.is_active AND NOT sv.not_available_now AND NOT v.is_archived AND sv.sells_retail)';
+        $seen = match ($viewer) {
+            ShopperKind::Individual => $retail,
+            ShopperKind::Company => 'COALESCE(a.for_companies, true)',
+            ShopperKind::Guest => "(COALESCE(a.for_companies, true) OR ({$retail}))",
+        };
+        $found = $this->db->selectOne(
+            'SELECT EXISTS (SELECT 1 FROM '.self::LISTING.' l'
+            .' LEFT JOIN catalog.store_category_audiences a ON a.store_id = l.store_id AND a.category_id = l.category_id'
+            ." WHERE l.store_id = ? AND l.locale = ? AND {$what} AND {$seen}) AS found",
+            [$storeId, $locale, strtolower($id)],
+        );
+
+        return $found instanceof stdClass && (bool) $found->found;
+    }
+
     public function gallery(string $productId): array
     {
         return array_values(array_map('strval', $this->db->table('catalog.product_photos')->where('product_id', $productId)->orderBy('position')->pluck('media_id')->all()));
@@ -466,8 +497,8 @@ final readonly class DatabaseShopReader implements ShopReader
             // only has none here: its wholesale price is Pricing's section's (`pricing.wholesale`).
             $row->price_minor === null || ! $row->sells_retail ? null : (int) $row->price_minor,
             $row->price_before_minor === null || ! $row->sells_retail ? null : (int) $row->price_before_minor,
-            // Sold out, as Inventory told it (amendment 39); no facts yet: §1.3's rule, it can be ordered.
-            $row->orderable !== false,
+            // Sold out, as Inventory told it, or no price here (amendment 39); never told: §1.3's rule, it can be ordered.
+            $row->orderable !== false && $row->price_minor !== null,
         ), $variants));
     }
 

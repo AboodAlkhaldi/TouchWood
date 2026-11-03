@@ -30,6 +30,8 @@ use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandl
 use Modules\Catalog\Domain\Repository\ProductRepository;
 use Modules\Inventory\Application\Command\SetStock\SetStock;
 use Modules\Inventory\Application\Command\SetStock\SetStockHandler;
+use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPrice;
+use Modules\Pricing\Application\Command\SetRetailPrice\SetRetailPriceHandler;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 
 /**
@@ -113,14 +115,24 @@ final class CatalogProducts
     }
 
     /**
-     * Every size of the product in stock in a store, through Inventory: a size it told 0 — a size switched
-     * on with no stock, too — is off the shop's lists (catalog.md amendment 39).
+     * Every size of the product on sale in a store, through Inventory and Pricing: in stock, and priced unless
+     * it has a price. A size told 0 — a size switched on with no stock, too — or with no price is off the shop's
+     * lists (catalog.md amendment 39).
      */
-    public static function inStock(string $storeCode, string $productId, int $pieces = 5): void
+    public static function onSale(string $storeCode, string $productId, int $pieces = 5, string $price = '10.00'): void
     {
+        $store = (string) DB::table('platform.stores')->where('code', $storeCode)->value('id');
         $sizes = DB::table('catalog.variants')->where('product_id', $productId)->where('is_archived', false)->pluck('id')->map(strval(...))->all();
+        $priced = DB::table('catalog.store_variant_facts')->where('store_id', $store)->whereIn('variant_id', $sizes)->whereNotNull('price_minor')->pluck('variant_id')->map(strval(...))->all();
+        $unpriced = array_values(array_diff($sizes, $priced));
 
-        Fx::asSystem(fn () => app(SetStockHandler::class)->handle(new SetStock((string) DB::table('platform.stores')->where('code', $storeCode)->value('id'), array_fill_keys($sizes, $pieces))));
+        Fx::asSystem(function () use ($store, $sizes, $unpriced, $pieces, $price): void {
+            app(SetStockHandler::class)->handle(new SetStock($store, array_fill_keys($sizes, $pieces)));
+
+            if ($unpriced !== []) {
+                app(SetRetailPriceHandler::class)->handle(new SetRetailPrice($store, array_fill_keys($unpriced, $price)));
+            }
+        });
     }
 
     /**

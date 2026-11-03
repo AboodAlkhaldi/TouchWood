@@ -27,6 +27,7 @@ use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReady;
 use Modules\Catalog\Application\Command\MarkProductReady\MarkProductReadyHandler;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGallery;
 use Modules\Catalog\Application\Command\SetProductGallery\SetProductGalleryHandler;
+use Modules\Catalog\Public\Contracts\ListingFacts;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Inventory\Public\Dto\HoldLineDto;
 use Shared\Domain\ValueObject\StoreId;
@@ -81,7 +82,7 @@ function shopBrowserProduct(): array
         app(SetProductGalleryHandler::class)->handle(new SetProductGallery($product, [Cx::media()]));
         app(MarkProductReadyHandler::class)->handle(new MarkProductReady($product));
         app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $product, true));
-        Px::inStock('sa', $product);
+        Px::onSale('sa', $product);
 
         return ['n' => $n, 'top' => $top, 'category' => $category, 'product' => $product];
     });
@@ -213,8 +214,11 @@ it('greys a value that names a sold-out size with the other choices as they are,
     });
     // 60 cm Matte sold out; 80 cm Matte and 60 cm Gloss left.
     $sizes = array_map('strval', DB::table('catalog.variants')->where('product_id', $product)->orderBy('position')->pluck('id')->all());
-    Px::inStock('sa', $product);
+    Px::onSale('sa', $product);
     app(InventoryApi::class)->hold(StoreId::fromString(Fx::storeId('sa')), strtolower((string) Str::ulid()), [new HoldLineDto($sizes[0], 5)], null);
+
+    // 60 cm Gloss ending soon: no badge on the greyed 60 cm that leads to it, until it is chosen.
+    app(ListingFacts::class)->endingSoon(StoreId::fromString(Fx::storeId('sa')), [$sizes[2]], true);
 
     $page = visit('/sa/en/products/'.shopBrowserSlug('product', $product));
     $page->resize(1280, 900);
@@ -226,7 +230,10 @@ it('greys a value that names a sold-out size with the other choices as they are,
         ->and($page->script($named('Matte').".getAttribute('aria-pressed')"))->toBe('true')
         ->and($page->script($named('60 cm').'.disabled'))->toBeFalse()
         ->and($page->script('getComputedStyle('.$named('60 cm').').textDecorationLine'))->toBe('line-through')
-        ->and($page->script($named('60 cm').".getAttribute('aria-label')"))->toBe("60 cm {$n}, not available")
+        // What pressing it does, the value's own text still on the button.
+        ->and($page->script($named('60 cm').".getAttribute('aria-label')"))->toBe("60 cm {$n}, available in another option")
+        ->and($page->script($named('60 cm').'.textContent'))->toContain("60 cm {$n}")
+        ->and($page->script($named('60 cm').".querySelector('[data-test=\"last-pieces\"]') === null"))->toBeTrue()
         ->and($page->script('getComputedStyle('.$named('Gloss').').textDecorationLine'))->toBe('none');
 
     // Picked, it moves to the size left that holds it, never to the sold-out one.
@@ -236,6 +243,7 @@ it('greys a value that names a sold-out size with the other choices as they are,
         ->and($page->script($named('Gloss').".getAttribute('aria-pressed')"))->toBe('true')
         ->and($page->script($named('Matte').".getAttribute('aria-pressed')"))->toBe('false')
         ->and($page->script('getComputedStyle('.$named('Matte').').textDecorationLine'))->toBe('line-through')
+        ->and($page->script($named('60 cm').".querySelector('[data-test=\"last-pieces\"]') !== null"))->toBeTrue()
         ->and($page->script('getComputedStyle('.$named('60 cm').').textDecorationLine'))->toBe('none');
 
     $page->assertNoJavaScriptErrors();

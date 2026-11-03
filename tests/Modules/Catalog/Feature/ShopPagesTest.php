@@ -92,7 +92,7 @@ function shopPagesProduct(string $categoryId, array $sizes = ['60 cm'], array $s
 
     foreach ($stores as $store) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $p['product'], true)));
-        Px::inStock($store, $p['product']);
+        Px::onSale($store, $p['product']);
     }
 
     return $p;
@@ -224,8 +224,8 @@ describe('a product\'s page', function () {
             ->where('selling.retailMinimum', 1)
             ->where('address.noindex', false)
             ->has('photos', 1)
-            // Not priced in the store yet: no price (amendment 35; ShopPricesTest shows them priced).
-            ->where('variants.0.price', null)
+            // Its price, no sale (amendment 35; ShopPricesTest shows the rest; unpriced, it is not on sale, amendment 39).
+            ->where('variants.0.price.minor', 10_00)
             ->where('variants.0.priceBefore', null)
         );
 
@@ -932,7 +932,8 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
         }
 
         // A slug no one holds: this language's read and the other's, 2. One the other language holds: a
-        // third, checking its address, whichever way it then answers.
+        // third, checking its address, whichever way it then answers; for a category listing nothing, a fourth:
+        // whether only stock or a price emptied it (amendment 39). A page shown asks neither.
         $queries = static function (string $url): int {
             app()->forgetScopedInstances();
             DB::flushQueryLog();
@@ -955,7 +956,7 @@ describe('the other language\'s slug (amendment 38: a notice carries one link)',
             $queries("/sa/en/{$path}/no-such-page");
             $unknown = $queries("/sa/en/{$path}/no-such-page");
 
-            expect($queries("/sa/en/{$path}/".rawurlencode($slug)))->toBe($unknown + 1);
+            expect($queries("/sa/en/{$path}/".rawurlencode($slug)))->toBe($unknown + ($path === 'categories' ? 2 : 1));
         }
     });
 });

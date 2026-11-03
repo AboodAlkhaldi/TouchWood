@@ -51,7 +51,7 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
             $hundred => ['retail' => false, 'wholesale' => true],
         ], wholesaleMinimum: 5));
     });
-    Px::inStock('sa', $p['product']);
+    Px::onSale('sa', $p['product']);
     Rx::set('sa', [$sixty => '30.00', $eighty => '25.00', $hundred => '40.00']);
     // On a whole second, a sale starting now starts at once (Pricing's SaleInput); the clock runs on after.
     CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
@@ -118,7 +118,7 @@ it('starts the wholesale bands at the minimum after it moved: a band below it fo
     ], wholesaleMinimum: $minimum));
 
     Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore($store, $p['product'], true)));
-    Px::inStock('sa', $p['product']);
+    Px::onSale('sa', $p['product']);
     Rx::set('sa', [$sixty => '40.00', $eighty => '22.00']);
     Fx::asSystem(function () use ($store, $sixty, $eighty, $terms): void {
         $terms(20);

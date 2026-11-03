@@ -365,6 +365,7 @@ products: ShopCardData[],
 next: string | null,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
+soldOut: boolean,
 };
 export type ShopCardData = {
 productId: string,
@@ -393,6 +394,7 @@ next: string | null,
 filters: ShopFiltersData,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
+soldOut: boolean,
 };
 export type ShopChoiceData = {
 id: string,

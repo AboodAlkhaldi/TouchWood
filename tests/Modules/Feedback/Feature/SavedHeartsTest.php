@@ -49,7 +49,7 @@ function heartsCategory(): array
 
         foreach (['sa', 'eg'] as $store) {
             Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId($store), $id, true)));
-            Px::inStock($store, $id);
+            Px::onSale($store, $id);
         }
 
         $products[] = $id;
@@ -101,7 +101,7 @@ it('marks the related cards of a product page for the customer looking, though t
 
     foreach ([$product, $goesWith] as $id) {
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $id, true)));
-        Px::inStock('sa', $id);
+        Px::onSale('sa', $id);
     }
 
     Fx::asSystem(fn () => app(SetRelationsHandler::class)->handle(new SetRelations($product, 'GOES_WITH', [$goesWith])));
@@ -128,7 +128,7 @@ it('carries each page of cards its own hearts: Show More and the search results'
     $ids = array_map(function () use ($category): string {
         $id = Px::ready(['60 cm'], $category)['product'];
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $id, true)));
-        Px::inStock('sa', $id);
+        Px::onSale('sa', $id);
 
         return $id;
     }, range(1, ShopCatalog::PAGE + 1));

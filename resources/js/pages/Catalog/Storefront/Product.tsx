@@ -54,8 +54,9 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
     const t = useTranslator();
     const link = useLink();
     const { name, available, choices, selling, warranty, address } = page;
-    // A sold-out size is never chosen, opened on or priced: only the sizes that can be ordered are offered (amendment 39).
-    const variants = page.variants.filter((each) => each.orderable);
+    // A sold-out or unpriced size is never chosen, opened on or priced: only the sizes that can be ordered are offered (amendment 39).
+    // A page kept from before this has no such field: its sizes stay (`!== false`).
+    const variants = page.variants.filter((each) => each.orderable !== false);
     const [chosen, setChosen] = useState<Record<string, string>>(() => variants[0]?.values ?? {});
     const variant = variantOf(variants, choices, chosen);
     const photos: PhotoSizes[] = variant !== null && variant.photos.length > 0 ? variant.photos : page.photos;
@@ -114,7 +115,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                                 type="button"
                                                 disabled={becomes === null}
                                                 aria-pressed={isChosen}
-                                                aria-label={becomes === null || soldOutHere ? t('catalog::shop.product.unavailable_value', { name: value.name }) : undefined}
+                                                aria-label={becomes === null ? t('catalog::shop.product.unavailable_value', { name: value.name }) : soldOutHere ? t('catalog::shop.product.other_option_value', { name: value.name }) : undefined}
                                                 onClick={() => becomes !== null && setChosen(becomes.values)}
                                                 className={cn(
                                                     'material-small flex items-center gap-2 bg-surface px-3 py-2 text-label-14 text-ink disabled:cursor-not-allowed disabled:text-ink-muted disabled:line-through',
@@ -126,7 +127,7 @@ export default function Product(page: ShopProductPage & { sections: FeedbackSect
                                                 {value.swatch !== null ? <span className="size-4 rounded-full shadow-[0_0_0_1px_var(--tw-line-strong)]" style={{ backgroundColor: value.swatch }} aria-hidden="true" /> : null}
                                                 {value.name}
                                                 {/* On the option that is ending soon only (amendment 16(h)). */}
-                                                {becomes?.lastPieces ? (
+                                                {becomes?.lastPieces && !soldOutHere ? (
                                                     <Badge className={tone('amber')} data-test="last-pieces">
                                                         {t('catalog::shop.last_pieces')}
                                                     </Badge>

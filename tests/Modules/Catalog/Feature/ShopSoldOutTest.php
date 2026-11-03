@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -11,8 +12,14 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProduct;
+use Modules\Catalog\Application\Command\ArchiveProduct\ArchiveProductHandler;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStore;
 use Modules\Catalog\Application\Command\ChooseInStore\ChooseInStoreHandler;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNow;
+use Modules\Catalog\Application\Command\MarkNotAvailableNow\MarkNotAvailableNowHandler;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiences;
+use Modules\Catalog\Application\Command\SetCategoryAudiences\SetCategoryAudiencesHandler;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTerms;
 use Modules\Catalog\Application\Command\SetSellingTerms\SetSellingTermsHandler;
 use Modules\Catalog\Application\Listing\ListingRows;
@@ -191,9 +198,9 @@ describe('a product with no size left', function () {
             ->and(shopSoldOutIds($brandUrl))->toBe([])
             ->and(shopSoldOutIds('/sa/en/search?q='.rawurlencode($goneName)))->not->toContain($gone['product'])
             ->and(shopSoldOutSuggested(rawurlencode($goneName)))->not->toContain($gone['product'])
-            // A direct link: the one page, nothing to choose, nothing to buy, out of search engines.
+            // A direct link: the one page, nothing to choose, nothing to buy; only sold out, it stays listed (owner, 2026-11-03).
             ->and($product['available'])->toBeFalse()
-            ->and($product['address']['noindex'])->toBeTrue()
+            ->and($product['address']['noindex'])->toBeFalse()
             ->and($product['variants'])->toBe([])
             ->and($product['choices'])->toBe([])
             ->and($product['sections'])->not->toHaveKey('sales.cart');
@@ -228,7 +235,14 @@ describe('a product with no size left', function () {
             ->and($best())->not->toContain($beside['product'])
             // A category with nothing to order has no place in the menu, and no page.
             ->and(array_column(shopSoldOutProps($productUrl)['frame']['catalog']['menu'], 'id'))->not->toContain($alone);
-        get('/sa/en/categories/'.shopSoldOutSlug('category', $alone))->assertNotFound();
+
+        // It keeps its page, with its sentence, its own address and in search engines (owner, 2026-11-03).
+        $emptied = shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $alone));
+
+        expect($emptied['products'])->toBe([])
+            ->and($emptied['soldOut'])->toBeTrue()
+            ->and($emptied['address']['noindex'])->toBeFalse()
+            ->and($emptied['address']['canonical'])->toBe(url('/sa/en/categories/'.shopSoldOutSlug('category', $alone)));
     });
 
     it('leaves through a removal by hand and a shipment as through an order\'s hold', function () {
@@ -247,6 +261,9 @@ describe('a product with no size left', function () {
 
     it('keeps the row, in place and honest, so a size coming back asks no new lock on its photo', function () {
         $p = shopSoldOutProduct(Px::category('Kitchens'), ['60 cm']);
+        // A row deleted and written again would refuse here: only a change in place gets through.
+        DB::statement("CREATE FUNCTION catalog.sold_out_test_refuse() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'A listing row was deleted.'; END $$");
+        DB::statement('CREATE TRIGGER sold_out_test_refuse BEFORE DELETE ON catalog.listing FOR EACH ROW EXECUTE FUNCTION catalog.sold_out_test_refuse()');
         $row = static fn (): stdClass => DB::table('catalog.listing')->where('store_id', Fx::storeId('sa'))->where('locale', 'en')->where('product_id', $p['product'])->first() ?? throw new LogicException('No row.');
         $before = $row();
 
@@ -262,6 +279,9 @@ describe('a product with no size left', function () {
             ->and($row()->retail_card_variant_id)->toBeNull()
             ->and($row()->price_minor)->toBeNull()
             ->and($row()->retail_price_minor)->toBeNull();
+
+        // The refusal is real: a delete here would have failed this test.
+        expect(fn () => DB::transaction(fn () => DB::table('catalog.listing')->where('product_id', $p['product'])->delete()))->toThrow(QueryException::class, 'A listing row was deleted.');
 
         // The repair writes the same.
         DB::transaction(fn () => app(ListingRows::class)->rebuild());
@@ -429,10 +449,10 @@ describe('back in stock', function () {
             ->and(shopSoldOutProps($productUrl)['available'])->toBeFalse();
 
         foreach ($urls as $url) {
-            expect(in_array($p['product'], str_contains($url, '/categories/') ? [] : shopSoldOutIds($url), true))->toBeFalse();
+            expect(shopSoldOutIds($url))->not->toContain($p['product']);
         }
 
-        get($urls['category'])->assertNotFound();
+        expect(shopSoldOutProps($urls['category'])['soldOut'])->toBeTrue();
         $gone = $version();
 
         app(InventoryApi::class)->release($second);
@@ -492,7 +512,8 @@ describe('what stock does not limit', function () {
         $category = Px::category('Kitchens');
         $p = Px::ready(['60 cm'], $category);
         Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
-        DB::table('catalog.store_variant_facts')->where('variant_id', $p['variants'][0])->delete();
+        Rx::set('sa', [$p['variants'][0] => '30.00']);
+        DB::table('catalog.store_variant_facts')->where('variant_id', $p['variants'][0])->update(['orderable' => null]);
         DB::transaction(fn () => app(ListingRows::class)->refresh([$p['product']]));
 
         expect(DB::table('catalog.listing')->where('product_id', $p['product'])->where('store_id', Fx::storeId('sa'))->pluck('orderable')->unique()->all())->toBe([true]);
@@ -551,5 +572,200 @@ describe('the queries', function () {
         shopSoldOutByOrder($p['variants'][0]);
 
         expect($measure())->toBe($before);
+    });
+});
+
+describe('until it is priced (owner, 2026-11-03)', function () {
+    it('counts a size with no price for nothing, moving the card, and brings the product back with Pricing\'s push', function () {
+        $category = Px::category('Kitchens');
+        $p = Px::ready(['60 cm', '80 cm'], $category);
+        [$sixty, $eighty] = $p['variants'];
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        Ix::count('sa', [$sixty => 5, $eighty => 5]);
+        $other = shopSoldOutProduct($category, ['100 cm']);
+        $url = '/sa/en/categories/'.shopSoldOutSlug('category', $category);
+        $productUrl = '/sa/en/products/'.shopSoldOutSlug('product', $p['product']);
+        $version = static fn (): mixed => DB::table('cache')->where('key', config('cache.prefix').'catalog:shop:version')->value('value');
+
+        // In stock, no price: as a product sold out, off the lists, its page "Not available now" and still listed.
+        $page = shopSoldOutProps($productUrl);
+
+        expect(shopSoldOutIds($url))->toBe([$other['product']])
+            ->and(array_column(shopSoldOutProps($url)['filters']['attributes'][0]['choices'], 'name'))->not->toContain('60 cm')
+            ->and($page['available'])->toBeFalse()
+            ->and($page['address']['noindex'])->toBeFalse();
+
+        // One price: only that size counts; the other is drawn greyed, never offered, in `facts` first.
+        $kept = $version();
+        Rx::set('sa', [$eighty => '25.00']);
+
+        expect($version())->not->toBe($kept)
+            ->and(DB::table('catalog.store_variant_facts')->where('store_id', Fx::storeId('sa'))->where('variant_id', $eighty)->value('price_minor'))->toBe(25_00);
+
+        $page = shopSoldOutProps($productUrl);
+        $card = shopSoldOutCard($url, $p['product']);
+
+        expect($page['available'])->toBeTrue()
+            ->and(array_column($page['variants'], 'orderable'))->toBe([false, true])
+            ->and(array_column($page['choices'][0]['values'], 'onSale'))->toBe([false, true])
+            ->and(array_column($page['sections']['sales.cart']['sizes'], 'variantId'))->toBe([$eighty])
+            ->and($card['price']['now']['minor'])->toBe(25_00)
+            ->and($card['price']['from'])->toBeNull();
+
+        // Both: the first size's card, and "From".
+        Rx::set('sa', [$sixty => '30.00']);
+        $card = shopSoldOutCard($url, $p['product']);
+
+        expect($card['price']['now']['minor'])->toBe(30_00)
+            ->and($card['price']['from']['minor'])->toBe(25_00);
+
+        // Its price taken away, it leaves again.
+        Rx::remove('sa', [$sixty, $eighty]);
+
+        expect(shopSoldOutIds($url))->toBe([$other['product']])
+            ->and(shopSoldOutProps($productUrl)['available'])->toBeFalse();
+    });
+
+    it('takes a side away with its prices: the retail size unpriced, an individual sees nothing, a company the wholesale side', function () {
+        $category = Px::category('Kitchens');
+        $p = Px::ready(['60 cm', '80 cm'], $category);
+        [$retail, $wholesale] = $p['variants'];
+        Fx::asSystem(function () use ($p, $retail, $wholesale): void {
+            app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true));
+            app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$retail => ['retail' => true, 'wholesale' => false], $wholesale => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5));
+        });
+        Ix::count('sa', [$retail => 5, $wholesale => 5]);
+        Rx::set('sa', [$wholesale => '25.00']);
+        $url = '/sa/en/categories/'.shopSoldOutSlug('category', $category);
+        $productUrl = '/sa/en/products/'.shopSoldOutSlug('product', $p['product']);
+
+        shopSoldOutViewer(ShopperKind::Individual);
+        $individual = shopSoldOutProps($productUrl);
+        expect(shopSoldOutProps($url)['soldOut'])->toBeTrue()
+            ->and($individual['available'])->toBeFalse()
+            ->and($individual['address']['noindex'])->toBeFalse();
+
+        shopSoldOutViewer(ShopperKind::Company);
+        $card = shopSoldOutCard($url, $p['product']);
+        expect($card['price']['wholesaleFrom']['minor'])->toBe(25_00)
+            ->and($card['price']['now'] ?? null)->toBeNull();
+    });
+
+    it('draws a store with no prices at all as an empty shop, every page answering', function () {
+        $category = Px::category('Kitchens');
+        $p = Px::ready(['60 cm'], $category);
+        Fx::asSystem(fn () => app(ChooseInStoreHandler::class)->handle(new ChooseInStore(Fx::storeId('sa'), $p['product'], true)));
+        Ix::count('sa', [$p['variants'][0] => 5]);
+        $name = (string) DB::table('catalog.products')->where('id', $p['product'])->value('name_en');
+        $brand = shopSoldOutProps('/sa/en/brands/'.shopSoldOutSlug('brand', shopSoldOutBrandOf($p['product'])));
+
+        app()->forgetScopedInstances();
+        get('/sa/en')->assertOk();
+
+        expect(shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $category))['soldOut'])->toBeTrue()
+            ->and($brand['products'])->toBe([])
+            ->and($brand['soldOut'])->toBeTrue()
+            ->and(shopSoldOutProps('/sa/en/search?q='.rawurlencode($name))['total'])->toBe(0)
+            ->and(shopSoldOutSuggested(rawurlencode($name)))->toBe([])
+            ->and(shopSoldOutProps('/sa/en/products/'.shopSoldOutSlug('product', $p['product']))['available'])->toBeFalse()
+            ->and(shopSoldOutProps('/sa/en/search?q='.rawurlencode($name))['frame']['catalog']['menu'])->toBe([])
+            ->and(app(ShopBestSellers::class)->read(StoreId::fromString(Fx::storeId('sa')), 'en', 20)['cards'])->toBe([]);
+    });
+});
+
+describe('what only stock or a price empties (owner, 2026-11-03)', function () {
+    it('leaves an inactive category, and one with nothing at all for this viewer, as they were', function () {
+        $none = Px::category('Hinges');
+        get('/sa/en/categories/'.shopSoldOutSlug('category', $none))->assertNotFound();
+
+        // Switched off for individuals here: sold out or not, not theirs.
+        $closed = Px::category('Kitchens');
+        $p = shopSoldOutProduct($closed, ['60 cm']);
+        Fx::asSystem(fn () => app(SetCategoryAudiencesHandler::class)->handle(new SetCategoryAudiences(Fx::storeId('sa'), $closed, false)));
+        shopSoldOutByOrder($p['variants'][0]);
+        $slug = shopSoldOutSlug('category', $closed);
+        $productUrl = '/sa/en/products/'.shopSoldOutSlug('product', $p['product']);
+
+        shopSoldOutViewer(ShopperKind::Individual);
+        get("/sa/en/categories/{$slug}")->assertNotFound();
+        expect(shopSoldOutProps($productUrl)['address']['noindex'])->toBeTrue();
+        shopSoldOutViewer(ShopperKind::Company);
+        expect(shopSoldOutProps("/sa/en/categories/{$slug}")['soldOut'])->toBeTrue()
+            ->and(shopSoldOutProps($productUrl)['address']['noindex'])->toBeFalse();
+
+        // Wholesale only: an individual was never shown it, in stock or not.
+        $wholesale = Px::category('Doors');
+        $only = shopSoldOutProduct($wholesale, ['80 cm']);
+        Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $only['product'], [$only['variants'][0] => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5)));
+        shopSoldOutByOrder($only['variants'][0]);
+        shopSoldOutViewer(ShopperKind::Individual);
+        get('/sa/en/categories/'.shopSoldOutSlug('category', $wholesale))->assertNotFound();
+        expect(shopSoldOutProps('/sa/en/products/'.shopSoldOutSlug('product', $only['product']))['address']['noindex'])->toBeTrue();
+    });
+
+    it('gives an individual the emptied page when the retail size sold out and a wholesale one is left', function () {
+        $category = Px::category('Kitchens');
+        $p = shopSoldOutProduct($category, ['60 cm', '80 cm']);
+        [$retail, $wholesale] = $p['variants'];
+        Fx::asSystem(fn () => app(SetSellingTermsHandler::class)->handle(new SetSellingTerms(Fx::storeId('sa'), $p['product'], [$retail => ['retail' => true, 'wholesale' => false], $wholesale => ['retail' => false, 'wholesale' => true]], wholesaleMinimum: 5)));
+        shopSoldOutByOrder($retail);
+        shopSoldOutViewer(ShopperKind::Individual);
+        $page = shopSoldOutProps('/sa/en/categories/'.shopSoldOutSlug('category', $category));
+
+        expect($page['soldOut'])->toBeTrue()
+            ->and($page['frame']['catalog']['menu'])->toBe([])
+            ->and($page['address']['noindex'])->toBeFalse();
+    });
+
+    it('forwards the other language\'s address to an emptied category, and draws Arabic the same', function () {
+        $category = Px::category('Kitchens');
+        $p = shopSoldOutProduct($category, ['60 cm']);
+        shopSoldOutByOrder($p['variants'][0]);
+        $en = shopSoldOutSlug('category', $category);
+        $ar = shopSoldOutSlug('category', $category, 'ar');
+
+        expect(shopSoldOutProps('/sa/ar/categories/'.rawurlencode($ar))['soldOut'])->toBeTrue();
+        app()->forgetScopedInstances();
+        get('/sa/en/categories/'.rawurlencode($ar))->assertStatus(301)->assertRedirect(url("/sa/en/categories/{$en}"));
+    });
+
+    it('says the same on a brand\'s page, and only when stock or prices emptied it', function () {
+        $p = shopSoldOutProduct(Px::category('Kitchens'), ['60 cm']);
+        $url = '/sa/en/brands/'.shopSoldOutSlug('brand', shopSoldOutBrandOf($p['product']));
+
+        expect(shopSoldOutProps($url)['soldOut'])->toBeFalse();
+
+        shopSoldOutByOrder($p['variants'][0]);
+        $page = shopSoldOutProps($url);
+
+        expect($page['soldOut'])->toBeTrue()
+            ->and($page['address']['noindex'])->toBeFalse();
+
+        $brand = Px::brand('Tallsen');
+        expect(shopSoldOutProps('/sa/en/brands/'.shopSoldOutSlug('brand', $brand))['soldOut'])->toBeFalse();
+    });
+});
+
+describe('the rest of "Not available now" (owner, 2026-11-03)', function () {
+    it('keeps noindex for what is not only sold out: marked by staff, not chosen here, archived', function () {
+        $category = Px::category('Kitchens');
+        $marked = shopSoldOutProduct($category, ['60 cm']);
+        Fx::asSystem(fn () => app(MarkNotAvailableNowHandler::class)->handle(new MarkNotAvailableNow(Fx::storeId('sa'), $marked['product'])));
+        $notChosen = Px::ready(['60 cm'], $category);
+        $archived = shopSoldOutProduct($category, ['60 cm']);
+        Fx::asSystem(fn () => app(ArchiveProductHandler::class)->handle(new ArchiveProduct($archived['product'])));
+
+        foreach ([$marked, $notChosen, $archived] as $p) {
+            $page = shopSoldOutProps('/sa/en/products/'.shopSoldOutSlug('product', $p['product']));
+
+            expect($page['available'])->toBeFalse()
+                ->and($page['address']['noindex'])->toBeTrue();
+        }
+    });
+
+    it('answers 404 for a draft and an unknown address, as ever', function () {
+        $draft = Px::product('Draft');
+        get('/sa/en/products/'.shopSoldOutSlug('product', $draft))->assertNotFound();
+        get('/sa/en/products/no-such-product')->assertNotFound();
     });
 });

@@ -20,7 +20,7 @@ import type { ShopCardData, ShopCategoryPage, ShopFilterChoiceData } from '@/typ
 | (P14): the brands, the filter attributes' values present, and Retail or Wholesale for a company or a
 | guest, each with how many products it would show; the chosen ones as chips with Clear All, all in
 | the address. The sort (P15): Best-Selling, the default - newest until Sales ranks products - and
-| Newest. No price, no stock, no Add to Cart.
+| Newest. No price, no stock, no Add to Cart. Emptied only by stock or prices, a sentence saying so (amendment 39).
 */
 
 type Chosen = { brands: string[]; values: string[]; side: string | null; sort: string };
@@ -39,7 +39,7 @@ function query(chosen: Chosen): Record<string, string> {
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry[1] !== null));
 }
 
-export default function Category({ name, slug, path, children, products, next, filters, address, cardFacts }: ShopCategoryPage) {
+export default function Category({ name, slug, path, children, products, next, filters, address, cardFacts, soldOut }: ShopCategoryPage) {
     const t = useTranslator();
     const link = useLink();
     const here = link('storefront.catalog.category', { slug });
@@ -151,7 +151,7 @@ export default function Category({ name, slug, path, children, products, next, f
                         {list.rows.length === 0 ? (
                             <Empty className="py-12">
                                 <EmptyHeader>
-                                    <EmptyDescription className="text-copy-14 text-ink-muted">{t(chips.length > 0 ? 'catalog::shop.filters.none' : 'catalog::shop.empty')}</EmptyDescription>
+                                    <EmptyDescription className="text-copy-14 text-ink-muted">{t(soldOut ? 'catalog::shop.nothing_now' : chips.length > 0 ? 'catalog::shop.filters.none' : 'catalog::shop.empty')}</EmptyDescription>
                                 </EmptyHeader>
                             </Empty>
                         ) : (

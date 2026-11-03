@@ -151,11 +151,20 @@ interface ShopReader
     public function sellingTerms(string $storeId, string $productId): ?SellingTerms;
 
     /**
+     * Whether a category, brand or product that shows this viewer nothing here is empty only for want of
+     * stock or a price (amendment 39): it has a listing row they would see were it in stock and priced. Asked
+     * only once it shows them nothing, so a page shown costs no query.
+     *
+     * @param  'category'|'brand'|'product'  $kind
+     */
+    public function onlySoldOut(string $storeId, string $locale, ShopperKind $viewer, string $kind, string $id): bool;
+
+    /**
      * The variants on sale to this viewer in this store, in the product's order — for an individual,
      * those sold retail only (amendment 14(e)); a company and a guest see both sides (§4.5, §8 #33) —
      * each with how it is sold, its details, weight and size, whether it is ending soon and can be
-     * ordered now (amendment 16(h)), and whether stock lets it be ordered now: a sold-out one is here
-     * marked, to be drawn greyed (amendment 39). Their photos are read apart (`variantPhotos`).
+     * ordered now (amendment 16(h)), and whether stock and a price let it be ordered now: a sold-out or
+     * unpriced one is here marked, to be drawn greyed (amendment 39). Their photos are read apart (`variantPhotos`).
      *
      * @return list<ShopVariant>
      */
