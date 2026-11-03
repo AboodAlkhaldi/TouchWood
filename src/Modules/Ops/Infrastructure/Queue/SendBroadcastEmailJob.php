@@ -37,6 +37,12 @@ final class SendBroadcastEmailJob implements ShouldQueue
         public string $sentId,
     ) {}
 
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
+
     public function handle(BroadcastSender $sender): void
     {
         $sender->email($this->broadcast, $this->id, $this->customerId, $this->sentId);

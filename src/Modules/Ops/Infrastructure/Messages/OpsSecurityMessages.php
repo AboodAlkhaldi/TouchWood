@@ -85,12 +85,12 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         $this->email('staff_invitation', ['name' => $staff->firstName, 'link' => $link], $staff->locale, $staff->email, null, $staff);
     }
 
-    public function passwordReset(string $email, string $locale, #[\SensitiveParameter] string $link): void
+    public function passwordReset(#[\SensitiveParameter] string $email, string $locale, #[\SensitiveParameter] string $link): void
     {
         $this->email('password_reset', ['link' => $link], $locale, $email, null, null);
     }
 
-    public function staffEmailChange(StaffDto $staff, string $newEmail, #[\SensitiveParameter] string $link): void
+    public function staffEmailChange(StaffDto $staff, #[\SensitiveParameter] string $newEmail, #[\SensitiveParameter] string $link): void
     {
         $this->email('staff_email_change', ['name' => $staff->firstName, 'link' => $link], $staff->locale, $newEmail, null, $staff);
     }
@@ -112,12 +112,12 @@ final readonly class OpsSecurityMessages implements SecurityMessages
         $this->email('staff_app_code_failed', $values, $staff->locale, $staff->email, null, $staff, null, $more);
     }
 
-    public function phoneCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void
+    public function phoneCode(#[\SensitiveParameter] string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
         $this->sms($phone, (string) $this->translator->get('ops::security.phone_code', ['code' => $code], $locale));
     }
 
-    public function staffSignInCode(string $phone, string $locale, #[\SensitiveParameter] string $code): void
+    public function staffSignInCode(#[\SensitiveParameter] string $phone, string $locale, #[\SensitiveParameter] string $code): void
     {
         $this->sms($phone, (string) $this->translator->get('ops::security.sign_in_code', ['code' => $code], $locale));
     }
@@ -187,7 +187,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      *
      * @throws ProviderFailed
      */
-    private function email(string $message, #[\SensitiveParameter] array $values, string $locale, string $to, ?CustomerDto $customer, ?StaffDto $staff, ?StoreDto $store = null, array $moreLines = []): void
+    private function email(string $message, #[\SensitiveParameter] array $values, string $locale, #[\SensitiveParameter] string $to, ?CustomerDto $customer, ?StaffDto $staff, ?StoreDto $store = null, array $moreLines = []): void
     {
         $store ??= $this->requestStore();
         // Written inside the send, so a message that breaks while it is written is recorded as failed too.
@@ -226,7 +226,7 @@ final readonly class OpsSecurityMessages implements SecurityMessages
      *
      * @throws ProviderFailed
      */
-    private function sms(string $phone, #[\SensitiveParameter] string $text): void
+    private function sms(#[\SensitiveParameter] string $phone, #[\SensitiveParameter] string $text): void
     {
         $this->record(MessageChannel::Sms, null, null, $this->requestStore(), function () use ($phone, $text): ?string {
             $country = $this->countries->countryOf($phone) ?? throw new ProviderFailed('No country on the SMS countries list serves this number.');

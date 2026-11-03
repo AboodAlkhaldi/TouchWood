@@ -38,6 +38,12 @@ final class SendEventEmailJob implements ShouldQueue
         public string $sentId,
     ) {}
 
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
+
     public function handle(EventSender $sender): void
     {
         if ($this->customerId !== null) {

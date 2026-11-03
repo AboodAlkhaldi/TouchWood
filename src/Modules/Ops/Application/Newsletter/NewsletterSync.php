@@ -30,6 +30,14 @@ final readonly class NewsletterSync
     /** @throws ProviderFailed for the queue to try again */
     public function sync(string $subscriberId): void
     {
+        $seen = $this->subscribers->find($subscriberId);
+
+        // Before the transaction, which a failed call rolls back: forgetting a list Brevo has just made would
+        // make a second one on the retry.
+        if ($seen !== null && $seen->isConfirmed() && $seen->heldAtProvider() !== $seen->wantedAtProvider()) {
+            $this->list->ready($seen->store, $seen->locale);
+        }
+
         $this->db->transaction(function () use ($subscriberId): void {
             $subscriber = $this->subscribers->lock($subscriberId);
 
@@ -67,7 +75,7 @@ final readonly class NewsletterSync
      *
      * @throws ProviderFailed for the queue to try again
      */
-    public function remove(string $email, StoreId $store, string $locale, bool $forget): void
+    public function remove(#[\SensitiveParameter] string $email, StoreId $store, string $locale, bool $forget): void
     {
         // Signed up again meanwhile: the row's own sync decides, not this removal.
         $again = $this->subscribers->withEmail($email);

@@ -17,6 +17,14 @@ use Shared\Domain\ValueObject\StoreId;
 interface NewsletterList
 {
     /**
+     * Makes sure the store's list of that language exists. Called before the transaction that puts a
+     * contact on it: a list the provider made stays known, whatever the contact's own call then does.
+     *
+     * @throws ProviderFailed
+     */
+    public function ready(StoreId $store, string $locale): void;
+
+    /**
      * Puts the email on the store's list of that language.
      *
      * @throws ProviderFailed

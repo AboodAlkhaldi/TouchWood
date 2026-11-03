@@ -21,14 +21,21 @@ final class DeliverDailyReportJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public int $tries = 3;
+    /** Five attempts over about 36 minutes: Brevo away, as every other email waits it out. */
+    public int $tries = 5;
 
     /** @var list<int> seconds before each try again */
-    public array $backoff = [60, 300];
+    public array $backoff = [10, 60, 300, 1800];
 
     public function __construct(
         public string $reportId,
     ) {}
+
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
 
     public function handle(DeliverDailyReportHandler $handler): void
     {

@@ -27,6 +27,12 @@ final class SyncSubscriberJob implements ShouldQueue
         public string $subscriberId,
     ) {}
 
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
+
     public function handle(NewsletterSync $sync): void
     {
         $sync->sync($this->subscriberId);

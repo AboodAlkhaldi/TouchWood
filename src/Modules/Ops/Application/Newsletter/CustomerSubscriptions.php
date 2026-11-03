@@ -127,7 +127,7 @@ final readonly class CustomerSubscriptions
     }
 
     /** Someone unsubscribed in a newsletter (Brevo's webhook): that email leaves every list. */
-    public function unsubscribedAtProvider(string $email): void
+    public function unsubscribedAtProvider(#[\SensitiveParameter] string $email): void
     {
         $this->db->transaction(function () use ($email): void {
             foreach ($this->subscribers->withEmail($email) as $row) {
