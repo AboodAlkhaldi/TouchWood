@@ -8,6 +8,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -46,6 +47,7 @@ use Modules\Ops\Application\Inbox\InboxQueries;
 use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\ListedPhoneCountries;
 use Modules\Ops\Application\Messages\NewsletterList;
+use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Messages\SmsSenders;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
@@ -72,6 +74,7 @@ use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessageQueries;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseStaffMessages;
 use Modules\Ops\Infrastructure\Eloquent\DatabaseSubscribers;
 use Modules\Ops\Infrastructure\Excel\OpenSpoutReportWriter;
+use Modules\Ops\Infrastructure\External\BrevoAnswers;
 use Modules\Ops\Infrastructure\External\BrevoEmailSender;
 use Modules\Ops\Infrastructure\External\BrevoNewsletterList;
 use Modules\Ops\Infrastructure\External\BuiltSmsSenders;
@@ -102,6 +105,7 @@ use Modules\Ops\Infrastructure\Queue\RemindExpiringPointsJob;
 use Modules\Ops\Infrastructure\Queue\StartDueNoticesJob;
 use Modules\Ops\Presentation\Bell\PanelBellPart;
 use Modules\Ops\Presentation\Bell\ShopBellPart;
+use Modules\Ops\Presentation\Console\BrevoCheckCommand;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
 use Modules\Payments\Public\Events\GatewayKeyRejected;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
@@ -228,6 +232,14 @@ final class OpsServiceProvider extends ServiceProvider
         // carries no CSRF token: the URL's signature is its authority (`signed:relative` on the route).
         PreventRequestForgery::except(['*/*/unsubscribe/*', '*/*/newsletter/leave/*']);
 
+        // Brevo throws away a webhook answered 503 (docs/retry-mechanism), and an unsubscribe with it, so it is
+        // still taken in maintenance; if the work cannot be done, its answer asks Brevo to try again.
+        PreventRequestsDuringMaintenance::except(['newsletter/brevo']);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BrevoCheckCommand::class]);
+        }
+
         // Access's events (§6): each listener on the queue, once per event.
         foreach ([CustomerRegistered::class, GuestBecameCustomer::class, MarketingConsentChanged::class, CustomerLocaleChanged::class, CustomerEmailVerified::class, CustomerBlocked::class, CustomerUnblocked::class, CustomerDeletionScheduled::class, CustomerDeletionCancelled::class] as $event) {
             Event::listen($event, [RefreshNewsletterSubscription::class, 'handle']);
@@ -321,8 +333,20 @@ final class OpsServiceProvider extends ServiceProvider
         $driver = $config->get('ops.email.driver');
         $name = is_string($driver) ? $driver : '';
 
-        if ($app->environment('production') && $name !== 'brevo') {
+        if (! $app->environment('production')) {
+            return;
+        }
+
+        if ($name !== 'brevo') {
             throw new InvalidArgumentException('OPS_EMAIL_DRIVER is "'.$name.'": invitation and password reset links would be written to the log, not sent. Production never starts without a real email driver.');
+        }
+
+        self::requireBrevoKey($config->get('services.brevo.key'));
+        $from = $config->get('mail.from.address');
+
+        // Laravel's own default stands for "never set": Brevo would refuse every email from it.
+        if (! is_string($from) || filter_var($from, FILTER_VALIDATE_EMAIL) === false || $from === 'hello@example.com') {
+            throw new InvalidArgumentException('MAIL_FROM_ADDRESS is not set to a sender of ours: every email would be refused. Production never starts without one.');
         }
     }
 
@@ -346,8 +370,39 @@ final class OpsServiceProvider extends ServiceProvider
         $driver = $config->get('ops.newsletter.driver');
         $name = is_string($driver) ? $driver : '';
 
-        if ($app->environment('production') && $name !== 'brevo') {
+        if (! $app->environment('production')) {
+            return;
+        }
+
+        if ($name !== 'brevo') {
             throw new InvalidArgumentException('OPS_NEWSLETTER_DRIVER is "'.$name.'": the newsletter\'s lists would be written to the log, never to Brevo. Production never starts without a real newsletter driver.');
+        }
+
+        self::requireBrevoKey($config->get('services.brevo.key'));
+
+        if (self::folderId($config->get('services.brevo.newsletter_folder')) === null) {
+            throw new InvalidArgumentException('BREVO_NEWSLETTER_FOLDER_ID is not set: no list could be made. Production never starts without it.');
+        }
+
+        $secret = $config->get('services.brevo.webhook_secret');
+
+        if (! is_string($secret) || trim($secret) === '') {
+            throw new InvalidArgumentException('BREVO_WEBHOOK_SECRET is not set: every unsubscribe Brevo reports would be refused, and thrown away. Production never starts without it.');
+        }
+    }
+
+    /**
+     * A key no call could use, which each send would otherwise find alone, on the queue. Whether Brevo takes it
+     * only Brevo can say: `ops:brevo:check`. Never its value in the message.
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function requireBrevoKey(#[\SensitiveParameter] mixed $key): void
+    {
+        try {
+            BrevoAnswers::key(is_string($key) ? $key : '');
+        } catch (ProviderFailed $failed) {
+            throw new InvalidArgumentException($failed->getMessage().' Production never starts without a key.');
         }
     }
 }
