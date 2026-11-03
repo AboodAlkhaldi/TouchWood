@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Access\Domain\ValueObject\RoleLevel;
 use Modules\Access\Public\Contracts\SecurityMessages;
+use Modules\Access\Public\Events\MarketingConsentChanged;
 use Modules\Ops\Application\Alerts\EventDeliveries;
 use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Command\CreateNotice\CreateNotice;
@@ -33,14 +34,17 @@ use Modules\Ops\Application\Messages\EmailSender;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
+use Modules\Ops\Application\Messages\SmsSender;
 use Modules\Ops\Application\Newsletter\NewsletterQueue;
 use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Domain\Model\SendStatus;
 use Modules\Ops\Domain\Model\SentMessage;
 use Modules\Ops\Domain\Repository\SentMessages;
 use Modules\Ops\Domain\Repository\Subscribers;
+use Modules\Ops\Infrastructure\External\BrevoAnswers;
 use Modules\Ops\Infrastructure\Files\LocalReportFiles;
 use Modules\Ops\Infrastructure\Messages\OpsSecurityMessages;
+use Modules\Ops\Infrastructure\Queue\ProviderFailureRules;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Platform\Application\Command\RetryFailedJob\RetryFailedJob;
 use Modules\Platform\Application\Command\RetryFailedJob\RetryFailedJobHandler;
@@ -56,6 +60,7 @@ use Tests\Modules\Ops\Support\DailyReportFixtures as Dx;
 use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
 
 use function Pest\Laravel\call;
+use function Pest\Laravel\get;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\seed;
 
@@ -113,19 +118,26 @@ dataset('brevo failures that pass', [
     'no connection, a DNS failure, a timeout' => [null, null, []],
     '500' => [500, ['code' => 'internal_error', 'message' => 'x'], []],
     '503' => [503, '<html>Service Unavailable</html>', []],
-    '429, no reset header' => [429, ['code' => 'too_many_requests', 'message' => 'x'], []],
     '400 duplicate_request: "submitted too frequently"' => [400, ['code' => 'duplicate_request', 'message' => 'x'], []],
     'a proxy\'s 200 in HTML' => [200, '<html>Please wait</html>', []],
+    'a proxy\'s 401 in HTML' => [401, '<html>Sign in</html>', []],
+    'a proxy\'s 403 in HTML' => [403, '<html>Forbidden</html>', []],
+    'a proxy\'s 404, JSON but not Brevo\'s' => [404, ['error' => 'not found'], []],
 ]);
 
-dataset('brevo failures only a person mends', [
-    '400 a bad address' => [400, ['code' => 'invalid_parameter', 'message' => 'email is not valid'], []],
-    '400 a bad sender' => [400, ['code' => 'invalid_parameter', 'message' => 'sender is not valid'], []],
-    '400 what it cannot find' => [400, ['code' => 'document_not_found', 'message' => 'x'], []],
+dataset('brevo refuses one address', [
+    'its documented example' => [400, ['code' => 'invalid_parameter', 'message' => 'Invalid email address'], []],
+    'in other words' => [400, ['code' => 'invalid_parameter', 'message' => 'email is not valid in to'], []],
+]);
+
+dataset('brevo refuses everybody', [
+    '400 words naming the sender' => [400, ['code' => 'invalid_parameter', 'message' => 'The sender email is not valid'], []],
+    '400 invalid_parameter, about something else' => [400, ['code' => 'invalid_parameter', 'message' => 'subject is too long'], []],
+    '400 a code it does not know' => [400, ['code' => 'account_under_validation', 'message' => 'x'], []],
     '401 a bad key, or this server\'s IP not authorised' => [401, ['code' => 'unauthorized', 'message' => 'Key not found'], []],
     '402 out of credit' => [402, ['code' => 'not_enough_credits', 'message' => 'x'], []],
     '403 not permitted' => [403, ['code' => 'permission_denied', 'message' => 'x'], []],
-    '404 no such address at Brevo' => [404, ['code' => 'document_not_found', 'message' => 'x'], []],
+    '404 no such address at Brevo' => [404, ['message' => 'x'], []],
 ]);
 
 dataset('every brevo failure', [
@@ -160,7 +172,7 @@ function brevoFailuresAfresh(callable $answer): void
 /** @param array<string, string> $headers */
 function brevoFailuresAnswer(?int $status, mixed $body, array $headers = []): mixed
 {
-    return $status === null ? throw new ConnectionException('cURL error 28: timed out for https://api.brevo.com/v3/contacts/private%40example.test') : Http::response($body, $status, $headers);
+    return $status === null ? throw new ConnectionException('cURL error 28: timed out for https://api.brevo.com/v3/contacts/private-guest%40example.test') : Http::response($body, $status, $headers);
 }
 
 function brevoFailuresCalls(): int
@@ -192,6 +204,16 @@ function brevoFailuresWork(int $most = 30): int
     }
 
     return $runs;
+}
+
+/** One run of the worker with the job's wait over; the seconds of the wait it left, or null when no job is left. */
+function brevoFailuresStep(): ?int
+{
+    DB::table('jobs')->update(['available_at' => CarbonImmutable::now()->subSecond()->getTimestamp()]);
+    Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
+    $at = DB::table('jobs')->value('available_at');
+
+    return $at === null ? null : (int) $at - time();
 }
 
 function brevoFailuresRetry(): void
@@ -301,7 +323,7 @@ describe('a hung Brevo holds nobody for long', function () {
 });
 
 describe('an event\'s email', function () {
-    it('goes to the failed jobs at once when only a person can mend it, marked FAILED, one call', function (?int $status, mixed $body) {
+    it('goes to the failed jobs at once when one address is refused, marked FAILED, one call', function (?int $status, mixed $body) {
         $row = brevoFailuresEventEmail();
         brevoFailuresFake(fn () => brevoFailuresAnswer($status, $body));
 
@@ -310,9 +332,51 @@ describe('an event\'s email', function () {
         expect(brevoFailuresCalls())->toBe(1)
             ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED')
             ->and(DB::table('jobs')->count())->toBe(0)
-            ->and(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(1)
-            ->and((string) DB::table('failed_jobs')->value('exception'))->toContain("HTTP {$status}");
-    })->with('brevo failures only a person mends');
+            ->and(DB::table('failed_jobs')->count())->toBe(1)
+            ->and((string) DB::table('failed_jobs')->where('payload', 'like', '%SendEventEmailJob%')->value('exception'))->toContain("HTTP {$status}");
+    })->with('brevo refuses one address');
+
+    it('waits for a person when Brevo refuses everybody: no failed job, a long wait, and it goes by itself once mended', function (?int $status, mixed $body) {
+        $row = brevoFailuresEventEmail();
+        brevoFailuresFake(fn () => brevoFailuresAnswer($status, $body));
+
+        $wait = brevoFailuresStep();
+
+        expect(brevoFailuresCalls())->toBe(1)
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('QUEUED')
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
+            ->and($wait)->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)->toBeLessThanOrEqual(ProviderFailureRules::PERSON_WAITS[0]);
+        Exceptions::assertReported(ProviderFailed::class);
+
+        brevoFailuresAfresh(fn () => Http::response(['messageId' => '<mended@relay>'], 201));
+        brevoFailuresWork();
+
+        expect(brevoFailuresCalls())->toBe(1)
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->first())->toMatchArray(['status' => 'SENT', 'provider_id' => '<mended@relay>'])
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+    })->with('brevo refuses everybody');
+
+    it('gives up on a person after about a day, by the long waits, with its reason, and retried it still goes', function () {
+        $row = brevoFailuresEventEmail();
+        brevoFailuresFake(fn () => Http::response(['code' => 'not_enough_credits', 'message' => 'x'], 402));
+
+        foreach (ProviderFailureRules::PERSON_WAITS as $wait) {
+            expect(brevoFailuresStep())->toBeGreaterThan($wait - 5)->toBeLessThanOrEqual($wait);
+        }
+
+        expect(array_sum(ProviderFailureRules::PERSON_WAITS))->toBeGreaterThan(23 * 3600)->toBeLessThanOrEqual(24 * 3600)
+            ->and(brevoFailuresStep())->toBeNull()
+            ->and(brevoFailuresCalls())->toBe(count(ProviderFailureRules::PERSON_WAITS) + 1)
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED')
+            ->and(DB::table('failed_jobs')->count())->toBe(1)
+            ->and((string) DB::table('failed_jobs')->value('exception'))->toContain('HTTP 402 (not_enough_credits)');
+
+        brevoFailuresAfresh(fn () => Http::response(['messageId' => '<late@relay>'], 201));
+        brevoFailuresRetry();
+        brevoFailuresWork();
+
+        expect(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('SENT');
+    });
 
     it('is tried five times when Brevo may come back, QUEUED till the last, then FAILED', function (?int $status, mixed $body) {
         $row = brevoFailuresEventEmail();
@@ -325,33 +389,60 @@ describe('an event\'s email', function () {
 
         expect(brevoFailuresCalls())->toBe(5)
             ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED')
-            ->and(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(1);
+            ->and(DB::table('failed_jobs')->count())->toBe(1);
     })->with('brevo failures that pass');
 
-    it('waits out a 429 by Brevo\'s own reset header, and a reset it cannot read by the usual wait', function () {
-        brevoFailuresEventEmail();
-        brevoFailuresFake(fn () => Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429, ['x-sib-ratelimit-reset' => '120']));
+    it('waits between those tries by the job\'s own backoff, 10 s, 1, 5 and 30 minutes', function () {
+        $row = brevoFailuresEventEmail();
+        brevoFailuresFake(fn () => Http::response('', 503));
 
-        Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
+        foreach ([10, 60, 300, 1800] as $wait) {
+            expect(brevoFailuresStep())->toBeGreaterThan($wait - 5)->toBeLessThanOrEqual($wait);
+        }
 
-        expect((int) DB::table('jobs')->value('available_at') - time())->toBeGreaterThan(100)->toBeLessThanOrEqual(120);
-
-        // Not a number: the job's own first wait.
-        DB::table('jobs')->delete();
-        brevoFailuresEventEmail();
-        brevoFailuresFake(fn () => Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429, ['x-sib-ratelimit-reset' => 'soon']));
-        Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
-
-        expect((int) DB::table('jobs')->value('available_at') - time())->toBeLessThanOrEqual(10);
+        expect(brevoFailuresStep())->toBeNull()
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED');
     });
 
-    it('still ends: a 429 on the last attempt is FAILED, the reason kept, not "attempted too many times"', function () {
+    it('waits out a 429 by Brevo\'s own reset header, within its limits, however odd the value', function (string $reset, int $wait) {
+        brevoFailuresEventEmail();
+        brevoFailuresFake(fn () => Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429, ['x-sib-ratelimit-reset' => $reset]));
+
+        expect(brevoFailuresStep())->toBeGreaterThan($wait - 5)->toBeLessThanOrEqual($wait)
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+    })->with([
+        'as it says' => ['120', 120],
+        'not a number: the usual wait' => ['soon', BrevoAnswers::USUAL_WAIT],
+        'nothing left: the usual wait' => ['0', BrevoAnswers::USUAL_WAIT],
+        'negative: the usual wait' => ['-5', BrevoAnswers::USUAL_WAIT],
+        'under a second: the least' => ['0.2', BrevoAnswers::LEAST_WAIT],
+        'past the most' => ['99999', BrevoAnswers::MOST_WAIT],
+        'past an int\'s range' => ['1e19', BrevoAnswers::MOST_WAIT],
+        'near a float\'s range' => ['1e308', BrevoAnswers::MOST_WAIT],
+        'past a float\'s range' => ['1e400', BrevoAnswers::MOST_WAIT],
+    ]);
+
+    it('spends no attempt on a 429: twenty of them, then it goes', function () {
         $row = brevoFailuresEventEmail();
-        brevoFailuresFake(fn () => Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429, ['x-sib-ratelimit-reset' => '5']));
+        brevoFailuresFake(fn (Request $request, int $nth) => $nth <= 20
+            ? Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429)
+            : Http::response(['messageId' => '<1@relay>'], 201));
 
         brevoFailuresWork();
 
-        expect(brevoFailuresCalls())->toBe(5)
+        expect(brevoFailuresCalls())->toBe(21)
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('SENT')
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+    });
+
+    it('still ends: a 429 that never lifts is FAILED in the end, the reason kept, not "attempted too many times"', function () {
+        $row = brevoFailuresEventEmail();
+        brevoFailuresFake(fn () => Http::response(['code' => 'too_many_requests', 'message' => 'x'], 429));
+        DB::table('jobs')->update(['attempts' => ProviderFailureRules::MOST_RATE_LIMITED - 1]);
+
+        brevoFailuresWork();
+
+        expect(brevoFailuresCalls())->toBe(1)
             ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED')
             ->and((string) DB::table('failed_jobs')->value('exception'))->toContain('HTTP 429');
     });
@@ -493,18 +584,17 @@ describe('the key and the sender', function () {
         expect(brevoFailuresCalls())->toBe(0);
     })->with(['empty' => '', 'spaces only' => '   ', 'a space inside' => 'xkeysib abc', 'a line inside' => "xkeysib\nabc", 'not ASCII' => 'xkeysib‑abc']);
 
-    it('sends a job with no usable key straight to the failed jobs: no five tries, and retried once it is mended', function () {
+    it('holds a job with no usable key on a long wait, calling nobody, and it goes once the key is mended', function () {
         config(['services.brevo.key' => '']);
         $row = brevoFailuresEventEmail();
         brevoFailuresFake(fn () => Http::response(['messageId' => '<1@relay>'], 201));
 
-        expect(brevoFailuresWork())->toBe(1)
-            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('FAILED')
+        expect(brevoFailuresStep())->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)
+            ->and(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('QUEUED')
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
             ->and(brevoFailuresCalls())->toBe(0);
 
         config(['services.brevo.key' => 'the-brevo-key']);
-        app()->forgetInstance(EmailSender::class);
-        brevoFailuresRetry();
         brevoFailuresWork();
 
         expect(DB::table('ops.sent_messages')->where('id', $row)->value('status'))->toBe('SENT')
@@ -573,8 +663,80 @@ describe('a notice\'s emails', function () {
     });
 });
 
+describe('a notice\'s emails when Brevo refuses everybody', function () {
+    it('does not drain or spin: one call each, none failed, all waiting; topped up, each goes once', function () {
+        foreach (['one@example.test', 'two@example.test', 'three@example.test'] as $email) {
+            Wx::agreeing($email);
+        }
+        DB::table('jobs')->delete();
+        brevoFailuresFake(fn () => Http::response(['code' => 'not_enough_credits', 'message' => 'x'], 402));
+        $notice = brevoFailuresNotice();
+
+        // Worked until nothing is due, its waits left as they are.
+        do {
+            $due = DB::table('jobs')->where('available_at', '<=', time())->exists();
+
+            if ($due) {
+                Artisan::call('queue:work', ['connection' => 'database', '--once' => true, '--queue' => 'default']);
+            }
+        } while ($due);
+
+        $row = brevoFailuresNoticeRow($notice);
+        $soonest = (int) DB::table('jobs')->min('available_at') - time();
+
+        expect(brevoFailuresCalls())->toBe(3)
+            ->and(DB::table('jobs')->count())->toBe(3)
+            ->and($soonest)->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
+            ->and([$row->email_count, $row->failed_count])->toBe([0, 0]);
+
+        brevoFailuresAfresh(fn () => Http::response(['messageId' => '<1@relay>'], 201));
+        brevoFailuresWork();
+        $row = brevoFailuresNoticeRow($notice);
+
+        expect(brevoFailuresCalls())->toBe(3)
+            ->and([$row->email_count, $row->failed_count])->toBe([3, 0])
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+    });
+
+    it('stops counting a failure when a retry finds the customer has withdrawn: nothing is sent, nothing stays stuck', function () {
+        $sara = Wx::agreeing('sara@example.test');
+        DB::table('jobs')->delete();
+        brevoFailuresFake(fn () => Http::response(['code' => 'invalid_parameter', 'message' => 'Invalid email address'], 400));
+        $notice = brevoFailuresNotice();
+        brevoFailuresWork();
+        $row = brevoFailuresNoticeRow($notice);
+        expect([$row->email_count, $row->failed_count])->toBe([0, 1]);
+
+        Wx::set($sara, ['marketing_consent' => false]);
+        brevoFailuresAfresh(fn () => Http::response(['messageId' => '<1@relay>'], 201));
+        brevoFailuresRetry();
+        brevoFailuresWork();
+        $row = brevoFailuresNoticeRow($notice);
+
+        expect(brevoFailuresCalls())->toBe(0)
+            ->and([$row->email_count, $row->failed_count])->toBe([0, 0])
+            ->and(DB::table('ops.sent_messages')->where('customer_id', $sara)->count())->toBe(0);
+    });
+});
+
 describe('the daily report\'s email', function () {
-    it('goes to the failed jobs at once when only a person can mend it; the report stays, not marked emailed', function (?int $status, mixed $body) {
+    it('waits for a person when Brevo refuses everybody; the report stays, not marked emailed, and goes once mended', function (?int $status, mixed $body) {
+        $report = brevoFailuresDailyReport();
+        brevoFailuresFake(fn () => brevoFailuresAnswer($status, $body));
+
+        expect(brevoFailuresStep())->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)
+            ->and(brevoFailuresCalls())->toBe(1)
+            ->and(DB::table('ops.daily_reports')->where('id', $report)->value('emailed_at'))->toBeNull()
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
+
+        brevoFailuresFake(fn () => Http::response(['messageId' => '<1@relay>'], 201));
+        brevoFailuresWork();
+
+        expect(DB::table('ops.daily_reports')->where('id', $report)->value('emailed_at'))->not->toBeNull();
+    })->with('brevo refuses everybody');
+
+    it('goes to the failed jobs at once when the person\'s own address is refused; the report stays', function (?int $status, mixed $body) {
         $report = brevoFailuresDailyReport();
         brevoFailuresFake(fn () => brevoFailuresAnswer($status, $body));
 
@@ -582,8 +744,8 @@ describe('the daily report\'s email', function () {
 
         expect(brevoFailuresCalls())->toBe(1)
             ->and(DB::table('ops.daily_reports')->where('id', $report)->value('emailed_at'))->toBeNull()
-            ->and(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(1);
-    })->with('brevo failures only a person mends');
+            ->and(DB::table('failed_jobs')->count())->toBe(1);
+    })->with('brevo refuses one address');
 
     it('rides out an outage as the other emails do, and retried from the failed jobs it goes once, with its file', function (?int $status, mixed $body) {
         $report = brevoFailuresDailyReport();
@@ -739,12 +901,14 @@ describe('the sync to the lists', function () {
         brevoFailuresList();
         $row = brevoFailuresGuest();
         brevoFailuresFake(fn () => brevoFailuresAnswer($status, $body));
+        $before = (array) DB::table('ops.subscribers')->where('id', $row)->first();
 
         brevoFailuresWork();
 
         expect(brevoFailuresCalls())->toBe(5)
-            ->and(DB::table('ops.subscribers')->where('id', $row)->first())->toMatchArray(['brevo_email' => null, 'confirmed_at' => DB::table('ops.subscribers')->where('id', $row)->value('confirmed_at')])
-            ->and(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(1);
+            ->and($before['brevo_email'])->toBeNull()
+            ->and((array) DB::table('ops.subscribers')->where('id', $row)->first())->toBe($before)
+            ->and(DB::table('failed_jobs')->count())->toBe(1);
 
         brevoFailuresFake(fn (Request $request) => $request->method() === 'PUT' ? Http::response(null, 204) : Http::response(['id' => 900], 201));
         brevoFailuresRetry();
@@ -762,7 +926,7 @@ describe('the sync to the lists', function () {
                 return Http::response(null, 204);
             }
 
-            return ($request->data()['email'] ?? '') === 'bad@example.test' ? Http::response(['code' => 'invalid_parameter', 'message' => 'x'], 400) : Http::response(['id' => 900], 201);
+            return ($request->data()['email'] ?? '') === 'bad@example.test' ? Http::response(['code' => 'invalid_parameter', 'message' => 'Invalid email address'], 400) : Http::response(['id' => 900], 201);
         });
 
         brevoFailuresWork();
@@ -786,6 +950,30 @@ describe('the sync to the lists', function () {
         ] as $call) {
             expect($call)->toThrow(ProviderFailed::class, 'HTTP 200');
         }
+    });
+
+    it('forgets a list gone at Brevo, and the next try makes a new one and puts the contact on it', function () {
+        brevoFailuresList(41);
+        $row = brevoFailuresGuest();
+        $contacts = 0;
+        brevoFailuresFake(function (Request $request) use (&$contacts) {
+            return match (brevoFailuresPath($request)) {
+                '/v3/contacts/lists' => Http::response(['id' => 42], 201),
+                '/v3/contacts' => ++$contacts === 1 ? Http::response(['code' => 'document_not_found', 'message' => 'x'], 400) : Http::response(['id' => 900], 201),
+                default => Http::response(null, 204),
+            };
+        });
+
+        expect(brevoFailuresStep())->toBeLessThanOrEqual(10)
+            ->and(DB::table('ops.newsletter_lists')->count())->toBe(0);
+
+        brevoFailuresWork();
+        $added = collect(brevoFailuresCallsMade())->filter(fn (array $call): bool => brevoFailuresPath($call['request']) === '/v3/contacts')->last() ?? throw new LogicException('No contact was added.');
+
+        expect(DB::table('ops.newsletter_lists')->pluck('brevo_list_id')->all())->toBe([42])
+            ->and($added['request']->data()['listIds'])->toBe([42])
+            ->and(DB::table('ops.subscribers')->where('id', $row)->value('brevo_email'))->toBe('guest@example.test')
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
     });
 
     it('takes a contact deleted at Brevo by hand as a new one: added again, 404 on allowing it fine', function () {
@@ -824,20 +1012,29 @@ describe('the removal from a list', function () {
         expect(brevoFailuresCalls())->toBe(1)->and(DB::table('failed_jobs')->count())->toBe(0);
     });
 
-    it('does not take a proxy\'s 404 page for "gone"', function () {
+    it('does not take a proxy\'s 404 page for "gone": the job tries again as for any outage, and waits on the failed jobs', function () {
         brevoFailuresFake(fn () => Http::response('<html>Not Found</html>', 404));
 
         expect(fn () => app(NewsletterList::class)->forget('sara@example.test'))->toThrow(ProviderFailed::class, 'HTTP 404');
+
+        brevoFailuresAfresh(fn () => Http::response('<html>Not Found</html>', 404));
+        app(NewsletterQueue::class)->remove('sara@example.test', StoreId::fromString(Fx::storeId('sa')), 'en', true);
+        brevoFailuresWork();
+
+        expect(brevoFailuresCalls())->toBe(5)
+            ->and(DB::table('failed_jobs')->count())->toBe(1);
     });
 
-    it('fails at once on a refused key, and during an outage retries, then waits encrypted on the failed jobs screen', function () {
+    it('waits on a refused key, and during an outage retries, then waits encrypted on the failed jobs screen', function () {
         brevoFailuresList();
         $store = StoreId::fromString(Fx::storeId('sa'));
         brevoFailuresFake(fn () => Http::response(['code' => 'unauthorized', 'message' => 'x'], 401));
         app(NewsletterQueue::class)->remove('private@example.test', $store, 'en');
-        brevoFailuresWork();
-        expect(brevoFailuresCalls())->toBe(1);
+        expect(brevoFailuresStep())->toBeGreaterThan(ProviderFailureRules::PERSON_WAITS[0] - 5)
+            ->and(brevoFailuresCalls())->toBe(1)
+            ->and(DB::table('failed_jobs')->count())->toBe(0);
 
+        DB::table('jobs')->delete();
         DB::table('failed_jobs')->delete();
         brevoFailuresAfresh(fn () => Http::response('', 503));
         app(NewsletterQueue::class)->remove('private@example.test', $store, 'en');
@@ -877,7 +1074,7 @@ describe('consent during an outage', function () {
         brevoFailuresWork();
         expect(DB::table('access.customers')->where('id', $sara)->value('marketing_consent'))->toBeFalse()
             ->and(DB::table('ops.subscribers')->where('customer_id', $sara)->exists())->toBeFalse()
-            ->and(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(1);
+            ->and(DB::table('failed_jobs')->count())->toBe(1);
 
         // Back up, retried: off the list.
         brevoFailuresAfresh(fn () => Http::response(['contacts' => ['success' => ['sara@example.test']]], 201));
@@ -926,14 +1123,40 @@ describe('Brevo\'s webhook', function () {
         DB::table('jobs')->delete();
         brevoFailuresFake(fn () => Http::response(null, 204));
         $body = ['event' => 'unsubscribe', 'email' => 'sara@example.test'];
+        $changes = 0;
+        Event::listen(MarketingConsentChanged::class, function () use (&$changes): void {
+            $changes++;
+        });
 
         brevoFailuresWebhook($body)->assertNoContent();
         brevoFailuresWebhook($body)->assertNoContent();
         brevoFailuresWork();
 
         expect(DB::table('access.customers')->where('id', $sara)->value('marketing_consent'))->toBeFalse()
+            ->and($changes)->toBe(1)
             ->and(DB::table('failed_jobs')->count())->toBe(0);
     });
+
+    it('leaves a row alone when the event is older than its joining: Brevo trying again never undoes a newer opt-in', function (string $kind) {
+        $joined = CarbonImmutable::parse('2026-11-03 12:00:00');
+        $sara = $kind === 'CUSTOMER' ? Wx::agreeing('sara@example.test') : null;
+        DB::table('ops.subscribers')->insert([
+            'id' => strtolower((string) Str::ulid()), 'store_id' => Fx::storeId('sa'), 'email' => 'sara@example.test', 'locale' => 'en', 'kind' => $kind,
+            'customer_id' => $sara, 'token_hash' => null, 'created_at' => $joined, 'confirmed_at' => $joined,
+        ]);
+        DB::table('jobs')->delete();
+        $body = ['event' => 'unsubscribe', 'email' => 'sara@example.test'];
+
+        brevoFailuresWebhook([...$body, 'ts_event' => $joined->subHour()->getTimestamp()])->assertNoContent();
+
+        expect(DB::table('ops.subscribers')->count())->toBe(1)
+            ->and(DB::table('jobs')->count())->toBe(0);
+
+        // Newer than the joining, or no time at all: it counts.
+        brevoFailuresWebhook([...$body, ...($kind === 'CUSTOMER' ? ['ts_event' => $joined->addHour()->getTimestamp()] : [])])->assertNoContent();
+
+        expect($kind === 'CUSTOMER' ? DB::table('jobs')->count() : DB::table('ops.subscribers')->count())->toBe($kind === 'CUSTOMER' ? 1 : 0);
+    })->with(['a guest' => 'GUEST', 'a customer' => 'CUSTOMER']);
 
     it('answers what it does not read with 204, and leaves a line in the log naming no address', function (string $body) {
         $logged = [];
@@ -971,6 +1194,8 @@ describe('Brevo\'s webhook', function () {
 
         try {
             brevoFailuresWebhook(['event' => 'unsubscribe', 'email' => 'guest@example.test'])->assertNoContent();
+            // Only this address: a person's pages still answer the maintenance page.
+            get('/sa/en')->assertStatus(503);
         } finally {
             app()->maintenanceMode()->deactivate();
         }
@@ -1010,7 +1235,7 @@ describe('what stays secret', function () {
 
         $everything = implode("\n", $logged).DB::table('failed_jobs')->get()->map(fn (stdClass $job): string => $job->payload.$job->exception)->implode("\n");
 
-        expect(DB::table('failed_jobs')->count())->toBeGreaterThanOrEqual(3)
+        expect(DB::table('failed_jobs')->count())->toBe(4)
             ->and($everything)->not->toContain('xkeysib')
             ->and($everything)->not->toContain('private-');
         Exceptions::assertNotReported(fn (Throwable $reported): bool => str_contains((string) $reported, 'xkeysib') || str_contains((string) $reported, 'private-'));
@@ -1018,8 +1243,30 @@ describe('what stays secret', function () {
         'no connection' => [null, null],
         '503' => [503, ''],
         '401' => [401, ['code' => 'unauthorized', 'message' => 'Key not found: xkeysib-the-real-key']],
-        '400' => [400, ['code' => 'invalid_parameter', 'message' => 'private-guest@example.test']],
+        '400' => [400, ['code' => 'invalid_parameter', 'message' => 'email private-guest@example.test is not valid']],
     ]);
+});
+
+describe('every SMS adapter', function () {
+    it('marks the phone and the message itself: PHP does not pass the attribute down from the interface', function () {
+        $checked = 0;
+
+        foreach (glob(base_path('src/Modules/Ops/Infrastructure/External/*.php')) ?: [] as $file) {
+            $class = 'Modules\\Ops\\Infrastructure\\External\\'.basename($file, '.php');
+
+            if (! is_subclass_of($class, SmsSender::class)) {
+                continue;
+            }
+
+            foreach ((new ReflectionMethod($class, 'send'))->getParameters() as $parameter) {
+                expect($parameter->getAttributes(SensitiveParameter::class))->toHaveCount(1);
+            }
+
+            $checked++;
+        }
+
+        expect($checked)->toBeGreaterThan(0);
+    });
 });
 
 describe('ops:brevo:check, the real token\'s check', function () {
@@ -1027,13 +1274,14 @@ describe('ops:brevo:check, the real token\'s check', function () {
      * @param  array<string, mixed>  $senders
      * @param  array<string, mixed>  $domains
      */
-    function brevoFailuresCheck(array $senders, array $domains, int $account = 200): int
+    function brevoFailuresCheck(array $senders, array $domains, int $account = 200, int $folder = 200): int
     {
-        brevoFailuresFake(function (Request $request) use ($senders, $domains, $account) {
+        brevoFailuresFake(function (Request $request) use ($senders, $domains, $account, $folder) {
             return match (brevoFailuresPath($request)) {
                 '/v3/account' => Http::response($account === 200 ? ['email' => 'owner@touchwood.test', 'companyName' => 'TouchWood', 'plan' => [['type' => 'free', 'credits' => 300, 'creditsType' => 'sendLimit']]] : ['code' => 'unauthorized', 'message' => 'x'], $account),
                 '/v3/senders' => Http::response($senders),
                 '/v3/senders/domains' => Http::response($domains),
+                '/v3/contacts/folders/7' => Http::response($folder === 200 ? ['id' => 7, 'name' => 'Newsletter'] : ['message' => 'Folder ID not found'], $folder),
                 default => Http::response('', 500),
             };
         });
@@ -1041,7 +1289,7 @@ describe('ops:brevo:check, the real token\'s check', function () {
         return Artisan::call('ops:brevo:check');
     }
 
-    it('passes on a working key and an active sender, reads only, and prints no key', function () {
+    it('passes on a working key, an active sender and the folder, reads only, prints no key, and ends on queue:restart', function () {
         $code = brevoFailuresCheck(
             ['senders' => [['id' => 1, 'name' => 'T', 'email' => 'Support@touchwood.test', 'active' => true]]],
             ['domains' => [['id' => 'd', 'domain_name' => 'touchwood.test', 'authenticated' => true, 'verified' => true, 'ip' => null]]],
@@ -1050,9 +1298,11 @@ describe('ops:brevo:check, the real token\'s check', function () {
 
         expect($code)->toBe(0)
             ->and($output)->not->toContain('the-brevo-key')
-            ->and($output)->toContain('support@touchwood.test')->toContain('active')
+            ->and($output)->toContain('support@touchwood.test')->toContain('active')->toContain('folder 7')
+            ->and(trim($output))->toEndWith('running workers hold the old configuration.')
+            ->and(trim($output))->toContain('php artisan queue:restart')
             ->and(array_unique(array_map(fn (array $call): string => $call['request']->method(), brevoFailuresCallsMade())))->toBe(['GET'])
-            ->and(array_map(fn (array $call): string => brevoFailuresPath($call['request']), brevoFailuresCallsMade()))->toBe(['/v3/account', '/v3/senders', '/v3/senders/domains']);
+            ->and(array_map(fn (array $call): string => brevoFailuresPath($call['request']), brevoFailuresCallsMade()))->toBe(['/v3/account', '/v3/senders', '/v3/contacts/folders/7', '/v3/senders/domains']);
     });
 
     it('fails on a sender that is inactive or not there', function (array $senders) {
@@ -1062,6 +1312,19 @@ describe('ops:brevo:check, the real token\'s check', function () {
         'inactive' => [[['id' => 1, 'name' => 'T', 'email' => 'support@touchwood.test', 'active' => false]]],
         'not there' => [[['id' => 1, 'name' => 'T', 'email' => 'other@touchwood.test', 'active' => true]]],
     ]);
+
+    it('fails on a folder Brevo does not have, or none set, and still says how the sender stands', function () {
+        $senders = ['senders' => [['id' => 1, 'name' => 'T', 'email' => 'support@touchwood.test', 'active' => true]]];
+
+        expect(brevoFailuresCheck($senders, ['domains' => []], folder: 404))->toBe(1);
+        $output = Artisan::output();
+        expect($output)->toContain('BREVO_NEWSLETTER_FOLDER_ID')->toContain('is active at Brevo');
+
+        config(['services.brevo.newsletter_folder' => '']);
+        brevoFailuresAfresh(fn () => Http::response([], 200));
+        expect(brevoFailuresCheck($senders, ['domains' => []]))->toBe(1)
+            ->and(Artisan::output())->toContain('BREVO_NEWSLETTER_FOLDER_ID');
+    });
 
     it('warns on a domain not authenticated, without failing: Brevo may still send', function () {
         $code = brevoFailuresCheck(
@@ -1088,7 +1351,7 @@ describe('ops:brevo:check, the real token\'s check', function () {
         $output = Artisan::output();
 
         expect($code)->toBe(1)
-            ->and($output)->toContain('BREVO_API_KEY')
+            ->and($output)->toContain('BREVO_API_KEY')->toContain('queue:restart')
             ->and($output)->not->toContain('two words')
             ->and(brevoFailuresCalls())->toBe(0);
     });
