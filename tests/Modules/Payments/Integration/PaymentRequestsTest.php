@@ -431,6 +431,18 @@ describe('paying it', function () {
         expect(fn () => requestsPay($store, $request->requestId, 'KWT-another'))->toThrow(PaymentInProgress::class);
     });
 
+    it('answers a double click with the same attempt even past the 60 minutes, while its payment is open', function () {
+        FakeMyFatoorah::install();
+        $store = requestsGateway();
+        $request = requestsAsk($store);
+        $session = requestsSession($store, $request->requestId);
+        $attempt = requestsPay($store, $request->requestId, $session);
+        requestsAt('+61 minutes');
+
+        expect(requestsPay($store, $request->requestId, $session))->toBe($attempt)
+            ->and(DB::table('payments.attempts')->count())->toBe(1);
+    });
+
     it('refuses a request that ended, however it ended', function (Closure $end) {
         FakeMyFatoorah::install();
         $store = requestsGateway();
