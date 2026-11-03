@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Modules\Sales\Application\Query\Staff;
 
 use DateTimeImmutable;
+use Modules\Payments\Public\Dto\PaymentAttemptDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OrderLineView;
 use Modules\Sales\Application\Query\Own\OwnReturnRow;
@@ -93,5 +95,15 @@ final readonly class StaffOrderView
         /** The box Shipping suggests, or pack by hand with why; null with no boxes (gap 5.1). */
         public ?BoxSuggestionDto $box = null,
         public bool $isTest = false,
+        /** A transfer past its check time (§9.5 #9). */
+        public bool $isOverdue = false,
+        /** @var list<PaymentAttemptDto>|null the Online Payments block; null without `payments.payment.view` */
+        public ?array $attempts = null,
+        /** "Requested 45.00, open until 15:20", with Withdraw Request. */
+        public ?PaymentRequestStateDto $paymentRequest = null,
+        /** Edit Order, Record Payment and Withdraw Request out of reach, with "A payment is being confirmed." */
+        public bool $paymentInProgress = false,
+        /** Offer "The customer owes ...", with Request Payment (§4.2); the handler asks again. */
+        public bool $mayRequestPayment = false,
     ) {}
 }

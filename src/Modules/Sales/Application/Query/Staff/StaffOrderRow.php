@@ -29,5 +29,7 @@ final readonly class StaffOrderRow
         /** No carrier served the place: staff set the fee before it ships (shipping.md §9.3 #8). */
         public bool $shippingFeePending = false,
         public bool $isTest = false,
+        /** A transfer past its check time (§9.5 #9): the Overdue badge. */
+        public bool $isOverdue = false,
     ) {}
 }

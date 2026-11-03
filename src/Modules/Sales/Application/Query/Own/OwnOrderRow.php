@@ -24,5 +24,7 @@ final readonly class OwnOrderRow
         /** No carrier served the place: the total is before shipping (sales.md §9.7 E7). */
         public bool $shippingPending = false,
         public bool $isTest = false,
+        /** A request is open on it (payments.md §4.2). */
+        public bool $paymentRequested = false,
     ) {}
 }

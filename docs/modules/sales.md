@@ -1781,7 +1781,7 @@ agreed (2026-10-27) that stage 7 makes them, so the two sessions never edit the 
    order holding less than is due, staff choose **"Request payment"** (open 60 minutes) or **"Handle by
    hand"**. The customer pays on **the request's own page** — `/{store}/{locale}/orders/{number}/pay` —
    with the same form and timers; paid → #7. **Staff edits — and recording a payment by hand — wait while
-   a payment is in progress on the order** (`PaymentsApi::refresh` says so), with the reason shown;
+   a payment is in progress on the order** (`PaymentsApi::paymentOpen` says so, §9.9), with the reason shown;
    **recording a payment by hand withdraws the order's open request** (payments.md §1.5). **A customer's cancellation waits
    too** while a request is being paid (owner, 2026-10-28, payments.md §9.6 #5).
 9. **Bank transfers**: `PaymentsApi::bankAccount` replaces `B2BApi::bankAccount` (built, stage 7 step 8b). An order whose receipt
@@ -1979,3 +1979,39 @@ payment does; that is step 12.
 12. **An order's `wired` and "counts on stock" are read when it is made**, up to 15 minutes after its hold fixed them. A
     store rewired during those minutes could disagree with its hold. Left as it is: very rare, and staff see it on the order.
 
+
+### 9.9 Stage 7 step 12 — #7 (for a request), #8, #9, #16 built (2026-11-03)
+
+**What the screens call** (no routes here: they are the screens session's):
+
+| Who | Command or query | Answers |
+|---|---|---|
+| Staff, `sales.order.edit` | `RequestOrderPayment(orderId)` | `PaymentRequestStateDto` (the same one while one of that amount is open) |
+| Staff, `sales.order.edit` | `WithdrawOrderRequest(orderId)` | nothing; `PaymentBeingConfirmed` while a payment on it is open |
+| The order's customer, `sales.order.view_own` | `ViewOwnOrder(number)` | `paymentRequest` (`requestId`, `amount`, `expiresAt`) or null, which on the request's page is "This payment link has ended."; `paymentBeingConfirmed`; `mayCancel` false while it is |
+| The order's customer, `sales.order.manage_own` | `OpenRequestPayment(storeId, number, locale)` | `PaymentSessionDto`; `PaymentLinkEnded`; `PaymentInProgress` while one is open |
+| The order's customer, `sales.order.manage_own` | `PayOrderRequest(storeId, number, sessionId, locale, returnUrl)` | `RequestStart(requestId, start)` |
+| The order's customer, `sales.order.manage_own` | `FollowRequestPayment(storeId, number, requestId)` | `RequestPaymentView(requestId, payment, windowEndsAt, waitEndsAt, holdEndsAt, nothingCharged, declineCode)` |
+| The customer's list | `ListOwnOrders` | each row's `paymentRequested` |
+| Staff | `ViewOrder(orderId)` | `attempts` (null without `payments.payment.view`), `paymentRequest`, `paymentInProgress`, `mayRequestPayment`, `isOverdue` |
+| Staff | `ListOrders` | each row's `isOverdue` |
+
+Anyone but the order's customer gets `OrderNotFound` from the customer's four, and the page answers a 404. "No money was taken" as at checkout: on a decline, or when `nothingCharged`.
+
+**Events**: a request's online payment sends `PaymentRecorded` (ops.md C10), from the page or the event, whichever comes first, once per transaction. `TransferOverdue(eventId, orderId, storeId, occurredAt)` once per order, from the hourly `TellOverdueTransfersJob`.
+
+**The build's own picks (simple, taken as recommended under the owner's rule):**
+
+1. **A request's page reads `ViewOwnOrder`**, not a view of its own: the number, lines, totals and the request are all in it.
+2. **A request that no longer asks what the order is missing is an ended link**, wherever the amount moved: a refund, a voided record, a rejection. It is left open in Payments and withdrawn when staff next ask. An edit or a set fee withdraws at once (§1.5).
+3. **A refund, a void and staff's own Cancel do not wait for a payment in progress**: the spec names edits, hand recording and the customer's cancel. Staff's cancel while paying withdraws the request (`WithdrawRequestWhenCancelled`, payments.md §6, §9.14 #4) and leaves the money to be recorded, a refund due. While such a payment is open `mayRequestPayment` stays false.
+4. **Overdue counts from the first receipt** (position 1): a second one uploaded later does not restart the 72 hours. `isOverdue` is worked out when read, so it shows as soon as it is true; `overdue_told_at` only stops the event repeating. A receipt paid and then owing again is not told twice.
+5. **Asking is allowed for any status but cancelled, rejected or undelivered**: waiting, approved or shipped unpaid, as long as money is missing.
+6. **A double click on a request's Pay gets the same attempt** (Payments' `prepare`: the same session is the same payment, payments.md §1.1 rule 3): no second charge. Another session while one is open is `PaymentInProgress`.
+7. **`mayRequestPayment` says only what the order allows**: whether this staff member holds `sales.order.edit` is the page's own permission check, as with every action.
+8. **Asking and withdrawing are in the order's history** (`PAYMENT_REQUESTED`, `PAYMENT_REQUEST_WITHDRAWN`) and audited. A withdrawal made by an edit or a hand recording has no row of its own: the edit or the payment is the row.
+9. **`PaymentsApi::openRequests(orderIds)`** is new beside §2.1's list: one read for a page of My Orders, and none when nothing on the page is missing money.
+10. **The staff order page reads three more queries**, for an order still missing money: the open request, whether a payment is open, and the attempts. Measured and pinned: 13 to 16 for `ViewOrder`, 14 to 17 for the order's page, 26 to 29 for the edit page (query limits are targets, owner 2026-10-19). A paid order, or one with nothing missing, reads only the attempts.
+11. **Who owns the attempt decides** (the review, 2026-11-03): `PaymentSucceeded` goes to the request or the try by the payment's `ownerKind`, and `PaymentNotAccepted` by its `ownerId`, never by whether the order has a try. An order paid at checkout and later asked for more is the common case.
+12. **Money taken and not yet recorded waits too** (the review, 2026-11-03): between Payments settling and Sales recording, the order still looks unpaid. So `OrderRequests::free` also refuses (`PaymentBeingConfirmed`) while `PaymentsApi::successes` names a transaction with no `sales.payments` row. If the listener fails for good, staff see "A payment is being confirmed" until its job is retried from the failed jobs page; that is the honest answer, since the money did come.
+13. **`TransferOverdue` must have its listener before this goes live** (ops.md S6): an order marked told while no one listens is never told again. Nothing runs before go-live, so this is on the go-live list, not a change here.

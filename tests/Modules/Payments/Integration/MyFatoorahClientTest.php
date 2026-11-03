@@ -202,6 +202,8 @@ describe('asking about a payment', function () {
         Http::fake([CLIENT_PAYMENT => Http::response(Answers::payment())]);
         app()->instance(GatewayCalls::class, new class implements GatewayCalls
         {
+            public function deleteBefore(DateTimeImmutable $before): void {}
+
             public function record(GatewayCall $call): void
             {
                 throw new RuntimeException('The log is down');

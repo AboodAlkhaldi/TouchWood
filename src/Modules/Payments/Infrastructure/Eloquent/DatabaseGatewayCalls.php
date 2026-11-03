@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Infrastructure\Eloquent;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Modules\Payments\Domain\Model\GatewayCall;
 use Modules\Payments\Domain\Repository\GatewayCalls;
@@ -28,5 +29,10 @@ final readonly class DatabaseGatewayCalls implements GatewayCalls
             'took_ms' => $call->tookMs,
             'at' => CarbonImmutable::now(),
         ]);
+    }
+
+    public function deleteBefore(DateTimeImmutable $before): void
+    {
+        $this->db->table('payments.calls')->where('at', '<', $before)->delete();
     }
 }

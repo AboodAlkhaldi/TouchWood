@@ -18,7 +18,10 @@ use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Exception\NotShippable;
 use Modules\Sales\Domain\Exception\OnlinePaymentNotVoidable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Exception\PaymentBeingConfirmed;
 use Modules\Sales\Domain\Exception\PaymentInProgress;
+use Modules\Sales\Domain\Exception\PaymentLinkEnded;
+use Modules\Sales\Domain\Exception\PaymentRequestNotAllowed;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
@@ -59,6 +62,9 @@ function salesErrors(): array
         'TooManyCouponTries' => [new TooManyCouponTries(360), 'sales.too_many_coupon_tries', ErrorCategory::Forbidden],
         'TooManyPaymentTries' => [new TooManyPaymentTries(360), 'sales.too_many_payment_tries', ErrorCategory::TooMany],
         'PaymentInProgress' => [new PaymentInProgress, 'sales.payment_in_progress', ErrorCategory::Conflict],
+        'PaymentBeingConfirmed' => [new PaymentBeingConfirmed, 'sales.payment_being_confirmed', ErrorCategory::Conflict],
+        'PaymentLinkEnded' => [new PaymentLinkEnded, 'sales.payment_link_ended', ErrorCategory::Conflict],
+        'PaymentRequestNotAllowed' => [new PaymentRequestNotAllowed, 'sales.payment_request_not_allowed', ErrorCategory::Conflict],
         'CheckoutTryNotFound' => [new CheckoutTryNotFound, 'sales.checkout_try_not_found', ErrorCategory::NotFound],
         'TestOrderNotShippable' => [new TestOrderNotShippable, 'sales.test_order_not_shippable', ErrorCategory::Invalid],
         'OnlinePaymentNotVoidable' => [new OnlinePaymentNotVoidable, 'sales.online_payment_not_voidable', ErrorCategory::Invalid],
@@ -104,7 +110,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(salesErrors()));
     sort($listed);
 
-    expect(salesErrorClassesInFolder())->toHaveCount(28)
+    expect(salesErrorClassesInFolder())->toHaveCount(31)
         ->and(salesErrorClassesInFolder())->toBe($listed);
 });
 

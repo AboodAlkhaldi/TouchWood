@@ -114,7 +114,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'is_test', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired', 'shipping_fee_pending']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'is_test', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired', 'shipping_fee_pending', 'audience']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -134,6 +134,7 @@ final readonly class DatabaseOrders implements Orders
             (bool) $row->wired,
             (bool) $row->shipping_fee_pending,
             (bool) $row->is_test,
+            (string) $row->audience,
         ) : null;
     }
 
@@ -208,6 +209,29 @@ final readonly class DatabaseOrders implements Orders
             ->where('o.store_id', strtolower($storeId))->where('o.is_test', false)->where('o.placed_at', '>=', Moment::of($since))
             ->whereNotIn('o.status', [OrderState::PENDING_APPROVAL, OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED])->where('l.is_gift', false)
             ->groupBy('l.product_id')->selectRaw('l.product_id, SUM(l.quantity) AS pieces')->pluck('pieces', 'product_id')->all());
+    }
+
+    public function storesWithUncheckedTransfers(): array
+    {
+        return array_values(array_map('strval', $this->db->table('sales.orders')
+            ->where('way_to_pay', 'BANK_TRANSFER')->whereNull('overdue_told_at')->where('is_test', false)
+            ->whereRaw('paid_minor - refunded_minor < due_minor')
+            ->distinct()->pluck('store_id')->all()));
+    }
+
+    public function markTransfersOverdue(string $storeId, DateTimeImmutable $uploadedBy, DateTimeImmutable $at, int $most): array
+    {
+        return array_values(array_map(static fn (stdClass $row): string => (string) $row->id, $this->db->select(<<<'SQL'
+            UPDATE sales.orders SET overdue_told_at = ?
+            WHERE id IN (
+                SELECT o.id FROM sales.orders o
+                WHERE o.store_id = ? AND o.way_to_pay = 'BANK_TRANSFER' AND o.overdue_told_at IS NULL AND NOT o.is_test
+                    AND o.paid_minor - o.refunded_minor < o.due_minor
+                    AND (SELECT min(d.uploaded_at) FROM sales.transfer_documents d WHERE d.order_id = o.id) <= ?
+                ORDER BY o.id LIMIT ? FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id
+            SQL, [Moment::of($at), strtolower($storeId), Moment::of($uploadedBy), $most])));
     }
 
     public function moveMoney(string $orderId, int $paid, int $refunded): void

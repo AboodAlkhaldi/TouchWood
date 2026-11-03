@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Application\Query\ListOwnOrders;
 
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Sales\Application\Query\OrderShippingView;
 use Modules\Sales\Application\Query\Own\OwnOrderRow;
 use Modules\Sales\Application\Query\Own\OwnOrdersPage;
@@ -26,6 +27,7 @@ final readonly class ListOwnOrdersHandler
     public function __construct(
         private OwnReader $reader,
         private OwnReads $reads,
+        private PaymentsApi $payments,
     ) {}
 
     /** @throws Unauthorized */
@@ -40,6 +42,16 @@ final readonly class ListOwnOrdersHandler
 
         $rows = $this->reads->orders($customerId, $after, self::PAGE + 1);
         $page = array_slice($rows, 0, self::PAGE);
+        // One read for the page, and only for what is still missing money.
+        $missing = [];
+
+        foreach ($page as $row) {
+            if ($row['due'] - $row['paid'] + $row['refunded'] > 0) {
+                $missing[$row['id']] = $row['due'] - $row['paid'] + $row['refunded'];
+            }
+        }
+
+        $requests = $missing === [] ? [] : $this->payments->openRequests(array_keys($missing));
 
         return new OwnOrdersPage(
             array_map(fn (array $row): OwnOrderRow => new OwnOrderRow(
@@ -48,6 +60,7 @@ final readonly class ListOwnOrdersHandler
                 Money::of($row['total'], $row['currency']), $row['pieces'], $this->reader->exponent($row['currency']),
                 OrderShippingView::feeOpen(['shipping_fee_pending' => $row['shippingPending'], 'status' => $row['status']]),
                 $row['isTest'],
+                isset($requests[$row['id']]) && $requests[$row['id']]->amount->minorUnits === $missing[$row['id']],
             ), $page),
             count($rows) > self::PAGE && $page !== [] ? $page[count($page) - 1]['number'] : null,
         );

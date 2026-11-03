@@ -26,6 +26,21 @@ interface Orders
     /** The order's machines, its row locked until the transaction ends — every change locks it first (§1.4). */
     public function lock(string $orderId): ?OrderState;
 
+    /**
+     * The stores with a real bank-transfer order not paid and not yet told overdue (§9.5 #16).
+     *
+     * @return list<string>
+     */
+    public function storesWithUncheckedTransfers(): array;
+
+    /**
+     * Marks as told those of a store's whose first receipt came by `$uploadedBy`, and still unpaid: a row another
+     * transaction holds waits for the next hour.
+     *
+     * @return list<string> the orders marked
+     */
+    public function markTransfersOverdue(string $storeId, DateTimeImmutable $uploadedBy, DateTimeImmutable $at, int $most): array;
+
     /** The store an order belongs to; null when there is no such order. */
     public function storeOf(string $orderId): ?string;
 

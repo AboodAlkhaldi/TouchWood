@@ -29,8 +29,8 @@ final class ReleaseTryWhenNotAccepted implements ShouldQueue
     {
         $try = $this->checkoutTries->ofOrder($event->orderId);
 
-        // A payment request's own order, not a try's.
-        if ($try === null) {
+        // A payment request's own, on an order with no try or on one a try made: nothing is written (payments.md §1.5).
+        if ($try === null || $event->ownerId !== $try->id) {
             return;
         }
 

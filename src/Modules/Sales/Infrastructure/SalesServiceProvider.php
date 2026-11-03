@@ -16,6 +16,7 @@ use Modules\Access\Public\Events\CustomerAnonymized;
 use Modules\Access\Public\Events\GuestBecameCustomer;
 use Modules\Catalog\Public\Contracts\ShopProductSections;
 use Modules\Inventory\Public\Events\HoldsShort;
+use Modules\Payments\Public\Contracts\PaymentOrderNumbers;
 use Modules\Payments\Public\Events\PaymentFailed;
 use Modules\Payments\Public\Events\PaymentNotAccepted;
 use Modules\Payments\Public\Events\PaymentNotTaken;
@@ -43,6 +44,7 @@ use Modules\Sales\Infrastructure\Eloquent\DatabaseCheckoutTries;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseMoneyRecords;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseOrders;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseOwnReads;
+use Modules\Sales\Infrastructure\Eloquent\DatabasePaymentOrderNumbers;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseQuotes;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseReturns;
 use Modules\Sales\Infrastructure\Eloquent\DatabaseSalesApi;
@@ -55,18 +57,22 @@ use Modules\Sales\Infrastructure\Listener\CreateOrderSequence;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
 use Modules\Sales\Infrastructure\Listener\ForgetCustomer;
 use Modules\Sales\Infrastructure\Listener\MoveGuestCart;
+use Modules\Sales\Infrastructure\Listener\RecordRequestPayment;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotAccepted;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotPaid;
+use Modules\Sales\Infrastructure\Listener\WithdrawRequestWhenCancelled;
 use Modules\Sales\Infrastructure\Media\SalesFilesUsage;
 use Modules\Sales\Infrastructure\Queue\DeleteExpiredQuotesJob;
 use Modules\Sales\Infrastructure\Queue\EmptyOldCartsJob;
 use Modules\Sales\Infrastructure\Queue\PushSalesRanksJob;
 use Modules\Sales\Infrastructure\Queue\ReviewCheckoutTriesJob;
+use Modules\Sales\Infrastructure\Queue\TellOverdueTransfersJob;
 use Modules\Sales\Presentation\Http\Resource\OrdersCustomerSection;
 use Modules\Sales\Presentation\Storefront\CartSection;
 use Modules\Sales\Presentation\Storefront\SalesFramePart;
 use Modules\Sales\Public\Contracts\SalesApi;
 use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Events\OrderCancelled;
 
 /**
  * Sales (sales.md). Registered after Access and Platform: it declares its permissions through
@@ -80,6 +86,7 @@ final class SalesServiceProvider extends ServiceProvider
         $this->app->bind(SalesApi::class, DatabaseSalesApi::class);
         // Ops' reads (§2.3).
         $this->app->bind(SalesReports::class, DatabaseSalesReports::class);
+        $this->app->bind(PaymentOrderNumbers::class, DatabasePaymentOrderNumbers::class);
         $this->app->bind(Carts::class, DatabaseCarts::class);
         $this->app->bind(Quotes::class, DatabaseQuotes::class);
         $this->app->bind(CheckoutTries::class, DatabaseCheckoutTries::class);
@@ -121,9 +128,11 @@ final class SalesServiceProvider extends ServiceProvider
         Event::listen(HoldsShort::class, [FlagShortOrders::class, 'handle']);
         // What came of a checkout's online payment (§9.5 #4): the order, or everything given back.
         Event::listen(PaymentSucceeded::class, [CompleteTryWhenPaid::class, 'handle']);
+        Event::listen(PaymentSucceeded::class, [RecordRequestPayment::class, 'handle']);
         Event::listen(PaymentFailed::class, [ReleaseTryWhenNotPaid::class, 'handle']);
         Event::listen(PaymentNotTaken::class, [ReleaseTryWhenNotPaid::class, 'handle']);
         Event::listen(PaymentNotAccepted::class, [ReleaseTryWhenNotAccepted::class, 'handle']);
+        Event::listen(OrderCancelled::class, [WithdrawRequestWhenCancelled::class, 'handle']);
 
         // Carts no one touched for 90 days, emptied each night (§1.1). Scheduled work is queued as a
         // job, never command() or call() (owner's decision, 2026-09-18).
@@ -135,6 +144,8 @@ final class SalesServiceProvider extends ServiceProvider
             $schedule->job(PushSalesRanksJob::class)->timezone('Asia/Riyadh')->dailyAt('03:45')->onOneServer();
             // The tries past their window that the events did not settle (§9.5 #4).
             $schedule->job(ReviewCheckoutTriesJob::class)->hourly()->onOneServer();
+            // Transfers past their check time, each told once (§9.5 #16).
+            $schedule->job(TellOverdueTransfersJob::class)->hourly()->onOneServer();
         });
 
         // The screens (§4.1): the Sales group's Orders and Returns, for staff who view the store's orders. What is offered

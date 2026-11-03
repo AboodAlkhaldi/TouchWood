@@ -16,6 +16,7 @@ use Modules\Loyalty\Public\Dto\SettlePointsHold;
 use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Enums\PaymentMode;
+use Modules\Payments\Public\Enums\PaymentOwnerKind;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Promotions\Public\Contracts\PromotionsApi;
 use Modules\Promotions\Public\Dto\CallerPermission as PromotionsCaller;
@@ -83,7 +84,14 @@ final readonly class TryCompletion
      */
     public function told(string $tryId, string $paymentId): void
     {
-        $this->paid($tryId, $this->payment($paymentId), true);
+        $payment = $this->payment($paymentId);
+
+        // A request on the order this try made is that request's money, and `RecordRequestPayment`'s (§9.5 #8).
+        if ($payment->ownerKind === PaymentOwnerKind::Request) {
+            return;
+        }
+
+        $this->paid($tryId, $payment, true);
     }
 
     private function payment(string $paymentId): PaymentDto

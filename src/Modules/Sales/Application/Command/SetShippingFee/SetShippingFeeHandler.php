@@ -12,6 +12,7 @@ use Modules\Platform\Public\Dto\AuditChanges;
 use Modules\Platform\Public\Dto\AuditEntryDto;
 use Modules\Sales\Application\Order\OrderAccess;
 use Modules\Sales\Application\Order\OrderInputs;
+use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
@@ -46,6 +47,7 @@ final readonly class SetShippingFeeHandler
         private PlatformApi $platform,
         private ConnectionInterface $db,
         private Outbox $outbox,
+        private OrderRequests $requests,
     ) {}
 
     /**
@@ -69,6 +71,7 @@ final readonly class SetShippingFeeHandler
                 throw new NotEditable;
             }
 
+            $this->requests->free($state->id);
             $order = $this->orders->forEdit($state->id) ?? throw new OrderNotFound;
 
             if ($order->shipping->carrierId !== null) {
@@ -79,6 +82,12 @@ final readonly class SetShippingFeeHandler
             $before = $order->shipping->pending ? null : $order->shipping->fee;
             // The fee to be set counts 0: the total moves by the difference.
             $total = $order->orderTotal - $order->shipping->fee + $fee;
+
+            // An open request no longer matches a changed amount (payments.md §1.5): staff send a new one.
+            if ($total !== $order->orderTotal) {
+                $this->requests->withdrawn($order->id);
+            }
+
             $editId = strtolower((string) Str::ulid());
             $now = CarbonImmutable::now();
 

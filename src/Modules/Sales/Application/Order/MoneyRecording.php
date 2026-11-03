@@ -50,6 +50,7 @@ final readonly class MoneyRecording
         private PlatformApi $platform,
         private ConnectionInterface $db,
         private Outbox $outbox,
+        private OrderRequests $requests,
     ) {}
 
     /**
@@ -81,6 +82,12 @@ final readonly class MoneyRecording
 
             if ($made !== null) {
                 return $made->orderId === $order->id ? $made->id : throw new InvalidSalesAttribute('request', 'a form of another order');
+            }
+
+            // A payment by hand waits for one in progress, and ends the order's open request (payments.md §1.5).
+            if ($kind === MoneyRecord::PAYMENT) {
+                $this->requests->free($order->id);
+                $this->requests->withdrawn($order->id);
             }
 
             $currency = $this->platform->currency($order->currencyCode) ?? throw new LogicException("The order's currency {$order->currencyCode} is not known.");

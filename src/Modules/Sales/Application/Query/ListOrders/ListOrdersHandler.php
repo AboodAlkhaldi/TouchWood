@@ -79,9 +79,10 @@ final readonly class ListOrdersHandler
         $rows = $this->reads->orders($stores, $filter, $after, self::PAGE + 1, $q, $customerId);
         $page = array_slice($rows, 0, self::PAGE);
         $customers = $this->reader->customers(array_map(static fn (array $row): string => (string) $row['customer_id'], $page));
+        $hours = $this->reader->transferHours($page);
 
         return new StaffOrdersPage(
-            array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customers[(string) $row['customer_id']]), $page),
+            array_map(fn (array $row): StaffOrderRow => $this->reader->orderRow($row, $customers[(string) $row['customer_id']], $hours), $page),
             count($rows) > self::PAGE && $page !== [] ? (string) $page[count($page) - 1]['id'] : null,
         );
     }

@@ -27,6 +27,8 @@ use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Payments\Public\Dto\BankAccountDto;
 use Modules\Payments\Public\Dto\OnlinePaymentDto;
 use Modules\Payments\Public\Dto\PaymentDto;
+use Modules\Payments\Public\Dto\PaymentRequestDto;
+use Modules\Payments\Public\Dto\PaymentRequestStateDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
@@ -86,6 +88,7 @@ use Modules\Sales\Domain\Repository\Carts;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Infrastructure\Listener\CompleteTryWhenPaid;
 use Modules\Sales\Infrastructure\Listener\FlagShortOrders;
+use Modules\Sales\Infrastructure\Listener\RecordRequestPayment;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotAccepted;
 use Modules\Sales\Infrastructure\Listener\ReleaseTryWhenNotPaid;
 use Modules\Sales\Public\Contracts\SalesReports;
@@ -258,6 +261,46 @@ function triesChargeCrashes(): void
         public function transferCheckHours(StoreId $store): int
         {
             return $this->real->transferCheckHours($store);
+        }
+
+        public function requestPayment(PaymentRequestDto $request, string $staffId): PaymentRequestStateDto
+        {
+            return $this->real->requestPayment($request, $staffId);
+        }
+
+        public function withdraw(string $orderId): bool
+        {
+            return $this->real->withdraw($orderId);
+        }
+
+        public function withdrawForCancelled(string $orderId): void
+        {
+            $this->real->withdrawForCancelled($orderId);
+        }
+
+        public function openRequest(string $orderId): ?PaymentRequestStateDto
+        {
+            return $this->real->openRequest($orderId);
+        }
+
+        public function openRequests(array $orderIds): array
+        {
+            return $this->real->openRequests($orderIds);
+        }
+
+        public function paymentOpen(string $orderId): bool
+        {
+            return $this->real->paymentOpen($orderId);
+        }
+
+        public function successes(string $orderId): array
+        {
+            return $this->real->successes($orderId);
+        }
+
+        public function attempts(string $orderId): array
+        {
+            return $this->real->attempts($orderId);
         }
 
         public function payment(string $paymentId): ?PaymentDto
@@ -1030,6 +1073,20 @@ describe('not paid', function () {
         expect(triesRow($paid->tryId)->state)->toBe('RELEASED')
             ->and((int) triesRow($paid->tryId)->refund_due_minor)->toBe($quote->totals->orderTotal->minorUnits);
         triesNothingHeld();
+    });
+
+    it('leaves a try\'s own payment to the try, whichever listener hears first', function () {
+        ['address' => $address, 'fake' => $fake] = triesReady();
+        $quote = triesQuote($address);
+        $paid = triesPay($quote);
+        $fake->paid(triesAmount($quote));
+        app(PaymentsApi::class)->refresh($paid->tryId);
+        $event = triesSucceeded();
+
+        app(RecordRequestPayment::class)->handle($event);
+
+        expect(DB::table('sales.orders')->count())->toBe(0)
+            ->and(DB::table('public.processed_events')->count())->toBe(0);
     });
 
     it('makes nothing of an event for a payment request\'s own order: a try beside it is untouched', function () {

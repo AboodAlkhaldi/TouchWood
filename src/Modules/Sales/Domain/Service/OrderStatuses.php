@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Domain\Service;
 
+use DateTimeImmutable;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Public\Enums\CustomerOrderStatus;
 use Modules\Sales\Public\Enums\PaymentStatus;
@@ -14,6 +15,16 @@ use Modules\Sales\Public\Enums\PaymentStatus;
  */
 final class OrderStatuses
 {
+    /**
+     * A real bank transfer whose first receipt came more than the store's check hours ago, and still not paid
+     * (§9.5 #9).
+     */
+    public static function transferOverdue(string $wayToPay, bool $isTest, int $due, int $held, ?DateTimeImmutable $firstUpload, int $hours, DateTimeImmutable $now): bool
+    {
+        return $wayToPay === 'BANK_TRANSFER' && ! $isTest && $held < $due && $firstUpload !== null
+            && $firstUpload->getTimestamp() <= $now->getTimestamp() - $hours * 3600;
+    }
+
     /**
      * @param  int  $due  what is due now: 0 for a cancelled, rejected or undelivered order, otherwise the total less the refunds owed for completed returns
      */

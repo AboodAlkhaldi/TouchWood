@@ -8,12 +8,14 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Sales\Application\Order\OrderInputs;
+use Modules\Sales\Application\Order\OrderRequests;
 use Modules\Sales\Application\Order\OrderUndoing;
 use Modules\Sales\Application\Order\OwnOrderAccess;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\NotCancellable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Exception\PaymentBeingConfirmed;
 use Modules\Sales\Domain\Model\OrderState;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Public\Events\OrderCancelled;
@@ -36,12 +38,13 @@ final readonly class CancelOwnOrderHandler
         private OrderUndoing $changes,
         private Outbox $outbox,
         private ConnectionInterface $db,
+        private OrderRequests $requests,
     ) {}
 
     /**
      * @return bool whether a refund is due: the order held money
      *
-     * @throws Unauthorized|InvalidSalesAttribute|OrderNotFound|NotCancellable
+     * @throws Unauthorized|InvalidSalesAttribute|OrderNotFound|NotCancellable|PaymentBeingConfirmed
      */
     public function handle(CancelOwnOrder $command): bool
     {
@@ -59,6 +62,9 @@ final readonly class CancelOwnOrderHandler
             if (! $order->isCancellable()) {
                 throw new NotCancellable;
             }
+
+            // A payment being answered first (payments.md §9.6 #5).
+            $this->requests->free($order->id);
 
             $now = CarbonImmutable::now();
             $this->orders->cancel($order->id, $reason->value, $words, null, $now);

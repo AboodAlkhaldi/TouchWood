@@ -70,6 +70,14 @@ final readonly class DatabaseTransactions implements Transactions
         return $code === null ? null : (string) $code;
     }
 
+    public function acceptedOfOrder(string $orderId): array
+    {
+        return array_values(array_map('strval', $this->db->table('payments.transactions as t')
+            ->join('payments.attempts as a', 'a.id', '=', 't.attempt_id')
+            ->where('a.order_id', strtolower($orderId))->where('t.succeeded', true)->where('t.published', true)
+            ->orderBy('t.id')->pluck('t.id')->all()));
+    }
+
     public function dto(string $id): ?PaymentDto
     {
         if (preg_match('/\\A[1-9][0-9]{0,18}\\z/', $id) !== 1) {

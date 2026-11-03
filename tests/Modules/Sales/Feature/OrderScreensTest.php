@@ -295,7 +295,8 @@ describe('P2 · An order', function () {
         // 13 and 5 since 2026-10-30: the SMS countries list, read once with the customers (access.md
         // amendment 90); 14 with stage 7 step 6 — the store's boxes, for the box suggestion (gap 5.1; no
         // choice: it is worked out live, never stored). The carriers are read only for staff who ship.
-        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(14)
+        // Three more from stage 7 step 12, for an order still missing money: the open request, whether a payment is open, and the attempts (payments.md §4.2).
+        expect(orderScreensOwnQueries($browser, "/admin/orders/{$order}"))->toBe(17)
             ->and(orderScreensOwnQueries($browser, '/admin/orders'))->toBe($one)
             ->and($one)->toBe(5);
     });
