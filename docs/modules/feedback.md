@@ -672,9 +672,11 @@ Each extends `FeedbackError`, which extends `Shared\Domain\Error\DomainError`.
     store selling the product; at most 5 waiting per customer in all (§1.3).
 17. **A wishlist item's "unavailable" is judged in the store it was saved in** (§1.4).
 18. **An answered question can be unpublished**, as a review (§1.3).
-19. **"A store sells a product"** — for reviews, questions and the wishlist — means: the product is
+19. **"A store sells a product"** — for reviews, questions and saving to the wishlist — means: the product is
     ready, chosen in that store, and not marked "not available now"; stock does not count, so a
-    product out of stock can still be saved and asked about. Asking or saving in a store that does not
+    product out of stock can still be saved and asked about. **A saved product sold out or unpriced for the
+    person looking stays in the wishlist, marked "Not available now"** (owner, 2026-11-03; catalog.md amendment
+    39(k)): its own read, `productsOrderableNow`, for the mark only. Asking or saving in a store that does not
     sell it is `InvalidFeedbackAttribute`; a review is written in a store that sells the product, so
     the store that moderates it shows it. My assumption, built with step F2 (catalog.md amendment 24):
     which kind of buyer a store shows a category to (`store_category_audiences`) is not part of "sells"
