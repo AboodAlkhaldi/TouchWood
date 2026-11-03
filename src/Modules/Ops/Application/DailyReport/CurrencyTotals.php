@@ -25,6 +25,9 @@ final readonly class CurrencyTotals
         public Money $shipping,
         public Money $refunds,
         public Money $paymentsIn,
+        /** The transfers overdue across its stores, as they stand now. */
+        public int $overdueOrders,
+        public Money $overdueOwed,
         public PeriodFigures $monthToDate,
     ) {}
 }

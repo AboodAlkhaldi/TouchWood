@@ -86,7 +86,7 @@ return [
         'transfers_waiting_now' => 'Transfers waiting (as of now, not that day)',
         'transfers_waiting_line' => 'Orders: :orders, owed :amount',
         'transfers_overdue' => 'Transfers overdue',
-        'waits_stage7' => 'Waits for Payments (stage 7)',
+        'transfers_overdue_now' => 'Transfers overdue (as of now, not that day)',
         'no_money' => 'No money moved today.',
     ],
 

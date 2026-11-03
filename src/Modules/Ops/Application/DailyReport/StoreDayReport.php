@@ -43,7 +43,7 @@ final readonly class StoreDayReport
         public bool $pastDay,
         /**
          * The report's day is not this store's current day when it is read: a past day, a late worker's or a
-         * retry's. Transfers waiting are as they stand now, and say so.
+         * retry's. Transfers waiting and overdue are as they stand now, and say so.
          */
         public bool $notReadThatDay,
 
@@ -66,6 +66,7 @@ final readonly class StoreDayReport
         // 3. Money received.
         public MoneyDaysDto $money,
         public TransfersWaitingDto $transfersWaiting,
+        public TransfersWaitingDto $transfersOverdue,
 
         // 4. Products.
         public array $topSizes,

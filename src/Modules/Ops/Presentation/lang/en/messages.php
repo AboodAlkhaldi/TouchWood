@@ -16,6 +16,7 @@ declare(strict_types=1);
 */
 return [
     // Messages to customers (§1.5).
+    'test_mark' => 'Test mode — no real money is taken.',
     'order_taken' => [
         'title' => 'Order :order received',
         'line' => 'We received your order and will review it soon.',

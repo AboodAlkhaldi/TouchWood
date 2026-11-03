@@ -20,6 +20,7 @@ return [
     'tell_customer_about_order' => 'Telling a customer what happened to their order',
     'tell_customer_about_return' => 'Telling a customer what happened to their return',
     'tell_customer_about_money' => 'Telling a customer a refund was sent or a payment received',
+    'tell_customer_about_payment_request' => 'Telling a customer the link to pay the rest of their order',
     'tell_customers_about_coupon' => 'Telling customers they were given a coupon',
     'tell_customer_about_points' => 'Telling a customer their points changed',
     'tell_customer_about_feedback' => 'Telling a customer what happened to their question or review',
