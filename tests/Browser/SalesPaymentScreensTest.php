@@ -81,7 +81,7 @@ beforeEach(function () {
         JS, 200, ['Content-Type' => 'text/javascript']));
     Route::get('__fake-mf/bank', static fn () => response(<<<'HTML'
         <!doctype html><title>Bank</title><p>Enter your code</p>
-        <script>window.addEventListener('message', (event) => { if (event.data === 'finish') { window.parent.postMessage(JSON.stringify({ sender: 'MF-3DSecure', url: 'x' }), '*'); } });</script>
+        <script>window.addEventListener('message', (event) => { if (event.data === 'finish') { window.parent.postMessage(JSON.stringify({ sender: 'MF-3DSecure', url: 'x' }), '*'); } }); window.bankReady = true;</script>
         HTML));
 
     // The real Payments behind it; only the two addresses the page opens are ours.
@@ -209,6 +209,8 @@ function salesPaymentPay(mixed $page): void
 
 function salesPaymentFinish(mixed $page): void
 {
+    // The frame's element comes before the page inside it: a message sent sooner reaches nobody.
+    expect(salesPaymentSoon($page, "document.querySelector('[data-test=\"payment-frame\"]')?.contentWindow?.bankReady === true"))->toBeTrue('the bank page never loaded');
     $page->script("document.querySelector('[data-test=\"payment-frame\"]').contentWindow.postMessage('finish', '*')");
 }
 
