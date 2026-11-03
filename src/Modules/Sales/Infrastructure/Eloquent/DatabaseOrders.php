@@ -71,6 +71,7 @@ final readonly class DatabaseOrders implements Orders
             'gift_level_id' => $order->giftLevelId,
             'wired' => $order->wired,
             'placed_at' => Moment::of($order->placedAt),
+            'is_test' => $order->isTest,
         ]);
 
         $this->insertLines($order->id, $order->storeId, $order->lines);
@@ -113,7 +114,7 @@ final readonly class DatabaseOrders implements Orders
     public function lock(string $orderId): ?OrderState
     {
         $row = $this->db->table('sales.orders')->where('id', strtolower($orderId))->lockForUpdate()
-            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired', 'shipping_fee_pending']);
+            ->first(['id', 'store_id', 'number', 'customer_id', 'status', 'shipment_status', 'due_minor', 'paid_minor', 'refunded_minor', 'is_test', 'short_of_stock_at', 'currency_code', 'may_ship_unpaid', 'way_to_pay', 'goods_total_minor', 'wired', 'shipping_fee_pending']);
 
         return $row instanceof stdClass ? new OrderState(
             (string) $row->id,
@@ -132,6 +133,7 @@ final readonly class DatabaseOrders implements Orders
             (int) $row->goods_total_minor,
             (bool) $row->wired,
             (bool) $row->shipping_fee_pending,
+            (bool) $row->is_test,
         ) : null;
     }
 
@@ -203,7 +205,7 @@ final readonly class DatabaseOrders implements Orders
     public function piecesSold(string $storeId, DateTimeImmutable $since): array
     {
         return array_map('intval', $this->db->table('sales.order_lines AS l')->join('sales.orders AS o', 'o.id', '=', 'l.order_id')
-            ->where('o.store_id', strtolower($storeId))->where('o.placed_at', '>=', Moment::of($since))
+            ->where('o.store_id', strtolower($storeId))->where('o.is_test', false)->where('o.placed_at', '>=', Moment::of($since))
             ->whereNotIn('o.status', [OrderState::PENDING_APPROVAL, OrderState::CANCELLED, OrderState::REJECTED, OrderState::UNDELIVERED])->where('l.is_gift', false)
             ->groupBy('l.product_id')->selectRaw('l.product_id, SUM(l.quantity) AS pieces')->pluck('pieces', 'product_id')->all());
     }

@@ -41,7 +41,14 @@ final readonly class DatabaseMoneyRecords implements MoneyRecords
             'request_id' => strtolower($record->requestId),
             'recorded_by' => $record->recordedBy,
             'recorded_at' => Moment::of($record->recordedAt),
+            // Only a payment carries them: test money and an amount that differed (§9.5 #7).
+            ...($record->kind === MoneyRecord::PAYMENT ? ['is_test' => $record->isTest, 'mismatch' => $record->mismatch] : []),
         ]);
+    }
+
+    public function hasOnline(string $reference): bool
+    {
+        return $this->db->table('sales.payments')->where('way', 'ONLINE')->where('reference', $reference)->exists();
     }
 
     public function orderOf(string $kind, string $recordId): ?string
@@ -89,6 +96,8 @@ final readonly class DatabaseMoneyRecords implements MoneyRecords
             $row->recorded_by === null ? null : (string) $row->recorded_by,
             CarbonImmutable::parse((string) $row->recorded_at),
             $row->voided_at !== null,
+            (bool) ($row->is_test ?? false),
+            (bool) ($row->mismatch ?? false),
         );
     }
 }

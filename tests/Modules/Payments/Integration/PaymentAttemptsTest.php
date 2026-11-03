@@ -866,6 +866,11 @@ describe('the answers (rules 1, 5, 6, 8)', function () {
                 throw new RuntimeException('The database refused it');
             }
 
+            public function declineCode(string $attemptId): ?string
+            {
+                return $this->real->declineCode($attemptId);
+            }
+
             public function dto(string $id): ?PaymentDto
             {
                 return $this->real->dto($id);

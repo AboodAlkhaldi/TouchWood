@@ -51,6 +51,13 @@ interface AccessApi
     public function customerIdsInStore(StoreId $store, AccountType $accountType, ?string $after, int $limit): array;
 
     /**
+     * For Ops' confirmation before a notice or a message goes to a whole store (amendment 94; ops.md §9.4
+     * Q14): **how many customers are registered in the store**, of either account type, not anonymized - the
+     * same people `customerIdsInStore` gives over both types. One count.
+     */
+    public function customerCountInStore(StoreId $store): int;
+
+    /**
      * For a module's own staff list searched by a person (amendment 72(b); Loyalty's points
      * holders): the customers, not anonymized, whose first or last name holds the text **in any
      * store**, or whose email or phone holds it **among the customers the acting staff member may

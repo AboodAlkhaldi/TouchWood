@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Lang;
 use Modules\Sales\Domain\Exception\AddressInOtherStore;
 use Modules\Sales\Domain\Exception\AddressNotUsable;
+use Modules\Sales\Domain\Exception\CheckoutTryNotFound;
 use Modules\Sales\Domain\Exception\InvalidOrderChange;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
 use Modules\Sales\Domain\Exception\MayNotOrder;
@@ -15,7 +16,9 @@ use Modules\Sales\Domain\Exception\NotEditable;
 use Modules\Sales\Domain\Exception\NotForYourAccount;
 use Modules\Sales\Domain\Exception\NotOrderable;
 use Modules\Sales\Domain\Exception\NotShippable;
+use Modules\Sales\Domain\Exception\OnlinePaymentNotVoidable;
 use Modules\Sales\Domain\Exception\OrderNotFound;
+use Modules\Sales\Domain\Exception\PaymentInProgress;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
@@ -25,8 +28,10 @@ use Modules\Sales\Domain\Exception\ReturnNotFound;
 use Modules\Sales\Domain\Exception\SalesError;
 use Modules\Sales\Domain\Exception\ShippingFeeNotSet;
 use Modules\Sales\Domain\Exception\SignInToUseCoupon;
+use Modules\Sales\Domain\Exception\TestOrderNotShippable;
 use Modules\Sales\Domain\Exception\TooManyCouponTries;
 use Modules\Sales\Domain\Exception\TooManyFiles;
+use Modules\Sales\Domain\Exception\TooManyPaymentTries;
 use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
 use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Shared\Domain\Error\ErrorCategory;
@@ -52,6 +57,11 @@ function salesErrors(): array
         'WayToPayNotOffered' => [new WayToPayNotOffered, 'sales.way_to_pay_not_offered', ErrorCategory::Invalid],
         'SignInToUseCoupon' => [new SignInToUseCoupon, 'sales.sign_in_to_use_coupon', ErrorCategory::Invalid],
         'TooManyCouponTries' => [new TooManyCouponTries(360), 'sales.too_many_coupon_tries', ErrorCategory::Forbidden],
+        'TooManyPaymentTries' => [new TooManyPaymentTries(360), 'sales.too_many_payment_tries', ErrorCategory::TooMany],
+        'PaymentInProgress' => [new PaymentInProgress, 'sales.payment_in_progress', ErrorCategory::Conflict],
+        'CheckoutTryNotFound' => [new CheckoutTryNotFound, 'sales.checkout_try_not_found', ErrorCategory::NotFound],
+        'TestOrderNotShippable' => [new TestOrderNotShippable, 'sales.test_order_not_shippable', ErrorCategory::Invalid],
+        'OnlinePaymentNotVoidable' => [new OnlinePaymentNotVoidable, 'sales.online_payment_not_voidable', ErrorCategory::Invalid],
         'TooManyWaitingOrders' => [new TooManyWaitingOrders(3), 'sales.too_many_waiting_orders', ErrorCategory::Conflict],
         'QuoteNotFound' => [new QuoteNotFound, 'sales.quote_not_found', ErrorCategory::NotFound],
         'QuoteExpired' => [new QuoteExpired, 'sales.quote_expired', ErrorCategory::Conflict],
@@ -94,7 +104,7 @@ it('checks every error in the module\'s folder, and the folder holds them all', 
     $listed = array_map(static fn (array $row): string => $row[0]::class, array_values(salesErrors()));
     sort($listed);
 
-    expect(salesErrorClassesInFolder())->toHaveCount(23)
+    expect(salesErrorClassesInFolder())->toHaveCount(28)
         ->and(salesErrorClassesInFolder())->toBe($listed);
 });
 

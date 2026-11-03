@@ -16,6 +16,7 @@ use Modules\Loyalty\Public\Contracts\LoyaltyApi;
 use Modules\Loyalty\Public\Dto\CallerPermission as LoyaltyCaller;
 use Modules\Loyalty\Public\Dto\RedeemPoints;
 use Modules\Loyalty\Public\Enums\Audience as LoyaltyAudience;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Pricing\Public\Dto\CartLineDto;
 use Modules\Pricing\Public\Dto\LinePriceDto;
@@ -25,19 +26,23 @@ use Modules\Promotions\Public\Dto\CouponRequest;
 use Modules\Promotions\Public\Dto\RecordOrder;
 use Modules\Promotions\Public\Dto\UseCoupon;
 use Modules\Promotions\Public\Enums\Audience as PromotionsAudience;
+use Modules\Sales\Application\Order\OrderCartEmptying;
+use Modules\Sales\Application\Order\OrderContact;
 use Modules\Sales\Application\Order\OrderSnapshot;
 use Modules\Sales\Application\Quote\QuoteRules;
 use Modules\Sales\Application\Quote\QuoteView;
 use Modules\Sales\Application\Quote\ShippingQuotes;
 use Modules\Sales\Application\SalesPermissions;
 use Modules\Sales\Domain\Exception\InvalidSalesAttribute;
+use Modules\Sales\Domain\Exception\PaymentInProgress;
 use Modules\Sales\Domain\Exception\QuoteChanged;
 use Modules\Sales\Domain\Exception\QuoteExpired;
 use Modules\Sales\Domain\Exception\QuoteNotFound;
 use Modules\Sales\Domain\Exception\TooManyWaitingOrders;
-use Modules\Sales\Domain\Model\Cart;
+use Modules\Sales\Domain\Exception\WayToPayNotOffered;
 use Modules\Sales\Domain\Model\PlacedOrder;
 use Modules\Sales\Domain\Repository\Carts;
+use Modules\Sales\Domain\Repository\CheckoutTries;
 use Modules\Sales\Domain\Repository\OrderNumbers;
 use Modules\Sales\Domain\Repository\Orders;
 use Modules\Sales\Domain\Repository\Quotes;
@@ -103,6 +108,9 @@ final readonly class PlaceOrderHandler
         private Carts $carts,
         private QuoteRules $rules,
         private OrderSnapshot $snapshot,
+        private OrderCartEmptying $emptying,
+        private CheckoutTries $tries,
+        private PaymentsApi $payments,
         private PlatformApi $platform,
         private AccessApi $access,
         private PromotionsApi $promotions,
@@ -112,7 +120,7 @@ final readonly class PlaceOrderHandler
     ) {}
 
     /**
-     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|TooManyWaitingOrders|QuoteChanged
+     * @throws Unauthorized|InvalidSalesAttribute|QuoteNotFound|QuoteExpired|TooManyWaitingOrders|QuoteChanged|WayToPayNotOffered|PaymentInProgress
      */
     public function handle(PlaceOrder $command): PlacedOrder
     {
@@ -156,6 +164,11 @@ final readonly class PlaceOrderHandler
                 throw new QuoteExpired;
             }
 
+            // Online is paid first: `PayOnline` makes its order (§9.5 #4).
+            if ($quote->wayToPay === WayToPay::Online->value) {
+                throw new WayToPayNotOffered;
+            }
+
             // The orders already waiting, counted with the customer's other placements in the store kept out.
             $this->orders->lockCustomer($store->value, $customerId);
             $this->rules->waiting($store, $customerId);
@@ -163,10 +176,16 @@ final readonly class PlaceOrderHandler
             $view = QuoteView::fromArray($quote->id, $quote->storeId, $quote->customerId, $quote->addressId, WayToPay::from($quote->wayToPay), $quote->expiresAt, $quote->createdAt, $quote->result);
             $cart = $this->carts->lock($store, $customerId, null);
 
-            // 2. The number, taken first: Promotions and Loyalty record it.
+            // A payment going on over this cart: its reservations are still out (the second review, 2026-10-28).
+            if ($cart !== null && $this->tries->liveOfCart($cart->id) !== null) {
+                throw new PaymentInProgress;
+            }
+
+            // 2. The number, taken first: Promotions and Loyalty record it. A store in test numbers apart (§9.5 #14).
             $code = $this->platform->store($store)->code ?? throw new QuoteChanged('store');
+            $isTest = $this->payments->inTestMode($store);
             // Four digits at least (0001 … 9999, then 10000): answer 35 as changed 2026-10-26.
-            $number = sprintf('%s-%04d', strtoupper($code), $this->numbers->next($store));
+            $number = $isTest ? sprintf('TEST-%04d', $this->numbers->nextTest($store)) : sprintf('%s-%04d', strtoupper($code), $this->numbers->next($store));
             $orderId = strtolower((string) Str::ulid());
 
             try {
@@ -175,11 +194,11 @@ final readonly class PlaceOrderHandler
 
                 // 4. The order, snapshotted.
                 $customer = $this->access->customer($customerId) ?? throw new QuoteChanged('customer');
-                $this->orders->add($this->snapshot->of($view, $orderId, $number, $customer, $address, $now));
+                $this->orders->add($this->snapshot->of($view, $orderId, $number, OrderContact::of($customer), $address, $now, $isTest));
                 $this->orders->recordHistory($orderId, $store->value, 'PLACED', null, null, $now, ['number' => $number, 'quoteId' => $quoteId]);
 
                 // 5. The other modules, Inventory last.
-                $this->others($store, $customerId, $view, $orderId, $number, $now);
+                $this->others($store, $customerId, $view, $orderId, $number, $now, $isTest);
             } catch (QuoteChanged $changed) {
                 throw $changed;
             } catch (DomainError $refused) {
@@ -189,7 +208,7 @@ final readonly class PlaceOrderHandler
             // 6. The bought pieces leave the cart — what was added since stays — and the coupon, when it is
             // still the one quoted.
             if ($cart !== null) {
-                $this->emptyOf($cart, $view, $now);
+                $this->emptying->of($cart, $view, $now);
             }
 
             // 7. Told, with the change.
@@ -197,25 +216,6 @@ final readonly class PlaceOrderHandler
 
             return new PlacedOrder($orderId, $number);
         }, self::ATTEMPTS);
-    }
-
-    /** The quoted pieces of each line out of the cart, a line gone when none are left; the quoted coupon. */
-    private function emptyOf(Cart $cart, QuoteView $view, CarbonImmutable $now): void
-    {
-        foreach ($view->prices->lines as $quoted) {
-            foreach ($cart->lines as $line) {
-                if ($line->variantId !== $quoted->variantId || $line->mode !== $quoted->mode) {
-                    continue;
-                }
-
-                $left = $line->quantity - $quoted->quantity;
-                $left > 0 ? $this->carts->change($cart->id, $line->variantId, $line->mode, $left, $now) : $this->carts->remove($cart->id, $line->variantId, $line->mode, $now);
-            }
-        }
-
-        if ($cart->couponCode !== null && $cart->couponCode === $view->couponCode) {
-            $this->carts->setCoupon($cart->id, null, $now);
-        }
     }
 
     /**
@@ -266,7 +266,7 @@ final readonly class PlaceOrderHandler
      *
      * @throws DomainError
      */
-    private function others(StoreId $store, string $customerId, QuoteView $view, string $orderId, string $number, CarbonImmutable $now): void
+    private function others(StoreId $store, string $customerId, QuoteView $view, string $orderId, string $number, CarbonImmutable $now, bool $isTest): void
     {
         $promotionsCaller = new PromotionsCaller('sales', self::PERMISSION);
 
@@ -297,7 +297,11 @@ final readonly class PlaceOrderHandler
             $hold[] = new HoldLineDto($view->giftVariantId, 1, true);
         }
 
-        $this->promotions->recordOrder(new RecordOrder($orderId, $customerId, $store->value, $now, $promotionsCaller));
+        // A test order is left out of every figure, the customer's facts too (§9.5 #14).
+        if (! $isTest) {
+            $this->promotions->recordOrder(new RecordOrder($orderId, $customerId, $store->value, $now, $promotionsCaller));
+        }
+
         $this->inventory->hold($store, $orderId, $hold, null);
     }
 }

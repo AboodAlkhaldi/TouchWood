@@ -53,7 +53,7 @@ final readonly class StaffReader
             $customer, (string) $row['status'], (string) $row['shipment_status'], $payment,
             OrderStatuses::customer((string) $row['status'], (string) $row['shipment_status'], $payment),
             Money::of((int) $row['order_total_minor'], (string) $row['currency_code']), $this->exponent((string) $row['currency_code']),
-            $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'], OrderShippingView::feeOpen($row),
+            $row['short_of_stock_at'] !== null, (bool) $row['may_ship_unpaid'], OrderShippingView::feeOpen($row), (bool) $row['is_test'],
         );
     }
 

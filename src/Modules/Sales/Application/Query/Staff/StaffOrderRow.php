@@ -28,5 +28,6 @@ final readonly class StaffOrderRow
         public bool $mayShipUnpaid,
         /** No carrier served the place: staff set the fee before it ships (shipping.md §9.3 #8). */
         public bool $shippingFeePending = false,
+        public bool $isTest = false,
     ) {}
 }

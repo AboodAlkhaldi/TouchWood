@@ -10,6 +10,7 @@ use Modules\Payments\Public\Dto\PaymentDto;
 use Modules\Payments\Public\Dto\PaymentSessionDto;
 use Modules\Payments\Public\Dto\PaymentStartDto;
 use Modules\Payments\Public\Dto\PaymentStateDto;
+use Modules\Payments\Public\Dto\PaymentTimersDto;
 use Modules\Payments\Public\Dto\PayRequestDto;
 use Modules\Payments\Public\Dto\SessionRequestDto;
 use Modules\Payments\Public\Enums\PaymentAudience;
@@ -60,6 +61,15 @@ interface PaymentsApi
      * alone, and the server refuses a transfer.
      */
     public function bankAccount(StoreId $store): ?BankAccountDto;
+
+    /** Whether this store's gateway is on and in test mode: every order placed then is a test order (§1.6). */
+    public function inTestMode(StoreId $store): bool;
+
+    /** How long a payment may take (§1.7), for a session that must outlast a Pay at a quote's last second. */
+    public function timers(StoreId $store): PaymentTimersDto;
+
+    /** Sales could not settle this attempt's try: shown to staff among those needing attention (§1.7). */
+    public function needsAttention(string $attemptId): void;
 
     /** The hours staff have to check a transfer (§1.9). */
     public function transferCheckHours(StoreId $store): int;

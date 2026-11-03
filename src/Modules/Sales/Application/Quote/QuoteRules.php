@@ -12,6 +12,7 @@ use Modules\Catalog\Public\Contracts\CatalogApi;
 use Modules\Catalog\Public\Enums\SaleMode;
 use Modules\Inventory\Public\Contracts\InventoryApi;
 use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Enums\PaymentAudience;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Platform\Public\Enums\ShopperKind;
 use Modules\Pricing\Public\Dto\CartLineDto;
@@ -194,7 +195,7 @@ final readonly class QuoteRules
     public function waysToPay(StoreId $store, OrderAudience $audience): array
     {
         if ($audience === OrderAudience::Public) {
-            return [WayToPay::StaffContact];
+            return $this->payments->availability($store, PaymentAudience::Individual)->available ? [WayToPay::Online, WayToPay::StaffContact] : [WayToPay::StaffContact];
         }
 
         return $this->payments->bankAccount($store) === null ? [WayToPay::StaffContact] : [WayToPay::BankTransfer, WayToPay::StaffContact];

@@ -120,6 +120,15 @@ final readonly class AttemptPreparation
         });
     }
 
+    /** @throws AttemptNotFound */
+    public function markForAttention(string $attemptId): void
+    {
+        $this->db->transaction(function () use ($attemptId): void {
+            $attempt = $this->attempts->lock($attemptId) ?? throw new AttemptNotFound;
+            $this->attempts->save($attempt->with(['needsAttention' => true]), CarbonImmutable::now()->toDateTimeImmutable());
+        });
+    }
+
     /**
      * Ends a prepared attempt that was never charged; false once the charge is claimed (rule 15). Sales asks when
      * checkout is opened again, and releases the try itself, so no event goes out.

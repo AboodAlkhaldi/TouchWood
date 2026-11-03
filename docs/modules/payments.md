@@ -607,6 +607,15 @@ interface PaymentsApi
 
     /** The hours staff have to check a transfer (§1.9). */
     public function transferCheckHours(StoreId $store): int;
+
+    /** Whether this store's gateway is on and in test mode: every order placed then is a test order (§1.6; sales.md §9.8 #4). */
+    public function inTestMode(StoreId $store): bool;
+
+    /** The timers of §1.7, for a session that must outlast a Pay at a quote's last second. */
+    public function timers(StoreId $store): PaymentTimersDto;
+
+    /** Sales could not settle this attempt's try: listed for staff (§1.7, sales.md §9.5 #4). */
+    public function needsAttention(string $attemptId): void;
 }
 ```
 

@@ -82,6 +82,7 @@ final readonly class ViewOwnOrderHandler
                 && $documents < UploadTransferDocumentHandler::MOST,
             $this->reader->exponent($currency),
             OrderShippingView::of($order),
+            (bool) $order['is_test'],
         );
     }
 }

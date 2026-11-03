@@ -47,6 +47,7 @@ final readonly class ListOwnOrdersHandler
                 OrderStatuses::customer($row['status'], $row['shipment'], OrderStatuses::payment($row['due'], $row['paid'], $row['refunded'])),
                 Money::of($row['total'], $row['currency']), $row['pieces'], $this->reader->exponent($row['currency']),
                 OrderShippingView::feeOpen(['shipping_fee_pending' => $row['shippingPending'], 'status' => $row['status']]),
+                $row['isTest'],
             ), $page),
             count($rows) > self::PAGE && $page !== [] ? $page[count($page) - 1]['number'] : null,
         );

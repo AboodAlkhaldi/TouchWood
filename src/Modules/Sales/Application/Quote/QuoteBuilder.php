@@ -111,6 +111,11 @@ final readonly class QuoteBuilder
         // 11. The ways to pay — only staff's contact while the fee is to be set, a company's too (shipping.md §9.3 #7).
         $ways = $shipping->pending() ? [WayToPay::StaffContact] : $this->rules->waysToPay($store, $audience);
 
+        // Nothing to pay, nothing to pay online.
+        if ($totals->orderTotal->isZero()) {
+            $ways = array_values(array_filter($ways, static fn (WayToPay $way): bool => $way !== WayToPay::Online));
+        }
+
         if (! in_array($wayToPay, $ways, true)) {
             throw new WayToPayNotOffered;
         }
@@ -161,6 +166,7 @@ final readonly class QuoteBuilder
             $earning,
             $expiresAt,
             $now,
+            $cart === null ? 0 : $cart->version,
         );
     }
 

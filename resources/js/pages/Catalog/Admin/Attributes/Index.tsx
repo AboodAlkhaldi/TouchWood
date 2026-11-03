@@ -10,7 +10,8 @@ import { useTranslator } from '@/lib/t';
 import type { AttributeData, AttributesPage } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
 import { MoreButtonOff, StateBadge, nameIn, useAllStoresReason, useLocale } from '../parts';
 import { DragHandle, SortableGroup, SortableGroups, useSavedOrder, useSortableRow } from '../SortableList';
-import { AttributeDialog, AttributeMenu, DeleteAttributeDialog } from './AttributeDialog';
+import { AttributeDialog, AttributeMenu } from './AttributeDialog';
+import { DeleteAttributeDialog } from './DeleteAttributeDialog';
 
 /*
 | The attributes screen (catalog.md §1.7, §4.4 S3): one shared library - its name, its job, its unit,

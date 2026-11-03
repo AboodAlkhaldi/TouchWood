@@ -50,7 +50,7 @@ function transferOrder(string $way = 'BANK_TRANSFER', string $storeCode = 'sa'):
 {
     $b2b = Mockery::mock(B2BApi::class);
     $b2b->shouldReceive('isApproved')->andReturn(true);
-    $bankAccount = Mockery::mock(PaymentsApi::class);
+    $bankAccount = Cx::paymentsStandIn();
     $bankAccount->shouldReceive('bankAccount')->andReturn(new BankAccountDto('SA00 0000', 'Bank', 'TouchWood'));
     app()->instance(PaymentsApi::class, $bankAccount);
     app()->instance(B2BApi::class, $b2b);

@@ -22,5 +22,7 @@ final readonly class PaymentStateDto
         public bool $nothingCharged,
         public ?string $attemptId = null,
         public ?string $paymentId = null,
+        /** The gateway's code when declined (`MF0xx`, notes §9), for the page's plain words; null otherwise. */
+        public ?string $declineCode = null,
     ) {}
 }
