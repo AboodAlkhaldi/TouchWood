@@ -297,9 +297,16 @@ function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: P
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
+    // With nothing to wait for, ask now. With the bank's page open, not yet: the server keeps an answer for 10 seconds
+    // (rule 9), and an ask now would be what a code finished in those seconds is answered from.
     useEffect(() => {
         gone.current = false;
-        void ask();
+
+        if (latest.current.frameUrl === null) {
+            void ask();
+        } else {
+            timer.current = setTimeout(() => void ask(), ASK_WHILE_ON_BANK_PAGE);
+        }
 
         return () => {
             gone.current = true;

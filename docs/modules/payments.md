@@ -756,7 +756,7 @@ in the same place (Q2). Apple Pay and STC Pay use their own buttons in the form.
 | Declined | Back to the form, unlocked: "Your card was declined: [reason in plain words]. No money was taken." Pay again starts fresh (§1.4 step 6). A reason we have no words for reads "Your bank declined this payment." (Q6) |
 | The window ends, the customer finished the bank's step | "Confirming your payment…" with no time shown. |
 | The window ends, they didn't | "Time ran out." (the reservations stay until the wait ends, §1.4 step 7) |
-| The wait ends with nothing paid | "No money was taken." Back to the form, unlocked. |
+| The wait ends with nothing paid | *(Corrected by gaps 10.1, 10.2: the wait only changes the words, and the hold limit ends the try.)* The reservations stay until the hold limit. Then "No money was taken." only when `nothingCharged` is true, otherwise "The payment was not completed." Back to the form, unlocked. |
 | The gateway can't be reached | "We are still confirming with your bank. If the payment goes through, your order appears in My Orders — please do not pay again." |
 | Paid | The Order Placed page, with **Paid** (Q7). |
 
@@ -1373,6 +1373,20 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
    query. With several web servers, each can lag by up to that minute; a save on the same server shows at once.
 4. **Registering Apple Pay stays offered once registered**, as Register Again: Apple may ask for it yearly (§1.2).
 5. **A refused domain says MyFatoorah's own words** here: this page is Super Admins' alone (§7).
+
+**The checkout's payment block, as built — my picks, for the owner to reject** (2026-11-03):
+
+1. **The form is asked for by the page after it draws**, not while it draws: a slow gateway (a 30-second timeout) never holds up checkout. "Loading" shows in the card, and Pay is out of reach until the form is there.
+2. **Every change of address, carrier, coupon or points opens a new session**, as a new quote needs one (§1.4 step 0). Someone changing them over and over reaches the 30 an hour (§1.8) and is told "Too many tries — wait a few minutes." with Try Again.
+3. **No first ask while the bank's page is open.** The server keeps an answer for 10 seconds (rule 9), and an ask right after Pay would answer a code finished in those seconds with the old state. With the bank's page open the page asks every 30 seconds and at once on the frame's message; once finished or out of time, every 10.
+4. **The frame's message is believed from the frame we opened, at the address it opened**, sender exactly `MF-3DSecure`. Our return page also tells the page from inside the frame. Which address MyFatoorah really sends from is for the staging run (rule 7). If it differs, the message is ignored and the return page or the clock still ends it, later.
+5. **The frame has no `sandbox`**: MyFatoorah's page says only to open the address in a frame, and a sandbox could break a bank's page where no test can see it. Worth trying on staging.
+6. **A closed frame doesn't reopen**: the page says the time left until the try ends. The spec offers no way back into the bank's page.
+7. **A second window is told apart from coming back by asking**: a window that is paying answers on the browser's own channel (`BroadcastChannel`), so one answering means "in another window" and none means "Your last payment can still go through".
+8. **The closed store's one page shows only on a page still open** (§1.10). Anyone coming back later, or reloading, gets the store's 404 like any other page of it.
+9. **Words the spec doesn't give**: not completed ("The payment was not completed. If your bank took the money, our team will contact you to return it."), a currency refused or a refund due ("We couldn't accept this payment. Our team will contact you to return the money."), and the same "not completed" on the closed page rather than "No money was taken" unless that is known.
+10. **Plain reasons for a decline**: MF001, MF004, MF007 and MF010 have their own words; every other code reads "Your bank declined this payment." (Q6).
+11. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.
 
 ### 9.13 The build's own picks (step 10, 2026-11-01 — simple, taken as recommended under the owner's rule)
 

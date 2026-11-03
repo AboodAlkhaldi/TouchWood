@@ -7,7 +7,7 @@ namespace Modules\Sales\Presentation\Http\Resource;
 use Modules\Sales\Application\Command\ReturnToCheckout\ReturnToCheckout;
 use Modules\Sales\Application\Command\ReturnToCheckout\ReturnToCheckoutHandler;
 use Shared\Application\ActorContext;
-use Shared\Domain\ValueObject\ActorType;
+use Shared\Application\ActorType;
 
 /**
  * Checkout or the cart opened while a try may stand in the way (payments.md §1.4 step 8, §4.2 Q8): null when none does.
