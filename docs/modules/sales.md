@@ -78,7 +78,9 @@ those lines leave the merged cart, each with why.
 way to pay**, and turns the cart into a **quote: server-computed, itemised, immutable**, valid for **15
 minutes** and never past the prices' own end (`CartPricesDto::$validUntil`) (handoff §12.3,
 pricing.md §2.1). **The client never sends an amount** — only the quote's id when it places the order
-(handoff §2).
+(handoff §2). **Checkout opened again with nothing changed is the same quote**: the same request on the same cart
+version, with nothing the customer pays or gets moved (§9.8's comparison) and over 5 minutes left. So a refresh
+keeps its payment session (payments.md §1.4 step 0) and writes no row (the screens' review, 2026-11-03).
 
 **The buyer's audience**: `COMPANY` for a company account approved in this store — the only company
 that can order (handoff §7.4) — `PUBLIC` for an individual. Sales passes it to Promotions and Loyalty

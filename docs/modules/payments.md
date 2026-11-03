@@ -289,6 +289,7 @@ These hold for every gateway, and every one has its tests in §8.
    is reserved and nothing can be charged** — a session charges only when our server charges with it.
    **An unused, unexpired session of the same quote and buyer is reused** when the page is opened again
    (the second review, 2026-10-28: refreshing checkout must not use up the limit of §1.8); a new quote gets a new one.
+   **Opening checkout again with nothing changed is the same quote** (sales.md §1.2), so a refresh reaches this reuse (the screens' review, 2026-11-03).
 1. **The customer chooses how to pay in the form and presses Pay.** For a card it is **our own button**
    (notes §0 #9): the page checks the form (`validateCardInputs`), then asks the form to collect the
    details. For **Apple Pay and STC Pay** it is their own button in the form, and "Pay pressed" is the
@@ -598,6 +599,9 @@ interface PaymentsApi
 
     /** Asks the gateway now about a try's or an order's open attempt (§1.4 step 8, §1.7). */
     public function refresh(string $ownerId): PaymentStateDto;
+
+    /** The same answer as last known, the gateway not asked: for a page load, since asking can take 100 s when it is away (the screens' review, 2026-11-03). */
+    public function lastKnown(string $ownerId): PaymentStateDto;
 
     /** The attempts of a try or an order and their calls, for staff (§1.1 rule 13). */
     public function attempts(string $ownerId): array; // list<PaymentAttemptDto>
