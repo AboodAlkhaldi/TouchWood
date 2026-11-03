@@ -168,8 +168,9 @@ checkout's one email:** `PaymentRecorded` is for money on an order that exists (
 `CouponAssigned` for a whole assignment: its customers are paged with `PromotionsApi::assignedCustomers`, each
 told once by an id made of the event and the customer, so a retry carries on where a failure stopped; the code is
 read with `couponCode`, a coupon deleted since sends nothing. C1 shows the recipient and the delivery address in
-the email only, never the bell; an order with no address has no such line, never a stand-in. **Not built, waiting
-on another module:** C11 (`PaymentRequested`, stage 7); C1's "paid" line (online checkout is stage 7's).
+the email only, never the bell; an order with no address has no such line, never a stand-in. C1's "paid" line shows on an order whose way to
+pay is online: such an order exists only once its money came (sales.md §9.5 #4, #320). **Not built, waiting on
+another module:** C11 (`PaymentRequested`, stage 7).
 
 ### 1.6 Alerts to staff
 
