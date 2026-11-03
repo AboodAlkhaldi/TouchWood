@@ -1038,8 +1038,8 @@ describe('totals in the preview (ops.md §4.6; owner, 2026-11-02)', function () 
         $both = reportsTotalsBothWays('revenue', Fx::storeId('sa'), $today, $today);
         $file = Rx::download('revenue', Fx::storeId('sa'), $today, $today)['sheets'];
         $number = static fn (mixed $value): mixed => is_string($value) && is_numeric($value) ? (float) $value : ($value ?? '');
-        expect($both[2][1][0][3])->toBe(Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), $today, $today))[1][4])
-            ->and(array_map('floatval', array_slice(array_slice($file['By category'], -1)[0], 3)))->toBe(array_map('floatval', array_map($number, array_slice($both[2][1][0], 3))));
+        expect($both[3][1][0][3])->toBe(Rx::rows(Rx::preview('revenue', Fx::storeId('sa'), $today, $today))[1][4])
+            ->and(array_map('floatval', array_slice(array_slice($file['By category'], -1)[0], 3)))->toBe(array_map('floatval', array_map($number, array_slice($both[3][1][0], 3))));
     });
 
     it('agrees with the file to the unit by day and by month, with a coupon, points and a gift, by category too', function () {
