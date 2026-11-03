@@ -282,6 +282,9 @@ describe('asking', function () {
             Cx::asSuperAdmin(static fn () => app(ChangeKeysHandler::class)->handle(new ChangeKeys(Fx::storeId('sa'), 'TEST', 'sk_key_TEST12', 'whsec_secret_2', '2030-12-31')));
             DB::table('payments.gateways')->update(['mode' => 'TEST']);
         }, PaymentRequestNotAllowed::class],
+        'a key the gateway refused' => [function (string $order): void {
+            DB::table('payments.gateway_keys')->update(['rejected_at' => CarbonImmutable::now()]);
+        }, PaymentRequestNotAllowed::class],
     ]);
 
     it('asks a test order\'s request in test mode, and a real order never gets one there', function () {
@@ -574,6 +577,8 @@ describe('waiting for a payment in progress', function () {
         orderPayPay($number);
 
         expect(fn () => orderPayEdit($order, $variants, 3))->toThrow(PaymentBeingConfirmed::class)
+            // Even one that changes no amount: nothing would withdraw the request.
+            ->and(fn () => orderPayEdit($order, $variants, 2))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => Cx::asSuperAdmin(static fn () => app(SetShippingFeeHandler::class)->handle(new SetShippingFee($order, 5_00, 'Agreed'))))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => orderPayRecordByHand($order))->toThrow(PaymentBeingConfirmed::class)
             ->and(fn () => Cx::asSuperAdmin(static fn () => app(WithdrawOrderRequestHandler::class)->handle(new WithdrawOrderRequest($order))))->toThrow(PaymentBeingConfirmed::class)
@@ -605,7 +610,13 @@ describe('waiting for a payment in progress', function () {
 
         Cx::asSuperAdmin(static fn () => app(RecordRefundHandler::class)->handle(new RecordRefund($order, '10.00', 'OTHER', null, 'Cash', '2027-01-01', (string) Str::uuid())));
 
-        expect((int) DB::table('sales.orders')->where('id', $order)->value('refunded_minor'))->toBe(10_00);
+        $view = orderPayStaffView($order);
+
+        // The request no longer matches what is missing, but its payment is still open: nothing new may be asked.
+        expect((int) DB::table('sales.orders')->where('id', $order)->value('refunded_minor'))->toBe(10_00)
+            ->and($view->paymentRequest)->toBeNull()
+            ->and($view->paymentInProgress)->toBeTrue()
+            ->and($view->mayRequestPayment)->toBeFalse();
     });
 
     it('frees the customer\'s cancel once the payment is answered', function () {
@@ -767,6 +778,9 @@ describe('what the screens read', function () {
             Cx::asSuperAdmin(static fn () => app(ChangeKeysHandler::class)->handle(new ChangeKeys(Fx::storeId('sa'), 'TEST', 'sk_key_TEST12', 'whsec_secret_2', '2030-12-31')));
             DB::table('payments.gateways')->update(['mode' => 'TEST']);
         }],
+        'a key the gateway refused' => [function (string $order): void {
+            DB::table('payments.gateway_keys')->update(['rejected_at' => CarbonImmutable::now()]);
+        }],
     ]);
 
     it('lists the attempts only for staff who may read payments', function () {
@@ -808,6 +822,18 @@ function orderPayTransfer(string $order): void
     app(UploadTransferDocumentHandler::class)->handle(new UploadTransferDocument($order, Bx::pdf(), 'transfer.pdf'));
 }
 
+/**
+ * Another real transfer whose receipt comes now, so its store is still looked at when the first order has nothing left
+ * to tell.
+ *
+ * @param  list<string>  $variants
+ */
+function orderPayAnotherTransfer(array $variants, string $address): void
+{
+    Cx::add($variants[0], 1);
+    orderPayTransfer(Cx::place(Cx::start($address)->id)->id);
+}
+
 /** @return list<StaffOrderRow> */
 function orderPayOverdueRows(): array
 {
@@ -816,7 +842,7 @@ function orderPayOverdueRows(): array
 
 describe('a transfer past its check time', function () {
     it('is told once per order after the store\'s hours, and marked for staff', function () {
-        ['order' => $order] = orderPayReady();
+        ['order' => $order, 'variants' => $variants, 'address' => $address] = orderPayReady();
         orderPayTransfer($order);
 
         orderPayAt('+71 hours');
@@ -826,6 +852,7 @@ describe('a transfer past its check time', function () {
             ->and(orderPayStaffView($order)->isOverdue)->toBeFalse();
 
         orderPayAt('+72 hours');
+        orderPayAnotherTransfer($variants, $address);
         app(TransferOverdueCheck::class)->run();
         app(TransferOverdueCheck::class)->run();
 
@@ -833,7 +860,8 @@ describe('a transfer past its check time', function () {
         expect(orderPayOutbox(TransferOverdue::class))->toBe(1)
             ->and($payload)->toMatchArray(['orderId' => $order, 'storeId' => Fx::storeId('sa')])
             ->and(DB::table('sales.orders')->where('id', $order)->value('overdue_told_at'))->not->toBeNull()
-            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeTrue()
+            ->and(orderPayOverdueRows()[1]->isOverdue)->toBeTrue()
+            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeFalse()
             ->and(orderPayStaffView($order)->isOverdue)->toBeTrue();
     });
 
@@ -850,15 +878,16 @@ describe('a transfer past its check time', function () {
     });
 
     it('leaves out what is paid, a test order, another way to pay and an order with no receipt', function (Closure $change) {
-        ['order' => $order] = orderPayReady();
+        ['order' => $order, 'variants' => $variants, 'address' => $address] = orderPayReady();
         orderPayTransfer($order);
         $change($order);
         orderPayAt('+73 hours');
+        orderPayAnotherTransfer($variants, $address);
 
         app(TransferOverdueCheck::class)->run();
 
         expect(orderPayOutbox(TransferOverdue::class))->toBe(0)
-            ->and(orderPayOverdueRows()[0]->isOverdue)->toBeFalse()
+            ->and(orderPayOverdueRows()[1]->isOverdue)->toBeFalse()
             ->and(orderPayStaffView($order)->isOverdue)->toBeFalse();
     })->with([
         'paid' => [function (string $order): void {
