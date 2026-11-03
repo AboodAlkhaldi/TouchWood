@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Http\AdminArea;
 use App\Http\StorefrontArea;
 use Closure;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Shared\Application\ActorContext;
@@ -32,10 +33,13 @@ final readonly class KeepNoCopy
 {
     public const string ALIAS = 'keep-no-copy';
 
-    /** The addresses a browser trusts without HTTPS: anywhere else on plain http it has no crypto at all. */
+    /** The addresses a browser trusts without HTTPS: a developer's own machine. */
     private const array LOOPBACK = ['localhost', '127.0.0.1', '[::1]'];
 
-    public function __construct(private ActorContext $actors) {}
+    public function __construct(
+        private ActorContext $actors,
+        private Application $app,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -65,14 +69,21 @@ final readonly class KeepNoCopy
 
     /**
      * Whether the browser that asked has `crypto.subtle`, which only a secure context has. Without it Inertia
-     * throws while writing the page to the history and the page never draws, so plain http keeps the panel
-     * working with no encryption, and Back there still shows what it showed. Behind a proxy `secure()` needs
-     * the proxy trusted (handoff §15.4); until then this says no, which loses the encryption and breaks nothing.
+     * throws while writing the page to the history and the page never draws. The hosting answers `secure()` itself;
+     * a CDN added later would need trusting first (handoff §15.4), and until then this says no, which loses the
+     * encryption and breaks nothing.
+     *
+     * The local names are read from the Host header, which whoever asks writes, so they count only away from
+     * production: there, a Host of 127.0.0.1 is not a developer's machine.
      */
     private function browserCanEncrypt(Request $request): bool
     {
+        if ($request->secure()) {
+            return true;
+        }
+
         $host = $request->getHost();
 
-        return $request->secure() || in_array($host, self::LOOPBACK, true) || str_ends_with($host, '.localhost');
+        return ! $this->app->isProduction() && (in_array($host, self::LOOPBACK, true) || str_ends_with($host, '.localhost'));
     }
 }

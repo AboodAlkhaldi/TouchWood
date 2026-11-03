@@ -60,14 +60,13 @@ final readonly class StaffAuthenticatorController
     {
         $setup = $this->authenticator->setupForCurrentStaff();
 
-        // The QR code holds the secret: the browser keeps this page in its history only encrypted, as every page
-        // of someone signed in (KeepNoCopy), and the key to that is dropped when the history is cleared.
-        return $this->page->render('Access/Admin/AuthenticatorSetup', (new AuthenticatorSetupPage(
+        // The QR code holds the secret.
+        return $this->secret(fn (): Response => $this->page->render('Access/Admin/AuthenticatorSetup', (new AuthenticatorSetupPage(
             $setup->hasApp,
             $setup->required,
             $setup->qrSvg,
             $setup->manualKey,
-        ))->toArray(), self::WORDS);
+        ))->toArray(), self::WORDS));
     }
 
     /** The password, which opens the QR code in this browser (decision 6). */
@@ -90,9 +89,6 @@ final readonly class StaffAuthenticatorController
         } catch (DomainError $error) {
             return FormErrors::back($request, $error);
         }
-
-        // The setup's pages, QR code and all, leave the browser's history.
-        Inertia::clearHistory();
 
         return $this->showCodes($request, $codes, '/admin', 'access::account.authenticator_set_up');
     }
@@ -119,8 +115,8 @@ final readonly class StaffAuthenticatorController
             return redirect($next);
         }
 
-        // The codes sign in: kept in the browser's history only encrypted (KeepNoCopy).
-        return $this->page->render('Access/Admin/RecoveryCodes', (new RecoveryCodesPage($shown, $next))->toArray(), self::WORDS);
+        // The codes sign in.
+        return $this->secret(fn (): Response => $this->page->render('Access/Admin/RecoveryCodes', (new RecoveryCodesPage($shown, $next))->toArray(), self::WORDS));
     }
 
     public function renewRecoveryCodes(CurrentPasswordRequest $request, RenewRecoveryCodesHandler $handler): RedirectResponse
@@ -157,6 +153,28 @@ final readonly class StaffAuthenticatorController
         return $mustSetUp
             ? redirect(RequireStaff::SETUP_PATH)
             : redirect(self::SECURITY_TAB)->with('status', __('access::account.sign_in_method_saved'));
+    }
+
+    /**
+     * A page holding a live credential: in the browser's history only encrypted, whatever KeepNoCopy made of the
+     * request, so it holds behind a CDN nobody has told us to trust yet, and on plain http it fails closed (amendment
+     * 96). And under a key of its own: the pages before it lose theirs on the way in, and the next page starts a new
+     * one, so no ordinary page shares a key and nonce with it. That costs a list's Show More rows on Back, once per
+     * setup or renewal (accepted, owner's session, 2026-11-03).
+     *
+     * @param  callable(): Response  $render
+     */
+    private function secret(callable $render): Response
+    {
+        Inertia::clearHistory();
+        Inertia::encryptHistory();
+
+        $page = $render();
+
+        // The page above took the first clearing with it: this one waits for the next page.
+        Inertia::clearHistory();
+
+        return $page;
     }
 
     /**

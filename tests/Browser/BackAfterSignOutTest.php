@@ -137,12 +137,14 @@ function backAndExpectGone(mixed $page, string $private, ?string $path): void
     $page->assertNoJavaScriptErrors();
 }
 
-/** A Back that crosses into another document: nothing watches a page not yet there, so what it ends on is read. */
+/**
+ * A Back that crosses into another document: nothing watches a page not yet there, so what it ends on is read. The old
+ * document is marked, and the mark going is what says Back has landed: the address alone may already read the same.
+ */
 function backAcrossAndExpectGone(mixed $page, string $private, string $path, int $steps = -1): void
 {
-    $page->script("(() => { history.go({$steps}); })()");
-    usleep(800_000);
-    expect(browserSoon($page, "location.pathname === '{$path}'", 5))->toBeTrue("Back ended at {$page->script('location.pathname')}");
+    $page->script("(() => { window.backOldDocument = true; history.go({$steps}); })()");
+    expect(browserSoon($page, "window.backOldDocument === undefined && location.pathname === '{$path}'"))->toBeTrue("Back ended at {$page->script('location.pathname')}, still in the old document: {$page->script('window.backOldDocument === true')}");
     usleep(500_000);
 
     expect($page->script("document.body.innerText.includes('{$private}')"))->toBeFalse('the private text is on the page')
@@ -183,8 +185,9 @@ it('shows a customer none of their rows on Back after signing out, nor their nam
     // back a guest's.
     backAcrossAndExpectGone($page, $private, '/sa/en');
 
-    // And on, into the page seen as a guest, which was never anyone's.
-    backAcrossAndExpectGone($page, $private, '/sa/en/sign-in');
+    // And on, within that document, into the page seen as a guest, which was never anyone's.
+    backWatch($page, $private);
+    backAndExpectGone($page, $private, '/sa/en/sign-in');
 })->with('back after sign-out widths');
 
 it('shows staff none of a list\'s rows on Back after signing out', function (int $width, int $height) {
@@ -250,6 +253,21 @@ it('shows nothing on Back once a customer\'s session ended with no sign-out, fro
     backWatch($page, $private);
     backAndExpectGone($page, $private, null);
     expect($page->script("document.querySelector('a[href$=\"/sa/en/sign-in\"]') !== null"))->toBeTrue();
+});
+
+it('sends a tab to the server when a read of the panel\'s says the session is gone, and that drops the key', function () {
+    $code = backCode();
+    $page = backStaffIn(1280, 800);
+    backCouponsOpen($page, $code);
+    expect(browserSoon($page, 'sessionStorage.getItem("historyKey") !== null'))->toBeTrue();
+
+    // No click to another page: the bell's read is all the tab asks, and it is answered 401.
+    DB::table('access.admin_sessions')->delete();
+    $page->click('[data-test="bell"]');
+    expect(browserSoon($page, "location.pathname === '/admin/sign-in'"))->toBeTrue()
+        ->and(browserSoon($page, 'sessionStorage.getItem("historyKey") === null'))->toBeTrue();
+
+    $page->assertNoJavaScriptErrors();
 });
 
 it('still brings a list back on Back while signed in, encrypted in the history, with no request', function (int $width, int $height) {

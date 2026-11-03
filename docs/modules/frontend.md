@@ -640,12 +640,29 @@ Back away, on a shared computer (measured 2026-11-03 in a real browser; `tests/B
   request. No controller says it (the panel's Sign Out used to, and only that).
 - **A guest's own pages are never encrypted**, so they keep the instant Back (owner, 2026-10-29).
 
-**HTTPS is what it runs on.** Only a secure context has `crypto.subtle`: https, or localhost, 127.0.0.1, [::1]
-and `*.localhost`. Elsewhere on plain http Inertia throws "Unable to encrypt history" while writing the entry and
-the page never draws: measured 2026-11-03 at a network address, signing in never landed and a link did nothing.
-So `KeepNoCopy` asks for encryption only where the request is secure or on those names; on plain http everything
-works and Back shows what it always showed. **So staging and production need HTTPS and the proxy trusted**
-(handoff §15.4): behind an untrusted proxy `secure()` is false and the encryption is silently off, with nothing
+**The country page counts as a page for nobody** (`/`, `MIDDLEWARE_WITHOUT_STORE`): it is where leaving a view of
+a switched-off store lands. A signed-in customer who opens the bare address loses their key on the way through it.
+
+**A read told the session is gone goes to the server.** A panel read made with `readJson` (lib/live-read.ts), the
+bell's among them, is answered 401 with no page at all, so it reloads the tab: the page the server sends next asks
+them to sign in and drops the key.
+
+**The pages holding a live credential keep a key of their own** (`StaffAuthenticatorController::secret`): the QR
+code's and the recovery codes', on setup and on renewal. They clear on the way in and again on the next page, so no
+ordinary page shares a key and nonce with them. That costs a list's Show More rows on Back, once each time (accepted
+2026-11-03). They are encrypted whatever the request looks like.
+
+**HTTPS is what it runs on, and the only way the owner hosts (2026-11-03).** Only a secure context has
+`crypto.subtle`: https, or localhost, 127.0.0.1, [::1] and `*.localhost`. Elsewhere on plain http Inertia throws
+"Unable to encrypt history" while writing the entry and the page never draws: measured 2026-11-03 at a network
+address, signing in never landed and a link did nothing. So `KeepNoCopy` asks for encryption where the request is
+secure, or, away from production, on those names, which come from the Host header. On plain http elsewhere the
+ordinary pages work unencrypted, and the two credential pages fail closed.
+
+**On the owner's hosting no proxy setup is needed.** Tested on the real Namecheap shared hosting, 2026-11-03: `HTTPS` is
+on, `SERVER_PORT` 443, `REMOTE_ADDR` the visitor's own address, no Via and no Cloudflare, so `secure()` is true with no
+trusted proxy and encryption turns on. **Only if a CDN or Cloudflare is added later** does the proxy need trusting
+(handoff §15.4): until it is, `secure()` is false and the ordinary pages' encryption is silently off, with nothing
 broken to give it away. To check a host: a signed-in page's `data-page` JSON says `"encryptHistory":true`.
 
 **What it costs**, measured in Chromium on a coupons list of 50 rows whose entry is 137 KB, the median of 12 Backs:
@@ -658,12 +675,17 @@ another. The cipher alone is under 1 ms at that size and 2 ms at 510 KB.
   next asks the server. What it has on screen is on screen anyway.
 - **A session that ends while the tab asks nothing.** Back reads the history with no request, so until the next
   request nothing tells the tab, and Back there still shows the entries.
+- **A session-gone answer outside `readJson`.** The panel's other direct `fetch` reads (the bell's marks, Orders' edit
+  preview, Boxes, a carrier's prices) only fail on a 401, and a customer's JSON read is redirected to the shop's home
+  rather than told 401. The tab's next page drops the key; until then Back shows the entries.
 - **The last whole page load's JSON** stays in the document's `<script data-page>` until the next whole load:
   nothing draws it, but the browser's developer tools show it.
 - **Inertia uses one nonce per tab for every entry** (`getIv`, its own code), so someone with the developer tools
   and a page's known text could in principle work at the ciphertext. It stops Back; it is not a vault.
 
-**Two small effects to know.** A person with the panel and the shop as a guest in one tab loses the panel's key
+**Three small effects to know.** A Back across a whole page load that lands on a guest's entry redraws that entry
+(Inertia's `handleBackForward`), and the entry says to clear the key, so a customer who signed in after it loses their
+key and their own later entries are asked of the server again. A person with the panel and the shop as a guest in one tab loses the panel's key
 on the shop's page, so Back to the panel asks the server: the same page, fresh, without its Show More rows. And
 when the server's answer to such a Back is the very page on the screen (a session that ended, then the sign-in
 screen twice), Inertia writes nothing to the history, so the address stays at the old one over the sign-in form.
