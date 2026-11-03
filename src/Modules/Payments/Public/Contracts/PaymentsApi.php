@@ -55,6 +55,9 @@ interface PaymentsApi
      */
     public function refresh(string $ownerId): PaymentStateDto;
 
+    /** A try's or a request's state as last known, the gateway not asked: for a page load (§1.7). */
+    public function lastKnown(string $ownerId): PaymentStateDto;
+
     /**
      * The account a company of this store transfers to - **null while bank transfer is temporarily off**,
      * until the store has filled in all three settings (§1.9). Checkout then offers paying through staff

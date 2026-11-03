@@ -52,6 +52,7 @@ final readonly class ListSheets
             ],
             [$words->get('notes.product_sales'), ...(count($stores) > 1 ? [$words->get('notes.totals')] : [])],
             $this->productSalesRows($stores, $period, $words),
+            fn (): array => $this->productSalesTotals($stores, $period, $words),
         );
     }
 
@@ -121,7 +122,7 @@ final readonly class ListSheets
 
     /**
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function productSalesRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
     {
@@ -149,8 +150,39 @@ final readonly class ListSheets
         }
 
         foreach ($exponents as $currency => $exponent) {
-            yield [$words->get('total'), null, null, null, $currency, $units[$currency], new ReportMoney($revenue[$currency], $exponent)];
+            yield new ReportTotal(self::productSalesTotal($words, $currency, $units[$currency], $revenue[$currency], $exponent));
         }
+    }
+
+    /**
+     * One total per currency, without the rows: one Sales read per store.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @return list<list<string|int|ReportMoney|null>>
+     */
+    private function productSalesTotals(array $stores, ReportPeriod $period, ReportWords $words): array
+    {
+        $exponents = $units = $revenue = [];
+        foreach ($stores as $store) {
+            $totals = $this->sales->productSalesTotals($store->storeId(), $period->start($store), $period->end($store));
+            $currency = $store->currencyCode;
+            $exponents[$currency] = $store->currencyExponent;
+            $units[$currency] = ($units[$currency] ?? 0) + $totals->units;
+            $revenue[$currency] = ($revenue[$currency] ?? Money::zero($currency))->add($totals->revenue);
+        }
+
+        $rows = [];
+        foreach ($exponents as $currency => $exponent) {
+            $rows[] = self::productSalesTotal($words, $currency, $units[$currency], $revenue[$currency], $exponent);
+        }
+
+        return $rows;
+    }
+
+    /** @return list<string|int|ReportMoney|null> */
+    private static function productSalesTotal(ReportWords $words, string $currency, int $units, Money $revenue, int $exponent): array
+    {
+        return [$words->get('total'), null, null, null, $currency, $units, new ReportMoney($revenue, $exponent)];
     }
 
     /**

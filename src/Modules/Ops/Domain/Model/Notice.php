@@ -77,6 +77,19 @@ final readonly class Notice
         return new self($this->id, $this->store, $text, $byBell, $byEmail, $new->status, $new->sendAt, $this->createdBy, $this->createdAt, $now, $new->startedAt, segmentId: $new->segmentId);
     }
 
+    /**
+     * Started by its campaign going live (§1.7), whatever time it waited for: it goes now, and cannot be
+     * recalled from here on.
+     *
+     * @throws NoticeAlreadyStarted
+     */
+    public function started(DateTimeImmutable $now): self
+    {
+        $this->waiting();
+
+        return new self($this->id, $this->store, $this->text, $this->byBell, $this->byEmail, BroadcastStatus::Sending, $now, $this->createdBy, $this->createdAt, $now, $now, segmentId: $this->segmentId);
+    }
+
     /** @throws NoticeAlreadyStarted */
     public function cancelled(DateTimeImmutable $now): self
     {

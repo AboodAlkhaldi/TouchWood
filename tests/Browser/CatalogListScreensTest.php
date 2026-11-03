@@ -519,7 +519,7 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
     $page->assertSee('الشارات');
 
     expect($page->script('document.documentElement.dir'))->toBe('rtl')
-        ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $page->assertNoJavaScriptErrors();
 });

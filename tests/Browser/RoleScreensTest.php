@@ -83,7 +83,7 @@ it('draws the roles screen, and offers it from the menu', function () {
 
     // A phone (frontend.md §2.1): the roles and their comparison table fit, the table scrolling inside its card.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('groups the actions by business area in the editor, rather than by declaration order', function () {
@@ -108,7 +108,7 @@ it('groups the actions by business area in the editor, rather than by declaratio
 
     // A phone (frontend.md §2.1): the editor fits, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('creates a role from the screen, ticking an action and saving it', function () {

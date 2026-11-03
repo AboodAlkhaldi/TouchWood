@@ -24,6 +24,7 @@ return [
     'tell_customer_about_points' => 'Telling a customer their points changed',
     'tell_customer_about_feedback' => 'Telling a customer what happened to their question or review',
     'alert_staff' => 'Alerting a store\'s staff',
+    'start_campaign_notice' => 'Starting the offer notice of a campaign that went live',
     'send_event_email' => 'Emailing one person a message or an alert',
     'send_event_sms' => 'Sending a super admin the urgent SMS about the payment key',
     'remind_expiring_points' => 'Reminding the customers whose points expire in 7 days',

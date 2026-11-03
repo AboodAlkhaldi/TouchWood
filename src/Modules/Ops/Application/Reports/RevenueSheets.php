@@ -75,6 +75,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.revenue'), $words->get('notes.waiting'), $words->get('notes.vat'), ...$totals],
                 $this->revenueRows($stores, $days, $byMonth, $words),
+                fn (): array => $this->revenueTotals($stores, $days, $words),
             ),
             new ReportSheet(
                 $words->get('sheets.money'),
@@ -90,6 +91,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.money'), ...$totals],
                 $this->moneyRows($stores, $period, $byMonth, $words),
+                fn (): array => $this->moneyTotals($stores, $period, $words),
             ),
             new ReportSheet(
                 $words->get('sheets.waiting_refunds'),
@@ -116,6 +118,7 @@ final readonly class RevenueSheets
                 ],
                 [$words->get('notes.categories'), ...$totals],
                 $this->categoryRows($stores, $period, $words),
+                fn (): array => $this->categoryTotals($stores, $days, $words),
             ),
         ];
     }
@@ -123,7 +126,7 @@ final readonly class RevenueSheets
     /**
      * @param  non-empty-list<StoreDto>  $stores
      * @param  array<string, list<RevenueDayDto>>  $days
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function revenueRows(array $stores, array $days, bool $byMonth, ReportWords $words): Generator
     {
@@ -142,8 +145,46 @@ final readonly class RevenueSheets
         }
 
         foreach ($totals as $currency => $figures) {
-            yield self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures);
+            yield new ReportTotal(self::revenueRow($words->get('total'), null, $currency, $exponents[$currency], $figures));
         }
+    }
+
+    /**
+     * One total per currency without the rows, from the days already read.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @param  array<string, list<RevenueDayDto>>  $days
+     * @return list<list<string|int|ReportMoney|null>>
+     */
+    private function revenueTotals(array $stores, array $days, ReportWords $words): array
+    {
+        $rows = [];
+        foreach (self::totalsByCurrency($stores, $days) as $currency => [$exponent, $figures]) {
+            $rows[] = self::revenueRow($words->get('total'), null, $currency, $exponent, $figures);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Every store's days summed by currency, in the stores' order, a currency with no day at zero.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @param  array<string, list<RevenueDayDto>>  $days
+     * @return array<string, array{int, array{orders: int, revenue: Money, vat: Money, shipping: Money, refunds: Money, waiting: Money, waitingVat: Money}}> its decimals, and its figures
+     */
+    private static function totalsByCurrency(array $stores, array $days): array
+    {
+        $totals = [];
+        foreach ($stores as $store) {
+            $figures = $totals[$store->currencyCode][1] ?? self::zeroFigures($store->currencyCode);
+            foreach (self::periods($days[$store->id], false, $store->currencyCode) as $day) {
+                $figures = self::add($figures, $day);
+            }
+            $totals[$store->currencyCode] = [$store->currencyExponent, $figures];
+        }
+
+        return $totals;
     }
 
     /**
@@ -228,7 +269,7 @@ final readonly class RevenueSheets
      * `moneyByDay` read per store, over its own days in the range.
      *
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function moneyRows(array $stores, ReportPeriod $period, bool $byMonth, ReportWords $words): Generator
     {
@@ -264,9 +305,46 @@ final readonly class RevenueSheets
 
         foreach ($totals as $currency => $ways) {
             foreach ($ways as $way => $figures) {
-                yield self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words);
+                yield new ReportTotal(self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words));
             }
         }
+    }
+
+    /**
+     * One total per currency and way that moved, without the rows: `moneyOn` for each store, over its own days.
+     * The ways in Sales' order, which the file's totals may not be: they come as the days first show them.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @return list<list<string|int|ReportMoney|null>>
+     */
+    private function moneyTotals(array $stores, ReportPeriod $period, ReportWords $words): array
+    {
+        /** @var array<string, int> $exponents */
+        $exponents = [];
+        /** @var array<string, array<string, array{int, Money, int, Money}>> $totals by currency, then way */
+        $totals = [];
+
+        foreach ($stores as $store) {
+            $exponents[$store->currencyCode] = $store->currencyExponent;
+            $days = $period->storeDays($store);
+            if ($days === null) {
+                continue;
+            }
+
+            $moved = $this->sales->moneyOn($store->storeId(), $days[0], $days[1]);
+            foreach (self::byWay($moved->payments, $moved->refunds, $store->currencyCode) as $way => $figures) {
+                $totals[$store->currencyCode][$way] = self::addWay($totals[$store->currencyCode][$way] ?? null, $figures);
+            }
+        }
+
+        $rows = [];
+        foreach ($totals as $currency => $ways) {
+            foreach ($ways as $way => $figures) {
+                $rows[] = self::moneyRow($words->get('total'), null, $currency, $exponents[$currency], $way, $figures, $words);
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -329,7 +407,7 @@ final readonly class RevenueSheets
      * Each store's categories over the whole range, most revenue first, then one total per currency.
      *
      * @param  non-empty-list<StoreDto>  $stores
-     * @return Generator<int, list<string|int|ReportMoney|null>>
+     * @return Generator<int, list<string|int|ReportMoney|null>|ReportTotal>
      */
     private function categoryRows(array $stores, ReportPeriod $period, ReportWords $words): Generator
     {
@@ -355,8 +433,26 @@ final readonly class RevenueSheets
         }
 
         foreach ($net as $currency => $revenue) {
-            yield self::categoryRow($words->get('total'), null, $currency, $exponents[$currency], $revenue, $waiting[$currency]);
+            yield new ReportTotal(self::categoryRow($words->get('total'), null, $currency, $exponents[$currency], $revenue, $waiting[$currency]));
         }
+    }
+
+    /**
+     * One total per currency without the rows: the categories add up to the days' net revenue and refunds waiting
+     * (`productNetSales` counts as `revenueByDay` does), already read.
+     *
+     * @param  non-empty-list<StoreDto>  $stores
+     * @param  array<string, list<RevenueDayDto>>  $days
+     * @return list<list<string|int|ReportMoney|null>>
+     */
+    private function categoryTotals(array $stores, array $days, ReportWords $words): array
+    {
+        $rows = [];
+        foreach (self::totalsByCurrency($stores, $days) as $currency => [$exponent, $figures]) {
+            $rows[] = self::categoryRow($words->get('total'), null, $currency, $exponent, $figures['revenue']->subtract($figures['refunds']), $figures['waiting']);
+        }
+
+        return $rows;
     }
 
     /**

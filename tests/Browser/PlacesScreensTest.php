@@ -70,7 +70,7 @@ it('adds a region, follows the trail, and fits a phone', function () {
 
     // A phone: the trail keeps its last two steps, the rest in its ellipsis menu.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->assertVisible('[data-test="trail-more"]');
 
     // Retired: its row leaves the list (Show retired is off), focus goes to Add, and it comes back.
@@ -92,14 +92,14 @@ it('adds a region, follows the trail, and fits a phone', function () {
 
     $page->resize(375, 812);
     $page->navigate('/admin/places');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     // The store's card: its own country first, marked Own, and Add Country for a Super Admin.
     $page->navigate('/admin/stores');
     $page->assertSeeIn('[data-test="ship-to-SA"]', 'Own')
         ->assertPresent('[data-test="add-ship-to-sa"]')
         ->assertNoJavaScriptErrors();
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     // Retired again: nothing rolls this file back, and a Saudi region in use makes Saudi Arabia a
     // country whose places are picked, so the later files' typed Saudi addresses would be refused.

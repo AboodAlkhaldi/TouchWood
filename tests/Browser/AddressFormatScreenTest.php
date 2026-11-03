@@ -83,7 +83,7 @@ it('adds a field, names it, and the country asks for it afterwards', function ()
     // A phone (frontend.md §2.1): the field rows fit, with nothing scrolling sideways.
     $page->resize(375, 812);
     $page->navigate('/admin/address-formats', BROWSER_PAGE_LOAD)->assertPresent('[data-test="add-field"]');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 /*
