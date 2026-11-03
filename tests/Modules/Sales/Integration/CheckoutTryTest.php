@@ -62,6 +62,8 @@ use Modules\Sales\Application\Command\SetCartCoupon\SetCartCoupon;
 use Modules\Sales\Application\Command\SetCartCoupon\SetCartCouponHandler;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrder;
 use Modules\Sales\Application\Command\ShipOrder\ShipOrderHandler;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckout;
+use Modules\Sales\Application\Command\StartCheckout\StartCheckoutHandler;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecord;
 use Modules\Sales\Application\Command\VoidMoneyRecord\VoidMoneyRecordHandler;
 use Modules\Sales\Application\Query\PrintOrder\PrintOrder;
@@ -357,12 +359,43 @@ describe('the same quote', function () {
 
             return triesQuote($address);
         }],
+        'prices that now end before it does' => [function (string $address): QuoteView {
+            DB::table('sales.quotes')->update(['expires_at' => CarbonImmutable::now()->addMinutes(30)]);
+
+            return triesQuote($address);
+        }],
         'under five minutes left' => [function (string $address): QuoteView {
             triesAt('+10 minutes 1 second');
 
             return triesQuote($address);
         }],
     ]);
+});
+
+describe('a kept quote', function () {
+    it('takes a cart changed and changed back as a new quote, which Pay accepts', function () {
+        ['address' => $address, 'variants' => $variants] = triesReady();
+        $first = triesQuote($address);
+        app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $variants[0], 'RETAIL', 3));
+        app(ChangeCartLineHandler::class)->handle(new ChangeCartLine(Fx::storeId('sa'), $variants[0], 'RETAIL', 2));
+
+        $second = triesQuote($address);
+
+        expect($second->id)->not->toBe($first->id)
+            ->and(triesRow(triesPay($second)->tryId)->state)->toBe('LIVE');
+    });
+
+    it('shows today\'s answers on the same quote: a carrier picked that no longer serves says so', function () {
+        ['address' => $address] = triesReady();
+        $first = triesQuote($address);
+
+        $again = app(StartCheckoutHandler::class)->handle(new StartCheckout(Fx::storeId('sa'), $address, false, null, 'ONLINE', strtolower((string) Str::ulid())));
+
+        expect($again->id)->toBe($first->id)
+            ->and($again->expiresAt->format('c'))->toBe($first->expiresAt->format('c'))
+            ->and($first->shipping->carrierChanged)->toBeFalse()
+            ->and($again->shipping->carrierChanged)->toBeTrue();
+    });
 });
 
 describe('the limit on the form', function () {

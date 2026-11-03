@@ -114,7 +114,7 @@ These hold for every gateway, and every one has its tests in §8.
      has an answer: at the end of the 5 minutes, at the end of the wait (§1.7), then 10 and 20 minutes
      after the charge (**accepted, owner 2026-10-28**: MyFatoorah stops retrying its notice after at most 5 tries 180
      seconds apart — notes §0 #15 — so 20 minutes covers a notice that never comes).
-   - **A page asking again** (checkout reopened, "Confirming…" refreshing) gets the attempt's last answer
+   - **A page asking again** ("Confirming…" refreshing; checkout reopened never asks, `lastKnown`) gets the attempt's last answer
      when it is younger than 10 seconds, so pages never multiply calls (**accepted, owner 2026-10-28**). **When nobody is paying,
      nothing runs** (the owner, 2026-10-28: no lookups "hoping to find anything").
    - **One backstop**: once an hour, a single query looks for attempts still unanswered after their

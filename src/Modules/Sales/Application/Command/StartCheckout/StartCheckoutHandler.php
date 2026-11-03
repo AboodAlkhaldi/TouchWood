@@ -82,9 +82,11 @@ final readonly class StartCheckoutHandler
         if ($kept !== null) {
             $same = QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, $wayToPay, $kept->expiresAt, $kept->createdAt, $kept->result);
 
-            // The ways offered too: a gateway switched on since must show at once, though nothing to pay has moved.
-            if ($same->waysToPay === $view->waysToPay && QuoteComparison::moved($same, $view) === null) {
-                return $same;
+            // The ways offered too: a gateway switched on since must show at once, though nothing to pay has moved. And
+            // never past the prices' own end: a sale cut short since ends the quote with it (§1.2).
+            if ($same->waysToPay === $view->waysToPay && $kept->expiresAt <= $view->expiresAt && QuoteComparison::moved($same, $view) === null) {
+                // What is shown is today's (the carriers on offer, a refusal's reason); what is paid is the same.
+                return QuoteView::fromArray($kept->id, $kept->storeId, $kept->customerId, $kept->addressId, $wayToPay, $kept->expiresAt, $kept->createdAt, $view->toArray());
             }
         }
 
