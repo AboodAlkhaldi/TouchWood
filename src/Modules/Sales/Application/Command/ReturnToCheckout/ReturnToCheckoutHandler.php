@@ -25,7 +25,8 @@ use Shared\Domain\ValueObject\StoreId;
 /**
  * Nothing sent to the gateway yet: the try ends there and then, **as if Pay had never been pressed**. The charge
  * made: it cannot be pretended away, and the page says until when it can still go through; paid, even by the event
- * while they were away: their new order, once.
+ * while they were away: their new order, once. A page load: only what is already known, never the gateway, which
+ * may take minutes to fail. The page's own `FollowCheckoutPayment` asks.
  * Null: no payment stands in the way.
  */
 final readonly class ReturnToCheckoutHandler
@@ -67,7 +68,7 @@ final readonly class ReturnToCheckoutHandler
             // The event made their order while they were away: told once, or the cart would just look short.
             $paid = $this->tries->unseenPaid($store->value, $customerId);
 
-            return $paid === null ? null : $this->page->view($paid->id, $this->settling->settle($paid));
+            return $paid === null ? null : $this->page->view($paid->id, $this->settling->settleKnown($paid));
         }
 
         if ($this->payments->abandon($try->attemptId)) {
@@ -76,7 +77,7 @@ final readonly class ReturnToCheckoutHandler
             return null;
         }
 
-        $view = $this->page->view($try->id, $this->settling->settle($try));
+        $view = $this->page->view($try->id, $this->settling->settleKnown($try));
 
         return $view->state === CheckoutTry::RELEASED ? null : $view;
     }

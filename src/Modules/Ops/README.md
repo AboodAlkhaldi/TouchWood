@@ -58,7 +58,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
   (customers on the lists, from Access's events; a contact deleted when a deletion is pending, with or without a
   row), `NewsletterSync` (the provider kept as the rows say).
 - **`Application/Reports`** — `ReportReaders` (who reads which store), `ReportBuilder`, `ReportPeriod` (the days,
-  and the moment asked), `RevenueSheets` and `ListSheets` (each walking its module's paged read),
+  and the moment asked), `RevenueSheets` and `ListSheets` (each walking its module's paged read; a total row a `ReportTotal`; each sheet with totals also says how to read them without its rows, for the preview),
   `ColumnType`, `ReportMoney`, `ReportWords`.
 - **`Application/DailyReport`** — `DailyReportReader` (every figure from its owning module's read),
   `DailyReportMaker`, `DailyReportPeople` (who it is for, in a request and in the queued email).
@@ -66,7 +66,7 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **`Infrastructure/OpsServiceProvider`** — the bindings, the permissions, the listeners, the schedule, the
   routes; the unsubscribe links' POST is let through without a CSRF token, its signature being its authority.
 - **`Infrastructure/Listener`** — `TellCustomerAboutOrder`, `…Return`, `…Money`, `…Points`, `…Feedback`,
-  `TellCustomersAboutCoupon`, `AlertStaff`, `RefreshNewsletterSubscription`, `ForgetAnonymizedCustomer`: each on
+  `TellCustomersAboutCoupon`, `AlertStaff`, `StartCampaignNotice`, `RefreshNewsletterSubscription`, `ForgetAnonymizedCustomer`: each on
   the queue, once per event through `Infrastructure/Eloquent/HandledEvents`.
 - **`Infrastructure/External`** — `BrevoEmailSender`, `BrevoNewsletterList`, the `Log*` adapters for development
   and tests (refused in production), `BuiltSmsSenders`, `DailyReportEmailMailer`. **`Infrastructure/Delivery`** —
@@ -173,8 +173,8 @@ Each checked against the code on 2026-11-01.
 | S6 Payments to check: a transfer overdue | The kind and its words exist; no writer's branch, no listener | No `TransferOverdue` event exists: Stage 7 (Sales' scheduled job) |
 | S7's link | The alert is built (`AlertStaff`, #314's event) and opens nothing: its entry has no link | Payments' staff list of attempts: Stage 7 |
 | "Transfers overdue" in the daily report | The cell prints "Waits for Payments (stage 7)" (`views/daily-report.blade.php`); `SalesReports::transfersWaiting` gives orders and owed only | Stage 7 |
-| S8 Campaign expiry | The kind and its words exist; no writer's branch, no listener | Content: `src/Modules/Content` holds only empty folders |
-| A notice sent when a campaign goes live (§1.7) | Not built | Content |
+| S8 Campaign expiry | Built on Ops' side (`AlertStaff`, `MessageWriter`); sends nothing until Content is built. Its permission stands in for Content's (ops.md §1.6, §9.5) | Content: to fire `CampaignExpiring` and replace `NoCampaignsYet` |
+| A notice sent when a campaign goes live (§1.7) | Built on Ops' side (`StartCampaignNotice`): a waiting notice only. No state makes a notice wait for its campaign (ops.md §9.5) | Content: to fire `CampaignWentLive`; the owner |
 | A whole store's audience size | No public read counts a store's customers; a segment's is `segmentMemberCount` | Access (ops.md §4.13) |
 | The SMS provider | `log` only | The owner (Mobily being checked) |
 | Brevo on the live system | The adapters are built, and production refuses to boot on either `log` driver; `OPS_EMAIL_DRIVER`, `OPS_NEWSLETTER_DRIVER`, `BREVO_API_KEY`, `BREVO_NEWSLETTER_FOLDER_ID`, `BREVO_WEBHOOK_SECRET` are the server's; the webhook is made in Brevo, unbatched, with the secret as its custom header | The owner, at hosting |
@@ -184,7 +184,7 @@ Each checked against the code on 2026-11-01.
 ## Tests
 
 `tests/Modules/Ops/Integration` — `EventMessagesTest` (§1.5, §1.6, the sent-then-marked row, C14, the critical
-SMS), `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
+SMS), `CampaignEventsTest`, `MessageKindsTest`, `SecurityMessagesTest`, `SecurityFailureAlertTest`, `SecurityFailureAlertRaceTest`, `SendersTest`, `SmsCountriesTest`, `RealEmailDriverTest`,
 `BellsTest`, `NoticesTest`, `NoticeSegmentTest`, `StaffMessagesTest`, `NewsletterTest`, `BrevoNewsletterListTest`,
 `ReportsTest`, `DailyReportTest`, `DailyReportEmailTest`, `PruneTest`, `OpsPermissionsTest`, `OpsSchemaTest`,
 `OpsTablesTest`. `tests/Modules/Ops/Feature` over HTTP — `BellRoutesTest`, `WrittenRoutesTest`, `ReportRoutesTest`,

@@ -104,7 +104,7 @@ it('draws the media library and switches between the table and the grid', functi
     $page->resize(375, 812);
     expect(browserUntil($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the grid scrolls sideways');
     $page->click('[data-test="view-table"]')->assertAttribute('[data-test="view-table"]', 'data-state', 'on');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the table scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the table scrolls sideways');
 });
 
 it('asks before deleting a file, in the page, and then deletes it', function () {
@@ -401,7 +401,7 @@ it('draws the audit log with its filters', function () {
     // A phone (frontend.md §2.1): the filters and the entries fit, with nothing scrolling sideways.
     $page->resize(375, 812);
     $page->navigate('/admin/audit?action=platform.currency.created', BROWSER_PAGE_LOAD)->assertSee('Currency added');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('counts the days of the date filter in UTC, and takes a date in the address that is not a plain day as none', function () {

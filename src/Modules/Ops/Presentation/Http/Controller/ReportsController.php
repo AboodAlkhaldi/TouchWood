@@ -33,15 +33,12 @@ final readonly class ReportsController
         $preview = $view->handle(new ViewReport($report, $choices['store'] ?? '', $choices['from'] ?? null, $choices['to'] ?? null, $choices['by'] ?? null));
         $sheets = [];
         foreach ($preview->report->sheets as $index => $sheet) {
-            $rows = [];
-            foreach ($sheet->rows as $row) {
-                $rows[] = array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, $row);
-            }
             $sheets[] = new ReportSheetData(
                 $sheet->name,
                 array_map(static fn (ReportColumn $column): ReportColumnData => new ReportColumnData($column->key, $column->label, $column->type->value), $sheet->columns),
                 $sheet->notes,
-                $rows,
+                array_map(self::plain(...), $preview->rows[$index] ?? []),
+                array_map(self::plain(...), $preview->totals[$index] ?? []),
                 $preview->more[$index] ?? false,
             );
         }
@@ -66,6 +63,17 @@ final readonly class ReportsController
         $file = $download->handle(new DownloadReport($report, $choices['store'] ?? '', $choices['from'] ?? null, $choices['to'] ?? null, $choices['by'] ?? null));
 
         return response()->download($file->path, $file->filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])->deleteFileAfterSend();
+    }
+
+    /**
+     * A row as the preview answers it: an amount as its decimal string.
+     *
+     * @param  list<string|int|ReportMoney|null>  $row
+     * @return list<string|int|null>
+     */
+    private static function plain(array $row): array
+    {
+        return array_map(static fn (string|int|ReportMoney|null $value): string|int|null => $value instanceof ReportMoney ? $value->decimal() : $value, $row);
     }
 
     /**

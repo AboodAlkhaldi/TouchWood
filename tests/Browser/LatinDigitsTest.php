@@ -100,7 +100,7 @@ it('writes an Arabic admin page\'s figures, sizes and times in Latin digits', fu
 
     // A phone, right to left (frontend.md §2.1): the audit log and the home fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the audit log scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the audit log scrolls sideways');
     $page->navigate('/admin', BROWSER_PAGE_LOAD)->assertPresent('[data-test="card-platform.system"]');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the home scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the home scrolls sideways');
 });

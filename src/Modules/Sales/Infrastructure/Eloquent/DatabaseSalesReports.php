@@ -21,6 +21,7 @@ use Modules\Sales\Public\Dto\ProductNetSaleDto;
 use Modules\Sales\Public\Dto\ProductNetSalesPageDto;
 use Modules\Sales\Public\Dto\ProductSaleDto;
 use Modules\Sales\Public\Dto\ProductSalesPageDto;
+use Modules\Sales\Public\Dto\ProductSalesTotalsDto;
 use Modules\Sales\Public\Dto\ReturnMessageDto;
 use Modules\Sales\Public\Dto\RevenueDayDto;
 use Modules\Sales\Public\Dto\SalesCountsDto;
@@ -322,6 +323,24 @@ final readonly class DatabaseSalesReports implements SalesReports
             ), $rows)),
             $more && $last !== null ? ((int) $last->units).':'.$last->variant_id : null,
         );
+    }
+
+    public function productSalesTotals(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to): ProductSalesTotalsDto
+    {
+        $currency = $this->platform->store($store)->currencyCode ?? throw new InvalidArgumentException('No such store.');
+
+        if ($from >= $to) {
+            return new ProductSalesTotalsDto(0, Money::zero($currency));
+        }
+
+        // The lines `productSales` groups by size, summed.
+        $row = $this->db->selectOne(<<<'SQL'
+            SELECT COALESCE(sum(l.quantity), 0) AS units, COALESCE(sum(l.total_minor - l.coupon_share_minor - l.points_share_minor), 0) AS revenue
+            FROM sales.order_lines AS l JOIN sales.orders AS o ON o.id = l.order_id
+            WHERE o.store_id = ? AND o.placed_at >= ? AND o.placed_at < ? AND o.status NOT IN (?, ?, ?) AND NOT l.is_gift
+            SQL, [$store->value, Moment::of($from), Moment::of($to), ...self::NOT_SALES]);
+
+        return new ProductSalesTotalsDto((int) $row->units, Money::of((int) $row->revenue, $currency));
     }
 
     public function productNetSales(StoreId $store, DateTimeImmutable $from, DateTimeImmutable $to, ?string $after = null, int $limit = 100): ProductNetSalesPageDto

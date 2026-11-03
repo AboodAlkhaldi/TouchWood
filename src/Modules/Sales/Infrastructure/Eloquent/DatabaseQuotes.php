@@ -41,6 +41,15 @@ final readonly class DatabaseQuotes implements Quotes
         return $this->read(strtolower($quoteId), false);
     }
 
+    public function latestFor(string $storeId, string $customerId, string $addressId, string $wayToPay, bool $usePoints, ?int $pointsAsked, int $cartVersion, DateTimeImmutable $after): ?Quote
+    {
+        return $this->quote($this->db->table('sales.quotes')
+            ->where('store_id', strtolower($storeId))->where('customer_id', strtolower($customerId))->where('address_id', strtolower($addressId))
+            ->where('way_to_pay', $wayToPay)->where('use_points', $usePoints)->where('points_asked', $pointsAsked)
+            ->where('cart_version', $cartVersion)->where('expires_at', '>', Moment::of($after))
+            ->orderByDesc('id')->first());
+    }
+
     public function lock(string $quoteId): ?Quote
     {
         return $this->read(strtolower($quoteId), true);
@@ -49,8 +58,12 @@ final readonly class DatabaseQuotes implements Quotes
     private function read(string $quoteId, bool $lock): ?Quote
     {
         $query = $this->db->table('sales.quotes')->where('id', $quoteId);
-        $row = ($lock ? $query->lockForUpdate() : $query)->first();
 
+        return $this->quote(($lock ? $query->lockForUpdate() : $query)->first());
+    }
+
+    private function quote(?object $row): ?Quote
+    {
         if (! $row instanceof stdClass) {
             return null;
         }

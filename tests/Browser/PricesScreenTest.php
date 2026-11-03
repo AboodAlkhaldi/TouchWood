@@ -96,10 +96,10 @@ it('prices a city through the picker, sets free shipping, and fits a phone', fun
 
         // A phone: nothing scrolls sideways, the price dialog included.
         $page->resize(375, 812);
-        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
         $page->click('[data-test="add-price"]');
         expect(browserSoon($page, "document.querySelector('#price-amount') !== null"))->toBeTrue()
-            ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
         $page->assertNoJavaScriptErrors();
     } finally {
         DB::table('shipping.carriers')->where('id', $carrier)->delete();

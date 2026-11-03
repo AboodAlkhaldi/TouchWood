@@ -333,11 +333,11 @@ return [
     ],
     'campaign_expiring' => [
         'title' => 'حملة تنتهي قريبًا',
-        'line' => 'تنتهي حملة في :store في :date.',
-        'subject' => 'تنتهي حملة في :store في :date',
+        'line' => 'تنتهي حملة :campaign في :store في :date.',
+        'subject' => 'تنتهي حملة :campaign في :store في :date',
         'lines' => [
             'مرحبًا :name،',
-            'تنتهي حملة في :store في :date.',
+            'تنتهي حملة :campaign في :store في :date.',
         ],
     ],
     'return_requested' => [

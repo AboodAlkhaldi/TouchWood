@@ -414,7 +414,7 @@ it('sets another usual address and asks before deleting one, from the address\'s
 
     // A phone (frontend.md §2.1): the addresses and an address's ⋯ menu fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the addresses scroll sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the addresses scroll sideways');
     $page->click("[data-test=\"{$work}\"]")->assertPresent("[data-test=\"delete-address-{$id}\"]");
     expect(browserUntil($page, "(() => { const pop = document.querySelector('[role=\"menu\"]'); if (!pop || pop.getAnimations().length > 0) return false; const box = pop.getBoundingClientRect(); return box.left >= 0 && box.right <= window.innerWidth; })()"))->toBeTrue('the address\'s menu is wider than the screen');
 
