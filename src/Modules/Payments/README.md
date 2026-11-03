@@ -139,3 +139,5 @@ No test calls MyFatoorah: `Support/FakeMyFatoorah` stands in.
    No trusted-proxy setting is in `bootstrap`, `app`, `config` or `src` today.
 5. MyFatoorah's Apple Pay file in `public/.well-known/`, committed when they send it (payments.md §9.9 #6). It isn't there
    yet, and Apple Pay stays off until it is and the domain is registered.
+6. Ops must have its `PaymentRequested` listener (ops.md C11): until then a customer gets no bell or email for a payment request, only the note on their order.
+7. Cancel every open test order before the staging database becomes the real one (§1.6): a test order can't ship, so its stock stays held and its coupon and points stay used until it is cancelled.
