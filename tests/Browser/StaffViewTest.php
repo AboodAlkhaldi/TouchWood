@@ -68,7 +68,7 @@ it('opens the shop from the panel as the staff member, and goes back', function 
     // scrolls sideways.
     $page->resize(375, 812);
     $page->assertVisible('[data-test="staff-view-line"]');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     // The menu: the panel and the way out of the view, no account - within the screen.
     $page->click('[data-test="staff-view-menu"]')

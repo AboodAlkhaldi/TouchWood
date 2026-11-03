@@ -71,7 +71,7 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
 
     // A phone (frontend.md §2.1): the card and its two prices fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the category scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the category scrolls sideways');
 
     // The product page opens on 60 cm: its sale price, the old one struck, 20% off.
     $page = visit('/sa/en/products/'.$slug('product', $p['product']));
@@ -88,7 +88,7 @@ it('draws a guest the card\'s prices, each size\'s price and sale, and the whole
 
     // A phone (frontend.md §2.1): the bands under the choice fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the product page scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the product page scrolls sideways');
     $page->resize(1280, 800);
 
     // 20 pieces typed: the band from 20 applies.

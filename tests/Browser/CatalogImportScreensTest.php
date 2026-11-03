@@ -129,7 +129,7 @@ it('reads right to left in Arabic, at a phone\'s width, with nothing wider than 
 
         expect(browserUntil($page, "document.querySelector('[data-test=\"{$shown}\"]') !== null"))->toBeTrue()
             ->and($page->script('document.documentElement.dir'))->toBe('rtl')
-            ->and($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+            ->and(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     }
 
     $page->assertNoJavaScriptErrors();

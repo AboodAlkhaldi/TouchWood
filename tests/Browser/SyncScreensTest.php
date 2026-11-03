@@ -220,7 +220,7 @@ it('shows the status line and Problems, dismisses an entry, and queues Sync Now'
 
     // A phone (frontend.md §2.1): the status line and Problems fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Sync Report scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the Sync Report scrolls sideways');
     $page->resize(1280, 800);
 
     $page->click("[data-test=\"entry-actions-{$entry}\"]")->click('[data-test="dismiss-entry"]');
@@ -324,7 +324,7 @@ it('opens a read from the Reads tab, with its header and its sections as tabs; a
 
     // A phone (frontend.md §2.1): the read and its sections fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the read scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the read scrolls sideways');
     $page->resize(1280, 800);
 
     $page->navigate('/admin/sync/reads/01jbzzzzzzzzzzzzzzzzzzzzzz', BROWSER_SLOW_PAGE_LOAD);
@@ -363,7 +363,7 @@ it('draws the Provider form with no "being built" note now that Odoo\'s adapter 
 
     // A phone (frontend.md §2.1): the form fits, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('refuses the Provider form as typed, says the failed test under the form and a setting under its own box, then wires the store', function () {
