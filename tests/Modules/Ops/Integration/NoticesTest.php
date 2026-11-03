@@ -36,6 +36,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\Ops\Support\CapturedEmails;
 use Tests\Modules\Ops\Support\WrittenFixtures as Wx;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -178,7 +179,7 @@ it('waits for its time in the store\'s time zone, can be changed or cancelled un
 
     CarbonImmutable::setTestNow($tomorrow->addHour()->addMinute());
     (new StartDueNoticesJob)->handle(app('db.connection'), app(Notices::class), app(Dispatcher::class));
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
     expect(noticesRow($id))->toMatchArray(['status' => 'SENT', 'bell_count' => 1, 'email_count' => 0])
         ->and(fn () => app(CancelNoticeHandler::class)->handle(new CancelNotice($id)))->toThrow(NoticeAlreadyStarted::class)
@@ -193,7 +194,7 @@ it('cancels a waiting notice for good: it never sends', function () {
     app(CancelNoticeHandler::class)->handle(new CancelNotice($id));
     CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(2));
     (new StartDueNoticesJob)->handle(app('db.connection'), app(Notices::class), app(Dispatcher::class));
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
     expect(noticesRow($id)->status)->toBe('CANCELLED')
         ->and(DB::table('ops.inbox_entries')->count())->toBe(0)

@@ -124,6 +124,7 @@ function boxesScreenMenu(TestResponse $response): array
 
 function boxesScreenQueries(AdminBrowser $browser, string $uri): int
 {
+    $clock = CarbonImmutable::getTestNow();
     CarbonImmutable::setTestNow(CarbonImmutable::now());
 
     try {
@@ -134,7 +135,7 @@ function boxesScreenQueries(AdminBrowser $browser, string $uri): int
         $count = count(DB::getQueryLog());
         DB::disableQueryLog();
     } finally {
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow($clock);
     }
 
     return $count;

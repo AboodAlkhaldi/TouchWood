@@ -29,6 +29,7 @@ use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -411,7 +412,7 @@ it('writes every time in the home store\'s clock', function () {
     $browser = myCompanySignedIn($customerId);
 
     $props = myCompanyProps($browser);
-    CarbonImmutable::setTestNow();
+    CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
     // 21:30 UTC is half past midnight the next day in Riyadh.
     expect($props['company']['statusChangedAt'])->toBe('2026-10-01T00:30:00+03:00')

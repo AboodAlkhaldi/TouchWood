@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -453,6 +454,6 @@ it('sets a preference for the whole site, and clears the panel-scoped twin', fun
 
     // Both values are encrypted on the way out - even the empty one - so the expiry is what says
     // which is which: one is being kept, the other is being taken away.
-    expect($written?->getExpiresTime())->toBeGreaterThan(time())
-        ->and($forgotten?->getExpiresTime())->toBeLessThan(time());
+    expect($written?->getExpiresTime())->toBeGreaterThan(CarbonImmutable::now()->getTimestamp())
+        ->and($forgotten?->getExpiresTime())->toBeLessThan(CarbonImmutable::now()->getTimestamp());
 });

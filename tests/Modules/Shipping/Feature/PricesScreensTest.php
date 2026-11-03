@@ -120,6 +120,7 @@ function pricesScreenErrors(TestResponse $response): array
 
 function pricesScreenQueries(AdminBrowser $browser, string $uri): int
 {
+    $clock = CarbonImmutable::getTestNow();
     CarbonImmutable::setTestNow(CarbonImmutable::now());
 
     try {
@@ -130,7 +131,7 @@ function pricesScreenQueries(AdminBrowser $browser, string $uri): int
         $count = count(DB::getQueryLog());
         DB::disableQueryLog();
     } finally {
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow($clock);
     }
 
     return $count;

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Modules\Access\Support;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use LogicException;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 use function Pest\Laravel\call;
@@ -180,13 +182,13 @@ final class AdminBrowser
         $set = [];
 
         foreach ($response->headers->getCookies() as $cookie) {
-            if (! $cookie->isCleared()) {
+            if (! self::cleared($cookie)) {
                 $set[$cookie->getName()] = true;
             }
         }
 
         foreach ($response->headers->getCookies() as $cookie) {
-            if ($cookie->isCleared()) {
+            if (self::cleared($cookie)) {
                 if (! isset($set[$cookie->getName()])) {
                     unset($this->cookies[$cookie->getName()]);
                 }
@@ -202,5 +204,11 @@ final class AdminBrowser
         }
 
         return $response;
+    }
+
+    /** `Cookie::isCleared` by the tests' clock: Symfony's reads the machine's, a real day after the frozen moment. */
+    private static function cleared(Cookie $cookie): bool
+    {
+        return $cookie->getExpiresTime() !== 0 && $cookie->getExpiresTime() < CarbonImmutable::now()->getTimestamp();
     }
 }

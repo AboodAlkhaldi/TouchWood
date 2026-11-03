@@ -36,6 +36,7 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -245,7 +246,7 @@ describe('the search log', function () {
         expect(DB::table('catalog.search_log')->orderBy('searched_at')->pluck('searched_at')->map(static fn (mixed $at): string => CarbonImmutable::parse((string) $at)->utc()->toDateTimeString())->all())
             ->toBe(['2026-06-15 01:00:00', '2027-06-01 10:00:00']);
 
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
     });
 
     it('is queued nightly, and no role may run it', function () {

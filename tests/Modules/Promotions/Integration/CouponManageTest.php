@@ -36,6 +36,7 @@ use Shared\Application\Unauthorized;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -287,7 +288,7 @@ describe('changing, switching, deleting', function () {
 
         app(ChangeCouponHandler::class)->handle(new ChangeCoupon($id, $fields));
         app(SwitchCouponHandler::class)->handle(new SwitchCoupon($id, true));
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
         expect(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('starts_at'))->utc()->format('Y-m-d H:i:s.u'))->toBe('2026-11-01 09:00:00.000000')
             ->and(CarbonImmutable::parse((string) DB::table('promotions.coupons')->where('id', $id)->value('ends_at'))->utc()->format('Y-m-d H:i:s'))->toBe('2026-11-30 20:59:59')

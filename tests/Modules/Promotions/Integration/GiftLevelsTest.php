@@ -31,6 +31,7 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogProducts as Px;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -248,7 +249,7 @@ describe('changing and switching', function () {
         $updatedAt = DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at');
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
         app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($id, giftFields($mug, 1500_00)));
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
         expect(DB::table('platform.audit_entries')->where('action', 'promotions.gift_level.updated')->count())->toBe(1)
             ->and(DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at'))->toBe($updatedAt);
@@ -277,7 +278,7 @@ describe('changing and switching', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         app(SwitchGiftLevelHandler::class)->handle(new SwitchGiftLevel($id, true));
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
         expect(DB::table('platform.audit_entries')->where('action', 'like', 'promotions.gift_level.%activated')->exists())->toBeFalse()
             ->and(DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at'))->toBe($updatedAt);
 
@@ -439,7 +440,7 @@ describe('review follow-ups', function () {
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         app(ChangeGiftLevelHandler::class)->handle(new ChangeGiftLevel($id, $fields));
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
 
         expect(DB::table('platform.audit_entries')->where('action', 'promotions.gift_level.updated')->exists())->toBeFalse()
             ->and(DB::table('promotions.gift_levels')->where('id', $id)->value('updated_at'))->toBe($updatedAt)
