@@ -314,8 +314,8 @@ home store's list — **both null while the company is still "Other"**: its type
 its own words are for the reviewing staff alone (amendment 13(b)) — and **never its documents**.
 `isApproved()` is true only while the company is `APPROVED`, Sales's half of "may place an order".
 An individual account, or a company account whose first application is still a draft, has no
-company: null, null, false. `bankAccount(store)` gives the store's account, or null while bank
-transfer is temporarily off (below). Plain reads: a type's row is read, never locked.
+company: null, null, false. The store's bank account is not B2B's to give any more: Sales asks
+`PaymentsApi::bankAccount`. Plain reads: a type's row is read, never locked.
 
 **For Ops's daily report** (amendment 34), `applicationCounts(store, from, to)` gives how many of the
 store's applications were **sent** and how many **approved** from `from` up to but not including
