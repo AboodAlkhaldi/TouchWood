@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Newsletter;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use Modules\Access\Public\Contracts\AccessApi;
@@ -126,11 +127,19 @@ final readonly class CustomerSubscriptions
         });
     }
 
-    /** Someone unsubscribed in a newsletter (Brevo's webhook): that email leaves every list. */
-    public function unsubscribedAtProvider(#[\SensitiveParameter] string $email): void
+    /**
+     * Someone unsubscribed in a newsletter (Brevo's webhook): that email leaves every list. An event older than a
+     * row's joining, Brevo trying a call again hours later, is about the time before and leaves that row: they agreed
+     * since. The row's own time stands for consent's: it is made when consent is given and goes when it is withdrawn.
+     */
+    public function unsubscribedAtProvider(#[\SensitiveParameter] string $email, ?DateTimeImmutable $at = null): void
     {
-        $this->db->transaction(function () use ($email): void {
+        $this->db->transaction(function () use ($email, $at): void {
             foreach ($this->subscribers->withEmail($email) as $row) {
+                if ($at !== null && $at < ($row->confirmedAt ?? $row->createdAt)) {
+                    continue;
+                }
+
                 if ($row->isGuest()) {
                     $locked = $this->subscribers->lock($row->id);
 

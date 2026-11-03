@@ -20,6 +20,8 @@ final readonly class LogNewsletterList implements NewsletterList
 
     public function ready(StoreId $store, string $locale): void {}
 
+    public function forgetList(StoreId $store, string $locale): void {}
+
     public function add(string $email, StoreId $store, string $locale): void
     {
         $this->log->info('Newsletter list (log driver): add', ['email' => $email, 'store' => $store->value, 'locale' => $locale]);

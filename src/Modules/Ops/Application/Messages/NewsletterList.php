@@ -25,6 +25,12 @@ interface NewsletterList
     public function ready(StoreId $store, string $locale): void;
 
     /**
+     * Forgets the id kept for the store's list of that language: it is gone at the provider, and the next
+     * ready() makes a new one. Who was on the old list is not put back by this.
+     */
+    public function forgetList(StoreId $store, string $locale): void;
+
+    /**
      * Puts the email on the store's list of that language.
      *
      * @throws ProviderFailed

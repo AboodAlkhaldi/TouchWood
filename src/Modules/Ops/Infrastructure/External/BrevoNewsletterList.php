@@ -10,6 +10,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Modules\Ops\Application\Messages\FailureKind;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Infrastructure\Eloquent\Moment;
@@ -61,6 +62,11 @@ final readonly class BrevoNewsletterList implements NewsletterList
         $this->listId($store, $locale, create: true);
     }
 
+    public function forgetList(StoreId $store, string $locale): void
+    {
+        $this->db->table('ops.newsletter_lists')->where('store_id', $store->value)->where('locale', $locale)->delete();
+    }
+
     public function add(#[\SensitiveParameter] string $email, StoreId $store, string $locale): void
     {
         $listId = $this->listId($store, $locale, create: true);
@@ -70,6 +76,10 @@ final readonly class BrevoNewsletterList implements NewsletterList
             'listIds' => [$listId],
             'updateEnabled' => true,
         ]));
+
+        if (BrevoAnswers::listGone($response)) {
+            throw new ProviderFailed('Brevo: the contact\'s list is gone: HTTP '.$response->status().' (document_not_found).', FailureKind::ListGone);
+        }
 
         if (! BrevoAnswers::isBrevos($response)) {
             throw BrevoAnswers::refused('the contact', $response);
@@ -131,7 +141,7 @@ final readonly class BrevoNewsletterList implements NewsletterList
         }
 
         if ($this->folderId === null || $this->folderId < 1) {
-            throw new ProviderFailed('Brevo: no folder is set for the newsletter lists (BREVO_NEWSLETTER_FOLDER_ID).', permanent: true);
+            throw new ProviderFailed('Brevo: no folder is set for the newsletter lists (BREVO_NEWSLETTER_FOLDER_ID).', FailureKind::WaitsForPerson);
         }
 
         return $this->db->transaction(function () use ($store, $locale): int {

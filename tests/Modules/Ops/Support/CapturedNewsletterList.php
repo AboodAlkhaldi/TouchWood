@@ -42,6 +42,8 @@ final class CapturedNewsletterList implements NewsletterList
 
     public function ready(StoreId $store, string $locale): void {}
 
+    public function forgetList(StoreId $store, string $locale): void {}
+
     public function add(string $email, StoreId $store, string $locale): void
     {
         $this->call("add {$email} {$store->value} {$locale}");

@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Modules\Ops\Application\Messages\EmailAttachment;
 use Modules\Ops\Application\Messages\EmailSender;
+use Modules\Ops\Application\Messages\FailureKind;
 use Modules\Ops\Application\Messages\OutgoingEmail;
 use Modules\Ops\Application\Messages\ProviderFailed;
 
@@ -52,7 +53,7 @@ final readonly class BrevoEmailSender implements EmailSender
         $key = BrevoAnswers::key($this->apiKey);
 
         if (trim($email->fromEmail) === '') {
-            throw new ProviderFailed('Brevo: no sender address is set (MAIL_FROM_ADDRESS).', permanent: true);
+            throw new ProviderFailed('Brevo: no sender address is set (MAIL_FROM_ADDRESS).', FailureKind::WaitsForPerson);
         }
 
         $to = ['email' => $email->toEmail];

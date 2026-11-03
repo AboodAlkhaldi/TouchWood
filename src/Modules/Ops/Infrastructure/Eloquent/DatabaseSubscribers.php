@@ -31,7 +31,7 @@ final readonly class DatabaseSubscribers implements Subscribers
         return $this->one('id = ?', [strtolower($id)], lock: true);
     }
 
-    public function lockByEmail(StoreId $store, string $email): ?Subscriber
+    public function lockByEmail(StoreId $store, #[\SensitiveParameter] string $email): ?Subscriber
     {
         return $this->one('store_id = ? AND email = ?', [$store->value, $email], lock: true);
     }
@@ -46,7 +46,7 @@ final readonly class DatabaseSubscribers implements Subscribers
         return $this->one('customer_id = ?', [strtolower($customerId)], lock: true);
     }
 
-    public function withEmail(string $email): array
+    public function withEmail(#[\SensitiveParameter] string $email): array
     {
         /** @var list<stdClass> $rows */
         $rows = $this->db->select('SELECT '.self::COLUMNS.' FROM ops.subscribers WHERE email = ? ORDER BY id', [$email]);

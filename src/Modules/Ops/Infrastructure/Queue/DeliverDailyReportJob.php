@@ -21,8 +21,11 @@ final class DeliverDailyReportJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    /** Five attempts over about 36 minutes: Brevo away, as every other email waits it out. */
-    public int $tries = 5;
+    /** No limit on tries, which the waits of ProviderFailureRules would use up: failures are what count. */
+    public int $tries = 0;
+
+    /** Five failures over about 36 minutes: Brevo away, as every other email waits it out. */
+    public int $maxExceptions = 5;
 
     /** @var list<int> seconds before each try again */
     public array $backoff = [10, 60, 300, 1800];

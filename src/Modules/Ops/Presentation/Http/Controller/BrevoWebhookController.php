@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Presentation\Http\Controller;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -33,8 +34,8 @@ use Throwable;
  *   other 4xx or any 5xx "stop all retry attempts and discard the webhook"
  *   (https://developers.brevo.com/docs/retry-mechanism, read 2026-11-03). So whatever breaks on our side is
  *   answered 429, never 500: an unsubscribe thrown away would leave a person's consent on. Taken again, a call
- *   changes nothing. Something it cannot read is a 204 and a line in the log, naming nothing of the body: asked
- *   again it would say the same.
+ *   changes nothing, and one older than the row's joining leaves it alone: they agreed since. Something it cannot
+ *   read is a 204 and a line in the log, naming nothing of the body: asked again it would say the same.
  *
  * With no secret set, every call is refused.
  */
@@ -102,7 +103,9 @@ final readonly class BrevoWebhookController
             return $this->notRead();
         }
 
-        $this->subscriptions->unsubscribedAtProvider($email);
+        // `ts_event`: seconds, in UTC (https://developers.brevo.com/docs/marketing-webhooks). None: taken as now.
+        $at = is_int($body['ts_event'] ?? null) && $body['ts_event'] > 0 ? CarbonImmutable::createFromTimestampUTC($body['ts_event'])->toDateTimeImmutable() : null;
+        $this->subscriptions->unsubscribedAtProvider($email, $at);
 
         return response()->noContent();
     }
