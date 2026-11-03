@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Sales\Presentation\Http\Controller;
 
+use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Modules\Payments\Public\Contracts\PaymentsApi;
 use Modules\Platform\Public\Contracts\PlatformApi;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPayment;
 use Modules\Sales\Application\Command\FollowCheckoutPayment\FollowCheckoutPaymentHandler;
@@ -31,6 +33,7 @@ final readonly class ShopPaymentController
     public function __construct(
         private StoreContext $stores,
         private PlatformApi $platform,
+        private PaymentsApi $payments,
     ) {}
 
     /** The form for a quote: nothing is held or charged. Asked by the page, so a slow gateway never holds up checkout. */
@@ -52,10 +55,13 @@ final readonly class ShopPaymentController
             route('storefront.sales.payment.return'),
         ));
 
+        $timers = $this->payments->timers(StoreId::fromString($this->stores->current()->value));
+
         return new JsonResponse((new PayStartData(
             $paying->tryId,
             $paying->start->frameUrl,
             $paying->start->windowEndsAt->format(DateTimeInterface::ATOM),
+            CarbonImmutable::instance($paying->start->windowEndsAt)->subMinutes($timers->window)->addMinutes($timers->hold)->format(DateTimeInterface::ATOM),
             now()->format(DateTimeInterface::ATOM),
         ))->toArray());
     }

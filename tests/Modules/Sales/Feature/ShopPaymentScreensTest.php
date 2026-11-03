@@ -7,6 +7,7 @@ use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Sleep;
 use Illuminate\Testing\TestResponse;
@@ -16,11 +17,14 @@ use Modules\Payments\Application\Command\ChangeKeys\ChangeKeysHandler;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGateway;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGatewayHandler;
 use Modules\Payments\Application\Gateway\KeyTester;
+use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrier;
+use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrierHandler;
 use Shared\Application\ActorContext;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
+use Tests\Modules\B2B\Support\B2BFixtures as Bx;
 use Tests\Modules\Payments\Support\FakeMyFatoorah;
 use Tests\Modules\Sales\Support\CheckoutFixtures as Cx;
 
@@ -67,6 +71,10 @@ function shopPaymentReady(?string $mode = 'LIVE', string $type = 'individual'): 
         }
 
         $ready = Cx::ready($type);
+
+        if ($type === 'company') {
+            Bx::approved($ready['customer']);
+        }
     } finally {
         app()->scoped(ActorContext::class, $previous);
         app()->forgetScopedInstances();
@@ -148,17 +156,38 @@ describe('the way to pay', function () {
         expect(shopPaymentProps($browser, '/sa/en/checkout?way=STAFF_CONTACT', 'Sales/Storefront/Checkout')['way'])->toBe('STAFF_CONTACT');
     });
 
-    it('offers only staff contact with no gateway, and to a company', function () {
+    it('offers only staff contact with no gateway', function () {
         [, $browser] = shopPaymentReady(null);
         $none = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
 
         expect([$none['ways'], $none['way']])->toBe([['STAFF_CONTACT'], 'STAFF_CONTACT']);
     });
 
-    it('says when the store is in Test', function () {
-        [, $browser] = shopPaymentReady('TEST');
+    it('offers a company no online payment, with the gateway on', function () {
+        [, $browser] = shopPaymentReady('LIVE', 'company');
+        $checkout = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
+
+        expect($checkout['ways'])->not->toContain('ONLINE')
+            ->and($checkout['way'])->not->toBe('ONLINE');
+    });
+
+    it('offers only staff contact while the fee is to be set, with the gateway on', function () {
+        [, $browser] = shopPaymentReady();
+        Cx::asSuperAdmin(static fn () => app(SwitchCarrierHandler::class)->handle(new SwitchCarrier(Fx::storeId('sa'), Cx::serve()['carrier'], false)));
+        $checkout = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
+
+        expect([$checkout['shippingPending'], $checkout['ways'], $checkout['way']])->toBe([true, ['STAFF_CONTACT'], 'STAFF_CONTACT']);
+    });
+
+    it('says when the store is in Test, with a quote or without one', function () {
+        [, $browser, $ready] = shopPaymentReady('TEST');
 
         expect(shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout')['testMode'])->toBeTrue();
+
+        DB::table('access.addresses')->where('customer_id', $ready['customer'])->delete();
+
+        $none = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout');
+        expect([$none['quoteId'], $none['testMode']])->toBe([null, true]);
     });
 
     it('marks an order placed in Test on the customer\'s own page', function () {
@@ -172,7 +201,7 @@ describe('the way to pay', function () {
 });
 
 describe('paying', function () {
-    it('opens the form for a quote, and reuses its session', function () {
+    it('opens the form for a quote, and asks once for the same quote', function () {
         [$fake, $browser] = shopPaymentReady();
         $quote = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout')['quoteId'];
 
@@ -190,8 +219,23 @@ describe('paying', function () {
         $paying = shopPaymentPay($browser);
 
         expect($paying['start']['frameUrl'])->toBe(FakeMyFatoorah::FRAME_URL)
-            ->and(array_keys($paying['start']))->toBe(['tryId', 'frameUrl', 'windowEndsAt', 'serverNow'])
+            ->and(array_keys($paying['start']))->toBe(['tryId', 'frameUrl', 'windowEndsAt', 'holdEndsAt', 'serverNow'])
+            // The window's 5 and the hold limit's 15, from Pay.
+            ->and(strtotime($paying['start']['holdEndsAt']) - strtotime($paying['start']['windowEndsAt']))->toBe(10 * 60)
             ->and(DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('state'))->toBe('LIVE');
+    });
+
+    it('keeps a refused charge\'s reason from the page, and says nothing was charged', function () {
+        [$fake, $browser] = shopPaymentReady();
+        $fake->charges[] = static fn () => Http::response(['IsSuccess' => false, 'Message' => 'The merchant secret reason'], 400);
+
+        $paying = shopPaymentPay($browser);
+        $view = shopPaymentPost($browser, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertOk();
+
+        expect($paying['start']['frameUrl'])->toBeNull()
+            ->and(json_encode($paying['start']))->not->toContain('secret reason')
+            ->and($view->getContent())->not->toContain('secret reason')
+            ->and([$view->json('state'), $view->json('payment'), $view->json('nothingCharged')])->toBe(['RELEASED', 'FAILED', true]);
     });
 
     it('refuses a quote that is not this customer\'s', function () {
@@ -312,6 +356,11 @@ describe('a store switched off while paying (§1.10)', function () {
     it('answers nothing else: not another customer\'s try, not the other paying addresses, not the pages', function () {
         [, $browser] = shopPaymentReady();
         $paying = shopPaymentPay($browser);
+        $quote = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('quote_id');
+        $session = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('session_id');
+        // While it is open, these answer: the 404s below are the store's, not the quote's.
+        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertOk();
+        shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertStatus(409);
         $previous = app()->getBindings()[ActorContext::class]['concrete'] ?? null;
         $other = Fx::customer();
         app()->scoped(ActorContext::class, $previous);
@@ -320,8 +369,8 @@ describe('a store switched off while paying (§1.10)', function () {
         shopPaymentCloseTheStore();
 
         shopPaymentPost($stranger, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertNotFound();
-        shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => (string) str()->ulid()])->assertNotFound();
-        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => (string) str()->ulid(), 'session' => 'x'])->assertNotFound();
+        shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertNotFound();
+        shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $session])->assertNotFound();
         $browser->get('/sa/en/checkout')->assertNotFound();
     });
 });

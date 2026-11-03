@@ -18,6 +18,8 @@ final class PayStartData extends Data
         public string $tryId,
         public ?string $frameUrl,
         public string $windowEndsAt,
+        /** Until when it can still go through, for the words on leaving the bank's page (payments.md §1.7). */
+        public string $holdEndsAt,
         public string $serverNow,
     ) {}
 }

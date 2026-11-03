@@ -19,7 +19,7 @@ import { figure } from '@/lib/digits';
 import { useLink } from '@/lib/routes';
 import { useTranslator } from '@/lib/t';
 import type { ShopCardData } from '@/types/generated/Modules/Catalog/Presentation/Http/Resource';
-import type { BuyAgainSkippedData, CartLineData, CartPage } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
+import type { BuyAgainSkippedData, CartLineData, CartPage, CheckoutTryData } from '@/types/generated/Modules/Sales/Presentation/Http/Resource';
 import type { SharedProps } from '@/types/page';
 
 /*
@@ -35,6 +35,7 @@ import type { SharedProps } from '@/types/page';
 */
 
 const PaymentInTheWay = lazy(() => import('@/components/sales/payment/PaymentInTheWay'));
+const ClosedStore = lazy(() => import('@/components/sales/payment/ClosedStore'));
 
 export default function Cart(cart: CartPage) {
     const t = useTranslator();
@@ -42,6 +43,15 @@ export default function Cart(cart: CartPage) {
     const link = useLink();
     const { shop } = usePage<SharedProps>().props;
     const home = shop ? `/${shop.code}/${locale}` : '/';
+    const [closed, setClosed] = useState<CheckoutTryData | null>(null);
+
+    if (closed !== null) {
+        return (
+            <Suspense fallback={null}>
+                <ClosedStore view={closed} />
+            </Suspense>
+        );
+    }
 
     return (
         <StorefrontLayout title={t(`${C}.title`)}>
@@ -50,7 +60,7 @@ export default function Cart(cart: CartPage) {
                 <FormError />
                 {cart.payment === null ? null : (
                     <Suspense fallback={null}>
-                        <PaymentInTheWay payment={cart.payment} />
+                        <PaymentInTheWay payment={cart.payment} onClosed={setClosed} />
                     </Suspense>
                 )}
                 {cart.notice.length > 0 ? <Notice cart={cart} /> : null}

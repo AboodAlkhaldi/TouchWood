@@ -480,6 +480,7 @@ export type PayStartData = {
 tryId: string,
 frameUrl: string | null,
 windowEndsAt: string,
+holdEndsAt: string,
 serverNow: string,
 };
 export type PaymentFormData = {

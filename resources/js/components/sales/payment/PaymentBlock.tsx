@@ -33,10 +33,13 @@ const PRESS_LIMIT = 60000;
 const ASK_WHILE_ON_BANK_PAGE = 30000;
 const ASK_WHILE_CONFIRMING = 10000;
 
-type Live = { tryId: string; frameUrl: string | null; windowEndsAt: string; serverNow: string; frameOpen: boolean; finished: boolean; view: CheckoutTryData | null };
-type Phase = { kind: 'opening' } | { kind: 'failed'; words: string } | { kind: 'form' } | { kind: 'pressed' } | { kind: 'live'; live: Live } | { kind: 'reloading' };
+type Live = { tryId: string; frameUrl: string | null; windowEndsAt: string; holdEndsAt: string; serverNow: string; frameOpen: boolean; finished: boolean; view: CheckoutTryData | null };
+type Phase = { kind: 'opening' } | { kind: 'failed'; words: string } | { kind: 'form' } | { kind: 'pressed' } | { kind: 'sending' } | { kind: 'live'; live: Live } | { kind: 'reloading' };
 
-export type OnlineState = { ready: boolean; locked: boolean };
+export type OnlineState = { ready: boolean; locked: boolean; failed: boolean };
+
+/** From Pay until the answer: nothing on the page may change (Q3). */
+const LOCKED = ['pressed', 'sending', 'live'];
 
 const scripts = new Map<string, Promise<void>>();
 
@@ -83,20 +86,20 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
     /** The details are ready: our server starts the try, with the quote and the session alone. */
     const send = useCallback(async () => {
         setNotice(null);
-        setPhase({ kind: 'pressed' });
+        setPhase({ kind: 'sending' });
         const answer = await postJson<PayStartData>(link('storefront.sales.payment.pay'), token, { quote: quote.current, session: session.current ?? '' });
 
         if (answer.ok) {
-            const { tryId, frameUrl, windowEndsAt, serverNow } = answer.data;
-            setPhase({ kind: 'live', live: { tryId, frameUrl, windowEndsAt, serverNow, frameOpen: frameUrl !== null, finished: frameUrl === null, view: null } });
+            const { tryId, frameUrl, windowEndsAt, holdEndsAt, serverNow } = answer.data;
+            setPhase({ kind: 'live', live: { tryId, frameUrl, windowEndsAt, holdEndsAt, serverNow, frameOpen: frameUrl !== null, finished: frameUrl === null, view: null } });
         } else if (answer.status === 429) {
             setNotice(t(`${P}.too_many`));
             setPhase({ kind: 'form' });
-        } else if (answer.status === 0) {
+        } else if (answer.status === 0 || answer.status >= 500) {
             // Nobody knows whether it started: the server says, when the page opens again.
             again(null);
         } else {
-            again(answer.type.includes('quote_changed') ? t(`${P}.changed`) : answer.detail);
+            again(answer.type.includes('quote_changed') || answer.type.includes('quote_expired') ? t(`${P}.changed`) : answer.detail);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [again, token]);
@@ -147,26 +150,35 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
                 return;
             }
 
-            if (gone || window.myfatoorah === undefined) {
+            if (gone) {
                 return;
             }
 
             session.current = answer.data.sessionId;
             document.getElementById(FORM_BOX)?.replaceChildren();
-            window.myfatoorah.init({
-                sessionId: answer.data.sessionId,
-                containerId: FORM_BOX,
-                callback: (response: { isSuccess?: boolean }) => {
-                    if (response.isSuccess === true) {
-                        void send();
-                    } else {
-                        setNotice(t(`${P}.form_failed`));
-                        setPhase({ kind: 'form' });
-                    }
-                },
-                settings: { loader: { display: 'none' }, card: { style: { button: { useCustomButton: true } } } },
-            });
-            setPhase({ kind: 'form' });
+
+            try {
+                if (window.myfatoorah === undefined) {
+                    throw new Error('The form did not load.');
+                }
+
+                window.myfatoorah.init({
+                    sessionId: answer.data.sessionId,
+                    containerId: FORM_BOX,
+                    callback: (response: { isSuccess?: boolean }) => {
+                        if (response.isSuccess === true) {
+                            void send();
+                        } else {
+                            setNotice(t(`${P}.form_refused`));
+                            setPhase({ kind: 'form' });
+                        }
+                    },
+                    settings: { loader: { display: 'none' }, card: { style: { button: { useCustomButton: true } } } },
+                });
+                setPhase({ kind: 'form' });
+            } catch {
+                setPhase({ kind: 'failed', words: t(`${P}.form_failed`) });
+            }
         })();
 
         return () => {
@@ -200,7 +212,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
     }, [phase.kind]);
 
     useEffect(() => {
-        onState({ ready: phase.kind === 'form', locked: phase.kind === 'pressed' || phase.kind === 'live' });
+        onState({ ready: phase.kind === 'form', locked: LOCKED.includes(phase.kind), failed: phase.kind === 'failed' });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase.kind]);
 
@@ -239,7 +251,7 @@ export default function PaymentBlock({ quoteId, press, onState, onClosed }: { qu
                 />
             ) : null}
             {/* Kept while the page is locked: the form stays in its place, out of reach. Only MyFatoorah draws in it. */}
-            <div id={FORM_BOX} inert={phase.kind === 'pressed' || phase.kind === 'live'} hidden={phase.kind === 'failed'} className="min-w-0" data-test="payment-form" />
+            <div id={FORM_BOX} inert={phase.kind !== 'form'} hidden={phase.kind === 'failed'} className="min-w-0" data-test="payment-form" />
         </div>
     );
 }
@@ -377,7 +389,7 @@ function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: P
     }, []);
 
     const view = live.view;
-    const until = (view === null ? null : untilOf(view)) ?? live.windowEndsAt;
+    const until = (view === null ? null : untilOf(view)) ?? live.holdEndsAt;
     const waitOver = view?.waitEndsAt !== null && view?.waitEndsAt !== undefined && new Date(view.waitEndsAt).getTime() <= now;
 
     return (
@@ -406,6 +418,13 @@ function Paying({ live, change, onOver, onLost }: { live: Live; change: (next: P
                         <DialogHeader>
                             <DialogTitle>{t(`${P}.frame.title`)}</DialogTitle>
                             <DialogDescription>{t(`${P}.frame.body`)}</DialogDescription>
+                            {/* The dialog fills a phone: the time left must show here too (Q4). */}
+                            <p className="flex items-center gap-2 text-copy-14 text-ink" data-test="payment-frame-time">
+                                {t(`${P}.time_left`)}
+                                <span className="tw-figure text-label-14" dir="ltr">
+                                    {minutesAndSeconds(left)}
+                                </span>
+                            </p>
                         </DialogHeader>
                         {leaving ? (
                             <div role="alert" className="grid gap-2 rounded-md bg-surface-sunken p-3" data-test="payment-leave">

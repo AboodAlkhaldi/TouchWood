@@ -69,7 +69,7 @@ final readonly class CheckoutPages
         $phone = $account?->phoneVerified === true ? $account->phone : null;
 
         if ($chosen === null) {
-            return self::none($rows, null, $phone);
+            return self::none($rows, null, $phone, testMode: $this->payments->inTestMode(StoreId::fromString($storeId)));
         }
 
         // A company chooses its way, nothing chosen first (R2-14): until it does, the quote is worked out with
@@ -91,7 +91,7 @@ final readonly class CheckoutPages
             return self::none($rows, $chosen->id, $phone, new CheckoutOtherStoreData(
                 $locale === 'en' ? $other->storeEn : $other->storeAr,
                 route('storefront.home', ['store' => strtolower($other->storeCode), 'locale' => $locale]),
-            ));
+            ), $this->payments->inTestMode(StoreId::fromString($storeId)));
         }
         $ways = array_map(static fn (WayToPay $each): string => $each->value, $quote->waysToPay);
         $wayChosen = count($ways) === 1 ? $ways[0] : ($asked !== null && in_array($asked->value, $ways, true) ? $asked->value : null);
@@ -148,11 +148,11 @@ final readonly class CheckoutPages
      *
      * @param  list<CheckoutAddressData>  $rows
      */
-    private static function none(array $rows, ?string $addressId, ?string $phone, ?CheckoutOtherStoreData $otherStore = null): CheckoutPage
+    private static function none(array $rows, ?string $addressId, ?string $phone, ?CheckoutOtherStoreData $otherStore = null, bool $testMode = false): CheckoutPage
     {
         return new CheckoutPage(
             null, $rows, $addressId, OrderAudience::Public->value, null, null, null, false, null, 0, 0, null, null, [], null, null,
-            null, null, null, null, null, null, 0, null, null, null, 0, $phone, otherStore: $otherStore,
+            null, null, null, null, null, null, 0, null, null, null, 0, $phone, otherStore: $otherStore, testMode: $testMode,
         );
     }
 

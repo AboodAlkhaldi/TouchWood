@@ -1383,7 +1383,7 @@ The owner answered **(a) for all twenty-two** (2026-11-01: "All as recommended")
 5. **The frame has no `sandbox`**: MyFatoorah's page says only to open the address in a frame, and a sandbox could break a bank's page where no test can see it. Worth trying on staging.
 6. **A closed frame doesn't reopen**: the page says the time left until the try ends. The spec offers no way back into the bank's page.
 7. **A second window is told apart from coming back by asking**: a window that is paying answers on the browser's own channel (`BroadcastChannel`), so one answering means "in another window" and none means "Your last payment can still go through".
-8. **The closed store's one page shows only on a page still open** (§1.10). Anyone coming back later, or reloading, gets the store's 404 like any other page of it.
+8. **The closed store's one page shows only on a page still open**, checkout or cart (§1.10). Anyone coming back later, or reloading, gets the store's 404 like any other page of it.
 9. **Words the spec doesn't give**: not completed ("The payment was not completed. If your bank took the money, our team will contact you to return it."), a currency refused or a refund due ("We couldn't accept this payment. Our team will contact you to return the money."), and the same "not completed" on the closed page rather than "No money was taken" unless that is known.
 10. **Plain reasons for a decline**: MF001, MF004, MF007 and MF010 have their own words; every other code reads "Your bank declined this payment." (Q6).
 11. **A follow route answers for an off store** through a new `finishing` mode on `ResolveStore`, used by that one route: its handler answers only for the customer's own try.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Modules\Payments\Application\Command\ChangeKeys\ChangeKeys;
 use Modules\Payments\Application\Command\ChangeKeys\ChangeKeysHandler;
@@ -66,7 +67,8 @@ beforeEach(function () {
         public function test(string $apiBase, #[SensitiveParameter] string $key, string $currencyCode): void {}
     });
 
-    Route::get('__fake-mf/session.js', static fn () => response(<<<'JS'
+    $GLOBALS['salesPaymentScriptDown'] = false;
+    Route::get('__fake-mf/session.js', static fn () => $GLOBALS['salesPaymentScriptDown'] ? response('', 503) : response(<<<'JS'
         window.myfatoorah = {
             init(config) {
                 window.fakeForm = config;
@@ -212,7 +214,8 @@ it('pays on a phone: the page locked, a forged message ignored, closing the fram
 
     salesPaymentPay($page);
     expect(salesPaymentWide($page))->toBe('', 'the frame scrolls the page sideways')
-        ->and((string) $page->script("document.querySelector('[data-test=\"payment-time-left\"]').textContent"))->toMatch('/^0\d:\d\d$/')
+        ->and((string) $page->script("document.querySelector('[data-test=\"payment-frame-time\"] span').textContent"))->toMatch('/^0\d:\d\d$/')
+        ->and((bool) $page->script("document.querySelector('[data-test=\"payment-frame-time\"]').getBoundingClientRect().height > 0"))->toBeTrue()
         ->and((bool) $page->script("!!document.querySelector('[data-test=\"checkout-address\"]').closest('[inert]')"))->toBeTrue();
 
     // Not from the frame: nothing changes.
@@ -239,8 +242,17 @@ it('comes back from a decline to the form, with the reason in plain words, and m
 
     expect(browserUntil($page, "(document.querySelector('[data-test=\"payment-notice\"]')?.textContent ?? '').includes('No money was taken')"))->toBeTrue()
         ->and((string) $page->script("document.querySelector('[data-test=\"payment-notice\"]').textContent"))->toContain('enough funds')
-        ->and(browserUntil($page, "!!document.querySelector('[data-test=\"fake-form\"]') && !document.querySelector('[data-test=\"pay\"]').disabled"))->toBeTrue()
+        ->and(browserUntil($page, "!!document.querySelector('[data-test=\"fake-form\"]') && document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled') === null"))->toBeTrue()
         ->and((bool) $page->script("!!document.querySelector('[data-test=\"checkout-address\"]').closest('[inert]')"))->toBeFalse();
+
+    // A fresh try: the old one gone, the frame open again. A real gateway names a new payment.
+    $fake->charges[] = static fn () => Http::response(['IsSuccess' => true, 'Message' => '', 'ValidationErrors' => null, 'Data' => [
+        'InvoiceId' => '7320291', 'PaymentId' => '07077320291391998274', 'PaymentURL' => FakeMyFatoorah::FRAME_URL, 'PaymentCompleted' => false,
+        'Card' => ['Number' => '446404xxxxxx0007', 'Brand' => 'Visa'],
+    ]], 201);
+    $page->click('[data-test="pay"]');
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-frame\"]')"))->toBeTrue()
+        ->and(DB::table('sales.checkout_tries')->count())->toBe(2);
 });
 
 it('says a last payment can still go through on coming back, on the cart and on checkout, with no form', function () {
@@ -252,8 +264,75 @@ it('says a last payment can still go through on coming back, on the cart and on 
 
     $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
     expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-in-the-way\"]')"))->toBeTrue()
+        ->and((string) $page->script("document.querySelector('[data-test=\"payment-in-the-way\"]').textContent"))->toContain('can still go through')
         ->and((bool) $page->script("!!document.querySelector('[data-test=\"payment-block\"]')"))->toBeFalse()
         ->and(salesPaymentWide($page))->toBe('', 'the note scrolls the page sideways');
+
+    // Another window that is paying answers: this one is the second window.
+    $page->script("new BroadcastChannel('tw-payment').postMessage('here')");
+    expect(browserUntil($page, "document.querySelector('[data-test=\"payment-in-the-way\"]').textContent.includes('in another window')"))->toBeTrue();
+});
+
+it('comes back by itself when a try ends behind the note, with no reload (Q9)', function () {
+    [$fake, $page] = salesPaymentReady();
+    salesPaymentPay($page);
+    $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-in-the-way\"]')"))->toBeTrue();
+    // The note's own ask, past the 10 seconds the server keeps an answer.
+    $fake->declined('MF004');
+    $page->script('window.notReloaded = true');
+
+    sleep(16);
+
+    expect(browserUntil($page, "!document.querySelector('[data-test=\"payment-in-the-way\"]') && !!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue()
+        ->and((bool) $page->script('window.notReloaded === true'))->toBeTrue();
+});
+
+it('says a window that is paying is there, when another asks', function () {
+    [, $page] = salesPaymentReady();
+    salesPaymentPay($page);
+
+    $answered = $page->script(<<<'JS'
+        () => new Promise((resolve) => {
+            const channel = new BroadcastChannel('tw-payment');
+            channel.onmessage = (event) => resolve(event.data);
+            channel.postMessage('ping');
+            setTimeout(() => resolve('nobody'), 2000);
+        })
+        JS);
+
+    expect($answered)->toBe('here');
+});
+
+it('says when the form can\'t load, and Try Again brings it', function () {
+    [, $page] = salesPaymentReady();
+    $GLOBALS['salesPaymentScriptDown'] = true;
+    $page->navigate('/sa/en/checkout', BROWSER_PAGE_LOAD);
+
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-failed\"]')"))->toBeTrue()
+        ->and((string) $page->script("document.querySelector('[data-test=\"pay\"]').getAttribute('aria-disabled')"))->toBe('true');
+
+    $GLOBALS['salesPaymentScriptDown'] = false;
+    $page->click('[data-test="payment-try-again"]');
+
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"fake-form\"]')"))->toBeTrue();
+});
+
+it('shows a store closed behind the cart\'s note its one page too', function () {
+    [$fake, $page] = salesPaymentReady();
+    salesPaymentPay($page);
+    $page->navigate('/sa/en/cart', BROWSER_PAGE_LOAD);
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-in-the-way\"]')"))->toBeTrue();
+
+    $fake->paid(salesPaymentTotal());
+    DB::table('platform.stores')->where('code', 'sa')->update(['is_base' => false, 'is_active' => false]);
+    DB::table('platform.stores')->where('code', 'eg')->update(['is_base' => true]);
+    Fx::asSystem(fn () => app(StoreDirectory::class)->invalidate());
+    app()->forgetScopedInstances();
+
+    sleep(16);
+
+    expect(browserUntil($page, "!!document.querySelector('[data-test=\"payment-store-closed\"]')"))->toBeTrue();
 });
 
 it('shows a store closed while paying its one page, with the order and a way to the main store', function () {

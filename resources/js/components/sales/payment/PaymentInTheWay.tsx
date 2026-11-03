@@ -14,7 +14,7 @@ import { CHANNEL, P, minutesAndSeconds, postJson, untilOf, useClock, useCsrfToke
 
 const EVERY = 15000;
 
-export default function PaymentInTheWay({ payment, onClosed }: { payment: CheckoutTryData; onClosed?: (view: CheckoutTryData) => void }) {
+export default function PaymentInTheWay({ payment, onClosed }: { payment: CheckoutTryData; onClosed: (view: CheckoutTryData) => void }) {
     const t = useTranslator();
     const link = useLink();
     const token = useCsrfToken();
@@ -52,19 +52,21 @@ export default function PaymentInTheWay({ payment, onClosed }: { payment: Checko
 
             if (answer.ok && answer.data.state === 'LIVE') {
                 timer = setTimeout(() => void ask(), EVERY);
-            } else if (answer.ok && answer.data.mainStoreUrl !== null && answer.data.firstSeen && onClosed !== undefined) {
+            } else if (answer.ok && answer.data.mainStoreUrl !== null && answer.data.firstSeen) {
                 onClosed(answer.data);
             } else if (answer.ok && answer.data.orderNumber !== null && answer.data.mainStoreUrl === null) {
                 router.visit(link('storefront.sales.placed', { number: answer.data.orderNumber }));
             } else if (answer.ok || answer.status === 404 || answer.status === 401 || answer.status === 419) {
-                // Over, or no longer this page's to ask: a store closed since answers 404 like any other page of it.
+                // Over, or no longer this page's to ask. Asking again covers a reload that never landed; one that does ends this note.
                 router.reload();
+                timer = setTimeout(() => void ask(), EVERY);
             } else {
                 timer = setTimeout(() => void ask(), EVERY);
             }
         };
 
-        timer = setTimeout(() => void ask(), EVERY);
+        // Opening the page doesn't ask the gateway: only this does, so a try past its limit ends here.
+        void ask();
 
         return () => {
             gone = true;

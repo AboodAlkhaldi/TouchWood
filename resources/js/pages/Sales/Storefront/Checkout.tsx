@@ -37,8 +37,9 @@ const W = 'sales::shop_checkout';
 const P = 'sales::shop_payment';
 const PaymentBlock = lazy(() => import('@/components/sales/payment/PaymentBlock'));
 const PaymentInTheWay = lazy(() => import('@/components/sales/payment/PaymentInTheWay'));
+const ClosedStore = lazy(() => import('@/components/sales/payment/ClosedStore'));
 
-type Online = { ready: boolean; locked: boolean };
+type Online = { ready: boolean; locked: boolean; failed: boolean };
 
 type Choice = { address?: string | null; points?: boolean; asked?: number | null; way?: string | null; carrier?: string | null };
 
@@ -46,7 +47,7 @@ export default function Checkout(page: CheckoutPage) {
     const t = useTranslator();
     const link = useLink();
     const [choosing, setBusy] = useState(false);
-    const [online, setOnline] = useState<Online>({ ready: false, locked: false });
+    const [online, setOnline] = useState<Online>({ ready: false, locked: false, failed: false });
     const [closed, setClosed] = useState<CheckoutTryData | null>(null);
     const pressPay = useRef<(() => void) | null>(null);
     const busy = choosing || online.locked;
@@ -54,7 +55,7 @@ export default function Checkout(page: CheckoutPage) {
     const choose = (next: Choice) => {
         // The carrier the customer asked for, not the cheapest picked for them: it stays while it serves the address (E4).
         const carrier = page.carrierChanged ? null : new URLSearchParams(window.location.search).get('carrier');
-        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.way, carrier, ...next };
+        const now = { address: page.addressId, points: page.usePoints, asked: page.pointsAsked, way: page.ways.length > 1 ? page.way : null, carrier, ...next };
         const query: Record<string, string> = {};
 
         if (now.address) query.address = now.address;
@@ -67,7 +68,11 @@ export default function Checkout(page: CheckoutPage) {
     };
 
     if (closed !== null) {
-        return <ClosedStore view={closed} />;
+        return (
+            <Suspense fallback={null}>
+                <ClosedStore view={closed} />
+            </Suspense>
+        );
     }
 
     return (
@@ -107,28 +112,6 @@ export default function Checkout(page: CheckoutPage) {
 }
 
 type Part = { page: CheckoutPage; busy: boolean; choose: (next: Choice) => void };
-
-/** The store switched off while paying: one page, once, with a way to the main store (payments.md §1.10). */
-function ClosedStore({ view }: { view: CheckoutTryData }) {
-    const t = useTranslator();
-    const words = view.orderNumber !== null ? t(`${P}.closed.paid`, { number: isolate(view.orderNumber) }) : view.nothingCharged || view.declineCode !== null ? t(`${P}.closed.nothing_taken`) : t(`${P}.closed.not_completed`);
-
-    return (
-        <StorefrontLayout title={t(`${P}.closed.title`)}>
-            <Card className="material-base mx-auto w-full max-w-xl gap-3 border-0 py-6" data-test="payment-store-closed">
-                <CardContent className="grid justify-items-center gap-3 px-6 text-center">
-                    <h1 className="text-heading-24 text-ink">{t(`${P}.closed.title`)}</h1>
-                    <p className="text-copy-14 text-ink">{words}</p>
-                    {view.mainStoreUrl === null ? null : (
-                        <a href={view.mainStoreUrl} className="text-copy-14 text-ink underline underline-offset-4" data-test="payment-main-store">
-                            {t(`${P}.closed.main`)}
-                        </a>
-                    )}
-                </CardContent>
-            </Card>
-        </StorefrontLayout>
-    );
-}
 
 function Section({ title, test, children }: { title: string; test: string; children: ReactNode }) {
     return (
@@ -401,7 +384,7 @@ function Summary({ page, busy, online, press }: { page: CheckoutPage; busy: bool
               : page.payment !== null
                 ? t(`${P}.pay_later`)
                 : paying && !online.ready && !online.locked
-                  ? t(`${P}.loading`)
+                  ? t(online.failed ? `${P}.form_failed` : `${P}.loading`)
                   : undefined;
 
     return (

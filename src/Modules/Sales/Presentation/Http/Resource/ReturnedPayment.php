@@ -8,6 +8,7 @@ use Modules\Sales\Application\Command\ReturnToCheckout\ReturnToCheckout;
 use Modules\Sales\Application\Command\ReturnToCheckout\ReturnToCheckoutHandler;
 use Shared\Application\ActorContext;
 use Shared\Application\ActorType;
+use Throwable;
 
 /**
  * Checkout or the cart opened while a try may stand in the way (payments.md §1.4 step 8, §4.2 Q8): null when none does.
@@ -28,7 +29,14 @@ final readonly class ReturnedPayment
             return null;
         }
 
-        $view = $this->handler->handle(new ReturnToCheckout($storeId));
+        // A paid try that can't be turned into its order yet is for staff (payments.md §1.7): the page still opens.
+        try {
+            $view = $this->handler->handle(new ReturnToCheckout($storeId));
+        } catch (Throwable $failed) {
+            report($failed);
+
+            return null;
+        }
 
         return $view === null ? null : CheckoutTryData::of($view);
     }

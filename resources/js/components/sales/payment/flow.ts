@@ -32,6 +32,11 @@ export async function postJson<T>(path: string, token: string, body: Record<stri
             body: JSON.stringify(body),
         });
 
+        // Sent elsewhere (no longer signed in): an HTML page that says nothing about the payment.
+        if (response.redirected) {
+            return { ok: false, status: 401, type: '', detail: '' };
+        }
+
         if (response.ok) {
             return { ok: true, data: (await response.json()) as T };
         }
