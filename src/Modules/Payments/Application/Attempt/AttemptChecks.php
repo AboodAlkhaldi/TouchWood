@@ -83,6 +83,17 @@ final readonly class AttemptChecks
             $attempt = $this->ask($attempt)->attempt;
         }
 
+        return $this->shown($attempt);
+    }
+
+    /** What a page load sees: nothing is asked. */
+    public function lastKnown(string $ownerId): PaymentStateDto
+    {
+        return $this->shown($this->attempts->latestOf($ownerId));
+    }
+
+    private function shown(?Attempt $attempt): PaymentStateDto
+    {
         return AttemptViews::page($attempt, $attempt?->state === AttemptState::Failed ? $this->transactions->declineCode($attempt->id) : null);
     }
 

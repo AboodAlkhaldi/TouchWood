@@ -66,7 +66,7 @@ it('draws the stores and saves one from its own card', function () {
 
     // A phone (frontend.md §2.1): the cards and the open form fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 it('offers no edit form on a store somebody may only read', function () {

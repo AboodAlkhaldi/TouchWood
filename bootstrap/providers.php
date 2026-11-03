@@ -7,6 +7,7 @@ use App\Providers\TypeScriptTransformerServiceProvider;
 use Modules\Access\Infrastructure\AccessServiceProvider;
 use Modules\B2B\Infrastructure\B2BServiceProvider;
 use Modules\Catalog\Infrastructure\CatalogServiceProvider;
+use Modules\Content\Infrastructure\ContentServiceProvider;
 use Modules\Feedback\Infrastructure\FeedbackServiceProvider;
 use Modules\Inventory\Infrastructure\InventoryServiceProvider;
 use Modules\Loyalty\Infrastructure\LoyaltyServiceProvider;
@@ -55,6 +56,9 @@ return [
     // After Platform and Access: Payments declares its permissions through Access and its settings
     // and their guard through Platform (handoff §4.4, payments.md §2.3).
     PaymentsServiceProvider::class,
+    // Content's public contract only, for now: Ops is built against it before Content (handoff §13.2,
+    // ops.md §1.6). Content's build fills this provider in.
+    ContentServiceProvider::class,
     // Last: Ops reads every module's public surface and declares its permissions through Access;
     // nothing depends on it (handoff §4.4, ops.md §2).
     OpsServiceProvider::class,

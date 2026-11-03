@@ -185,7 +185,7 @@ another module:** C11 (`PaymentRequested`, stage 7).
 | S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked 72 h after the upload | **new** `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, from **Sales'** scheduled job (*Stage 7's proposal*; sales.md:1583-1585) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
-| S8 | Campaign expiry | With Content | Content's event | Content's | — |
+| S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
 | S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
 
@@ -206,7 +206,9 @@ another module:** C11 (`PaymentRequested`, stage 7).
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
   email carry no link until Payments' staff list of attempts exists. **Not built, waiting on another module:**
-  `TransferOverdue` (S6) is not in main. S8 waits for Content.
+  `TransferOverdue` (S6) is not in main. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
+  `CampaignExpiring`.** Its words name the campaign, read through `ContentApi::campaignForMessage`, and its last day in the
+  store's zone; no link until Content has a page. Until Content is built the read answers null, and an alert sends nothing.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
   applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
   SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
@@ -252,7 +254,11 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   cancelled until it starts sending; once sending starts it cannot be recalled.
 - **With Content:** a campaign may carry "send this notice when the campaign goes live"; Content
   publishes the campaign's going live and Ops sends the notice (owner, round 3 #11). Content never calls
-  Ops.
+  Ops. **Built on Ops' side (2026-11-03) and waits on Content to fire `CampaignWentLive(eventId, campaignId, storeId,
+  noticeId, occurredAt)`:** once per event, a notice of that store still SCHEDULED starts sending, by the same batches, its
+  `send_at` moved to now, with no audit row (the scheduler writes none); no `noticeId`, a notice gone, cancelled, already
+  started or another store's sends nothing. **No state makes a notice wait for its campaign** (§9.5 #1): it keeps its own time, and
+  whichever comes first starts it.
 - Sending to thousands goes in batches on the queue; the notice shows how many were sent. A batch that
   fails its last attempt shows the notice **FAILED**; the job waits on the failed jobs screen, and
   retrying it there carries on from where it stopped (step 7: a batch is safe to run again).
@@ -471,7 +477,7 @@ go (§9.2).
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
 | **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
 | **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows. **Added 2026-11-02:** `customerCountInStore(store)`, amendment 94 |
-| **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
+| **Content** (stage 8, later) | **Declared ahead of its build, listened to, fired by nothing yet (2026-11-03):** `CampaignWentLive(eventId, campaignId, storeId, noticeId, occurredAt)`, `noticeId` null for none; `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` — ids only, through the outbox | **Declared, answered null until Content's build replaces `NoCampaignsYet`:** `ContentApi::campaignForMessage(id)` → `?CampaignMessageDto` {campaignId, storeId, name} (S8) |
 
 ## 3 · Use cases and permissions
 
@@ -579,7 +585,7 @@ over 64 characters and show the first page).
 | Staff messages | 20 | Newest first | An empty page |
 | A form's segments | 20 | Newest first, by id | Carries on after that id |
 | Composer lookup | At most 20 | None promised; no paging | — |
-| A report's preview | First 50 rows of each sheet | The sheet's own; no paging, the rest is in the file | — |
+| A report's preview | First 50 rows of each sheet, and its totals apart | The sheet's own; no paging, the rest is in the file | — |
 
 ### 4.2 The two bells (§1.2)
 
@@ -775,11 +781,19 @@ same answer for all; someone holding `ops.newsletter.manage` nowhere is 403 firs
 | `filename` | string | The file's name, Latin letters |
 | `downloadUrl` | string | A path from the site's root, the same choices, to `…/download` |
 
-`ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, more: bool}`. `columns`
+`ReportSheetData` is `{name: string, columns: ReportColumnData[], notes: string[], rows, totals, more: bool}`. `columns`
 are `{key: string, label: string, type: string}`, type `text`, `count`, `money`, `day` or `month`. `rows` is a list
-of lists, **one value per column, in the columns' order**. `notes` says what the figures are (the first says
-"until" when the range includes today). `more` is true when the file holds rows past the
-preview's 50.
+of lists, **one value per column, in the columns' order**, the sheet's first 50 and never a total. `totals` has the same
+shape and holds **every total row, however long the sheet** (owner, 2026-11-02, §9.4 Q21); it is empty on a sheet with no
+total **and on a sheet with no rows, which shows no zero total** (owner, 2026-11-02), though the file writes one. `notes` says
+what the figures are (the first says "until" when the range includes today). `more` is true when the file holds rows
+past the preview's 50; totals never count towards it.
+
+**No sheet is read past the 51st row.** A sheet that ends within its rows gives the totals it summed. One that goes on
+reads them apart, to the unit what the file writes: Revenue and By category from the `revenueByDay` already read, no
+query; Money received from `moneyOn`, 2 queries a store; Product sales from `productSalesTotals`, 1 a store. So the
+queries do not grow with the report's length, with one exception that is not new: By category groups a store's products
+under their categories before its first row, so it walks that store's products a thousand a page.
 
 | Sheet, in order | Columns: key (type) |
 |---|---|
@@ -914,10 +928,14 @@ props. Every other address of that store stays a 404.
   today. Show a value that is not a decimal as it stands; never add up what comes back.
 - **Null is not 0.** `revenue_if_waiting` and `vat_if_waiting` are null where nothing waits: one figure, not two
   (§1.10). A `day`, `month`, `category` or `product` cell is null on a total row.
-- **A total row has no mark.** It holds the word for "Total" in `store` and null where it has no period or name.
-  Revenue, Product sales and By category always end with one total per currency, even over no rows, at zero; Money
+- **A total row is in `totals`, never in `rows`.** It holds the word for "Total" in `store` and null where it has no
+  period or name: tell one by where it is, never by that word, which a store or a category may be called too.
+  Revenue, Product sales and By category have one total per currency, a currency that sold nothing at zero; Money
   received has one per currency and way that moved. Waiting refunds, Stock, Searches and Favourites have none.
-- **The totals may not be in the preview:** with `more` true they sit past the 50 rows, in the file.
+- **A sheet with no rows has no `totals` at all** (owner, 2026-11-02): it shows only "Nothing for these days." The file
+  still writes its zero totals.
+- **The totals are in the preview whatever `more` says;** only the rows past the 50 wait in the file. Their figures are
+  the file's to the unit. With `more` true, Money received's may come in another order of ways than the file's.
 - **Read a row by column position**; a sheet has no key, only its name in the reader's language, so tell sheets
   apart by order. Column keys are stable; labels are not.
 - **Words are words:** `limited_by_stock`, `low`, `out`, `archived` hold the reader's "Yes" or "No", never a boolean;
@@ -931,7 +949,7 @@ props. Every other address of that store stays a 404.
 - **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
-- **`kind` is an open list:** C11, S6–S8 will start appearing without any change here.
+- **`kind` is an open list:** C11, S6 and, once Content fires its event, S8 will start appearing without any change here.
 - **`count` on `ops.admin.audience` is the bell's reach, never the email's** (§4.1): a send by email alone reaches fewer, and its confirmation says so in its own words (O4).
 - **A segment's name can be gone:** `segmentId` set with `segmentNameAr` null means it was deleted since the notice or message was written. Its `segmentMemberCount` is today's, and never the audience it reached.
 - **Ids come in small letters;** send them back as given.
@@ -949,6 +967,8 @@ reads the screens needed were added; what stays is what the code cannot give yet
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
 3. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
+4. **No screen ties a notice to a campaign.** Sending it when the campaign goes live is built (§1.7), and waits on Content: to
+   fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
 
@@ -1129,7 +1149,7 @@ Columns: Email · Language · Kind (Guest, Customer) · State (Confirmed, Waitin
 - **Show Report (Q18)** reads the preview and puts the choices in the address, so a reload or a shared link shows it again. **Download Excel** then appears beside it, a plain link to `downloadUrl`. Changing a choice leaves the shown report in place and marks it "Choices changed. Show Report again." and hides Download until shown again, so a file never differs from what's on screen.
 - **The report:** its title, subtitle and `notes` as a plain `Note`. Its direction and language follow the reader's account, as the server sends them; when that differs from the page's, one line says so. Sheets as tabs (Q20), in order, kept apart by order not name.
 - **The table:** `count` figures with Latin digits, `money` as it stands, right-aligned at the end with its currency in its own column, negative and non-decimal values untouched, null as "—". Nothing is added up on the screen. `phrase` shows as plain text.
-- **Totals (Q21)** always show, bold, at the foot of the sheet, from the marked rows the preview will carry (§9.4 Q21). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
+- **Totals (Q21)** always show, bold, at the foot of the sheet, from the sheet's `totals` (§4.6, §9.4 Q21), which are empty on a sheet with no rows: it shows only "Nothing for these days.", no zero total (owner, 2026-11-02). With `more`: "Showing the first 50 rows. Every row is in the Excel file."
 - **Before Show:** "Choose the store and the days, then Show Report." **An empty sheet:** "Nothing for these days."
 - **Refusals** (`ops.report_range_refused` and the 422 keys) show in place, with the choices kept.
 
@@ -1299,6 +1319,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | C14: one message a day per customer, a week ahead, in every store's own day, whatever runs it again | `Integration/EventMessagesTest`, "the reminder before points expire" |
 | C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
 | S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
+| S8 on `CampaignExpiring`: Super Admins and the store's admins alone, once per event, by their switches, the campaign's name and the store's own day in both languages, no link; **nothing when the read answers null**, names another store, or is gone when the email leaves | `Integration/CampaignEventsTest` |
+| The going-live notice on `CampaignWentLive`: a waiting notice starts by the same batches, once; replay, a second event and its own time send nothing more; **no notice, one gone, cancelled, sending, sent, failed or another store's sends nothing**; both events through the outbox, ids only | `Integration/CampaignEventsTest` |
 | S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
 | S10, S10b: one bell entry per active Super Admin for a burst, each channel with its own hour, the next in the next hour; a waiter gives up, or takes the claim when the holder rolls back; no email, no SMS; Admins and inactive Super Admins not reached; every switch off and still reached; the failed message's store, else the first, off or on; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityFailureAlertTest`, `Integration/SecurityFailureAlertRaceTest` |
 | A form's segments: the store's own, empty ones listed with 0, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
@@ -1323,8 +1345,10 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 
 **Not tested:**
 
-- C11, S6, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
+- C11, S6 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
   for the rows built.
+- S8 and the going-live notice against the real Content: nothing fires their events yet, so the tests fire them and
+  answer `ContentApi` with a stand-in.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
 - No browser test: there are no screens yet (§4.13).
@@ -1415,7 +1439,7 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 | 18 | The preview | On pressing Show Report, the choices kept in the address |
 | 19 | The opening dates | The 1st of this month to today |
 | 20 | Revenue's four sheets | Tabs |
-| 21 | Totals | Always in the preview, marked, bold; a small backend change |
+| 21 | Totals | In the preview, marked, bold, on every sheet that has rows and however long it is (§4.6); a sheet with no rows shows none (owner, 2026-11-02). A small backend change |
 | 22 | After Make Report | The new row with its Download; no automatic download |
 | 23 | The daily email's first time | 21:00 in the store's time |
 | 24 | Changing a country | Row menu and dialogs; Remove says who is affected |
@@ -1431,3 +1455,15 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 | R2 | Should a customer's page in the panel have a Send Message button, opening O4 with that customer chosen? | **Answered by the owner, 2026-11-02: (a) not now.** O4's search finds them, and this job stays inside §4 |
 
 **The screens session's own choices in §4.15, accepted by the owner, 2026-11-02:** a new notice opens on Now, the confirmation guarding it; a bell row is cut at three lines, and pressing one with no link opens its whole text; changing a report's choices hides Download Excel until it is shown again; the reports page opens on the first store that is on, a Super Admin's too; the leave and unsubscribe pages offer no way on to the shop.
+
+### 9.5 The campaign links: for the owner (2026-11-03)
+
+Ops' side is built, on assumptions these decide. Nothing here blocks Ops; each is answered before Content's spec is accepted.
+
+1. **A notice cannot wait for its campaign.** A notice is sent now or at a time (§1.7), so one tied to a campaign keeps a time, and the
+   scheduler sends it then even if the campaign has not gone live. A new state would make it wait for the campaign alone; none was added.
+2. **Which permission receives S8.** No module declares a campaign or Content permission, so `ops.message.send_many` stands in (§1.6).
+3. **S8's words.** The approved words named no campaign, and no link can open it yet, so `:campaign` was added to the line, the subject and
+   the email (2026-11-03), for approval with the full review of the words.
+4. **Where the tie is kept.** `noticeId` comes from Content, and nothing may depend on Ops (handoff §4.4), so Content cannot list the
+   notices to choose from. Content's spec has to settle how staff pick one.

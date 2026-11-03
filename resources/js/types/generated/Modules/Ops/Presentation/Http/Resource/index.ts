@@ -115,6 +115,7 @@ name: string,
 columns: ReportColumnData[],
 notes: string[],
 rows: (string| number| null)[][],
+totals: (string| number| null)[][],
 more: boolean,
 };
 export type SegmentChoiceData = {

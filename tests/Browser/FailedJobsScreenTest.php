@@ -96,9 +96,9 @@ it('tells the admin on the home page, counts in the menu, and retries one job an
 
     // A phone (frontend.md §2.1): the list and one job's page fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the failed jobs scroll sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('the failed jobs scroll sideways');
     $page->navigate("/admin/failed-jobs/{$retried}", BROWSER_PAGE_LOAD)->assertSee('RuntimeException: The disk did not answer.');
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('a failed job scrolls sideways');
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue('a failed job scrolls sideways');
     $page->resize(1280, 800);
     $page->navigate('/admin/failed-jobs', BROWSER_PAGE_LOAD);
 

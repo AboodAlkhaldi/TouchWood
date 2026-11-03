@@ -8,6 +8,7 @@ use Modules\Ops\Application\Reports\Report;
 use Modules\Ops\Application\Reports\ReportBuilder;
 use Modules\Ops\Application\Reports\ReportReaders;
 use Modules\Ops\Application\Reports\ReportSheet;
+use Modules\Ops\Application\Reports\ReportTotal;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Exception\ReportRangeRefused;
 use Shared\Application\Authorizer;
@@ -15,7 +16,11 @@ use Shared\Application\Unauthorized;
 
 /**
  * The reports page's preview (ops.md §1.10, §4), under `ops.report.view` in the store - Stock also
- * `inventory.stock.manage` - every store's a super admin's alone: each sheet's first rows, read no further.
+ * `inventory.stock.manage` - every store's a super admin's alone: each sheet's first rows, and its totals.
+ *
+ * No sheet is read past the rows shown. Its totals come after its rows: a sheet that ends within them has summed
+ * them already, and one that goes on says how to read them apart (ReportSheet::$totals). A sheet with no rows shows
+ * no total, not even at zero (owner, 2026-11-02), though the file writes one.
  */
 final readonly class ViewReportHandler
 {
@@ -36,21 +41,33 @@ final readonly class ViewReportHandler
         }
         $report = $this->reports->build($ask, $query->from, $query->to, $query->by);
         $sheets = [];
+        $shown = [];
         $more = [];
+        $totals = [];
 
         foreach ($report->sheets as $sheet) {
             $rows = [];
-            $more[] = false;
+            $itsTotals = [];
+            $itsMore = false;
             foreach ($sheet->rows as $row) {
-                if (count($rows) === self::ROWS) {
-                    $more[array_key_last($more)] = true;
+                if ($row instanceof ReportTotal) {
+                    $itsTotals[] = $row->values;
+                } elseif (count($rows) < self::ROWS) {
+                    $rows[] = $row;
+                } else {
+                    $itsMore = true;
                     break;
                 }
-                $rows[] = $row;
             }
-            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, $rows);
+            if ($itsMore && $sheet->totals !== null) {
+                $itsTotals = ($sheet->totals)();
+            }
+            $sheets[] = new ReportSheet($sheet->name, $sheet->columns, $sheet->notes, []);
+            $shown[] = $rows;
+            $more[] = $itsMore;
+            $totals[] = $rows === [] ? [] : $itsTotals;
         }
 
-        return new ReportPreview(new Report($report->kind, $report->locale, $report->title, $report->subtitle, $sheets, $report->filename), $more);
+        return new ReportPreview(new Report($report->kind, $report->locale, $report->title, $report->subtitle, $sheets, $report->filename), $shown, $more, $totals);
     }
 }

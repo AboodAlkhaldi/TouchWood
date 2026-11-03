@@ -67,7 +67,7 @@ it('adds a box, shows its room after the padding, switches it off, deletes it, a
 
         // A phone: a card each, and nothing scrolls sideways.
         $page->resize(375, 812);
-        expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+        expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
         $page->assertVisible("[data-test=\"box-card-{$id}\"]");
         $page->resize(1280, 800);
 

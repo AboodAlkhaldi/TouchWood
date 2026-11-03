@@ -80,10 +80,10 @@ it('adds a carrier, switches it off through the question, deletes it, and fits a
 
     // A phone: a card each, its switch on it, and nothing scrolls sideways - nor on its own page.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->assertVisible("[data-test=\"carrier-card-{$id}\"]")->assertVisible("[data-test=\"carrier-card-switch-{$id}\"]");
     $page->navigate("/admin/shipping/carriers/{$id}?store=sa");
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
     $page->navigate('/admin/shipping/carriers?store=sa');
     $page->resize(1280, 800);
 

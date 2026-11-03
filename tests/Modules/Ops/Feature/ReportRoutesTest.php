@@ -7,6 +7,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Application\Search\SearchLog;
 use Modules\Ops\Application\OpsPermissions;
+use Modules\Sales\Public\Contracts\SalesReports;
+use Modules\Sales\Public\Dto\ProductSaleDto;
+use Modules\Sales\Public\Dto\ProductSalesPageDto;
+use Shared\Domain\ValueObject\Money;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\AdminBrowser;
@@ -60,7 +64,8 @@ it('previews a report as JSON and downloads it as an Excel file', function () {
         'downloadUrl' => '/admin/reports/searches/download'.$query,
     ])
         ->and($preview['sheets'][0]['columns'][2])->toBe(['key' => 'phrase', 'label' => 'Search', 'type' => 'text'])
-        ->and($preview['sheets'][0]['more'])->toBeFalse();
+        ->and($preview['sheets'][0]['more'])->toBeFalse()
+        ->and($preview['sheets'][0]['totals'])->toBe([]);
 
     $download = $browser->get($preview['downloadUrl'])->assertOk();
     $file = $download->baseResponse;
@@ -70,6 +75,29 @@ it('previews a report as JSON and downloads it as an Excel file', function () {
         ->and((string) $download->headers->get('Content-Disposition'))->toContain('searches-sa-2026-01-01-2026-12-31.xlsx')
         ->and(substr((string) file_get_contents($path), 0, 2))->toBe('PK');
     @unlink($path);
+});
+
+it('answers a sheet with no rows with no totals', function () {
+    $browser = reportRoutesStaff(Fx::staffWith([OpsPermissions::REPORT_VIEW], ['sa']));
+
+    $sheet = $browser->get('/admin/reports/product-sales?store='.Fx::storeId('sa').'&from=2026-01-01&to=2026-01-02', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json('sheets.0');
+
+    expect($sheet['rows'])->toBe([])
+        ->and($sheet['totals'])->toBe([])
+        ->and($sheet['more'])->toBeFalse();
+});
+
+it('answers a sheet\'s totals apart from its rows, an amount as a decimal string', function () {
+    $sales = Mockery::mock(SalesReports::class);
+    $sales->shouldReceive('productSales')->andReturn(new ProductSalesPageDto([new ProductSaleDto('01jbxqz2y8k4n6p9r3t5v7w1xa', '01jbxqz2y8k4n6p9r3t5v7w1xb', 3, Money::of(45_50, 'SAR'))], null));
+    app()->instance(SalesReports::class, $sales);
+    $browser = reportRoutesStaff(Fx::staffWith([OpsPermissions::REPORT_VIEW], ['sa']));
+
+    $sheet = $browser->get('/admin/reports/product-sales?store='.Fx::storeId('sa').'&from=2026-01-01&to=2026-01-02', ['HTTP_ACCEPT' => 'application/json'])->assertOk()->json('sheets.0');
+
+    expect($sheet['rows'])->toBe([['Saudi Arabia', '', '', '', 'SAR', 3, '45.50']])
+        ->and($sheet['totals'])->toBe([['Total', null, null, null, 'SAR', 3, '45.50']])
+        ->and($sheet['more'])->toBeFalse();
 });
 
 it('opens no report to anyone signed out, to staff without ops.report.view, or for a store they do not hold', function () {

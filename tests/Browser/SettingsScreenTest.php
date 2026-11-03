@@ -85,7 +85,7 @@ it('saves one setting on its own, leaving the rest of the screen alone', functio
 
     // A phone (frontend.md §2.1): the settings fit, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 });
 
 /*
@@ -192,7 +192,7 @@ it('says in the Payments section whether bank transfer is on, and names no value
 
     // A phone (frontend.md §2.1): the section, the IBAN in it, fits, with nothing scrolling sideways.
     $page->resize(375, 812);
-    expect($page->script('document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
+    expect(browserSoon($page, 'document.documentElement.scrollWidth <= window.innerWidth'))->toBeTrue();
 
     $empty();
 });

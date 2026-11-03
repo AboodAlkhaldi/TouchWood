@@ -65,7 +65,7 @@ final readonly class ReportBuilder
         };
         if ($period->cutAtNow(...$stores)) {
             $until = $words->get('notes.until', ['time' => $time]);
-            $sheets = array_map(static fn (ReportSheet $sheet): ReportSheet => new ReportSheet($sheet->name, $sheet->columns, [$until, ...$sheet->notes], $sheet->rows), $sheets);
+            $sheets = array_map(static fn (ReportSheet $sheet): ReportSheet => new ReportSheet($sheet->name, $sheet->columns, [$until, ...$sheet->notes], $sheet->rows, $sheet->totals), $sheets);
         }
 
         return new Report(

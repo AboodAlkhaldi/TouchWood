@@ -114,7 +114,7 @@ These hold for every gateway, and every one has its tests in §8.
      has an answer: at the end of the 5 minutes, at the end of the wait (§1.7), then 10 and 20 minutes
      after the charge (**accepted, owner 2026-10-28**: MyFatoorah stops retrying its notice after at most 5 tries 180
      seconds apart — notes §0 #15 — so 20 minutes covers a notice that never comes).
-   - **A page asking again** (checkout reopened, "Confirming…" refreshing) gets the attempt's last answer
+   - **A page asking again** ("Confirming…" refreshing; checkout reopened never asks, `lastKnown`) gets the attempt's last answer
      when it is younger than 10 seconds, so pages never multiply calls (**accepted, owner 2026-10-28**). **When nobody is paying,
      nothing runs** (the owner, 2026-10-28: no lookups "hoping to find anything").
    - **One backstop**: once an hour, a single query looks for attempts still unanswered after their
@@ -289,6 +289,7 @@ These hold for every gateway, and every one has its tests in §8.
    is reserved and nothing can be charged** — a session charges only when our server charges with it.
    **An unused, unexpired session of the same quote and buyer is reused** when the page is opened again
    (the second review, 2026-10-28: refreshing checkout must not use up the limit of §1.8); a new quote gets a new one.
+   **Opening checkout again with nothing changed is the same quote** (sales.md §1.2), so a refresh reaches this reuse (the screens' review, 2026-11-03).
 1. **The customer chooses how to pay in the form and presses Pay.** For a card it is **our own button**
    (notes §0 #9): the page checks the form (`validateCardInputs`), then asks the form to collect the
    details. For **Apple Pay and STC Pay** it is their own button in the form, and "Pay pressed" is the
@@ -607,6 +608,9 @@ interface PaymentsApi
 
     /** Asks the gateway now about a try's or an order's open attempt (§1.4 step 8, §1.7). */
     public function refresh(string $ownerId): PaymentStateDto;
+
+    /** The same answer as last known, the gateway not asked: for a page load, since asking can take 100 s when it is away (the screens' review, 2026-11-03). */
+    public function lastKnown(string $ownerId): PaymentStateDto;
 
     /** The attempts on an order, oldest first, for staff's Online Payments block (§4.2, §9.14 #2). */
     public function attempts(string $orderId): array; // list<PaymentAttemptDto>

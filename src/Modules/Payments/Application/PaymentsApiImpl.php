@@ -103,6 +103,11 @@ final readonly class PaymentsApiImpl implements PaymentsApi
         return $this->checks->refresh($ownerId);
     }
 
+    public function lastKnown(string $ownerId): PaymentStateDto
+    {
+        return $this->checks->lastKnown($ownerId);
+    }
+
     public function bankAccount(StoreId $store): ?BankAccountDto
     {
         return $this->bankAccount->for($store);
