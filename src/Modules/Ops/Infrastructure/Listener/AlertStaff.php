@@ -7,9 +7,11 @@ namespace Modules\Ops\Infrastructure\Listener;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Modules\Access\Public\Enums\StaffNotificationTopic;
 use Modules\B2B\Public\Events\CompanyApplicationSubmitted;
+use Modules\Content\Public\Events\CampaignExpiring;
 use Modules\Inventory\Public\Events\LowStockChanged;
 use Modules\Ops\Application\Alerts\EventMessage;
 use Modules\Ops\Application\Alerts\StaffAlerts;
+use Modules\Ops\Application\OpsPermissions;
 use Modules\Ops\Infrastructure\Eloquent\HandledEvents;
 use Modules\Ops\Public\Enums\MessageKind;
 use Modules\Payments\Public\Events\GatewayKeyExpiring;
@@ -33,7 +35,9 @@ use Modules\Sync\Public\Events\SyncNeedsAttention;
  * - S5 the gateway key expires in 30, 7 or 1 days - Payment problems, `payments.gateway.manage`, a reserved
  *   permission: super admins alone. At 1 day also the critical SMS (StaffAlerts);
  * - S5b the gateway refused a store's current key - the same topic and permission, always with the critical SMS;
- * - S7 money was taken but cannot enter an order, so a refund is owed - Payments to check, `sales.payment.record`.
+ * - S7 money was taken but cannot enter an order, so a refund is owed - Payments to check, `sales.payment.record`;
+ * - S8 a campaign is about to end - Campaign expiry. Content has no permission yet, so it goes to the Super Admins
+ *   and the store's admins, by the admin-only `ops.message.send_many`; Content's build names its own here.
  *
  * `HoldsShort` sends nothing (§1.6). From the queue, retried on failure; once per event
  * (`ops.handled_events`).
@@ -51,7 +55,7 @@ final class AlertStaff implements ShouldQueue
         private readonly HandledEvents $handled,
     ) {}
 
-    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested|GatewayKeyExpiring|GatewayKeyRejected|PaymentNotAccepted $event): void
+    public function handle(OrderPlaced|CompanyApplicationSubmitted|LowStockChanged|SyncNeedsAttention|ReturnRequested|GatewayKeyExpiring|GatewayKeyRejected|PaymentNotAccepted|CampaignExpiring $event): void
     {
         $store = strtolower($event->storeId);
 
@@ -64,6 +68,7 @@ final class AlertStaff implements ShouldQueue
             $event instanceof GatewayKeyExpiring => [new EventMessage(MessageKind::GatewayKeyExpiring, $store, ['days' => $event->daysLeft, 'date' => $event->expiresOn, 'mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof GatewayKeyRejected => [new EventMessage(MessageKind::GatewayKeyRejected, $store, ['mode' => $event->mode]), StaffNotificationTopic::PaymentProblems, 'payments.gateway.manage'],
             $event instanceof PaymentNotAccepted => [new EventMessage(MessageKind::PaymentNotAccepted, $store, []), StaffNotificationTopic::PaymentsToCheck, 'sales.payment.record'],
+            $event instanceof CampaignExpiring => [new EventMessage(MessageKind::CampaignExpiring, $store, ['campaignId' => strtolower($event->campaignId), 'endsAt' => $event->endsAt->format(DATE_ATOM)]), StaffNotificationTopic::CampaignExpiry, OpsPermissions::MESSAGE_SEND_MANY],
         };
 
         if ($message->kind === MessageKind::LowStock && $message->int('low') + $message->int('out') === 0) {

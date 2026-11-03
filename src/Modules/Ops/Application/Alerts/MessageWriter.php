@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Application\Alerts;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Translation\Translator;
 use LogicException;
 use Modules\Catalog\Public\Contracts\CatalogApi;
+use Modules\Content\Public\Contracts\ContentApi;
 use Modules\Feedback\Public\Contracts\FeedbackApi;
 use Modules\Feedback\Public\Enums\QuestionStatus;
 use Modules\Feedback\Public\Enums\ReviewStatus;
@@ -31,7 +33,8 @@ use Shared\Domain\ValueObject\Money;
  * - C16: the question is still answered (feedback.md §2.5: events are kept in order per order only);
  * - C17, C17b: still not published, **with a reason** - no reason, no message (feedback.md:75);
  * - C9b, C10: the record is the kind's and was not voided since (owner, 2026-10-29);
- * - C15: the coupon was not deleted since.
+ * - C15: the coupon was not deleted since;
+ * - S8: Content still knows the campaign.
  *
  * **A read that names another store, or another customer, than the event did sends nothing** - it is
  * logged with its ids only, never a name or an address: a message never reaches the wrong person.
@@ -59,6 +62,7 @@ final readonly class MessageWriter
         private FeedbackApi $feedback,
         private CatalogApi $catalog,
         private PromotionsApi $promotions,
+        private ContentApi $content,
         private LoggerInterface $log,
     ) {}
 
@@ -91,6 +95,7 @@ final readonly class MessageWriter
             MessageKind::GatewayKeyExpiring => $this->text($message->kind, $locale, [...$values, 'days' => $this->days($message->int('days'), $locale), 'date' => $message->string('date'), 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::GatewayKeyRejected => $this->text($message->kind, $locale, [...$values, 'mode' => $this->keyMode($message, $locale)], self::gatewayPage($store), sms: true),
             MessageKind::PaymentNotAccepted => $this->text($message->kind, $locale, $values, null),
+            MessageKind::CampaignExpiring => $this->campaignExpiring($to, $locale, $values),
             default => throw new LogicException("Ops writes no event message of the kind {$message->kind->value}."),
         };
     }
@@ -316,6 +321,24 @@ final readonly class MessageWriter
         }
 
         return $this->text($to->message->kind, $locale, [...$values, 'order' => $return->orderNumber], '/admin/returns/'.$return->returnId);
+    }
+
+    /**
+     * S8: the campaign by its name, its last day in the store's own zone. No link: Content has no page yet.
+     *
+     * @param  array<string, string>  $values
+     */
+    private function campaignExpiring(MessageTarget $to, string $locale, array $values): ?MessageText
+    {
+        $campaign = $this->content->campaignForMessage($to->message->string('campaignId'));
+
+        if ($campaign === null || ! $this->belongs($to, $campaign->storeId, '')) {
+            return null;
+        }
+
+        $date = CarbonImmutable::parse($to->message->string('endsAt'))->setTimezone($to->store->timezone)->format('Y-m-d');
+
+        return $this->text($to->message->kind, $locale, [...$values, 'campaign' => $campaign->name->in($locale), 'date' => $date], null);
     }
 
     /**

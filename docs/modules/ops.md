@@ -185,7 +185,7 @@ another module:** C11 (`PaymentRequested`, stage 7).
 | S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked 72 h after the upload | **new** `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, from **Sales'** scheduled job (*Stage 7's proposal*; sales.md:1583-1585) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted` + **`storeId`** (stage 7); links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
-| S8 | Campaign expiry | With Content | Content's event | Content's | — |
+| S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
 | S10 | **None: it cannot be switched off** (owner, 2026-11-01) | A security email (C18) could not be sent: **at most once a clock hour** | None: `SecurityFailureAlert`, called from `OpsSecurityMessages` | `ops.sms_countries.manage`, reserved, used only because it reaches active super admins and no one else | — **The bell alone** |
 | S10b | **None: it cannot be switched off** (owner, 2026-11-01) | A security SMS (C18) could not be sent: **at most once a clock hour, its own hour** | The same | The same | — **The bell alone**: a failed SMS never sends an SMS or an email about itself |
 
@@ -206,7 +206,9 @@ another module:** C11 (`PaymentRequested`, stage 7).
   words say which key, the test or the live one (`mode`), and never that payments stop**: a key of the mode not in use
   stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
   email carry no link until Payments' staff list of attempts exists. **Not built, waiting on another module:**
-  `TransferOverdue` (S6) is not in main. S8 waits for Content.
+  `TransferOverdue` (S6) is not in main. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
+  `CampaignExpiring`.** Its words name the campaign, read through `ContentApi::campaignForMessage`, and its last day in the
+  store's zone; no link until Content has a page. Until Content is built the read answers null, and an alert sends nothing.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
   applies** (§1.4's third rule does not hold here), and the Payment problems switch means only payment problems. **A failed security
   SMS alerts too**, with its own words and its own hour, so an SMS and an email failing in one hour each tell them.
@@ -252,7 +254,11 @@ A **notice** is staff telling customers about an offer: "Ramadan offers have sta
   cancelled until it starts sending; once sending starts it cannot be recalled.
 - **With Content:** a campaign may carry "send this notice when the campaign goes live"; Content
   publishes the campaign's going live and Ops sends the notice (owner, round 3 #11). Content never calls
-  Ops.
+  Ops. **Built on Ops' side (2026-11-03) and waits on Content to fire `CampaignWentLive(eventId, campaignId, storeId,
+  noticeId, occurredAt)`:** once per event, a notice of that store still SCHEDULED starts sending, by the same batches, its
+  `send_at` moved to now, with no audit row (the scheduler writes none); no `noticeId`, a notice gone, cancelled, already
+  started or another store's sends nothing. **No state makes a notice wait for its campaign** (§9.5 #1): it keeps its own time, and
+  whichever comes first starts it.
 - Sending to thousands goes in batches on the queue; the notice shows how many were sent. A batch that
   fails its last attempt shows the notice **FAILED**; the job waits on the failed jobs screen, and
   retrying it there carries on from where it stopped (step 7: a batch is safe to run again).
@@ -471,7 +477,7 @@ go (§9.2).
 | **B2B** (Stage 5) | **Built (#261, b2b.md amendment 34):** `CompanyApplicationSubmitted` carries `storeId` (owner, option (a)) | **Built:** `applicationCounts(storeId, from, to)` → {submitted, approved} over [from, to); Ops never counts from events |
 | **Payments** (Stage 7 session) | **Built, in main, and listened to (2026-11-01):** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, `GatewayKeyRejected(eventId, storeId, mode, occurredAt)`. **Not in main:** **`storeId`** on `PaymentSucceeded` and `PaymentNotAccepted`; `PaymentRequested` — Stage 7's proposals, put to the owner as payments.md amendments. **payments.md:387 to read "by bell and email"** (Stage 7 agreed) | — (the money figures are Sales') |
 | **Access** (builder session gone; **this session writes it, with an independent review** — owner, 2026-10-28) | — | access.md amendments **79–84** (numbers taken at merge): marketing consent and `withdrawMarketingConsent` (79); `staffToAlert(store, topic, permission)` (80); the critical-SMS switch (81); the **Returns** topic (82); `customersRegistered(store, from, to)` (83); the **Payments to check** topic (84). **Built in Ops step 4 (2026-10-29):** 80, 81, 82, 84, and 88 — `staffStores(staffId)`, the stores a staff member's bell shows. **Added 2026-11-02:** `customerCountInStore(store)`, amendment 94 |
-| **Content** (stage 8, later) | A campaign going live; a campaign about to expire | — |
+| **Content** (stage 8, later) | **Declared ahead of its build, listened to, fired by nothing yet (2026-11-03):** `CampaignWentLive(eventId, campaignId, storeId, noticeId, occurredAt)`, `noticeId` null for none; `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` — ids only, through the outbox | **Declared, answered null until Content's build replaces `NoCampaignsYet`:** `ContentApi::campaignForMessage(id)` → `?CampaignMessageDto` {campaignId, storeId, name} (S8) |
 
 ## 3 · Use cases and permissions
 
@@ -943,7 +949,7 @@ props. Every other address of that store stays a 404.
 - **Two kinds of download address:** a report's `downloadUrl` is a path, a daily report's a full address.
 - **The language differs by route:** a bell's and the unsubscribe pages' words follow the page; a report's words and
   a daily report's PDF follow the reader's account.
-- **`kind` is an open list:** C11, S6–S8 will start appearing without any change here.
+- **`kind` is an open list:** C11, S6 and, once Content fires its event, S8 will start appearing without any change here.
 - **`count` on `ops.admin.audience` is the bell's reach, never the email's** (§4.1): a send by email alone reaches fewer, and its confirmation says so in its own words (O4).
 - **A segment's name can be gone:** `segmentId` set with `segmentNameAr` null means it was deleted since the notice or message was written. Its `segmentMemberCount` is today's, and never the audience it reached.
 - **Ids come in small letters;** send them back as given.
@@ -961,6 +967,8 @@ reads the screens needed were added; what stays is what the code cannot give yet
    `marketing_consent`: the account's switch and the registration box have routes and no screen. **§4.15, O12.**
 3. **The lists have no search, filter or total.** Subscribers by email or kind, notices by status, daily reports by
    store, staff messages by audience: none exists, and the bell's number is the only count. **Not now** (owner, 2026-11-01).
+4. **No screen ties a notice to a campaign.** Sending it when the campaign goes live is built (§1.7), and waits on Content: to
+   fire `CampaignWentLive`, and to hold the notice's id (§9.5). S8 has no link until Content has a campaign page (§1.6).
 
 ### 4.14 The SMS countries (§3; access.md amendment 90)
 
@@ -1311,6 +1319,8 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | C14: one message a day per customer, a week ahead, in every store's own day, whatever runs it again | `Integration/EventMessagesTest`, "the reminder before points expire" |
 | C18: codes by SMS through the phone's country's provider, links by email, no code or link in any record, a failure reported to the caller | `Integration/SecurityMessagesTest` |
 | S5 on `GatewayKeyExpiring`, S5b on `GatewayKeyRejected`: to super admins alone, once per event, the email by their switch; S5b says which key, in both languages | `Integration/EventMessagesTest`, "the critical SMS" |
+| S8 on `CampaignExpiring`: Super Admins and the store's admins alone, once per event, by their switches, the campaign's name and the store's own day in both languages, no link; **nothing when the read answers null**, names another store, or is gone when the email leaves | `Integration/CampaignEventsTest` |
+| The going-live notice on `CampaignWentLive`: a waiting notice starts by the same batches, once; replay, a second event and its own time send nothing more; **no notice, one gone, cancelled, sending, sent, failed or another store's sends nothing**; both events through the outbox, ids only | `Integration/CampaignEventsTest` |
 | S1, S2, S3, S4, S9 to the holders of the permission in the store; **staff switches respected**: the bell on by default, email only when switched on; off stores alerted | `Integration/EventMessagesTest`, "alerts to staff"; `tests/Modules/Access/Integration/StaffAlertsTest` |
 | S10, S10b: one bell entry per active Super Admin for a burst, each channel with its own hour, the next in the next hour; a waiter gives up, or takes the claim when the holder rolls back; no email, no SMS; Admins and inactive Super Admins not reached; every switch off and still reached; the failed message's store, else the first, off or on; nothing of the message in the words; a failure writing it reported and not thrown; after the caller's commit, nothing on its rollback | `Integration/SecurityFailureAlertTest`, `Integration/SecurityFailureAlertRaceTest` |
 | A form's segments: the store's own, empty ones listed with 0, paged, under each form's permission; the name and member count on a notice and a staff message, null once deleted; the queries each costs | `Feature/SegmentReadsTest` |
@@ -1335,8 +1345,10 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 
 **Not tested:**
 
-- C11, S6, S8 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
+- C11, S6 on their events: no listener exists (§1.5, §1.6), so "every row sends once" holds only
   for the rows built.
+- S8 and the going-live notice against the real Content: nothing fires their events yet, so the tests fire them and
+  answer `ContentApi` with a stand-in.
 - Over HTTP: `ops.admin.subscribers` (its handler is tested in `NewsletterTest`); the staff's
   `ops.admin.bell.unread` and `ops.admin.bell.read-all`; the box's limit by address; a signed-in customer at the box.
 - No browser test: there are no screens yet (§4.13).
@@ -1443,3 +1455,15 @@ Asked by the screens session for §4.15. **Round 1 answered by the owner, 2026-1
 | R2 | Should a customer's page in the panel have a Send Message button, opening O4 with that customer chosen? | **Answered by the owner, 2026-11-02: (a) not now.** O4's search finds them, and this job stays inside §4 |
 
 **The screens session's own choices in §4.15, accepted by the owner, 2026-11-02:** a new notice opens on Now, the confirmation guarding it; a bell row is cut at three lines, and pressing one with no link opens its whole text; changing a report's choices hides Download Excel until it is shown again; the reports page opens on the first store that is on, a Super Admin's too; the leave and unsubscribe pages offer no way on to the shop.
+
+### 9.5 The campaign links: for the owner (2026-11-03)
+
+Ops' side is built, on assumptions these decide. Nothing here blocks Ops; each is answered before Content's spec is accepted.
+
+1. **A notice cannot wait for its campaign.** A notice is sent now or at a time (§1.7), so one tied to a campaign keeps a time, and the
+   scheduler sends it then even if the campaign has not gone live. A new state would make it wait for the campaign alone; none was added.
+2. **Which permission receives S8.** No module declares a campaign or Content permission, so `ops.message.send_many` stands in (§1.6).
+3. **S8's words.** The approved words named no campaign, and no link can open it yet, so `:campaign` was added to the line, the subject and
+   the email (2026-11-03), for approval with the full review of the words.
+4. **Where the tie is kept.** `noticeId` comes from Content, and nothing may depend on Ops (handoff §4.4), so Content cannot list the
+   notices to choose from. Content's spec has to settle how staff pick one.
