@@ -37,6 +37,7 @@ use Shared\Domain\ValueObject\StoreId;
 use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Catalog\Support\CatalogFixtures as Cx;
 use Tests\Modules\Promotions\Support\PromotionsFixtures as Pr;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -167,7 +168,7 @@ describe('the rules', function () {
         expect(segmentMembers(segmentCreate(rule: 'NO_ORDER_FOR', months: 6)))->toBe([])
             ->and(segmentMembers(segmentCreate(rule: 'AT_LEAST_ORDERS', months: 6, orders: 1)))->toBe([$edge]);
 
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
     });
 
     it('reads every page: with pages of two, five customers each rule', function () {
@@ -339,7 +340,7 @@ describe('creating, changing, deleting, refreshing', function () {
             ->and(segmentMembers($segment))->toBe($nightly)
             ->and(DB::table('promotions.segment_members')->where('segment_id', $segment)->where('customer_id', $first)->value('added_at'))->toBe($addedAt)
             ->and(DB::table('promotions.segments')->where('id', $segment)->value('refreshed_at'))->not->toBeNull();
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
     });
 
     it('goes on past a segment that fails at night, refreshing the rest', function () {

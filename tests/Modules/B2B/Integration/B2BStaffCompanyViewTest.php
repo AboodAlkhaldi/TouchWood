@@ -41,6 +41,7 @@ use Tests\Modules\Access\Support\AccessFixtures as Fx;
 use Tests\Modules\Access\Support\FakeBreachList;
 use Tests\Modules\Access\Support\RecordingSecurityMessages;
 use Tests\Modules\B2B\Support\B2BFixtures;
+use Tests\TestCase;
 
 use function Pest\Laravel\seed;
 
@@ -171,7 +172,7 @@ describe('the company list (§3.2, amendment 10(g), (j))', function () {
         $decidedLast = B2BFixtures::approved(B2BFixtures::verifiedCompanyAccount())[0]->id();
         CarbonImmutable::setTestNow('2026-09-23 10:00:00');
         $waitingNewer = B2BFixtures::sent(B2BFixtures::verifiedCompanyAccount())[0]->id();
-        CarbonImmutable::setTestNow();
+        CarbonImmutable::setTestNow(TestCase::FROZEN_AT);
         staffCompanyViewReader([B2BPermissions::COMPANY_VIEW]);
 
         $all = staffCompanyViewList();
