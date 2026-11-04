@@ -205,7 +205,8 @@ before, or it opens raw JSON. Before touching `AdminMenu`, `AdminLayout` or `Sto
 - Each page's words are a file of its own, `ops::admin_*`, in both languages, named in the controller's `WORDS`. Write keys out
   whole: `TranslationKeysTest` can't read `${W}.x`.
 - A Show More list uses `useLoadMore`, with Back keeping every row and the place (frontend.md). A list with a row action also uses
-  `useKeptDepth`, and that action's POST needs `preserveState: true`, or the rows below the first page are lost.
+  `useKeptDepth`, which asks for the rows below the first page again after a save. `router.post` keeps the page by default, so
+  it needs no `preserveState` of its own.
 - Nothing reads the server by itself on a clock (Q7, Q15): any request resets a staff session's idle clock.
 - O8: `DateRangeField` says its days are UTC; O8 needs store days. Add a prop, don't fork it. O8's menu section means changing
   `InMemoryAdminMenu`, Access's `permission_groups` words and `AdminMenuTest` together.

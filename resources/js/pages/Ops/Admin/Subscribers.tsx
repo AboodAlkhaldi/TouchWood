@@ -135,8 +135,6 @@ export default function Subscribers({ subscribers, next, stores, storeCode }: Su
                                     {},
                                     {
                                         preserveScroll: true,
-                                        // Without it the page starts over, and the rows shown with Show More can't be asked for again.
-                                        preserveState: true,
                                         onStart: () => setBusy(true),
                                         // The row's ⋯ button goes with the row: the focus goes back to the table.
                                         onSuccess: () => {
