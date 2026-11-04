@@ -123,6 +123,11 @@ beforeEach(function () {
             return $this->real->refresh($ownerId);
         }
 
+        public function lastKnown(string $ownerId): PaymentStateDto
+        {
+            return $this->real->lastKnown($ownerId);
+        }
+
         public function bankAccount(StoreId $store): ?BankAccountDto
         {
             return $this->real->bankAccount($store);

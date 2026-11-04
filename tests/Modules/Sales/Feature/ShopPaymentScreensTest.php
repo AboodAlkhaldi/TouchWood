@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonImmutable;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,6 +18,9 @@ use Modules\Payments\Application\Command\ChangeKeys\ChangeKeysHandler;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGateway;
 use Modules\Payments\Application\Command\SwitchGateway\SwitchGatewayHandler;
 use Modules\Payments\Application\Gateway\KeyTester;
+use Modules\Payments\Public\Contracts\PaymentsApi;
+use Modules\Payments\Public\Events\PaymentSucceeded;
+use Modules\Sales\Infrastructure\Listener\CompleteTryWhenPaid;
 use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrier;
 use Modules\Shipping\Application\Command\SwitchCarrier\SwitchCarrierHandler;
 use Shared\Application\ActorContext;
@@ -269,6 +273,36 @@ describe('paying', function () {
             ->and(shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout')['payment'])->toBeNull();
     });
 
+    it('keeps the quote on a refresh, with its session, so a refresh spends nothing', function () {
+        [$fake, $browser] = shopPaymentReady();
+        $first = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout')['quoteId'];
+        $session = shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $first])->assertOk()->json('sessionId');
+
+        $second = shopPaymentProps($browser, '/sa/en/checkout', 'Sales/Storefront/Checkout')['quoteId'];
+        $again = shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $second])->assertOk()->json('sessionId');
+
+        expect($second)->toBe($first)
+            ->and($again)->toBe($session)
+            ->and($fake->count('POST', '/v3/sessions'))->toBe(1);
+    });
+
+    it('refuses another tab\'s used session after a decline, in words, and opens a new one for the page', function () {
+        [$fake, $browser] = shopPaymentReady();
+        $paying = shopPaymentPay($browser);
+        $quote = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('quote_id');
+        $used = (string) DB::table('sales.checkout_tries')->where('id', $paying['tryId'])->value('session_id');
+        $fake->declined('MF004');
+        shopPaymentPost($browser, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertOk()->assertJsonPath('state', 'RELEASED');
+
+        $refused = shopPaymentPost($browser, '/sa/en/checkout/payment/pay', ['quote' => $quote, 'session' => $used]);
+        $fresh = shopPaymentPost($browser, '/sa/en/checkout/payment/session', ['quote' => $quote])->assertOk()->json('sessionId');
+
+        // The page reads this as "tell them, then open the page again": anything but a 429, a 5xx or no answer.
+        expect($refused->status())->toBeGreaterThanOrEqual(400)->toBeLessThan(429)
+            ->and((string) $refused->json('detail'))->not->toBe('')
+            ->and($fresh)->not->toBe($used);
+    });
+
     it('answers too many tries with a 429 and changes nothing', function () {
         [, $browser] = shopPaymentReady();
         $paying = shopPaymentPay($browser);
@@ -324,13 +358,31 @@ describe('coming back', function () {
             ->and($cart['payment']['tryId'])->toBe($paying['tryId']);
     });
 
-    it('goes straight to the new order once paid', function (string $page) {
+    it('goes straight to the order the event made while they were away, once', function (string $page) {
         [$fake, $browser] = shopPaymentReady();
         $paying = shopPaymentPay($browser);
         $fake->paid($paying['total']);
+        app(PaymentsApi::class)->refresh($paying['tryId']);
+        $row = DB::table('public.outbox_messages')->where('type', PaymentSucceeded::class)->orderByDesc('id')->first();
+        /** @var array{eventId: string, paymentId: string, orderId: string, storeId: string, occurredAt: string} $sent */
+        $sent = json_decode((string) $row?->payload, true, 512, JSON_THROW_ON_ERROR);
+        app(CompleteTryWhenPaid::class)->handle(new PaymentSucceeded($sent['eventId'], $sent['paymentId'], $sent['orderId'], $sent['storeId'], CarbonImmutable::parse($sent['occurredAt'])));
 
         $browser->get($page)->assertRedirect('/sa/en/orders/SA-0001/placed');
+        // Only once: the cart is empty by now, and an empty checkout goes to the cart, as it always did.
+        expect((string) $browser->get($page)->headers->get('Location'))->not->toContain('/placed');
     })->with(['checkout' => '/sa/en/checkout', 'the cart' => '/sa/en/cart']);
+
+    it('asks the gateway nothing to open a page, and the page\'s own ask finds it paid', function (string $page, string $component) {
+        [$fake, $browser] = shopPaymentReady();
+        $paying = shopPaymentPay($browser);
+        $fake->paid($paying['total']);
+        $asked = count($fake->calls);
+
+        expect(shopPaymentProps($browser, $page, $component)['payment']['state'])->toBe('LIVE')
+            ->and(count($fake->calls))->toBe($asked)
+            ->and(shopPaymentPost($browser, "/sa/en/checkout/payment/{$paying['tryId']}/follow")->assertOk()->json('orderNumber'))->toBe('SA-0001');
+    })->with(['checkout' => ['/sa/en/checkout', 'Sales/Storefront/Checkout'], 'the cart' => ['/sa/en/cart', 'Sales/Storefront/Cart']]);
 
     it('leaves a guest\'s cart alone', function () {
         [$fake] = shopPaymentReady();
