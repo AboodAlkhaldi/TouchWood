@@ -95,7 +95,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         // A payment or a refund: the two tables' ids are ULIDs, so one id is in one of them at most.
         $row = $this->db->selectOne(<<<'SQL'
-            SELECT m.*, o.number, o.customer_id FROM (
+            SELECT m.*, o.number, o.customer_id, o.is_test FROM (
                 SELECT 'PAYMENT' AS kind, id, order_id, store_id, currency_code, amount_minor, way, happened_on::text AS happened_on, voided_at FROM sales.payments WHERE id = ?
                 UNION ALL
                 SELECT 'REFUND', id, order_id, store_id, currency_code, amount_minor, way, happened_on::text, voided_at FROM sales.refunds WHERE id = ?
@@ -105,7 +105,7 @@ final readonly class DatabaseSalesReports implements SalesReports
 
         return $row instanceof stdClass ? new MoneyRecordMessageDto(
             (string) $row->id, (string) $row->kind, (string) $row->order_id, (string) $row->number, (string) $row->store_id, (string) $row->customer_id,
-            Money::of((int) $row->amount_minor, (string) $row->currency_code), (string) $row->way, (string) $row->happened_on, $row->voided_at !== null,
+            Money::of((int) $row->amount_minor, (string) $row->currency_code), (string) $row->way, (string) $row->happened_on, $row->voided_at !== null, (bool) $row->is_test,
         ) : null;
     }
 

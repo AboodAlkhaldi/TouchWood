@@ -94,8 +94,10 @@ The module was built in the ten steps of its execution plan. Steps 1 and 4 land 
 - **To customers:** bell and email, in their language, on the queue, consent not asked; an anonymized account
   gets nothing, a switched-off store still sends. C18 is the exception: no bell, codes by SMS and links by email,
   sent at once. One that fails tells the Super Admins, below.
-- **A test order:** C1, C6b, C9b, C10 and C11 carry "Test mode — no real money is taken." (`ops::messages.test_mark`) in the
-  bell's line and under the email's greeting; the rest have its number alone.
+- **A test order:** C1, C6b, C9b, C10 and C11 carry "This is a test order." (`ops::messages.test_mark`) in the bell's line and
+  under the email's greeting; the rest have its number alone.
+- **A link the person cannot open:** S6 opens the order, under another permission than the one that reaches them. Whoever
+  lacks it gets the same words with no link (`AlertLinks`).
 - **To staff:** one read, `AccessApi::staffToAlert`, gives every active holder of the topic's permission in the
   store with their switches; the bell by the in-panel switch, the email by the email switch.
 - **Critical SMS:** only for the gateway key at 1 day or refused, to super admins with the switch on and a phone,

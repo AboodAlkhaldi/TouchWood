@@ -50,6 +50,7 @@ final readonly class EventSender
         private SentMessages $sent,
         private Views $views,
         private Config $config,
+        private AlertLinks $links,
     ) {}
 
     /** @throws ProviderFailed for the queue to try again */
@@ -92,6 +93,10 @@ final readonly class EventSender
             $this->sent->forget($sentId);
 
             return;
+        }
+
+        if (! AlertLinks::opens($this->links->openers($message, $store->storeId()), $staff->id)) {
+            $text = $text->withoutLink();
         }
 
         $providerId = $this->emails->send($this->email($text, $store, $staff->locale, $staff->email, trim($staff->firstName.' '.$staff->lastName)));

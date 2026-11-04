@@ -50,6 +50,10 @@ use Modules\Sales\Application\Command\PayOnline\PayOnline;
 use Modules\Sales\Application\Command\PayOnline\PayOnlineHandler;
 use Modules\Sales\Application\Command\PayOrderRequest\PayOrderRequest;
 use Modules\Sales\Application\Command\PayOrderRequest\PayOrderRequestHandler;
+use Modules\Sales\Application\Command\RecordPayment\RecordPayment;
+use Modules\Sales\Application\Command\RecordPayment\RecordPaymentHandler;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefund;
+use Modules\Sales\Application\Command\RecordRefund\RecordRefundHandler;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrder;
 use Modules\Sales\Application\Command\RejectOrder\RejectOrderHandler;
 use Modules\Sales\Application\Command\RequestOrderPayment\RequestOrderPayment;
@@ -60,6 +64,7 @@ use Modules\Sales\Application\Command\WithdrawOrderRequest\WithdrawOrderRequest;
 use Modules\Sales\Application\Command\WithdrawOrderRequest\WithdrawOrderRequestHandler;
 use Modules\Sales\Application\Order\TransferOverdueCheck;
 use Modules\Sales\Application\SalesSettings;
+use Modules\Sales\Public\Events\OrderEdited;
 use Modules\Sales\Public\Events\PaymentRecorded;
 use Modules\Sales\Public\Events\TransferOverdue;
 use Shared\Domain\ValueObject\StoreId;
@@ -159,6 +164,16 @@ function paymentEventsRequested(): PaymentRequested
     $payload = json_decode((string) $row->payload, true, 512, JSON_THROW_ON_ERROR);
 
     return new PaymentRequested($payload['eventId'], $payload['requestId'], $payload['orderId'], $payload['storeId'], $payload['customerId'], CarbonImmutable::parse($payload['expiresAt']), CarbonImmutable::parse($payload['occurredAt']));
+}
+
+/** The customer pays the request through the fake gateway, and the page sees it: an `ONLINE` payment on the order. */
+function paymentEventsPayRequest(FakeMyFatoorah $fake, string $number, string $requestId, int $minor): void
+{
+    $store = Fx::storeId('sa');
+    $session = app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment($store, $number, 'en'))->sessionId;
+    app(PayOrderRequestHandler::class)->handle(new PayOrderRequest($store, $number, $session, 'en', 'https://shop.example.test/return'));
+    $fake->paid(number_format($minor / 100, 2, '.', ''));
+    app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment($store, $number, $requestId));
 }
 
 function paymentEventsEmailOf(string $customer): string
@@ -301,10 +316,10 @@ describe('C11: pay the remaining amount', function () {
     });
 
     it('sends nothing when the moment has passed or the read names someone else', function (Closure $change) {
-        ['order' => $order, 'customer' => $customer] = paymentEventsReady();
+        ['fake' => $fake, 'order' => $order, 'number' => $number] = paymentEventsReady();
         paymentEventsAsk($order);
 
-        event($change(paymentEventsRequested(), $order, $customer));
+        event($change(paymentEventsRequested(), $order, $fake, $number));
 
         expect(paymentEventsBell('pay_remaining'))->toBe([])
             ->and(paymentEventsSent('pay_remaining'))->toBe([])
@@ -333,6 +348,17 @@ describe('C11: pay the remaining amount', function () {
         }],
         'the order rejected' => [function (PaymentRequested $event, string $order): PaymentRequested {
             Cx::asSuperAdmin(static fn () => app(RejectOrderHandler::class)->handle(new RejectOrder($order, 'Out of the delivery area')));
+
+            return $event;
+        }],
+        'the order came back' => [function (PaymentRequested $event, string $order): PaymentRequested {
+            DB::table('sales.orders')->where('id', $order)->update(['status' => 'UNDELIVERED', 'shipment_status' => 'CAME_BACK', 'came_back_at' => CarbonImmutable::now(), 'came_back_id' => Fx::staff(), 'due_minor' => 0]);
+
+            return $event;
+        }],
+        'paid' => [function (PaymentRequested $event, string $order, FakeMyFatoorah $fake, string $number): PaymentRequested {
+            paymentEventsPayRequest($fake, $number, $event->requestId, (int) DB::table('payments.requests')->where('id', $event->requestId)->value('amount_minor'));
+            expect(DB::table('payments.requests')->where('id', $event->requestId)->value('state'))->toBe('PAID');
 
             return $event;
         }],
@@ -379,12 +405,9 @@ describe('C10: a payment received', function () {
         Wx::set($customer, ['locale' => $locale]);
         $request = paymentEventsAsk($order);
         paymentEventsDrain();
-        $session = app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment(Fx::storeId('sa'), $number, 'en'))->sessionId;
-        app(PayOrderRequestHandler::class)->handle(new PayOrderRequest(Fx::storeId('sa'), $number, $session, 'en', 'https://shop.example.test/return'));
-        $fake->paid(number_format($total / 100, 2, '.', ''));
+        paymentEventsPayRequest($fake, $number, $request->requestId, $total);
         $follow = static fn () => app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment(Fx::storeId('sa'), $number, $request->requestId));
 
-        $follow();
         // The gateway's own event comes through the relay too, and the page is looked at again.
         app(OutboxRelay::class)->run();
         $follow();
@@ -429,20 +452,20 @@ describe('C10: a payment received', function () {
 });
 
 describe('a test order says so (payments.md §1.6)', function () {
-    it('marks C1, C11 and C10 in the bell and the email, in the customer\'s language', function (string $locale, string $mark) {
+    it('marks C1, C11 and C10 in the bell and the email, in the customer\'s language', function (string $locale, string $mark, string $orderTaken) {
         $fake = paymentEventsGateway('TEST');
         ['customer' => $customer, 'address' => $address] = Cx::ready();
         Wx::set($customer, ['locale' => $locale]);
         $placed = Cx::place(Cx::start($address)->id);
         $line = static fn (string $kind): string => (string) ($locale === 'ar' ? paymentEventsBell($kind)[0]->line_ar : paymentEventsBell($kind)[0]->line_en);
-        $store = Fx::storeId('sa');
 
         app(OutboxRelay::class)->run();
 
         expect($placed->number)->toStartWith('TEST-')
             ->and(DB::table('sales.orders')->where('id', $placed->id)->value('is_test'))->toBeTrue()
-            ->and($line('order_taken'))->toEndWith(' '.$mark)
-            ->and(CapturedEmails::installed()->last()->text)->toContain($mark);
+            ->and($line('order_taken'))->toBe($orderTaken.' '.$mark)
+            // Under the greeting, before anything else the email says.
+            ->and(explode("\n\n", CapturedEmails::installed()->last()->text)[1])->toBe($mark);
 
         $request = paymentEventsAsk($placed->id);
         app(OutboxRelay::class)->run();
@@ -451,10 +474,7 @@ describe('a test order says so (payments.md §1.6)', function () {
             ->and(CapturedEmails::installed()->last()->subject)->toContain($placed->number)
             ->and(CapturedEmails::installed()->last()->text)->toContain($mark)->toContain("/orders/{$placed->number}/pay");
 
-        $session = app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment($store, $placed->number, 'en'))->sessionId;
-        app(PayOrderRequestHandler::class)->handle(new PayOrderRequest($store, $placed->number, $session, 'en', 'https://shop.example.test/return'));
-        $fake->paid($request->amount->toDecimal(2));
-        app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment($store, $placed->number, $request->requestId));
+        paymentEventsPayRequest($fake, $placed->number, $request->requestId, $request->amount->minorUnits);
         // Twice: the relay holds PaymentRecorded back until the order's earlier PaymentSucceeded has gone.
         app(OutboxRelay::class)->run();
         app(OutboxRelay::class)->run();
@@ -462,23 +482,45 @@ describe('a test order says so (payments.md §1.6)', function () {
         expect($line('payment_received'))->toEndWith(' '.$mark)
             ->and(CapturedEmails::installed()->last()->text)->toContain($mark);
     })->with([
-        'English' => ['en', 'Test mode — no real money is taken.'],
-        'Arabic' => ['ar', 'وضع الاختبار — لا تُؤخذ أموال حقيقية.'],
+        'English' => ['en', 'This is a test order.', 'We received your order and will review it soon.'],
+        'Arabic' => ['ar', 'هذا طلب تجريبي.', 'استلمنا طلبك وسنراجعه قريبًا.'],
     ]);
+
+    it('marks C6b and C9b too', function () {
+        paymentEventsGateway('TEST');
+        ['customer' => $customer, 'address' => $address] = Cx::ready();
+        $placed = Cx::place(Cx::start($address)->id);
+        app(OutboxRelay::class)->run();
+        $day = CarbonImmutable::now('Asia/Riyadh')->format('Y-m-d');
+
+        event(new OrderEdited((string) Str::uuid(), strtolower((string) Str::ulid()), $placed->id, Fx::storeId('sa'), $customer, CarbonImmutable::now()));
+        $changed = CapturedEmails::installed()->last();
+
+        Cx::asSuperAdmin(static function () use ($placed, $day): void {
+            app(RecordPaymentHandler::class)->handle(new RecordPayment($placed->id, 'OTHER', null, 'Cash', $day, (string) Str::uuid()));
+            app(RecordRefundHandler::class)->handle(new RecordRefund($placed->id, '10.00', 'BANK_TRANSFER', 'T-2', null, $day, (string) Str::uuid()));
+        });
+        // Twice: the relay holds RefundRecorded back until the order's earlier PaymentRecorded has gone.
+        app(OutboxRelay::class)->run();
+        app(OutboxRelay::class)->run();
+        $refund = CapturedEmails::installed()->last();
+
+        expect(paymentEventsBell('order_changed')[0]->line_en)->toEndWith(' This is a test order.')
+            ->and(explode("\n\n", $changed->text)[1])->toBe('This is a test order.')
+            ->and(paymentEventsBell('refund_sent')[0]->line_en)->toEndWith(' This is a test order.')
+            ->and($refund->subject)->toContain($placed->number)
+            ->and(explode("\n\n", $refund->text)[1])->toBe('This is a test order.');
+    });
 
     it('puts no mark on a real order\'s messages', function () {
         $fake = paymentEventsGateway();
         ['customer' => $customer, 'address' => $address] = Cx::ready();
         $placed = Cx::place(Cx::start($address)->id);
-        $store = Fx::storeId('sa');
 
         app(OutboxRelay::class)->run();
         $request = paymentEventsAsk($placed->id);
         app(OutboxRelay::class)->run();
-        $session = app(OpenRequestPaymentHandler::class)->handle(new OpenRequestPayment($store, $placed->number, 'en'))->sessionId;
-        app(PayOrderRequestHandler::class)->handle(new PayOrderRequest($store, $placed->number, $session, 'en', 'https://shop.example.test/return'));
-        $fake->paid($request->amount->toDecimal(2));
-        app(FollowRequestPaymentHandler::class)->handle(new FollowRequestPayment($store, $placed->number, $request->requestId));
+        paymentEventsPayRequest($fake, $placed->number, $request->requestId, $request->amount->minorUnits);
         // Twice: the relay holds PaymentRecorded back until the order's earlier PaymentSucceeded has gone.
         app(OutboxRelay::class)->run();
         app(OutboxRelay::class)->run();
@@ -488,8 +530,8 @@ describe('a test order says so (payments.md §1.6)', function () {
         expect(paymentEventsSent('order_taken'))->toBe(['EMAIL SENT'])
             ->and(paymentEventsSent('pay_remaining'))->toBe(['EMAIL SENT'])
             ->and(paymentEventsSent('payment_received'))->toBe(['EMAIL SENT'])
-            ->and(array_filter($emails, static fn ($email): bool => str_contains($email->text, 'Test mode')))->toBe([])
-            ->and(DB::table('ops.inbox_entries')->where('customer_id', $customer)->where('line_en', 'like', '%Test mode%')->count())->toBe(0);
+            ->and(array_filter($emails, static fn ($email): bool => str_contains($email->text, 'test order')))->toBe([])
+            ->and(DB::table('ops.inbox_entries')->where('customer_id', $customer)->where('line_en', 'like', '%test order%')->count())->toBe(0);
     });
 });
 
@@ -497,10 +539,10 @@ describe('S6: a transfer overdue', function () {
     it('alerts the holders of sales.payment.record in the store from the hourly check, by their switches, once per event', function () {
         ['order' => $order, 'number' => $number] = paymentEventsReady();
         paymentEventsTransfer($order);
-        $byDefault = Fx::staffWith(['sales.payment.record'], ['sa']);
-        $byEmail = Fx::staffWith(['sales.payment.record'], ['sa']);
-        $arabic = Fx::staffWith(['sales.payment.record'], ['sa']);
-        $elsewhere = Fx::staffWith(['sales.payment.record'], ['eg']);
+        $byDefault = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['sa']);
+        $byEmail = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['sa']);
+        $arabic = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['sa']);
+        $elsewhere = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['eg']);
         $noPermission = Fx::staffWith(['sales.order.view'], ['sa']);
         DB::table('access.staff_notification_preferences')->insert([
             ['staff_user_id' => $byEmail, 'topic' => StaffNotificationTopic::PaymentsToCheck->value, 'panel' => false, 'email' => true],
@@ -538,6 +580,53 @@ describe('S6: a transfer overdue', function () {
             ->and(CapturedEmails::installed()->sent)->toHaveCount(2);
     });
 
+    it('says the store\'s own check time, in both languages', function (int $hours, string $english, string $arabic) {
+        ['order' => $order] = paymentEventsReady();
+        Cx::setting('payments.transfer.check_hours', $hours);
+        paymentEventsTransfer($order);
+        $staff = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['sa']);
+
+        paymentEventsAt("+{$hours} hours");
+        app(TransferOverdueCheck::class)->run();
+        app(OutboxRelay::class)->run();
+
+        $bell = DB::table('ops.inbox_entries')->where('kind', 'transfer_overdue')->where('staff_id', $staff)->sole();
+
+        expect($bell->line_en)->toBe("A bank transfer has waited {$english} for a check.")
+            ->and($bell->line_ar)->toBe("تحويل بنكي ينتظر المراجعة منذ {$arabic}.");
+    })->with([
+        'one' => [1, '1 hour', 'ساعة واحدة'],
+        'two' => [2, '2 hours', 'ساعتين'],
+        'a few' => [5, '5 hours', '5 ساعات'],
+        'a day' => [24, '24 hours', '24 ساعة'],
+    ]);
+
+    it('gives no link to whoever holds sales.payment.record without sales.order.view: the page would refuse them', function () {
+        ['order' => $order, 'number' => $number] = paymentEventsReady();
+        paymentEventsTransfer($order);
+        $paymentOnly = Fx::staffWith(['sales.payment.record'], ['sa']);
+        $both = Fx::staffWith(['sales.payment.record', 'sales.order.view'], ['sa']);
+        DB::table('access.staff_notification_preferences')->insert([
+            ['staff_user_id' => $paymentOnly, 'topic' => StaffNotificationTopic::PaymentsToCheck->value, 'panel' => true, 'email' => true],
+            ['staff_user_id' => $both, 'topic' => StaffNotificationTopic::PaymentsToCheck->value, 'panel' => true, 'email' => true],
+        ]);
+        cache()->flush();
+
+        paymentEventsAt('+72 hours');
+        app(TransferOverdueCheck::class)->run();
+        app(OutboxRelay::class)->run();
+
+        $bell = static fn (string $staff) => DB::table('ops.inbox_entries')->where('kind', 'transfer_overdue')->where('staff_id', $staff)->sole();
+        $email = static fn (string $staff) => CapturedEmails::installed()->for((string) DB::table('access.staff_users')->where('id', $staff)->value('email'));
+
+        expect($bell($paymentOnly)->link)->toBeNull()
+            ->and($bell($paymentOnly)->title_en)->toBe("Transfer to check for order {$number}")
+            ->and($email($paymentOnly)->text)->toContain("order {$number}")->not->toContain('/admin/orders/')
+            ->and($email($paymentOnly)->html)->not->toContain('/admin/orders/')
+            ->and($bell($both)->link)->toBe('/admin/orders/'.$order)
+            ->and($email($both)->text)->toContain('/admin/orders/'.$order);
+    });
+
     it('alerts no one for a test order, for Sales never tells of one', function () {
         ['order' => $order] = paymentEventsReady();
         paymentEventsTransfer($order);
@@ -568,6 +657,11 @@ describe('S6: a transfer overdue', function () {
 
             return new TransferOverdue((string) Str::uuid(), $order, Fx::storeId('sa'), CarbonImmutable::now());
         }],
+        'came back since' => [function (string $order): TransferOverdue {
+            DB::table('sales.orders')->where('id', $order)->update(['status' => 'UNDELIVERED', 'shipment_status' => 'CAME_BACK', 'came_back_at' => CarbonImmutable::now(), 'came_back_id' => Fx::staff(), 'due_minor' => 0]);
+
+            return new TransferOverdue((string) Str::uuid(), $order, Fx::storeId('sa'), CarbonImmutable::now());
+        }],
     ]);
 });
 
@@ -583,8 +677,7 @@ describe('the daily report\'s transfers overdue (§1.11)', function () {
         expect([$section->transfersOverdue->orders, $section->transfersOverdue->owed->minorUnits, $section->transfersOverdue->owed->currencyCode])->toBe([1, $owed, 'SAR'])
             // Overdue is part of what waits: this one, the younger receipt, and the one with no receipt yet.
             ->and($section->transfersWaiting->orders)->toBe(3)
-            ->and($text)->toContain('Transfers overdue Orders: 1 , owed '.paymentEventsMoney($owed, 'en'))
-            ->and($text)->not->toContain('Waits for Payments');
+            ->and($text)->toContain('Transfers overdue Orders: 1 , owed '.paymentEventsMoney($owed, 'en'));
 
         // An hour on, the younger one has its 72 hours too; the mark Sales keeps plays no part.
         paymentEventsAt('+73 hours');
@@ -621,6 +714,17 @@ describe('the daily report\'s transfers overdue (§1.11)', function () {
         'English' => ['en', 'Transfers overdue', 'Transfers overdue (as of now, not that day)'],
         'Arabic' => ['ar', 'تحويلات متأخرة', 'تحويلات متأخرة (حتى الآن، لا في ذلك اليوم)'],
     ]);
+
+    it('labels it as current in the totals too, on a report read after its day', function () {
+        ['overdue' => $overdue] = paymentEventsOverdueDay();
+        $yesterday = CarbonImmutable::now()->subDay()->setTimezone('Asia/Riyadh')->format('Y-m-d');
+
+        $report = app(DailyReportReader::class)->report(app(DailyReportPeople::class)->everyStore(), CarbonImmutable::now()->toDateTimeImmutable(), $yesterday, 'Asia/Riyadh');
+
+        // The store's section and the totals; nowhere the plain label.
+        expect(substr_count(paymentEventsReportText($report), 'Transfers overdue (as of now, not that day) Orders: 1 , owed '.paymentEventsMoney(paymentEventsDue($overdue), 'en')))->toBe(2)
+            ->and(paymentEventsReportText($report))->not->toContain('Transfers overdue Orders:');
+    });
 
     it('adds it up in the totals per currency, never converted', function () {
         ['overdue' => $overdue] = paymentEventsOverdueDay();

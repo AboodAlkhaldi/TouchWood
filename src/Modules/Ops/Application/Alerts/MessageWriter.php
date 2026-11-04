@@ -47,9 +47,9 @@ use Shared\Domain\ValueObject\Money;
  * and offers Track only when it holds a tracking link. S5 and S5b say which key and never that payments stop:
  * a key of the mode not in use stops nothing.
  *
- * **A test order says so** (payments.md §1.6: "Test mode — no real money is taken"; `OrderMessageDto::$isTest`): the
- * messages that speak of its money - C1, C6b, C9b, C10, C11 - carry the mark in the bell's line and under the email's
- * greeting. The others have its number alone, `TEST-0001`.
+ * **A test order says so** (payments.md §1.6): the messages that speak of its money - C1, C6b, C9b, C10, C11 - carry the
+ * mark in the bell's line and under the email's greeting; it says no more than that, for a test order's money may be real
+ * when it is paid by transfer. The others have its number alone, `TEST-0001`.
  *
  * Amounts are written with the currency's letters (its abbreviation, never its sign), Latin digits
  * always (owner, 2026-10-06): the new riyal and dirham signs are in few fonts an email client has. A
@@ -232,7 +232,7 @@ final readonly class MessageWriter
 
         $text = $this->text($kind, $locale, $values, self::shop($to->store, $locale, 'account/orders/'.$record->orderNumber));
 
-        return $this->sales->orderForMessage($record->orderId, $locale)?->isTest === true ? $this->testMarked($text, $locale) : $text;
+        return $record->isTest ? $this->testMarked($text, $locale) : $text;
     }
 
     /**
@@ -266,7 +266,8 @@ final readonly class MessageWriter
     }
 
     /**
-     * S6: opens the order, where staff check the receipt. Sales fires it once per order, and never for a test order.
+     * S6: the store's own check time in words, and the order's page, where staff check the receipt (`AlertLinks` takes
+     * the link off for whoever cannot open it). Sales fires it once per order, and never for a test order.
      *
      * @param  array<string, string>  $values
      */
@@ -278,7 +279,7 @@ final readonly class MessageWriter
             return null;
         }
 
-        return $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number], '/admin/orders/'.$order->orderId);
+        return $this->text($to->message->kind, $locale, [...$values, 'order' => $order->number, 'hours' => $this->hours($this->payments->transferCheckHours($to->store->storeId()), $locale)], '/admin/orders/'.$order->orderId);
     }
 
     /** @param  array<string, string> $values */
@@ -504,6 +505,12 @@ final readonly class MessageWriter
     private function days(int $days, string $locale): string
     {
         return $this->translator->choice('ops::messages.day_count', $days, [], $locale);
+    }
+
+    /** A number of hours as the language counts them, in Latin digits: "1 hour", "72 ساعة". */
+    private function hours(int $hours, string $locale): string
+    {
+        return $this->translator->choice('ops::messages.hour_count', $hours, [], $locale);
     }
 
     /** Which of the store's two gateway keys: the test or the live one. */

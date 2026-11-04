@@ -16,7 +16,7 @@ declare(strict_types=1);
 */
 return [
     // Messages to customers (§1.5).
-    'test_mark' => 'Test mode — no real money is taken.',
+    'test_mark' => 'This is a test order.',
     'order_taken' => [
         'title' => 'Order :order received',
         'line' => 'We received your order and will review it soon.',
@@ -317,11 +317,11 @@ return [
     ],
     'transfer_overdue' => [
         'title' => 'Transfer to check for order :order',
-        'line' => 'A bank transfer has waited 72 hours for a check.',
+        'line' => 'A bank transfer has waited :hours for a check.',
         'subject' => 'A bank transfer waits for a check: order :order',
         'lines' => [
             'Hello :name,',
-            'The bank transfer receipt of order :order in :store has waited 72 hours for a check.',
+            'The bank transfer receipt of order :order in :store has waited :hours for a check.',
         ],
     ],
     'payment_not_accepted' => [
@@ -371,6 +371,7 @@ return [
         'LIVE' => 'live',
     ],
     'day_count' => '{0} 0 days|{1} 1 day|[2,*] :count days',
+    'hour_count' => '{1} 1 hour|[2,*] :count hours',
     'summary' => [
         'gift' => 'Free gift',
         'subtotal' => 'Subtotal',

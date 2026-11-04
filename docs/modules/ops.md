@@ -178,14 +178,17 @@ words give the amount the request asks, read through `PaymentsApi::openRequests`
 minutes; the button is the kind's own ("Pay now"), and the bell and the email open `/{store}/{locale}/orders/{number}/pay`.
 It sends nothing, when the listener runs and again when the email leaves, if the request is no longer the order's open
 one (withdrawn, paid, past its time, a newer one in its place), the order is gone or cancelled, rejected or came back, or
-the read names another store or customer. **Not checked:** a request still open in Payments that no longer asks what the
-order is missing, after a refund or a voided record (sales.md §9.9 #2): `orderForMessage` does not say what is missing, so
-its message goes and its page answers "This payment link has ended". **The page has no route on main yet** (§4.13 #5).
+the read names another store or customer. **Left as they are (review, 2026-11-03; the coordinator takes them to the owner if needed):** a request still open in
+Payments that no longer asks what the order is missing, after a refund or a voided record (sales.md §9.9 #2):
+`orderForMessage` does not say what is missing, so its message goes and its page answers "This payment link has ended"; and
+the words' fixed "60 minutes", which can overstate what is left when an email is held up by a long outage and leaves late
+but still within the request's time. **The page has no route on main yet** (§4.13 #5).
 
 **A test order says so (2026-11-03; payments.md §1.6, "marked TEST everywhere").** C1, C6b, C9b, C10 and C11, the messages
-that speak of its money, carry "Test mode — no real money is taken." after the bell's line and under the email's greeting.
-Sales' `OrderMessageDto::$isTest` decides; C9b and C10 read it through the record's order. The other messages about a test
-order have its number alone, `TEST-0001`.
+that speak of its money, carry "This is a test order." after the bell's line and under the email's greeting. It says no more:
+every order placed in TEST is a test order, whatever the way to pay, so a transfer's money may be real. Sales' `isTest`
+decides, on `OrderMessageDto` and `MoneyRecordMessageDto`. The other messages about a test order have its number alone,
+`TEST-0001`.
 
 ### 1.6 Alerts to staff
 
@@ -197,7 +200,7 @@ order have its number alone, `TEST-0001`.
 | S4 | Sync problems | A read left problems | `SyncNeedsAttention` (exists) | `sync.report.view` | — (owner, 2026-10-28: an offer stopped by Odoo's price is not SMS-worthy) |
 | S5 | Payment problems (access.md amendment 78) | The gateway key expires in 30, 7, 1 days | **new** `GatewayKeyExpiring(eventId, storeId, mode, daysLeft, expiresOn, occurredAt)`, once per threshold, from Payments' daily job (*Stage 7's proposal*) | `payments.gateway.manage` — super admins only | **Yes, at 1 day** |
 | S5b | Payment problems | MyFatoorah refused a store's current key: once until a new key is saved; an earlier key refused sends nothing; a refusal on the mode not in use fires too | `GatewayKeyRejected(eventId, storeId, mode, occurredAt)` (#310; payments.md:187-192) | `payments.gateway.manage` — super admins only | **Yes** (owner, 2026-10-28, §9.3 #12) |
-| S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked 72 h after the upload | `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, never a test order, from **Sales'** hourly job (sales.md §9.5 #16) | `sales.payment.record` | — |
+| S6 | **Payments to check** (a **new** Access topic, amendment 84) | A bank transfer unchecked the store's `transferCheckHours` (72 by default) after the first upload | `TransferOverdue(eventId, orderId, storeId, occurredAt)`, once per order, never a test order, from **Sales'** hourly job (sales.md §9.5 #16) | `sales.payment.record` | — |
 | S7 | **Payments to check** | A payment not accepted — a refund is owed | `PaymentNotAccepted`, with its `storeId`; links to the attempt in Payments' staff lists — for a try the order never existed | `sales.payment.record` | — (owner, round 3 #13: withdrawn) |
 | S9 | **Returns** (a **new** Access topic) | A customer asks for a return | **new** `ReturnRequested(eventId, returnId, orderId, storeId, customerId, occurredAt)` | `sales.return.manage` | — (bell opens the return; it stays under Waiting in the panel's Returns) |
 | S8 | Campaign expiry | A campaign is about to end, when Content's spec says | `CampaignExpiring(eventId, campaignId, storeId, endsAt, occurredAt)` | **Content's, when it has one.** Until then `ops.message.send_many`, admin-only: Super Admins and the store's admins who hold it (2026-11-03, for the owner to confirm) | — |
@@ -222,7 +225,14 @@ order have its number alone, `TEST-0001`.
   stops nothing (2026-11-01). **S7 is built (2026-11-02, on #314's `PaymentNotAccepted`)**: its entry and
   email carry no link until Payments' staff list of attempts exists (`/admin/payments?store=&state=`, payments.md §4.2:
   no such route on main, 2026-11-03; §4.13 #6). **S6 is built (2026-11-03)**, on Sales' `TransferOverdue`, by its switches, opening
-  the order's panel page; an order gone, ended since or of another store sends nothing. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
+  the order's panel page; an order gone, ended since or of another store sends nothing. Its words give the store's own
+  check time. **A role may hold `sales.payment.record` without `sales.order.view`** (roles are picked permission by
+  permission, Admin roles too; only a Super Admin holds everything): that person gets the same words with no link, in the
+  bell and the email, since the page would answer 403 (`AlertLinks`, a second `staffToAlert` for the order's permission).
+  **Left as they are (review, 2026-11-03; the coordinator takes them to the owner if needed):** a store with no holder of
+  the permission, or none with a switch on, alerts no one, and the order's Overdue badge and the daily report still show it;
+  an order paid in the narrow window between Sales firing and the message leaving is still alerted, as `orderForMessage`
+  does not say what it holds. **S8 is built on Ops' side (2026-11-03) and waits on Content to fire
   `CampaignExpiring`.** Its words name the campaign, read through `ContentApi::campaignForMessage`, and its last day in the
   store's zone; no link until Content has a page. Until Content is built the read answers null, and an alert sends nothing.
 - **S10 and S10b are built. The owner's decisions, 2026-11-01:** every active Super Admin always gets the entry, **no switch
@@ -1393,7 +1403,7 @@ Each with where it is tested, in `tests/Modules/Ops` unless named.
 | Reports: figures against hand-counted orders, a cancelled, rejected or came-back order excluded, **a refund on the day its return was asked**, categories adding up, **all stores totalled per currency**, a store's permission, days refused, the preview's 50 rows, the file's cells, fixed queries | `Integration/ReportsTest`; over HTTP `Feature/ReportRoutesTest` |
 | **The daily report's figures against hand-counted orders, a cancelled order excluded, a refund on its day**; net VAT; yesterday and month to date; **all stores totalled per currency**, each in its own day, the off ones marked; **a past day's file unchanged**; who may make and open | `Integration/DailyReportTest`; over HTTP `Feature/DailyReportRoutesTest` |
 | The daily email: off by default, each store's zone, on the person's behalf, one email however often switched on, stopped when changed, a late worker's one report; **00:00 refused; a store whose day has just started shows zeros and the email goes; a retry makes that moment's report once**; logo and name | `Integration/DailyReportEmailTest` |
-| C11 and S6 through the outbox from Stage 7's real flow; C10 on a request's online payment, none on a checkout's; each once, both languages, the refusals, at sending too; a test order's mark on C1, C10, C11, and none on a real order's; transfers overdue against hand-made orders, a test order left out, in the store's section and the totals | `Integration/PaymentEventsTest` |
+| C11 and S6 through the outbox from Stage 7's real flow; C10 on a request's online payment, none on a checkout's; each once, both languages, the refusals, at sending too; a test order's mark on C1, C6b, C9b, C10, C11, and none on a real order's; S6's hours by the store's setting, and no link for whoever cannot open the order; transfers overdue against hand-made orders, a test order left out, in the store's section and the totals | `Integration/PaymentEventsTest` |
 | SMS countries: the start list, add, change, remove, overlaps, Super Admins alone, audited | `Integration/SmsCountriesTest`; over HTTP `Feature/SmsCountryRoutesTest` |
 | The adapters: Brevo's requests as its reference shows, the log drivers refused on a live system, the newsletter's too, at boot | `Integration/SendersTest`, `Integration/BrevoNewsletterListTest`, `Integration/RealEmailDriverTest` |
 | The tables' last lines, the schema, the permissions, the nightly removal of the three log tables, of what staff wrote (sent, cancelled, failed; not what waits or sends) and of the daily reports | `Integration/OpsTablesTest`, `Integration/OpsSchemaTest`, `Integration/OpsPermissionsTest`, `Integration/PruneTest`, `Integration/NewsletterTest`, `Integration/DailyReportTest` |

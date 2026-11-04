@@ -39,7 +39,7 @@ interface SalesReports
     /**
      * **A payment or a refund as its message needs it** (ops.md C9b, C10; the owner's go 2026-10-31): the
      * record `PaymentRecorded` or `RefundRecorded` names (`moneyRecordId`) — which it is, its order and
-     * number, the amount and way, the day, and whether it was voided since. Null for none.
+     * number, the amount and way, the day, whether it was voided since, and whether its order is a test order. Null for none.
      */
     public function moneyRecordForMessage(string $moneyRecordId): ?MoneyRecordMessageDto;
 

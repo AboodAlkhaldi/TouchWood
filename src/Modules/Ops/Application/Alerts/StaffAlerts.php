@@ -36,6 +36,7 @@ final readonly class StaffAlerts
         private MessageWriter $writer,
         private Inbox $inbox,
         private EventDeliveries $deliveries,
+        private AlertLinks $links,
     ) {}
 
     public function alert(EventMessage $message, StaffNotificationTopic $topic, string $permission): void
@@ -56,10 +57,11 @@ final readonly class StaffAlerts
 
         $critical = self::critical($message);
         $now = CarbonImmutable::now()->toDateTimeImmutable();
+        $openers = $this->links->openers($message, $storeId);
 
         foreach ($this->access->staffToAlert($storeId, $topic, $permission) as $staff) {
             if ($staff->byPanel) {
-                $this->inbox->add(InboxEntry::forStaff(strtolower((string) Str::ulid()), $staff->staffId, $storeId, $message->kind, $ar->title, $en->title, $ar->line, $en->line, $en->link, $now));
+                $this->inbox->add(InboxEntry::forStaff(strtolower((string) Str::ulid()), $staff->staffId, $storeId, $message->kind, $ar->title, $en->title, $ar->line, $en->line, AlertLinks::opens($openers, $staff->staffId) ? $en->link : null, $now));
             }
 
             if ($staff->byEmail) {
