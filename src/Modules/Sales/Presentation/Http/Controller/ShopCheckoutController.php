@@ -19,6 +19,7 @@ use Modules\Sales\Application\Command\UploadTransferDocument\UploadTransferDocum
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrder;
 use Modules\Sales\Application\Query\ViewOwnOrder\ViewOwnOrderHandler;
 use Modules\Sales\Presentation\Http\Resource\CheckoutPages;
+use Modules\Sales\Presentation\Http\Resource\ReturnedPayment;
 use Shared\Application\StoreContext;
 use Shared\Domain\Error\DomainError;
 
@@ -32,7 +33,7 @@ use Shared\Domain\Error\DomainError;
 final readonly class ShopCheckoutController
 {
     /** @var list<string> */
-    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_checkout', 'sales::errors'];
+    private const array WORDS = [...StorefrontArea::WORDS, 'sales::shop_checkout', 'sales::shop_payment', 'sales::errors'];
 
     public function __construct(
         private Page $page,
@@ -40,9 +41,14 @@ final readonly class ShopCheckoutController
         private StoreContext $stores,
     ) {}
 
-    public function checkout(Request $request, StartCheckoutHandler $start): Response|RedirectResponse
+    public function checkout(Request $request, StartCheckoutHandler $start, ReturnedPayment $returned): Response|RedirectResponse
     {
         $asked = $request->query('asked');
+        $payment = $returned->read($this->stores->current()->value);
+
+        if ($payment?->orderNumber !== null) {
+            return redirect()->route('storefront.sales.placed', ['number' => $payment->orderNumber]);
+        }
 
         try {
             $page = $this->pages->checkout(
@@ -60,6 +66,8 @@ final readonly class ShopCheckoutController
         } catch (DomainError $error) {
             return redirect()->route('storefront.sales.cart')->withErrors(['form' => FormErrors::message($error)]);
         }
+
+        $page->payment = $payment;
 
         return $this->page->render('Sales/Storefront/Checkout', $page->toArray(), self::WORDS);
     }

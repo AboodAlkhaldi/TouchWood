@@ -5,6 +5,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { FormError } from '@/components/FormError';
 import { Money } from '@/components/Money';
 import { plural, useLocale } from '@/components/sales/shop';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,7 +47,12 @@ export default function Placed(page: PlacedPage) {
                             · <Money value={page.total} />
                             {page.shippingPending ? <span className="text-copy-14 text-ink-muted"> {t(`${W}.placed.before_shipping`)}</span> : null}
                         </p>
-                        <p className="text-copy-14 text-ink-muted">{t(`${W}.placed.next`)}</p>
+                        {page.paid ? (
+                            <Badge variant="outline" data-test="placed-paid">
+                                {t(`${W}.placed.paid`)}
+                            </Badge>
+                        ) : null}
+                        <p className="text-copy-14 text-ink-muted">{page.paid ? t(`${W}.placed.paid_next`) : t(`${W}.placed.next`)}</p>
                         {page.shippingPending ? (
                             <p className="text-copy-14 text-ink-muted" data-test="placed-fee-note">
                                 {t(`${W}.placed.fee_note`)}

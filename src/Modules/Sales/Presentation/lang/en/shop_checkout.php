@@ -70,6 +70,7 @@ return [
         'title' => 'Payment',
         'contact' => 'Our team will contact you to arrange payment.',
         'choose' => 'How will you pay?',
+        'ONLINE' => 'Pay Online',
         'BANK_TRANSFER' => 'Bank transfer',
         'STAFF_CONTACT' => 'Staff will contact you',
         'bank' => 'Transfer to',
@@ -101,6 +102,8 @@ return [
     'placed' => [
         'title' => 'Order placed',
         'number' => 'Order :number',
+        'paid' => 'Paid',
+        'paid_next' => 'We received your payment. Our team will review your order.',
         'next' => 'Our team will review your order and contact you to arrange payment and delivery.',
         'before_shipping' => 'before shipping',
         'fee_note' => 'Our team will confirm the shipping fee.',

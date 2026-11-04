@@ -59,5 +59,7 @@ final class OwnOrderPage extends Data
         public ?string $trackingLink = null,
         /** No carrier served the place: "Shipping: to be confirmed", the total before shipping (§9.5 #2). */
         public bool $shippingPending = false,
+        /** A test order: a Note says no real money is taken (payments.md §1.6, Q10). */
+        public bool $isTest = false,
     ) {}
 }

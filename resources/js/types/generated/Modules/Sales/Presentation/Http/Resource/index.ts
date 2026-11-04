@@ -62,6 +62,7 @@ nextGift: CartGiftData | null,
 pointsToEarn: number,
 bestSellers: Record<string, any>[],
 cardFacts: Record<string, Record<string, Record<string, any>>>,
+payment: CheckoutTryData | null,
 };
 export type CheckoutAddressData = {
 id: string,
@@ -116,6 +117,23 @@ carriers: CheckoutCarrierData[],
 carrierId: string | null,
 carrierChanged: boolean,
 otherStore: CheckoutOtherStoreData | null,
+testMode: boolean,
+payment: CheckoutTryData | null,
+};
+export type CheckoutTryData = {
+tryId: string,
+state: string,
+payment: string,
+orderNumber: string | null,
+windowEndsAt: string | null,
+waitEndsAt: string | null,
+holdEndsAt: string | null,
+nothingCharged: boolean,
+refundDue: boolean,
+declineCode: string | null,
+firstSeen: boolean,
+serverNow: string,
+mainStoreUrl: string | null,
 };
 export type CustomerOrdersSectionData = {
 customerId: string,
@@ -415,6 +433,7 @@ mayReturn: boolean,
 storeTimezone: string,
 trackingLink: string | null,
 shippingPending: boolean,
+isTest: boolean,
 };
 export type OwnOrderRowData = {
 number: string,
@@ -457,6 +476,17 @@ requestedAt: string,
 refundDue: MoneyData | null,
 staffReason: string | null,
 };
+export type PayStartData = {
+tryId: string,
+frameUrl: string | null,
+windowEndsAt: string,
+holdEndsAt: string,
+serverNow: string,
+};
+export type PaymentFormData = {
+sessionId: string,
+scriptUrl: string,
+};
 export type PlacedPage = {
 number: string,
 total: MoneyData,
@@ -465,6 +495,7 @@ bank: BankData | null,
 receipts: number,
 mayUpload: boolean,
 shippingPending: boolean,
+paid: boolean,
 };
 export type PrintPage = {
 id: string,
