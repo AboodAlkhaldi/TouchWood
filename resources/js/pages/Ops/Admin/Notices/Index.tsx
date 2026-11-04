@@ -200,8 +200,6 @@ export default function Index({ notices, next, stores, storeCode, storeTimezone 
                                     {},
                                     {
                                         preserveScroll: true,
-                                        // Without it the page starts over, and the rows shown with Show More can't be asked for again.
-                                        preserveState: true,
                                         onStart: () => setBusy(true),
                                         // The row's ⋯ button goes when it is cancelled: the focus goes back to the table.
                                         onSuccess: () => {
