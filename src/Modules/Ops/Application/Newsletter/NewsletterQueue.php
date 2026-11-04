@@ -21,7 +21,7 @@ interface NewsletterQueue
      * Takes an email off the store's list of that language - its row is gone. `$forget` deletes the
      * contact itself too, when no other row still holds the email (an anonymized account, §6).
      */
-    public function remove(string $email, StoreId $store, string $locale, bool $forget = false): void;
+    public function remove(#[\SensitiveParameter] string $email, StoreId $store, string $locale, bool $forget = false): void;
 
     /** The customer unsubscribed - by a link, or at the provider: their consent is withdrawn, as the system (§1.3). */
     public function withdrawConsent(string $customerId, MarketingConsentSource $source): void;

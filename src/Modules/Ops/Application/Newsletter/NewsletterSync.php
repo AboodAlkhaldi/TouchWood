@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Ops\Application\Newsletter;
 
 use Illuminate\Database\ConnectionInterface;
+use Modules\Ops\Application\Messages\FailureKind;
 use Modules\Ops\Application\Messages\NewsletterList;
 use Modules\Ops\Application\Messages\ProviderFailed;
 use Modules\Ops\Domain\Repository\Subscribers;
@@ -29,6 +30,29 @@ final readonly class NewsletterSync
 
     /** @throws ProviderFailed for the queue to try again */
     public function sync(string $subscriberId): void
+    {
+        $seen = $this->subscribers->find($subscriberId);
+
+        // Before the transaction, which a failed call rolls back: forgetting a list Brevo has just made would
+        // make a second one on the retry.
+        if ($seen !== null && $seen->isConfirmed() && $seen->heldAtProvider() !== $seen->wantedAtProvider()) {
+            $this->list->ready($seen->store, $seen->locale);
+        }
+
+        try {
+            $this->apply($subscriberId);
+        } catch (ProviderFailed $failed) {
+            // After the rollback, which would take the forgetting with it.
+            if ($failed->kind === FailureKind::ListGone && $seen !== null) {
+                $this->list->forgetList($seen->store, $seen->locale);
+            }
+
+            throw $failed;
+        }
+    }
+
+    /** @throws ProviderFailed */
+    private function apply(string $subscriberId): void
     {
         $this->db->transaction(function () use ($subscriberId): void {
             $subscriber = $this->subscribers->lock($subscriberId);
@@ -67,7 +91,7 @@ final readonly class NewsletterSync
      *
      * @throws ProviderFailed for the queue to try again
      */
-    public function remove(string $email, StoreId $store, string $locale, bool $forget): void
+    public function remove(#[\SensitiveParameter] string $email, StoreId $store, string $locale, bool $forget): void
     {
         // Signed up again meanwhile: the row's own sync decides, not this removal.
         $again = $this->subscribers->withEmail($email);

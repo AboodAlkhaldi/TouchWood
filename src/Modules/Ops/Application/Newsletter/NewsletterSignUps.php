@@ -70,7 +70,7 @@ final readonly class NewsletterSignUps
      * @throws SubscribeInYourAccount for a customer's email
      * @throws ProviderFailed when the confirmation could not be sent - the person may try again
      */
-    public function subscribe(StoreDto $store, string $locale, string $email): void
+    public function subscribe(StoreDto $store, string $locale, #[\SensitiveParameter] string $email): void
     {
         $email = Subscriber::email($email);
 
@@ -177,7 +177,7 @@ final readonly class NewsletterSignUps
     }
 
     /** @throws ProviderFailed */
-    private function sendConfirmation(StoreDto $store, string $locale, string $email, string $token, string $subscriberId): void
+    private function sendConfirmation(StoreDto $store, string $locale, #[\SensitiveParameter] string $email, #[\SensitiveParameter] string $token, string $subscriberId): void
     {
         $root = $this->config->get('app.url');
 
@@ -190,15 +190,13 @@ final readonly class NewsletterSignUps
         $link = $root.$this->urls->route('storefront.ops.newsletter.confirm', ['store' => $store->code, 'locale' => $locale, 'token' => $token], false);
         // Signed on its path alone (`signed:relative`), so the shop's own address carries it.
         $leave = $root.$this->urls->signedRoute('storefront.ops.newsletter.leave', ['store' => $store->code, 'locale' => $locale, 'subscriber' => $subscriberId], null, false);
-        $status = SendStatus::Sent;
+        // Failed unless it went: whatever broke on the way, a send that did not go is never recorded as sent.
+        $status = SendStatus::Failed;
         $providerId = null;
 
         try {
             $providerId = $this->emails->send($this->written->newsletterConfirmation($email, $locale, $store, $link, $leave));
-        } catch (ProviderFailed $failed) {
-            $status = SendStatus::Failed;
-
-            throw $failed;
+            $status = SendStatus::Sent;
         } finally {
             // Never the email or the link: the kind, the store, the channel, the outcome.
             $this->sent->record(new SentMessage(

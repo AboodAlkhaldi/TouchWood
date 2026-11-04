@@ -329,7 +329,7 @@ describe('the removal job', function () {
             ->and($job)->toBeInstanceOf(RemoveNewsletterContactJob::class)
             ->and($job->email)->toBe('private@example.test')
             ->and($failed->className())->toBe(RemoveNewsletterContactJob::class)
-            ->and($failed->triesAllowed())->toBe(5);
+            ->and($failed->triesAllowed())->toBe(0);
     });
 
     it('still runs from the queue with its address', function () {

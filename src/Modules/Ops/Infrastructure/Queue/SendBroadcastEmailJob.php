@@ -24,8 +24,11 @@ final class SendBroadcastEmailJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    /** Five attempts over about 36 minutes: Brevo away. */
-    public int $tries = 5;
+    /** No limit on tries, which the waits of ProviderFailureRules would use up: failures are what count. */
+    public int $tries = 0;
+
+    /** Five failures over about 36 minutes: Brevo away. */
+    public int $maxExceptions = 5;
 
     /** @var list<int> seconds before each retry */
     public array $backoff = [10, 60, 300, 1800];
@@ -36,6 +39,12 @@ final class SendBroadcastEmailJob implements ShouldQueue
         public string $customerId,
         public string $sentId,
     ) {}
+
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
 
     public function handle(BroadcastSender $sender): void
     {

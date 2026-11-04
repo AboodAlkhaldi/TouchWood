@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Ops\Presentation\Http\Controller;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -11,11 +12,13 @@ use Illuminate\Support\Facades\RateLimiter;
 use Modules\Ops\Application\Newsletter\CustomerSubscriptions;
 use Modules\Ops\Domain\Exception\InvalidOpsInput;
 use Modules\Ops\Domain\Model\Subscriber;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Brevo's marketing webhook (ops.md §1.9): someone unsubscribed in a newsletter, so they leave every
  * list - a guest is removed, a customer's consent switches off (Access). Answered at once with no body:
- * 204 taken (or not ours to act on), 401 refused, 413 too large, 429 too many.
+ * 204 taken (or not ours to act on), 401 refused, 413 too large, 429 too many - or our side broke.
  *
  * As Brevo documents it, read 2026-10-29:
  * - The webhook is made with type `marketing` and the event `unsubscribed`
@@ -27,6 +30,13 @@ use Modules\Ops\Domain\Model\Subscriber;
  *   contact's `email` (https://developers.brevo.com/docs/marketing-webhooks). A batched webhook's body
  *   is not documented there: only the single object is read, and the webhook must not be batched.
  *
+ * - A call is tried again only on no answer or a 429, at about 10 minutes, 1 hour, 2 hours and 8 hours; any
+ *   other 4xx or any 5xx "stop all retry attempts and discard the webhook"
+ *   (https://developers.brevo.com/docs/retry-mechanism, read 2026-11-03). So whatever breaks on our side is
+ *   answered 429, never 500: an unsubscribe thrown away would leave a person's consent on. Taken again, a call
+ *   changes nothing, and one older than the row's joining leaves it alone: they agreed since. Something it cannot
+ *   read is a 204 and a line in the log, naming nothing of the body: asked again it would say the same.
+ *
  * With no secret set, every call is refused.
  */
 final readonly class BrevoWebhookController
@@ -37,12 +47,27 @@ final readonly class BrevoWebhookController
 
     public const int MOST_BYTES = 100_000;
 
+    /** What a 429 for our own failure says: Brevo's next try comes by its own schedule, from 10 minutes. */
+    private const int TRY_AGAIN_SECONDS = 600;
+
     public function __construct(
         private Config $config,
         private CustomerSubscriptions $subscriptions,
+        private LoggerInterface $log,
     ) {}
 
     public function __invoke(Request $request): Response
+    {
+        try {
+            return $this->take($request);
+        } catch (Throwable $failed) {
+            report($failed);
+
+            return response()->noContent(429)->header('Retry-After', (string) self::TRY_AGAIN_SECONDS);
+        }
+    }
+
+    private function take(Request $request): Response
     {
         $key = 'ops-brevo-webhook:'.$request->ip();
 
@@ -55,7 +80,10 @@ final readonly class BrevoWebhookController
         $secret = $this->config->get('services.brevo.webhook_secret');
         $given = $request->header(self::HEADER);
 
-        if (! is_string($secret) || $secret === '' || ! is_string($given) || ! hash_equals($secret, $given)) {
+        // What a paste into .env leaves round the secret is not part of what Brevo was given.
+        $secret = is_string($secret) ? trim($secret) : '';
+
+        if ($secret === '' || ! is_string($given) || ! hash_equals($secret, $given)) {
             return response()->noContent(401);
         }
 
@@ -66,16 +94,26 @@ final readonly class BrevoWebhookController
         $body = json_decode($request->getContent(), true);
 
         if (! is_array($body) || ($body['event'] ?? null) !== 'unsubscribe' || ! is_string($body['email'] ?? null)) {
-            return response()->noContent();
+            return $this->notRead();
         }
 
         try {
             $email = Subscriber::email($body['email']);
         } catch (InvalidOpsInput) {
-            return response()->noContent();
+            return $this->notRead();
         }
 
-        $this->subscriptions->unsubscribedAtProvider($email);
+        // `ts_event`: seconds, in UTC (https://developers.brevo.com/docs/marketing-webhooks). None: taken as now.
+        $at = is_int($body['ts_event'] ?? null) && $body['ts_event'] > 0 ? CarbonImmutable::createFromTimestampUTC($body['ts_event'])->toDateTimeImmutable() : null;
+        $this->subscriptions->unsubscribedAtProvider($email, $at);
+
+        return response()->noContent();
+    }
+
+    /** A webhook that sends more than unsubscribes, or batches them, loses them: it is worth a line. */
+    private function notRead(): Response
+    {
+        $this->log->warning('Ops: Brevo\'s webhook sent what it does not read: one unsubscribe object is all it reads, so check the webhook is the marketing "unsubscribed" one and not batched.');
 
         return response()->noContent();
     }

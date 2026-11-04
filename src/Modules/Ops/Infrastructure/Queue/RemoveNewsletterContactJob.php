@@ -21,11 +21,11 @@ use Throwable;
  * the `jobs` or `failed_jobs` tables. The failed jobs screen reads the job's name and tries from the outer
  * payload (`displayName`, `maxTries`), which stay plain, and a retry pushes the payload back as it is.
  *
- * Brevo's reference does not say what it answers when the email is not on the list or is no contact
- * (https://developers.brevo.com/reference/removecontactfromlist: a 400's codes include "Contact email
- * not found", never tied to this endpoint), so no such answer is taken as done: after the last attempt
- * the job waits on the failed jobs screen, with Brevo's status and code - never retried for ever, never
- * silent.
+ * What is already gone is done, the 400 that says so too (BrevoAnswers::alreadyGone). Brevo's reference does not
+ * say what else it may answer when the email is not on the list or is no contact
+ * (https://developers.brevo.com/reference/removecontactfromlist), so nothing else is taken as done: after the
+ * last attempt the job waits on the failed jobs screen, with Brevo's status and code - never retried for ever,
+ * never silent.
  */
 final class RemoveNewsletterContactJob implements ShouldBeEncrypted, ShouldQueue
 {
@@ -33,8 +33,11 @@ final class RemoveNewsletterContactJob implements ShouldBeEncrypted, ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    /** Five attempts over about 36 minutes: Brevo away. */
-    public int $tries = 5;
+    /** No limit on tries, which the waits of ProviderFailureRules would use up: failures are what count. */
+    public int $tries = 0;
+
+    /** Five failures over about 36 minutes: Brevo away. */
+    public int $maxExceptions = 5;
 
     /** @var list<int> seconds before each retry */
     public array $backoff = [10, 60, 300, 1800];
@@ -45,6 +48,12 @@ final class RemoveNewsletterContactJob implements ShouldBeEncrypted, ShouldQueue
         public string $locale,
         public bool $forget,
     ) {}
+
+    /** @return list<object> */
+    public function middleware(): array
+    {
+        return [new ProviderFailureRules];
+    }
 
     public function handle(NewsletterSync $sync): void
     {

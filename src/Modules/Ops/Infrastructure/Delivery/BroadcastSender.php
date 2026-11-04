@@ -178,8 +178,14 @@ final readonly class BroadcastSender
         $offers = $row !== null && $row->customer_id === null;
 
         if ($row === null || $customer === null || ! ($offers ? MarketingReach::mayEmailOffers($customer) : MarketingReach::mayEmailService($customer))) {
-            // Nothing left to send: only sends are recorded.
-            $this->sent->forget($sentId);
+            // Nothing left to send: only sends are recorded. Retried from the failed jobs screen, it is no longer a failure.
+            $this->db->transaction(function () use ($broadcast, $id, $row, $sentId, $status): void {
+                $this->sent->forget($sentId);
+
+                if ($row !== null && $status === SendStatus::Failed) {
+                    $this->db->update("UPDATE {$this->table($broadcast)} SET failed_count = failed_count - 1 WHERE id = ?", [strtolower($id)]);
+                }
+            });
 
             return;
         }
