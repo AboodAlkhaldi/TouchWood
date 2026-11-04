@@ -1794,6 +1794,12 @@ Decide these when the owning module is reached; do not design them now.
   inventory:orderable:rebuild` once right after the migrations, so every wired store's sizes are told
   to Catalog as stock-dependent at once (a size with no stock row as 0, not orderable) and each store's
   Low Stock count is queued for a recount. Until it runs, the shop shows the old orderability.
+- **Out of stock and unpriced leave the shop** (owner, 2026-11-02, 2026-11-03; catalog.md amendment 39): the deploy
+  that brings it runs, once and in this order, `php artisan pricing:candidates:rebuild` (every price pushed to
+  Catalog), `php artisan inventory:orderable:rebuild` (every size told) and `php artisan catalog:listing:rebuild`, so
+  the rows written before it take them. **From then every size told not orderable, or with no price, is gone from
+  the lists at once, a size switched on with no stock row among them (it counts as 0)**: count and price a store
+  before opening it. A store with neither is an empty shop.
 - **The product import's queue** (Catalog step 6): the import's job may run up to 60 minutes, while
   the queue's `retry_after` is 90 s — a second worker would take a long import as failed while it
   still works (the data stays safe: the failure waits for the running job's lock). Give the job a

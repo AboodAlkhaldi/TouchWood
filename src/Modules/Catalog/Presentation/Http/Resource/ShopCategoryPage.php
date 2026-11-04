@@ -9,7 +9,8 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 /**
  * A category's page in the shop (catalog.md §4.5): the path to it, its name, its sub-categories,
- * its products 24 at a time, the filters and the sort.
+ * its products 24 at a time, the filters and the sort. `soldOut`: it lists nothing only for want of stock
+ * or a price (amendment 39).
  */
 #[TypeScript]
 final class ShopCategoryPage extends Data
@@ -31,5 +32,6 @@ final class ShopCategoryPage extends Data
         public ShopFiltersData $filters,
         public ShopAddressData $address,
         public array $cardFacts = [],
+        public bool $soldOut = false,
     ) {}
 }

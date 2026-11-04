@@ -365,6 +365,7 @@ products: ShopCardData[],
 next: string | null,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
+soldOut: boolean,
 };
 export type ShopCardData = {
 productId: string,
@@ -393,6 +394,7 @@ next: string | null,
 filters: ShopFiltersData,
 address: ShopAddressData,
 cardFacts: Record<string, Record<string, Record<string, any>>>,
+soldOut: boolean,
 };
 export type ShopChoiceData = {
 id: string,
@@ -493,6 +495,7 @@ widthMm: number | null,
 heightMm: number | null,
 price: MoneyData | null,
 priceBefore: MoneyData | null,
+orderable: boolean,
 };
 export type ShopWarrantyData = {
 name: string,

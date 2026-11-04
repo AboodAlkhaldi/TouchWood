@@ -262,6 +262,31 @@ final readonly class DatabaseApiReads implements ApiReads
             ->all()));
     }
 
+    public function productsOrderableNow(string $storeId, ShopperKind $viewer, array $productIds): array
+    {
+        $ids = self::ids($productIds);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        // The listing's rows, each language alike: one language's are enough. Who sees it as the shop's reads have it (DatabaseShopReader).
+        $seen = match ($viewer) {
+            ShopperKind::Individual => 'for_individuals',
+            ShopperKind::Company => 'for_companies',
+            ShopperKind::Guest => '(for_individuals OR for_companies)',
+        };
+
+        return array_values(array_map(strval(...), $this->db->table('catalog.listing')
+            ->where('store_id', strtolower($storeId))
+            ->where('locale', 'en')
+            ->where('orderable', true)
+            ->whereRaw($seen)
+            ->whereIn('product_id', $ids)
+            ->pluck('product_id')
+            ->all()));
+    }
+
     public function productCards(string $storeId, string $locale, array $productIds): array
     {
         $ids = self::ids($productIds);
