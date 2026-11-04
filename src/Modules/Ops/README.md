@@ -183,7 +183,7 @@ Each checked against the code on 2026-11-01.
 | Brevo on the live system | The adapters are built, every failure covered with faked answers (ops.md §7), and in production a web request or a worker refuses to boot on either `log` driver, or without a usable key and `MAIL_FROM_ADDRESS`, and logs loudly without `BREVO_NEWSLETTER_FOLDER_ID` or `BREVO_WEBHOOK_SECRET`, all the server's; other console commands are left alone; the webhook is made in Brevo, unbatched, with the secret as its custom header. Run `php artisan ops:brevo:check` once the key is in, and `php artisan queue:restart` after changing it. Not yet proven against the real Brevo | The owner, at hosting |
 | What to do about a lost unsubscribe, a long outage, a refused key on queued mail, a missing folder or secret at boot, staging's `APP_ENV` | ops.md §9.6: left as they are | The owner |
 | The words' full review | The reports' and unsubscribe pages' words are marked approved for now, the full review at the end (owner, 2026-10-31) | The owner |
-| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries and the two bells with their full pages are in; the rest have no page or menu entry yet | The screens agent |
+| The screens | Being built, one job at a time (ops.md §4.15): SMS Countries, the two bells with their full pages, Customer Messages and Offer Notices with their forms are in; the rest have no page or menu entry yet | The screens agent |
 
 ## Tests
 

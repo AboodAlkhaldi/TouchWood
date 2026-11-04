@@ -53,6 +53,8 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
     // (lib/kept-depth.ts).
     const [pages, setPages] = useState(kept?.pages ?? 1);
     const [loading, setLoading] = useState(false);
+    // How many "more" visits ended without their page (lib/kept-depth.ts stops asking on one).
+    const [failed, setFailed] = useState(0);
     const appending = useRef(false);
     // Which "more" visit is the latest, and whether one is out: a double click sends one.
     const latest = useRef(0);
@@ -151,6 +153,8 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
             preserveState: true,
             preserveScroll: true,
             preserveUrl: true,
+            // A page of rows says nothing about a refusal on screen: asked for right after one, it would wipe its words.
+            preserveErrors: true,
             onStart: () => setLoading(true),
             onSuccess: () => {
                 arrived = true;
@@ -163,10 +167,11 @@ export function useLoadMore<T>(items: T[], key: (item: T) => string, beside?: un
 
                 if (!arrived) {
                     gone();
+                    setFailed((before) => before + 1);
                 }
             },
         });
     }
 
-    return { rows, pages, loading, more };
+    return { rows, pages, loading, failed, more };
 }

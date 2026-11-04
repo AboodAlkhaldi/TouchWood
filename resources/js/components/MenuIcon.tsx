@@ -96,8 +96,10 @@ const ICONS = {
     // Payments' Gateway (payments.md §4.2).
     gateway: CreditCard,
     payments: CreditCard,
-    // Ops' SMS Countries (ops.md §4.15 O10).
+    // Ops' SMS Countries (ops.md §4.15 O10), and its notices and messages: icons the panel already draws.
     sms: Smartphone,
+    notices: Megaphone,
+    messages: MessageCircleQuestion,
 } as const;
 
 type Props = {
